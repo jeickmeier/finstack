@@ -16,10 +16,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import datetime as dt
-import html
 import os
 from pathlib import Path
-from typing import Any
 
 from . import format as fmt
 from .theme import Theme
@@ -108,19 +106,16 @@ class TearSheet:
     footer_left: str = ""
     footer_right: str = "finstack-quant"
 
-    def _esc(self, x: Any) -> str:
-        return html.escape(str(x))
-
     def _header_html(self) -> str:
         meta = list(self.meta_lines)
         if self.generated is not None:
             meta = [*meta, f"Generated {fmt.fmt_date(self.generated)}"]
-        meta_html = "<br>".join(self._esc(m) for m in meta)
-        sub = f'<div class="subtitle">{self._esc(self.subtitle)}</div>' if self.subtitle else ""
+        meta_html = "<br>".join(fmt._escape_html(m) for m in meta)
+        sub = f'<div class="subtitle">{fmt._escape_html(self.subtitle)}</div>' if self.subtitle else ""
         return (
             '<div class="head"><div>'
-            f'<div class="eyebrow">{self._esc(self.eyebrow)}</div>'
-            f'<div class="title">{self._esc(self.title)}</div>{sub}</div>'
+            f'<div class="eyebrow">{fmt._escape_html(self.eyebrow)}</div>'
+            f'<div class="title">{fmt._escape_html(self.title)}</div>{sub}</div>'
             f'<div class="meta">{meta_html}</div></div>'
         )
 
@@ -128,8 +123,8 @@ class TearSheet:
         if not self.kpis:
             return ""
         cells = "".join(
-            f'<div class="kpi"><div class="lbl">{self._esc(k.label)}</div>'
-            f'<div class="val {k.cls}">{self._esc(k.value)}</div></div>'
+            f'<div class="kpi"><div class="lbl">{fmt._escape_html(k.label)}</div>'
+            f'<div class="val {k.cls}">{fmt._escape_html(k.value)}</div></div>'
             for k in self.kpis
         )
         return f'<div class="kpis">{cells}</div>'
@@ -137,16 +132,16 @@ class TearSheet:
     def _sections_html(self) -> str:
         out = []
         for sec in self.sections:
-            out.append(f'<div class="secttl">{self._esc(sec.title)}</div>')
+            out.append(f'<div class="secttl">{fmt._escape_html(sec.title)}</div>')
             if sec.subtitle:
-                out.append(f'<p class="sub">{self._esc(sec.subtitle)}</p>')
+                out.append(f'<p class="sub">{fmt._escape_html(sec.subtitle)}</p>')
             out.append(sec.body)
         return "".join(out)
 
     def _footer_html(self) -> str:
         return (
-            f'<div class="foot"><span>{self._esc(self.footer_left)}</span>'
-            f"<span>{self._esc(self.footer_right)}</span></div>"
+            f'<div class="foot"><span>{fmt._escape_html(self.footer_left)}</span>'
+            f"<span>{fmt._escape_html(self.footer_right)}</span></div>"
         )
 
     def _body_fragment(self) -> str:
@@ -173,7 +168,7 @@ class TearSheet:
             "<!DOCTYPE html>\n"
             '<html lang="en"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width, initial-scale=1">'
-            f"<title>{self._esc(self.title)}</title>{self.theme.to_css(_SCOPE)}</head>"
+            f"<title>{fmt._escape_html(self.title)}</title>{self.theme.to_css(_SCOPE)}</head>"
             '<body style="margin:0;padding:24px;background:#e8e9ec;">'
             f"{self._body_fragment()}{_TOOLTIP_JS}</body></html>\n"
         )

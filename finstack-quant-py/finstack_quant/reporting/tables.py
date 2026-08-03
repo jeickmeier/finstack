@@ -11,17 +11,12 @@ Examples:
 from __future__ import annotations
 
 from collections.abc import Callable
-import html
 from typing import Any
 
-from . import charts
+from . import charts, format as fmt
 from .theme import Theme
 
 _MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
-
-def _esc(x: Any) -> str:
-    return html.escape(str(x))
 
 
 def scroll(inner_html: str) -> str:
@@ -77,7 +72,10 @@ def kv_table(rows: list[tuple[str, str, str]], *, theme: Theme) -> str:  # noqa:
     >>> callable(kv_table)
     True
     """
-    body = "".join(f'<tr><td class="k">{_esc(k)}</td><td class="v {cls}">{_esc(v)}</td></tr>' for k, v, cls in rows)
+    body = "".join(
+        f'<tr><td class="k">{fmt._escape_html(k)}</td><td class="v {cls}">{fmt._escape_html(v)}</td></tr>'
+        for k, v, cls in rows
+    )
     return f'<table class="kv"><tbody>{body}</tbody></table>'
 
 
@@ -122,13 +120,13 @@ def data_table(
     """
     formats = formats or {}
     neg_columns = neg_columns or set()
-    head = "".join(f"<th>{_esc(c)}</th>" for c in columns)
+    head = "".join(f"<th>{fmt._escape_html(c)}</th>" for c in columns)
     body_rows = []
     for row in rows:
         cells = []
         for c in columns:
             raw = row.get(c)
-            text = formats[c](raw) if c in formats and raw is not None else _esc(raw)
+            text = formats[c](raw) if c in formats and raw is not None else fmt._escape_html(raw)
             cls = "neg" if (c in neg_columns and isinstance(raw, (int, float)) and raw < 0) else ""
             cells.append(f'<td class="{cls}">{text}</td>')
         body_rows.append(f"<tr>{''.join(cells)}</tr>")

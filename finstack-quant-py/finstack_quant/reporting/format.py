@@ -13,10 +13,15 @@ Examples:
 
 from __future__ import annotations
 
+import html
 import math
 from typing import Any
 
 _PLACEHOLDER = "·"
+
+
+def _escape_html(x: Any) -> str:
+    return html.escape(str(x))
 
 
 def _missing(x: Any) -> bool:

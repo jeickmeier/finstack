@@ -15,16 +15,11 @@ Examples:
 from __future__ import annotations
 
 from collections.abc import Callable
-import html
 import json
 from typing import Any
 
 from . import format as fmt, tables
 from .theme import Theme
-
-
-def _esc(x: Any) -> str:
-    return html.escape(str(x))
 
 
 class StatementView:
@@ -228,10 +223,10 @@ def pl_matrix_table(
     >>> callable(pl_matrix_table)
     True
     """
-    head = "<th></th>" + "".join(f"<th>{_esc(p)}</th>" for p in periods)
+    head = "<th></th>" + "".join(f"<th>{fmt._escape_html(p)}</th>" for p in periods)
     body_rows: list[str] = []
     for label, node_id, formatter in rows:
-        cells = [f"<td>{_esc(label)}</td>"]
+        cells = [f"<td>{fmt._escape_html(label)}</td>"]
         cells.extend(f"<td>{formatter(view.get(node_id, p))}</td>" for p in periods)
         body_rows.append(f"<tr>{''.join(cells)}</tr>")
     return f'<table class="dd"><thead><tr>{head}</tr></thead><tbody>{"".join(body_rows)}</tbody></table>'

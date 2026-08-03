@@ -6,6 +6,12 @@ import datetime as dt
 from finstack_quant.reporting import format as fmt
 
 
+def test_escape_html_preserves_current_byte_encoding() -> None:
+    raw = """A & B <tag> "quoted" 'single'"""
+    assert fmt._escape_html(raw) == "A &amp; B &lt;tag&gt; &quot;quoted&quot; &#x27;single&#x27;"
+    assert fmt._escape_html(None) == "None"
+
+
 def test_pct_basic_and_signed() -> None:
     assert fmt.pct(0.132 * 100) == "13.2%"
     assert fmt.pct(0.132 * 100, signed=True) == "+13.2%"
