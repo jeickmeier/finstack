@@ -847,8 +847,8 @@ class PortfolioValuation:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -976,8 +976,8 @@ class PortfolioCashflows:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -1156,8 +1156,8 @@ class PortfolioResult:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -1283,8 +1283,8 @@ class PortfolioMetrics:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -3269,8 +3269,8 @@ class FactorContribution:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -3375,8 +3375,8 @@ class PositionFactorContribution:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -3472,8 +3472,8 @@ class PositionResidualContribution:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -3579,8 +3579,8 @@ class RiskDecomposition:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -3704,8 +3704,8 @@ class PositionVarContribution:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -3823,8 +3823,8 @@ class PositionEsContribution:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -3930,8 +3930,8 @@ class PositionRiskDecomposition:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -4079,8 +4079,8 @@ class PositionBudgetEntry:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -4196,8 +4196,8 @@ class RiskBudgetResult:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -4287,8 +4287,8 @@ class FactorContributionDelta:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -4383,8 +4383,8 @@ class WhatIfResult:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -4477,8 +4477,8 @@ class StressResult:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -4573,8 +4573,8 @@ class StressPositionEntry:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -4679,8 +4679,8 @@ class TailScenarioBreakdown:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -4777,8 +4777,8 @@ class StressAttribution:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -4895,8 +4895,8 @@ class PositionAssignment:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -4997,8 +4997,8 @@ class UnmatchedEntry:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -5080,8 +5080,8 @@ class FactorAssignmentReport:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -6526,8 +6526,8 @@ class PerPositionMetric:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -6770,8 +6770,8 @@ class PositionFilter:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -6898,8 +6898,8 @@ class MetricExpr:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -7016,8 +7016,8 @@ class Objective:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -7332,8 +7332,8 @@ class Constraint:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -7674,8 +7674,8 @@ class OptimizationStatus:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -7782,8 +7782,8 @@ class TradeSpec:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
@@ -8064,8 +8064,8 @@ class PortfolioOptimizationSpec:
 
         Raises
         ------
-        PortfolioError
-            If the JSON payload cannot be parsed or does not satisfy the `PortfolioError` schema and invariants.
+        ValueError
+            If the payload is malformed or cannot be deserialized into the documented portfolio type.
 
         Examples
         --------
