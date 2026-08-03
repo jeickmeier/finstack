@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 
 from finstack_quant.reporting import instrument as ins
 from finstack_quant.valuations.instruments import list_standard_metrics
@@ -189,16 +193,18 @@ def test_instrument_tearsheet_bond_with_definition_and_cashflows() -> None:
     assert "Maturity" in html  # definition table
 
 
-def test_instrument_tearsheet_unknown_section_raises() -> None:
+def test_instrument_tearsheet_unknown_section_raises_before_definition_parse() -> None:
     import datetime as dt
-
-    import pytest
 
     from finstack_quant.reporting import instrument_tearsheet
 
-    with pytest.raises(ValueError, match="unknown section") as exc_info:
+    with (
+        patch.object(ins, "_parse_definition_once", wraps=ins._parse_definition_once) as parse_definition,
+        pytest.raises(ValueError, match="unknown section") as exc_info,
+    ):
         instrument_tearsheet(
             _fake_bond_result(),
+            definition="{",
             sections=["zzz", "definition", "aaa", "zzz"],
             generated=dt.date(2026, 6, 19),
         )
@@ -207,6 +213,109 @@ def test_instrument_tearsheet_unknown_section_raises() -> None:
         "unknown section(s): ['aaa', 'zzz']; valid: "
         "['definition', 'valuation', 'keyrate', 'cashflows', 'schedule', 'payoff', 'survival', 'covenants']"
     )
+    parse_definition.assert_not_called()
+
+
+def test_invalid_definition_is_parsed_once_and_re_raises_exact_error() -> None:
+    import datetime as dt
+
+    from finstack_quant.reporting import instrument_tearsheet
+
+    raw = "{"
+    loads = ins.json.loads
+    with (
+        patch.object(ins.json, "loads", wraps=loads) as parse_json,
+        pytest.raises(json.JSONDecodeError) as exc_info,
+    ):
+        instrument_tearsheet(
+            _fake_bond_result(),
+            definition=raw,
+            sections=["definition"],
+            generated=dt.date(2026, 6, 19),
+        )
+
+    assert sum(call.args[0] == raw for call in parse_json.call_args_list) == 1
+    assert exc_info.value.doc == raw
+    assert exc_info.value.pos == 1
+    assert str(exc_info.value) == "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+
+
+def test_invalid_definition_json_preserves_section_gating() -> None:
+    import datetime as dt
+
+    from finstack_quant.reporting import instrument_tearsheet
+
+    generated = dt.date(2026, 6, 19)
+    nondependent = ["valuation", "keyrate", "cashflows", "schedule", "survival", "covenants"]
+    for sections in ([], ["valuation"], nondependent):
+        expected = instrument_tearsheet(
+            _fake_bond_result(), definition=None, sections=sections, generated=generated
+        ).to_html()
+        actual = instrument_tearsheet(
+            _fake_bond_result(), definition="{", sections=sections, generated=generated
+        ).to_html()
+        assert actual == expected
+
+    for sections in (["definition"], ["payoff"], ["payoff", "definition"]):
+        with pytest.raises(json.JSONDecodeError) as exc_info:
+            instrument_tearsheet(_fake_bond_result(), definition="{", sections=sections, generated=generated)
+        assert str(exc_info.value) == "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+
+    with pytest.raises(json.JSONDecodeError):
+        instrument_tearsheet(_fake_bond_result(), definition="{", generated=generated)
+
+
+@pytest.mark.parametrize(
+    ("definition", "type_name"),
+    [
+        pytest.param("null", "NoneType", id="json-null"),
+        pytest.param("[]", "list", id="json-list"),
+        pytest.param("true", "bool", id="json-bool"),
+        pytest.param("1", "int", id="json-int"),
+        pytest.param('"text"', "str", id="json-string"),
+        pytest.param([], "list", id="raw-list"),
+        pytest.param(1, "int", id="raw-int"),
+        pytest.param(object(), "object", id="raw-object"),
+    ],
+)
+def test_non_object_definitions_preserve_attribute_error_matrix(definition: object, type_name: str) -> None:
+    import datetime as dt
+
+    from finstack_quant.reporting import instrument_tearsheet
+
+    generated = dt.date(2026, 6, 19)
+    nondependent = ["valuation", "keyrate", "cashflows", "schedule", "survival", "covenants"]
+    for sections in ([], ["valuation"], nondependent):
+        expected = instrument_tearsheet(
+            _fake_bond_result(), definition=None, sections=sections, generated=generated
+        ).to_html()
+        actual = instrument_tearsheet(
+            _fake_bond_result(), definition=definition, sections=sections, generated=generated
+        ).to_html()
+        assert actual == expected
+    for sections in (["definition"], ["payoff"], ["payoff", "definition"]):
+        with pytest.raises(AttributeError) as exc_info:
+            instrument_tearsheet(_fake_bond_result(), definition=definition, sections=sections, generated=generated)
+        assert str(exc_info.value) == f"'{type_name}' object has no attribute 'get'"
+
+
+def test_raw_none_definition_remains_missing() -> None:
+    import datetime as dt
+
+    from finstack_quant.reporting import instrument_tearsheet
+
+    parsed, error = ins._parse_definition_once(None)
+    assert parsed is ins._MISSING_DEFINITION
+    assert error is None
+
+    html = instrument_tearsheet(
+        _fake_bond_result(),
+        definition=None,
+        sections=["definition", "payoff"],
+        generated=dt.date(2026, 6, 19),
+    ).to_html()
+    assert "Definition" not in html
+    assert "Payoff at Expiry" not in html
 
 
 def test_generic_kpis_skip_composite_keys() -> None:
@@ -278,6 +387,28 @@ def _bond_definition() -> dict:
             "discount_curve_id": "USD-OIS",
         },
     }
+
+
+def test_valid_definition_parses_once_and_preserves_exact_rendering() -> None:
+    import datetime as dt
+
+    from finstack_quant.reporting import instrument_tearsheet
+
+    definition = _bond_definition()
+    definition_json = json.dumps(definition)
+    generated = dt.date(2026, 6, 19)
+    loads = ins.json.loads
+    with patch.object(ins.json, "loads", wraps=loads) as parse_json:
+        dict_html = instrument_tearsheet(_fake_bond_result(), definition=definition, generated=generated).to_html()
+        json_html = instrument_tearsheet(_fake_bond_result(), definition=definition_json, generated=generated).to_html()
+
+    assert sum(call.args[0] == definition_json for call in parse_json.call_args_list) == 1
+    assert json_html == dict_html
+    assert len(dict_html.encode()) == 11258
+    assert (
+        hashlib.sha256(dict_html.encode()).hexdigest()
+        == "b7c99f3afd7e73641c15b60aaeb929d17f56723b58e70e654743be727c5bbca9"
+    )
 
 
 def _bond_golden_html() -> str:

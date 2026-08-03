@@ -383,6 +383,7 @@ def _cashflow_blocks(
 # ---------------------------------------------------------------------------
 
 ALL_SECTIONS = ["definition", "valuation", "keyrate", "cashflows", "schedule", "payoff", "survival", "covenants"]
+_MISSING_DEFINITION = object()
 
 # Headline KPI metric ids per type (label comes from _metric_cell).
 # Reconciliation: "default_probability" replaced with "default01" for CDS.
@@ -414,15 +415,15 @@ _ANALYTICS_GROUPS: dict[str, list[list[str]]] = {
 }
 
 
-def _instrument_type(definition: Any) -> str:
+def _parse_definition_once(definition: Any) -> tuple[Any, json.JSONDecodeError | None]:
     if definition is None:
-        return ""
-    if isinstance(definition, str):
-        try:
-            definition = json.loads(definition)
-        except json.JSONDecodeError:
-            return ""
-    return definition.get("type", "") if isinstance(definition, dict) else ""
+        return _MISSING_DEFINITION, None
+    if not isinstance(definition, str):
+        return definition, None
+    try:
+        return json.loads(definition), None
+    except json.JSONDecodeError as error:
+        return definition, error
 
 
 def _kpis(result: Any, itype: str) -> list[KPI]:
@@ -461,11 +462,11 @@ def _analytics_section(result: Any, itype: str) -> Section:
     return Section("Valuation & Analytics", f'<div class="statgrid">{cols_html}</div>')
 
 
-def _definition_section(definition: Any) -> Section | None:
-    if definition is None:
+def _definition_section(definition: Any, definition_error: json.JSONDecodeError | None) -> Section | None:
+    if definition is _MISSING_DEFINITION:
         return None
-    if isinstance(definition, str):
-        definition = json.loads(definition)
+    if definition_error is not None:
+        raise definition_error
     cols = _definition_terms(definition)
     cols_html = "".join(tables.kv_table([(k, v, "") for k, v in col]) for col in cols if col)
     return Section("Definition", f'<div class="statgrid">{cols_html}</div>')
@@ -505,11 +506,16 @@ def _cashflow_sections(cashflows: Any, theme: Theme) -> list[Section]:
     return out
 
 
-def _payoff_section(definition: Any, _result: Any, theme: Theme) -> Section | None:
-    if definition is None:
+def _payoff_section(
+    definition: Any,
+    definition_error: json.JSONDecodeError | None,
+    _result: Any,
+    theme: Theme,
+) -> Section | None:
+    if definition is _MISSING_DEFINITION:
         return None
-    if isinstance(definition, str):
-        definition = json.loads(definition)
+    if definition_error is not None:
+        raise definition_error
     if definition.get("type") != "equity_option":
         return None
     spec = definition.get("spec", {})
@@ -581,6 +587,7 @@ def _build_sections(
     result: Any,
     cashflows: Any,
     definition: Any,
+    definition_error: json.JSONDecodeError | None,
     parsed: dict[str, Any],
     itype: str,
     wanted: list[str],
@@ -588,7 +595,7 @@ def _build_sections(
 ) -> list[Section]:
     """Dispatch section builders and collect the ordered list of Section objects."""
     secs: list[Section] = []
-    if "definition" in wanted and (s := _definition_section(definition)):
+    if "definition" in wanted and (s := _definition_section(definition, definition_error)):
         secs.append(s)
     if "valuation" in wanted:
         secs.append(_analytics_section(result, itype))
@@ -596,7 +603,7 @@ def _build_sections(
         secs.append(s)
     if "keyrate" in wanted and (s := _keyrate_section(result, itype, theme)):
         secs.append(s)
-    if "payoff" in wanted and (s := _payoff_section(definition, result, theme)):
+    if "payoff" in wanted and (s := _payoff_section(definition, definition_error, result, theme)):
         secs.append(s)
     if "cashflows" in wanted or "schedule" in wanted:
         secs.extend(
@@ -732,9 +739,10 @@ def instrument_tearsheet(
     wanted = _resolve_sections(sections, ALL_SECTIONS, valid_label="valid")
 
     parsed = _parse_result(result)
-    itype = _instrument_type(definition)
+    definition, definition_error = _parse_definition_once(definition)
+    itype = definition.get("type", "") if isinstance(definition, dict) else ""
 
-    secs = _build_sections(result, cashflows, definition, parsed, itype, wanted, theme)
+    secs = _build_sections(result, cashflows, definition, definition_error, parsed, itype, wanted, theme)
 
     as_of = parsed.get("as_of") or ""
     type_label = itype.replace("_", " ").title() if itype else "Instrument"
