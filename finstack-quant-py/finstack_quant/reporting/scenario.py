@@ -22,7 +22,7 @@ import datetime as dt
 from typing import Any
 
 from . import charts, format as fmt
-from .document import KPI, Section, TearSheet
+from .document import KPI, Section, TearSheet, _resolve_sections
 from .statements_common import _section_variance
 from .theme import INSTITUTIONAL, Theme
 
@@ -138,10 +138,7 @@ def scenario_tearsheet(
     >>> callable(scenario_tearsheet)
     True
     """
-    wanted = sections if sections is not None else ALL_SECTIONS
-    unknown = set(wanted) - set(ALL_SECTIONS)
-    if unknown:
-        raise ValueError(f"unknown section(s): {sorted(unknown)}; valid sections: {ALL_SECTIONS}")
+    wanted = _resolve_sections(sections, ALL_SECTIONS)
 
     secs: list[Section] = []
     if "tornado" in wanted and (s := _section_tornado(tornado, theme)) is not None:
