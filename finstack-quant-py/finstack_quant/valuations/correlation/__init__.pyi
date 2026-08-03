@@ -124,11 +124,6 @@ class CopulaSpec:
         CopulaSpec
             RFL copula specification.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import CopulaSpec
@@ -151,11 +146,6 @@ class CopulaSpec:
         -------
         CopulaSpec
             Multi-factor copula specification.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -279,7 +269,10 @@ class Copula:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If the factor vector length differs from the copula factor count;
+            if the threshold, correlation, or any factor is non-finite; if
+            correlation is outside ``[0, 1]``; or if the computed probability
+            is non-finite or outside ``[0, 1]``.
         """
         ...
 
@@ -326,11 +319,6 @@ class Copula:
         -------
         float
             The strict ``λ_L``, or ``nan`` if the model has no closed form.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -397,11 +385,6 @@ class CreditExposure:
         factor_loadings : Sequence[float]
             Systematic-factor sensitivities aligned with the selected copula's
             factor dimensions.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
     @property
@@ -510,11 +493,6 @@ class PortfolioLossConfig:
             ``(0, 1)``.
         copula : CopulaSpec
             Dependence model and factor configuration for correlated defaults.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
     @property
@@ -897,7 +875,7 @@ class RecoverySpec:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``rate`` is non-finite or outside ``[0, 1]``.
 
         Examples
         --------
@@ -929,7 +907,9 @@ class RecoverySpec:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``mean`` is non-finite or outside ``[0, 1]``, or if ``vol`` or
+            ``correlation`` is non-finite. Finite volatility and correlation
+            values are clamped to their supported ranges.
 
         Examples
         --------
@@ -1028,11 +1008,6 @@ class RecoveryModel:
         -------
         float
             Conditional recovery rate.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1061,11 +1036,6 @@ class RecoveryModel:
         -------
         float
             Conditional LGD.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1141,11 +1111,6 @@ class LatentFactorSpec:
         LatentFactorSpec
             Single-factor specification.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import LatentFactorSpec
@@ -1172,11 +1137,6 @@ class LatentFactorSpec:
         -------
         LatentFactorSpec
             Two-factor specification.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -1303,11 +1263,6 @@ class LatentFactorKind:
         -------
         float
             Factor contribution.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1339,11 +1294,6 @@ class LatentSingleFactor:
             Factor volatility.
         mean_reversion : float
             Mean reversion speed.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1413,11 +1363,6 @@ class LatentTwoFactor:
             Credit factor volatility.
         correlation : float
             Inter-factor correlation.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1592,11 +1537,6 @@ class LatentMultiFactor:
         -------
         LatentMultiFactor
             Uncorrelated factor model.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -1894,7 +1834,13 @@ def simulate_portfolio_loss(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If the path count or confidence level is invalid; the copula is not a
+        supported Gaussian or Student-t model; exposure identifiers are blank
+        or duplicated; notionals, probabilities, LGDs, or factor loadings are
+        non-finite or outside their supported ranges; factor-loading dimensions
+        differ or a loading norm exceeds one; conditional recovery is requested
+        without exactly one systematic factor; or simulation cannot produce
+        finite loss statistics.
 
     Examples
     --------

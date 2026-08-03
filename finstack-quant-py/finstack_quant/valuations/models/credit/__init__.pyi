@@ -174,11 +174,6 @@ class MertonModel:
         -------
         float
             Distance-to-default statistic (standard-deviation units).
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -195,11 +190,6 @@ class MertonModel:
         -------
         float
             Default probability in ``[0, 1]``.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -321,11 +311,6 @@ class DynamicRecoverySpec:
         -------
         float
             Recovery rate as a decimal.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -428,11 +413,6 @@ class EndogenousHazardSpec:
         -------
         float
             Annualized hazard rate as a decimal.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -455,11 +435,6 @@ class EndogenousHazardSpec:
         -------
         float
             Updated annualized hazard rate as a decimal.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -500,11 +475,6 @@ class CreditState:
             Coupon amount due at the decision date. Default ``0.0``.
         asset_value : float, optional
             Firm asset value for structural/toggle models.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -595,11 +565,6 @@ class ToggleExerciseModel:
         -------
         ToggleExerciseModel
             Optimal exercise specification.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------

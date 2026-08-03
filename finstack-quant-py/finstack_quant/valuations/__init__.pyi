@@ -264,11 +264,6 @@ class ValuationResult:
         ...     '{"instrument_id":"i","value":{"amount":1,"currency":"USD"},"measures":{}}'
         ... )  # doctest: +SKIP
         >>> vr.get_metric("ytm")  # doctest: +SKIP
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -292,11 +287,6 @@ class ValuationResult:
         -------
         list[tuple[list[str], float]]
             Result of metric series for this `ValuationResult` in the annotated representation.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -444,8 +434,19 @@ def instrument_cashflows(
 
         Raises
         ------
+        TypeError
+            If ``instrument_json`` is neither a supported typed instrument nor
+            a JSON string, or ``market`` is neither a ``MarketContext`` nor a
+            JSON string.
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If instrument or market JSON is malformed, ``as_of`` or ``model``
+            is invalid, the instrument/model pair is unsupported, or the
+            generated cashflow schedule fails validation.
+        KeyError
+            If a curve, fixing, or other market datum required for cashflow
+            generation or pricing is missing.
+        RuntimeError
+            If native pricing reports an internal, calibration, or solver failure.
 
         Examples
         --------
@@ -884,7 +885,7 @@ def bs_price(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If the supplied inputs produce a non-finite Black-Scholes price.
 
     Examples
     --------
@@ -939,7 +940,9 @@ def bs_greeks(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If any numeric input is non-finite; ``spot`` or ``strike`` is
+        non-positive; ``sigma``, ``t``, or ``theta_days`` is non-positive; or
+        a computed Greek is non-finite.
 
     Examples
     --------
@@ -1089,7 +1092,8 @@ def barrier_call(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``direction`` is not ``"up"`` or ``"down"``, ``knock`` is not
+        ``"in"`` or ``"out"``, or the formula produces a non-finite price.
 
     Examples
     --------
@@ -1142,7 +1146,8 @@ def asian_option_price(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``averaging`` is not ``"arithmetic"`` or ``"geometric"``, or the
+        formula produces a non-finite price.
 
     Examples
     --------
@@ -1198,7 +1203,8 @@ def lookback_option_price(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``strike_type`` is not ``"fixed"`` or ``"floating"``, or the
+        formula produces a non-finite price.
 
     Examples
     --------
@@ -1254,7 +1260,7 @@ def quanto_option_price(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If the supplied inputs produce a non-finite quanto price.
 
     Examples
     --------
@@ -1310,7 +1316,9 @@ class SabrParameters:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If any parameter is non-finite; ``alpha`` is non-positive;
+            ``beta`` is outside ``[0, 1]``; ``nu`` is negative; ``rho`` is
+            outside ``[-1, 1]``; or a supplied ``shift`` is non-positive.
         """
         ...
     @staticmethod
@@ -1473,7 +1481,10 @@ class SabrModel:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If an input is non-finite, ``t`` is non-positive, unshifted
+            non-normal SABR receives a non-positive forward or strike, shifted
+            SABR has a non-positive effective forward or strike, or the
+            calculation produces an invalid volatility.
         """
         ...
 
@@ -1529,11 +1540,6 @@ class SabrSmile:
             Forward price at expiry.
         t : float
             Time to expiry in years.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1565,7 +1571,10 @@ class SabrSmile:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If the stored forward, ``strike``, or expiry is outside the model's
+            valid domain, or the calculation produces an invalid volatility.
+        RuntimeError
+            If the native smile calculation returns no value for ``strike``.
         """
         ...
 
@@ -1586,7 +1595,8 @@ class SabrSmile:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If the stored forward, any supplied strike, or expiry is outside
+            the model's valid domain, or a volatility calculation is invalid.
         """
         ...
 
@@ -1620,7 +1630,8 @@ class SabrSmile:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If the stored forward, a strike, or expiry is outside the model's
+            valid domain, or smile generation produces an invalid volatility.
         """
         ...
 
@@ -1672,11 +1683,6 @@ class SabrCalibrator:
         -------
         SabrCalibrator
             New calibrator instance sharing other settings.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1796,7 +1802,8 @@ def bs_cos_price(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If the inputs produce an invalid COS truncation range, a non-finite
+        characteristic-function value, or a non-finite option price.
 
     Examples
     --------
@@ -1852,7 +1859,9 @@ def vg_cos_price(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If the Variance Gamma parameters produce an invalid COS truncation
+        range, a non-finite characteristic-function value, or a non-finite
+        option price.
 
     Examples
     --------
@@ -1911,7 +1920,9 @@ def merton_jump_cos_price(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If the jump-diffusion parameters produce an invalid COS truncation
+        range, a non-finite characteristic-function value, or a non-finite
+        option price.
 
     Examples
     --------
@@ -1963,7 +1974,9 @@ def tarn_coupon_profile(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``fixed_rate`` or a fixing is non-finite; ``coupon_floor`` is
+        non-finite or negative; or ``target_coupon`` or
+        ``day_count_fraction`` is non-finite or non-positive.
 
     Examples
     --------
@@ -2013,7 +2026,10 @@ def snowball_coupon_profile(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``fixed_rate``, ``initial_coupon``, ``floor``, or a fixing is
+        non-finite; ``initial_coupon`` or ``floor`` is negative; or ``cap`` is
+        NaN or is not strictly greater than ``floor``. Positive infinity is
+        accepted as an uncapped ``cap``.
 
     Examples
     --------
@@ -2056,7 +2072,10 @@ def inverse_floater_coupon_profile(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``fixed_rate``, ``floor``, ``leverage``, or a fixing is non-finite;
+        ``floor`` is negative; ``leverage`` is non-positive; or ``cap`` is NaN
+        or is not strictly greater than ``floor``. Positive infinity is
+        accepted as an uncapped ``cap``.
 
     Examples
     --------
@@ -2104,7 +2123,8 @@ def cms_spread_option_intrinsic(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If a CMS rate or ``strike`` is non-finite, or ``notional`` is
+        non-finite or negative.
 
     Examples
     --------
@@ -2152,7 +2172,9 @@ def callable_range_accrual_accrued(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``lower`` or ``upper`` is non-finite or ``lower >= upper``;
+        ``observations`` is empty or contains a non-finite value; or
+        ``coupon_rate`` or ``day_count_fraction`` is non-finite or negative.
 
     Examples
     --------
