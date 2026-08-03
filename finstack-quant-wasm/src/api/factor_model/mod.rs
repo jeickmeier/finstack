@@ -130,6 +130,10 @@ impl JsCreditFactorModel {
     }
 
     /// Serialize this model to pretty-printed JSON.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if the model cannot be serialized to JSON.
     #[wasm_bindgen(js_name = toJson)]
     pub fn to_json(&self) -> Result<String, JsValue> {
         serde_json::to_string_pretty(&self.inner).map_err(to_js_err)

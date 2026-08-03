@@ -86,6 +86,11 @@ impl JsDayCountContext {
     /// `start >= end`.
     /// @param start_epoch_days - Reference coupon-period start as days since 1970-01-01.
     /// @param end_epoch_days - Reference coupon-period end as days since 1970-01-01.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if either epoch-day value is outside the
+    /// representable date range or the start is not strictly before the end.
     #[wasm_bindgen(js_name = withCouponPeriod)]
     pub fn with_coupon_period(
         &self,
@@ -272,6 +277,13 @@ impl JsDayCount {
     /// Compute a signed year fraction, preserving the start/end orientation.
     /// @param start_epoch_days - Start date as days since 1970-01-01.
     /// @param end_epoch_days - End date as days since 1970-01-01.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if either epoch-day value is outside the
+    /// representable date range or the selected convention requires calendar or
+    /// coupon-frequency context. Use `yearFractionWithContext` for Bus/252 and
+    /// Act/Act ISMA.
     #[wasm_bindgen(js_name = signedYearFraction)]
     pub fn signed_year_fraction(
         &self,
@@ -289,6 +301,13 @@ impl JsDayCount {
     /// @param start_epoch_days - Start date as days since 1970-01-01.
     /// @param end_epoch_days - End date as days since 1970-01-01.
     /// @param ctx - DayCountContext supplying calendar, frequency, coupon-period, and termination metadata.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if either epoch-day value is outside the
+    /// representable date range, the start is after the end, the context names an
+    /// unknown calendar, or the selected convention's required context is missing
+    /// or invalid.
     #[wasm_bindgen(js_name = yearFractionWithContext)]
     pub fn year_fraction_with_context(
         &self,
@@ -306,6 +325,11 @@ impl JsDayCount {
     /// Count the calendar days between two dates (epoch days).
     /// @param start_epoch_days - Start date as days since 1970-01-01.
     /// @param end_epoch_days - End date as days since 1970-01-01.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if either epoch-day value is outside the
+    /// representable date range.
     #[wasm_bindgen(js_name = calendarDays)]
     pub fn calendar_days(
         &self,
@@ -443,6 +467,11 @@ impl JsTenor {
 /// @param year - Four-digit calendar year component of the supplied date.
 /// @param month - Calendar month number from 1 through 12.
 /// @param day - Calendar day number within the selected month.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `month` is outside `1..=12` or the supplied
+/// year, month, and day do not form a representable calendar date.
 #[wasm_bindgen(js_name = createDate)]
 pub fn create_date(year: i32, month: u8, day: u8) -> Result<i32, JsValue> {
     let m = time::Month::try_from(month).map_err(to_js_err)?;
@@ -452,6 +481,11 @@ pub fn create_date(year: i32, month: u8, day: u8) -> Result<i32, JsValue> {
 
 /// Convert epoch days back to `[year, month, day]` as a JS array-compatible triple.
 /// @param days - Number of days since 1970-01-01 to decompose into year, month, and day.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `days` is outside the representable date
+/// range.
 #[wasm_bindgen(js_name = dateFromEpochDays)]
 pub fn date_from_epoch_days(days: i32) -> Result<Vec<i32>, JsValue> {
     let date = finstack_quant_core::dates::date_from_epoch_days(days)
@@ -465,6 +499,12 @@ pub fn date_from_epoch_days(days: i32) -> Result<Vec<i32>, JsValue> {
 /// @param epoch_days - Unadjusted date as days since 1970-01-01.
 /// @param convention - Business-day adjustment convention string accepted by the date API.
 /// @param calendar_code - Registered holiday-calendar identifier used to find business days.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `epochDays` is outside the representable date
+/// range, `convention` is unrecognized, `calendarCode` is unknown, or adjustment
+/// cannot produce a representable business date.
 #[wasm_bindgen(js_name = adjust)]
 pub fn adjust(epoch_days: i32, convention: &str, calendar_code: &str) -> Result<i32, JsValue> {
     let date = epoch_to_date(epoch_days)?;

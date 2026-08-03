@@ -23,6 +23,12 @@ use wasm_bindgen::prelude::*;
 /// @param consentFee - Cash consent or early-tender fee paid to participating holders, in the same unit as oldPv.
 /// @param equitySweetenerValue - Estimated value of equity or warrants attached to the new instrument, in the same unit as oldPv.
 /// @param exchangeType - Offer structure: par_for_par (alias par), discount, uptier, or downtier.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `exchangeType` is unrecognized, any monetary
+/// input is negative or non-finite, or the result cannot be converted to a
+/// JavaScript object.
 #[wasm_bindgen(js_name = analyzeExchangeOffer)]
 pub fn analyze_exchange_offer(
     old_pv: f64,
@@ -53,6 +59,15 @@ pub fn analyze_exchange_offer(
 /// @param repurchasePricePct - Price as a fraction of par for repurchases and tenders, the extension fee for amend-and-extend, or the transferred-asset fraction for a dropdown.
 /// @param optAcceptancePct - Fraction of holders participating, in [0, 1].
 /// @param ebitda - EBITDA in the same unit as notional; a positive value adds the leverage_impact block, null or non-positive omits it.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `lmeType` is unrecognized, `notional` is
+/// non-positive or non-finite, `optAcceptancePct` is outside `[0, 1]`, or
+/// `repurchasePricePct` is outside the range accepted for the selected LME type:
+/// `(0, 1.5]` for repurchases and tenders, `[0, 0.1]` for amend-and-extend, and
+/// `[0, 1]` for dropdowns. It also throws if the result cannot be converted to a
+/// JavaScript object.
 #[wasm_bindgen(js_name = analyzeLme)]
 pub fn analyze_lme(
     lme_type: &str,

@@ -5,6 +5,12 @@ use wasm_bindgen::prelude::*;
 
 /// Validate and canonicalize a covenant spec JSON string.
 /// @param spec_json - JSON-serialized covenant specification to validate.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `specJson` is malformed, does not match the
+/// covenant-spec schema, violates covenant threshold or frequency invariants, or
+/// cannot be serialized to canonical JSON.
 #[wasm_bindgen(js_name = validateCovenantSpec)]
 pub fn validate_covenant_spec(spec_json: &str) -> Result<String, JsValue> {
     finstack_quant_covenants::validate_covenant_spec_json(spec_json).map_err(to_js_err)
@@ -12,6 +18,11 @@ pub fn validate_covenant_spec(spec_json: &str) -> Result<String, JsValue> {
 
 /// Validate and canonicalize a covenant report JSON string.
 /// @param report_json - JSON-serialized covenant evaluation report to validate.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `reportJson` is malformed, does not match the
+/// covenant-report schema, or cannot be serialized to canonical JSON.
 #[wasm_bindgen(js_name = validateCovenantReport)]
 pub fn validate_covenant_report(report_json: &str) -> Result<String, JsValue> {
     finstack_quant_covenants::validate_covenant_report_json(report_json).map_err(to_js_err)
@@ -19,6 +30,12 @@ pub fn validate_covenant_report(report_json: &str) -> Result<String, JsValue> {
 
 /// Validate and canonicalize a covenant engine JSON string.
 /// @param engine_json - JSON-serialized covenant engine and its covenant definitions.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `engineJson` is malformed, does not match the
+/// covenant-engine schema, contains an invalid covenant package, violates engine
+/// invariants, or cannot be serialized to canonical JSON.
 #[wasm_bindgen(js_name = validateCovenantEngine)]
 pub fn validate_covenant_engine(engine_json: &str) -> Result<String, JsValue> {
     finstack_quant_covenants::validate_covenant_engine_json(engine_json).map_err(to_js_err)
@@ -28,6 +45,13 @@ pub fn validate_covenant_engine(engine_json: &str) -> Result<String, JsValue> {
 /// @param engine_json - JSON-serialized covenant engine and its covenant definitions.
 /// @param metrics_json - JSON object of financial metrics referenced by the covenant engine.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if either JSON input is malformed or has the
+/// wrong schema, a metric is non-numeric, `asOf` is not a valid ISO date, the
+/// engine or required metrics fail validation, or the report cannot be
+/// serialized.
 #[wasm_bindgen(js_name = evaluateEngine)]
 pub fn evaluate_engine(
     engine_json: &str,
@@ -43,6 +67,11 @@ pub fn evaluate_engine(
 /// @param interest_coverage - Minimum EBITDA-to-cash-interest coverage ratio.
 /// @param fixed_charge_coverage - Minimum EBITDA-to-fixed-charges coverage ratio.
 /// @param max_capex - Maximum capital expenditure amount or ratio in the covenant convention.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the generated covenant package cannot be
+/// serialized to JSON.
 #[wasm_bindgen(js_name = lboStandard)]
 pub fn lbo_standard(
     initial_leverage: f64,
@@ -62,6 +91,11 @@ pub fn lbo_standard(
 /// Covenant-lite package as JSON.
 /// @param max_leverage - Maximum total debt-to-EBITDA leverage ratio.
 /// @param max_senior_leverage - Maximum senior-debt-to-EBITDA leverage ratio.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the generated covenant package cannot be
+/// serialized to JSON.
 #[wasm_bindgen(js_name = covLite)]
 pub fn cov_lite(max_leverage: f64, max_senior_leverage: f64) -> Result<String, JsValue> {
     finstack_quant_covenants::cov_lite_json(max_leverage, max_senior_leverage).map_err(to_js_err)
@@ -71,6 +105,11 @@ pub fn cov_lite(max_leverage: f64, max_senior_leverage: f64) -> Result<String, J
 /// @param min_dscr - Minimum debt-service coverage ratio.
 /// @param min_debt_yield - Minimum net-operating-income debt yield expressed as a decimal.
 /// @param max_ltv - Maximum loan-to-value ratio expressed as a decimal.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the generated covenant package cannot be
+/// serialized to JSON.
 #[wasm_bindgen(js_name = realEstate)]
 pub fn real_estate(min_dscr: f64, min_debt_yield: f64, max_ltv: f64) -> Result<String, JsValue> {
     finstack_quant_covenants::real_estate_json(min_dscr, min_debt_yield, max_ltv).map_err(to_js_err)
@@ -81,6 +120,11 @@ pub fn real_estate(min_dscr: f64, min_debt_yield: f64, max_ltv: f64) -> Result<S
 /// @param distribution_lockup_dscr - DSCR threshold below which borrower distributions are locked up.
 /// @param min_liquidity - Minimum required liquidity reserve in the model's monetary units.
 /// @param max_net_leverage - Maximum net-debt-to-EBITDA leverage ratio.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the generated covenant package cannot be
+/// serialized to JSON.
 #[wasm_bindgen(js_name = projectFinance)]
 pub fn project_finance(
     min_dscr: f64,

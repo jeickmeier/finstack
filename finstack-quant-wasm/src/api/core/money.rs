@@ -90,6 +90,12 @@ impl JsMoney {
     /// Convert using an already-resolved positive FX rate.
     /// @param target - Target Currency for the converted monetary amount.
     /// @param rate - FX conversion rate expressed as target-currency units per source-currency unit.
+    ///
+    /// # Errors
+    ///
+    /// For a different target currency, throws a JavaScript exception if `rate`
+    /// is non-finite or not strictly positive, or if the converted amount cannot
+    /// be represented as a decimal.
     #[wasm_bindgen(js_name = convertAtRate)]
     pub fn convert_at_rate(&self, target: &JsCurrency, rate: f64) -> Result<JsMoney, JsValue> {
         self.inner

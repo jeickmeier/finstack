@@ -154,6 +154,12 @@ impl JsDiscountCurve {
     /// @param id - Stable identifier used to name and retrieve the supplied domain object.
     /// @param base_date - ISO-8601 curve base date from which time coordinates are measured.
     /// @param continuous_rate - Flat continuously compounded zero rate expressed as a decimal.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if `baseDate` is not a valid ISO date,
+    /// `continuousRate` is non-finite, or the implied discount factors are not
+    /// finite and strictly positive.
     #[wasm_bindgen(js_name = flat)]
     pub fn flat(
         id: &str,
@@ -182,6 +188,12 @@ impl JsDiscountCurve {
     /// Continuously-compounded forward rate between `t1` and `t2`.
     /// @param t1 - Earlier curve time in years used as the start of the forward interval.
     /// @param t2 - Later curve time in years used as the end of the forward interval.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if either time is non-finite, `t2` is not
+    /// later than `t1`, the interval is shorter than the curve's minimum forward
+    /// tenor, or either endpoint discount factor is non-finite or non-positive.
     #[wasm_bindgen(js_name = forward)]
     pub fn forward(&self, t1: f64, t2: f64) -> Result<f64, JsValue> {
         self.inner.forward(t1, t2).map_err(to_js_err)
@@ -400,6 +412,13 @@ impl JsForwardCurve {
     /// * `projectionGrid` - Optional contractual reset/end boundaries.
     /// * `resetLag` - Optional fixing-to-spot lag in business days; omit for
     ///   Rust curve-ID inference.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if `baseDate`, `dayCount`, `interp`, or
+    /// `extrapolation` is invalid; `knots` has odd length; or canonical curve
+    /// validation rejects the tenor, reset lag, knots, projection grid, or
+    /// interpolation inputs.
     #[wasm_bindgen(constructor)]
     #[expect(
         clippy::too_many_arguments,
@@ -431,6 +450,12 @@ impl JsForwardCurve {
 
     /// Construct from a named JavaScript options object.
     /// @param options - JavaScript options object defining the requested curve construction inputs.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if `options` does not match the documented
+    /// object shape or any contained date, convention, knot, tenor, reset-lag,
+    /// projection-grid, or interpolation input fails canonical curve validation.
     #[wasm_bindgen(js_name = fromOptions)]
     pub fn from_options(options: JsValue) -> Result<JsForwardCurve, JsValue> {
         let options = serde_wasm_bindgen::from_value(options).map_err(to_js_err)?;
@@ -447,6 +472,12 @@ impl JsForwardCurve {
     /// Discount-factor-implied simple forward over `(t1, t2)`.
     /// @param t1 - Earlier curve time in years used as the start of the forward interval.
     /// @param t2 - Later curve time in years used as the end of the forward interval.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if either time is non-finite, `t2` is not
+    /// later than `t1`, a projection discount factor cannot be computed, or the
+    /// implied rate is non-finite.
     #[wasm_bindgen(js_name = rateBetween)]
     pub fn rate_between(&self, t1: f64, t2: f64) -> Result<f64, JsValue> {
         self.inner.rate_between(t1, t2).map_err(to_js_err)
@@ -526,6 +557,11 @@ impl JsFxConversionPolicy {
 
     /// Parse from a string label such as ``\"cashflow_date\"``.
     /// @param name - Name supplied to from name; follow the type and convention required by the surrounding API.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception unless `name` is `cashflow_date`,
+    /// `period_end`, `period_average`, or `custom`.
     #[wasm_bindgen(js_name = fromName)]
     pub fn from_name(name: &str) -> Result<Self, JsValue> {
         Ok(Self {
@@ -595,6 +631,11 @@ impl JsFxMatrix {
     /// * `base` - Base (from) currency ISO code.
     /// * `quote` - Quote (to) currency ISO code.
     /// * `rate` - Conversion rate.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if either currency code is invalid or
+    /// `rate` is non-finite or not strictly positive.
     #[wasm_bindgen(js_name = setQuote)]
     pub fn set_quote(&self, base: &str, quote: &str, rate: f64) -> Result<(), JsValue> {
         let base_currency: RustCurrency = base.parse().map_err(to_js_err)?;
@@ -611,6 +652,11 @@ impl JsFxMatrix {
     /// @param date - ISO-8601 date used by the calculation or market-data lookup.
     /// @param policy - FX quote-selection policy for resolving direct, inverse, or triangulated rates.
     /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if either currency code is invalid, `date`
+    /// is not a valid ISO date, or `rate` is non-finite or not strictly positive.
     #[wasm_bindgen(js_name = setQuoteOn)]
     pub fn set_quote_on(
         &self,
@@ -635,6 +681,12 @@ impl JsFxMatrix {
     /// * `quote` - Quote (to) currency ISO code.
     /// * `date` - ISO date string.
     /// * `policy` - Reusable conversion policy handle.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if either currency code or `date` is invalid,
+    /// no direct, inverse, or triangulated quote is available, or a resolved quote
+    /// is non-finite or non-positive.
     pub fn rate(
         &self,
         base: &str,
@@ -654,6 +706,12 @@ impl JsFxMatrix {
     /// @param base - Base currency code of the FX quote, where the rate is quote per base.
     /// @param quote - Quote currency code of the FX rate, expressed per unit of base currency.
     /// @param date - ISO-8601 date used by the calculation or market-data lookup.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if either currency code or `date` is invalid,
+    /// no direct, inverse, or triangulated cashflow-date quote is available, or a
+    /// resolved quote is non-finite or non-positive.
     #[wasm_bindgen(js_name = rateDefault)]
     pub fn rate_default(
         &self,
@@ -705,6 +763,14 @@ impl JsVolCube {
     ///   Pass `NaN` for the shift element of a node to omit the shift.
     /// * `forwards` - Row-major forward rates, one per grid node.
     /// @param interpolation_mode - Volatility-surface interpolation mode used between quoted points.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if an axis is empty, non-finite,
+    /// non-positive, or not strictly increasing; the parameter or forward array
+    /// has the wrong length; a forward is non-finite; any SABR node has invalid
+    /// alpha, beta, rho, nu, or shift; or `interpolationMode` is neither `vol`
+    /// nor `total_variance`.
     #[wasm_bindgen(constructor)]
     pub fn new(
         id: &str,
@@ -760,6 +826,13 @@ impl JsVolCube {
     /// @param expiry - Time to option expiry in years on the model's annual time basis.
     /// @param tenor - Underlying swap or index tenor measured in years for the quoted surface point.
     /// @param strike - Option strike price in the same price units as the underlying.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if `expiry` or `tenor` is outside the cube
+    /// grid, `strike` is non-finite, the shifted-lognormal SABR domain is invalid,
+    /// or the interpolated volatility or total variance is non-finite or
+    /// non-positive.
     pub fn vol(&self, expiry: f64, tenor: f64, strike: f64) -> Result<f64, JsValue> {
         self.inner.vol(expiry, tenor, strike).map_err(to_js_err)
     }
@@ -797,6 +870,12 @@ impl JsVolCube {
     /// @param expiry - Time to option expiry in years on the model's annual time basis.
     /// @param tenor - Underlying swap or index tenor measured in years for the quoted surface point.
     /// @param strike - Option strike price in the same price units as the underlying.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if `expiry` or `tenor` is outside the cube
+    /// grid, `strike` is non-finite, the SABR expansion is non-finite, total
+    /// variance is invalid, or an unshifted positive-beta quote crosses zero.
     #[wasm_bindgen(js_name = volNormal)]
     pub fn vol_normal(&self, expiry: f64, tenor: f64, strike: f64) -> Result<f64, JsValue> {
         self.inner
@@ -855,6 +934,13 @@ impl JsFxDeltaVolSurface {
     /// * `bf25d`     - 25-delta butterfly per expiry (wing avg − ATM).
     /// * `rr10d`     - Optional 10-delta risk reversal per expiry.
     /// * `bf10d`     - Optional 10-delta butterfly per expiry.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if `rr10d` and `bf10d` are not both present
+    /// or both absent; quote arrays are empty or have mismatched lengths;
+    /// expiries are not finite, positive, and strictly increasing; ATM vols are
+    /// not finite and positive; or any risk reversal or butterfly is non-finite.
     #[wasm_bindgen(constructor)]
     pub fn new(
         id: &str,
@@ -915,6 +1001,11 @@ impl JsFxDeltaVolSurface {
 
     /// Pillar vols at the given expiry index as `[atm, put25d_vol, call25d_vol]`.
     /// @param expiry_idx - Zero-based index of the requested expiry pillar in the volatility surface.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if `expiryIdx` is outside the surface's
+    /// expiry axis.
     #[wasm_bindgen(js_name = pillarVols)]
     pub fn pillar_vols(&self, expiry_idx: usize) -> Result<Vec<f64>, JsValue> {
         if expiry_idx >= self.inner.num_expiries() {
@@ -932,6 +1023,12 @@ impl JsFxDeltaVolSurface {
     /// @param expiry - Time to option expiry in years on the model's annual time basis.
     /// @param strike - Option strike price in the same price units as the underlying.
     /// @param forward - Forward price or rate in the same quote convention as the strike.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if `expiry`, `strike`, or `forward` is not
+    /// finite and strictly positive, a quoted wing implies a non-positive
+    /// volatility, or the delta-space smile cannot be constructed.
     #[wasm_bindgen(js_name = impliedVol)]
     pub fn implied_vol(&self, expiry: f64, strike: f64, forward: f64) -> Result<f64, JsValue> {
         self.inner
@@ -975,6 +1072,11 @@ impl JsFxDeltaVolSurface {
 /// @param slope - Nelson-Siegel beta2, the slope factor (negative of the short-minus-long spread) in decimal yield units.
 /// @param curvature - Nelson-Siegel beta3, the hump-shaped curvature factor in decimal yield units.
 /// @param tenors - Maturities in years, each finite and non-negative; output order matches this array.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `lambda` is non-finite or non-positive, any
+/// factor loading is non-finite, or any tenor is non-finite or negative.
 #[wasm_bindgen(js_name = nelsonSiegelYields)]
 pub fn nelson_siegel_yields(
     lambda: f64,

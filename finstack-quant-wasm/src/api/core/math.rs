@@ -14,6 +14,12 @@ use wasm_bindgen::prelude::*;
 /// Accepts a square matrix as a nested JS array (`number[][]`, row-major)
 /// and returns the lower-triangular factor L such that A = L L^T.
 /// @param matrix - Square numeric matrix in the nested or row-major shape required by this callable.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `matrix` cannot be decoded as a square
+/// numeric matrix, contains a non-finite value, is singular or not positive
+/// definite, or the result cannot be converted to a JavaScript array.
 #[wasm_bindgen(js_name = choleskyDecomposition)]
 pub fn cholesky_decomposition(matrix: JsValue) -> Result<JsValue, JsValue> {
     let rows: Vec<Vec<f64>> = serde_wasm_bindgen::from_value(matrix).map_err(to_js_err)?;
@@ -30,6 +36,13 @@ pub fn cholesky_decomposition(matrix: JsValue) -> Result<JsValue, JsValue> {
 /// Accepts L as `number[][]` and b as `number[]`. Returns x as `number[]`.
 /// @param chol - Lower-triangular Cholesky factor of the coefficient matrix, in the documented matrix shape.
 /// @param b - Right-hand-side vector of a linear system, aligned with the Cholesky factor dimension.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if either input cannot be decoded as the
+/// documented numeric array, `chol` is not square, `b` has the wrong length, a
+/// diagonal factor is singular, or the result cannot be converted to a
+/// JavaScript array.
 #[wasm_bindgen(js_name = choleskySolve)]
 pub fn cholesky_solve(chol: JsValue, b: JsValue) -> Result<JsValue, JsValue> {
     let rows: Vec<Vec<f64>> = serde_wasm_bindgen::from_value(chol).map_err(to_js_err)?;
@@ -53,6 +66,12 @@ pub fn cholesky_solve(chol: JsValue, b: JsValue) -> Result<JsValue, JsValue> {
 /// and returns a flat lower-triangular factor.
 /// @param matrix - Square numeric matrix in the nested or row-major shape required by this callable.
 /// @param n - Positive square-matrix dimension; flat arrays must contain n × n entries.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `n * n` overflows, `matrix` does not contain
+/// exactly `n * n` entries, or the matrix contains a non-finite value, is
+/// singular, or is not positive definite.
 #[wasm_bindgen(js_name = choleskyDecompositionFlat)]
 pub fn cholesky_decomposition_flat(matrix: &[f64], n: usize) -> Result<Box<[f64]>, JsValue> {
     validate_flat_matrix_len(matrix, n)?;
@@ -65,6 +84,12 @@ pub fn cholesky_decomposition_flat(matrix: &[f64], n: usize) -> Result<Box<[f64]
 /// @param chol - Lower-triangular Cholesky factor of the coefficient matrix, in the documented matrix shape.
 /// @param b - Right-hand-side vector of a linear system, aligned with the Cholesky factor dimension.
 /// @param n - Positive square-matrix dimension; flat arrays must contain n × n entries.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `n * n` overflows, `chol` does not contain
+/// exactly `n * n` entries, `b` does not contain `n` entries, or a diagonal
+/// factor is singular.
 #[wasm_bindgen(js_name = choleskySolveFlat)]
 pub fn cholesky_solve_flat(chol: &[f64], b: &[f64], n: usize) -> Result<Box<[f64]>, JsValue> {
     validate_flat_matrix_len(chol, n)?;
@@ -88,6 +113,11 @@ pub fn cholesky_solve_flat(chol: &[f64], b: &[f64], n: usize) -> Result<Box<[f64
 /// @param l - Lower-triangular Cholesky factor as a flat row-major array of n × n entries.
 /// @param n - Positive square-matrix dimension; flat arrays must contain n × n entries.
 /// @param z - Vector of length n to transform, typically independent standard-normal draws.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `n * n` overflows, `l` does not contain
+/// exactly `n * n` entries, or `z` does not contain exactly `n` entries.
 #[wasm_bindgen(js_name = applyLowerTriangular)]
 pub fn apply_lower_triangular(l: &[f64], n: usize, z: &[f64]) -> Result<Box<[f64]>, JsValue> {
     validate_flat_matrix_len(l, n)?;
@@ -102,6 +132,12 @@ pub fn apply_lower_triangular(l: &[f64], n: usize, z: &[f64]) -> Result<Box<[f64
 /// Callers pass `n * n` row-major entries plus the matrix dimension `n`.
 /// @param matrix - Square numeric matrix in the nested or row-major shape required by this callable.
 /// @param n - Positive square-matrix dimension; flat arrays must contain n × n entries.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `n * n` overflows, the flat length differs
+/// from `n * n`, or the matrix is not a finite, symmetric, positive-semidefinite
+/// correlation matrix with unit diagonal and coefficients in `[-1, 1]`.
 #[wasm_bindgen(js_name = validateCorrelationMatrixFlat)]
 pub fn validate_correlation_matrix_flat(matrix: &[f64], n: usize) -> Result<(), JsValue> {
     validate_flat_matrix_len(matrix, n)?;
@@ -114,6 +150,10 @@ pub fn validate_correlation_matrix_flat(matrix: &[f64], n: usize) -> Result<(), 
 
 /// Arithmetic mean.
 /// @param data - Non-empty numeric observation array used by the requested statistic.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `data` cannot be decoded as a numeric array.
 #[wasm_bindgen(js_name = mean)]
 pub fn mean(data: JsValue) -> Result<f64, JsValue> {
     let v: Vec<f64> = serde_wasm_bindgen::from_value(data).map_err(to_js_err)?;
@@ -122,6 +162,10 @@ pub fn mean(data: JsValue) -> Result<f64, JsValue> {
 
 /// Sample variance (unbiased, n-1 denominator).
 /// @param data - Non-empty numeric observation array used by the requested statistic.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `data` cannot be decoded as a numeric array.
 #[wasm_bindgen(js_name = variance)]
 pub fn variance(data: JsValue) -> Result<f64, JsValue> {
     let v: Vec<f64> = serde_wasm_bindgen::from_value(data).map_err(to_js_err)?;
@@ -130,6 +174,10 @@ pub fn variance(data: JsValue) -> Result<f64, JsValue> {
 
 /// Population variance (n denominator).
 /// @param data - Non-empty numeric observation array used by the requested statistic.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `data` cannot be decoded as a numeric array.
 #[wasm_bindgen(js_name = populationVariance)]
 pub fn population_variance(data: JsValue) -> Result<f64, JsValue> {
     let v: Vec<f64> = serde_wasm_bindgen::from_value(data).map_err(to_js_err)?;
@@ -139,6 +187,11 @@ pub fn population_variance(data: JsValue) -> Result<f64, JsValue> {
 /// Pearson correlation coefficient.
 /// @param x - Numeric observation series aligned one-for-one with the other series.
 /// @param y - Numeric observation series aligned one-for-one with the other series.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `x` or `y` cannot be decoded as a numeric
+/// array.
 #[wasm_bindgen(js_name = correlation)]
 pub fn correlation(x: JsValue, y: JsValue) -> Result<f64, JsValue> {
     let xv: Vec<f64> = serde_wasm_bindgen::from_value(x).map_err(to_js_err)?;
@@ -149,6 +202,11 @@ pub fn correlation(x: JsValue, y: JsValue) -> Result<f64, JsValue> {
 /// Sample covariance (unbiased, n-1 denominator).
 /// @param x - Numeric observation series aligned one-for-one with the other series.
 /// @param y - Numeric observation series aligned one-for-one with the other series.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `x` or `y` cannot be decoded as a numeric
+/// array.
 #[wasm_bindgen(js_name = covariance)]
 pub fn covariance(x: JsValue, y: JsValue) -> Result<f64, JsValue> {
     let xv: Vec<f64> = serde_wasm_bindgen::from_value(x).map_err(to_js_err)?;
@@ -159,6 +217,10 @@ pub fn covariance(x: JsValue, y: JsValue) -> Result<f64, JsValue> {
 /// Empirical quantile (R-7 / NumPy default) with linear interpolation.
 /// @param data - Non-empty numeric observation array used by the requested statistic.
 /// @param q - Quantile probability from 0 through 1 used to select the order statistic.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `data` cannot be decoded as a numeric array.
 #[wasm_bindgen(js_name = quantile)]
 pub fn quantile(data: JsValue, q: f64) -> Result<f64, JsValue> {
     let mut v: Vec<f64> = serde_wasm_bindgen::from_value(data).map_err(to_js_err)?;
@@ -256,6 +318,11 @@ pub fn ln_gamma(x: f64) -> f64 {
 
 /// Kahan compensated summation.
 /// @param values - Numeric values in the order used by the requested numerical operation.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `values` cannot be decoded as a numeric
+/// array.
 #[wasm_bindgen(js_name = kahanSum)]
 pub fn kahan_sum(values: JsValue) -> Result<f64, JsValue> {
     let v: Vec<f64> = serde_wasm_bindgen::from_value(values).map_err(to_js_err)?;
@@ -264,6 +331,11 @@ pub fn kahan_sum(values: JsValue) -> Result<f64, JsValue> {
 
 /// Neumaier compensated summation — handles mixed-sign values.
 /// @param values - Numeric values in the order used by the requested numerical operation.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `values` cannot be decoded as a numeric
+/// array.
 #[wasm_bindgen(js_name = neumaierSum)]
 pub fn neumaier_sum(values: JsValue) -> Result<f64, JsValue> {
     let v: Vec<f64> = serde_wasm_bindgen::from_value(values).map_err(to_js_err)?;
@@ -272,6 +344,11 @@ pub fn neumaier_sum(values: JsValue) -> Result<f64, JsValue> {
 
 /// Count the longest consecutive run of strictly positive values.
 /// @param values - Numeric values in the order used by the requested numerical operation.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `values` cannot be decoded as a numeric
+/// array.
 #[wasm_bindgen(js_name = countConsecutive)]
 pub fn count_consecutive(values: JsValue) -> Result<usize, JsValue> {
     let v: Vec<f64> = serde_wasm_bindgen::from_value(values).map_err(to_js_err)?;
