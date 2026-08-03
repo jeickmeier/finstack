@@ -45,7 +45,7 @@ mod tree_pricer;
 
 pub use bond_valuator::BondValuator;
 pub use config::{bond_tree_config, TreeModelChoice, TreePricerConfig};
-pub use tree_pricer::{calculate_oas, TreePricer};
+pub use tree_pricer::TreePricer;
 
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::fixed_income::bond::types::Bond;

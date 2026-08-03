@@ -792,50 +792,6 @@ fn validate_bdt_calibration_quality(quality: Option<&CalibrationResult>) -> Resu
     )))
 }
 
-/// Calculate option-adjusted spread for a bond given market price.
-///
-/// Convenience function using default tree configuration. This is a wrapper
-/// around `TreePricer::new().calculate_oas()` for simple use cases.
-///
-/// # Arguments
-///
-/// * `bond` - Bond whose embedded optionality and contractual cashflows are
-///   valued on the calibrated interest-rate tree.
-/// * `market_context` - Market context supplying discounting inputs and
-///   calibration data required by the tree pricer.
-/// * `as_of` - Valuation date used as the tree and settlement cutoff; only
-///   remaining cashflows contribute to the OAS solve.
-/// * `clean_price` - Observed clean market price as a percentage of par, used
-///   as the target price for the option-adjusted-spread solve.
-///
-/// # Returns
-///
-/// OAS in basis points.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
-/// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::tree::calculate_oas;
-/// use finstack_quant_core::market_data::context::MarketContext;
-/// use finstack_quant_core::dates::Date;
-///
-/// # let bond = Bond::example().unwrap();
-/// # let market = MarketContext::new();
-/// # let as_of = Date::from_calendar_date(2024, time::Month::January, 15).unwrap();
-/// let oas_bp = calculate_oas(&bond, &market, as_of, 98.5)?;
-/// # Ok::<(), Box<dyn std::error::Error>>(())
-/// ```
-pub fn calculate_oas(
-    bond: &Bond,
-    market_context: &MarketContext,
-    as_of: Date,
-    clean_price: f64,
-) -> Result<f64> {
-    let calculator = TreePricer::with_config(super::config::bond_tree_config(bond)?);
-    calculator.calculate_oas(bond, market_context, as_of, clean_price)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
