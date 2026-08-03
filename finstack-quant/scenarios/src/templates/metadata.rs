@@ -47,7 +47,7 @@ pub enum AssetClass {
 
 /// Metadata describing a historical stress test template.
 ///
-/// A template registry stores this metadata alongside a builder factory. The
+/// A template registry stores this metadata alongside a clonable builder. The
 /// fields are intentionally discovery-oriented: they identify the historical
 /// event, the affected asset classes, and any component templates that can be
 /// built separately from the composite scenario.

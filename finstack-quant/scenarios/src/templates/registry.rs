@@ -1,4 +1,4 @@
-//! Template registry for stress test template metadata and builder factories.
+//! Template registry for stress test metadata and scenario builders.
 
 use super::{
     json::{parse_template_document, JsonTemplateDocument},
@@ -8,17 +8,15 @@ use crate::{Error, Result, ScenarioSpec};
 use indexmap::IndexMap;
 use std::{collections::HashSet, fs, path::Path};
 
-type TemplateFactory = dyn Fn() -> ScenarioSpecBuilder + Send + Sync;
-
-/// Registered template entry containing metadata and fresh builder factories.
+/// Registered template entry containing metadata and clonable builders.
 ///
 /// Use [`RegisteredTemplate::builder`] to build the full composite template, or
 /// [`RegisteredTemplate::component`] to access an individual component builder
 /// by identifier when a historical scenario is decomposed into reusable parts.
 pub struct RegisteredTemplate {
     metadata: TemplateMetadata,
-    factory: Box<TemplateFactory>,
-    components: IndexMap<String, Box<TemplateFactory>>,
+    builder: ScenarioSpecBuilder,
+    components: IndexMap<String, ScenarioSpecBuilder>,
 }
 
 impl RegisteredTemplate {
@@ -46,42 +44,28 @@ impl RegisteredTemplate {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let ordered_component_builders = ordered_component_specs
+        let components = ordered_component_specs
             .iter()
             .cloned()
             .map(|(component_id, spec)| (component_id, scenario_spec_to_builder(spec)))
-            .collect::<Vec<_>>();
+            .collect();
         let composite_operations = ordered_component_specs
             .iter()
             .flat_map(|(_, spec)| spec.operations.iter().cloned())
             .collect::<Vec<_>>();
-        let composite_id = composite.id().to_string();
-        let composite_name = composite.name().map(str::to_string);
-        let composite_description = composite.description().map(str::to_string);
-        let composite_priority = composite.priority();
-        let factory = Box::new(move || {
-            let mut builder = ScenarioSpecBuilder::new(composite_id.clone())
-                .with_operations(composite_operations.clone())
-                .priority(composite_priority);
-            if let Some(name) = composite_name.as_ref() {
-                builder = builder.name(name.clone());
-            }
-            if let Some(description) = composite_description.as_ref() {
-                builder = builder.description(description.clone());
-            }
-            builder
-        });
-        let components = ordered_component_builders
-            .into_iter()
-            .map(|(component_id, builder)| {
-                let factory = Box::new(move || builder.clone()) as Box<TemplateFactory>;
-                (component_id, factory)
-            })
-            .collect();
+        let mut builder = ScenarioSpecBuilder::new(composite.id())
+            .with_operations(composite_operations)
+            .priority(composite.priority());
+        if let Some(name) = composite.name() {
+            builder = builder.name(name);
+        }
+        if let Some(description) = composite.description() {
+            builder = builder.description(description);
+        }
 
         Ok(Self {
             metadata,
-            factory,
+            builder,
             components,
         })
     }
@@ -96,14 +80,14 @@ impl RegisteredTemplate {
         &self.metadata
     }
 
-    /// Build a fresh scenario builder from the registered factory.
+    /// Clone a fresh scenario builder from the registered template.
     ///
     /// # Returns
     ///
     /// A new [`ScenarioSpecBuilder`] for the full registered template.
     #[must_use]
     pub fn builder(&self) -> ScenarioSpecBuilder {
-        (self.factory)()
+        self.builder.clone()
     }
 
     /// Build a fresh component builder by component identifier.
@@ -117,7 +101,7 @@ impl RegisteredTemplate {
     /// `Some(builder)` when a matching component exists, otherwise `None`.
     #[must_use]
     pub fn component(&self, id: &str) -> Option<ScenarioSpecBuilder> {
-        self.components.get(id).map(|factory| factory())
+        self.components.get(id).cloned()
     }
 
     /// List registered component identifiers in deterministic insertion order.
@@ -132,7 +116,7 @@ impl RegisteredTemplate {
     }
 }
 
-/// Registry of template metadata and builder factories.
+/// Registry of template metadata and clonable scenario builders.
 ///
 /// The registry preserves insertion order for listing and filtering operations
 /// so discovery APIs remain deterministic across runs.
@@ -143,9 +127,10 @@ pub struct TemplateRegistry {
 impl TemplateRegistry {
     /// Create an empty template registry with no built-in templates registered.
     ///
-    /// Use [`Default::default()`] to obtain a registry preloaded with built-in
-    /// historical stress templates.
+    /// Use [`Self::with_embedded_builtins`] to load the crate-owned historical
+    /// stress templates through the fallible validation path.
     #[must_use]
+    #[allow(clippy::new_without_default)] // Loading built-ins is fallible, so callers must choose explicitly.
     pub fn new() -> Self {
         Self {
             entries: IndexMap::new(),
@@ -167,61 +152,6 @@ impl TemplateRegistry {
         let mut registry = Self::new();
         register_builtins(&mut registry)?;
         Ok(registry)
-    }
-
-    /// Register or replace a template and its builder factory.
-    ///
-    /// Registration clears `metadata.components` because this overload stores
-    /// only a top-level builder factory.
-    ///
-    /// # Arguments
-    ///
-    /// - `metadata`: Discovery metadata for the template.
-    /// - `factory`: Factory that produces a fresh builder on each call.
-    pub fn register<F>(&mut self, metadata: TemplateMetadata, factory: F)
-    where
-        F: Fn() -> ScenarioSpecBuilder + Send + Sync + 'static,
-    {
-        let id = metadata.id.clone();
-        let mut metadata = metadata;
-        metadata.components.clear();
-        self.entries.insert(
-            id,
-            RegisteredTemplate {
-                metadata,
-                factory: Box::new(factory),
-                components: IndexMap::new(),
-            },
-        );
-    }
-
-    /// Register or replace a template with explicit component builder factories.
-    ///
-    /// # Arguments
-    ///
-    /// - `metadata`: Discovery metadata for the template.
-    /// - `factory`: Factory for the composite template builder.
-    /// - `components`: Component factories keyed by component identifier.
-    pub fn register_with_components<F>(
-        &mut self,
-        metadata: TemplateMetadata,
-        factory: F,
-        components: Vec<(String, Box<TemplateFactory>)>,
-    ) where
-        F: Fn() -> ScenarioSpecBuilder + Send + Sync + 'static,
-    {
-        let id = metadata.id.clone();
-        let mut metadata = metadata;
-        let components: IndexMap<String, Box<TemplateFactory>> = components.into_iter().collect();
-        metadata.components = components.keys().cloned().collect();
-        self.entries.insert(
-            id,
-            RegisteredTemplate {
-                metadata,
-                factory: Box::new(factory),
-                components,
-            },
-        );
     }
 
     /// Register or replace a template from a parsed JSON document.
@@ -412,16 +342,6 @@ impl TemplateRegistry {
     }
 }
 
-impl Default for TemplateRegistry {
-    /// Create a registry preloaded with built-in historical stress templates.
-    #[allow(clippy::unreachable)] // Embedded crate-owned templates are validated in tests.
-    fn default() -> Self {
-        Self::with_embedded_builtins().unwrap_or_else(|error| {
-            unreachable!("crate-owned embedded templates must load successfully: {error}")
-        })
-    }
-}
-
 fn scenario_spec_to_builder(spec: ScenarioSpec) -> ScenarioSpecBuilder {
     let mut builder = ScenarioSpecBuilder::new(spec.id)
         .with_operations(spec.operations)
@@ -441,10 +361,7 @@ mod tests {
 
     use super::TemplateRegistry;
     use crate::templates::json::{JsonCompositeTemplate, JsonTemplateDocument};
-    use crate::{
-        AssetClass, CurveKind, OperationSpec, ScenarioSpec, ScenarioSpecBuilder, Severity,
-        TemplateMetadata,
-    };
+    use crate::{AssetClass, CurveKind, OperationSpec, ScenarioSpec, Severity, TemplateMetadata};
     use indexmap::indexmap;
     use std::{
         fs,
@@ -453,88 +370,96 @@ mod tests {
     };
     use time::macros::date;
 
-    fn metadata(
+    fn template_document(
         id: &str,
         tag: &str,
         asset_class: AssetClass,
         severity: Severity,
-        components: Vec<&str>,
-    ) -> TemplateMetadata {
-        TemplateMetadata {
+        component_specs: Vec<ScenarioSpec>,
+    ) -> JsonTemplateDocument {
+        let component_ids = component_specs
+            .iter()
+            .map(|spec| spec.id.clone())
+            .collect::<Vec<_>>();
+        let components = component_specs
+            .into_iter()
+            .map(|spec| (spec.id.clone(), spec))
+            .collect();
+        let name = format!("Template {id}");
+        let description = format!("Description for {id}");
+        let composite = JsonCompositeTemplate::new(
+            id,
+            Some(&name),
+            Some(&description),
+            0,
+            component_ids.clone(),
+        );
+
+        JsonTemplateDocument {
+            schema: crate::templates::json::ScenarioTemplateSchema::ScenarioTemplate,
+            metadata: TemplateMetadata {
+                id: id.into(),
+                name,
+                description,
+                event_date: date!(2008 - 09 - 15),
+                asset_classes: vec![asset_class],
+                tags: vec![tag.into()],
+                severity,
+                components: component_ids,
+            },
+            components,
+            composite,
+        }
+    }
+
+    fn empty_component_spec(id: &str) -> ScenarioSpec {
+        ScenarioSpec {
             id: id.into(),
-            name: format!("Template {id}"),
-            description: format!("Description for {id}"),
-            event_date: date!(2008 - 09 - 15),
-            asset_classes: vec![asset_class],
-            tags: vec![tag.into()],
-            severity,
-            components: components.into_iter().map(str::to_string).collect(),
+            name: None,
+            description: None,
+            operations: Vec::new(),
+            priority: 0,
+            resolution_mode: Default::default(),
         }
     }
 
     fn registry_with_templates() -> TemplateRegistry {
         let mut registry = TemplateRegistry::new();
 
-        registry.register(
-            metadata(
+        for document in [
+            template_document(
                 "rates_shock",
                 "systemic",
                 AssetClass::Rates,
                 Severity::Severe,
-                vec![],
+                vec![json_component_spec(
+                    "rates_shock_component",
+                    "USD-SOFR",
+                    100.0,
+                )],
             ),
-            || {
-                ScenarioSpecBuilder::new("rates_shock").with_operation(
-                    OperationSpec::CurveParallelBp {
-                        curve_kind: CurveKind::Discount,
-                        curve_id: "USD-SOFR".into(),
-                        discount_curve_id: None,
-                        bp: 100.0,
-                    },
-                )
-            },
-        );
-
-        registry.register(
-            metadata(
+            template_document(
                 "equity_shock",
                 "equity",
                 AssetClass::Equity,
                 Severity::Moderate,
-                vec![],
+                vec![empty_component_spec("equity_shock_component")],
             ),
-            || ScenarioSpecBuilder::new("equity_shock"),
-        );
-
-        registry.register_with_components(
-            metadata(
+            template_document(
                 "hybrid_shock",
                 "systemic",
                 AssetClass::Credit,
                 Severity::Mild,
-                vec!["rates_shock", "equity_shock"],
+                vec![
+                    json_component_spec("rates_shock", "USD-SOFR", 100.0),
+                    empty_component_spec("equity_shock"),
+                ],
             ),
-            || ScenarioSpecBuilder::new("hybrid_shock"),
-            vec![
-                (
-                    "rates_shock".into(),
-                    Box::new(|| {
-                        ScenarioSpecBuilder::new("rates_shock").with_operation(
-                            OperationSpec::CurveParallelBp {
-                                curve_kind: CurveKind::Discount,
-                                curve_id: "USD-SOFR".into(),
-                                discount_curve_id: None,
-                                bp: 100.0,
-                            },
-                        )
-                    }),
-                ),
-                (
-                    "equity_shock".into(),
-                    Box::new(|| ScenarioSpecBuilder::new("equity_shock")),
-                ),
-            ],
-        );
+        ] {
+            registry
+                .register_json_document(document)
+                .expect("test template should register");
+        }
 
         registry
     }
@@ -729,7 +654,7 @@ mod tests {
     }
 
     #[test]
-    fn register_and_get() {
+    fn get_registered_template() {
         let registry = registry_with_templates();
 
         let template = registry.get("rates_shock").expect("template should exist");
@@ -816,7 +741,7 @@ mod tests {
     }
 
     #[test]
-    fn register_with_components() {
+    fn json_registration_exposes_components_in_order() {
         let registry = registry_with_templates();
         let entry = registry
             .get("hybrid_shock")
@@ -840,13 +765,7 @@ mod tests {
     }
 
     #[test]
-    fn default_registry_registers_all_embedded_builtins() {
-        let registry = TemplateRegistry::default();
-        assert_eq!(collected_ids(registry.list()), builtin_template_ids());
-    }
-
-    #[test]
-    fn with_embedded_builtins_loads_builtins_without_default() {
+    fn with_embedded_builtins_registers_all_builtins() {
         let registry =
             TemplateRegistry::with_embedded_builtins().expect("embedded builtins should load");
 
@@ -854,8 +773,9 @@ mod tests {
     }
 
     #[test]
-    fn default_registry_builds_all_builtins_and_components() {
-        let registry = TemplateRegistry::default();
+    fn embedded_registry_builds_all_builtins_and_components() {
+        let registry =
+            TemplateRegistry::with_embedded_builtins().expect("embedded builtins should load");
         for template_id in builtin_template_ids() {
             let entry = registry
                 .get(template_id)
@@ -874,57 +794,6 @@ mod tests {
                 assert_eq!(component.id, component_id);
             }
         }
-    }
-
-    #[test]
-    fn register_clears_metadata_components_when_no_component_factories_exist() {
-        let mut registry = TemplateRegistry::new();
-
-        registry.register(
-            metadata(
-                "standalone",
-                "systemic",
-                AssetClass::Rates,
-                Severity::Mild,
-                vec!["ghost_component"],
-            ),
-            || ScenarioSpecBuilder::new("standalone"),
-        );
-
-        let entry = registry
-            .get("standalone")
-            .expect("template entry should exist");
-
-        assert!(entry.metadata().components.is_empty());
-        assert!(entry.component("ghost_component").is_none());
-    }
-
-    #[test]
-    fn register_with_components_normalizes_metadata_component_ids() {
-        let mut registry = TemplateRegistry::new();
-
-        registry.register_with_components(
-            metadata(
-                "normalized",
-                "systemic",
-                AssetClass::Credit,
-                Severity::Moderate,
-                vec!["wrong_component"],
-            ),
-            || ScenarioSpecBuilder::new("normalized"),
-            vec![(
-                "actual_component".into(),
-                Box::new(|| ScenarioSpecBuilder::new("actual_component")),
-            )],
-        );
-
-        let entry = registry
-            .get("normalized")
-            .expect("template entry should exist");
-
-        assert_eq!(entry.metadata().components, vec!["actual_component"]);
-        assert!(entry.component("actual_component").is_some());
-        assert!(entry.component("wrong_component").is_none());
     }
 
     #[test]
@@ -1313,8 +1182,9 @@ mod tests {
     }
 
     #[test]
-    fn default_registry_still_provides_builtins_without_runtime_loading() {
-        let registry = TemplateRegistry::default();
+    fn embedded_registry_provides_builtins_without_runtime_loading() {
+        let registry =
+            TemplateRegistry::with_embedded_builtins().expect("embedded builtins should load");
 
         assert!(registry.get("gfc_2008").is_some());
         assert!(registry.get("covid_2020").is_some());

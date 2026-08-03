@@ -31,6 +31,11 @@
   registry, and the corresponding `FrtbSbaEngine` builder and accessors. FRTB
   SBA continues to use the fixed BCBS d457 constants under
   `regulatory::frtb::params`.
+- **Breaking (Rust):** `TemplateRegistry` now has one validated registration
+  path. Use the fallible `TemplateRegistry::with_embedded_builtins`,
+  `register_json_template_str`, or `load_json_dir`; the builder-factory
+  `register` / `register_with_components` methods and panicking `Default`
+  implementation were removed.
 - **Breaking (Rust):** Simplified the valuations surface. Use
   `schema::instrument_schema("bond")`, `TreePricer::calculate_oas`, and the
   free `solve_ytm` function in place of the removed bond wrappers and YTM

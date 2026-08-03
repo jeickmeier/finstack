@@ -15,8 +15,9 @@ fn builtin_ids() -> Vec<&'static str> {
 }
 
 #[test]
-fn default_registry_contains_all_five_builtins_end_to_end() {
-    let registry = TemplateRegistry::default();
+fn embedded_registry_contains_all_five_builtins_end_to_end() {
+    let registry = TemplateRegistry::with_embedded_builtins()
+        .unwrap_or_else(|error| panic!("failed to load embedded templates: {error}"));
     let listed_ids: Vec<_> = registry
         .list()
         .into_iter()
@@ -53,8 +54,9 @@ fn default_registry_contains_all_five_builtins_end_to_end() {
 }
 
 #[test]
-fn default_registry_filters_historical_cross_asset_builtins() {
-    let registry = TemplateRegistry::default();
+fn embedded_registry_filters_historical_cross_asset_builtins() {
+    let registry = TemplateRegistry::with_embedded_builtins()
+        .unwrap_or_else(|error| panic!("failed to load embedded templates: {error}"));
 
     let historical_ids: Vec<_> = registry
         .filter_by_tag("historical")
@@ -73,7 +75,8 @@ fn default_registry_filters_historical_cross_asset_builtins() {
 
 #[test]
 fn cross_template_component_composition_still_works() {
-    let registry = TemplateRegistry::default();
+    let registry = TemplateRegistry::with_embedded_builtins()
+        .unwrap_or_else(|error| panic!("failed to load embedded templates: {error}"));
     let rate_builder = registry
         .get("rate_shock_2022")
         .unwrap_or_else(|| panic!("missing rate_shock_2022"))
@@ -106,8 +109,9 @@ fn cross_template_component_composition_still_works() {
 }
 
 #[test]
-fn default_registry_svb_credit_component_contains_attr_spread_shock() {
-    let registry = TemplateRegistry::default();
+fn embedded_registry_svb_credit_component_contains_attr_spread_shock() {
+    let registry = TemplateRegistry::with_embedded_builtins()
+        .unwrap_or_else(|error| panic!("failed to load embedded templates: {error}"));
     let credit = registry
         .get("svb_2023")
         .unwrap_or_else(|| panic!("missing svb_2023"))
@@ -127,8 +131,9 @@ fn default_registry_svb_credit_component_contains_attr_spread_shock() {
 }
 
 #[test]
-fn default_registry_built_scenario_roundtrips_through_serde_and_validation() {
-    let registry = TemplateRegistry::default();
+fn embedded_registry_built_scenario_roundtrips_through_serde_and_validation() {
+    let registry = TemplateRegistry::with_embedded_builtins()
+        .unwrap_or_else(|error| panic!("failed to load embedded templates: {error}"));
     let scenario = registry
         .get("ltcm_1998")
         .unwrap_or_else(|| panic!("missing ltcm_1998"))
