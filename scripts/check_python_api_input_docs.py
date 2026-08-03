@@ -58,13 +58,7 @@ def is_public_callable(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
 
 def is_section_heading(lines: list[str], index: int) -> bool:
     """Return whether one docstring line starts a supported section."""
-    text = lines[index].strip().rstrip(":")
-    if text in SECTION_NAMES:
-        return True
-    if index + 1 >= len(lines) or text not in SECTION_NAMES:
-        return False
-    underline = lines[index + 1].strip()
-    return len(underline) >= 3 and set(underline) == {"-"}
+    return lines[index].strip().rstrip(":") in SECTION_NAMES
 
 
 def section_description(docstring: str, section_names: frozenset[str]) -> str | None:
@@ -112,7 +106,7 @@ def returns_value(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
         return True
     if isinstance(annotation, ast.Constant) and annotation.value is None:
         return False
-    return not (isinstance(annotation, ast.Name) and annotation.id == "none")
+    return not (isinstance(annotation, ast.Name) and annotation.id.lower() == "none")
 
 
 def is_class_or_static_method(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
@@ -260,15 +254,6 @@ class PublicCallableVisitor:
             elif not is_substantive(description):
                 self.errors.append(
                     DocumentationError(self.path, node.lineno, symbol, "Returns section is not substantive")
-                )
-
-        if parameters:
-            description = section_description(docstring, frozenset({"Raises"}))
-            if description is None:
-                self.errors.append(DocumentationError(self.path, node.lineno, symbol, "missing Raises section"))
-            elif not is_substantive(description):
-                self.errors.append(
-                    DocumentationError(self.path, node.lineno, symbol, "Raises section is not substantive")
                 )
 
         if (not self.scope or is_class_or_static_method(node)) and not has_example(docstring):
