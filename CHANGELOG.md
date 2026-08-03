@@ -4,6 +4,11 @@
 
 ### Changed
 
+- **Breaking (Python):** Removed the module-level `price_european_call` and
+  `price_european_put` functions. Use `EuropeanPricer.price_call` /
+  `price_put` or `McEngine.price_european_call` / `price_european_put`.
+  WASM retains `priceEuropeanCall` and `priceEuropeanPut` as
+  function-oriented browser entry points.
 - **Breaking (Rust, Python, WASM):** Kyle calibration now requires an explicit
   `reference_price` and returns price-space lambda. The working `*_with_mid`
   implementations now own the canonical `KyleLambdaModel::lambda_from_series`

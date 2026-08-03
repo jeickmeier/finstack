@@ -252,15 +252,19 @@ class TestMonteCarloNamespace:
 
     def test_monte_carlo_exports(self) -> None:
         """Monte Carlo should export engine, pricer, and result types."""
+        from finstack_quant import monte_carlo
         from finstack_quant.monte_carlo import (  # noqa: F401
             EuropeanPricer,
             LsmcPricer,
             McEngine,
             MoneyEstimate,
             PathDependentPricer,
-            price_european_call,
-            price_european_put,
         )
+
+        assert "price_european_call" not in monte_carlo.__all__
+        assert "price_european_put" not in monte_carlo.__all__
+        assert not hasattr(monte_carlo, "price_european_call")
+        assert not hasattr(monte_carlo, "price_european_put")
 
 
 class TestMarginNamespace:

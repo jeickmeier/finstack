@@ -47,8 +47,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "LsmcPricer",
             "black_scholes_call",
             "black_scholes_put",
-            "price_european_call",
-            "price_european_put",
             "price_heston_call",
             "price_heston_put",
             "finite_diff_delta",

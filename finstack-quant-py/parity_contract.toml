@@ -421,7 +421,7 @@ status = "exists"
 # payoff/process module.
 
 [crates.monte_carlo.modules]
-engine             = { python = "finstack_quant.monte_carlo", status = "flattened", note = "McEngine and pricing helpers exposed flat on finstack_quant.monte_carlo" }
+engine             = { python = "finstack_quant.monte_carlo", status = "flattened", note = "McEngine and process helpers exposed flat on finstack_quant.monte_carlo" }
 estimate           = { python = "finstack_quant.monte_carlo", status = "flattened", note = "Estimate exposed flat on finstack_quant.monte_carlo" }
 gbm_paths          = { python = "finstack_quant.monte_carlo", status = "flattened", note = "Compact GbmPathSummary and simulate_gbm_paths exposed flat; generic process/path graph remains Rust-only" }
 greeks             = { python = "finstack_quant.monte_carlo", status = "flattened", note = "finite_diff_delta/_crn and finite_diff_gamma/_crn exposed flat on finstack_quant.monte_carlo" }
@@ -447,12 +447,14 @@ public = [
     "finite_diff_gamma",
     "finite_diff_gamma_crn",
     "heston_satisfies_feller",
-    "price_european_call",
-    "price_european_put",
     "price_heston_call",
     "price_heston_put",
     "simulate_gbm_paths",
 ]
+
+# WASM intentionally retains `priceEuropeanCall` and `priceEuropeanPut` as
+# function-oriented browser entry points. Python exposes canonical European
+# GBM pricing through `EuropeanPricer` and `McEngine` methods instead.
 
 # ---------------------------------------------------------------------------
 # finstack-quant-valuations  →  finstack_quant.valuations

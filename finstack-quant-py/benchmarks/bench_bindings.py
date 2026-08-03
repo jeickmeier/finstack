@@ -60,7 +60,6 @@ from finstack_quant.monte_carlo import (
     TimeGrid,
     black_scholes_call,
     black_scholes_put,
-    price_european_call,
 )
 from finstack_quant.portfolio import (
     InstrumentArtifactCache,
@@ -654,24 +653,6 @@ class TestCorrelationBenchmarks:
 @pytest.mark.perf
 class TestMonteCarloBenchmarks:
     """Option pricing: analytical and simulation."""
-
-    def test_price_european_call_50k(self, benchmark) -> None:
-        benchmark.pedantic(
-            price_european_call,
-            kwargs={
-                "spot": 100.0,
-                "strike": 100.0,
-                "rate": 0.05,
-                "div_yield": 0.0,
-                "vol": 0.2,
-                "expiry": 1.0,
-                "num_paths": 50_000,
-                "seed": 42,
-                "num_steps": 252,
-            },
-            rounds=5,
-            warmup_rounds=1,
-        )
 
     def test_black_scholes_call(self, benchmark) -> None:
         benchmark(black_scholes_call, 100.0, 100.0, 0.05, 0.0, 0.2, 1.0)

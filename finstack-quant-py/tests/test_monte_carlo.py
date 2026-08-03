@@ -1,4 +1,4 @@
-"""Tests for Monte Carlo pricing: European pricer and convenience functions."""
+"""Tests for Monte Carlo pricing through the pricer and engine surfaces."""
 
 from collections.abc import Callable
 import math
@@ -15,8 +15,6 @@ from finstack_quant.monte_carlo import (
     finite_diff_gamma,
     finite_diff_gamma_crn,
     heston_satisfies_feller,
-    price_european_call,
-    price_european_put,
     simulate_gbm_paths,
 )
 
@@ -123,54 +121,36 @@ class TestEuropeanPricer:
         assert r1.mean.amount == pytest.approx(r2.mean.amount, abs=1e-10)
 
 
-class TestPriceEuropeanCallFunction:
-    """Module-level price_european_call convenience function."""
+@pytest.mark.parametrize("is_call", [True, False], ids=["call", "put"])
+def test_seeded_engine_and_european_pricer_results_are_identical(is_call: bool) -> None:
+    """The retained Python entry points must remain deterministic equivalents."""
+    num_paths = 2_048
+    num_steps = 12
+    seed = 123
+    engine = McEngine(
+        num_paths=num_paths,
+        time_grid=TimeGrid(t_max=1.0, num_steps=num_steps),
+        seed=seed,
+        use_parallel=False,
+        antithetic=False,
+    )
+    pricer = EuropeanPricer(num_paths=num_paths, seed=seed, use_parallel=False)
 
-    def test_produces_positive_price(self) -> None:
-        """ATM call has a positive price."""
-        result = price_european_call(
-            spot=100.0,
-            strike=100.0,
-            rate=0.05,
-            div_yield=0.0,
-            vol=0.20,
-            expiry=1.0,
-            num_paths=10_000,
-            seed=42,
-        )
-        assert result.mean.amount > 0.0
+    if is_call:
+        engine_result = engine.price_european_call(100.0, 100.0, 0.05, 0.0, 0.2)
+        pricer_result = pricer.price_call(100.0, 100.0, 0.05, 0.0, 0.2, 1.0, num_steps=num_steps)
+    else:
+        engine_result = engine.price_european_put(100.0, 100.0, 0.05, 0.0, 0.2)
+        pricer_result = pricer.price_put(100.0, 100.0, 0.05, 0.0, 0.2, 1.0, num_steps=num_steps)
 
-    def test_currency_default_is_usd(self) -> None:
-        """Default currency should be USD."""
-        result = price_european_call(
-            spot=100.0,
-            strike=100.0,
-            rate=0.05,
-            div_yield=0.0,
-            vol=0.20,
-            expiry=1.0,
-            num_paths=10_000,
-            seed=42,
-        )
-        assert result.mean.currency.code == "USD"
-
-
-class TestPriceEuropeanPutFunction:
-    """Module-level price_european_put convenience function."""
-
-    def test_produces_positive_price(self) -> None:
-        """ATM put has a positive price."""
-        result = price_european_put(
-            spot=100.0,
-            strike=100.0,
-            rate=0.05,
-            div_yield=0.0,
-            vol=0.20,
-            expiry=1.0,
-            num_paths=10_000,
-            seed=42,
-        )
-        assert result.mean.amount > 0.0
+    assert engine_result.mean.amount == pricer_result.mean.amount
+    assert engine_result.mean.currency.code == pricer_result.mean.currency.code
+    assert engine_result.stderr == pricer_result.stderr
+    assert engine_result.std_dev == pricer_result.std_dev
+    assert engine_result.ci_lower.amount == pricer_result.ci_lower.amount
+    assert engine_result.ci_upper.amount == pricer_result.ci_upper.amount
+    assert engine_result.num_paths == pricer_result.num_paths
+    assert engine_result.num_simulated_paths == pricer_result.num_simulated_paths
 
 
 def test_mc_engine_antithetic_preserves_estimator_and_simulation_counts() -> None:

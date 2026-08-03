@@ -5,6 +5,10 @@
 //! non-GBM process wrappers. Advanced Rust process, discretization, RNG,
 //! payoff, and Greeks types are not standalone WASM types yet. Results are
 //! returned as plain JavaScript objects.
+//!
+//! The `priceEuropeanCall` and `priceEuropeanPut` free functions are retained
+//! as function-oriented browser entry points. Python exposes the equivalent
+//! GBM pricing through `EuropeanPricer` and `McEngine` methods instead.
 
 use std::str::FromStr;
 

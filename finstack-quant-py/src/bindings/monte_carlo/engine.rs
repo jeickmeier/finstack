@@ -1,12 +1,10 @@
-//! McEngine binding (configured via `PyTimeGrid`) plus module-level
-//! convenience pricing functions.
+//! `McEngine` binding (configured via `PyTimeGrid`) plus process helpers.
 
 use super::results::{PyGbmPathSummary, PyMoneyEstimate};
 use super::time_grid::PyTimeGrid;
 use crate::bindings::core::currency::extract_currency;
 use crate::errors::core_to_py;
 use finstack_quant_monte_carlo::engine::{McEngine, McEngineConfig};
-use finstack_quant_monte_carlo::pricer::european::EuropeanPricer;
 use finstack_quant_monte_carlo::registry::{self, PythonBindingDefaults};
 use pyo3::prelude::*;
 use std::str::FromStr;
@@ -128,7 +126,7 @@ impl PyMcEngine {
 }
 
 // ---------------------------------------------------------------------------
-// Module-level convenience functions
+// Process helpers
 // ---------------------------------------------------------------------------
 
 /// Simulate a compact set of GBM spot paths through Rust path capture.
@@ -231,66 +229,6 @@ pub(super) fn resolve_currency(
             })
         }
     }
-}
-
-/// Price a European call option via Monte Carlo under GBM dynamics.
-#[pyfunction]
-#[allow(clippy::too_many_arguments)]
-#[pyo3(signature = (spot, strike, rate, div_yield, vol, expiry, num_paths=None, seed=None, num_steps=None, currency=None))]
-fn price_european_call(
-    py: Python<'_>,
-    spot: f64,
-    strike: f64,
-    rate: f64,
-    div_yield: f64,
-    vol: f64,
-    expiry: f64,
-    num_paths: Option<usize>,
-    seed: Option<u64>,
-    num_steps: Option<usize>,
-    currency: Option<&Bound<'_, PyAny>>,
-) -> PyResult<PyMoneyEstimate> {
-    let defaults = &py_mc_defaults()?.european_pricer;
-    let num_paths = num_paths.unwrap_or(defaults.num_paths);
-    let seed = seed.unwrap_or(defaults.seed);
-    let num_steps = num_steps.unwrap_or(defaults.num_steps);
-    let ccy = resolve_currency(currency)?;
-    let pricer = EuropeanPricer::new(num_paths)
-        .with_seed(seed)
-        .with_parallel(defaults.use_parallel);
-    py.detach(|| pricer.price_gbm_call(spot, strike, rate, div_yield, vol, expiry, num_steps, ccy))
-        .map(PyMoneyEstimate::from_inner)
-        .map_err(core_to_py)
-}
-
-/// Price a European put option via Monte Carlo under GBM dynamics.
-#[pyfunction]
-#[allow(clippy::too_many_arguments)]
-#[pyo3(signature = (spot, strike, rate, div_yield, vol, expiry, num_paths=None, seed=None, num_steps=None, currency=None))]
-fn price_european_put(
-    py: Python<'_>,
-    spot: f64,
-    strike: f64,
-    rate: f64,
-    div_yield: f64,
-    vol: f64,
-    expiry: f64,
-    num_paths: Option<usize>,
-    seed: Option<u64>,
-    num_steps: Option<usize>,
-    currency: Option<&Bound<'_, PyAny>>,
-) -> PyResult<PyMoneyEstimate> {
-    let defaults = &py_mc_defaults()?.european_pricer;
-    let num_paths = num_paths.unwrap_or(defaults.num_paths);
-    let seed = seed.unwrap_or(defaults.seed);
-    let num_steps = num_steps.unwrap_or(defaults.num_steps);
-    let ccy = resolve_currency(currency)?;
-    let pricer = EuropeanPricer::new(num_paths)
-        .with_seed(seed)
-        .with_parallel(defaults.use_parallel);
-    py.detach(|| pricer.price_gbm_put(spot, strike, rate, div_yield, vol, expiry, num_steps, ccy))
-        .map(PyMoneyEstimate::from_inner)
-        .map_err(core_to_py)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -418,8 +356,6 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyMcEngine>()?;
     m.add_function(wrap_pyfunction!(simulate_gbm_paths, m)?)?;
     m.add_function(wrap_pyfunction!(heston_satisfies_feller, m)?)?;
-    m.add_function(wrap_pyfunction!(price_european_call, m)?)?;
-    m.add_function(wrap_pyfunction!(price_european_put, m)?)?;
     m.add_function(wrap_pyfunction!(price_heston_call, m)?)?;
     m.add_function(wrap_pyfunction!(price_heston_put, m)?)?;
     Ok(())

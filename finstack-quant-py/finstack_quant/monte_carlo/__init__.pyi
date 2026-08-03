@@ -36,8 +36,6 @@ __all__ = [
     "finite_diff_gamma",
     "finite_diff_gamma_crn",
     "heston_satisfies_feller",
-    "price_european_call",
-    "price_european_put",
     "price_heston_call",
     "price_heston_put",
     "simulate_gbm_paths",
@@ -49,8 +47,8 @@ class MoneyEstimate:
 
     Examples
     --------
-    >>> from finstack_quant.monte_carlo import price_european_call
-    >>> r = price_european_call(100, 100, 0.05, 0.0, 0.2, 1.0, num_paths=10_000)
+    >>> from finstack_quant.monte_carlo import EuropeanPricer
+    >>> r = EuropeanPricer(10_000, seed=42).price_call(100, 100, 0.05, 0.0, 0.2, 1.0)
     >>> r.num_paths
     10000
     """
@@ -67,8 +65,9 @@ class MoneyEstimate:
 
         Examples
         --------
-        >>> from finstack_quant.monte_carlo import price_european_call
-        >>> price_european_call(100, 100, 0.05, 0.0, 0.2, 1.0, num_paths=1000).mean.amount > 0
+        >>> from finstack_quant.monte_carlo import EuropeanPricer
+        >>> pricer = EuropeanPricer(1000, seed=42)
+        >>> pricer.price_call(100, 100, 0.05, 0.0, 0.2, 1.0).mean.amount > 0
         True
         """
         ...
@@ -85,8 +84,9 @@ class MoneyEstimate:
 
         Examples
         --------
-        >>> from finstack_quant.monte_carlo import price_european_call
-        >>> price_european_call(100, 100, 0.05, 0.0, 0.2, 1.0, num_paths=1000).stderr >= 0
+        >>> from finstack_quant.monte_carlo import EuropeanPricer
+        >>> pricer = EuropeanPricer(1000, seed=42)
+        >>> pricer.price_call(100, 100, 0.05, 0.0, 0.2, 1.0).stderr >= 0
         True
         """
         ...
@@ -115,8 +115,8 @@ class MoneyEstimate:
 
         Examples
         --------
-        >>> from finstack_quant.monte_carlo import price_european_call
-        >>> r = price_european_call(100, 100, 0.05, 0.0, 0.2, 1.0, num_paths=2000)
+        >>> from finstack_quant.monte_carlo import EuropeanPricer
+        >>> r = EuropeanPricer(2000, seed=42).price_call(100, 100, 0.05, 0.0, 0.2, 1.0)
         >>> r.ci_lower.amount <= r.mean.amount
         True
         """
@@ -134,8 +134,8 @@ class MoneyEstimate:
 
         Examples
         --------
-        >>> from finstack_quant.monte_carlo import price_european_call
-        >>> r = price_european_call(100, 100, 0.05, 0.0, 0.2, 1.0, num_paths=2000)
+        >>> from finstack_quant.monte_carlo import EuropeanPricer
+        >>> r = EuropeanPricer(2000, seed=42).price_call(100, 100, 0.05, 0.0, 0.2, 1.0)
         >>> r.ci_upper.amount >= r.mean.amount
         True
         """
@@ -156,8 +156,8 @@ class MoneyEstimate:
 
         Examples
         --------
-        >>> from finstack_quant.monte_carlo import price_european_call
-        >>> price_european_call(100, 100, 0.05, 0.0, 0.2, 1.0, num_paths=1234).num_paths
+        >>> from finstack_quant.monte_carlo import EuropeanPricer
+        >>> EuropeanPricer(1234, seed=42).price_call(100, 100, 0.05, 0.0, 0.2, 1.0).num_paths
         1234
         """
         ...
@@ -253,8 +253,9 @@ class MoneyEstimate:
 
         Examples
         --------
-        >>> from finstack_quant.monte_carlo import price_european_call
-        >>> price_european_call(100, 100, 0.05, 0.0, 0.2, 1.0, num_paths=5000).relative_stderr() >= 0
+        >>> from finstack_quant.monte_carlo import EuropeanPricer
+        >>> pricer = EuropeanPricer(5000, seed=42)
+        >>> pricer.price_call(100, 100, 0.05, 0.0, 0.2, 1.0).relative_stderr() >= 0
         True
         """
         ...
@@ -1766,132 +1767,6 @@ def black_scholes_put(
     >>> from finstack_quant.monte_carlo import black_scholes_put
     >>> black_scholes_put(100, 100, 0.05, 0.0, 0.2, 1.0) > 0
     True
-    """
-    ...
-
-def price_european_call(
-    spot: float,
-    strike: float,
-    rate: float,
-    div_yield: float,
-    vol: float,
-    expiry: float,
-    num_paths: int | None = None,
-    seed: int | None = None,
-    num_steps: int | None = None,
-    currency: str | None = None,
-) -> MoneyEstimate:
-    """
-    Monte Carlo European call under GBM (standalone convenience).
-
-    Parameters
-    ----------
-    spot : float
-        Spot price.
-    strike : float
-        Strike price.
-    rate : float
-        Risk-free rate (continuously compounded decimal).
-    div_yield : float
-        Dividend yield (continuously compounded decimal).
-    vol : float
-        Volatility (decimal).
-    expiry : float
-        Maturity in years.
-    num_paths : int, optional
-        Paths (default ``100_000``).
-    seed : int, optional
-        RNG seed (default ``42``).
-    num_steps : int, optional
-        Time steps (default ``252``).
-    currency : str, optional
-        ISO currency code. Defaults to USD.
-
-    Returns
-    -------
-    MoneyEstimate
-        Monte Carlo price with stderr and confidence bands.
-
-    Examples
-    --------
-    >>> from finstack_quant.monte_carlo import price_european_call
-    >>> price_european_call(100, 100, 0.05, 0.0, 0.2, 1.0, num_paths=2000).num_paths
-    2000
-
-    Raises
-    ------
-    ValueError
-        If ``rate`` or ``div_yield`` is non-finite, ``vol`` is negative or
-        non-finite, ``expiry`` is non-finite or not strictly positive,
-        ``num_steps`` is zero,
-        ``num_paths`` is zero or exceeds ``10_000_000``, ``currency`` is
-        unknown, or discounting produces a non-finite value.
-    TypeError
-        If a non-``None`` ``currency`` is neither a string nor a ``Currency`` instance.
-
-    """
-    ...
-
-def price_european_put(
-    spot: float,
-    strike: float,
-    rate: float,
-    div_yield: float,
-    vol: float,
-    expiry: float,
-    num_paths: int | None = None,
-    seed: int | None = None,
-    num_steps: int | None = None,
-    currency: str | None = None,
-) -> MoneyEstimate:
-    """
-    Monte Carlo European put under GBM (standalone convenience).
-
-    Parameters
-    ----------
-    spot : float
-        Spot price.
-    strike : float
-        Strike price.
-    rate : float
-        Risk-free rate (continuously compounded decimal).
-    div_yield : float
-        Dividend yield (continuously compounded decimal).
-    vol : float
-        Volatility (decimal).
-    expiry : float
-        Maturity in years.
-    num_paths : int, optional
-        Paths (default ``100_000``).
-    seed : int, optional
-        RNG seed (default ``42``).
-    num_steps : int, optional
-        Time steps (default ``252``).
-    currency : str, optional
-        ISO currency code. Defaults to USD.
-
-    Returns
-    -------
-    MoneyEstimate
-        Monte Carlo price with stderr and confidence bands.
-
-    Examples
-    --------
-    >>> from finstack_quant.monte_carlo import price_european_put
-    >>> price_european_put(100, 100, 0.05, 0.0, 0.2, 1.0, num_paths=2000).num_paths
-    2000
-
-    Raises
-    ------
-    ValueError
-        If ``rate`` or ``div_yield`` is non-finite, ``vol`` is negative or
-        non-finite, ``expiry`` is non-finite or not strictly positive,
-        ``num_steps`` is zero,
-        ``num_paths`` is zero or exceeds ``10_000_000``, ``currency`` is
-        unknown, or discounting produces a non-finite value.
-    TypeError
-        If a non-``None`` ``currency`` is neither a string nor a ``Currency`` instance.
-
     """
     ...
 

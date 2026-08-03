@@ -41,8 +41,6 @@ LsmcPricer = _mc.LsmcPricer
 black_scholes_call = _mc.black_scholes_call
 black_scholes_put = _mc.black_scholes_put
 
-price_european_call = _mc.price_european_call
-price_european_put = _mc.price_european_put
 price_heston_call = _mc.price_heston_call
 price_heston_put = _mc.price_heston_put
 
@@ -75,8 +73,6 @@ __all__: list[str] = [
     "finite_diff_gamma",
     "finite_diff_gamma_crn",
     "heston_satisfies_feller",
-    "price_european_call",
-    "price_european_put",
     "price_heston_call",
     "price_heston_put",
     "simulate_gbm_paths",
