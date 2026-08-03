@@ -350,17 +350,6 @@ pub enum InputError {
     // ─────────────────────────────────────────────────────────────────────────
     // Joint calendar FX date logic
     // ─────────────────────────────────────────────────────────────────────────
-    /// Joint calendar date adjustment did not converge within a small fixed iteration budget.
-    #[error("Joint calendar adjustment did not converge within {max_iterations} iterations")]
-    JointCalendarNonConvergent {
-        /// Original date being adjusted.
-        date: Date,
-        /// Business day convention applied.
-        convention: BusinessDayConvention,
-        /// Maximum iterations attempted.
-        max_iterations: u32,
-    },
-
     /// Joint calendar business-day counting exceeded a safety iteration limit.
     #[error(
         "Joint calendar business-day roll exceeded iteration limit: requested {n_days} days, hit {max_iters} iterations"

@@ -4,6 +4,9 @@
 
 ### Changed
 
+- **Breaking (Rust):** Removed the unused
+  `InputError::JointCalendarNonConvergent` variant. Active joint-calendar safety
+  failures continue to use `JointCalendarIterationLimitExceeded`.
 - **Breaking (Rust):** `ThresholdSchedule::new` now returns `Result` and is the
   sole threshold-schedule constructor; `try_new` was removed. Deserialization
   routes through the same finite-value and unique-date validation.
