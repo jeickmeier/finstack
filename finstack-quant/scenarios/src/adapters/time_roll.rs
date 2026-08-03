@@ -6,7 +6,6 @@
 
 use crate::engine::ExecutionContext;
 use crate::error::Result;
-use crate::utils::parse_period_to_days;
 use crate::TimeRollMode;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{BusinessDayConvention, HolidayCalendar, Tenor, WEEKENDS_ONLY};
@@ -120,22 +119,19 @@ pub fn apply_time_roll_forward(
     use crate::error::Error;
 
     let old_date = ctx.as_of;
+    let tenor = Tenor::parse(period_str).map_err(|e| Error::InvalidPeriod(e.to_string()))?;
     let (new_date, day_shift) = match mode {
         TimeRollMode::Approximate => {
-            let days = parse_period_to_days(period_str)?;
+            let days = tenor.to_days_approx();
             let new_date = old_date + time::Duration::days(days);
             (new_date, days)
         }
         TimeRollMode::CalendarDays => {
-            let tenor =
-                Tenor::parse(period_str).map_err(|e| Error::InvalidPeriod(e.to_string()))?;
             let target = tenor.add_to_date(old_date, None, BusinessDayConvention::Unadjusted)?;
             let days = (target - old_date).whole_days();
             (target, days)
         }
         TimeRollMode::BusinessDays => {
-            let tenor =
-                Tenor::parse(period_str).map_err(|e| Error::InvalidPeriod(e.to_string()))?;
             // `Tenor::add_to_date` discards the business-day convention entirely
             // when no calendar is supplied, which would silently degrade this
             // mode into an exact copy of `CalendarDays` and land horizons on
@@ -469,6 +465,19 @@ mod tests {
         };
         let report = apply_time_roll_forward(&mut ctx, period, mode).expect("time roll succeeds");
         (report.new_date, report.days)
+    }
+
+    #[test]
+    fn approximate_mode_preserves_core_month_rounding() {
+        let base_date = date!(2025 - 01 - 01);
+        assert_eq!(
+            roll_dates(base_date, "6M", TimeRollMode::Approximate).1,
+            183
+        );
+        assert_eq!(
+            roll_dates(base_date, "12M", TimeRollMode::Approximate).1,
+            365
+        );
     }
 
     /// `BusinessDays` must not silently degrade into `CalendarDays`.

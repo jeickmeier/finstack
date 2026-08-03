@@ -3,7 +3,6 @@
 use crate::adapters::traits::ScenarioEffect;
 use crate::error::{Error, Result};
 use crate::spec::{Compounding, RateBindingSpec};
-use crate::utils::tenor_years_from_binding;
 use crate::warning::Warning;
 use finstack_quant_core::dates::{BusinessDayConvention, HolidayCalendar, Tenor};
 use finstack_quant_core::market_data::context::MarketContext;
@@ -131,13 +130,16 @@ pub fn update_rate_from_binding(
     let curve_id = binding.curve_id.as_str();
 
     if let Ok(curve) = market.get_discount(curve_id) {
-        let (tenor_years, _) = tenor_years_from_binding(
-            binding,
-            curve.base_date(),
-            curve.day_count(),
-            calendar,
-            BusinessDayConvention::ModifiedFollowing,
-        )?;
+        let effective_day_count = binding.day_count.unwrap_or(curve.day_count());
+        let tenor = Tenor::parse(&binding.tenor).map_err(|e| Error::InvalidTenor(e.to_string()))?;
+        let tenor_years = tenor
+            .to_years_with_context(
+                curve.base_date(),
+                calendar,
+                BusinessDayConvention::ModifiedFollowing,
+                effective_day_count,
+            )
+            .map_err(|e| Error::Internal(e.to_string()))?;
 
         if let Some(&max_t) = curve.knots().last() {
             if tenor_years > max_t + 1e-8 {
@@ -154,13 +156,16 @@ pub fn update_rate_from_binding(
     }
 
     if let Ok(curve) = market.get_forward(curve_id) {
-        let (start_years, effective_day_count) = tenor_years_from_binding(
-            binding,
-            curve.base_date(),
-            curve.day_count(),
-            calendar,
-            BusinessDayConvention::ModifiedFollowing,
-        )?;
+        let effective_day_count = binding.day_count.unwrap_or(curve.day_count());
+        let tenor = Tenor::parse(&binding.tenor).map_err(|e| Error::InvalidTenor(e.to_string()))?;
+        let start_years = tenor
+            .to_years_with_context(
+                curve.base_date(),
+                calendar,
+                BusinessDayConvention::ModifiedFollowing,
+                effective_day_count,
+            )
+            .map_err(|e| Error::Internal(e.to_string()))?;
 
         if let Some(&max_t) = curve.knots().last() {
             if start_years > max_t + 1e-8 {
@@ -171,13 +176,11 @@ pub fn update_rate_from_binding(
             }
         }
 
-        let forward_start = Tenor::parse(&binding.tenor)
-            .map_err(|e| Error::InvalidTenor(e.to_string()))?
-            .add_to_date(
-                curve.base_date(),
-                calendar,
-                BusinessDayConvention::ModifiedFollowing,
-            )?;
+        let forward_start = tenor.add_to_date(
+            curve.base_date(),
+            calendar,
+            BusinessDayConvention::ModifiedFollowing,
+        )?;
 
         let accrual_years = Tenor::from_years(curve.tenor(), effective_day_count)?
             .to_years_with_context(

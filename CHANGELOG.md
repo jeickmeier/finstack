@@ -31,6 +31,10 @@
   registry, and the corresponding `FrtbSbaEngine` builder and accessors. FRTB
   SBA continues to use the fixed BCBS d457 constants under
   `regulatory::frtb::params`.
+- **Breaking (Rust):** Removed the duplicate scenario tenor and period parsing
+  helpers, including their context wrappers. Use
+  `finstack_quant_core::dates::Tenor` directly for parsing, simple year/day
+  approximations, and calendar-aware year fractions.
 - **Breaking (Rust):** `InterpolationResult` and
   `calculate_interpolation_weights` are now crate-private scenario adapter
   details and no longer part of the public or serialized API.

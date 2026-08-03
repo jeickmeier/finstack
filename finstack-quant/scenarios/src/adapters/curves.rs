@@ -9,9 +9,9 @@ use crate::adapters::traits::ScenarioEffect;
 use crate::engine::ExecutionContext;
 use crate::error::{Error, Result};
 use crate::spec::{CurveKind, TenorMatchMode};
-use crate::utils::{calculate_interpolation_weights, parse_tenor_to_years_with_context};
+use crate::utils::calculate_interpolation_weights;
 use crate::warning::Warning;
-use finstack_quant_core::dates::{BusinessDayConvention, DayCount};
+use finstack_quant_core::dates::{BusinessDayConvention, DayCount, Tenor};
 use finstack_quant_core::market_data::bumps::{BumpSpec, MarketBump};
 use finstack_quant_core::market_data::context::CurveStorage;
 use finstack_quant_core::types::CurveId;
@@ -78,14 +78,11 @@ fn resolve_bump_targets(
     let max_knot = knots.last().copied().unwrap_or(0.0);
 
     for (tenor_str, bp) in nodes {
-        let tenor_years_ctx = parse_tenor_to_years_with_context(
-            tenor_str,
-            as_of,
-            None,
-            BusinessDayConvention::Unadjusted,
-            day_count,
-        )?;
-        let tenor_years_simple = crate::utils::parse_tenor_to_years(tenor_str)?;
+        let tenor = Tenor::parse(tenor_str).map_err(|e| Error::InvalidTenor(e.to_string()))?;
+        let tenor_years_ctx = tenor
+            .to_years_with_context(as_of, None, BusinessDayConvention::Unadjusted, day_count)
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let tenor_years_simple = tenor.to_years_simple();
 
         let add = *bp;
 

@@ -9,10 +9,9 @@
 
 use crate::adapters::traits::ScenarioEffect;
 use crate::engine::ExecutionContext;
-use crate::error::Result;
-use crate::utils::parse_tenor_to_years_with_context;
+use crate::error::{Error, Result};
 use crate::warning::Warning;
-use finstack_quant_core::dates::{BusinessDayConvention, DayCount};
+use finstack_quant_core::dates::{BusinessDayConvention, DayCount, Tenor};
 use finstack_quant_core::market_data::bumps::{
     BumpMode, BumpSpec, BumpType, BumpUnits, Bumpable, MarketBump,
 };
@@ -283,13 +282,15 @@ pub(crate) fn vol_bucket_effects(
         let parsed: std::result::Result<Vec<f64>, _> = t
             .iter()
             .map(|s| {
-                parse_tenor_to_years_with_context(
-                    s,
-                    ctx.as_of,
-                    ctx.calendar,
-                    BusinessDayConvention::Unadjusted,
-                    DayCount::Act365F,
-                )
+                Tenor::parse(s)
+                    .map_err(|e| Error::InvalidTenor(e.to_string()))?
+                    .to_years_with_context(
+                        ctx.as_of,
+                        ctx.calendar,
+                        BusinessDayConvention::Unadjusted,
+                        DayCount::Act365F,
+                    )
+                    .map_err(|e| Error::Internal(e.to_string()))
             })
             .collect();
         // Tenor-derived year fractions carry day-count/calendar slack (e.g.
