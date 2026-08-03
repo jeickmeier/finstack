@@ -24,6 +24,13 @@ use wasm_bindgen::prelude::*;
 ///
 /// Deserializes the input against the model schema, runs semantic validation,
 /// and returns the canonical (re-serialized) JSON.
+///
+/// # Errors
+///
+/// Rejects malformed or schema-incompatible `json`, an empty or invalid period
+/// timeline, reserved node identifiers, incompatible node fields or value
+/// types, invalid formulas or dimensions, an invalid waterfall, or failure to
+/// serialize the normalized model.
 /// @param json - Canonical JSON string defining the object to deserialize or normalize.
 #[wasm_bindgen(js_name = validateFinancialModelJson)]
 pub fn validate_financial_model_json(json: &str) -> Result<String, JsValue> {
@@ -36,6 +43,11 @@ pub fn validate_financial_model_json(json: &str) -> Result<String, JsValue> {
 /// Get the node identifiers from a model specification JSON.
 ///
 /// Returns a JS array of node ID strings in declaration order.
+///
+/// # Errors
+///
+/// Rejects malformed or schema-incompatible `json`, or if the node identifiers
+/// cannot be serialized to JavaScript.
 /// @param json - Canonical JSON string defining the object to deserialize or normalize.
 #[wasm_bindgen(js_name = modelNodeIds)]
 pub fn model_node_ids(json: &str) -> Result<JsValue, JsValue> {
@@ -49,6 +61,11 @@ pub fn model_node_ids(json: &str) -> Result<JsValue, JsValue> {
 ///
 /// Deserializes the spec, re-serializes to canonical form, and
 /// returns the JSON string. Useful for client-side validation.
+///
+/// # Errors
+///
+/// Rejects malformed or schema-incompatible `json`, or failure to serialize
+/// the decoded check-suite specification.
 /// @param json - Canonical JSON string defining the object to deserialize or normalize.
 #[wasm_bindgen(js_name = validateCheckSuiteSpec)]
 pub fn validate_check_suite_spec(json: &str) -> Result<String, JsValue> {
@@ -58,6 +75,11 @@ pub fn validate_check_suite_spec(json: &str) -> Result<String, JsValue> {
 }
 
 /// Validate a `CapitalStructureSpec` JSON string.
+///
+/// # Errors
+///
+/// Rejects malformed or schema-incompatible `json`, or failure to serialize
+/// the decoded capital-structure specification.
 /// @param json - Canonical JSON string defining the object to deserialize or normalize.
 #[wasm_bindgen(js_name = validateCapitalStructureSpec)]
 pub fn validate_capital_structure_spec(json: &str) -> Result<String, JsValue> {
@@ -71,6 +93,12 @@ pub fn validate_capital_structure_spec(json: &str) -> Result<String, JsValue> {
 /// Performs both serde deserialization and the waterfall's internal
 /// consistency check (for example rejecting `Sweep` ordered after `Equity`
 /// when an ECF sweep is configured).
+///
+/// # Errors
+///
+/// Rejects malformed or schema-incompatible `json`; duplicate or inconsistent
+/// payment priorities; incomplete available-cash priorities; invalid PIK or
+/// ECF-sweep settings; or failure to serialize the validated waterfall.
 /// @param json - Canonical JSON string defining the object to deserialize or normalize.
 #[wasm_bindgen(js_name = validateWaterfallSpec)]
 pub fn validate_waterfall_spec(json: &str) -> Result<String, JsValue> {
@@ -81,6 +109,11 @@ pub fn validate_waterfall_spec(json: &str) -> Result<String, JsValue> {
 }
 
 /// Validate an `EcfSweepSpec` JSON string.
+///
+/// # Errors
+///
+/// Rejects malformed or schema-incompatible `json`, or failure to serialize
+/// the decoded ECF-sweep specification.
 /// @param json - Canonical JSON string defining the object to deserialize or normalize.
 #[wasm_bindgen(js_name = validateEcfSweepSpec)]
 pub fn validate_ecf_sweep_spec(json: &str) -> Result<String, JsValue> {
@@ -90,6 +123,11 @@ pub fn validate_ecf_sweep_spec(json: &str) -> Result<String, JsValue> {
 }
 
 /// Validate a `PikToggleSpec` JSON string.
+///
+/// # Errors
+///
+/// Rejects malformed or schema-incompatible `json`, or failure to serialize
+/// the decoded PIK-toggle specification.
 /// @param json - Canonical JSON string defining the object to deserialize or normalize.
 #[wasm_bindgen(js_name = validatePikToggleSpec)]
 pub fn validate_pik_toggle_spec(json: &str) -> Result<String, JsValue> {
@@ -103,6 +141,12 @@ pub fn validate_pik_toggle_spec(json: &str) -> Result<String, JsValue> {
 // ---------------------------------------------------------------------------
 
 /// Evaluate a `FinancialModelSpec` and return the `StatementResult` JSON.
+///
+/// # Errors
+///
+/// Rejects malformed `model_json`, model semantic failures, invalid formula or
+/// dependency graphs, missing evaluation inputs, unsupported capital-structure
+/// requirements, or failure to serialize the statement result.
 /// @param model_json - JSON-serialized FinancialModelSpec to evaluate across its statement periods.
 #[wasm_bindgen(js_name = evaluateModel)]
 pub fn evaluate_model(model_json: &str) -> Result<String, JsValue> {
@@ -121,6 +165,12 @@ pub fn evaluate_model(model_json: &str) -> Result<String, JsValue> {
 ///
 /// Required for capital-structure-aware models. The `as_of` argument is an
 /// ISO 8601 date string (e.g. `"2025-01-15"`).
+///
+/// # Errors
+///
+/// Rejects malformed model or market JSON, model semantic failures, an invalid
+/// ISO `as_of` date, invalid formulas or dependencies, missing market data, or
+/// failure to serialize the statement result.
 /// @param model_json - JSON-serialized FinancialModelSpec to evaluate across its statement periods.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
@@ -153,6 +203,11 @@ pub fn evaluate_model_with_market(
 ///
 /// Useful for previewing expression structure in UI tooling before
 /// committing a formula to a model.
+///
+/// # Errors
+///
+/// Rejects trailing tokens, malformed or incomplete syntax, or a formula that
+/// exceeds the parser's nesting or term limits.
 /// @param formula - Financial-model formula string to parse into its canonical expression representation.
 #[wasm_bindgen(js_name = parseFormula)]
 pub fn parse_formula(formula: &str) -> Result<String, JsValue> {
@@ -164,6 +219,12 @@ pub fn parse_formula(formula: &str) -> Result<String, JsValue> {
 ///
 /// Returns `true` when the formula is valid; throws a `FinstackError`
 /// otherwise. This mirrors the Python `validate_formula` API.
+///
+/// # Errors
+///
+/// Rejects any formula that cannot be parsed as one complete DSL expression or
+/// compiled because it contains an unsupported component, function, or
+/// operator form.
 /// @param formula - Financial-model formula string to parse and validate without evaluation.
 #[wasm_bindgen(js_name = validateFormula)]
 pub fn validate_formula(formula: &str) -> Result<bool, JsValue> {

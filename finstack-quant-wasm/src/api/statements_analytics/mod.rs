@@ -17,6 +17,12 @@ use wasm_bindgen::prelude::*;
 ///
 /// Accepts JSON strings for the model spec and sensitivity configuration,
 /// evaluates all perturbation scenarios, and returns JSON results.
+///
+/// # Errors
+///
+/// Rejects malformed model or configuration JSON, invalid sensitivity modes or
+/// parameter perturbations, missing model nodes or periods, model-evaluation
+/// failures, or failure to serialize the sensitivity result.
 /// @param model_json - Canonical JSON payload representing the model consumed by this API.
 /// @param config_json - Canonical JSON payload representing the config consumed by this API.
 #[wasm_bindgen(js_name = runSensitivity)]
@@ -36,6 +42,12 @@ pub fn run_sensitivity(model_json: &str, config_json: &str) -> Result<String, Js
 /// Run a variance analysis comparing two evaluated statement results.
 ///
 /// Returns JSON-serialized variance report.
+///
+/// # Errors
+///
+/// Rejects malformed result or configuration JSON, empty metric or period
+/// selections, a requested value missing from either result, or failure to
+/// serialize the variance report.
 /// @param base_json - Canonical JSON payload representing the base consumed by this API.
 /// @param comparison_json - Canonical JSON payload representing the comparison consumed by this API.
 /// @param config_json - Canonical JSON payload representing the config consumed by this API.
@@ -64,6 +76,12 @@ pub fn run_variance(
 /// Evaluate all scenarios in a scenario set against a base model.
 ///
 /// Returns a JSON object mapping scenario names to their statement results.
+///
+/// # Errors
+///
+/// Rejects malformed model or scenario-set JSON, an empty scenario set,
+/// invalid parent chains, overrides of missing nodes, failure to evaluate any
+/// scenario, or failure to serialize the result map.
 /// @param model_json - Canonical JSON payload representing the model consumed by this API.
 /// @param scenario_set_json - Canonical JSON payload representing the scenario set consumed by this API.
 #[wasm_bindgen(js_name = evaluateScenarioSet)]
@@ -85,6 +103,12 @@ pub fn evaluate_scenario_set(model_json: &str, scenario_set_json: &str) -> Resul
 ///
 /// Takes two float arrays (actual, forecast) and returns a JSON object
 /// with keys `mae`, `mape`, `rmse`, `n`.
+///
+/// # Errors
+///
+/// Rejects inputs that cannot be decoded as numeric JavaScript arrays, arrays
+/// with unequal lengths, empty arrays, or metrics that cannot be serialized to
+/// JavaScript.
 /// @param actual - Actual realized values aligned one-for-one with the forecast series.
 /// @param forecast - Forecast values aligned one-for-one with the actual realized series.
 #[wasm_bindgen(js_name = backtestForecast)]
@@ -108,6 +132,12 @@ pub fn backtest_forecast(actual: JsValue, forecast: JsValue) -> Result<JsValue, 
 }
 
 /// Generate tornado chart entries for a sensitivity result.
+///
+/// # Errors
+///
+/// Rejects malformed `result_json`, an invalid optional `period` identifier, or
+/// failure to serialize the generated entries. A missing metric produces no
+/// entry rather than rejecting.
 /// @param result_json - Canonical JSON payload representing the result consumed by this API.
 /// @param metric_node - Statement metric node identifier selected for the requested analysis.
 /// @param period - Model period label for the requested statement value or calculation.
@@ -135,6 +165,13 @@ pub fn generate_tornado_entries(
 /// DCF. Returns JSON with the baseline enterprise value, tornado entries as
 /// deltas versus that baseline sorted by descending absolute swing, and the
 /// effective (possibly clamped) shock levels.
+///
+/// # Errors
+///
+/// Rejects malformed model or terminal-value JSON, model-evaluation failures,
+/// a missing UFCF series or model currency, inconsistent WACC or terminal-value
+/// assumptions, missing bridge inputs, valuation failures, or failure to
+/// serialize the sensitivity result.
 /// @param model_json - Canonical JSON payload representing the financial model spec consumed by this API.
 /// @param wacc - Baseline weighted average cost of capital in decimal form (0.10 = 10%).
 /// @param terminal_value_json - Canonical JSON payload representing the terminal value spec, selecting whether growth or the exit multiple is shocked.
@@ -214,6 +251,14 @@ pub fn dcf_sensitivity(
 /// are the exit enterprise value less the modelled net debt at the exit
 /// period. IRR is out of scope: pair the returned `exit_equity_proceeds` with
 /// the equity outflow at close and call `portfolio.mwrXirr`.
+///
+/// # Errors
+///
+/// Rejects malformed model or tranche JSON, an invalid `exit_period`, model
+/// evaluation or lookup failures, a missing model currency or period,
+/// non-finite transaction inputs or model values, negative tranche amounts, a
+/// non-positive sponsor equity check, check-suite failures, or result
+/// serialization failure.
 /// @param model_json - Canonical JSON payload representing the financial model spec consumed by this API.
 /// @param entry_multiple - Entry valuation multiple applied to the entry metric (8.5 = 8.5x).
 /// @param entry_metric_node - Node identifier supplying the entry valuation metric, read at the model's first period.
@@ -294,6 +339,11 @@ pub fn evaluate_lbo(
 ///
 /// Blends the required return on equity with the after-tax cost of debt:
 /// `WACC = w_E * r_E + w_D * r_D * (1 - T)`.
+///
+/// # Errors
+///
+/// Rejects any non-finite input, negative capital weights, weights that do not
+/// sum to one within tolerance, or a `tax_rate` outside `[0, 1]`.
 /// @param equity_weight - Equity share of total capital as a decimal fraction (0.6 = 60% equity-funded).
 /// @param cost_of_equity - Required return on equity in decimal form, typically from CAPM (0.115 = 11.5%).
 /// @param debt_weight - Debt share of total capital as a decimal fraction; must sum with the equity weight to 1.0.
@@ -318,6 +368,12 @@ pub fn wacc(
 }
 
 /// Run Monte Carlo simulation on a financial model (JSON in/out).
+///
+/// # Errors
+///
+/// Rejects malformed model or configuration JSON, zero simulation paths, a
+/// model containing capital structure, model compilation or dependency
+/// failures, any path-evaluation failure, or failure to serialize the results.
 /// @param model_json - Canonical JSON payload representing the model consumed by this API.
 /// @param config_json - Canonical JSON payload representing the config consumed by this API.
 #[wasm_bindgen(js_name = runMonteCarlo)]
@@ -334,6 +390,13 @@ pub fn run_monte_carlo(model_json: &str, config_json: &str) -> Result<String, Js
 }
 
 /// Find the driver value that makes a target node reach a target value.
+///
+/// # Errors
+///
+/// Rejects malformed `model_json`, invalid target or driver period identifiers,
+/// exactly one supplied bound, missing target or driver nodes or periods,
+/// non-finite or unordered bounds, model-evaluation or solver-convergence
+/// failures, or failure to serialize the result or updated model.
 /// @param model_json - Canonical JSON payload representing the model consumed by this API.
 /// @param target_node - Statement node identifier whose value is driven toward the target.
 /// @param target_period - Model period label in which the goal-seek target is evaluated.
@@ -409,6 +472,12 @@ fn goal_seek_bounds(
 }
 
 /// Trace dependencies for a node and return ASCII tree.
+///
+/// # Errors
+///
+/// Rejects malformed `model_json`, formulas or clauses whose dependencies
+/// cannot be parsed, unknown formula references, a missing `node_id` or
+/// reachable dependency, or a dependency cycle.
 /// @param model_json - Canonical JSON payload representing the model consumed by this API.
 /// @param node_id - Stable node identifier used to select the required domain object.
 #[wasm_bindgen(js_name = traceDependencies)]
@@ -424,6 +493,12 @@ pub fn trace_dependencies(model_json: &str, node_id: &str) -> Result<String, JsV
 }
 
 /// Explain a formula for a specific node and period (JSON in/out).
+///
+/// # Errors
+///
+/// Rejects malformed model or result JSON, an invalid `period` identifier, a
+/// missing model node or node-period result, an invalid formula used to build
+/// the breakdown, or failure to serialize the explanation to JavaScript.
 /// @param model_json - Canonical JSON payload representing the model consumed by this API.
 /// @param results_json - Canonical JSON payload representing the results consumed by this API.
 /// @param node_id - Stable node identifier used to select the required domain object.
@@ -447,6 +522,12 @@ pub fn explain_formula(
 }
 
 /// Explain a formula for a specific node and period as formatted text.
+///
+/// # Errors
+///
+/// Rejects malformed model or result JSON, an invalid `period` identifier, a
+/// missing model node or node-period result, or an invalid formula used to
+/// build the explanation breakdown.
 /// @param model_json - Canonical JSON payload representing the model consumed by this API.
 /// @param results_json - Canonical JSON payload representing the results consumed by this API.
 /// @param node_id - Stable node identifier used to select the required domain object.
@@ -470,6 +551,12 @@ pub fn explain_formula_text(
 }
 
 /// Generate a P&L summary report as formatted text.
+///
+/// # Errors
+///
+/// Rejects malformed `results_json`, `line_items` or `periods` values that are
+/// not JavaScript string arrays, or any period string that is not a valid
+/// statement period identifier.
 /// @param results_json - Canonical JSON payload representing the results consumed by this API.
 /// @param line_items - Ordered statement line-item definitions included in the summary report.
 /// @param periods - Ordered period labels or observations aligned with the supplied data.
@@ -496,6 +583,11 @@ pub fn pl_summary_report(
 }
 
 /// Generate a credit assessment report as formatted text.
+///
+/// # Errors
+///
+/// Rejects malformed `results_json` or an `as_of` value that is not a valid
+/// statement period identifier.
 /// @param results_json - Canonical JSON payload representing the results consumed by this API.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 #[wasm_bindgen(js_name = creditAssessmentReport)]
@@ -512,6 +604,11 @@ pub fn credit_assessment_report(results_json: &str, as_of: &str) -> Result<Strin
 }
 
 /// Compute a structured credit assessment (leverage, coverage, FCF) as JSON.
+///
+/// # Errors
+///
+/// Rejects malformed `results_json`, an `as_of` value that is not a valid
+/// statement period identifier, or failure to serialize the assessment.
 /// @param results_json - Canonical JSON payload representing the results consumed by this API.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 #[wasm_bindgen(js_name = creditAssessment)]
@@ -529,6 +626,13 @@ pub fn credit_assessment(results_json: &str, as_of: &str) -> Result<String, JsVa
 /// Evaluates the model, resolves the suite spec into runnable checks
 /// (built-in **and** user-defined formula checks), and returns a JSON
 /// check report.
+///
+/// # Errors
+///
+/// Rejects malformed model, suite, or supplied result JSON; check-suite
+/// resolution failures; model-evaluation failures when results are omitted;
+/// missing nodes, incompatible data, or invalid check configuration during
+/// execution; or failure to serialize the report.
 /// @param model_json - Canonical JSON payload representing the model consumed by this API.
 /// @param suite_spec_json - Canonical JSON payload representing the suite spec consumed by this API.
 /// @param results_json - Canonical JSON payload representing the results consumed by this API.
@@ -553,6 +657,12 @@ pub fn run_checks(
 ///
 /// Accepts a model and a mapping JSON, builds the appropriate check
 /// suite, evaluates the model, runs the checks, and returns the report.
+///
+/// # Errors
+///
+/// Rejects malformed model, mapping, or supplied result JSON; model-evaluation
+/// failures when results are omitted; missing mapped nodes, incompatible data,
+/// or invalid check configuration; or failure to serialize the report.
 /// @param model_json - Canonical JSON payload representing the model consumed by this API.
 /// @param mapping_json - Canonical JSON payload representing the mapping consumed by this API.
 /// @param results_json - Canonical JSON payload representing the results consumed by this API.
@@ -573,6 +683,12 @@ pub fn run_three_statement_checks(
 }
 
 /// Run credit underwriting checks using credit-specific mappings.
+///
+/// # Errors
+///
+/// Rejects malformed model, mapping, or supplied result JSON; model-evaluation
+/// failures when results are omitted; missing mapped nodes, incompatible data,
+/// or invalid check configuration; or failure to serialize the report.
 /// @param model_json - Canonical JSON payload representing the model consumed by this API.
 /// @param mapping_json - Canonical JSON payload representing the mapping consumed by this API.
 /// @param results_json - Canonical JSON payload representing the results consumed by this API.
@@ -606,6 +722,11 @@ fn evaluate_or_parse_results(
 }
 
 /// Render a check report as plain text.
+///
+/// # Errors
+///
+/// Rejects `report_json` when it is malformed or incompatible with the check
+/// report schema.
 /// @param report_json - Canonical JSON payload representing the report consumed by this API.
 #[wasm_bindgen(js_name = renderCheckReportText)]
 pub fn render_check_report_text(report_json: &str) -> Result<String, JsValue> {
@@ -615,6 +736,11 @@ pub fn render_check_report_text(report_json: &str) -> Result<String, JsValue> {
 }
 
 /// Render a check report as HTML.
+///
+/// # Errors
+///
+/// Rejects `report_json` when it is malformed or incompatible with the check
+/// report schema.
 /// @param report_json - Canonical JSON payload representing the report consumed by this API.
 #[wasm_bindgen(js_name = renderCheckReportHtml)]
 pub fn render_check_report_html(report_json: &str) -> Result<String, JsValue> {
