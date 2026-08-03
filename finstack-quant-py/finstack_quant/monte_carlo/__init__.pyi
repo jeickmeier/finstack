@@ -9,9 +9,9 @@ as numeric arguments to the exposed pricer constructors and methods.
 
 Examples
 --------
->>> import finstack_quant.monte_carlo as monte_carlo
->>> monte_carlo.__name__
-'finstack_quant.monte_carlo'
+>>> from finstack_quant.monte_carlo import heston_satisfies_feller
+>>> heston_satisfies_feller(2.0, 0.04, 0.3)
+True
 """
 
 from __future__ import annotations
@@ -575,7 +575,7 @@ class TimeGrid:
         --------
         >>> from finstack_quant.monte_carlo import TimeGrid
         >>> len(TimeGrid(1.0, 4).dts)
-            4
+        4
         """
         ...
 
@@ -602,7 +602,7 @@ class TimeGrid:
         --------
         >>> from finstack_quant.monte_carlo import TimeGrid
         >>> TimeGrid(1.0, 4).time(0)
-            0.0
+        0.0
         """
         ...
 
@@ -629,7 +629,7 @@ class TimeGrid:
         --------
         >>> from finstack_quant.monte_carlo import TimeGrid
         >>> TimeGrid(1.0, 4).dt(0)
-            0.25
+        0.25
         """
         ...
 
@@ -639,9 +639,10 @@ class GbmPathSummary:
 
     Examples
     --------
-    >>> from finstack_quant.monte_carlo import GbmPathSummary
-    >>> GbmPathSummary.__name__
-    'GbmPathSummary'
+    >>> from finstack_quant.monte_carlo import simulate_gbm_paths
+    >>> paths = simulate_gbm_paths(100, 0.05, 0.0, 0.2, 1.0, 2, 3, seed=7)
+    >>> (paths.num_paths, paths.times)
+    (3, [0.0, 0.5, 1.0])
     """
 
     @property
@@ -882,7 +883,9 @@ def simulate_gbm_paths(
     Returns
     -------
     GbmPathSummary
-        Result of simulate gbm paths for the binding in the annotated representation.
+        Captured time grid and simulated spot paths. ``num_paths`` is the
+        number of returned paths and ``num_simulated_paths`` records the same
+        count because antithetic capture is unsupported.
 
     Raises
     ------
@@ -896,8 +899,9 @@ def simulate_gbm_paths(
     Examples
     --------
     >>> from finstack_quant.monte_carlo import simulate_gbm_paths
-    >>> callable(simulate_gbm_paths)
-    True
+    >>> summary = simulate_gbm_paths(100, 0.05, 0.0, 0.2, 1.0, 2, 3, seed=7)
+    >>> (summary.num_paths, summary.times)
+    (3, [0.0, 0.5, 1.0])
     """
     ...
 
@@ -917,7 +921,8 @@ def heston_satisfies_feller(kappa: float, theta: float, vol_of_vol: float) -> bo
     Returns
     -------
     bool
-        Result of heston satisfies feller for the binding in the annotated representation.
+        ``True`` when ``2 * kappa * theta > vol_of_vol**2``; otherwise
+        ``False``.
 
     Raises
     ------
@@ -928,8 +933,10 @@ def heston_satisfies_feller(kappa: float, theta: float, vol_of_vol: float) -> bo
     Examples
     --------
     >>> from finstack_quant.monte_carlo import heston_satisfies_feller
-    >>> callable(heston_satisfies_feller)
+    >>> heston_satisfies_feller(2.0, 0.04, 0.3)
     True
+    >>> heston_satisfies_feller(1.0, 0.04, 0.5)
+    False
     """
     ...
 
@@ -2107,8 +2114,9 @@ def finite_diff_delta(
     Examples
     --------
     >>> from finstack_quant.monte_carlo import finite_diff_delta
-    >>> callable(finite_diff_delta)
-    True
+    >>> delta, stderr = finite_diff_delta(100, 100, 0.05, 0.0, 0.2, 1.0, num_paths=200, seed=7, num_steps=10)
+    >>> (round(delta, 6), round(stderr, 6))
+    (0.648721, 0.761258)
     """
     ...
 
@@ -2179,8 +2187,9 @@ def finite_diff_delta_crn(
     Examples
     --------
     >>> from finstack_quant.monte_carlo import finite_diff_delta_crn
-    >>> callable(finite_diff_delta_crn)
-    True
+    >>> delta, stderr = finite_diff_delta_crn(100, 100, 0.05, 0.0, 0.2, 1.0, num_paths=200, seed=7, num_steps=10)
+    >>> (round(delta, 6), round(stderr, 6))
+    (0.648721, 0.040829)
     """
     ...
 
@@ -2248,8 +2257,9 @@ def finite_diff_gamma(
     Examples
     --------
     >>> from finstack_quant.monte_carlo import finite_diff_gamma
-    >>> callable(finite_diff_gamma)
-    True
+    >>> gamma, stderr = finite_diff_gamma(100, 100, 0.05, 0.0, 0.2, 1.0, num_paths=200, seed=7, num_steps=10)
+    >>> (round(gamma, 6), round(stderr, 6))
+    (0.019496, 2.636619)
     """
     ...
 
@@ -2319,7 +2329,8 @@ def finite_diff_gamma_crn(
     Examples
     --------
     >>> from finstack_quant.monte_carlo import finite_diff_gamma_crn
-    >>> callable(finite_diff_gamma_crn)
-    True
+    >>> gamma, stderr = finite_diff_gamma_crn(100, 100, 0.05, 0.0, 0.2, 1.0, num_paths=200, seed=7, num_steps=10)
+    >>> (round(gamma, 6), round(stderr, 6))
+    (0.019496, 0.008964)
     """
     ...

@@ -4,9 +4,9 @@ Bindings for the ``finstack-quant-scenarios`` Rust crate.
 
 Examples:
 --------
->>> import finstack_quant.scenarios as scenarios
->>> scenarios.__name__
-'finstack_quant.scenarios'
+>>> from finstack_quant.scenarios import list_builtin_templates
+>>> list_builtin_templates()[:2]
+['gfc_2008', 'covid_2020']
 """
 
 from __future__ import annotations

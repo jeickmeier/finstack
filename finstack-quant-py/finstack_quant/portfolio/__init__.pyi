@@ -3,9 +3,10 @@ Portfolio construction, valuation, optimization, cashflows, scenarios, and metri
 
 Examples
 --------
->>> import finstack_quant.portfolio as portfolio
->>> portfolio.__name__
-'finstack_quant.portfolio'
+>>> from finstack_quant.portfolio import Portfolio
+>>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+>>> (Portfolio.from_spec(spec).id, len(Portfolio.from_spec(spec)))
+('empty', 0)
 """
 
 from __future__ import annotations
@@ -141,8 +142,8 @@ class PortfolioError(ValueError):
     Examples
     --------
     >>> from finstack_quant.portfolio import PortfolioError
-    >>> PortfolioError.__name__
-    'PortfolioError'
+    >>> str(PortfolioError("invalid portfolio"))
+    'invalid portfolio'
     """
 
 class FinstackValuationError(PortfolioError):
@@ -152,8 +153,8 @@ class FinstackValuationError(PortfolioError):
     Examples
     --------
     >>> from finstack_quant.portfolio import FinstackValuationError
-    >>> FinstackValuationError.__name__
-    'FinstackValuationError'
+    >>> str(FinstackValuationError("valuation failed"))
+    'valuation failed'
     """
 
 class FinstackFxError(PortfolioError):
@@ -163,8 +164,8 @@ class FinstackFxError(PortfolioError):
     Examples
     --------
     >>> from finstack_quant.portfolio import FinstackFxError
-    >>> FinstackFxError.__name__
-    'FinstackFxError'
+    >>> str(FinstackFxError("missing FX rate"))
+    'missing FX rate'
     """
 
 class FinstackOptimizationError(PortfolioError):
@@ -174,8 +175,8 @@ class FinstackOptimizationError(PortfolioError):
     Examples
     --------
     >>> from finstack_quant.portfolio import FinstackOptimizationError
-    >>> FinstackOptimizationError.__name__
-    'FinstackOptimizationError'
+    >>> str(FinstackOptimizationError("infeasible"))
+    'infeasible'
     """
 
 class ContractValidationError(ValueError):
@@ -311,9 +312,17 @@ class MaterializationReport:
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import MaterializationReport
-    >>> MaterializationReport.__name__
-    'MaterializationReport'
+    >>> import json
+    >>> from finstack_quant.portfolio import Portfolio
+    >>> bundle = {
+    ...     "schema": "finstack_quant.portfolio_materialization/1",
+    ...     "portfolio": {"id": "empty", "base_currency": "USD", "as_of": "2025-01-01", "entities": {}},
+    ...     "instruments": [],
+    ...     "positions": [],
+    ... }
+    >>> _, report = Portfolio.from_materialization(json.dumps(bundle))
+    >>> (report.positions, report.unique_instruments)
+    (0, 0)
     """
 
     @property
@@ -422,8 +431,9 @@ class Portfolio:
     Examples
     --------
     >>> from finstack_quant.portfolio import Portfolio
-    >>> Portfolio.__name__
-    'Portfolio'
+    >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+    >>> (Portfolio.from_spec(spec).id, len(Portfolio.from_spec(spec)))
+    ('empty', 0)
     """
 
     @staticmethod
@@ -440,7 +450,7 @@ class Portfolio:
         Returns
         -------
         Portfolio
-            Result of from spec for this `Portfolio` in the annotated representation.
+            Validated runtime portfolio built from ``spec_json`` with lookup indices rebuilt.
 
         Raises
         ------
@@ -453,8 +463,10 @@ class Portfolio:
         Examples
         --------
         >>> from finstack_quant.portfolio import Portfolio
-        >>> callable(Portfolio.from_spec)
-        True
+        >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+        >>> portfolio = Portfolio.from_spec(spec)
+        >>> (portfolio.id, portfolio.base_currency, len(portfolio))
+        ('empty', 'USD', 0)
         """
         ...
 
@@ -559,7 +571,7 @@ class Portfolio:
         Returns
         -------
         str
-            Result of to spec json for this `Portfolio` in the annotated representation.
+            Compact canonical JSON reconstructed as a ``PortfolioSpec``.
         """
         ...
 
@@ -577,9 +589,14 @@ class PortfolioAttribution:
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import PortfolioAttribution
-    >>> PortfolioAttribution.__name__
-    'PortfolioAttribution'
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.portfolio import Portfolio, attribute_portfolio_pnl
+    >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+    >>> result = attribute_portfolio_pnl(
+    ...     Portfolio.from_spec(spec), MarketContext(), MarketContext(), "2025-01-01", "2025-01-02", "parallel"
+    ... )
+    >>> result.total_pnl.amount == 0
+    True
     """
 
     def to_json(self) -> str:
@@ -600,7 +617,7 @@ class PortfolioAttribution:
         Returns
         -------
         str
-            Result of by position json for this `PortfolioAttribution` in the annotated representation.
+            Compact position-keyed attribution JSON in canonical insertion order.
         """
         ...
 
@@ -617,7 +634,7 @@ class PortfolioAttribution:
         Returns
         -------
         dict[str, float | bool]
-            Result of reconciliation check for this `PortfolioAttribution` in the annotated representation.
+            Base-currency ``total_residual``, ``is_reconciled`` flag, and ``tolerance``.
         """
         ...
 
@@ -800,9 +817,16 @@ class PortfolioValuation:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.portfolio import PortfolioValuation
-    >>> PortfolioValuation.__name__
-    'PortfolioValuation'
+    >>> doc = {
+    ...     "as_of": "2025-01-01",
+    ...     "position_values": {},
+    ...     "total_base_currency": {"amount": "0", "currency": "USD"},
+    ...     "by_entity": {},
+    ... }
+    >>> PortfolioValuation.from_json(json.dumps(doc)).total_value
+    0.0
     """
 
     @staticmethod
@@ -828,9 +852,17 @@ class PortfolioValuation:
 
         Examples
         --------
+        >>> import json
         >>> from finstack_quant.portfolio import PortfolioValuation
-        >>> callable(PortfolioValuation.from_json)
-        True
+        >>> doc = {
+        ...     "as_of": "2025-01-01",
+        ...     "position_values": {},
+        ...     "total_base_currency": {"amount": "0", "currency": "USD"},
+        ...     "by_entity": {},
+        ... }
+        >>> valuation = PortfolioValuation.from_json(json.dumps(doc))
+        >>> (valuation.total_value, valuation.base_currency)
+        (0.0, 'USD')
         """
         ...
 
@@ -919,8 +951,11 @@ class PortfolioCashflows:
     Examples
     --------
     >>> from finstack_quant.portfolio import PortfolioCashflows
-    >>> PortfolioCashflows.__name__
-    'PortfolioCashflows'
+    >>> cashflows = PortfolioCashflows.from_json(
+    ...     '{"events":[],"by_position":{},"by_date":{},"position_summaries":{},"issues":[]}'
+    ... )
+    >>> (cashflows.num_positions(), cashflows.num_issues())
+    (0, 0)
     """
 
     @staticmethod
@@ -947,8 +982,11 @@ class PortfolioCashflows:
         Examples
         --------
         >>> from finstack_quant.portfolio import PortfolioCashflows
-        >>> callable(PortfolioCashflows.from_json)
-        True
+        >>> cashflows = PortfolioCashflows.from_json(
+        ...     '{"events":[],"by_position":{},"by_date":{},"position_summaries":{},"issues":[]}'
+        ... )
+        >>> (cashflows.num_positions(), cashflows.num_issues())
+        (0, 0)
         """
         ...
 
@@ -968,7 +1006,7 @@ class PortfolioCashflows:
         Returns
         -------
         str
-            Result of events json for this `PortfolioCashflows` in the annotated representation.
+            Compact JSON array of all dated cashflow events in ladder order.
         """
         ...
 
@@ -978,7 +1016,7 @@ class PortfolioCashflows:
         Returns
         -------
         str
-            Result of by date json for this `PortfolioCashflows` in the annotated representation.
+            Compact JSON for totals grouped by payment date, currency, and cashflow kind.
         """
         ...
 
@@ -988,7 +1026,7 @@ class PortfolioCashflows:
         Returns
         -------
         str
-            Result of issues json for this `PortfolioCashflows` in the annotated representation.
+            Compact JSON array of cashflow-schedule extraction issues.
         """
         ...
 
@@ -998,7 +1036,7 @@ class PortfolioCashflows:
         Returns
         -------
         int
-            Result of num positions for this `PortfolioCashflows` in the annotated representation.
+            Number of positions with schedule entries, including empty schedules.
         """
         ...
 
@@ -1008,7 +1046,7 @@ class PortfolioCashflows:
         Returns
         -------
         int
-            Result of num issues for this `PortfolioCashflows` in the annotated representation.
+            Number of cashflow-schedule extraction issues recorded in the ladder.
         """
         ...
 
@@ -1037,7 +1075,7 @@ class PortfolioCashflows:
         Returns
         -------
         str
-            Result of collapse to base by date kind for this `PortfolioCashflows` in the annotated representation.
+            Date-and-kind totals converted to ``base_currency`` using payment-date FX.
 
         Raises
         ------
@@ -1076,9 +1114,29 @@ class PortfolioResult:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.portfolio import PortfolioResult
-    >>> PortfolioResult.__name__
-    'PortfolioResult'
+    >>> valuation = {
+    ...     "as_of": "2025-01-01",
+    ...     "position_values": {},
+    ...     "total_base_currency": {"amount": "0", "currency": "USD"},
+    ...     "by_entity": {},
+    ... }
+    >>> rounding = {
+    ...     "mode": "bankers",
+    ...     "ingest_scale_by_currency": {},
+    ...     "output_scale_by_currency": {},
+    ...     "tolerances": {"rate_epsilon": 1e-12, "generic_epsilon": 1e-10},
+    ...     "version": 1,
+    ... }
+    >>> doc = {
+    ...     "schema_version": 1,
+    ...     "valuation": valuation,
+    ...     "metrics": {"aggregated": {}, "by_position": {}},
+    ...     "meta": {"numeric_mode": "f64", "rounding": rounding},
+    ... }
+    >>> PortfolioResult.from_json(json.dumps(doc)).total_value
+    0.0
     """
 
     @staticmethod
@@ -1103,9 +1161,29 @@ class PortfolioResult:
 
         Examples
         --------
+        >>> import json
         >>> from finstack_quant.portfolio import PortfolioResult
-        >>> callable(PortfolioResult.from_json)
-        True
+        >>> valuation = {
+        ...     "as_of": "2025-01-01",
+        ...     "position_values": {},
+        ...     "total_base_currency": {"amount": "0", "currency": "USD"},
+        ...     "by_entity": {},
+        ... }
+        >>> rounding = {
+        ...     "mode": "bankers",
+        ...     "ingest_scale_by_currency": {},
+        ...     "output_scale_by_currency": {},
+        ...     "tolerances": {"rate_epsilon": 1e-12, "generic_epsilon": 1e-10},
+        ...     "version": 1,
+        ... }
+        >>> doc = {
+        ...     "schema_version": 1,
+        ...     "valuation": valuation,
+        ...     "metrics": {"aggregated": {}, "by_position": {}},
+        ...     "meta": {"numeric_mode": "f64", "rounding": rounding},
+        ... }
+        >>> PortfolioResult.from_json(json.dumps(doc)).total_value
+        0.0
         """
         ...
 
@@ -1158,7 +1236,7 @@ class PortfolioResult:
         Returns
         -------
         float
-            Result of require metric for this `PortfolioResult` in the annotated representation.
+            Aggregated scalar stored under the fully qualified ``metric_id``.
 
         Raises
         ------
@@ -1182,8 +1260,9 @@ class PortfolioMetrics:
     Examples
     --------
     >>> from finstack_quant.portfolio import PortfolioMetrics
-    >>> PortfolioMetrics.__name__
-    'PortfolioMetrics'
+    >>> metrics = PortfolioMetrics.from_json('{"aggregated":{},"by_position":{}}')
+    >>> metrics.metric_series("pv")
+    []
     """
 
     @staticmethod
@@ -1209,8 +1288,9 @@ class PortfolioMetrics:
         Examples
         --------
         >>> from finstack_quant.portfolio import PortfolioMetrics
-        >>> callable(PortfolioMetrics.from_json)
-        True
+        >>> metrics = PortfolioMetrics.from_json('{"aggregated":{},"by_position":{}}')
+        >>> metrics.metric_series("pv")
+        []
         """
         ...
 
@@ -1244,7 +1324,8 @@ class PortfolioMetrics:
         Returns
         -------
         list[tuple[list[str], float, dict[str, float]]]
-            Result of metric series for this `PortfolioMetrics` in the annotated representation.
+            Ordered ``(components, total, by_entity)`` entries below ``base``;
+            the scalar base entry is excluded.
         """
         ...
 
@@ -1263,7 +1344,7 @@ def parse_portfolio_spec(json_str: str) -> str:
     Returns
     -------
     str
-        Result of parse portfolio spec for the binding in the annotated representation.
+        Canonical compact JSON with defaults normalized and fields emitted in Rust wire order.
 
     Raises
     ------
@@ -1272,9 +1353,11 @@ def parse_portfolio_spec(json_str: str) -> str:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.portfolio import parse_portfolio_spec
-    >>> callable(parse_portfolio_spec)
-    True
+    >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+    >>> json.loads(parse_portfolio_spec(spec))["id"]
+    'empty'
     """
     ...
 
@@ -1293,7 +1376,7 @@ def build_portfolio_from_spec(spec_json: str) -> str:
     Returns
     -------
     str
-        Result of build portfolio from spec for the binding in the annotated representation.
+        Canonical compact JSON for the validated, constructed portfolio specification.
 
     Raises
     ------
@@ -1305,9 +1388,11 @@ def build_portfolio_from_spec(spec_json: str) -> str:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.portfolio import build_portfolio_from_spec
-    >>> callable(build_portfolio_from_spec)
-    True
+    >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+    >>> json.loads(build_portfolio_from_spec(spec))["positions"]
+    []
     """
     ...
 
@@ -1326,7 +1411,7 @@ def portfolio_result_total_value(result: PortfolioResult | str) -> float:
     Returns
     -------
     float
-        Result of portfolio result total value for the binding in the annotated representation.
+        Portfolio total in the result's base currency, converted to ``float``.
 
     Raises
     ------
@@ -1337,9 +1422,29 @@ def portfolio_result_total_value(result: PortfolioResult | str) -> float:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.portfolio import portfolio_result_total_value
-    >>> callable(portfolio_result_total_value)
-    True
+    >>> valuation = {
+    ...     "as_of": "2025-01-01",
+    ...     "position_values": {},
+    ...     "total_base_currency": {"amount": "0", "currency": "USD"},
+    ...     "by_entity": {},
+    ... }
+    >>> rounding = {
+    ...     "mode": "bankers",
+    ...     "ingest_scale_by_currency": {},
+    ...     "output_scale_by_currency": {},
+    ...     "tolerances": {"rate_epsilon": 1e-12, "generic_epsilon": 1e-10},
+    ...     "version": 1,
+    ... }
+    >>> result = {
+    ...     "schema_version": 1,
+    ...     "valuation": valuation,
+    ...     "metrics": {"aggregated": {}, "by_position": {}},
+    ...     "meta": {"numeric_mode": "f64", "rounding": rounding},
+    ... }
+    >>> portfolio_result_total_value(json.dumps(result))
+    0.0
     """
     ...
 
@@ -1359,7 +1464,7 @@ def portfolio_result_get_metric(result: PortfolioResult | str, metric_id: str) -
     Returns
     -------
     float | None
-        Result of portfolio result get metric for the binding in the annotated representation.
+        Aggregated metric total, or ``None`` when ``metric_id`` is absent.
 
     Raises
     ------
@@ -1370,9 +1475,30 @@ def portfolio_result_get_metric(result: PortfolioResult | str, metric_id: str) -
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.portfolio import portfolio_result_get_metric
-    >>> callable(portfolio_result_get_metric)
-    True
+    >>> valuation = {
+    ...     "as_of": "2025-01-01",
+    ...     "position_values": {},
+    ...     "total_base_currency": {"amount": "0", "currency": "USD"},
+    ...     "by_entity": {},
+    ... }
+    >>> rounding = {
+    ...     "mode": "bankers",
+    ...     "ingest_scale_by_currency": {},
+    ...     "output_scale_by_currency": {},
+    ...     "tolerances": {"rate_epsilon": 1e-12, "generic_epsilon": 1e-10},
+    ...     "version": 1,
+    ... }
+    >>> metrics = {"aggregated": {"dv01": {"metric_id": "dv01", "total": 12.5, "by_entity": {}}}, "by_position": {}}
+    >>> result = {
+    ...     "schema_version": 1,
+    ...     "valuation": valuation,
+    ...     "metrics": metrics,
+    ...     "meta": {"numeric_mode": "f64", "rounding": rounding},
+    ... }
+    >>> portfolio_result_get_metric(json.dumps(result), "dv01")
+    12.5
     """
     ...
 
@@ -1401,7 +1527,7 @@ def aggregate_metrics(
     Returns
     -------
     str
-        Result of aggregate metrics for the binding in the annotated representation.
+        Canonical JSON for totals, per-position metrics, and skipped non-finite values.
 
     Raises
     ------
@@ -1417,9 +1543,13 @@ def aggregate_metrics(
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import aggregate_metrics
-    >>> callable(aggregate_metrics)
-    True
+    >>> import json
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.portfolio import Portfolio, aggregate_metrics, value_portfolio
+    >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+    >>> valuation = value_portfolio(Portfolio.from_spec(spec), MarketContext())
+    >>> json.loads(aggregate_metrics(valuation, "USD", MarketContext(), "2025-01-01"))["aggregated"]
+    {}
     """
     ...
 
@@ -1461,9 +1591,11 @@ def value_portfolio(
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import value_portfolio
-    >>> callable(value_portfolio)
-    True
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.portfolio import Portfolio, value_portfolio
+    >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+    >>> value_portfolio(Portfolio.from_spec(spec), MarketContext()).total_value
+    0.0
     """
     ...
 
@@ -1484,7 +1616,7 @@ def aggregate_full_cashflows(portfolio: Portfolio | str, market: MarketContext |
     Returns
     -------
     PortfolioCashflows
-        Result of aggregate full cashflows for the binding in the annotated representation.
+        Typed event ladder with per-position, per-date, and issue drill-downs.
 
     Raises
     ------
@@ -1498,9 +1630,12 @@ def aggregate_full_cashflows(portfolio: Portfolio | str, market: MarketContext |
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import aggregate_full_cashflows
-    >>> callable(aggregate_full_cashflows)
-    True
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.portfolio import Portfolio, aggregate_full_cashflows
+    >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+    >>> cashflows = aggregate_full_cashflows(Portfolio.from_spec(spec), MarketContext())
+    >>> (cashflows.num_positions(), cashflows.num_issues())
+    (0, 0)
     """
     ...
 
@@ -1526,7 +1661,7 @@ def apply_scenario_and_revalue(
     Returns
     -------
     tuple[str, str]
-        Result of apply scenario and revalue for the binding in the annotated representation.
+        ``(valuation_json, diagnostics_json)`` for the shocked valuation and targets.
 
     Raises
     ------
@@ -1540,9 +1675,14 @@ def apply_scenario_and_revalue(
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import apply_scenario_and_revalue
-    >>> callable(apply_scenario_and_revalue)
-    True
+    >>> import json
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.portfolio import Portfolio, apply_scenario_and_revalue
+    >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+    >>> scenario = '{"id":"s","name":"S","operations":[]}'
+    >>> valuation_json, _ = apply_scenario_and_revalue(Portfolio.from_spec(spec), scenario, MarketContext())
+    >>> json.loads(valuation_json)["position_values"]
+    {}
     """
     ...
 
@@ -1590,9 +1730,13 @@ def scenario_pnl(
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import scenario_pnl
-    >>> callable(scenario_pnl)
-    True
+    >>> import json
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.portfolio import Portfolio, scenario_pnl
+    >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+    >>> pnl_json, _ = scenario_pnl(Portfolio.from_spec(spec), '{"id":"s","name":"S","operations":[]}', MarketContext())
+    >>> json.loads(pnl_json)["by_position"]
+    {}
     """
     ...
 
@@ -1640,9 +1784,12 @@ def scenario_pnl_batch(
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import scenario_pnl_batch
-    >>> callable(scenario_pnl_batch)
-    True
+    >>> import json
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.portfolio import Portfolio, scenario_pnl_batch
+    >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+    >>> json.loads(scenario_pnl_batch(Portfolio.from_spec(spec), "[]", MarketContext()))
+    []
     """
     ...
 
@@ -1678,7 +1825,7 @@ def attribute_portfolio_pnl(
     Returns
     -------
     PortfolioAttribution
-        Result of attribute portfolio pnl for the binding in the annotated representation.
+        Base-currency P&L decomposition by position, market move, and residual.
 
     Raises
     ------
@@ -1692,8 +1839,13 @@ def attribute_portfolio_pnl(
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import attribute_portfolio_pnl
-    >>> callable(attribute_portfolio_pnl)
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.portfolio import Portfolio, attribute_portfolio_pnl
+    >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+    >>> result = attribute_portfolio_pnl(
+    ...     Portfolio.from_spec(spec), MarketContext(), MarketContext(), "2025-01-01", "2025-01-02", "parallel"
+    ... )
+    >>> result.total_pnl.amount == 0
     True
     """
     ...
@@ -1727,9 +1879,11 @@ def allocate_weights(spec_json: str) -> str:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.portfolio import allocate_weights
-    >>> callable(allocate_weights)
-    True
+    >>> spec = '{"scheme":"equal","total_capital":1000.0,"strategies":[{"id":"a"},{"id":"b"}]}'
+    >>> [entry["weight"] for entry in json.loads(allocate_weights(spec))["allocations"]]
+    [0.5, 0.5]
     """
     ...
 
@@ -1753,7 +1907,8 @@ def validate_allocation_json(spec_json: str) -> None:
     Examples
     --------
     >>> from finstack_quant.portfolio import validate_allocation_json
-    >>> callable(validate_allocation_json)
+    >>> spec = '{"scheme":"equal","total_capital":1000.0,"strategies":[{"id":"a"},{"id":"b"}]}'
+    >>> validate_allocation_json(spec) is None
     True
     """
     ...
@@ -1790,7 +1945,11 @@ def replay_portfolio(
     Examples
     --------
     >>> from finstack_quant.portfolio import replay_portfolio
-    >>> callable(replay_portfolio)
+    >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+    >>> try:
+    ...     replay_portfolio(spec, "[]", '{"mode":"pv_only"}')
+    ... except ValueError as exc:
+    ...     print("must be non-empty" in str(exc))
     True
     """
     ...
@@ -1833,8 +1992,9 @@ def parametric_var_decomposition(
     Examples
     --------
     >>> from finstack_quant.portfolio import parametric_var_decomposition
-    >>> callable(parametric_var_decomposition)
-    True
+    >>> result = parametric_var_decomposition(["A", "B"], [1.0, 2.0], [[0.04, 0.0], [0.0, 0.01]])
+    >>> round(result.portfolio_var, 6)
+    -0.465235
     """
     ...
 
@@ -1873,8 +2033,9 @@ def parametric_es_decomposition(
     Examples
     --------
     >>> from finstack_quant.portfolio import parametric_es_decomposition
-    >>> callable(parametric_es_decomposition)
-    True
+    >>> result = parametric_es_decomposition(["A", "B"], [1.0, 2.0], [[0.04, 0.0], [0.0, 0.01]])
+    >>> round(result.portfolio_es, 6)
+    -0.583423
     """
     ...
 
@@ -1911,8 +2072,9 @@ def historical_var_decomposition(
     Examples
     --------
     >>> from finstack_quant.portfolio import historical_var_decomposition
-    >>> callable(historical_var_decomposition)
-    True
+    >>> pnl = [list(range(-10, 10)), [2 * value for value in range(-10, 10)]]
+    >>> historical_var_decomposition(["A", "B"], pnl).portfolio_var
+    -30.0
     """
     ...
 
@@ -1954,8 +2116,9 @@ def evaluate_risk_budget(
     Examples
     --------
     >>> from finstack_quant.portfolio import evaluate_risk_budget
-    >>> callable(evaluate_risk_budget)
-    True
+    >>> result = evaluate_risk_budget(["A", "B"], [1.0, 2.0], [0.5, 0.5], 3.0)
+    >>> (result.has_breach, result.total_overbudget)
+    (True, 0.5)
     """
     ...
 
@@ -1975,13 +2138,13 @@ def roll_effective_spread(returns: list[float]) -> float | None:
     Returns
     -------
     float | None
-        Result of roll effective spread for the binding in the annotated representation.
+        Effective spread as a decimal, or ``None`` when the estimate is unavailable.
 
     Examples
     --------
     >>> from finstack_quant.portfolio import roll_effective_spread
-    >>> callable(roll_effective_spread)
-    True
+    >>> roll_effective_spread([0.01, -0.01, 0.01, -0.01])
+    0.02
     """
     ...
 
@@ -2005,8 +2168,8 @@ def amihud_illiquidity(returns: list[float], volumes: list[float]) -> float | No
     Examples
     --------
     >>> from finstack_quant.portfolio import amihud_illiquidity
-    >>> callable(amihud_illiquidity)
-    True
+    >>> amihud_illiquidity([0.01, 0.02], [100.0, 200.0])
+    0.0001
     """
     ...
 
@@ -2040,8 +2203,8 @@ def days_to_liquidate(
     Examples
     --------
     >>> from finstack_quant.portfolio import days_to_liquidate
-    >>> callable(days_to_liquidate)
-    True
+    >>> days_to_liquidate(1_000_000, 250_000, 0.20)
+    20.0
     """
     ...
 
@@ -2057,13 +2220,13 @@ def liquidity_tier(days_to_liquidate: float) -> str:
     Returns
     -------
     str
-        Result of liquidity tier for the binding in the annotated representation.
+        Bucket label derived from the supplied trading and market inputs.
 
     Examples
     --------
     >>> from finstack_quant.portfolio import liquidity_tier
-    >>> callable(liquidity_tier)
-    True
+    >>> liquidity_tier(3.0)
+    'tier2'
     """
     ...
 
@@ -2105,8 +2268,9 @@ def lvar_bangia(
     Examples
     --------
     >>> from finstack_quant.portfolio import lvar_bangia
-    >>> callable(lvar_bangia)
-    True
+    >>> result = lvar_bangia(-100.0, 0.01, 0.005, 0.99, 1_000_000)
+    >>> round(result["lvar"], 2)
+    -10915.87
     """
     ...
 
@@ -2156,8 +2320,9 @@ def almgren_chriss_impact(
     Examples
     --------
     >>> from finstack_quant.portfolio import almgren_chriss_impact
-    >>> callable(almgren_chriss_impact)
-    True
+    >>> result = almgren_chriss_impact(100_000, 1_000_000, 0.20, 5.0, 0.10, 0.20)
+    >>> round(result["expected_cost_bp"], 2)
+    50282842.71
     """
     ...
 
@@ -2178,12 +2343,12 @@ def kyle_lambda(volumes: list[float], returns: list[float]) -> float | None:
     Returns
     -------
     float | None
-        Result of kyle lambda for the binding in the annotated representation.
+        ``None`` because this legacy two-series API has no reference mid-price series.
 
     Examples
     --------
     >>> from finstack_quant.portfolio import kyle_lambda
-    >>> callable(kyle_lambda)
+    >>> kyle_lambda([100.0, 200.0], [0.01, -0.02]) is None
     True
     """
     ...
@@ -2219,8 +2384,19 @@ def brinson_fachler(sectors_json: str) -> str:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.portfolio import brinson_fachler
-    >>> result_json = brinson_fachler(sectors_json)  # doctest: +SKIP
+    >>> sectors = [
+    ...     {
+    ...         "sector": "A",
+    ...         "portfolio_weight": 1.0,
+    ...         "benchmark_weight": 1.0,
+    ...         "portfolio_return": 0.02,
+    ...         "benchmark_return": 0.01,
+    ...     }
+    ... ]
+    >>> json.loads(brinson_fachler(json.dumps(sectors)))["total_excess_return"]
+    0.01
     """
     ...
 
@@ -2253,8 +2429,20 @@ def carino_link(periods_json: str) -> str:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.portfolio import carino_link
-    >>> linked_json = carino_link(periods_json)  # doctest: +SKIP
+    >>> period = [
+    ...     {
+    ...         "sector": "A",
+    ...         "portfolio_weight": 1.0,
+    ...         "benchmark_weight": 1.0,
+    ...         "portfolio_return": 0.02,
+    ...         "benchmark_return": 0.01,
+    ...     }
+    ... ]
+    >>> result = json.loads(carino_link(json.dumps([period, period])))
+    >>> round(result["linked_selection"], 4)
+    0.0203
     """
     ...
 
@@ -2314,8 +2502,37 @@ def campisi_attribution(portfolio_json: str, benchmark_json: str, config_json: s
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.portfolio import campisi_attribution
-    >>> result_json = campisi_attribution(portfolio_json, benchmark_json, config_json)  # doctest: +SKIP
+    >>> portfolio = [
+    ...     {
+    ...         "sector": "GOVT",
+    ...         "weight": 1.0,
+    ...         "total_return": 0.02,
+    ...         "yield_annual": 0.04,
+    ...         "modified_duration": 5.0,
+    ...         "spread_duration": 0.0,
+    ...         "spread": 0.0,
+    ...         "delta_treasury_yield": -0.001,
+    ...         "delta_spread": 0.0,
+    ...     }
+    ... ]
+    >>> benchmark = [
+    ...     {
+    ...         "sector": "GOVT",
+    ...         "weight": 1.0,
+    ...         "total_return": 0.01,
+    ...         "yield_annual": 0.03,
+    ...         "modified_duration": 4.0,
+    ...         "spread_duration": 0.0,
+    ...         "spread": 0.0,
+    ...         "delta_treasury_yield": -0.001,
+    ...         "delta_spread": 0.0,
+    ...     }
+    ... ]
+    >>> result = json.loads(campisi_attribution(json.dumps(portfolio), json.dumps(benchmark), '{"period_years":0.25}'))
+    >>> result["active_return"]
+    0.01
     """
     ...
 
@@ -2369,9 +2586,36 @@ def campisi_carino_link(periods_json: str) -> str:
     --------
     >>> import json
     >>> from finstack_quant.portfolio import campisi_attribution, campisi_carino_link
-    >>> jan = campisi_attribution(p1_json, b1_json, jan_config_json)  # doctest: +SKIP
-    >>> feb = campisi_attribution(p2_json, b2_json, feb_config_json)  # doctest: +SKIP
-    >>> linked_json = campisi_carino_link(json.dumps([json.loads(jan), json.loads(feb)]))  # doctest: +SKIP
+    >>> portfolio = [
+    ...     {
+    ...         "sector": "GOVT",
+    ...         "weight": 1.0,
+    ...         "total_return": 0.02,
+    ...         "yield_annual": 0.04,
+    ...         "modified_duration": 5.0,
+    ...         "spread_duration": 0.0,
+    ...         "spread": 0.0,
+    ...         "delta_treasury_yield": -0.001,
+    ...         "delta_spread": 0.0,
+    ...     }
+    ... ]
+    >>> benchmark = [
+    ...     {
+    ...         "sector": "GOVT",
+    ...         "weight": 1.0,
+    ...         "total_return": 0.01,
+    ...         "yield_annual": 0.03,
+    ...         "modified_duration": 4.0,
+    ...         "spread_duration": 0.0,
+    ...         "spread": 0.0,
+    ...         "delta_treasury_yield": -0.001,
+    ...         "delta_spread": 0.0,
+    ...     }
+    ... ]
+    >>> period = json.loads(campisi_attribution(json.dumps(portfolio), json.dumps(benchmark), '{"period_years":0.25}'))
+    >>> linked = json.loads(campisi_carino_link(json.dumps([period, period])))
+    >>> round(linked["linked_selection"], 6)
+    0.013195
     """
     ...
 
@@ -2417,8 +2661,38 @@ def campisi_carino_link_from_snapshots(periods_json: str, config_json: str) -> s
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.portfolio import campisi_carino_link_from_snapshots
-    >>> linked_json = campisi_carino_link_from_snapshots(periods_json, config_json)  # doctest: +SKIP
+    >>> portfolio = [
+    ...     {
+    ...         "sector": "GOVT",
+    ...         "weight": 1.0,
+    ...         "total_return": 0.02,
+    ...         "yield_annual": 0.04,
+    ...         "modified_duration": 5.0,
+    ...         "spread_duration": 0.0,
+    ...         "spread": 0.0,
+    ...         "delta_treasury_yield": -0.001,
+    ...         "delta_spread": 0.0,
+    ...     }
+    ... ]
+    >>> benchmark = [
+    ...     {
+    ...         "sector": "GOVT",
+    ...         "weight": 1.0,
+    ...         "total_return": 0.01,
+    ...         "yield_annual": 0.03,
+    ...         "modified_duration": 4.0,
+    ...         "spread_duration": 0.0,
+    ...         "spread": 0.0,
+    ...         "delta_treasury_yield": -0.001,
+    ...         "delta_spread": 0.0,
+    ...     }
+    ... ]
+    >>> periods = json.dumps([{"portfolio": portfolio, "benchmark": benchmark}])
+    >>> result = json.loads(campisi_carino_link_from_snapshots(periods, '{"period_years":0.25}'))
+    >>> round(result["linked_selection"], 4)
+    0.0065
     """
     ...
 
@@ -2465,8 +2739,34 @@ def campisi_reconciliation_check(result_json: str, tolerance: float) -> str:
     --------
     >>> import json
     >>> from finstack_quant.portfolio import campisi_attribution, campisi_reconciliation_check
-    >>> result_json = campisi_attribution(portfolio_json, benchmark_json, config_json)  # doctest: +SKIP
-    >>> json.loads(campisi_reconciliation_check(result_json, 1e-10))["is_reconciled"]  # doctest: +SKIP
+    >>> portfolio = [
+    ...     {
+    ...         "sector": "GOVT",
+    ...         "weight": 1.0,
+    ...         "total_return": 0.02,
+    ...         "yield_annual": 0.04,
+    ...         "modified_duration": 5.0,
+    ...         "spread_duration": 0.0,
+    ...         "spread": 0.0,
+    ...         "delta_treasury_yield": -0.001,
+    ...         "delta_spread": 0.0,
+    ...     }
+    ... ]
+    >>> benchmark = [
+    ...     {
+    ...         "sector": "GOVT",
+    ...         "weight": 1.0,
+    ...         "total_return": 0.01,
+    ...         "yield_annual": 0.03,
+    ...         "modified_duration": 4.0,
+    ...         "spread_duration": 0.0,
+    ...         "spread": 0.0,
+    ...         "delta_treasury_yield": -0.001,
+    ...         "delta_spread": 0.0,
+    ...     }
+    ... ]
+    >>> result = campisi_attribution(json.dumps(portfolio), json.dumps(benchmark), '{"period_years":0.25}')
+    >>> json.loads(campisi_reconciliation_check(result, 1e-10))["is_reconciled"]
     True
     """
     ...
@@ -2519,8 +2819,12 @@ def cell_returns_from_reference(reference_json: str, base_label: str, config_jso
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.portfolio import cell_returns_from_reference
-    >>> table_json = cell_returns_from_reference(reference_json, "UST", config_json)  # doctest: +SKIP
+    >>> reference = [{"duration": 1.0, "total_return": 0.02}]
+    >>> table = json.loads(cell_returns_from_reference(json.dumps(reference), "UST", '{"width":2.0}'))
+    >>> table["cells"][0]["base_return"]
+    0.02
     """
     ...
 
@@ -2587,16 +2891,15 @@ def cell_returns_from_curves(
 
     Examples
     --------
+    >>> from datetime import date
+    >>> import json
     >>> from finstack_quant.core.market_data import DiscountCurve
     >>> from finstack_quant.portfolio import cell_returns_from_curves
-    >>> table_json = cell_returns_from_curves(
-    ...     start,
-    ...     end,
-    ...     0.25,
-    ...     2.0,
-    ...     "UST",
-    ...     config_json,
-    ... )  # doctest: +SKIP
+    >>> start = DiscountCurve.flat("start", date(2025, 1, 1), 0.02)
+    >>> end = DiscountCurve.flat("end", date(2025, 4, 1), 0.03)
+    >>> table = json.loads(cell_returns_from_curves(start, end, 0.25, 2.0, "UST", '{"width":1.0}'))
+    >>> len(table["cells"])
+    2
     """
     ...
 
@@ -2645,9 +2948,14 @@ def excess_returns(positions_json: str, table_json: str) -> str:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.portfolio import cell_returns_from_reference, excess_returns
-    >>> table_json = cell_returns_from_reference(reference_json, "UST", config_json)  # doctest: +SKIP
-    >>> result_json = excess_returns(positions_json, table_json)  # doctest: +SKIP
+    >>> reference = [{"duration": 1.0, "total_return": 0.02}]
+    >>> table = cell_returns_from_reference(json.dumps(reference), "UST", '{"width":2.0}')
+    >>> positions = [{"id": "B1", "weight": 1.0, "duration": 1.0, "total_return": 0.03}]
+    >>> result = json.loads(excess_returns(json.dumps(positions), table))
+    >>> round(result["portfolio_excess_return"], 4)
+    0.01
     """
     ...
 
@@ -2699,8 +3007,13 @@ def grid_attribution(portfolio_json: str, benchmark_json: str) -> str:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.portfolio import grid_attribution
-    >>> result_json = grid_attribution(portfolio_json, benchmark_json)  # doctest: +SKIP
+    >>> portfolio = [{"cell": "0-3", "sector": "GOVT", "weight": 1.0, "total_return": 0.02}]
+    >>> benchmark = [{"cell": "0-3", "sector": "GOVT", "weight": 1.0, "total_return": 0.01}]
+    >>> result = json.loads(grid_attribution(json.dumps(portfolio), json.dumps(benchmark)))
+    >>> result["total_selection"]
+    0.01
     """
     ...
 
@@ -2750,9 +3063,12 @@ def grid_carino_link(periods_json: str) -> str:
     --------
     >>> import json
     >>> from finstack_quant.portfolio import grid_attribution, grid_carino_link
-    >>> jan = grid_attribution(jan_portfolio_json, jan_benchmark_json)  # doctest: +SKIP
-    >>> feb = grid_attribution(feb_portfolio_json, feb_benchmark_json)  # doctest: +SKIP
-    >>> linked_json = grid_carino_link(json.dumps([json.loads(jan), json.loads(feb)]))  # doctest: +SKIP
+    >>> portfolio = [{"cell": "0-3", "sector": "GOVT", "weight": 1.0, "total_return": 0.02}]
+    >>> benchmark = [{"cell": "0-3", "sector": "GOVT", "weight": 1.0, "total_return": 0.01}]
+    >>> period = json.loads(grid_attribution(json.dumps(portfolio), json.dumps(benchmark)))
+    >>> result = json.loads(grid_carino_link(json.dumps([period, period])))
+    >>> round(result["linked_selection"], 4)
+    0.0203
     """
     ...
 
@@ -2806,8 +3122,19 @@ def factor_brinson_attribution(input_json: str, factor_returns: list[float]) -> 
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.portfolio import factor_brinson_attribution
-    >>> result_json = factor_brinson_attribution(input_json, [0.02, 0.31 / 7.0])  # doctest: +SKIP
+    >>> inputs = {
+    ...     "asset_ids": ["A"],
+    ...     "asset_returns": [0.02],
+    ...     "exposures": [1.0],
+    ...     "factor_names": ["Market"],
+    ...     "portfolio_weights": [1.0],
+    ...     "benchmark_weights": [1.0],
+    ... }
+    >>> result = json.loads(factor_brinson_attribution(json.dumps(inputs), [0.02]))
+    >>> result["active_return"]
+    0.0
     """
     ...
 
@@ -2834,8 +3161,11 @@ def twrr_modified_dietz(period_json: str) -> float | None:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.portfolio import twrr_modified_dietz
-    >>> r = twrr_modified_dietz(period_json)  # doctest: +SKIP
+    >>> period = {"beginning_market_value": 100.0, "ending_market_value": 110.0, "cashflows": []}
+    >>> twrr_modified_dietz(json.dumps(period))
+    0.1
     """
     ...
 
@@ -2863,8 +3193,11 @@ def twrr_linked(returns_json: str, horizon_years: float) -> str | None:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.portfolio import twrr_linked
-    >>> linked = twrr_linked(returns_json, horizon_years=1.0)  # doctest: +SKIP
+    >>> result = json.loads(twrr_linked("[0.05,0.03]", horizon_years=1.0))
+    >>> round(result["cumulative"], 4)
+    0.0815
     """
     ...
 
@@ -2893,7 +3226,9 @@ def mwr_xirr(cashflows_json: str) -> float:
     Examples
     --------
     >>> from finstack_quant.portfolio import mwr_xirr
-    >>> irr = mwr_xirr(cashflows_json)  # doctest: +SKIP
+    >>> cashflows = '[{"date":"2025-01-01","amount":-100.0},{"date":"2026-01-01","amount":110.0}]'
+    >>> round(mwr_xirr(cashflows), 6)
+    0.1
     """
     ...
 
@@ -2908,8 +3243,11 @@ class FactorContribution:
     Examples
     --------
     >>> from finstack_quant.portfolio import FactorContribution
-    >>> FactorContribution.__name__
-    'FactorContribution'
+    >>> item = FactorContribution.from_json(
+    ...     '{"factor_id":"Rates","absolute_risk":1.0,"relative_risk":0.5,"marginal_risk":0.2}'
+    ... )
+    >>> (item.factor_id, item.relative_risk)
+    ('Rates', 0.5)
     """
 
     @classmethod
@@ -2936,8 +3274,11 @@ class FactorContribution:
         Examples
         --------
         >>> from finstack_quant.portfolio import FactorContribution
-        >>> callable(FactorContribution.from_json)
-        True
+        >>> item = FactorContribution.from_json(
+        ...     '{"factor_id":"Rates","absolute_risk":1.0,"relative_risk":0.5,"marginal_risk":0.2}'
+        ... )
+        >>> item.absolute_risk
+        1.0
         """
         ...
 
@@ -3010,8 +3351,9 @@ class PositionFactorContribution:
     Examples
     --------
     >>> from finstack_quant.portfolio import PositionFactorContribution
-    >>> PositionFactorContribution.__name__
-    'PositionFactorContribution'
+    >>> item = PositionFactorContribution.from_json('{"position_id":"P1","factor_id":"Rates","risk_contribution":1.0}')
+    >>> (item.position_id, item.factor_id)
+    ('P1', 'Rates')
     """
 
     @classmethod
@@ -3038,8 +3380,11 @@ class PositionFactorContribution:
         Examples
         --------
         >>> from finstack_quant.portfolio import PositionFactorContribution
-        >>> callable(PositionFactorContribution.from_json)
-        True
+        >>> item = PositionFactorContribution.from_json(
+        ...     '{"position_id":"P1","factor_id":"Rates","risk_contribution":1.0}'
+        ... )
+        >>> item.risk_contribution
+        1.0
         """
         ...
 
@@ -3101,8 +3446,11 @@ class PositionResidualContribution:
     Examples
     --------
     >>> from finstack_quant.portfolio import PositionResidualContribution
-    >>> PositionResidualContribution.__name__
-    'PositionResidualContribution'
+    >>> item = PositionResidualContribution.from_json(
+    ...     '{"position_id":"P1","residual_variance":0.1,"source":{"kind":"other"}}'
+    ... )
+    >>> (item.position_id, item.source_kind)
+    ('P1', 'other')
     """
 
     @classmethod
@@ -3129,8 +3477,11 @@ class PositionResidualContribution:
         Examples
         --------
         >>> from finstack_quant.portfolio import PositionResidualContribution
-        >>> callable(PositionResidualContribution.from_json)
-        True
+        >>> item = PositionResidualContribution.from_json(
+        ...     '{"position_id":"P1","residual_variance":0.1,"source":{"kind":"other"}}'
+        ... )
+        >>> item.residual_variance
+        0.1
         """
         ...
 
@@ -3203,8 +3554,10 @@ class RiskDecomposition:
     Examples
     --------
     >>> from finstack_quant.portfolio import RiskDecomposition
-    >>> RiskDecomposition.__name__
-    'RiskDecomposition'
+    >>> doc = '{"total_risk":1.0,"measure":"variance","factor_contributions":[],"residual_risk":1.0,"position_factor_contributions":[],"position_residual_contributions":[]}'
+    >>> decomposition = RiskDecomposition.from_json(doc)
+    >>> (decomposition.total_risk, decomposition.residual_risk)
+    (1.0, 1.0)
     """
 
     @classmethod
@@ -3231,8 +3584,9 @@ class RiskDecomposition:
         Examples
         --------
         >>> from finstack_quant.portfolio import RiskDecomposition
-        >>> callable(RiskDecomposition.from_json)
-        True
+        >>> doc = '{"total_risk":1.0,"measure":"variance","factor_contributions":[],"residual_risk":1.0,"position_factor_contributions":[],"position_residual_contributions":[]}'
+        >>> RiskDecomposition.from_json(doc).measure_json
+        '"variance"'
         """
         ...
 
@@ -3324,8 +3678,11 @@ class PositionVarContribution:
     Examples
     --------
     >>> from finstack_quant.portfolio import PositionVarContribution
-    >>> PositionVarContribution.__name__
-    'PositionVarContribution'
+    >>> item = PositionVarContribution.from_json(
+    ...     '{"position_id":"P1","component_var":-1.0,"relative_var":1.0,"marginal_var":-1.0,"incremental_var":null}'
+    ... )
+    >>> (item.position_id, item.component_var)
+    ('P1', -1.0)
     """
 
     @classmethod
@@ -3352,8 +3709,11 @@ class PositionVarContribution:
         Examples
         --------
         >>> from finstack_quant.portfolio import PositionVarContribution
-        >>> callable(PositionVarContribution.from_json)
-        True
+        >>> item = PositionVarContribution.from_json(
+        ...     '{"position_id":"P1","component_var":-1.0,"relative_var":1.0,"marginal_var":-1.0,"incremental_var":null}'
+        ... )
+        >>> item.relative_var
+        1.0
         """
         ...
 
@@ -3437,8 +3797,11 @@ class PositionEsContribution:
     Examples
     --------
     >>> from finstack_quant.portfolio import PositionEsContribution
-    >>> PositionEsContribution.__name__
-    'PositionEsContribution'
+    >>> item = PositionEsContribution.from_json(
+    ...     '{"position_id":"P1","component_es":-1.2,"relative_es":1.0,"marginal_es":-1.2}'
+    ... )
+    >>> (item.position_id, item.component_es)
+    ('P1', -1.2)
     """
 
     @classmethod
@@ -3465,8 +3828,11 @@ class PositionEsContribution:
         Examples
         --------
         >>> from finstack_quant.portfolio import PositionEsContribution
-        >>> callable(PositionEsContribution.from_json)
-        True
+        >>> item = PositionEsContribution.from_json(
+        ...     '{"position_id":"P1","component_es":-1.2,"relative_es":1.0,"marginal_es":-1.2}'
+        ... )
+        >>> item.relative_es
+        1.0
         """
         ...
 
@@ -3539,8 +3905,10 @@ class PositionRiskDecomposition:
     Examples
     --------
     >>> from finstack_quant.portfolio import PositionRiskDecomposition
-    >>> PositionRiskDecomposition.__name__
-    'PositionRiskDecomposition'
+    >>> doc = '{"portfolio_var":-1.0,"portfolio_es":-1.2,"confidence":0.95,"method":"parametric","var_contributions":[],"es_contributions":[],"n_positions":0,"euler_residual":0.0}'
+    >>> result = PositionRiskDecomposition.from_json(doc)
+    >>> (result.portfolio_var, result.method)
+    (-1.0, 'parametric')
     """
 
     @classmethod
@@ -3567,8 +3935,9 @@ class PositionRiskDecomposition:
         Examples
         --------
         >>> from finstack_quant.portfolio import PositionRiskDecomposition
-        >>> callable(PositionRiskDecomposition.from_json)
-        True
+        >>> doc = '{"portfolio_var":-1.0,"portfolio_es":-1.2,"confidence":0.95,"method":"parametric","var_contributions":[],"es_contributions":[],"n_positions":0,"euler_residual":0.0}'
+        >>> PositionRiskDecomposition.from_json(doc).confidence
+        0.95
         """
         ...
 
@@ -3684,8 +4053,11 @@ class PositionBudgetEntry:
     Examples
     --------
     >>> from finstack_quant.portfolio import PositionBudgetEntry
-    >>> PositionBudgetEntry.__name__
-    'PositionBudgetEntry'
+    >>> item = PositionBudgetEntry.from_json(
+    ...     '{"position_id":"P1","actual_component_var":1.0,"target_component_var":0.8,"utilization":1.25,"excess":0.2}'
+    ... )
+    >>> (item.position_id, item.utilization)
+    ('P1', 1.25)
     """
 
     @classmethod
@@ -3712,8 +4084,11 @@ class PositionBudgetEntry:
         Examples
         --------
         >>> from finstack_quant.portfolio import PositionBudgetEntry
-        >>> callable(PositionBudgetEntry.from_json)
-        True
+        >>> item = PositionBudgetEntry.from_json(
+        ...     '{"position_id":"P1","actual_component_var":1.0,"target_component_var":0.8,"utilization":1.25,"excess":0.2}'
+        ... )
+        >>> item.excess
+        0.2
         """
         ...
 
@@ -3797,8 +4172,9 @@ class RiskBudgetResult:
     Examples
     --------
     >>> from finstack_quant.portfolio import RiskBudgetResult
-    >>> RiskBudgetResult.__name__
-    'RiskBudgetResult'
+    >>> result = RiskBudgetResult.from_json('{"positions":[],"total_overbudget":0.0,"has_breach":false}')
+    >>> (result.total_overbudget, result.has_breach)
+    (0.0, False)
     """
 
     @classmethod
@@ -3825,8 +4201,8 @@ class RiskBudgetResult:
         Examples
         --------
         >>> from finstack_quant.portfolio import RiskBudgetResult
-        >>> callable(RiskBudgetResult.from_json)
-        True
+        >>> RiskBudgetResult.from_json('{"positions":[],"total_overbudget":0.0,"has_breach":false}').positions
+        []
         """
         ...
 
@@ -3887,8 +4263,9 @@ class FactorContributionDelta:
     Examples
     --------
     >>> from finstack_quant.portfolio import FactorContributionDelta
-    >>> FactorContributionDelta.__name__
-    'FactorContributionDelta'
+    >>> delta = FactorContributionDelta.from_json('{"factor_id":"Rates","absolute_change":0.1,"relative_change":0.2}')
+    >>> (delta.factor_id, delta.absolute_change)
+    ('Rates', 0.1)
     """
 
     @classmethod
@@ -3915,8 +4292,11 @@ class FactorContributionDelta:
         Examples
         --------
         >>> from finstack_quant.portfolio import FactorContributionDelta
-        >>> callable(FactorContributionDelta.from_json)
-        True
+        >>> delta = FactorContributionDelta.from_json(
+        ...     '{"factor_id":"Rates","absolute_change":0.1,"relative_change":0.2}'
+        ... )
+        >>> delta.relative_change
+        0.2
         """
         ...
 
@@ -3978,8 +4358,10 @@ class WhatIfResult:
     Examples
     --------
     >>> from finstack_quant.portfolio import WhatIfResult
-    >>> WhatIfResult.__name__
-    'WhatIfResult'
+    >>> risk = '{"total_risk":1.0,"measure":"variance","factor_contributions":[],"residual_risk":1.0,"position_factor_contributions":[],"position_residual_contributions":[]}'
+    >>> result = WhatIfResult.from_json('{"before":' + risk + ',"after":' + risk + ',"delta":[]}')
+    >>> result.delta
+    []
     """
 
     @classmethod
@@ -4006,8 +4388,10 @@ class WhatIfResult:
         Examples
         --------
         >>> from finstack_quant.portfolio import WhatIfResult
-        >>> callable(WhatIfResult.from_json)
-        True
+        >>> risk = '{"total_risk":1.0,"measure":"variance","factor_contributions":[],"residual_risk":1.0,"position_factor_contributions":[],"position_residual_contributions":[]}'
+        >>> result = WhatIfResult.from_json('{"before":' + risk + ',"after":' + risk + ',"delta":[]}')
+        >>> result.before.total_risk
+        1.0
         """
         ...
 
@@ -4066,8 +4450,12 @@ class StressResult:
     Examples
     --------
     >>> from finstack_quant.portfolio import StressResult
-    >>> StressResult.__name__
-    'StressResult'
+    >>> risk = '{"total_risk":1.0,"measure":"variance","factor_contributions":[],"residual_risk":1.0,"position_factor_contributions":[],"position_residual_contributions":[]}'
+    >>> result = StressResult.from_json(
+    ...     '{"total_pnl":-10.0,"position_pnl":[["P1",-10.0]],"stressed_decomposition":' + risk + "}"
+    ... )
+    >>> result.total_pnl
+    -10.0
     """
 
     @classmethod
@@ -4094,8 +4482,12 @@ class StressResult:
         Examples
         --------
         >>> from finstack_quant.portfolio import StressResult
-        >>> callable(StressResult.from_json)
-        True
+        >>> risk = '{"total_risk":1.0,"measure":"variance","factor_contributions":[],"residual_risk":1.0,"position_factor_contributions":[],"position_residual_contributions":[]}'
+        >>> result = StressResult.from_json(
+        ...     '{"total_pnl":-10.0,"position_pnl":[["P1",-10.0]],"stressed_decomposition":' + risk + "}"
+        ... )
+        >>> result.position_pnl
+        [('P1', -10.0)]
         """
         ...
 
@@ -4155,8 +4547,11 @@ class StressPositionEntry:
     Examples
     --------
     >>> from finstack_quant.portfolio import StressPositionEntry
-    >>> StressPositionEntry.__name__
-    'StressPositionEntry'
+    >>> item = StressPositionEntry.from_json(
+    ...     '{"position_id":"P1","avg_tail_pnl":-5.0,"pct_of_tail_loss":1.0,"worst_scenario_pnl":-10.0}'
+    ... )
+    >>> (item.position_id, item.worst_scenario_pnl)
+    ('P1', -10.0)
     """
 
     @classmethod
@@ -4183,8 +4578,11 @@ class StressPositionEntry:
         Examples
         --------
         >>> from finstack_quant.portfolio import StressPositionEntry
-        >>> callable(StressPositionEntry.from_json)
-        True
+        >>> item = StressPositionEntry.from_json(
+        ...     '{"position_id":"P1","avg_tail_pnl":-5.0,"pct_of_tail_loss":1.0,"worst_scenario_pnl":-10.0}'
+        ... )
+        >>> item.pct_of_tail_loss
+        1.0
         """
         ...
 
@@ -4257,8 +4655,9 @@ class TailScenarioBreakdown:
     Examples
     --------
     >>> from finstack_quant.portfolio import TailScenarioBreakdown
-    >>> TailScenarioBreakdown.__name__
-    'TailScenarioBreakdown'
+    >>> scenario = TailScenarioBreakdown.from_json('{"scenario_index":0,"portfolio_pnl":-10.0,"position_pnls":[-10.0]}')
+    >>> (scenario.scenario_index, scenario.portfolio_pnl)
+    (0, -10.0)
     """
 
     @classmethod
@@ -4285,8 +4684,11 @@ class TailScenarioBreakdown:
         Examples
         --------
         >>> from finstack_quant.portfolio import TailScenarioBreakdown
-        >>> callable(TailScenarioBreakdown.from_json)
-        True
+        >>> scenario = TailScenarioBreakdown.from_json(
+        ...     '{"scenario_index":0,"portfolio_pnl":-10.0,"position_pnls":[-10.0]}'
+        ... )
+        >>> scenario.position_pnls
+        [-10.0]
         """
         ...
 
@@ -4350,8 +4752,10 @@ class StressAttribution:
     Examples
     --------
     >>> from finstack_quant.portfolio import StressAttribution
-    >>> StressAttribution.__name__
-    'StressAttribution'
+    >>> doc = '{"var_threshold":-5.0,"n_tail_scenarios":1,"position_ids":["P1"],"position_contributions":[],"tail_scenarios":[]}'
+    >>> result = StressAttribution.from_json(doc)
+    >>> (result.var_threshold, result.n_tail_scenarios)
+    (-5.0, 1)
     """
 
     @classmethod
@@ -4378,8 +4782,9 @@ class StressAttribution:
         Examples
         --------
         >>> from finstack_quant.portfolio import StressAttribution
-        >>> callable(StressAttribution.from_json)
-        True
+        >>> doc = '{"var_threshold":-5.0,"n_tail_scenarios":1,"position_ids":["P1"],"position_contributions":[],"tail_scenarios":[]}'
+        >>> StressAttribution.from_json(doc).position_ids
+        ['P1']
         """
         ...
 
@@ -4466,8 +4871,9 @@ class PositionAssignment:
     Examples
     --------
     >>> from finstack_quant.portfolio import PositionAssignment
-    >>> PositionAssignment.__name__
-    'PositionAssignment'
+    >>> assignment = PositionAssignment.from_json('{"position_id":"P1","mappings":[]}')
+    >>> (assignment.position_id, assignment.n_mappings)
+    ('P1', 0)
     """
 
     @classmethod
@@ -4494,8 +4900,8 @@ class PositionAssignment:
         Examples
         --------
         >>> from finstack_quant.portfolio import PositionAssignment
-        >>> callable(PositionAssignment.from_json)
-        True
+        >>> PositionAssignment.from_json('{"position_id":"P1","mappings":[]}').factor_ids
+        []
         """
         ...
 
@@ -4537,7 +4943,7 @@ class PositionAssignment:
         Returns
         -------
         str
-            Result of mappings json for this `PositionAssignment` in the annotated representation.
+            Compact JSON for matched ``(dependency, factor_id, beta)`` triples.
         """
         ...
 
@@ -4567,8 +4973,9 @@ class UnmatchedEntry:
     Examples
     --------
     >>> from finstack_quant.portfolio import UnmatchedEntry
-    >>> UnmatchedEntry.__name__
-    'UnmatchedEntry'
+    >>> entry = UnmatchedEntry.from_json('{"position_id":"P1","dependency":{"fx_pair":{"base":"USD","quote":"EUR"}}}')
+    >>> entry.position_id
+    'P1'
     """
 
     @classmethod
@@ -4595,7 +5002,10 @@ class UnmatchedEntry:
         Examples
         --------
         >>> from finstack_quant.portfolio import UnmatchedEntry
-        >>> callable(UnmatchedEntry.from_json)
+        >>> entry = UnmatchedEntry.from_json(
+        ...     '{"position_id":"P1","dependency":{"fx_pair":{"base":"USD","quote":"EUR"}}}'
+        ... )
+        >>> "fx_pair" in entry.to_json()
         True
         """
         ...
@@ -4627,7 +5037,7 @@ class UnmatchedEntry:
         Returns
         -------
         str
-            Result of dependency json for this `UnmatchedEntry` in the annotated representation.
+            Compact JSON for the unmatched market-data dependency.
         """
         ...
 
@@ -4646,8 +5056,9 @@ class FactorAssignmentReport:
     Examples
     --------
     >>> from finstack_quant.portfolio import FactorAssignmentReport
-    >>> FactorAssignmentReport.__name__
-    'FactorAssignmentReport'
+    >>> report = FactorAssignmentReport.from_json('{"assignments":[{"position_id":"P1","mappings":[]}],"unmatched":[]}')
+    >>> len(report.assignments)
+    1
     """
 
     @classmethod
@@ -4674,8 +5085,11 @@ class FactorAssignmentReport:
         Examples
         --------
         >>> from finstack_quant.portfolio import FactorAssignmentReport
-        >>> callable(FactorAssignmentReport.from_json)
-        True
+        >>> report = FactorAssignmentReport.from_json(
+        ...     '{"assignments":[{"position_id":"P1","mappings":[]}],"unmatched":[]}'
+        ... )
+        >>> report.unmatched
+        []
         """
         ...
 
@@ -4724,8 +5138,11 @@ class LevelVolContribution:
     Examples
     --------
     >>> from finstack_quant.portfolio import LevelVolContribution
-    >>> LevelVolContribution.__name__
-    'LevelVolContribution'
+    >>> try:
+    ...     LevelVolContribution()
+    ... except TypeError as exc:
+    ...     print(exc)
+    cannot create 'finstack_quant.portfolio.LevelVolContribution' instances
     """
 
     @property
@@ -4776,8 +5193,11 @@ class PositionVolContribution:
     Examples
     --------
     >>> from finstack_quant.portfolio import PositionVolContribution
-    >>> PositionVolContribution.__name__
-    'PositionVolContribution'
+    >>> try:
+    ...     PositionVolContribution()
+    ... except TypeError as exc:
+    ...     print(exc)
+    cannot create 'finstack_quant.portfolio.PositionVolContribution' instances
     """
 
     @property
@@ -4839,8 +5259,11 @@ class CreditVolReport:
     Examples
     --------
     >>> from finstack_quant.portfolio import CreditVolReport
-    >>> CreditVolReport.__name__
-    'CreditVolReport'
+    >>> try:
+    ...     CreditVolReport()
+    ... except TypeError as exc:
+    ...     print(exc)
+    cannot create 'finstack_quant.portfolio.CreditVolReport' instances
     """
 
     @property
@@ -4922,8 +5345,8 @@ class VolHorizon:
     Examples
     --------
     >>> from finstack_quant.portfolio import VolHorizon
-    >>> VolHorizon.__name__
-    'VolHorizon'
+    >>> VolHorizon.n_steps(5).n
+    5
     """
 
     @classmethod
@@ -4934,13 +5357,13 @@ class VolHorizon:
         Returns
         -------
         VolHorizon
-            Result of one step for this `VolHorizon` in the annotated representation.
+            One-calibrated-period forecast horizon.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import VolHorizon
-        >>> callable(VolHorizon.one_step)
-        True
+        >>> VolHorizon.one_step().kind
+        'one_step'
         """
         ...
 
@@ -4952,13 +5375,13 @@ class VolHorizon:
         Returns
         -------
         VolHorizon
-            Result of unconditional for this `VolHorizon` in the annotated representation.
+            Unconditional long-run forecast horizon.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import VolHorizon
-        >>> callable(VolHorizon.unconditional)
-        True
+        >>> VolHorizon.unconditional().kind
+        'unconditional'
         """
         ...
 
@@ -4975,13 +5398,13 @@ class VolHorizon:
         Returns
         -------
         VolHorizon
-            Result of n steps for this `VolHorizon` in the annotated representation.
+            Discrete forecast horizon spanning ``n`` calibrated periods.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import VolHorizon
-        >>> callable(VolHorizon.n_steps)
-        True
+        >>> VolHorizon.n_steps(5).n
+        5
         """
         ...
 
@@ -4999,7 +5422,7 @@ class VolHorizon:
         Returns
         -------
         VolHorizon
-            Result of years for this `VolHorizon` in the annotated representation.
+            Forecast horizon spanning the supplied fractional number of years.
 
         Raises
         ------
@@ -5009,8 +5432,8 @@ class VolHorizon:
         Examples
         --------
         >>> from finstack_quant.portfolio import VolHorizon
-        >>> callable(VolHorizon.years)
-        True
+        >>> VolHorizon.years(2.5).years_value
+        2.5
         """
         ...
 
@@ -5028,7 +5451,7 @@ class VolHorizon:
         Returns
         -------
         VolHorizon
-            Result of parse for this `VolHorizon` in the annotated representation.
+            Horizon variant represented by the keyword or JSON descriptor in ``s``.
 
         Raises
         ------
@@ -5038,8 +5461,8 @@ class VolHorizon:
         Examples
         --------
         >>> from finstack_quant.portfolio import VolHorizon
-        >>> callable(VolHorizon.parse)
-        True
+        >>> VolHorizon.parse('{"n_steps":5}').n
+        5
         """
         ...
 
@@ -5091,8 +5514,8 @@ class DecompositionConfig:
     Examples
     --------
     >>> from finstack_quant.portfolio import DecompositionConfig
-    >>> DecompositionConfig.__name__
-    'DecompositionConfig'
+    >>> DecompositionConfig.parametric_95().confidence
+    0.95
     """
 
     @classmethod
@@ -5103,13 +5526,13 @@ class DecompositionConfig:
         Returns
         -------
         DecompositionConfig
-            Result of parametric 95 for this `DecompositionConfig` in the annotated representation.
+            Parametric 95% config with incremental VaR disabled and no explicit seed.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import DecompositionConfig
-        >>> callable(DecompositionConfig.parametric_95)
-        True
+        >>> (DecompositionConfig.parametric_95().method, DecompositionConfig.parametric_95().confidence)
+        ('parametric', 0.95)
         """
         ...
 
@@ -5121,13 +5544,13 @@ class DecompositionConfig:
         Returns
         -------
         DecompositionConfig
-            Result of parametric 99 for this `DecompositionConfig` in the annotated representation.
+            Parametric 99% config with incremental VaR disabled and no explicit seed.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import DecompositionConfig
-        >>> callable(DecompositionConfig.parametric_99)
-        True
+        >>> DecompositionConfig.parametric_99().confidence
+        0.99
         """
         ...
 
@@ -5145,13 +5568,13 @@ class DecompositionConfig:
         Returns
         -------
         DecompositionConfig
-            Result of historical for this `DecompositionConfig` in the annotated representation.
+            Historical config at the supplied confidence with no incremental VaR or seed.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import DecompositionConfig
-        >>> callable(DecompositionConfig.historical)
-        True
+        >>> DecompositionConfig.historical(0.975).method
+        'historical'
         """
         ...
 
@@ -5176,7 +5599,7 @@ class DecompositionConfig:
         Returns
         -------
         DecompositionConfig
-            Result of with seed for this `DecompositionConfig` in the annotated representation.
+            Copy with ``seed`` recorded for simulation-path decompositions.
         """
         ...
 
@@ -5280,8 +5703,13 @@ def factor_stress(
 
     Examples
     --------
+    >>> from finstack_quant.core.market_data import MarketContext
     >>> from finstack_quant.portfolio import factor_stress
-    >>> callable(factor_stress)
+    >>> portfolio = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+    >>> try:
+    ...     factor_stress(portfolio, MarketContext(), "{}", "2025-01-01", [])
+    ... except ValueError as exc:
+    ...     print("missing field `factors`" in str(exc))
     True
     """
     ...
@@ -5336,8 +5764,13 @@ def position_what_if(
 
     Examples
     --------
+    >>> from finstack_quant.core.market_data import MarketContext
     >>> from finstack_quant.portfolio import position_what_if
-    >>> callable(position_what_if)
+    >>> portfolio = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+    >>> try:
+    ...     position_what_if(portfolio, MarketContext(), "{}", "2025-01-01", [])
+    ... except ValueError as exc:
+    ...     print("missing field `factors`" in str(exc))
     True
     """
     ...
@@ -5382,8 +5815,10 @@ def build_stress_attribution(
     Examples
     --------
     >>> from finstack_quant.portfolio import build_stress_attribution
-    >>> callable(build_stress_attribution)
-    True
+    >>> pnl = [list(range(-10, 10)), [2 * value for value in range(-10, 10)]]
+    >>> result = build_stress_attribution(["A", "B"], pnl)
+    >>> (result.var_threshold, result.n_tail_scenarios)
+    (-30.0, 1)
     """
     ...
 
@@ -5417,8 +5852,14 @@ def build_credit_vol_report(
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import build_credit_vol_report
-    >>> callable(build_credit_vol_report)
+    >>> from finstack_quant.portfolio import RiskDecomposition, build_credit_vol_report
+    >>> risk = RiskDecomposition.from_json(
+    ...     '{"total_risk":1.0,"measure":"variance","factor_contributions":[],"residual_risk":1.0,"position_factor_contributions":[],"position_residual_contributions":[]}'
+    ... )
+    >>> try:
+    ...     build_credit_vol_report(risk, object())
+    ... except TypeError as exc:
+    ...     print("CreditFactorModel" in str(exc))
     True
     """
     ...
@@ -5441,7 +5882,7 @@ def position_component_var(
     Returns
     -------
     float
-        Result of position component var for the binding in the annotated representation.
+        Loss-signed component VaR for the requested position and portfolio measure.
 
     Raises
     ------
@@ -5450,9 +5891,10 @@ def position_component_var(
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import position_component_var
-    >>> callable(position_component_var)
-    True
+    >>> from finstack_quant.portfolio import PositionRiskDecomposition, position_component_var
+    >>> doc = '{"portfolio_var":-1.0,"portfolio_es":-1.2,"confidence":0.95,"method":"parametric","var_contributions":[{"position_id":"P1","component_var":-1.0,"relative_var":1.0,"marginal_var":-1.0,"incremental_var":null}],"es_contributions":[],"n_positions":1,"euler_residual":0.0}'
+    >>> position_component_var(PositionRiskDecomposition.from_json(doc), "P1")
+    -1.0
     """
     ...
 
@@ -5467,8 +5909,8 @@ class WeightingScheme:
     Examples
     --------
     >>> from finstack_quant.portfolio import WeightingScheme
-    >>> WeightingScheme.__name__
-    'WeightingScheme'
+    >>> WeightingScheme.value_weight().label
+    'value_weight'
     """
 
     @classmethod
@@ -5479,13 +5921,13 @@ class WeightingScheme:
         Returns
         -------
         WeightingScheme
-            Result of value weight for this `WeightingScheme` in the annotated representation.
+            Weights as shares of gross absolute base-currency portfolio PV.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import WeightingScheme
-        >>> callable(WeightingScheme.value_weight)
-        True
+        >>> WeightingScheme.value_weight().label
+        'value_weight'
         """
         ...
 
@@ -5497,13 +5939,13 @@ class WeightingScheme:
         Returns
         -------
         WeightingScheme
-            Result of notional weight for this `WeightingScheme` in the annotated representation.
+            Weights as normalized shares of notional exposure.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import WeightingScheme
-        >>> callable(WeightingScheme.notional_weight)
-        True
+        >>> WeightingScheme.notional_weight().label
+        'notional_weight'
         """
         ...
 
@@ -5515,13 +5957,13 @@ class WeightingScheme:
         Returns
         -------
         WeightingScheme
-            Result of unit scaling for this `WeightingScheme` in the annotated representation.
+            Existing weights as quantity multipliers and candidate weights as quantities.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import WeightingScheme
-        >>> callable(WeightingScheme.unit_scaling)
-        True
+        >>> WeightingScheme.unit_scaling().label
+        'unit_scaling'
         """
         ...
 
@@ -5551,8 +5993,8 @@ class MissingMetricPolicy:
     Examples
     --------
     >>> from finstack_quant.portfolio import MissingMetricPolicy
-    >>> MissingMetricPolicy.__name__
-    'MissingMetricPolicy'
+    >>> MissingMetricPolicy.strict().label
+    'strict'
     """
 
     @classmethod
@@ -5563,13 +6005,13 @@ class MissingMetricPolicy:
         Returns
         -------
         MissingMetricPolicy
-            Result of zero for this `MissingMetricPolicy` in the annotated representation.
+            Policy substituting ``0.0`` for each missing required metric.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import MissingMetricPolicy
-        >>> callable(MissingMetricPolicy.zero)
-        True
+        >>> MissingMetricPolicy.zero().label
+        'zero'
         """
         ...
 
@@ -5581,13 +6023,13 @@ class MissingMetricPolicy:
         Returns
         -------
         MissingMetricPolicy
-            Result of exclude for this `MissingMetricPolicy` in the annotated representation.
+            Policy excluding missing-metric positions and retaining their current weights.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import MissingMetricPolicy
-        >>> callable(MissingMetricPolicy.exclude)
-        True
+        >>> MissingMetricPolicy.exclude().label
+        'exclude'
         """
         ...
 
@@ -5599,13 +6041,13 @@ class MissingMetricPolicy:
         Returns
         -------
         MissingMetricPolicy
-            Result of strict for this `MissingMetricPolicy` in the annotated representation.
+            Policy failing optimization when any required metric is missing.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import MissingMetricPolicy
-        >>> callable(MissingMetricPolicy.strict)
-        True
+        >>> MissingMetricPolicy.strict().label
+        'strict'
         """
         ...
 
@@ -5635,8 +6077,8 @@ class Inequality:
     Examples
     --------
     >>> from finstack_quant.portfolio import Inequality
-    >>> Inequality.__name__
-    'Inequality'
+    >>> Inequality.le().label
+    'le'
     """
 
     @classmethod
@@ -5647,13 +6089,13 @@ class Inequality:
         Returns
         -------
         Inequality
-            Result of le for this `Inequality` in the annotated representation.
+            Operator encoding ``lhs <= rhs``.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import Inequality
-        >>> callable(Inequality.le)
-        True
+        >>> Inequality.le().label
+        'le'
         """
         ...
 
@@ -5665,13 +6107,13 @@ class Inequality:
         Returns
         -------
         Inequality
-            Result of ge for this `Inequality` in the annotated representation.
+            Operator encoding ``lhs >= rhs``.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import Inequality
-        >>> callable(Inequality.ge)
-        True
+        >>> Inequality.ge().label
+        'ge'
         """
         ...
 
@@ -5683,13 +6125,13 @@ class Inequality:
         Returns
         -------
         Inequality
-            Result of eq for this `Inequality` in the annotated representation.
+            Operator encoding ``lhs == rhs``.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import Inequality
-        >>> callable(Inequality.eq)
-        True
+        >>> Inequality.eq().label
+        'eq'
         """
         ...
 
@@ -5720,8 +6162,8 @@ class TradeDirection:
     Examples
     --------
     >>> from finstack_quant.portfolio import TradeDirection
-    >>> TradeDirection.__name__
-    'TradeDirection'
+    >>> TradeDirection.buy().label
+    'buy'
     """
 
     @classmethod
@@ -5733,13 +6175,13 @@ class TradeDirection:
         Returns
         -------
         TradeDirection
-            Result of buy for this `TradeDirection` in the annotated representation.
+            Direction for increasing an instrument exposure.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import TradeDirection
-        >>> callable(TradeDirection.buy)
-        True
+        >>> TradeDirection.buy().label
+        'buy'
         """
         ...
 
@@ -5752,13 +6194,13 @@ class TradeDirection:
         Returns
         -------
         TradeDirection
-            Result of sell for this `TradeDirection` in the annotated representation.
+            Direction for decreasing an instrument exposure.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import TradeDirection
-        >>> callable(TradeDirection.sell)
-        True
+        >>> TradeDirection.sell().label
+        'sell'
         """
         ...
 
@@ -5770,13 +6212,13 @@ class TradeDirection:
         Returns
         -------
         TradeDirection
-            Result of hold for this `TradeDirection` in the annotated representation.
+            Direction representing no change in exposure.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import TradeDirection
-        >>> callable(TradeDirection.hold)
-        True
+        >>> TradeDirection.hold().label
+        'hold'
         """
         ...
 
@@ -5806,8 +6248,8 @@ class TradeType:
     Examples
     --------
     >>> from finstack_quant.portfolio import TradeType
-    >>> TradeType.__name__
-    'TradeType'
+    >>> TradeType.existing().label
+    'existing'
     """
 
     @classmethod
@@ -5818,13 +6260,13 @@ class TradeType:
         Returns
         -------
         TradeType
-            Result of existing for this `TradeType` in the annotated representation.
+            Trade type for adjusting an existing portfolio position.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import TradeType
-        >>> callable(TradeType.existing)
-        True
+        >>> TradeType.existing().label
+        'existing'
         """
         ...
 
@@ -5836,13 +6278,13 @@ class TradeType:
         Returns
         -------
         TradeType
-            Result of new position for this `TradeType` in the annotated representation.
+            Trade type for adding a candidate instrument as a new position.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import TradeType
-        >>> callable(TradeType.new_position)
-        True
+        >>> TradeType.new_position().label
+        'new_position'
         """
         ...
 
@@ -5854,13 +6296,13 @@ class TradeType:
         Returns
         -------
         TradeType
-            Result of close out for this `TradeType` in the annotated representation.
+            Trade type for fully closing an existing position.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import TradeType
-        >>> callable(TradeType.close_out)
-        True
+        >>> TradeType.close_out().label
+        'close_out'
         """
         ...
 
@@ -5890,8 +6332,8 @@ class PerPositionMetric:
     Examples
     --------
     >>> from finstack_quant.portfolio import PerPositionMetric
-    >>> PerPositionMetric.__name__
-    'PerPositionMetric'
+    >>> PerPositionMetric.pv_base().kind
+    'pv_base'
     """
 
     @classmethod
@@ -5908,13 +6350,13 @@ class PerPositionMetric:
         Returns
         -------
         PerPositionMetric
-            Result of metric for this `PerPositionMetric` in the annotated representation.
+            Metric source reading ``metric_id`` from each position valuation.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import PerPositionMetric
-        >>> callable(PerPositionMetric.metric)
-        True
+        >>> PerPositionMetric.metric("duration").kind
+        'metric'
         """
         ...
 
@@ -5931,13 +6373,13 @@ class PerPositionMetric:
         Returns
         -------
         PerPositionMetric
-            Result of custom key for this `PerPositionMetric` in the annotated representation.
+            Metric source reading the custom measure named ``key``.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import PerPositionMetric
-        >>> callable(PerPositionMetric.custom_key)
-        True
+        >>> PerPositionMetric.custom_key("desk_metric").kind
+        'custom_key'
         """
         ...
 
@@ -5949,13 +6391,13 @@ class PerPositionMetric:
         Returns
         -------
         PerPositionMetric
-            Result of pv base for this `PerPositionMetric` in the annotated representation.
+            Metric source using each scaled position PV in portfolio base currency.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import PerPositionMetric
-        >>> callable(PerPositionMetric.pv_base)
-        True
+        >>> PerPositionMetric.pv_base().kind
+        'pv_base'
         """
         ...
 
@@ -5967,13 +6409,13 @@ class PerPositionMetric:
         Returns
         -------
         PerPositionMetric
-            Result of pv native for this `PerPositionMetric` in the annotated representation.
+            Metric source using each scaled position PV in its native currency.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import PerPositionMetric
-        >>> callable(PerPositionMetric.pv_native)
-        True
+        >>> PerPositionMetric.pv_native().kind
+        'pv_native'
         """
         ...
 
@@ -5991,13 +6433,13 @@ class PerPositionMetric:
         Returns
         -------
         PerPositionMetric
-            Result of attribute for this `PerPositionMetric` in the annotated representation.
+            Metric source reading the numeric position attribute named ``key``.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import PerPositionMetric
-        >>> callable(PerPositionMetric.attribute)
-        True
+        >>> PerPositionMetric.attribute("sector").kind
+        'attribute'
         """
         ...
 
@@ -6026,7 +6468,7 @@ class PerPositionMetric:
         Returns
         -------
         PerPositionMetric
-            Result of attribute indicator for this `PerPositionMetric` in the annotated representation.
+            Binary metric returning ``1.0`` for a match and ``0.0`` otherwise.
 
         Raises
         ------
@@ -6037,8 +6479,8 @@ class PerPositionMetric:
         Examples
         --------
         >>> from finstack_quant.portfolio import PerPositionMetric
-        >>> callable(PerPositionMetric.attribute_indicator)
-        True
+        >>> PerPositionMetric.attribute_indicator("sector", "eq", text="tech").kind
+        'attribute_indicator'
         """
         ...
 
@@ -6055,13 +6497,13 @@ class PerPositionMetric:
         Returns
         -------
         PerPositionMetric
-            Result of constant for this `PerPositionMetric` in the annotated representation.
+            Metric source returning ``value`` for every selected position.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import PerPositionMetric
-        >>> callable(PerPositionMetric.constant)
-        True
+        >>> PerPositionMetric.constant(1.5).kind
+        'constant'
         """
         ...
 
@@ -6089,8 +6531,9 @@ class PerPositionMetric:
         Examples
         --------
         >>> from finstack_quant.portfolio import PerPositionMetric
-        >>> callable(PerPositionMetric.from_json)
-        True
+        >>> metric = PerPositionMetric.from_json(PerPositionMetric.pv_base().to_json())
+        >>> metric.kind
+        'pv_base'
         """
         ...
 
@@ -6130,8 +6573,8 @@ class PositionFilter:
     Examples
     --------
     >>> from finstack_quant.portfolio import PositionFilter
-    >>> PositionFilter.__name__
-    'PositionFilter'
+    >>> PositionFilter.all().kind
+    'all'
     """
 
     @classmethod
@@ -6142,13 +6585,13 @@ class PositionFilter:
         Returns
         -------
         PositionFilter
-            Result of all for this `PositionFilter` in the annotated representation.
+            Filter matching every portfolio position.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import PositionFilter
-        >>> callable(PositionFilter.all)
-        True
+        >>> PositionFilter.all().kind
+        'all'
         """
         ...
 
@@ -6165,13 +6608,13 @@ class PositionFilter:
         Returns
         -------
         PositionFilter
-            Result of by entity id for this `PositionFilter` in the annotated representation.
+            Filter matching positions assigned to ``entity_id``.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import PositionFilter
-        >>> callable(PositionFilter.by_entity_id)
-        True
+        >>> PositionFilter.by_entity_id("issuer-1").kind
+        'by_entity_id'
         """
         ...
 
@@ -6200,7 +6643,7 @@ class PositionFilter:
         Returns
         -------
         PositionFilter
-            Result of by attribute for this `PositionFilter` in the annotated representation.
+            Filter matching positions whose attribute satisfies the comparison.
 
         Raises
         ------
@@ -6211,8 +6654,8 @@ class PositionFilter:
         Examples
         --------
         >>> from finstack_quant.portfolio import PositionFilter
-        >>> callable(PositionFilter.by_attribute)
-        True
+        >>> PositionFilter.by_attribute("sector", "eq", text="tech").kind
+        'by_attribute'
         """
         ...
 
@@ -6229,13 +6672,13 @@ class PositionFilter:
         Returns
         -------
         PositionFilter
-            Result of by position ids for this `PositionFilter` in the annotated representation.
+            Filter matching IDs contained in ``position_ids``.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import PositionFilter
-        >>> callable(PositionFilter.by_position_ids)
-        True
+        >>> PositionFilter.by_position_ids(["P1", "P2"]).kind
+        'by_position_ids'
         """
         ...
 
@@ -6252,13 +6695,13 @@ class PositionFilter:
         Returns
         -------
         PositionFilter
-            Result of not for this `PositionFilter` in the annotated representation.
+            Filter matching positions not matched by ``inner``.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import PositionFilter
-        >>> callable(PositionFilter.not_)
-        True
+        >>> PositionFilter.not_(PositionFilter.all()).kind
+        'not'
         """
         ...
 
@@ -6275,13 +6718,13 @@ class PositionFilter:
         Returns
         -------
         PositionFilter
-            Result of and for this `PositionFilter` in the annotated representation.
+            Filter matching positions that satisfy every child filter.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import PositionFilter
-        >>> callable(PositionFilter.and_)
-        True
+        >>> PositionFilter.and_([PositionFilter.all()]).kind
+        'and'
         """
         ...
 
@@ -6298,13 +6741,13 @@ class PositionFilter:
         Returns
         -------
         PositionFilter
-            Result of or for this `PositionFilter` in the annotated representation.
+            Filter matching positions that satisfy at least one child filter.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import PositionFilter
-        >>> callable(PositionFilter.or_)
-        True
+        >>> PositionFilter.or_([PositionFilter.all()]).kind
+        'or'
         """
         ...
 
@@ -6332,8 +6775,9 @@ class PositionFilter:
         Examples
         --------
         >>> from finstack_quant.portfolio import PositionFilter
-        >>> callable(PositionFilter.from_json)
-        True
+        >>> filter_ = PositionFilter.from_json(PositionFilter.all().to_json())
+        >>> filter_.kind
+        'all'
         """
         ...
 
@@ -6372,9 +6816,9 @@ class MetricExpr:
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import MetricExpr
-    >>> MetricExpr.__name__
-    'MetricExpr'
+    >>> from finstack_quant.portfolio import MetricExpr, PerPositionMetric
+    >>> MetricExpr.weighted_sum(PerPositionMetric.pv_base()).kind
+    'weighted_sum'
     """
 
     @classmethod
@@ -6396,13 +6840,13 @@ class MetricExpr:
         Returns
         -------
         MetricExpr
-            Result of weighted sum for this `MetricExpr` in the annotated representation.
+            Expression for ``sum_i(w_i * m_i)``, restricted by ``filter`` when supplied.
 
         Examples
         --------
-        >>> from finstack_quant.portfolio import MetricExpr
-        >>> callable(MetricExpr.weighted_sum)
-        True
+        >>> from finstack_quant.portfolio import MetricExpr, PerPositionMetric
+        >>> MetricExpr.weighted_sum(PerPositionMetric.pv_base()).kind
+        'weighted_sum'
         """
         ...
 
@@ -6425,13 +6869,13 @@ class MetricExpr:
         Returns
         -------
         MetricExpr
-            Result of value weighted average for this `MetricExpr` in the annotated representation.
+            Value-weighted average of the metric, restricted by ``filter`` when supplied.
 
         Examples
         --------
-        >>> from finstack_quant.portfolio import MetricExpr
-        >>> callable(MetricExpr.value_weighted_average)
-        True
+        >>> from finstack_quant.portfolio import MetricExpr, PerPositionMetric
+        >>> MetricExpr.value_weighted_average(PerPositionMetric.pv_base()).kind
+        'value_weighted_average'
         """
         ...
 
@@ -6458,9 +6902,10 @@ class MetricExpr:
 
         Examples
         --------
-        >>> from finstack_quant.portfolio import MetricExpr
-        >>> callable(MetricExpr.from_json)
-        True
+        >>> from finstack_quant.portfolio import MetricExpr, PerPositionMetric
+        >>> original = MetricExpr.weighted_sum(PerPositionMetric.pv_base())
+        >>> MetricExpr.from_json(original.to_json()).kind
+        'weighted_sum'
         """
         ...
 
@@ -6499,9 +6944,9 @@ class Objective:
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import Objective
-    >>> Objective.__name__
-    'Objective'
+    >>> from finstack_quant.portfolio import MetricExpr, Objective, PerPositionMetric
+    >>> Objective.maximize(MetricExpr.weighted_sum(PerPositionMetric.pv_base())).direction
+    'maximize'
     """
 
     @classmethod
@@ -6517,13 +6962,14 @@ class Objective:
         Returns
         -------
         Objective
-            Result of maximize for this `Objective` in the annotated representation.
+            Objective directing the optimizer to maximize ``expr``.
 
         Examples
         --------
-        >>> from finstack_quant.portfolio import Objective
-        >>> callable(Objective.maximize)
-        True
+        >>> from finstack_quant.portfolio import MetricExpr, Objective, PerPositionMetric
+        >>> expr = MetricExpr.weighted_sum(PerPositionMetric.pv_base())
+        >>> Objective.maximize(expr).direction
+        'maximize'
         """
         ...
 
@@ -6540,13 +6986,14 @@ class Objective:
         Returns
         -------
         Objective
-            Result of minimize for this `Objective` in the annotated representation.
+            Objective directing the optimizer to minimize ``expr``.
 
         Examples
         --------
-        >>> from finstack_quant.portfolio import Objective
-        >>> callable(Objective.minimize)
-        True
+        >>> from finstack_quant.portfolio import MetricExpr, Objective, PerPositionMetric
+        >>> expr = MetricExpr.weighted_sum(PerPositionMetric.pv_base())
+        >>> Objective.minimize(expr).direction
+        'minimize'
         """
         ...
 
@@ -6573,9 +7020,10 @@ class Objective:
 
         Examples
         --------
-        >>> from finstack_quant.portfolio import Objective
-        >>> callable(Objective.from_json)
-        True
+        >>> from finstack_quant.portfolio import MetricExpr, Objective, PerPositionMetric
+        >>> original = Objective.maximize(MetricExpr.weighted_sum(PerPositionMetric.pv_base()))
+        >>> Objective.from_json(original.to_json()).direction
+        'maximize'
         """
         ...
 
@@ -6626,8 +7074,8 @@ class Constraint:
     Examples
     --------
     >>> from finstack_quant.portfolio import Constraint
-    >>> Constraint.__name__
-    'Constraint'
+    >>> Constraint.budget(1.0).kind
+    'budget'
     """
 
     @classmethod
@@ -6655,13 +7103,14 @@ class Constraint:
         Returns
         -------
         Constraint
-            Result of metric bound for this `Constraint` in the annotated representation.
+            Constraint encoding ``metric op rhs`` with the optional diagnostic label.
 
         Examples
         --------
-        >>> from finstack_quant.portfolio import Constraint
-        >>> callable(Constraint.metric_bound)
-        True
+        >>> from finstack_quant.portfolio import Constraint, Inequality, MetricExpr, PerPositionMetric
+        >>> expr = MetricExpr.weighted_sum(PerPositionMetric.pv_base())
+        >>> Constraint.metric_bound(expr, Inequality.le(), 1.0).kind
+        'metric_bound'
         """
         ...
 
@@ -6690,7 +7139,7 @@ class Constraint:
         Returns
         -------
         Constraint
-            Result of weight bounds for this `Constraint` in the annotated representation.
+            Inclusive ``[min, max]`` weight interval for positions matching ``filter``.
 
         Raises
         ------
@@ -6699,9 +7148,9 @@ class Constraint:
 
         Examples
         --------
-        >>> from finstack_quant.portfolio import Constraint
-        >>> callable(Constraint.weight_bounds)
-        True
+        >>> from finstack_quant.portfolio import Constraint, PositionFilter
+        >>> Constraint.weight_bounds(PositionFilter.all(), 0.0, 1.0).kind
+        'weight_bounds'
         """
         ...
 
@@ -6724,7 +7173,7 @@ class Constraint:
         Returns
         -------
         Constraint
-            Result of max turnover for this `Constraint` in the annotated representation.
+            Bound enforcing ``sum(abs(w_new - w_current)) <= max_turnover``.
 
         Raises
         ------
@@ -6734,8 +7183,8 @@ class Constraint:
         Examples
         --------
         >>> from finstack_quant.portfolio import Constraint
-        >>> callable(Constraint.max_turnover)
-        True
+        >>> Constraint.max_turnover(0.10).kind
+        'max_turnover'
         """
         ...
 
@@ -6753,7 +7202,7 @@ class Constraint:
         Returns
         -------
         Constraint
-            Result of budget for this `Constraint` in the annotated representation.
+            Normalization constraint enforcing ``sum(w_i) == rhs``.
 
         Raises
         ------
@@ -6763,8 +7212,8 @@ class Constraint:
         Examples
         --------
         >>> from finstack_quant.portfolio import Constraint
-        >>> callable(Constraint.budget)
-        True
+        >>> (Constraint.budget(1.0).kind, Constraint.budget(1.0).label)
+        ('budget', 'budget')
         """
         ...
 
@@ -6793,7 +7242,7 @@ class Constraint:
         Returns
         -------
         Constraint
-            Result of exposure limit for this `Constraint` in the annotated representation.
+            Attribute-bucket constraint enforcing weighted exposure ``<= max_share``.
 
         Raises
         ------
@@ -6803,8 +7252,8 @@ class Constraint:
         Examples
         --------
         >>> from finstack_quant.portfolio import Constraint
-        >>> callable(Constraint.exposure_limit)
-        True
+        >>> Constraint.exposure_limit("sector", "tech", 0.20).kind
+        'metric_bound'
         """
         ...
 
@@ -6833,7 +7282,7 @@ class Constraint:
         Returns
         -------
         Constraint
-            Result of exposure minimum for this `Constraint` in the annotated representation.
+            Attribute-bucket constraint enforcing weighted exposure ``>= min_share``.
 
         Raises
         ------
@@ -6843,8 +7292,8 @@ class Constraint:
         Examples
         --------
         >>> from finstack_quant.portfolio import Constraint
-        >>> callable(Constraint.exposure_minimum)
-        True
+        >>> Constraint.exposure_minimum("sector", "tech", 0.10).kind
+        'metric_bound'
         """
         ...
 
@@ -6860,7 +7309,7 @@ class Constraint:
         Returns
         -------
         Constraint
-            Result of with label for this `Constraint` in the annotated representation.
+            Copy carrying ``label``; budget constraints retain their fixed label.
         """
         ...
 
@@ -6888,8 +7337,9 @@ class Constraint:
         Examples
         --------
         >>> from finstack_quant.portfolio import Constraint
-        >>> callable(Constraint.from_json)
-        True
+        >>> original = Constraint.budget(1.0)
+        >>> Constraint.from_json(original.to_json()).kind
+        'budget'
         """
         ...
 
@@ -6943,8 +7393,11 @@ class CandidatePosition:
     Examples
     --------
     >>> from finstack_quant.portfolio import CandidatePosition
-    >>> CandidatePosition.__name__
-    'CandidatePosition'
+    >>> try:
+    ...     CandidatePosition()
+    ... except TypeError as exc:
+    ...     print(exc)
+    cannot create 'finstack_quant.portfolio.CandidatePosition' instances
     """
 
     @property
@@ -7017,8 +7470,8 @@ class TradeUniverse:
     Examples
     --------
     >>> from finstack_quant.portfolio import TradeUniverse
-    >>> TradeUniverse.__name__
-    'TradeUniverse'
+    >>> TradeUniverse.all_positions().tradeable_filter.kind
+    'all'
     """
 
     @classmethod
@@ -7029,13 +7482,14 @@ class TradeUniverse:
         Returns
         -------
         TradeUniverse
-            Result of all positions for this `TradeUniverse` in the annotated representation.
+            Universe with all existing positions tradeable, no candidates, and no candidate shorts.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import TradeUniverse
-        >>> callable(TradeUniverse.all_positions)
-        True
+        >>> universe = TradeUniverse.all_positions()
+        >>> (universe.tradeable_filter.kind, universe.candidates)
+        ('all', [])
         """
         ...
 
@@ -7096,8 +7550,8 @@ class OptimizationStatus:
     Examples
     --------
     >>> from finstack_quant.portfolio import OptimizationStatus
-    >>> OptimizationStatus.__name__
-    'OptimizationStatus'
+    >>> (OptimizationStatus.optimal().kind, OptimizationStatus.optimal().is_feasible)
+    ('optimal', True)
     """
 
     @classmethod
@@ -7108,13 +7562,13 @@ class OptimizationStatus:
         Returns
         -------
         OptimizationStatus
-            Result of optimal for this `OptimizationStatus` in the annotated representation.
+            Feasible status indicating that the solver proved optimality.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import OptimizationStatus
-        >>> callable(OptimizationStatus.optimal)
-        True
+        >>> (OptimizationStatus.optimal().kind, OptimizationStatus.optimal().is_feasible)
+        ('optimal', True)
         """
         ...
 
@@ -7126,13 +7580,13 @@ class OptimizationStatus:
         Returns
         -------
         OptimizationStatus
-            Result of feasible but suboptimal for this `OptimizationStatus` in the annotated representation.
+            Usable status indicating feasibility without proven optimality.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import OptimizationStatus
-        >>> callable(OptimizationStatus.feasible_but_suboptimal)
-        True
+        >>> OptimizationStatus.feasible_but_suboptimal().kind
+        'feasible_but_suboptimal'
         """
         ...
 
@@ -7144,13 +7598,13 @@ class OptimizationStatus:
         Returns
         -------
         OptimizationStatus
-            Result of unbounded for this `OptimizationStatus` in the annotated representation.
+            Non-feasible status indicating an unbounded objective.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import OptimizationStatus
-        >>> callable(OptimizationStatus.unbounded)
-        True
+        >>> OptimizationStatus.unbounded().is_feasible
+        False
         """
         ...
 
@@ -7167,13 +7621,14 @@ class OptimizationStatus:
         Returns
         -------
         OptimizationStatus
-            Result of infeasible for this `OptimizationStatus` in the annotated representation.
+            Non-feasible status retaining the conflicting constraint labels.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import OptimizationStatus
-        >>> callable(OptimizationStatus.infeasible)
-        True
+        >>> status = OptimizationStatus.infeasible(["budget"])
+        >>> status.conflicting_constraints
+        ['budget']
         """
         ...
 
@@ -7190,13 +7645,13 @@ class OptimizationStatus:
         Returns
         -------
         OptimizationStatus
-            Result of error for this `OptimizationStatus` in the annotated representation.
+            Non-feasible solver-error status retaining ``message`` for diagnostics.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import OptimizationStatus
-        >>> callable(OptimizationStatus.error)
-        True
+        >>> OptimizationStatus.error("solver failed").message
+        'solver failed'
         """
         ...
 
@@ -7224,8 +7679,9 @@ class OptimizationStatus:
         Examples
         --------
         >>> from finstack_quant.portfolio import OptimizationStatus
-        >>> callable(OptimizationStatus.from_json)
-        True
+        >>> original = OptimizationStatus.infeasible(["budget"])
+        >>> OptimizationStatus.from_json(original.to_json()).conflicting_constraints
+        ['budget']
         """
         ...
 
@@ -7298,8 +7754,13 @@ class TradeSpec:
     Examples
     --------
     >>> from finstack_quant.portfolio import TradeSpec
-    >>> TradeSpec.__name__
-    'TradeSpec'
+    >>> doc = (
+    ...     '{"position_id":"P1","instrument_id":"I1","trade_type":"existing",'
+    ...     '"direction":"buy","current_quantity":1.0,"target_quantity":2.0,'
+    ...     '"delta_quantity":1.0,"current_weight":0.1,"target_weight":0.2}'
+    ... )
+    >>> TradeSpec.from_json(doc).delta_quantity
+    1.0
     """
 
     @classmethod
@@ -7326,8 +7787,13 @@ class TradeSpec:
         Examples
         --------
         >>> from finstack_quant.portfolio import TradeSpec
-        >>> callable(TradeSpec.from_json)
-        True
+        >>> doc = (
+        ...     '{"position_id":"P1","instrument_id":"I1","trade_type":"existing",'
+        ...     '"direction":"buy","current_quantity":1.0,"target_quantity":2.0,'
+        ...     '"delta_quantity":1.0,"current_weight":0.1,"target_weight":0.2}'
+        ... )
+        >>> TradeSpec.from_json(doc).direction.label
+        'buy'
         """
         ...
 
@@ -7455,9 +7921,11 @@ class PortfolioOptimizationSpec:
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import PortfolioOptimizationSpec
-    >>> PortfolioOptimizationSpec.__name__
-    'PortfolioOptimizationSpec'
+    >>> from finstack_quant.portfolio import MetricExpr, Objective, PerPositionMetric, PortfolioOptimizationSpec
+    >>> objective = Objective.maximize(MetricExpr.weighted_sum(PerPositionMetric.pv_base()))
+    >>> spec_json = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+    >>> PortfolioOptimizationSpec.new(spec_json, objective).objective.direction
+    'maximize'
     """
 
     @classmethod
@@ -7479,7 +7947,7 @@ class PortfolioOptimizationSpec:
         Returns
         -------
         PortfolioOptimizationSpec
-            Result of new for this `PortfolioOptimizationSpec` in the annotated representation.
+            Spec with no constraints, value weighting, zero-fill missing metrics, and no label.
 
         Raises
         ------
@@ -7489,9 +7957,11 @@ class PortfolioOptimizationSpec:
 
         Examples
         --------
-        >>> from finstack_quant.portfolio import PortfolioOptimizationSpec
-        >>> callable(PortfolioOptimizationSpec.new)
-        True
+        >>> from finstack_quant.portfolio import MetricExpr, Objective, PerPositionMetric, PortfolioOptimizationSpec
+        >>> objective = Objective.maximize(MetricExpr.weighted_sum(PerPositionMetric.pv_base()))
+        >>> spec_json = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+        >>> PortfolioOptimizationSpec.new(spec_json, objective).weighting.label
+        'value_weight'
         """
         ...
 
@@ -7507,7 +7977,7 @@ class PortfolioOptimizationSpec:
         Returns
         -------
         PortfolioOptimizationSpec
-            Result of with constraint for this `PortfolioOptimizationSpec` in the annotated representation.
+            Copy with ``constraint`` appended after the existing constraints.
         """
         ...
 
@@ -7523,7 +7993,7 @@ class PortfolioOptimizationSpec:
         Returns
         -------
         PortfolioOptimizationSpec
-            Result of with objective for this `PortfolioOptimizationSpec` in the annotated representation.
+            Copy with the existing objective replaced by ``objective``.
         """
         ...
 
@@ -7539,7 +8009,7 @@ class PortfolioOptimizationSpec:
         Returns
         -------
         PortfolioOptimizationSpec
-            Result of with weighting for this `PortfolioOptimizationSpec` in the annotated representation.
+            Copy with the existing weighting scheme replaced by ``weighting``.
         """
         ...
 
@@ -7555,7 +8025,7 @@ class PortfolioOptimizationSpec:
         Returns
         -------
         PortfolioOptimizationSpec
-            Result of with missing metric policy for this `PortfolioOptimizationSpec` in the annotated representation.
+            Copy with the existing missing-metric policy replaced by ``policy``.
         """
         ...
 
@@ -7571,7 +8041,7 @@ class PortfolioOptimizationSpec:
         Returns
         -------
         PortfolioOptimizationSpec
-            Result of with label for this `PortfolioOptimizationSpec` in the annotated representation.
+            Copy with its audit and reporting label set to ``label``.
         """
         ...
 
@@ -7598,9 +8068,12 @@ class PortfolioOptimizationSpec:
 
         Examples
         --------
-        >>> from finstack_quant.portfolio import PortfolioOptimizationSpec
-        >>> callable(PortfolioOptimizationSpec.from_json)
-        True
+        >>> from finstack_quant.portfolio import MetricExpr, Objective, PerPositionMetric, PortfolioOptimizationSpec
+        >>> objective = Objective.maximize(MetricExpr.weighted_sum(PerPositionMetric.pv_base()))
+        >>> spec_json = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+        >>> original = PortfolioOptimizationSpec.new(spec_json, objective)
+        >>> PortfolioOptimizationSpec.from_json(original.to_json()).objective.direction
+        'maximize'
         """
         ...
 
@@ -7674,7 +8147,7 @@ class PortfolioOptimizationSpec:
         Returns
         -------
         str
-            Result of portfolio spec json for this `PortfolioOptimizationSpec` in the annotated representation.
+            Compact canonical JSON for the embedded ``PortfolioSpec``.
         """
         ...
 
@@ -7693,8 +8166,11 @@ class PortfolioOptimizationResult:
     Examples
     --------
     >>> from finstack_quant.portfolio import PortfolioOptimizationResult
-    >>> PortfolioOptimizationResult.__name__
-    'PortfolioOptimizationResult'
+    >>> try:
+    ...     PortfolioOptimizationResult()
+    ... except TypeError as exc:
+    ...     print(exc)
+    cannot create 'finstack_quant.portfolio.PortfolioOptimizationResult' instances
     """
 
     def to_json(self) -> str:
@@ -7822,7 +8298,7 @@ class PortfolioOptimizationResult:
         Returns
         -------
         list[TradeSpec]
-            Result of to trade list for this `PortfolioOptimizationResult` in the annotated representation.
+            Material trades sorted by descending absolute quantity change.
         """
         ...
 
@@ -7832,7 +8308,7 @@ class PortfolioOptimizationResult:
         Returns
         -------
         list[TradeSpec]
-            Result of new position trades for this `PortfolioOptimizationResult` in the annotated representation.
+            New-candidate subset of ``to_trade_list()``, preserving its order.
         """
         ...
 
@@ -7889,8 +8365,22 @@ def optimize_portfolio(
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import optimize_portfolio
-    >>> callable(optimize_portfolio)
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.portfolio import (
+    ...     MetricExpr,
+    ...     Objective,
+    ...     PerPositionMetric,
+    ...     PortfolioError,
+    ...     PortfolioOptimizationSpec,
+    ...     optimize_portfolio,
+    ... )
+    >>> objective = Objective.maximize(MetricExpr.weighted_sum(PerPositionMetric.pv_base()))
+    >>> portfolio = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+    >>> spec = PortfolioOptimizationSpec.new(portfolio, objective)
+    >>> try:
+    ...     optimize_portfolio(spec, MarketContext())
+    ... except PortfolioError as exc:
+    ...     print("no decision variables" in str(exc))
     True
     """
     ...
@@ -7911,8 +8401,11 @@ class SensitivityMatrix:
 
     Examples
     --------
+    >>> from finstack_quant.core.market_data import MarketContext
     >>> from finstack_quant.portfolio import compute_factor_sensitivities
-    >>> matrix = compute_factor_sensitivities(pos_json, fac_json, mkt_json, "2025-01-15")  # doctest: +SKIP
+    >>> matrix = compute_factor_sensitivities("[]", "[]", MarketContext(), "2025-01-15")
+    >>> (matrix.n_positions, matrix.n_factors)
+    (0, 0)
     """
 
     @property
@@ -8054,8 +8547,12 @@ class FactorPnlProfile:
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import compute_pnl_profiles
-    >>> profiles = compute_pnl_profiles(pos_json, fac_json, mkt_json, "2025-01-15")  # doctest: +SKIP
+    >>> from finstack_quant.portfolio import FactorPnlProfile
+    >>> try:
+    ...     FactorPnlProfile()
+    ... except TypeError as exc:
+    ...     print(exc)
+    cannot create 'finstack_quant.portfolio.FactorPnlProfile' instances
     """
 
     @property
@@ -8163,9 +8660,11 @@ def compute_factor_sensitivities(
 
         Examples
         --------
+        >>> from finstack_quant.core.market_data import MarketContext
         >>> from finstack_quant.portfolio import compute_factor_sensitivities
-        >>> matrix = compute_factor_sensitivities(pos_json, fac_json, mkt_json, "2025-01-15")  # doctest: +SKIP
-        >>> matrix.to_dataframe()  # doctest: +SKIP
+        >>> matrix = compute_factor_sensitivities("[]", "[]", MarketContext(), "2025-01-15")
+        >>> matrix.to_dataframe().shape
+        (0, 0)
     """
     ...
 
@@ -8215,9 +8714,10 @@ def compute_pnl_profiles(
 
     Examples
     --------
+    >>> from finstack_quant.core.market_data import MarketContext
     >>> from finstack_quant.portfolio import compute_pnl_profiles
-    >>> profiles = compute_pnl_profiles(pos_json, fac_json, mkt_json, "2025-01-15")  # doctest: +SKIP
-    >>> profiles[0].to_dataframe(["bond_1", "equity_1"])  # doctest: +SKIP
+    >>> compute_pnl_profiles("[]", "[]", MarketContext(), "2025-01-15")
+    []
     """
     ...
 
@@ -8236,10 +8736,11 @@ class FactorRiskDecomposition:
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import decompose_factor_risk  # doctest: +SKIP
-    >>> result = decompose_factor_risk(sens, cov_json)  # doctest: +SKIP
-    >>> result.total_risk  # doctest: +SKIP
-    0.042
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.portfolio import compute_factor_sensitivities, decompose_factor_risk
+    >>> matrix = compute_factor_sensitivities("[]", "[]", MarketContext(), "2025-01-15")
+    >>> decompose_factor_risk(matrix, '{"factor_ids":[],"n":0,"data":[]}').total_risk
+    0.0
     """
 
     @property
@@ -8376,9 +8877,11 @@ def decompose_factor_risk(
 
     Examples
     --------
+    >>> from finstack_quant.core.market_data import MarketContext
     >>> from finstack_quant.portfolio import compute_factor_sensitivities, decompose_factor_risk
-    >>> sens = compute_factor_sensitivities(pos, fac, mkt, "2025-01-15")  # doctest: +SKIP
-    >>> result = decompose_factor_risk(sens, cov_json, "volatility")  # doctest: +SKIP
-    >>> result.to_factor_dataframe()  # doctest: +SKIP
+    >>> matrix = compute_factor_sensitivities("[]", "[]", MarketContext(), "2025-01-15")
+    >>> result = decompose_factor_risk(matrix, '{"factor_ids":[],"n":0,"data":[]}', "volatility")
+    >>> (result.total_risk, result.to_factor_dataframe().shape)
+    (0.0, (0, 4))
     """
     ...

@@ -44,9 +44,10 @@ exporting to downstream services.
 
 Examples:
 --------
->>> import finstack_quant.portfolio as portfolio
->>> portfolio.__name__
-'finstack_quant.portfolio'
+>>> from finstack_quant.portfolio import Portfolio
+>>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+>>> (Portfolio.from_spec(spec).id, len(Portfolio.from_spec(spec)))
+('empty', 0)
 """
 
 from __future__ import annotations

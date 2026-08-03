@@ -3,9 +3,9 @@ Scenario specification, validation, composition, application, and built-in templ
 
 Examples
 --------
->>> import finstack_quant.scenarios as scenarios
->>> scenarios.__name__
-'finstack_quant.scenarios'
+>>> from finstack_quant.scenarios import list_builtin_templates
+>>> list_builtin_templates()[:2]
+['gfc_2008', 'covid_2020']
 """
 
 from __future__ import annotations
@@ -59,9 +59,11 @@ def parse_scenario_spec(json_str: str) -> str:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.scenarios import parse_scenario_spec
-    >>> parse_scenario_spec(spec_json)  # doctest: +SKIP
-        ''
+    >>> parsed = parse_scenario_spec('{"id":"s","name":"S","operations":[]}')
+    >>> json.loads(parsed)["resolution_mode"]
+    'most_specific_wins'
     """
     ...
 
@@ -134,9 +136,10 @@ def compose_scenarios(specs_json: str) -> str:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.scenarios import compose_scenarios
-    >>> compose_scenarios("[]")  # doctest: +SKIP
-        ''
+    >>> json.loads(compose_scenarios("[]"))["operations"]
+    []
     """
     ...
 
@@ -162,8 +165,9 @@ def validate_scenario_spec(json_str: str) -> bool:
     Examples
     --------
     >>> from finstack_quant.scenarios import validate_scenario_spec
-    >>> validate_scenario_spec(spec_json)  # doctest: +SKIP
-        True
+    >>> spec = '{"id":"s","name":"S","operations":[]}'
+    >>> validate_scenario_spec(spec)
+    True
     """
     ...
 
@@ -179,8 +183,8 @@ def list_builtin_templates() -> list[str]:
     Examples
     --------
     >>> from finstack_quant.scenarios import list_builtin_templates
-    >>> isinstance(list_builtin_templates(), list)
-        True
+    >>> list_builtin_templates()[:2]
+    ['gfc_2008', 'covid_2020']
     """
     ...
 
@@ -221,9 +225,10 @@ def build_from_template(template_id: str) -> str:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.scenarios import build_from_template
-    >>> build_from_template("unknown")  # doctest: +SKIP
-        ''
+    >>> json.loads(build_from_template("gfc_2008"))["id"]
+    'gfc_2008'
     """
     ...
 
@@ -249,8 +254,8 @@ def list_template_components(template_id: str) -> list[str]:
     Examples
     --------
     >>> from finstack_quant.scenarios import list_template_components
-    >>> list_template_components("t")  # doctest: +SKIP
-        []
+    >>> list_template_components("gfc_2008")[:2]
+    ['gfc_2008_rates', 'gfc_2008_credit']
     """
     ...
 
@@ -277,9 +282,11 @@ def build_template_component(template_id: str, component_id: str) -> str:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.scenarios import build_template_component
-    >>> build_template_component("t", "c")  # doctest: +SKIP
-        ''
+    >>> component = build_template_component("gfc_2008", "gfc_2008_rates")
+    >>> json.loads(component)["id"]
+    'gfc_2008_rates'
     """
     ...
 
@@ -320,9 +327,16 @@ def apply_scenario(
 
     Examples
     --------
-    >>> from finstack_quant.scenarios import apply_scenario
-    >>> apply_scenario(sj, mj, fj, "2025-01-15")  # doctest: +SKIP
-        {}
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.scenarios import apply_scenario, compose_scenarios
+    >>> model = (
+    ...     '{"schema_version":1,"id":"m","periods":['
+    ...     '{"id":"2025Q1","start":"2025-01-01","end":"2025-04-01",'
+    ...     '"is_actual":false}],"nodes":{}}'
+    ... )
+    >>> applied = apply_scenario(compose_scenarios("[]"), MarketContext(), model, "2025-01-15")
+    >>> applied["operations_applied"]
+    0
     """
     ...
 
@@ -357,9 +371,11 @@ def apply_scenario_to_market(
 
     Examples
     --------
-    >>> from finstack_quant.scenarios import apply_scenario_to_market
-    >>> apply_scenario_to_market(sj, mj, "2025-01-15")  # doctest: +SKIP
-        {}
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.scenarios import apply_scenario_to_market, compose_scenarios
+    >>> applied = apply_scenario_to_market(compose_scenarios("[]"), MarketContext(), "2025-01-15")
+    >>> applied["operations_applied"]
+    0
     """
     ...
 
@@ -373,10 +389,13 @@ class HorizonResult:
 
     Examples
     --------
-    >>> from finstack_quant.scenarios import compute_horizon_return
-    >>> result = compute_horizon_return(inst, mkt, "2025-01-15", scen)  # doctest: +SKIP
-    >>> result.total_return_pct  # doctest: +SKIP
-    0.02
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.scenarios import compose_scenarios, compute_horizon_return
+    >>> try:
+    ...     compute_horizon_return("{}", MarketContext(), "2025-01-15", compose_scenarios("[]"))
+    ... except ValueError as exc:
+    ...     print(str(exc).split(":")[0])
+    Validation error
     """
 
     @property
@@ -390,10 +409,6 @@ class HorizonResult:
             Carry, rate, credit, inflation, FX, volatility, and model-parameter
             contributions.
 
-        Examples
-        --------
-        >>> result.attribution  # doctest: +SKIP
-        PnlAttribution(...)
         """
         ...
 
@@ -616,10 +631,13 @@ def compute_horizon_return(
 
     Examples
     --------
-    >>> from finstack_quant.scenarios import compute_horizon_return
-    >>> result = compute_horizon_return(inst, mkt, "2025-01-15", scen)  # doctest: +SKIP
-    >>> result.total_return_pct  # doctest: +SKIP
-    0.02
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.scenarios import compose_scenarios, compute_horizon_return
+    >>> try:
+    ...     compute_horizon_return("{}", MarketContext(), "2025-01-15", compose_scenarios("[]"))
+    ... except ValueError as exc:
+    ...     print(str(exc).split(":")[0])
+    Validation error
     """
     ...
 
@@ -656,8 +674,8 @@ class CurveKind:
         Examples
         --------
         >>> from finstack_quant.scenarios import CurveKind
-        >>> callable(CurveKind.discount)
-        True
+        >>> str(CurveKind.discount())
+        'CurveKind.Discount'
         """
         ...
 
@@ -674,8 +692,8 @@ class CurveKind:
         Examples
         --------
         >>> from finstack_quant.scenarios import CurveKind
-        >>> callable(CurveKind.forward)
-        True
+        >>> str(CurveKind.forward())
+        'CurveKind.Forward'
         """
         ...
 
@@ -692,8 +710,8 @@ class CurveKind:
         Examples
         --------
         >>> from finstack_quant.scenarios import CurveKind
-        >>> callable(CurveKind.par_cds)
-        True
+        >>> str(CurveKind.par_cds())
+        'CurveKind.ParCDS'
         """
         ...
 
@@ -710,8 +728,8 @@ class CurveKind:
         Examples
         --------
         >>> from finstack_quant.scenarios import CurveKind
-        >>> callable(CurveKind.inflation)
-        True
+        >>> str(CurveKind.inflation())
+        'CurveKind.Inflation'
         """
         ...
 
@@ -728,8 +746,8 @@ class CurveKind:
         Examples
         --------
         >>> from finstack_quant.scenarios import CurveKind
-        >>> callable(CurveKind.commodity)
-        True
+        >>> str(CurveKind.commodity())
+        'CurveKind.Commodity'
         """
         ...
 
@@ -781,8 +799,8 @@ class VolSurfaceKind:
         Examples
         --------
         >>> from finstack_quant.scenarios import VolSurfaceKind
-        >>> callable(VolSurfaceKind.equity)
-        True
+        >>> str(VolSurfaceKind.equity())
+        'VolSurfaceKind.Equity'
         """
         ...
 
@@ -799,8 +817,8 @@ class VolSurfaceKind:
         Examples
         --------
         >>> from finstack_quant.scenarios import VolSurfaceKind
-        >>> callable(VolSurfaceKind.credit)
-        True
+        >>> str(VolSurfaceKind.credit())
+        'VolSurfaceKind.Credit'
         """
         ...
 
@@ -817,8 +835,8 @@ class VolSurfaceKind:
         Examples
         --------
         >>> from finstack_quant.scenarios import VolSurfaceKind
-        >>> callable(VolSurfaceKind.swaption)
-        True
+        >>> str(VolSurfaceKind.swaption())
+        'VolSurfaceKind.Swaption'
         """
         ...
 
@@ -870,8 +888,8 @@ class TenorMatchMode:
         Examples
         --------
         >>> from finstack_quant.scenarios import TenorMatchMode
-        >>> callable(TenorMatchMode.exact)
-        True
+        >>> str(TenorMatchMode.exact())
+        'TenorMatchMode.Exact'
         """
         ...
 
@@ -888,8 +906,8 @@ class TenorMatchMode:
         Examples
         --------
         >>> from finstack_quant.scenarios import TenorMatchMode
-        >>> callable(TenorMatchMode.interpolate)
-        True
+        >>> str(TenorMatchMode.interpolate())
+        'TenorMatchMode.Interpolate'
         """
         ...
 
@@ -941,8 +959,8 @@ class TimeRollMode:
         Examples
         --------
         >>> from finstack_quant.scenarios import TimeRollMode
-        >>> callable(TimeRollMode.business_days)
-        True
+        >>> str(TimeRollMode.business_days())
+        'TimeRollMode.BusinessDays'
         """
         ...
 
@@ -959,8 +977,8 @@ class TimeRollMode:
         Examples
         --------
         >>> from finstack_quant.scenarios import TimeRollMode
-        >>> callable(TimeRollMode.calendar_days)
-        True
+        >>> str(TimeRollMode.calendar_days())
+        'TimeRollMode.CalendarDays'
         """
         ...
 
@@ -977,8 +995,8 @@ class TimeRollMode:
         Examples
         --------
         >>> from finstack_quant.scenarios import TimeRollMode
-        >>> callable(TimeRollMode.approximate)
-        True
+        >>> str(TimeRollMode.approximate())
+        'TimeRollMode.Approximate'
         """
         ...
 
@@ -1030,8 +1048,8 @@ class Compounding:
         Examples
         --------
         >>> from finstack_quant.scenarios import Compounding
-        >>> callable(Compounding.simple)
-        True
+        >>> str(Compounding.simple())
+        'Compounding.Simple'
         """
         ...
 
@@ -1048,8 +1066,8 @@ class Compounding:
         Examples
         --------
         >>> from finstack_quant.scenarios import Compounding
-        >>> callable(Compounding.continuous)
-        True
+        >>> str(Compounding.continuous())
+        'Compounding.Continuous'
         """
         ...
 
@@ -1066,8 +1084,8 @@ class Compounding:
         Examples
         --------
         >>> from finstack_quant.scenarios import Compounding
-        >>> callable(Compounding.annual)
-        True
+        >>> str(Compounding.annual())
+        'Compounding.Annual'
         """
         ...
 
@@ -1084,8 +1102,8 @@ class Compounding:
         Examples
         --------
         >>> from finstack_quant.scenarios import Compounding
-        >>> callable(Compounding.semi_annual)
-        True
+        >>> str(Compounding.semi_annual())
+        'Compounding.SemiAnnual'
         """
         ...
 
@@ -1102,8 +1120,8 @@ class Compounding:
         Examples
         --------
         >>> from finstack_quant.scenarios import Compounding
-        >>> callable(Compounding.quarterly)
-        True
+        >>> str(Compounding.quarterly())
+        'Compounding.Quarterly'
         """
         ...
 
@@ -1120,8 +1138,8 @@ class Compounding:
         Examples
         --------
         >>> from finstack_quant.scenarios import Compounding
-        >>> callable(Compounding.monthly)
-        True
+        >>> str(Compounding.monthly())
+        'Compounding.Monthly'
         """
         ...
 
@@ -1157,8 +1175,8 @@ class RateBindingSpec:
     --------
     >>> from finstack_quant.scenarios import RateBindingSpec, Compounding
     >>> spec = RateBindingSpec("node_1", "USD-OIS", "5Y", Compounding.continuous())
-    >>> spec.to_json()  # doctest: +SKIP
-        '{"node_id":"node_1",...}'
+    >>> (spec.curve_id, spec.tenor, spec.compounding.value)
+    ('USD-OIS', '5Y', 'continuous')
     """
 
     def __init__(
@@ -1287,8 +1305,11 @@ class RateBindingSpec:
         Examples
         --------
         >>> from finstack_quant.scenarios import RateBindingSpec
-        >>> callable(RateBindingSpec.from_json)
-        True
+        >>> spec = RateBindingSpec.from_json(
+        ...     '{"node_id":"node_1","curve_id":"USD-OIS","tenor":"5Y","compounding":"continuous","day_count":null}'
+        ... )
+        >>> spec.tenor
+        '5Y'
         """
         ...
 
@@ -1304,8 +1325,8 @@ class OperationSpec:
     --------
     >>> from finstack_quant.scenarios import OperationSpec, CurveKind
     >>> op = OperationSpec.curve_parallel_bp(CurveKind.discount(), "USD-OIS", 10.0)
-    >>> op.to_json()  # doctest: +SKIP
-        '{"kind":"curve_parallel_bp",...}'
+    >>> op.kind
+    'curve_parallel_bp'
     """
 
     @classmethod
@@ -1335,8 +1356,8 @@ class OperationSpec:
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.market_fx_pct)
-        True
+        >>> OperationSpec.market_fx_pct("USD", "EUR", -5.0).kind
+        'market_fx_pct'
         """
         ...
 
@@ -1360,8 +1381,8 @@ class OperationSpec:
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.equity_price_pct)
-        True
+        >>> OperationSpec.equity_price_pct(["SPY"], -10.0).kind
+        'equity_price_pct'
         """
         ...
 
@@ -1387,8 +1408,8 @@ class OperationSpec:
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.instrument_price_pct_by_attr)
-        True
+        >>> OperationSpec.instrument_price_pct_by_attr([("sector", "tech")], -5.0).kind
+        'instrument_price_pct_by_attr'
         """
         ...
 
@@ -1421,9 +1442,9 @@ class OperationSpec:
 
         Examples
         --------
-        >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.curve_parallel_bp)
-        True
+        >>> from finstack_quant.scenarios import CurveKind, OperationSpec
+        >>> OperationSpec.curve_parallel_bp(CurveKind.discount(), "USD-OIS", 10.0).kind
+        'curve_parallel_bp'
         """
         ...
 
@@ -1459,9 +1480,9 @@ class OperationSpec:
 
         Examples
         --------
-        >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.curve_node_bp)
-        True
+        >>> from finstack_quant.scenarios import CurveKind, OperationSpec
+        >>> OperationSpec.curve_node_bp(CurveKind.discount(), "USD-OIS", [("5Y", 10.0)]).kind
+        'curve_node_bp'
         """
         ...
 
@@ -1485,8 +1506,8 @@ class OperationSpec:
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.vol_index_parallel_pts)
-        True
+        >>> OperationSpec.vol_index_parallel_pts("VIX", 2.0).kind
+        'vol_index_parallel_pts'
         """
         ...
 
@@ -1517,8 +1538,8 @@ class OperationSpec:
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.vol_index_node_pts)
-        True
+        >>> OperationSpec.vol_index_node_pts("VIX", [("1M", 2.0)]).kind
+        'vol_index_node_pts'
         """
         ...
 
@@ -1542,8 +1563,8 @@ class OperationSpec:
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.base_corr_parallel_pts)
-        True
+        >>> OperationSpec.base_corr_parallel_pts("CDX", 0.01).kind
+        'base_corr_parallel_pts'
         """
         ...
 
@@ -1578,8 +1599,8 @@ class OperationSpec:
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.base_corr_bucket_pts)
-        True
+        >>> OperationSpec.base_corr_bucket_pts("CDX", 0.01).kind
+        'base_corr_bucket_pts'
         """
         ...
 
@@ -1604,9 +1625,9 @@ class OperationSpec:
 
         Examples
         --------
-        >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.vol_surface_parallel_pct)
-        True
+        >>> from finstack_quant.scenarios import OperationSpec, VolSurfaceKind
+        >>> OperationSpec.vol_surface_parallel_pct(VolSurfaceKind.equity(), "SPX", 10.0).kind
+        'vol_surface_parallel_pct'
         """
         ...
 
@@ -1642,9 +1663,9 @@ class OperationSpec:
 
         Examples
         --------
-        >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.vol_surface_bucket_pct)
-        True
+        >>> from finstack_quant.scenarios import OperationSpec, VolSurfaceKind
+        >>> OperationSpec.vol_surface_bucket_pct(VolSurfaceKind.equity(), "SPX", 10.0).kind
+        'vol_surface_bucket_pct'
         """
         ...
 
@@ -1668,8 +1689,8 @@ class OperationSpec:
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.stmt_forecast_percent)
-        True
+        >>> OperationSpec.stmt_forecast_percent("revenue", 5.0).kind
+        'stmt_forecast_percent'
         """
         ...
 
@@ -1693,8 +1714,8 @@ class OperationSpec:
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.stmt_forecast_assign)
-        True
+        >>> OperationSpec.stmt_forecast_assign("revenue", 100.0).kind
+        'stmt_forecast_assign'
         """
         ...
 
@@ -1715,9 +1736,10 @@ class OperationSpec:
 
         Examples
         --------
-        >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.rate_binding)
-        True
+        >>> from finstack_quant.scenarios import OperationSpec, RateBindingSpec
+        >>> binding = RateBindingSpec("revenue", "USD-OIS", "5Y")
+        >>> OperationSpec.rate_binding(binding).kind
+        'rate_binding'
         """
         ...
 
@@ -1741,8 +1763,8 @@ class OperationSpec:
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.instrument_spread_bp_by_attr)
-        True
+        >>> OperationSpec.instrument_spread_bp_by_attr([("sector", "tech")], 20.0).kind
+        'instrument_spread_bp_by_attr'
         """
         ...
 
@@ -1771,8 +1793,8 @@ class OperationSpec:
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.instrument_price_pct_by_type)
-        True
+        >>> OperationSpec.instrument_price_pct_by_type(["bond"], -5.0).kind
+        'instrument_price_pct_by_type'
         """
         ...
 
@@ -1801,8 +1823,8 @@ class OperationSpec:
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.instrument_spread_bp_by_type)
-        True
+        >>> OperationSpec.instrument_spread_bp_by_type(["bond"], 20.0).kind
+        'instrument_spread_bp_by_type'
         """
         ...
 
@@ -1824,8 +1846,8 @@ class OperationSpec:
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.asset_correlation_pts)
-        True
+        >>> OperationSpec.asset_correlation_pts(0.05).kind
+        'asset_correlation_pts'
         """
         ...
 
@@ -1847,8 +1869,8 @@ class OperationSpec:
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.prepay_default_correlation_pts)
-        True
+        >>> OperationSpec.prepay_default_correlation_pts(0.05).kind
+        'prepay_default_correlation_pts'
         """
         ...
 
@@ -1889,9 +1911,9 @@ class OperationSpec:
 
         Examples
         --------
-        >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.hierarchy_curve_parallel_bp)
-        True
+        >>> from finstack_quant.scenarios import CurveKind, OperationSpec
+        >>> OperationSpec.hierarchy_curve_parallel_bp(CurveKind.discount(), '{"path":["Credit"]}', 10.0).kind
+        'hierarchy_curve_parallel_bp'
         """
         ...
 
@@ -1923,9 +1945,9 @@ class OperationSpec:
 
         Examples
         --------
-        >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.hierarchy_vol_surface_parallel_pct)
-        True
+        >>> from finstack_quant.scenarios import OperationSpec, VolSurfaceKind
+        >>> OperationSpec.hierarchy_vol_surface_parallel_pct(VolSurfaceKind.equity(), '{"path":["Equity"]}', 10.0).kind
+        'hierarchy_vol_surface_parallel_pct'
         """
         ...
 
@@ -1954,8 +1976,8 @@ class OperationSpec:
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.hierarchy_equity_price_pct)
-        True
+        >>> OperationSpec.hierarchy_equity_price_pct('{"path":["Equity"]}', -5.0).kind
+        'hierarchy_equity_price_pct'
         """
         ...
 
@@ -1984,8 +2006,8 @@ class OperationSpec:
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.hierarchy_base_corr_parallel_pts)
-        True
+        >>> OperationSpec.hierarchy_base_corr_parallel_pts('{"path":["Credit"]}', 0.01).kind
+        'hierarchy_base_corr_parallel_pts'
         """
         ...
 
@@ -2019,8 +2041,8 @@ class OperationSpec:
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.time_roll_forward)
-        True
+        >>> OperationSpec.time_roll_forward("1M").kind
+        'time_roll_forward'
         """
         ...
 
@@ -2058,8 +2080,8 @@ class OperationSpec:
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
-        >>> callable(OperationSpec.from_json)
-        True
+        >>> OperationSpec.from_json('{"kind":"market_fx_pct","base":"USD","quote":"EUR","pct":-5.0}').kind
+        'market_fx_pct'
         """
         ...
 

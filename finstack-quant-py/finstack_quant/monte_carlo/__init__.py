@@ -15,9 +15,9 @@ valuation respectively.
 
 Examples:
 --------
->>> import finstack_quant.monte_carlo as monte_carlo
->>> monte_carlo.__name__
-'finstack_quant.monte_carlo'
+>>> from finstack_quant.monte_carlo import heston_satisfies_feller
+>>> heston_satisfies_feller(2.0, 0.04, 0.3)
+True
 """
 
 import sys

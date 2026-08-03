@@ -7,9 +7,9 @@ and results, and margin analytics helpers.
 
 Examples
 --------
->>> import finstack_quant.margin as margin
->>> margin.__name__
-'finstack_quant.margin'
+>>> from finstack_quant.margin import CollateralAssetClass
+>>> CollateralAssetClass.cash().standard_haircut()
+0.0
 """
 
 from __future__ import annotations
@@ -81,7 +81,7 @@ class ImMethodology:
     Examples
     --------
     >>> ImMethodology.from_str("simm")
-    ImMethodology(Simm)
+    ImMethodology(simm)
     """
 
     @staticmethod
@@ -97,7 +97,7 @@ class ImMethodology:
         Examples
         --------
         >>> ImMethodology.haircut()
-        ImMethodology(Haircut)
+        ImMethodology(haircut)
         """
         ...
 
@@ -114,7 +114,7 @@ class ImMethodology:
         Examples
         --------
         >>> ImMethodology.simm()
-        ImMethodology(Simm)
+        ImMethodology(simm)
         """
         ...
 
@@ -131,7 +131,7 @@ class ImMethodology:
         Examples
         --------
         >>> ImMethodology.schedule()
-        ImMethodology(Schedule)
+        ImMethodology(schedule)
         """
         ...
 
@@ -148,7 +148,7 @@ class ImMethodology:
         Examples
         --------
         >>> ImMethodology.internal_model()
-        ImMethodology(InternalModel)
+        ImMethodology(internal_model)
         """
         ...
 
@@ -165,7 +165,7 @@ class ImMethodology:
         Examples
         --------
         >>> ImMethodology.clearing_house()
-        ImMethodology(ClearingHouse)
+        ImMethodology(clearing_house)
         """
         ...
 
@@ -192,7 +192,7 @@ class ImMethodology:
         Examples
         --------
         >>> ImMethodology.from_str("schedule")
-        ImMethodology(Schedule)
+        ImMethodology(schedule)
         """
         ...
 
@@ -216,7 +216,7 @@ class MarginTenor:
     Examples
     --------
     >>> MarginTenor.daily()
-    MarginTenor(Daily)
+    MarginTenor(daily)
     """
 
     @staticmethod
@@ -232,7 +232,7 @@ class MarginTenor:
         Examples
         --------
         >>> str(MarginTenor.daily())
-        'Daily'
+        'daily'
         """
         ...
 
@@ -249,7 +249,7 @@ class MarginTenor:
         Examples
         --------
         >>> MarginTenor.weekly()
-        MarginTenor(Weekly)
+        MarginTenor(weekly)
         """
         ...
 
@@ -266,7 +266,7 @@ class MarginTenor:
         Examples
         --------
         >>> MarginTenor.monthly()
-        MarginTenor(Monthly)
+        MarginTenor(monthly)
         """
         ...
 
@@ -283,7 +283,7 @@ class MarginTenor:
         Examples
         --------
         >>> MarginTenor.on_demand()
-        MarginTenor(OnDemand)
+        MarginTenor(on_demand)
         """
         ...
 
@@ -311,7 +311,7 @@ class MarginTenor:
         Examples
         --------
         >>> MarginTenor.from_str("daily")
-        MarginTenor(Daily)
+        MarginTenor(daily)
         """
         ...
 
@@ -335,7 +335,7 @@ class MarginCallType:
     Examples
     --------
     >>> MarginCallType.initial_margin()
-    MarginCallType(...)
+    MarginCallType(InitialMargin)
     """
 
     @staticmethod
@@ -351,7 +351,7 @@ class MarginCallType:
         Examples
         --------
         >>> MarginCallType.initial_margin()
-        MarginCallType(...)
+        MarginCallType(InitialMargin)
         """
         ...
 
@@ -368,7 +368,7 @@ class MarginCallType:
         Examples
         --------
         >>> MarginCallType.variation_margin_delivery()
-        MarginCallType(...)
+        MarginCallType(VariationMarginDelivery)
         """
         ...
 
@@ -385,7 +385,7 @@ class MarginCallType:
         Examples
         --------
         >>> MarginCallType.variation_margin_return()
-        MarginCallType(...)
+        MarginCallType(VariationMarginReturn)
         """
         ...
 
@@ -402,7 +402,7 @@ class MarginCallType:
         Examples
         --------
         >>> MarginCallType.top_up()
-        MarginCallType(...)
+        MarginCallType(TopUp)
         """
         ...
 
@@ -419,7 +419,7 @@ class MarginCallType:
         Examples
         --------
         >>> MarginCallType.substitution()
-        MarginCallType(...)
+        MarginCallType(Substitution)
         """
         ...
 
@@ -554,7 +554,7 @@ class CollateralAssetClass:
         Examples
         --------
         >>> CollateralAssetClass.cash()
-        CollateralAssetClass(Cash)
+        CollateralAssetClass(cash)
         """
         ...
 
@@ -571,7 +571,7 @@ class CollateralAssetClass:
         Examples
         --------
         >>> CollateralAssetClass.government_bonds()
-        CollateralAssetClass(GovernmentBonds)
+        CollateralAssetClass(government_bonds)
         """
         ...
 
@@ -588,7 +588,7 @@ class CollateralAssetClass:
         Examples
         --------
         >>> CollateralAssetClass.agency_bonds()
-        CollateralAssetClass(AgencyBonds)
+        CollateralAssetClass(agency_bonds)
         """
         ...
 
@@ -605,7 +605,7 @@ class CollateralAssetClass:
         Examples
         --------
         >>> CollateralAssetClass.covered_bonds()
-        CollateralAssetClass(CoveredBonds)
+        CollateralAssetClass(covered_bonds)
         """
         ...
 
@@ -622,7 +622,7 @@ class CollateralAssetClass:
         Examples
         --------
         >>> CollateralAssetClass.corporate_bonds()
-        CollateralAssetClass(CorporateBonds)
+        CollateralAssetClass(corporate_bonds)
         """
         ...
 
@@ -640,7 +640,7 @@ class CollateralAssetClass:
         Examples
         --------
         >>> CollateralAssetClass.equity()
-        CollateralAssetClass(Equity)
+        CollateralAssetClass(equity)
         """
         ...
 
@@ -658,7 +658,7 @@ class CollateralAssetClass:
         Examples
         --------
         >>> CollateralAssetClass.gold()
-        CollateralAssetClass(Gold)
+        CollateralAssetClass(gold)
         """
         ...
 
@@ -675,7 +675,7 @@ class CollateralAssetClass:
         Examples
         --------
         >>> CollateralAssetClass.mutual_funds()
-        CollateralAssetClass(MutualFunds)
+        CollateralAssetClass(mutual_funds)
         """
         ...
 
@@ -702,7 +702,7 @@ class CollateralAssetClass:
         Examples
         --------
         >>> CollateralAssetClass.from_str("cash")
-        CollateralAssetClass(Cash)
+        CollateralAssetClass(cash)
         """
         ...
 
@@ -932,7 +932,8 @@ class CsaSpec:
         Examples
         --------
         >>> csa = CsaSpec.usd_regulatory()
-        >>> csa.id  # doctest: +SKIP
+        >>> (csa.id, csa.base_currency)
+        ('USD-REGULATORY-CSA', 'USD')
         """
         ...
 
@@ -980,7 +981,9 @@ class CsaSpec:
 
         Examples
         --------
-        >>> CsaSpec.from_json("{}")  # doctest: +SKIP
+        >>> csa = CsaSpec.from_json(CsaSpec.usd_regulatory().to_json())
+        >>> csa.base_currency
+        'USD'
         """
         ...
 
@@ -1108,7 +1111,9 @@ class EligibleCollateralSchedule:
 
         Examples
         --------
-        >>> EligibleCollateralSchedule.cash_only().rehypothecation_allowed  # doctest: +SKIP
+        >>> schedule = EligibleCollateralSchedule.cash_only()
+        >>> (schedule.eligible_count, schedule.rehypothecation_allowed)
+        (1, False)
         """
         ...
 
@@ -1178,7 +1183,10 @@ class EligibleCollateralSchedule:
 
         Examples
         --------
-        >>> EligibleCollateralSchedule.from_json("{}")  # doctest: +SKIP
+        >>> original = EligibleCollateralSchedule.cash_only()
+        >>> restored = EligibleCollateralSchedule.from_json(original.to_json())
+        >>> restored.eligible_count
+        1
         """
         ...
 
@@ -1509,8 +1517,10 @@ class ImResult:
 
     Examples
     --------
-    >>> isinstance(ImResult, type)
-    True
+    >>> calc = ScheduleImCalculator.bcbs_standard()
+    >>> result = calc.calculate_for_notional(1_000_000, "USD", "interest_rate", 5.0, 2025, 1, 15)
+    >>> (result.amount, result.breakdown_keys())
+    (40000.0, ['interest_rate'])
     """
 
     @property
@@ -1523,9 +1533,6 @@ class ImResult:
         float
             IM notional.
 
-        Examples
-        --------
-        >>> # Instance field
         """
         ...
 
@@ -1539,9 +1546,6 @@ class ImResult:
         str
             ISO currency.
 
-        Examples
-        --------
-        >>> # Instance field
         """
         ...
 
@@ -1555,9 +1559,6 @@ class ImResult:
         ImMethodology
             IM methodology.
 
-        Examples
-        --------
-        >>> # Instance field
         """
         ...
 
@@ -1571,9 +1572,6 @@ class ImResult:
         int
             MPOR in days.
 
-        Examples
-        --------
-        >>> # Instance field
         """
         ...
 
@@ -1588,9 +1586,6 @@ class ImResult:
             Whether the amount is a conservative approximation (proxy) rather
             than an exact computation under the named methodology.
 
-        Examples
-        --------
-        >>> # Instance field
         """
         ...
 
@@ -1615,9 +1610,6 @@ class ImResult:
         list[str]
             Keys present in the breakdown map.
 
-        Examples
-        --------
-        >>> # Depends on instance data
         """
         ...
 
@@ -1635,9 +1627,6 @@ class ImResult:
         float or None
             Amount if present.
 
-        Examples
-        --------
-        >>> # Depends on instance data
         """
         ...
 
@@ -1659,8 +1648,9 @@ class SimmSensitivities:
     Examples
     --------
     >>> from finstack_quant.margin import SimmSensitivities
-    >>> SimmSensitivities.__name__
-    'SimmSensitivities'
+    >>> sensitivities = SimmSensitivities("USD")
+    >>> sensitivities.is_empty()
+    True
     """
 
     def __init__(self, base_currency: str = "USD") -> None:
@@ -1706,8 +1696,11 @@ class SimmSensitivities:
         Examples
         --------
         >>> from finstack_quant.margin import SimmSensitivities
-        >>> callable(SimmSensitivities.from_json)
-        True
+        >>> original = SimmSensitivities("USD")
+        >>> original.add_ir_delta("USD", "5Y", 1_000.0)
+        >>> restored = SimmSensitivities.from_json(original.to_json())
+        >>> (restored.base_currency, restored.is_empty())
+        ('USD', False)
         """
         ...
 
@@ -1940,8 +1933,9 @@ class SimmCalculator:
     Examples
     --------
     >>> from finstack_quant.margin import SimmCalculator
-    >>> SimmCalculator.__name__
-    'SimmCalculator'
+    >>> calculator = SimmCalculator("v2_6")
+    >>> (calculator.version, calculator.mpor_days)
+    ('v2_6', 10)
     """
 
     def __init__(self, version: str = "v2_6", mpor_days: int | None = None) -> None:
@@ -2037,8 +2031,8 @@ class ScheduleImCalculator:
     Examples
     --------
     >>> from finstack_quant.margin import ScheduleImCalculator
-    >>> ScheduleImCalculator.__name__
-    'ScheduleImCalculator'
+    >>> ScheduleImCalculator.bcbs_standard().rate("interest_rate", 5.0)
+    0.04
     """
 
     @staticmethod
@@ -2059,8 +2053,8 @@ class ScheduleImCalculator:
         Examples
         --------
         >>> from finstack_quant.margin import ScheduleImCalculator
-        >>> callable(ScheduleImCalculator.bcbs_standard)
-        True
+        >>> ScheduleImCalculator.bcbs_standard().rate("interest_rate", 5.0)
+        0.04
         """
         ...
 
@@ -2087,8 +2081,8 @@ class ScheduleImCalculator:
         Examples
         --------
         >>> from finstack_quant.margin import ScheduleImCalculator
-        >>> callable(ScheduleImCalculator.from_registry_id)
-        True
+        >>> ScheduleImCalculator.from_registry_id("bcbs_iosco").rate("interest_rate", 5.0)
+        0.04
         """
         ...
 
@@ -2258,9 +2252,9 @@ class HaircutImCalculator:
 
     Examples
     --------
-    >>> from finstack_quant.margin import HaircutImCalculator
-    >>> HaircutImCalculator.__name__
-    'HaircutImCalculator'
+    >>> from finstack_quant.margin import CollateralAssetClass, HaircutImCalculator
+    >>> HaircutImCalculator.bcbs_standard().haircut_for(CollateralAssetClass.cash())
+    0.0
     """
 
     @staticmethod
@@ -2280,9 +2274,9 @@ class HaircutImCalculator:
 
         Examples
         --------
-        >>> from finstack_quant.margin import HaircutImCalculator
-        >>> callable(HaircutImCalculator.bcbs_standard)
-        True
+        >>> from finstack_quant.margin import CollateralAssetClass, HaircutImCalculator
+        >>> HaircutImCalculator.bcbs_standard().haircut_for(CollateralAssetClass.cash())
+        0.0
         """
         ...
 
@@ -2303,9 +2297,9 @@ class HaircutImCalculator:
 
         Examples
         --------
-        >>> from finstack_quant.margin import HaircutImCalculator
-        >>> callable(HaircutImCalculator.us_treasuries)
-        True
+        >>> from finstack_quant.margin import CollateralAssetClass, HaircutImCalculator
+        >>> HaircutImCalculator.us_treasuries().haircut_for(CollateralAssetClass.cash())
+        0.0
         """
         ...
 
@@ -2326,9 +2320,10 @@ class HaircutImCalculator:
 
         Examples
         --------
-        >>> from finstack_quant.margin import HaircutImCalculator
-        >>> callable(HaircutImCalculator.from_schedule)
-        True
+        >>> from finstack_quant.margin import CollateralAssetClass, EligibleCollateralSchedule, HaircutImCalculator
+        >>> schedule = EligibleCollateralSchedule.cash_only()
+        >>> HaircutImCalculator.from_schedule(schedule).haircut_for(CollateralAssetClass.cash())
+        0.0
         """
         ...
 
@@ -2682,7 +2677,9 @@ class XvaConfig:
 
         Examples
         --------
-        >>> XvaConfig.from_json("{}")  # doctest: +SKIP
+        >>> config = XvaConfig.from_json(XvaConfig(recovery_rate=0.35).to_json())
+        >>> config.recovery_rate
+        0.35
         """
         ...
 
@@ -2794,8 +2791,11 @@ class ExposureDiagnostics:
 
     Examples
     --------
-    >>> isinstance(ExposureDiagnostics, type)
-    True
+    >>> try:
+    ...     ExposureDiagnostics()
+    ... except TypeError as exc:
+    ...     print(exc)
+    cannot create 'finstack_quant.margin.ExposureDiagnostics' instances
     """
 
     @property
@@ -2808,9 +2808,6 @@ class ExposureDiagnostics:
         int
             Failure count.
 
-        Examples
-        --------
-        >>> # Instance field
         """
         ...
 
@@ -2824,9 +2821,6 @@ class ExposureDiagnostics:
         int
             Failure count.
 
-        Examples
-        --------
-        >>> # Instance field
         """
         ...
 
@@ -2840,9 +2834,6 @@ class ExposureDiagnostics:
         int
             Point count.
 
-        Examples
-        --------
-        >>> # Instance field
         """
         ...
 
@@ -2920,7 +2911,10 @@ class ExposureProfile:
 
         Examples
         --------
-        >>> ExposureProfile.from_json("{}")  # doctest: +SKIP
+        >>> original = ExposureProfile([0.0, 1.0], [0.0, 2.0], [0.0, 2.0], [0.0, 0.0])
+        >>> restored = ExposureProfile.from_json(original.to_json())
+        >>> restored.mtm_values
+        [0.0, 2.0]
         """
         ...
 
@@ -2940,7 +2934,8 @@ class ExposureProfile:
 
         Examples
         --------
-        >>> ExposureProfile([0.0], [0.0], [0.0], [0.0]).to_json()
+        >>> '"times"' in ExposureProfile([1.0], [0.0], [0.0], [0.0]).to_json()
+        True
         """
         ...
 
@@ -2959,7 +2954,7 @@ class ExposureProfile:
 
         Examples
         --------
-        >>> ExposureProfile([0.0], [0.0], [0.0], [0.0]).validate()
+        >>> ExposureProfile([1.0], [0.0], [0.0], [0.0]).validate()
         """
         ...
 
@@ -3079,8 +3074,14 @@ class XvaResult:
 
     Examples
     --------
-    >>> isinstance(XvaResult, type)
-    True
+    >>> doc = (
+    ...     '{"cva":1.0,"total_xva":1.0,"epe_profile":[[0.0,2.0]],'
+    ...     '"ene_profile":[[0.0,0.0]],"pfe_profile":[[0.0,2.0]],"max_pfe":2.0,'
+    ...     '"effective_epe_profile":[[0.0,2.0]],"effective_epe":2.0}'
+    ... )
+    >>> result = XvaResult.from_json(doc)
+    >>> (result.cva, result.total_xva)
+    (1.0, 1.0)
     """
 
     @staticmethod
@@ -3105,7 +3106,14 @@ class XvaResult:
 
         Examples
         --------
-        >>> XvaResult.from_json("{}")  # doctest: +SKIP
+        >>> doc = (
+        ...     '{"cva":1.0,"total_xva":1.0,"epe_profile":[[0.0,2.0]],'
+        ...     '"ene_profile":[[0.0,0.0]],"pfe_profile":[[0.0,2.0]],"max_pfe":2.0,'
+        ...     '"effective_epe_profile":[[0.0,2.0]],"effective_epe":2.0}'
+        ... )
+        >>> result = XvaResult.from_json(doc)
+        >>> (result.max_pfe, result.effective_epe)
+        (2.0, 2.0)
         """
         ...
 
@@ -3123,9 +3131,6 @@ class XvaResult:
         ValueError
             Serialization error.
 
-        Examples
-        --------
-        >>> # Round-trip when instance available
         """
         ...
 
@@ -3139,9 +3144,6 @@ class XvaResult:
         float
             CVA amount.
 
-        Examples
-        --------
-        >>> # Instance field
         """
         ...
 
@@ -3155,9 +3157,6 @@ class XvaResult:
         float or None
             DVA if computed.
 
-        Examples
-        --------
-        >>> # Instance field
         """
         ...
 
@@ -3171,9 +3170,6 @@ class XvaResult:
         float or None
             FVA if computed.
 
-        Examples
-        --------
-        >>> # Instance field
         """
         ...
 
@@ -3217,9 +3213,6 @@ class XvaResult:
             Peak PFE.
 
             The max pfe exposed by this `XvaResult`.
-        Examples
-        --------
-        >>> # Instance field
         """
         ...
 
@@ -3233,9 +3226,6 @@ class XvaResult:
         float
             Effective EPE.
 
-        Examples
-        --------
-        >>> # Instance field
         """
         ...
 
@@ -3249,9 +3239,6 @@ class XvaResult:
         list[tuple[float, float]]
             (time, EPE) pairs.
 
-        Examples
-        --------
-        >>> # Instance field
         """
         ...
 
@@ -3265,9 +3252,6 @@ class XvaResult:
         list[tuple[float, float]]
             (time, ENE) pairs.
 
-        Examples
-        --------
-        >>> # Instance field
         """
         ...
 
@@ -3281,9 +3265,6 @@ class XvaResult:
         list[tuple[float, float]]
             (time, PFE) pairs.
 
-        Examples
-        --------
-        >>> # Instance field
         """
         ...
 
@@ -3297,9 +3278,6 @@ class XvaResult:
         list[tuple[float, float]]
             (time, effective EPE) pairs.
 
-        Examples
-        --------
-        >>> # Instance field
         """
         ...
 
@@ -3922,8 +3900,9 @@ class MvaResult:
 
     Examples
     --------
-    >>> isinstance(MvaResult, type)
-    True
+    >>> result = MvaResult.from_json('{"mva":1.0,"average_im":100.0,"im_profile":[[1.0,100.0]]}')
+    >>> (result.mva, result.average_im)
+    (1.0, 100.0)
     """
 
     @staticmethod
@@ -3948,8 +3927,9 @@ class MvaResult:
 
         Examples
         --------
-        >>> isinstance(MvaResult.from_json, object)
-        True
+        >>> result = MvaResult.from_json('{"mva":1.0,"average_im":100.0,"im_profile":[[1.0,100.0]]}')
+        >>> result.im_profile
+        [(1.0, 100.0)]
         """
         ...
 
@@ -3962,9 +3942,6 @@ class MvaResult:
         str
             Pretty-printed JSON.
 
-        Examples
-        --------
-        >>> # Depends on instance data
         """
         ...
 
@@ -3978,9 +3955,6 @@ class MvaResult:
         float
             MVA amount in the IM profile's currency.
 
-        Examples
-        --------
-        >>> # Instance field
         """
         ...
 
@@ -3995,9 +3969,6 @@ class MvaResult:
             ``(1/T) * integral_0^T IM(t) dt`` under the same trapezoid
             convention as ``mva``, in the IM profile's currency.
 
-        Examples
-        --------
-        >>> # Instance field
         """
         ...
 
@@ -4011,9 +3982,6 @@ class MvaResult:
         list[tuple[float, float]]
             ``(time_years, im_value)`` pairs echoing the input profile.
 
-        Examples
-        --------
-        >>> # Instance field
         """
         ...
 
@@ -4026,9 +3994,6 @@ class MvaResult:
         pandas.DataFrame
             Single column ``im``, indexed by time in years.
 
-        Examples
-        --------
-        >>> # Depends on instance data
         """
         ...
 
@@ -4473,7 +4438,7 @@ class MarginFundingCost:
 
         Examples
         --------
-        >>> MarginFundingCost(0.0, 0.05, 0.02, "USD").spread()
+        >>> round(MarginFundingCost(0.0, 0.05, 0.02, "USD").spread(), 2)
         0.03
         """
         ...
@@ -4685,8 +4650,11 @@ class FrtbSensitivities:
         Examples
         --------
         >>> from finstack_quant.margin import FrtbSensitivities
-        >>> callable(FrtbSensitivities.from_json)
-        True
+        >>> original = FrtbSensitivities("USD")
+        >>> original.add_girr_delta("5Y", 100_000.0)
+        >>> restored = FrtbSensitivities.from_json(original.to_json())
+        >>> restored.base_currency
+        'USD'
         """
         ...
 
@@ -4960,9 +4928,11 @@ class FrtbSbaEngine:
 
     Examples
     --------
-    >>> from finstack_quant.margin import FrtbSbaEngine
-    >>> FrtbSbaEngine.__name__
-    'FrtbSbaEngine'
+    >>> from finstack_quant.margin import FrtbSbaEngine, FrtbSensitivities
+    >>> sensitivities = FrtbSensitivities("USD")
+    >>> sensitivities.add_girr_delta("5Y", 100_000.0)
+    >>> round(FrtbSbaEngine("medium").calculate(sensitivities)[0], 2)
+    110000.0
     """
 
     def __init__(self, correlation_scenario: str | None = None) -> None:
@@ -5043,8 +5013,9 @@ class SaCcrTrade:
     Examples
     --------
     >>> from finstack_quant.margin import SaCcrTrade
-    >>> SaCcrTrade.__name__
-    'SaCcrTrade'
+    >>> trade = SaCcrTrade("t1", "interest_rate", 1_000_000, 2025, 1, 1, 2030, 1, 1, "USD-SOFR", "rates")
+    >>> (trade.trade_id, trade.asset_class)
+    ('t1', 'interest_rate')
     """
 
     def __init__(
@@ -5126,8 +5097,9 @@ class SaCcrTrade:
         Examples
         --------
         >>> from finstack_quant.margin import SaCcrTrade
-        >>> callable(SaCcrTrade.from_json)
-        True
+        >>> trade = SaCcrTrade("t1", "interest_rate", 1_000_000, 2025, 1, 1, 2030, 1, 1, "USD-SOFR", "rates")
+        >>> SaCcrTrade.from_json(trade.to_json()).trade_id
+        't1'
         """
         ...
 
@@ -5202,8 +5174,9 @@ class SaCcrNettingSetConfig:
     Examples
     --------
     >>> from finstack_quant.margin import SaCcrNettingSetConfig
-    >>> SaCcrNettingSetConfig.__name__
-    'SaCcrNettingSetConfig'
+    >>> config = SaCcrNettingSetConfig.unmargined("CPTY", "CSA", 0.0, 2025, 1, 15)
+    >>> config.is_margined
+    False
     """
 
     @staticmethod
@@ -5246,8 +5219,9 @@ class SaCcrNettingSetConfig:
         Examples
         --------
         >>> from finstack_quant.margin import SaCcrNettingSetConfig
-        >>> callable(SaCcrNettingSetConfig.unmargined)
-        True
+        >>> config = SaCcrNettingSetConfig.unmargined("CPTY", "CSA", 0.0, 2025, 1, 15)
+        >>> config.is_margined
+        False
         """
         ...
 
@@ -5303,7 +5277,8 @@ class SaCcrNettingSetConfig:
         Examples
         --------
         >>> from finstack_quant.margin import SaCcrNettingSetConfig
-        >>> callable(SaCcrNettingSetConfig.margined)
+        >>> config = SaCcrNettingSetConfig.margined("CPTY", "CSA", 0.0, 0.0, 0.0, 0.0, 10, 2025, 1, 15)
+        >>> config.is_margined
         True
         """
         ...
@@ -5331,8 +5306,9 @@ class SaCcrNettingSetConfig:
         Examples
         --------
         >>> from finstack_quant.margin import SaCcrNettingSetConfig
-        >>> callable(SaCcrNettingSetConfig.from_json)
-        True
+        >>> original = SaCcrNettingSetConfig.unmargined("CPTY", "CSA", 0.0, 2025, 1, 15)
+        >>> SaCcrNettingSetConfig.from_json(original.to_json()).is_margined
+        False
         """
         ...
 
@@ -5384,9 +5360,10 @@ class SaCcrEngine:
 
     Examples
     --------
-    >>> from finstack_quant.margin import SaCcrEngine
-    >>> SaCcrEngine.__name__
-    'SaCcrEngine'
+    >>> from finstack_quant.margin import SaCcrEngine, SaCcrNettingSetConfig
+    >>> config = SaCcrNettingSetConfig.unmargined("CPTY", "CSA", 0.0, 2025, 1, 15)
+    >>> SaCcrEngine().calculate_ead(config, [])["ead"]
+    0.0
     """
 
     def __init__(self, alpha: float | None = None, reporting_currency: str = "USD") -> None:
@@ -5525,9 +5502,13 @@ def compute_mva(
 
     Examples
     --------
+    >>> from datetime import date
+    >>> from finstack_quant.core.market_data import DiscountCurve
     >>> profile = ImProfile([1.0, 2.0], [1_000_000.0, 1_000_000.0])
     >>> result = compute_mva(
-    ...     profile, [(0.0, 50.0)], DiscountCurve.flat("USD-OIS", __import__("datetime").date(2025, 1, 1), 0.0)
+    ...     profile,
+    ...     [(0.0, 50.0)],
+    ...     DiscountCurve.flat("USD-OIS", date(2025, 1, 1), 0.0),
     ... )
     >>> round(result.mva, 2)
     10000.0
@@ -5600,9 +5581,10 @@ def saccr_ead(trades: list[SaCcrTrade], margined: bool = False, collateral: floa
 
     Examples
     --------
-    >>> from finstack_quant.margin import saccr_ead
-    >>> callable(saccr_ead)
-    True
+    >>> from finstack_quant.margin import SaCcrTrade, saccr_ead
+    >>> trade = SaCcrTrade("t1", "interest_rate", 1_000_000, 2025, 1, 1, 2030, 1, 1, "USD-SOFR", "rates")
+    >>> tuple(round(value, 2) for value in saccr_ead([trade]))
+    (0.0, 22130.59, 30982.83)
     """
     ...
 

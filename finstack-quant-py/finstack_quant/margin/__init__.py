@@ -4,9 +4,9 @@ Bindings for the ``finstack-quant-margin`` Rust crate.
 
 Examples:
 --------
->>> import finstack_quant.margin as margin
->>> margin.__name__
-'finstack_quant.margin'
+>>> from finstack_quant.margin import CollateralAssetClass
+>>> CollateralAssetClass.cash().standard_haircut()
+0.0
 """
 
 from finstack_quant.finstack_quant import margin as _margin
