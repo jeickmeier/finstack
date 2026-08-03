@@ -4991,100 +4991,32 @@ class SaCcrTrade:
     """
     A derivative trade for SA-CCR EAD computation per BCBS 279.
 
-    Parameters
-    ----------
-    trade_id : str
-        Unique trade identifier.
-    asset_class : str
-        One of ``"ir"``, ``"fx"``, ``"credit"``, ``"equity"``, ``"commodity"``.
-    notional : float
-        Adjusted notional in reporting currency.
-    start_year : int
-        Four-digit calendar year of the trade start date.
-    start_month : int
-        Calendar month from ``1`` through ``12`` of the trade start date.
-    start_day : int
-        Calendar day of month for the trade start date.
-    end_year : int
-        Four-digit calendar year of the trade end or maturity date.
-    end_month : int
-        Calendar month from ``1`` through ``12`` of the trade end date.
-    end_day : int
-        Calendar day of month for the trade end or maturity date.
-    underlier : str
-        Underlier reference (e.g., currency pair, issuer, equity name).
-    hedging_set : str
-        Hedging-set identifier used for within-class offsetting.
-    direction : float, default 1.0
-        ``+1.0`` for long, ``-1.0`` for short.
-    mtm : float, default 0.0
-        Current mark-to-market value.
+    Positional construction is intentionally unavailable. Use ``from_json``
+    with every canonical trade field so supervisory delta, direction, and
+    option classification remain explicit and are validated together.
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.margin import SaCcrTrade
-    >>> trade = SaCcrTrade("t1", "interest_rate", 1_000_000, 2025, 1, 1, 2030, 1, 1, "USD-SOFR", "rates")
+    >>> payload = {
+    ...     "trade_id": "t1",
+    ...     "asset_class": "interest_rate",
+    ...     "notional": 1_000_000,
+    ...     "start_date": "2025-01-01",
+    ...     "end_date": "2030-01-01",
+    ...     "underlier": "USD-SOFR",
+    ...     "hedging_set": "rates",
+    ...     "direction": 1.0,
+    ...     "supervisory_delta": 1.0,
+    ...     "mtm": 0.0,
+    ...     "is_option": False,
+    ...     "option_type": None,
+    ... }
+    >>> trade = SaCcrTrade.from_json(json.dumps(payload))
     >>> (trade.trade_id, trade.asset_class)
     ('t1', 'interest_rate')
     """
-
-    def __init__(
-        self,
-        trade_id: str,
-        asset_class: str,
-        notional: float,
-        start_year: int,
-        start_month: int,
-        start_day: int,
-        end_year: int,
-        end_month: int,
-        end_day: int,
-        underlier: str,
-        hedging_set: str,
-        direction: float = 1.0,
-        mtm: float = 0.0,
-    ) -> None:
-        """
-        Create a linear SA-CCR trade with an explicit active date window.
-
-        Parameters
-        ----------
-        trade_id : str
-            Stable trade identifier carried into SA-CCR aggregation and diagnostics.
-        asset_class : str
-            One of ``"interest_rate"``, ``"foreign_exchange"``, ``"credit"``,
-            ``"equity"``, or ``"commodity"``.
-        notional : float
-            Adjusted notional in the engine's reporting currency.
-        start_year : int
-            Four-digit start-date year.
-        start_month : int
-            Start-date month from 1 through 12.
-        start_day : int
-            Start-date calendar day.
-        end_year : int
-            Four-digit maturity-date year.
-        end_month : int
-            Maturity-date month from 1 through 12.
-        end_day : int
-            Maturity-date calendar day.
-        underlier : str
-            Currency pair, issuer, index, or other supervisory underlier key.
-        hedging_set : str
-            Hedging-set key used for within-asset-class offsetting.
-        direction : float, default 1.0
-            ``1.0`` for a long trade or ``-1.0`` for a short trade; also used
-            as the default supervisory delta.
-        mtm : float, default 0.0
-            Current mark-to-market amount in the reporting currency.
-
-        Raises
-        ------
-        ValueError
-            If ``asset_class`` is unknown or either supplied calendar date is
-            invalid.
-        """
-        ...
 
     @staticmethod
     def from_json(json: str) -> SaCcrTrade:
@@ -5104,14 +5036,28 @@ class SaCcrTrade:
         Raises
         ------
         ValueError
-            If ``json`` is malformed or does not match the serialized
-            ``SaCcrTrade`` schema.
+            If ``json`` is malformed, does not match the canonical schema, or
+            violates direction, supervisory-delta, or option-type invariants.
 
         Examples
         --------
+        >>> import json
         >>> from finstack_quant.margin import SaCcrTrade
-        >>> trade = SaCcrTrade("t1", "interest_rate", 1_000_000, 2025, 1, 1, 2030, 1, 1, "USD-SOFR", "rates")
-        >>> SaCcrTrade.from_json(trade.to_json()).trade_id
+        >>> payload = {
+        ...     "trade_id": "t1",
+        ...     "asset_class": "interest_rate",
+        ...     "notional": 1_000_000,
+        ...     "start_date": "2025-01-01",
+        ...     "end_date": "2030-01-01",
+        ...     "underlier": "USD-SOFR",
+        ...     "hedging_set": "rates",
+        ...     "direction": 1.0,
+        ...     "supervisory_delta": 1.0,
+        ...     "mtm": 0.0,
+        ...     "is_option": False,
+        ...     "option_type": None,
+        ... }
+        >>> SaCcrTrade.from_json(json.dumps(payload)).trade_id
         't1'
         """
         ...
@@ -5594,8 +5540,23 @@ def saccr_ead(trades: list[SaCcrTrade], margined: bool = False, collateral: floa
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.margin import SaCcrTrade, saccr_ead
-    >>> trade = SaCcrTrade("t1", "interest_rate", 1_000_000, 2025, 1, 1, 2030, 1, 1, "USD-SOFR", "rates")
+    >>> payload = {
+    ...     "trade_id": "t1",
+    ...     "asset_class": "interest_rate",
+    ...     "notional": 1_000_000,
+    ...     "start_date": "2025-01-01",
+    ...     "end_date": "2030-01-01",
+    ...     "underlier": "USD-SOFR",
+    ...     "hedging_set": "rates",
+    ...     "direction": 1.0,
+    ...     "supervisory_delta": 1.0,
+    ...     "mtm": 0.0,
+    ...     "is_option": False,
+    ...     "option_type": None,
+    ... }
+    >>> trade = SaCcrTrade.from_json(json.dumps(payload))
     >>> tuple(round(value, 2) for value in saccr_ead([trade]))
     (0.0, 22130.59, 30982.83)
     """

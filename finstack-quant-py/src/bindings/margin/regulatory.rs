@@ -59,19 +59,6 @@ fn asset_class_label(ac: SaCcrAssetClass) -> &'static str {
     }
 }
 
-fn parse_asset_class(s: &str) -> PyResult<SaCcrAssetClass> {
-    match s {
-        "interest_rate" => Ok(SaCcrAssetClass::InterestRate),
-        "foreign_exchange" => Ok(SaCcrAssetClass::ForeignExchange),
-        "credit" => Ok(SaCcrAssetClass::Credit),
-        "equity" => Ok(SaCcrAssetClass::Equity),
-        "commodity" => Ok(SaCcrAssetClass::Commodity),
-        _ => Err(crate::errors::value_error(format!(
-            "unknown SA-CCR asset class '{s}' (expected interest_rate/foreign_exchange/credit/equity/commodity)"
-        ))),
-    }
-}
-
 fn parse_date(year: i32, month: u8, day: u8) -> PyResult<finstack_quant_core::dates::Date> {
     let m = time::Month::try_from(month)
         .map_err(|e| crate::errors::value_error(format!("invalid month: {e}")))?;
@@ -311,8 +298,8 @@ impl PyFrtbSbaEngine {
 
 /// A single derivative trade for SA-CCR EAD computation.
 ///
-/// This wrapper provides a simple linear-trade constructor. For options or
-/// bespoke trades, construct via :meth:`from_json`.
+/// Construct through :meth:`from_json` so the complete canonical regulatory
+/// schema, including supervisory delta and option classification, is explicit.
 #[pyclass(
     name = "SaCcrTrade",
     module = "finstack_quant.margin",
@@ -325,68 +312,11 @@ pub struct PySaCcrTrade {
 
 #[pymethods]
 impl PySaCcrTrade {
-    /// Create a linear (non-option) SA-CCR trade.
-    ///
-    /// ``asset_class`` accepts ``"ir"``, ``"fx"``, ``"credit"``, ``"equity"``,
-    /// or ``"commodity"``. ``direction`` is ``+1.0`` for long, ``-1.0`` for
-    /// short; the supervisory delta defaults to the same value.
-    #[new]
-    #[pyo3(signature = (
-        trade_id,
-        asset_class,
-        notional,
-        start_year,
-        start_month,
-        start_day,
-        end_year,
-        end_month,
-        end_day,
-        underlier,
-        hedging_set,
-        direction = 1.0,
-        mtm = 0.0,
-    ))]
-    #[allow(clippy::too_many_arguments)]
-    fn new(
-        trade_id: &str,
-        asset_class: &str,
-        notional: f64,
-        start_year: i32,
-        start_month: u8,
-        start_day: u8,
-        end_year: i32,
-        end_month: u8,
-        end_day: u8,
-        underlier: &str,
-        hedging_set: &str,
-        direction: f64,
-        mtm: f64,
-    ) -> PyResult<Self> {
-        let ac = parse_asset_class(asset_class)?;
-        let start_date = parse_date(start_year, start_month, start_day)?;
-        let end_date = parse_date(end_year, end_month, end_day)?;
-        Ok(Self {
-            inner: SaCcrTrade {
-                trade_id: trade_id.to_string(),
-                asset_class: ac,
-                notional,
-                start_date,
-                end_date,
-                underlier: underlier.to_string(),
-                hedging_set: hedging_set.to_string(),
-                direction,
-                supervisory_delta: direction,
-                mtm,
-                is_option: false,
-                option_type: None,
-            },
-        })
-    }
-
-    /// Construct from a JSON serialization of `SaCcrTrade`.
+    /// Construct and validate the canonical `SaCcrTrade` JSON schema.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner: SaCcrTrade = serde_json::from_str(json).map_err(display_to_py)?;
+        inner.validate().map_err(core_to_py)?;
         Ok(Self { inner })
     }
 

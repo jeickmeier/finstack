@@ -24,6 +24,11 @@
   rewriting, including `ModelBuilder::with_name_normalization`. Formulas and
   `where` clauses now require exact node IDs; unknown IDs retain the dependency
   graph's nearest-name diagnostics.
+- **Breaking (Python):** Removed the 13-argument `SaCcrTrade` constructor,
+  which inferred supervisory delta and option classification from direction.
+  Construct trades with `SaCcrTrade.from_json` and the complete canonical
+  schema; deserialization now immediately applies the Rust SA-CCR regulatory
+  validator.
 - **Breaking (Rust, ECL policy JSON):** Simplified ECL staging and
   schedule-based calculation now use canonical `EclStageRequest` and
   `EclRequest` surfaces. The duplicate binding-default policy block, its seven
