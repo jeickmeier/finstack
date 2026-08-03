@@ -325,9 +325,7 @@ fn value_portfolio_with_execution_at(
     plan.execute().into_valuation(evaluation)
 }
 
-// =============================================================================
 // Selective Repricing
-// =============================================================================
 
 /// Revalue only the positions affected by a set of changed market factor keys.
 ///

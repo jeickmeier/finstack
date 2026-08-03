@@ -17,9 +17,7 @@ use crate::position::{Position, PositionUnit};
 use crate::types::PositionId;
 use crate::{Error, Result};
 
-// ============================================================================
 // Portfolio Margin Aggregator
-// ============================================================================
 
 /// Aggregates margin requirements across a portfolio.
 ///

@@ -15,9 +15,7 @@ fn test_date() -> finstack_quant_core::dates::Date {
     base_date()
 }
 
-// =============================================================================
 // Same-Currency Aggregation Tests
-// =============================================================================
 
 #[test]
 fn test_same_currency_aggregation_succeeds() {
@@ -52,9 +50,7 @@ fn test_same_currency_aggregation_succeeds() {
     assert_eq!(result.netting_set_count(), 2);
 }
 
-// =============================================================================
 // Currency Mismatch Tests
-// =============================================================================
 
 #[test]
 fn test_currency_mismatch_returns_error() {
@@ -106,9 +102,7 @@ fn test_error_message_is_informative() {
     assert!(error_msg.contains("add_netting_set_with_fx"));
 }
 
-// =============================================================================
 // FX Conversion Tests
-// =============================================================================
 
 #[test]
 fn test_add_netting_set_with_fx_converts_correctly() {
@@ -198,9 +192,7 @@ fn test_mixed_currency_aggregation_with_fx() {
     assert_eq!(result.netting_set_count(), 3);
 }
 
-// =============================================================================
 // Edge Cases
-// =============================================================================
 
 #[test]
 fn test_zero_fx_rate() {

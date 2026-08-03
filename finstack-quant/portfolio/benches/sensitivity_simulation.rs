@@ -37,9 +37,7 @@ use finstack_quant_valuations::pricer::InstrumentType;
 use std::sync::Arc;
 use time::macros::date;
 
-// ---------------------------------------------------------------------------
 // Minimal curve-sensitive instrument (PV = curve zero-rate at a fixed tenor).
-// ---------------------------------------------------------------------------
 
 #[derive(Clone)]
 struct CurveZeroInstrument {
@@ -250,9 +248,7 @@ fn bench_full_repricing(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // Direct factor stress (only the work consumed by the public workflow is timed).
-// ---------------------------------------------------------------------------
 
 fn factor_stress_model() -> finstack_quant_portfolio::factor_model::FactorModel {
     use finstack_quant_factor_model::matching::{DependencyFilter, MappingRule, MatchingConfig};
@@ -345,9 +341,7 @@ fn bench_factor_stress(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // Monte Carlo factor decomposition (variance / volatility path).
-// ---------------------------------------------------------------------------
 
 fn diagonal_covariance(n_factors: usize) -> FactorCovarianceMatrix {
     let factor_ids: Vec<FactorId> = (0..n_factors)

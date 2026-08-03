@@ -27,12 +27,10 @@ use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_portfolio::attribution::attribute_portfolio_pnl;
 use std::hint::black_box;
 
-// ============================================================================
 // Parallel attribution
 //
 // Each position is independently repriced under T0 and T1 markets.  Cost is
 // proportional to 2 × (valuation cost per position) × num_positions.
-// ============================================================================
 
 fn bench_attribution_parallel(c: &mut Criterion) {
     let mut group = c.benchmark_group("portfolio_attribution_parallel");
@@ -67,12 +65,10 @@ fn bench_attribution_parallel(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Metrics-based attribution
 //
 // Linear approximation using pre-computed sensitivities (theta, DV01, CS01).
 // Much faster than Parallel but exercising the same aggregation / FX path.
-// ============================================================================
 
 fn bench_attribution_metrics_based(c: &mut Criterion) {
     let mut group = c.benchmark_group("portfolio_attribution_metrics_based");
@@ -107,13 +103,11 @@ fn bench_attribution_metrics_based(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Method-owned controls
 //
 // Waterfall and Taylor intentionally keep financially distinct state-building
 // paths. Retain explicit controls so endpoint reuse in MetricsBased cannot hide
 // a regression in either method.
-// ============================================================================
 
 fn bench_attribution_method_owned_controls(c: &mut Criterion) {
     let mut group = c.benchmark_group("portfolio_attribution_method_owned_controls");

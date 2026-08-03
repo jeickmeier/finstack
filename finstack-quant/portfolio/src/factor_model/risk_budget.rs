@@ -10,9 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use super::position_risk::PositionRiskDecomposition;
 
-// ---------------------------------------------------------------------------
 // Types
-// ---------------------------------------------------------------------------
 
 /// Target risk allocation for a portfolio.
 ///
@@ -77,9 +75,7 @@ pub struct PositionBudgetEntry {
     pub excess: f64,
 }
 
-// ---------------------------------------------------------------------------
 // Implementation
-// ---------------------------------------------------------------------------
 
 impl RiskBudget {
     /// Create a new risk budget from target allocations.
@@ -302,9 +298,7 @@ impl RiskBudget {
     }
 }
 
-// ===========================================================================
 // Tests
-// ===========================================================================
 
 #[cfg(test)]
 mod tests {

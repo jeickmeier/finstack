@@ -31,9 +31,7 @@ use std::any::Any;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 const EUR_KNOTS: [(f64, f64); 3] = [(0.0, 1.0), (1.0, 0.97), (5.0, 0.85)];
 const USD_KNOTS: [(f64, f64); 3] = [(0.0, 1.0), (1.0, 0.98), (5.0, 0.90)];
@@ -162,9 +160,7 @@ fn build_two_curve_portfolio() -> Portfolio {
         .unwrap()
 }
 
-// ---------------------------------------------------------------------------
 // Dependency Index Tests
-// ---------------------------------------------------------------------------
 
 #[test]
 fn dependency_index_built_by_builder() {
@@ -245,9 +241,7 @@ fn empty_portfolio_has_empty_index() {
     assert_eq!(portfolio.dependency_index().factor_count(), 0);
 }
 
-// ---------------------------------------------------------------------------
 // Selective Repricing Parity Tests
-// ---------------------------------------------------------------------------
 
 #[test]
 fn selective_reprice_matches_full_reprice_when_one_curve_changes() {
@@ -466,9 +460,7 @@ fn selective_reprice_fx_change_reprices_native_non_base_positions() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Unresolved Position Tests
-// ---------------------------------------------------------------------------
 
 /// Stub instrument whose `market_dependencies()` always fails.
 #[derive(Clone)]
@@ -618,9 +610,7 @@ fn empty_compatibility_dependencies_are_conservatively_unresolved() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Exact-profile and workload-shape acceptance tests
-// ---------------------------------------------------------------------------
 
 #[derive(Clone)]
 struct DependencyProbeInstrument {

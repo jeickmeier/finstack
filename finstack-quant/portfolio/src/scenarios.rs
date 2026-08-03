@@ -867,9 +867,7 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------------
     // scenario_pnl
-    // -----------------------------------------------------------------------
 
     /// Single-position USD portfolio used by the scenario-P&L tests.
     fn single_position_portfolio() -> Portfolio {

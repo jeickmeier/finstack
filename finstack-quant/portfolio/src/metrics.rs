@@ -768,9 +768,7 @@ mod tests {
         );
     }
 
-    // =====================================================================
     // IndexMap determinism
-    // =====================================================================
 
     /// `aggregate_collected_metrics` uses `IndexMap` so the iteration
     /// order of `PortfolioMetrics.aggregated` and

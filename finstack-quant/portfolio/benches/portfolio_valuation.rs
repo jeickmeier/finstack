@@ -113,9 +113,7 @@ fn create_selective_benchmark_market() -> MarketContext {
     })
 }
 
-// ============================================================================
 // Portfolio Valuation Benchmarks
-// ============================================================================
 
 fn bench_portfolio_valuation(c: &mut Criterion) {
     let mut group = c.benchmark_group("portfolio_valuation");
@@ -144,9 +142,7 @@ fn bench_portfolio_valuation(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Entity Aggregation Benchmarks
-// ============================================================================
 
 fn bench_entity_aggregation(c: &mut Criterion) {
     let mut group = c.benchmark_group("portfolio_entity_aggregation");
@@ -179,9 +175,7 @@ fn bench_entity_aggregation(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Multi-Currency Aggregation Benchmarks
-// ============================================================================
 
 fn bench_multicurrency_aggregation(c: &mut Criterion) {
     let mut group = c.benchmark_group("portfolio_multicurrency");
@@ -203,9 +197,7 @@ fn bench_multicurrency_aggregation(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Position Filtering Benchmarks
-// ============================================================================
 
 fn bench_position_filtering(c: &mut Criterion) {
     let mut group = c.benchmark_group("portfolio_filtering");
@@ -227,9 +219,7 @@ fn bench_position_filtering(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Scaling Benchmarks
-// ============================================================================
 
 fn bench_portfolio_scaling(c: &mut Criterion) {
     let mut group = c.benchmark_group("portfolio_pv_scaling");
@@ -349,9 +339,7 @@ fn bench_selective_repricing_shapes(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Selective Repricing Benchmarks
-// ============================================================================
 
 /// Bench `revalue_affected` under three "changed factor" scenarios that exercise
 /// different affected-position fractions:

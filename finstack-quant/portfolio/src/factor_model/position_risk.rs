@@ -25,9 +25,7 @@ use crate::types::PositionId;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
-// ---------------------------------------------------------------------------
 // Enums
-// ---------------------------------------------------------------------------
 
 /// Method used for position-level VaR/ES decomposition.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -46,9 +44,7 @@ pub enum DecompositionMethod {
     Historical,
 }
 
-// ---------------------------------------------------------------------------
 // Configuration
-// ---------------------------------------------------------------------------
 
 /// Configuration for position-level VaR decomposition.
 #[derive(Debug, Clone)]
@@ -126,9 +122,7 @@ impl DecompositionConfig {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Per-position result structs
-// ---------------------------------------------------------------------------
 
 /// Risk decomposition result for a single portfolio position.
 ///
@@ -211,9 +205,7 @@ pub struct PositionEsContribution {
     pub marginal_es: Option<f64>,
 }
 
-// ---------------------------------------------------------------------------
 // Aggregate result
-// ---------------------------------------------------------------------------
 
 /// Complete position-level risk decomposition of a portfolio.
 ///
@@ -278,9 +270,7 @@ pub struct PositionRiskDecomposition {
     pub euler_residual: Option<f64>,
 }
 
-// ---------------------------------------------------------------------------
 // Stress attribution (historical)
-// ---------------------------------------------------------------------------
 
 /// Per-position attribution of portfolio losses in tail scenarios.
 ///
@@ -505,17 +495,13 @@ pub fn build_stress_attribution(
     })
 }
 
-// ---------------------------------------------------------------------------
 // Shared math helpers
-// ---------------------------------------------------------------------------
 
 const VARIANCE_TOLERANCE: f64 = 1e-12;
 
 use super::math::{normal_pdf, normal_quantile};
 
-// ---------------------------------------------------------------------------
 // Validation helpers
-// ---------------------------------------------------------------------------
 
 fn validate_decomposition_inputs(
     weights: &[f64],
@@ -591,9 +577,7 @@ fn validate_decomposition_inputs(
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
 // Incremental VaR
-// ---------------------------------------------------------------------------
 
 /// Compute incremental VaR for all positions in O(n) total.
 ///
@@ -646,9 +630,7 @@ fn compute_incremental_var(
         .collect()
 }
 
-// ---------------------------------------------------------------------------
 // Parametric engine
-// ---------------------------------------------------------------------------
 
 /// Parametric (covariance-based) position-level VaR decomposer.
 ///
@@ -853,9 +835,7 @@ impl ParametricPositionDecomposer {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Historical simulation engine
-// ---------------------------------------------------------------------------
 
 /// Historical simulation position-level VaR decomposer.
 ///
@@ -1124,9 +1104,7 @@ impl HistoricalPositionDecomposer {
     }
 }
 
-// ===========================================================================
 // Tests
-// ===========================================================================
 
 #[cfg(test)]
 mod tests {
@@ -1134,9 +1112,7 @@ mod tests {
 
     type TestResult = finstack_quant_core::Result<()>;
 
-    // -----------------------------------------------------------------------
     // Parametric tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn euler_exhaustion_two_position_portfolio() -> TestResult {
@@ -1658,9 +1634,7 @@ mod tests {
         Ok(())
     }
 
-    // -----------------------------------------------------------------------
     // Historical decomposition tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn historical_decomposition_basic() -> TestResult {

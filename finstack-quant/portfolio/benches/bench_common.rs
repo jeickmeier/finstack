@@ -75,9 +75,7 @@ mod rates_support {
     ));
 }
 
-// ---------------------------------------------------------------------------
 // Date helpers
-// ---------------------------------------------------------------------------
 
 /// Returns the shared valuation base date used by portfolio benchmarks.
 pub fn base_date() -> Date {
@@ -99,9 +97,7 @@ pub fn maturity_5y() -> Date {
     Date::from_calendar_date(2030, Month::January, 1).unwrap()
 }
 
-// ---------------------------------------------------------------------------
 // FX provider
-// ---------------------------------------------------------------------------
 
 struct SimpleFxProvider {
     eur_usd: f64,
@@ -136,9 +132,7 @@ impl FxProvider for SimpleFxProvider {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Market context builders
-// ---------------------------------------------------------------------------
 
 /// T0 market context (valuation date = 2025-01-01).
 pub fn create_market_context() -> MarketContext {
@@ -380,9 +374,7 @@ fn build_market_context(base: Date, rate_shift: f64) -> MarketContext {
         .insert_credit_index("CORP-HAZARD", credit_index)
 }
 
-// ---------------------------------------------------------------------------
 // Portfolio fixture
-// ---------------------------------------------------------------------------
 
 /// Build a diverse institutional portfolio with the given number of positions.
 ///

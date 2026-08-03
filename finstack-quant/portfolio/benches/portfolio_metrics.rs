@@ -19,9 +19,7 @@ use finstack_quant_portfolio::metrics::aggregate_metrics;
 use finstack_quant_portfolio::valuation::value_portfolio;
 use std::hint::black_box;
 
-// ============================================================================
 // aggregate_metrics in isolation (valuation pre-computed outside bench loop)
-// ============================================================================
 
 fn bench_metrics_only(c: &mut Criterion) {
     let mut group = c.benchmark_group("portfolio_metrics_only");
@@ -53,9 +51,7 @@ fn bench_metrics_only(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Full pipeline: value_portfolio + aggregate_metrics
-// ============================================================================
 
 fn bench_value_and_metrics(c: &mut Criterion) {
     let mut group = c.benchmark_group("portfolio_value_metrics");

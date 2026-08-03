@@ -14,9 +14,7 @@ use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::market_data::context::MarketContext;
 use serde::{Deserialize, Serialize};
 
-// ---------------------------------------------------------------------------
 // General-purpose optimization spec (JSON-friendly)
-// ---------------------------------------------------------------------------
 
 /// JSON-serializable specification for a portfolio optimization problem.
 ///

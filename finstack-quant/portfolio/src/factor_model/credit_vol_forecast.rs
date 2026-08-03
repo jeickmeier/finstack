@@ -360,9 +360,7 @@ impl<'a> FactorCovarianceForecast<'a> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // CreditVolReport
-// ---------------------------------------------------------------------------
 
 /// Aggregated vol report grouped by hierarchy level.
 ///

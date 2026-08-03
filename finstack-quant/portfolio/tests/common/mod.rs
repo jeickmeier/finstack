@@ -21,9 +21,7 @@ pub fn base_date() -> Date {
     date!(2024 - 01 - 01)
 }
 
-// =============================================================================
 // Discount Curves
-// =============================================================================
 
 /// Build a flat USD discount curve (DF=1.0 at all tenors).
 fn usd_curve() -> DiscountCurve {
@@ -85,9 +83,7 @@ pub fn usd_curve_at_rate(rate_bp: f64) -> DiscountCurve {
     builder.build().expect("USD curve at rate should build")
 }
 
-// =============================================================================
 // Market Contexts
-// =============================================================================
 
 /// Create a market context with a flat USD discount curve.
 #[allow(dead_code)]
@@ -113,9 +109,7 @@ pub fn market_with_eur_and_fx(rate: f64) -> MarketContext {
     market_with_eur().insert_fx(fx_matrix(rate))
 }
 
-// =============================================================================
 // FX Infrastructure
-// =============================================================================
 
 /// Simple FX provider that returns a static rate for any currency pair.
 pub struct StaticFx {

@@ -13,9 +13,7 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use finstack_quant_portfolio::cashflows::aggregate_full_cashflows;
 use std::hint::black_box;
 
-// ============================================================================
 // aggregate_full_cashflows — date × currency × CFKind ladder
-// ============================================================================
 
 fn bench_aggregate_full_cashflows(c: &mut Criterion) {
     let mut group = c.benchmark_group("portfolio_cashflows_full");

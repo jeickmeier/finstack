@@ -26,9 +26,7 @@ use finstack_quant_portfolio::factor_model::{
 };
 use finstack_quant_portfolio::types::PositionId;
 
-// ---------------------------------------------------------------------------
 // Historical position-risk decomposer: PARALLEL_TAIL_THRESHOLD = 100_000
-// ---------------------------------------------------------------------------
 
 fn bench_historical_tail_threshold(c: &mut Criterion) {
     let mut group = c.benchmark_group("historical_decomp_tail");
