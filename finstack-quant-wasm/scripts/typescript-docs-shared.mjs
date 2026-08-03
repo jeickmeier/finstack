@@ -37,7 +37,7 @@ export function isLegacyPlaceholderExample(block) {
   if (block.kind !== 'example') return false;
   const value = block.lines.map((line) => line.trim()).join('\n');
   const common =
-    value.startsWith('@example\n```typescript\nimport init, { ') &&
+    value.startsWith('@example\n```typescript\n') &&
     value.includes('from "finstack-quant-wasm";\nawait init();\n');
   if (!common || !value.endsWith('\n```')) return false;
   return (

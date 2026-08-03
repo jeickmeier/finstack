@@ -22,9 +22,9 @@ export interface MathNamespace {
  * Legacy constructor fixture.
  * @example
  * ```typescript
- * import init, { core } from "finstack-quant-wasm";
+ * import init from "finstack-quant-wasm";
  * await init();
- * const factory: CalculatorConstructor = core.Calculator;
+ * const factory: CalculatorConstructor = CalculatorConstructor;
  * void factory;
  * ```
  */
