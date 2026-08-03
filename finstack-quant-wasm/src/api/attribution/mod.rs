@@ -150,6 +150,13 @@ fn catch_attribution_panic<T>(
 /// snapshots, dates, and a method descriptor. Returns the `PnlAttribution`
 /// result as JSON. `config_json` may include `"execution_policy": "serial"`
 /// for hosts that already parallelize attribution at a higher level.
+///
+/// # Errors
+///
+/// Rejects malformed instrument, market, method, or configuration JSON;
+/// invalid ISO attribution dates; instrument or market reconstruction,
+/// pricing, FX, rounding, metric, or method-specific attribution failures; a
+/// caught attribution panic; or failure to serialize the result.
 /// @param params - Fully specified AttributionParams object containing instrument, markets, dates, and method.
 #[wasm_bindgen(js_name = attributePnl)]
 pub fn attribute_pnl(params: &JsAttributionParams) -> Result<String, JsValue> {
@@ -179,6 +186,13 @@ pub fn attribute_pnl(params: &JsAttributionParams) -> Result<String, JsValue> {
 /// Run attribution from a full JSON `AttributionEnvelope` and return JSON.
 ///
 /// Power-user variant for full envelope round-trip workflows.
+///
+/// # Errors
+///
+/// Rejects malformed, schema-incompatible, or unsupported-version `spec_json`;
+/// instrument or market reconstruction, pricing, FX, rounding, metric, or
+/// method-specific attribution failures; a caught parse or execution panic; or
+/// failure to serialize the result envelope.
 /// @param spec_json - JSON-serialized AttributionParams specification to validate and execute.
 #[wasm_bindgen(js_name = attributePnlFromSpec)]
 pub fn attribute_pnl_from_spec(spec_json: &str) -> Result<String, JsValue> {
@@ -208,6 +222,11 @@ pub fn attribute_pnl_from_spec(spec_json: &str) -> Result<String, JsValue> {
 /// `schema` version tag (the same gate `execute` applies, so a payload that
 /// validates here cannot later be rejected at execution), and returns the
 /// canonical JSON.
+///
+/// # Errors
+///
+/// Rejects malformed, schema-incompatible, or unsupported-version `json`, or
+/// failure to serialize the canonical attribution envelope.
 /// @param json - Canonical JSON string defining the object to deserialize or normalize.
 #[wasm_bindgen(js_name = validateAttributionJson)]
 pub fn validate_attribution_json(json: &str) -> Result<String, JsValue> {
@@ -217,6 +236,11 @@ pub fn validate_attribution_json(json: &str) -> Result<String, JsValue> {
 }
 
 /// Return the default waterfall factor ordering as canonical snake-case values.
+///
+/// # Errors
+///
+/// Rejects if the default factor identifiers cannot be serialized to
+/// JavaScript.
 #[wasm_bindgen(js_name = defaultWaterfallOrder)]
 pub fn default_waterfall_order() -> Result<JsValue, JsValue> {
     let factors: Vec<String> = finstack_quant_attribution::default_waterfall_order()
@@ -227,6 +251,11 @@ pub fn default_waterfall_order() -> Result<JsValue, JsValue> {
 }
 
 /// Return the default metric IDs used by metrics-based attribution.
+///
+/// # Errors
+///
+/// Rejects if the default metric identifiers cannot be serialized to
+/// JavaScript.
 #[wasm_bindgen(js_name = defaultAttributionMetrics)]
 pub fn default_attribution_metrics() -> Result<JsValue, JsValue> {
     let metrics: Vec<String> = finstack_quant_attribution::default_attribution_metrics()

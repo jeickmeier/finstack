@@ -44,6 +44,12 @@ fn apply_with_context(
 /// Parse and validate a scenario specification from JSON.
 ///
 /// Returns the validated, re-serialized JSON.
+///
+/// # Errors
+///
+/// Rejects malformed or schema-incompatible `json_str`, a blank scenario ID,
+/// multiple time-roll operations, invalid operation identifiers or numeric
+/// fields, variant-specific operation violations, or serialization failure.
 /// @param json_str - Canonical JSON string to validate, parse, or normalize for this API.
 #[wasm_bindgen(js_name = parseScenarioSpec)]
 pub fn parse_scenario_spec(json_str: &str) -> Result<String, JsValue> {
@@ -58,6 +64,12 @@ pub fn parse_scenario_spec(json_str: &str) -> Result<String, JsValue> {
 /// Compose multiple scenario specs (JSON array) into a single scenario.
 ///
 /// Specs are merged in priority order (lower number runs first).
+///
+/// # Errors
+///
+/// Rejects malformed or schema-incompatible `specs_json`, composition that
+/// contains more than one time-roll operation, or failure to serialize the
+/// composed specification.
 /// @param specs_json - JSON array of validated ScenarioSpec objects to compose in priority order.
 #[wasm_bindgen(js_name = composeScenarios)]
 pub fn compose_scenarios(specs_json: &str) -> Result<String, JsValue> {
@@ -77,6 +89,12 @@ fn compose_scenarios_json(specs_json: &str) -> Result<String, String> {
 /// Validate a scenario specification JSON without executing it.
 ///
 /// Returns `true` if valid, throws on error.
+///
+/// # Errors
+///
+/// Rejects malformed or schema-incompatible `json_str`, a blank scenario ID,
+/// multiple time-roll operations, invalid operation identifiers or numeric
+/// fields, or variant-specific operation violations.
 /// @param json_str - Canonical JSON string to validate, parse, or normalize for this API.
 #[wasm_bindgen(js_name = validateScenarioSpec)]
 pub fn validate_scenario_spec(json_str: &str) -> Result<bool, JsValue> {
@@ -90,6 +108,11 @@ pub fn validate_scenario_spec(json_str: &str) -> Result<bool, JsValue> {
 /// List all built-in template identifiers.
 ///
 /// Returns a JSON array of template ID strings.
+///
+/// # Errors
+///
+/// Rejects if the embedded template registry cannot be parsed and validated,
+/// or if its template identifiers cannot be serialized to JavaScript.
 #[wasm_bindgen(js_name = listBuiltinTemplates)]
 pub fn list_builtin_templates() -> Result<JsValue, JsValue> {
     let registry = builtin_registry()?;
@@ -98,6 +121,11 @@ pub fn list_builtin_templates() -> Result<JsValue, JsValue> {
 }
 
 /// Get metadata for all built-in templates as a JSON string.
+///
+/// # Errors
+///
+/// Rejects if the embedded template registry cannot be parsed and validated,
+/// or if its metadata cannot be serialized to JSON.
 #[wasm_bindgen(js_name = listBuiltinTemplateMetadata)]
 pub fn list_builtin_template_metadata() -> Result<String, JsValue> {
     let registry = builtin_registry()?;
@@ -108,6 +136,12 @@ pub fn list_builtin_template_metadata() -> Result<String, JsValue> {
 /// Build a scenario spec from a built-in template.
 ///
 /// Returns JSON-serialized `ScenarioSpec`.
+///
+/// # Errors
+///
+/// Rejects a failure to load the embedded registry, an unknown `template_id`,
+/// a template whose resolved scenario fails validation, or failure to serialize
+/// the scenario.
 /// @param template_id - Identifier of a built-in scenario template in the embedded registry.
 #[wasm_bindgen(js_name = buildFromTemplate)]
 pub fn build_from_template(template_id: &str) -> Result<String, JsValue> {
@@ -123,6 +157,11 @@ pub fn build_from_template(template_id: &str) -> Result<String, JsValue> {
 /// List component IDs for a built-in composite template.
 ///
 /// Returns a JS array of component ID strings.
+///
+/// # Errors
+///
+/// Rejects a failure to load the embedded registry, an unknown `template_id`,
+/// or component identifiers that cannot be serialized to JavaScript.
 /// @param template_id - Identifier of a built-in scenario template in the embedded registry.
 #[wasm_bindgen(js_name = listTemplateComponents)]
 pub fn list_template_components(template_id: &str) -> Result<JsValue, JsValue> {
@@ -140,6 +179,12 @@ pub fn list_template_components(template_id: &str) -> Result<JsValue, JsValue> {
 }
 
 /// Build a specific component from a built-in composite template.
+///
+/// # Errors
+///
+/// Rejects a failure to load the embedded registry, an unknown `template_id`
+/// or `component_id`, a component scenario that fails validation, or failure to
+/// serialize the scenario.
 /// @param template_id - Identifier of a built-in scenario template in the embedded registry.
 /// @param component_id - Identifier of a component within the selected composite template.
 #[wasm_bindgen(js_name = buildTemplateComponent)]
@@ -158,6 +203,13 @@ pub fn build_template_component(template_id: &str, component_id: &str) -> Result
 }
 
 /// Build a scenario spec from fields.
+///
+/// # Errors
+///
+/// Rejects malformed or schema-incompatible `operations_json`, an unsupported
+/// `resolution_mode`, a blank scenario ID, multiple time-roll operations,
+/// invalid operation identifiers or numeric fields, variant-specific operation
+/// violations, or failure to serialize the scenario.
 /// @param id - Stable identifier used to name and retrieve the supplied domain object.
 /// @param operations_json - JSON array of scenario operation specifications in execution order.
 /// @param name - Optional human-readable scenario name.
@@ -206,6 +258,13 @@ pub fn build_scenario_spec(
 /// `instrument_spread_bp_by_*`, correlation shocks) are inert and produce a
 /// warning, and `time_roll_forward` in `business_days` mode adjusts without
 /// holiday information.
+///
+/// # Errors
+///
+/// Rejects malformed scenario, market, or model JSON, an invalid ISO `as_of`
+/// date, an invalid scenario operation, missing market objects or hierarchy
+/// context, statement-model execution failures, failure to encode the mutated
+/// contexts, or failure to serialize the application envelope to JavaScript.
 /// @param scenario_json - JSON-serialized ScenarioSpec to validate and apply.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param model_json - JSON-serialized FinancialModelSpec that scenario operations may mutate.
@@ -235,6 +294,13 @@ pub fn apply_scenario(
 ///
 /// Returns the same envelope shape as [`apply_scenario`] minus `model_json`;
 /// the same caveats apply (no instrument portfolio, no holiday calendar).
+///
+/// # Errors
+///
+/// Rejects malformed scenario or market JSON, an invalid ISO `as_of` date, an
+/// invalid scenario operation, missing market objects or hierarchy context,
+/// failure to encode the mutated market, or failure to serialize the
+/// application envelope to JavaScript.
 /// @param scenario_json - JSON-serialized ScenarioSpec to validate and apply.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
@@ -271,6 +337,14 @@ pub fn apply_scenario_to_market(
 /// # Returns
 ///
 /// JSON-serialized `HorizonResult`.
+///
+/// # Errors
+///
+/// Rejects malformed instrument, market, scenario, or configuration JSON; an
+/// invalid ISO `as_of` date; an unsupported attribution `method`; an unknown
+/// `calendar_id`; invalid, unsupported, or unresolved scenario operations;
+/// missing market data; pricing or attribution failures; or failure to
+/// serialize the horizon result.
 /// @param config_json - Optional FinstackConfig JSON for horizon analysis; omit to use defaults.
 /// @param calendar_id - Optional holiday calendar (e.g. "nyse", "target") used to
 ///   business-day adjust `time_roll_forward` targets under `business_days` mode.

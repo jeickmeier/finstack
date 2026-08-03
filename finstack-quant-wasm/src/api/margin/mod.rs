@@ -15,6 +15,11 @@ fn serialize_csa(csa: &finstack_quant_margin::CsaSpec) -> Result<String, JsValue
 /// Create a standard USD regulatory CSA specification as JSON.
 ///
 /// Returns the canonical ISDA-compliant CSA for USD OTC derivatives.
+///
+/// # Errors
+///
+/// Rejects if the embedded margin registry cannot be loaded or the resulting
+/// CSA cannot be serialized to JSON.
 #[wasm_bindgen(js_name = csaUsdRegulatory)]
 pub fn csa_usd_regulatory() -> Result<String, JsValue> {
     let csa = finstack_quant_margin::CsaSpec::usd_regulatory().map_err(to_js_err)?;
@@ -22,6 +27,11 @@ pub fn csa_usd_regulatory() -> Result<String, JsValue> {
 }
 
 /// Create a standard EUR regulatory CSA specification as JSON.
+///
+/// # Errors
+///
+/// Rejects if the embedded margin registry cannot be loaded or the resulting
+/// CSA cannot be serialized to JSON.
 #[wasm_bindgen(js_name = csaEurRegulatory)]
 pub fn csa_eur_regulatory() -> Result<String, JsValue> {
     let csa = finstack_quant_margin::CsaSpec::eur_regulatory().map_err(to_js_err)?;
@@ -32,6 +42,11 @@ pub fn csa_eur_regulatory() -> Result<String, JsValue> {
 ///
 /// Deserializes and re-serializes the input to verify it conforms
 /// to the `CsaSpec` schema. Returns the canonical JSON on success.
+///
+/// # Errors
+///
+/// Rejects malformed or schema-incompatible `json`, or failure to serialize
+/// the decoded CSA specification.
 /// @param json - CSA specification JSON to validate and normalize into canonical form.
 #[wasm_bindgen(js_name = validateCsaJson)]
 pub fn validate_csa_json(json: &str) -> Result<String, JsValue> {
@@ -53,6 +68,13 @@ pub fn validate_csa_json(json: &str) -> Result<String, JsValue> {
 /// * `year` - Calculation year
 /// * `month` - Calculation month (1-12)
 /// * `day` - Calendar day number within the selected month of the VM calculation date.
+///
+/// # Errors
+///
+/// Rejects malformed or schema-incompatible `csa_json`, an unknown `currency`,
+/// non-finite exposure or collateral amounts, an invalid calendar date, a
+/// currency mismatch with the CSA, invalid VM parameters, calendar lookup or
+/// settlement-date adjustment failures, or failure to serialize the result.
 /// @param csa_json - CSA specification JSON governing thresholds, minimum transfer, and timing.
 /// @param exposure - Current mark-to-market exposure in the supplied currency units.
 /// @param posted_collateral - Collateral already posted in the supplied currency units.
