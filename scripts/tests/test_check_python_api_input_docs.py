@@ -122,3 +122,141 @@ class Doubler:
     )
 
     assert _MODULE.public_callable_errors(fixture) == []
+
+
+def test_import_and_introspection_placeholders_are_rejected(tmp_path: Path) -> None:
+    """Generated name and callability checks are not usage examples."""
+    fixture = tmp_path / "placeholder_api.pyi"
+    fixture.write_text(
+        '''"""Placeholder fixture module.
+
+Examples
+--------
+>>> import placeholder_api
+>>> placeholder_api.__name__
+'placeholder_api'
+"""
+
+class Widget:
+    """Represent one documented widget.
+
+    Examples
+    --------
+    >>> from placeholder_api import Widget
+    >>> Widget.__name__
+    'Widget'
+    """
+
+    @staticmethod
+    def create() -> Widget:
+        """Create a widget with the documented defaults.
+
+        Returns
+        -------
+        Widget
+            Newly allocated widget using the documented defaults.
+
+        Examples
+        --------
+        >>> from placeholder_api import Widget
+        >>> callable(Widget.create)
+        True
+        """
+        ...
+''',
+        encoding="utf-8",
+    )
+
+    assert [error.message for error in _MODULE.public_callable_errors(fixture)] == [
+        "placeholder module usage example",
+        "placeholder class usage example",
+        "placeholder callable usage example",
+    ]
+
+
+def test_real_call_after_import_is_substantive(tmp_path: Path) -> None:
+    """Imports may set up an example when an actual API call follows."""
+    fixture = tmp_path / "real_api.pyi"
+    fixture.write_text(
+        '''"""Real fixture module.
+
+Examples
+--------
+>>> from real_api import scale
+>>> scale(2.0)
+4.0
+"""
+
+def scale(value: float) -> float:
+    """Scale a finite value by two.
+
+    Parameters
+    ----------
+    value : float
+        Finite scalar to multiply by two.
+
+    Returns
+    -------
+    float
+        Twice the supplied scalar.
+
+    Examples
+    --------
+    >>> from real_api import scale
+    >>> scale(2.0)
+    4.0
+    """
+    ...
+''',
+        encoding="utf-8",
+    )
+
+    assert _MODULE.public_callable_errors(fixture) == []
+
+
+def test_type_introspection_placeholder_is_rejected(tmp_path: Path) -> None:
+    """Checking that a public class object is a type is not class usage."""
+    fixture = tmp_path / "type_placeholder.pyi"
+    fixture.write_text(
+        '''"""Type-placeholder fixture module.
+
+Examples
+--------
+>>> Widget(2).value
+2
+"""
+
+class Widget:
+    """Store one integer widget value.
+
+    Examples
+    --------
+    >>> isinstance(Widget, type)
+    True
+    """
+
+    def __init__(self, value: int) -> None:
+        """Create a widget from one integer.
+
+        Parameters
+        ----------
+        value : int
+            Integer payload retained by the widget.
+        """
+        ...
+
+    @property
+    def value(self) -> int:
+        """Return the retained integer payload.
+
+        Returns
+        -------
+        int
+            Integer supplied when the widget was constructed.
+        """
+        ...
+''',
+        encoding="utf-8",
+    )
+
+    assert [error.message for error in _MODULE.public_callable_errors(fixture)] == ["placeholder class usage example"]

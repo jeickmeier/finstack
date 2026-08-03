@@ -21,6 +21,12 @@ GENERIC_DESCRIPTION_RE = re.compile(
     r"^(?:the )?(?:input|parameter|value)(?: (?:value|parameter|to use|for the operation))?[.!]?$",
     re.IGNORECASE,
 )
+LEGACY_EXAMPLE_PROMPT_RE = re.compile(
+    r"^(?:callable\([A-Za-z_][A-Za-z0-9_.]*\)|"
+    r"[A-Za-z_][A-Za-z0-9_.]*\.__name__|"
+    r"isinstance\([A-Za-z_][A-Za-z0-9_.]*,\s*(?:type|object)\))$"
+)
+EXAMPLE_SETUP_PROMPT_RE = re.compile(r"^(?:from\s+\S+\s+import\s+.+|import\s+.+)$")
 SECTION_NAMES = frozenset({"Parameters", "Args", "Returns", "Raises", "Examples", "Notes", "Warnings"})
 
 
@@ -91,10 +97,34 @@ def has_summary(docstring: str) -> bool:
     return False
 
 
+def example_prompts(docstring: str) -> list[str]:
+    """Return primary-prompt expressions from one Examples section."""
+    lines = docstring.splitlines()
+    for index, line in enumerate(lines):
+        if line.strip().rstrip(":") != "Examples":
+            continue
+        prompts: list[str] = []
+        for continuation_index, continuation in enumerate(lines[index + 1 :], start=index + 1):
+            if continuation_index != index + 1 and is_section_heading(lines, continuation_index):
+                break
+            stripped = continuation.strip()
+            if stripped.startswith(">>>"):
+                prompts.append(stripped.removeprefix(">>>").strip())
+        return prompts
+    return []
+
+
 def has_example(docstring: str) -> bool:
     """Return whether a docstring has a doctest-style usage example."""
-    examples = section_description(docstring, frozenset({"Examples"}))
-    return examples is not None and ">>>" in examples
+    return bool(example_prompts(docstring))
+
+
+def has_substantive_example(docstring: str) -> bool:
+    """Reject import-only and legacy introspection-only doctests."""
+    return any(
+        LEGACY_EXAMPLE_PROMPT_RE.fullmatch(prompt) is None and EXAMPLE_SETUP_PROMPT_RE.fullmatch(prompt) is None
+        for prompt in example_prompts(docstring)
+    )
 
 
 def returns_value(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
@@ -180,6 +210,8 @@ class PublicCallableVisitor:
             self.errors.append(DocumentationError(self.path, 1, "module", "missing substantive module summary"))
         elif not has_example(docstring):
             self.errors.append(DocumentationError(self.path, 1, "module", "missing module usage example"))
+        elif not has_substantive_example(docstring):
+            self.errors.append(DocumentationError(self.path, 1, "module", "placeholder module usage example"))
         self.inspect_body(tree.body)
 
     def inspect_body(self, body: list[ast.stmt], class_docstring: str | None = None) -> None:
@@ -203,6 +235,8 @@ class PublicCallableVisitor:
             self.errors.append(DocumentationError(self.path, node.lineno, symbol, "missing substantive class summary"))
         elif not has_example(docstring):
             self.errors.append(DocumentationError(self.path, node.lineno, symbol, "missing class usage example"))
+        elif not has_substantive_example(docstring):
+            self.errors.append(DocumentationError(self.path, node.lineno, symbol, "placeholder class usage example"))
         self.inspect_body(node.body, docstring)
 
     def inspect_callable(
@@ -256,8 +290,13 @@ class PublicCallableVisitor:
                     DocumentationError(self.path, node.lineno, symbol, "Returns section is not substantive")
                 )
 
-        if (not self.scope or is_class_or_static_method(node)) and not has_example(docstring):
-            self.errors.append(DocumentationError(self.path, node.lineno, symbol, "missing callable usage example"))
+        if not self.scope or is_class_or_static_method(node):
+            if not has_example(docstring):
+                self.errors.append(DocumentationError(self.path, node.lineno, symbol, "missing callable usage example"))
+            elif not has_substantive_example(docstring):
+                self.errors.append(
+                    DocumentationError(self.path, node.lineno, symbol, "placeholder callable usage example")
+                )
 
 
 def public_callable_errors(path: Path) -> list[DocumentationError]:
