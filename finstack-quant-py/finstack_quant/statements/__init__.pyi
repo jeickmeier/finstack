@@ -248,15 +248,16 @@ class ForecastSpec:
         params_json:
             Optional JSON string with method-specific parameters.
 
+        Raises
+        ------
+        ValueError
+            If params_json is not valid JSON for the method parameter mapping.
+
         Example
         -------
         >>> from finstack_quant.statements import ForecastMethod
         >>> spec = ForecastSpec(ForecastMethod.forward_fill())  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -301,11 +302,6 @@ class ForecastSpec:
         -------
         >>> spec = ForecastSpec.growth(0.05)  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.statements import ForecastSpec
@@ -332,11 +328,6 @@ class ForecastSpec:
         Example
         -------
         >>> spec = ForecastSpec.curve([0.03, 0.05, 0.07])  # doctest: +SKIP
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -369,11 +360,6 @@ class ForecastSpec:
         -------
         >>> spec = ForecastSpec.normal(0.0, 0.1, 42)  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.statements import ForecastSpec
@@ -404,11 +390,6 @@ class ForecastSpec:
         Example
         -------
         >>> spec = ForecastSpec.lognormal(0.0, 0.1, 42)  # doctest: +SKIP
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -589,10 +570,6 @@ class NodeId:
         >>> NodeId("ebitda").as_str()
         'ebitda'
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -858,10 +835,6 @@ class FinancialModelSpec:
         ... ).has_node("x")
         False
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -926,10 +899,6 @@ class ModelBuilder:
         >>> ModelBuilder("Acme")  # doctest: +ELLIPSIS
         <finstack_quant.statements.ModelBuilder ...>
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1068,6 +1037,11 @@ class ModelBuilder:
             A builder for the mixed node.  Call ``build`` on the returned
             builder to attach the node and resume this builder.
 
+        Raises
+        ------
+        ValueError
+            If periods have not been configured or the builder has already been consumed.
+
         Example
         -------
         >>> b = ModelBuilder("x")
@@ -1077,10 +1051,6 @@ class ModelBuilder:
         >>> mb.formula("revenue * 0.1")  # doctest: +SKIP
         >>> b = mb.build()  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1095,16 +1065,17 @@ class ModelBuilder:
         forecast_spec:
             A :class:`ForecastSpec` describing the projection method and parameters.
 
+        Raises
+        ------
+        ValueError
+            If periods have not been configured or the builder has already been consumed.
+
         Example
         -------
         >>> b = ModelBuilder("x")
         >>> b.periods("2025Q1..Q4", None)  # doctest: +SKIP
         >>> b.forecast("revenue", ForecastSpec.from_json("..."))  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1117,6 +1088,11 @@ class ModelBuilder:
         where_clause:
             DSL expression evaluated per period to gate the node's value.
 
+        Raises
+        ------
+        ValueError
+            If periods have not been configured or the builder has already been consumed.
+
         Example
         -------
         >>> b = ModelBuilder("x")
@@ -1124,10 +1100,6 @@ class ModelBuilder:
         >>> b.value("rev", [("2025Q1", 10.0)])  # doctest: +SKIP
         >>> b.where_clause('period == "2025Q1"')  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1143,15 +1115,17 @@ class ModelBuilder:
         value_json:
             JSON-serialized metadata value.
 
+        Raises
+        ------
+        ValueError
+            If value_json is malformed, periods are not configured, or the builder
+            has already been consumed.
+
         Example
         -------
         >>> b = ModelBuilder("x")
         >>> b.with_meta("sector", '""healthcare""')  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1188,16 +1162,19 @@ class ModelBuilder:
         registry:
             A :class:`MetricRegistry` containing the metric definition.
 
+        Raises
+        ------
+        ValueError
+            If periods have not been configured or the builder has already been consumed.
+        KeyError
+            If qualified_id or one of its dependencies cannot be resolved in registry.
+
         Example
         -------
         >>> reg = MetricRegistry.with_builtins()  # doctest: +SKIP
         >>> b = ModelBuilder("x")
         >>> b.add_metric_from_registry("ebitda", reg)  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1231,6 +1208,13 @@ class ModelBuilder:
         discount_curve_id:
             Curve ID for discounting (e.g. ``"USD-OIS"``).
 
+        Raises
+        ------
+        ValueError
+            If a date is invalid or the builder has already been consumed.
+        RuntimeError
+            If the bond cannot be added to the model capital structure.
+
         Example
         -------
         >>> from finstack_quant.core.money import Money
@@ -1240,10 +1224,6 @@ class ModelBuilder:
         ...     "bond_a", Money(1_000_000, "USD"), 0.05, datetime.date(2025, 1, 1), datetime.date(2030, 1, 1), "USD-OIS"
         ... )  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1277,6 +1257,13 @@ class ModelBuilder:
         forward_curve_id:
             Curve ID for forward rates.
 
+        Raises
+        ------
+        ValueError
+            If a date is invalid or the builder has already been consumed.
+        RuntimeError
+            If the swap cannot be added to the model capital structure.
+
         Example
         -------
         >>> from finstack_quant.core.money import Money
@@ -1292,10 +1279,6 @@ class ModelBuilder:
         ...     "USD-SOFR-3M",
         ... )  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1337,15 +1320,16 @@ class ModelBuilder:
             A :class:`Currency` instance. A bare ISO-4217 string is not
             accepted; construct ``Currency("USD")`` first.
 
+        Raises
+        ------
+        ValueError
+            If the builder has already been consumed.
+
         Example
         -------
         >>> b = ModelBuilder("x")
         >>> b.reporting_currency(Currency.USD)  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1358,15 +1342,16 @@ class ModelBuilder:
         policy:
             FX conversion policy label.
 
+        Raises
+        ------
+        ValueError
+            If policy is unknown or the builder has already been consumed.
+
         Example
         -------
         >>> b = ModelBuilder("x")
         >>> b.fx_policy("period_end")  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1379,15 +1364,16 @@ class ModelBuilder:
         waterfall_spec:
             A :class:`WaterfallSpec` defining cash distribution priorities.
 
+        Raises
+        ------
+        ValueError
+            If the builder has already been consumed.
+
         Example
         -------
         >>> b = ModelBuilder("x")
         >>> b.waterfall(WaterfallSpec.from_json("..."))  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1451,14 +1437,15 @@ class MixedNodeBuilder:
             ``(period_id, value)`` pairs for periods where an explicit scalar
             overrides the formula or forecast.
 
+        Raises
+        ------
+        ValueError
+            If a period label is invalid or the mixed-node builder has been consumed.
+
         Example
         -------
         >>> mb.values([("2025Q1", 10.0)])  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1472,15 +1459,16 @@ class MixedNodeBuilder:
             ``(period_id, Money)`` pairs for periods where an explicit monetary
             value overrides the formula or forecast.
 
+        Raises
+        ------
+        ValueError
+            If a period label is invalid or the mixed-node builder has been consumed.
+
         Example
         -------
         >>> from finstack_quant.core.money import Money
         >>> mb.values_money([("2025Q1", Money(100.0, "USD"))])  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1493,14 +1481,15 @@ class MixedNodeBuilder:
         forecast_spec:
             A :class:`ForecastSpec` describing the projection method.
 
+        Raises
+        ------
+        ValueError
+            If the mixed-node builder has already been consumed.
+
         Example
         -------
         >>> mb.forecast(ForecastSpec.from_json("..."))  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1513,14 +1502,15 @@ class MixedNodeBuilder:
         formula:
             DSL expression used when no explicit value or forecast is available.
 
+        Raises
+        ------
+        ValueError
+            If formula is empty or invalid, or the mixed-node builder has been consumed.
+
         Example
         -------
         >>> mb.formula("revenue * 0.1")  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1533,14 +1523,15 @@ class MixedNodeBuilder:
         name:
             Human-readable node name.
 
+        Raises
+        ------
+        ValueError
+            If the mixed-node builder has already been consumed.
+
         Example
         -------
         >>> mb.name("Hybrid Revenue")  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1629,15 +1620,18 @@ class MetricRegistry:
         json:
             JSON string containing metric definitions.
 
+        Raises
+        ------
+        ValueError
+            If json is malformed or contains an invalid metric definition.
+        KeyError
+            If a referenced registry metric cannot be resolved.
+
         Example
         -------
         >>> reg = MetricRegistry()
         >>> reg.load_from_json_str('[{"id":"custom_metric",...}]')  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1650,15 +1644,20 @@ class MetricRegistry:
         path:
             Filesystem path to a JSON document containing metric definitions.
 
+        Raises
+        ------
+        RuntimeError
+            If path cannot be opened or read.
+        ValueError
+            If the file contains malformed JSON or an invalid metric definition.
+        KeyError
+            If a referenced registry metric cannot be resolved.
+
         Example
         -------
         >>> reg = MetricRegistry()
         >>> reg.load_from_json("metrics.json")  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1682,10 +1681,6 @@ class MetricRegistry:
         >>> reg.has("ebitda")  # doctest: +SKIP
         True
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1870,10 +1865,6 @@ class StatementResult:
         -------
         >>> # m = r.get_node("revenue")  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -2239,10 +2230,6 @@ class NormalizationConfig:
         >>> cfg.adjustment_count
         0
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -2652,10 +2639,6 @@ class EcfSweepSpec:
             Optional debt instrument receiving the ECF paydown; ``None`` uses
             the waterfall's eligible debt allocation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
     @staticmethod
@@ -2770,10 +2753,6 @@ class PikToggleSpec:
         min_periods_in_pik : int, default 0
             Minimum number of forecast periods to remain in PIK after activation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
     @staticmethod
@@ -2892,7 +2871,8 @@ class WaterfallSpec:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If priority_of_payments contains an unknown priority name.
+
         """
         ...
     @staticmethod

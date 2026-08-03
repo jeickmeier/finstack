@@ -138,7 +138,8 @@ class SensitivityConfig:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If mode is unknown or a sensitivity-parameter period cannot be parsed.
+
         """
         ...
 
@@ -262,7 +263,8 @@ class VarianceConfig:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If any requested period label cannot be parsed.
+
         """
         ...
 
@@ -392,10 +394,6 @@ class ScenarioSet:
         model_ids : object
             Value supplied for `model_ids` to the documented binding operation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -493,10 +491,6 @@ class MonteCarloConfig:
         include_path_data : object
             Value supplied for `include_path_data` to the documented binding operation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -668,8 +662,9 @@ class SensitivityResult:
 
         Raises
         ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        IndexError
+            If scenario_index is outside the available scenario range.
+
         """
         ...
     def get_value(self, scenario_index: int, node_id: str, period: str) -> float | None:
@@ -692,8 +687,11 @@ class SensitivityResult:
 
         Raises
         ------
+        IndexError
+            If scenario_index is outside the available scenario range.
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If period cannot be parsed.
+
         """
         ...
 
@@ -940,10 +938,6 @@ class ScenarioResultSet:
         StatementResult | None
             Result of get for this `ScenarioResultSet` in the annotated representation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1049,10 +1043,6 @@ class MonteCarloResults:
         dict[str, float] | None
             Requested percentile series resolved from this `MonteCarloResults` in the annotated representation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1075,15 +1065,16 @@ def run_sensitivity(
     SensitivityResult
         Typed sensitivity result.
 
+    Raises
+    ------
+    ValueError
+        If model or config JSON is malformed, or the sensitivity setup cannot be evaluated.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import run_sensitivity
     >>> out = run_sensitivity(model, config)  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -1109,15 +1100,16 @@ def generate_tornado_entries(
     str
         JSON-serialized list of ``TornadoEntry``.
 
+    Raises
+    ------
+    ValueError
+        If result JSON is malformed or period cannot be parsed.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import generate_tornado_entries
     >>> entries_json = generate_tornado_entries(res_json, "ebitda", "2025Q4")  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -1143,15 +1135,16 @@ def run_variance(
     VarianceReport
         Typed variance report.
 
+    Raises
+    ------
+    ValueError
+        If an input JSON payload is malformed or the requested comparison is invalid.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import run_variance
     >>> report = run_variance(base, comparison, config)  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -1174,15 +1167,16 @@ def evaluate_scenario_set(
     ScenarioResultSet
         Typed mapping from scenario names to statement results.
 
+    Raises
+    ------
+    ValueError
+        If model or scenario JSON is malformed, or the scenario graph cannot be evaluated.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import evaluate_scenario_set
     >>> results = evaluate_scenario_set(model, scenario_set)  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -1205,15 +1199,16 @@ def run_monte_carlo(
     MonteCarloResults
         Typed Monte Carlo results.
 
+    Raises
+    ------
+    ValueError
+        If model or config JSON is malformed, or Monte Carlo evaluation rejects the setup.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import run_monte_carlo
     >>> results = run_monte_carlo(model, config)  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -1233,16 +1228,17 @@ def backtest_forecast(actual: list[float], forecast: list[float]) -> dict[str, f
     dict[str, float | int]
         Dict with keys ``mae``, ``mape``, ``rmse``, and ``n``.
 
+    Raises
+    ------
+    ValueError
+        If actual and forecast have different lengths or are empty.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import backtest_forecast
     >>> backtest_forecast([1.0, 2.0], [1.1, 1.9])["mae"]
     0.1
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -1284,15 +1280,16 @@ def goal_seek(
         ``(solved_driver_value, updated_model_json)``. The updated model JSON
         is ``None`` when ``update_model`` is ``False``.
 
+    Raises
+    ------
+    ValueError
+        If a period, model node, or bound is invalid, or the solver cannot find a solution.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import goal_seek
     >>> solved, new_model = goal_seek(mj, "ni", "2025", 10.0, "rev", "2025")  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -1340,15 +1337,16 @@ def evaluate_dcf(
         Dict with ``equity_value``, ``equity_currency``, ``enterprise_value``, ``net_debt``,
         ``terminal_value_pv``, ``equity_value_per_share``, ``diluted_shares``.
 
+    Raises
+    ------
+    ValueError
+        If a JSON payload is malformed or the model, cash-flow node, or DCF inputs are invalid.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import evaluate_dcf
     >>> dcf = evaluate_dcf(mj, 0.09, tv_json)  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -1405,16 +1403,17 @@ def dcf_sensitivity(
         (list of ``{"parameter_id", "downside", "upside"}``), ``wacc_down``,
         ``wacc_down_clamped``, ``terminal_growth_up``, ``terminal_growth_up_clamped``.
 
+    Raises
+    ------
+    ValueError
+        If terminal-value JSON is malformed or the model and sensitivity inputs are invalid.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import dcf_sensitivity
     >>> callable(dcf_sensitivity)
     True
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -1470,16 +1469,17 @@ def evaluate_lbo(
         ``exit_enterprise_value``, ``exit_metric``, ``exit_net_debt``,
         ``exit_equity_proceeds``, ``moic``, and ``currency``.
 
+    Raises
+    ------
+    ValueError
+        If exit_period, a model node, or the sources-and-uses inputs are invalid.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import evaluate_lbo
     >>> callable(evaluate_lbo)
     True
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -1518,16 +1518,18 @@ def wacc(
     float
         Blended discount rate as a decimal fraction.
 
+    Raises
+    ------
+    ValueError
+        If an input is non-finite, a weight is negative, weights do not sum to one,
+        or tax_rate is outside the inclusive range from zero to one.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import wacc
     >>> callable(wacc)
     True
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -1566,15 +1568,17 @@ def run_corporate_analysis(
         Dict with ``statement_json``, optional ``equity`` scalars, and ``credit`` (instrument_id → metrics JSON).
         The credit metrics include ``skipped_periods`` for periods dropped from min/max stats.
 
+    Raises
+    ------
+    ValueError
+        If model, market, terminal-value, or as_of data is invalid, or terminal-value
+        JSON is omitted when wacc is supplied.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import run_corporate_analysis
     >>> out = run_corporate_analysis(model_json, wacc=0.1, terminal_value_json=tv_json)  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -1600,15 +1604,16 @@ def pl_summary_report(
     str
         Formatted report text.
 
+    Raises
+    ------
+    ValueError
+        If results JSON is malformed or a requested period cannot be parsed.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import pl_summary_report
     >>> text = pl_summary_report(res_json, ["rev", "cogs"], ["2025Q1"])  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -1628,15 +1633,16 @@ def credit_assessment_report(results: StatementResult | str, as_of: str) -> str:
     str
         Formatted credit report text.
 
+    Raises
+    ------
+    ValueError
+        If results JSON is malformed or as_of cannot be parsed as a period.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import credit_assessment_report
     >>> report = credit_assessment_report(res_json, "2025Q1")  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -1658,15 +1664,16 @@ def credit_assessment(results: StatementResult | str, as_of: str) -> dict[str, A
         ``free_cash_flow`` (float | None), and ``series`` (list of per-period
         dicts with the same metric keys plus ``period``).
 
+    Raises
+    ------
+    ValueError
+        If results JSON is malformed or as_of cannot be parsed as a period.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import credit_assessment
     >>> out = credit_assessment(res_json, "2025Q4")  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -1697,7 +1704,8 @@ class DependencyTracer:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If model JSON is malformed or its dependency graph is invalid.
+
         """
         ...
     def dependency_tree(self, node_id: str) -> str:
@@ -1717,7 +1725,8 @@ class DependencyTracer:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If node_id is unknown or its dependency graph is invalid.
+
         """
         ...
 
@@ -1742,7 +1751,8 @@ class DependencyTracer:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If results JSON or period is invalid, or node_id cannot be traced.
+
         """
         ...
 
@@ -1763,7 +1773,8 @@ class DependencyTracer:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If node_id is unknown or its dependency graph is invalid.
+
         """
         ...
     def all_dependencies(self, node_id: str) -> list[str]:
@@ -1783,7 +1794,8 @@ class DependencyTracer:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If node_id is unknown or the dependency traversal fails.
+
         """
         ...
     def dependents(self, node_id: str) -> list[str]:
@@ -1803,7 +1815,8 @@ class DependencyTracer:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If node_id is unknown or its dependency graph is invalid.
+
         """
         ...
 
@@ -1823,15 +1836,16 @@ def direct_dependencies(model: FinancialModelSpec | str, node_id: str) -> list[s
     list[str]
         Direct dependency node IDs.
 
+    Raises
+    ------
+    ValueError
+        If model JSON is malformed or node_id cannot be resolved.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import direct_dependencies
     >>> deps = direct_dependencies(model_json, "ebitda")  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -1851,15 +1865,16 @@ def all_dependencies(model: FinancialModelSpec | str, node_id: str) -> list[str]
     list[str]
         Transitive dependency node IDs.
 
+    Raises
+    ------
+    ValueError
+        If model JSON is malformed or the dependency traversal fails for node_id.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import all_dependencies
     >>> chain = all_dependencies(model_json, "ni")  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -1879,15 +1894,16 @@ def dependents(model: FinancialModelSpec | str, node_id: str) -> list[str]:
     list[str]
         Dependent node IDs.
 
+    Raises
+    ------
+    ValueError
+        If model JSON is malformed or node_id cannot be resolved.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import dependents
     >>> rev_deps = dependents(model_json, "rev")  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -1917,15 +1933,16 @@ def explain_formula(
         Dict with ``node_id``, ``period_id``, ``final_value``, ``node_type``, ``formula_text``,
         and ``breakdown`` (list of component dicts: ``component``, ``value``, ``operation``).
 
+    Raises
+    ------
+    ValueError
+        If model or results JSON is malformed, period is invalid, or node_id cannot be explained.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import explain_formula
     >>> detail = explain_formula(mj, rj, "rev", "2025Q1")  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -1954,15 +1971,16 @@ def explain_formula_text(
     str
         Detailed text explanation.
 
+    Raises
+    ------
+    ValueError
+        If model or results JSON is malformed, period is invalid, or node_id cannot be explained.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import explain_formula_text
     >>> text = explain_formula_text(mj, rj, "rev", "2025Q1")  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -1992,15 +2010,16 @@ def run_checks(
     str
         JSON-serialized ``CheckReport``.
 
+    Raises
+    ------
+    ValueError
+        If model, results, or suite-spec JSON is malformed, or check evaluation fails.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import run_checks
     >>> report_json = run_checks(model_json, suite_spec_json)  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -2027,15 +2046,16 @@ def run_three_statement_checks(
     str
         JSON-serialized ``CheckReport``.
 
+    Raises
+    ------
+    ValueError
+        If model, results, or mapping JSON is malformed, or check evaluation fails.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import run_three_statement_checks
     >>> report_json = run_three_statement_checks(model_json, mapping_json)  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -2062,15 +2082,16 @@ def run_credit_underwriting_checks(
     str
         JSON-serialized ``CheckReport``.
 
+    Raises
+    ------
+    ValueError
+        If model, results, or mapping JSON is malformed, or check evaluation fails.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import run_credit_underwriting_checks
     >>> report_json = run_credit_underwriting_checks(model_json, mapping_json)  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -2088,15 +2109,16 @@ def render_check_report_text(report_json: str) -> str:
     str
         Human-readable plain-text report.
 
+    Raises
+    ------
+    ValueError
+        If report_json is not a valid serialized check report.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import render_check_report_text
     >>> text = render_check_report_text(report_json)  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -2114,15 +2136,16 @@ def render_check_report_html(report_json: str) -> str:
     str
         HTML-formatted report suitable for Jupyter notebooks.
 
+    Raises
+    ------
+    ValueError
+        If report_json is not a valid serialized check report.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import render_check_report_html
     >>> html = render_check_report_html(report_json)  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -2200,10 +2223,6 @@ class Exposure:
         dpd : object
             Value supplied for `dpd` to the documented binding operation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -2233,6 +2252,11 @@ def classify_stage(
         ``(stage, trigger_reason)`` where stage is ``"Stage 1"``, ``"Stage 2"``,
         or ``"Stage 3"``.
 
+    Raises
+    ------
+    ValueError
+        If exposure values or the staging thresholds violate the ECL policy constraints.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import Exposure, classify_stage
@@ -2240,10 +2264,6 @@ def classify_stage(
     >>> classify_stage(exp)  # doctest: +SKIP
     ('Stage 1', 'no_trigger')
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -2289,15 +2309,17 @@ def compute_ecl(
     float
         ECL amount in the exposure's base currency.
 
+    Raises
+    ------
+    ValueError
+        If stage is unknown, a PD or EAD schedule is invalid, or an ECL input is outside
+        its accepted range.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import compute_ecl
     >>> ecl = compute_ecl(1e6, [(1.0, 0.02), (3.0, 0.05)], 0.4, 0.05, 3.0)  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -2341,15 +2363,17 @@ def compute_ecl_weighted(
     float
         Probability-weighted ECL amount.
 
+    Raises
+    ------
+    ValueError
+        If stage is unknown, scenario weights or schedules are invalid, or an ECL input
+        is outside its accepted range.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import compute_ecl_weighted
     >>> ecl = compute_ecl_weighted(1e6, [(0.5, [(1.0, 0.01)]), (0.5, [(1.0, 0.03)])], 0.4, 0.05, 1.0)  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -2379,10 +2403,6 @@ def percentile_rank(value: float, peer_values: list[float]) -> float | None:
     >>> percentile_rank(3.0, [1.0, 2.0, 3.0, 4.0, 5.0])
     0.5
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -2408,10 +2428,6 @@ def z_score(value: float, peer_values: list[float]) -> float | None:
     >>> round(z_score(3.0, [1.0, 2.0, 3.0, 4.0, 5.0]), 10)
     0.0
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -2440,10 +2456,6 @@ def peer_stats(peer_values: list[float]) -> dict[str, float]:
     >>> stats["mean"]
     3.0
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -2477,10 +2489,6 @@ def regression_fair_value(
     >>> from finstack_quant.statements_analytics import regression_fair_value
     >>> result = regression_fair_value([1.0, 2.0, 3.0], [2.0, 4.0, 6.0], 2.5, 5.0)  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -2503,16 +2511,17 @@ def compute_multiple(
     float or None
         Computed multiple, or ``None`` when inputs are missing.
 
+    Raises
+    ------
+    ValueError
+        If multiple is unknown or company_metrics contains an invalid metric value.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import compute_multiple
     >>> compute_multiple({"ev": 100.0, "ebitda": 20.0}, "ev_ebitda")  # doctest: +SKIP
     5.0
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -2548,6 +2557,11 @@ def score_relative_value(
     dict[str, Any]
         Composite relative-value score.
 
+    Raises
+    ------
+    ValueError
+        If dimensions is empty or the supplied subject and peer metrics are unusable.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import score_relative_value
@@ -2555,10 +2569,6 @@ def score_relative_value(
     ...     {"ev_ebitda": 8.0}, [{"ev_ebitda": 6.0}, {"ev_ebitda": 10.0}], [("ev_ebitda", 1.0)]
     ... )  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -2619,7 +2629,8 @@ class ScorecardMetric:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If thresholds_json is malformed or does not map ratings to numeric ranges.
+
         """
         ...
 
@@ -2764,10 +2775,6 @@ class ScorecardConfig:
         period : object
             Value supplied for `period` to the documented binding operation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -3003,11 +3010,6 @@ class CreditScorecardExtension:
         CreditScorecardExtension
             Result of with config for this `CreditScorecardExtension` in the annotated representation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.statements_analytics import CreditScorecardExtension
@@ -3024,10 +3026,6 @@ class CreditScorecardExtension:
         config : ScorecardConfig
             New rating scale, metric set, and period-selection policy to apply.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
     def config(self) -> ScorecardConfig | None:
@@ -3058,7 +3056,8 @@ class CreditScorecardExtension:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If the scorecard configuration, model, or statement results are invalid.
+
         """
         ...
 
@@ -3074,7 +3073,7 @@ def validate_scorecard_config(config: ScorecardConfig) -> None:
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If the scorecard configuration is internally inconsistent.
 
     Examples
     --------
@@ -3121,7 +3120,7 @@ class AccountType:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If value is not asset, liability, or equity.
 
         Examples
         --------
@@ -3185,10 +3184,6 @@ class CorkscrewAccount:
         beginning_balance_node : object
             Value supplied for `beginning_balance_node` to the documented binding operation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -3313,10 +3308,6 @@ class CorkscrewConfig:
         fail_on_error : object
             Value supplied for `fail_on_error` to the documented binding operation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -3528,11 +3519,6 @@ class CorkscrewExtension:
         CorkscrewExtension
             Result of with config for this `CorkscrewExtension` in the annotated representation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.statements_analytics import CorkscrewExtension
@@ -3549,10 +3535,6 @@ class CorkscrewExtension:
         config : CorkscrewConfig
             Accounts, tolerance, and error policy to apply on the next run.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
     def config(self) -> CorkscrewConfig | None:
@@ -3583,7 +3565,8 @@ class CorkscrewExtension:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If the corkscrew configuration, model, or statement results are invalid.
+
         """
         ...
 
@@ -3623,7 +3606,7 @@ def add_vintage_buildup(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If model JSON, a node identifier, or decay_curve is invalid.
 
     Examples
     --------
@@ -3669,7 +3652,7 @@ def add_roll_forward(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If model JSON or a roll-forward node identifier is invalid.
 
     Examples
     --------
@@ -3714,7 +3697,7 @@ def add_roll_forward_with_opening(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If model JSON, opening, or a roll-forward node identifier is invalid.
 
     Examples
     --------
@@ -3794,7 +3777,8 @@ class SimpleLeaseSpec:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If start or end is not a valid model period.
+
         """
         ...
 
@@ -3954,7 +3938,8 @@ class RentStepSpec:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If start is not a valid model period.
+
         """
         ...
 
@@ -4050,7 +4035,8 @@ class FreeRentWindowSpec:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If start is not a valid model period.
+
         """
         ...
 
@@ -4163,10 +4149,6 @@ class RenewalSpec:
         free_rent_periods : object
             Value supplied for `free_rent_periods` to the documented binding operation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -4305,7 +4287,7 @@ class LeaseGrowthConvention:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If value is not per_period or annual_escalator.
 
         Examples
         --------
@@ -4407,7 +4389,8 @@ class LeaseSpec:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If start or end is not a valid model period.
+
         """
         ...
 
@@ -4599,10 +4582,6 @@ class RentRollOutputNodes:
         rent_effective_node : object
             Value supplied for `rent_effective_node` to the documented binding operation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -4721,7 +4700,7 @@ class ManagementFeeBase:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If value is not egi or effective_rent.
 
         Examples
         --------
@@ -4771,10 +4750,6 @@ class ManagementFeeSpec:
         base : object
             Value supplied for `base` to the documented binding operation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -4900,10 +4875,6 @@ class PropertyTemplateNodes:
         ncf_node : object
             Value supplied for `ncf_node` to the documented binding operation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -5067,7 +5038,7 @@ def add_noi_buildup(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If model JSON or a revenue, expense, or NOI node identifier is invalid.
 
     Examples
     --------
@@ -5105,7 +5076,7 @@ def add_ncf_buildup(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If model JSON or an NOI, capital-expenditure, or NCF node identifier is invalid.
 
     Examples
     --------
@@ -5140,7 +5111,7 @@ def add_rent_roll(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If model JSON, a lease specification, or a rent-roll output node is invalid.
 
     Examples
     --------
@@ -5175,7 +5146,7 @@ def add_rent_roll_rental_revenue(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If model JSON, a lease specification, or total_rent_node is invalid.
 
     Examples
     --------
@@ -5222,7 +5193,7 @@ def add_property_operating_statement(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If model JSON, a lease or fee specification, or an operating-statement node is invalid.
 
     Examples
     --------
