@@ -40,15 +40,6 @@ impl JumpEuler {
     pub fn new() -> Self {
         Self
     }
-
-    /// Create with a legacy jump-budget argument.
-    ///
-    /// The current scheme samples the aggregate conditional log jump and does
-    /// not truncate jumps, so the argument is retained only for source
-    /// compatibility.
-    pub fn with_max_jumps(_max_jumps: usize) -> Self {
-        Self::new()
-    }
 }
 
 impl Discretization<MertonJumpProcess> for JumpEuler {

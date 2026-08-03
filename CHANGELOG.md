@@ -4,6 +4,9 @@
 
 ### Changed
 
+- **Breaking (Rust):** Removed the no-op `JumpEuler::with_max_jumps`
+  constructor. Use `JumpEuler::new`; the aggregate jump sampler remains
+  uncapped.
 - **Breaking (Rust behavior):** Statement formula checks now use the canonical
   statements DSL evaluator, including time-series functions and `cs.*`
   references. `CheckSuiteSpec::resolve()` materializes formula checks directly;
