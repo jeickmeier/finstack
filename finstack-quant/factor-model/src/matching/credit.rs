@@ -35,9 +35,7 @@ use finstack_quant_core::types::{Attributes, IssuerId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-// ---------------------------------------------------------------------------
 // Public constants
-// ---------------------------------------------------------------------------
 
 /// Reserved key in [`Attributes::meta`] used to thread the issuer identifier
 /// from the position into the matcher.
@@ -49,9 +47,7 @@ pub const ISSUER_ID_META_KEY: &str = "credit::issuer_id";
 /// Canonical factor ID for the generic credit (PC) factor.
 pub const CREDIT_GENERIC_FACTOR_ID: &str = "credit::generic";
 
-// ---------------------------------------------------------------------------
 // Config
-// ---------------------------------------------------------------------------
 
 /// Declarative configuration for a calibrated credit-hierarchy matcher.
 ///
@@ -108,9 +104,7 @@ impl CreditHierarchicalConfig {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Matcher
-// ---------------------------------------------------------------------------
 
 /// Calibrated credit-hierarchy matcher.
 ///
@@ -249,9 +243,7 @@ impl FactorMatcher for CreditHierarchicalMatcher {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// Dotted dimension-name path through the first `level_idx + 1` levels of
 /// the hierarchy spec, e.g. `"Rating.Region"` for level index 1.
@@ -326,9 +318,7 @@ fn tags_from_attributes(spec: &CreditHierarchySpec, attrs: &Attributes) -> Issue
     IssuerTags(map)
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -389,9 +379,7 @@ mod tests {
         })
     }
 
-    // --------------------------------------------------------------
     // PR-2 test: known issuer → PC + bucket factors in canonical order
-    // --------------------------------------------------------------
     #[test]
     fn credit_hierarchical_matcher_returns_generic_and_bucket_factors() {
         let matcher = matcher_with_one_issuer();
@@ -432,9 +420,7 @@ mod tests {
         assert!((entries[3].beta - 0.75).abs() < 1e-12);
     }
 
-    // --------------------------------------------------------------
     // PR-2 test: known issuer with missing tag is a typed error
-    // --------------------------------------------------------------
     #[test]
     fn credit_hierarchical_matcher_errors_on_missing_required_tag() {
         let mut tags = three_level_tags();
@@ -462,9 +448,7 @@ mod tests {
         }
     }
 
-    // --------------------------------------------------------------
     // unsorted issuer_betas must not break lookup
-    // --------------------------------------------------------------
     #[test]
     fn matcher_resorts_unsorted_issuer_betas_before_binary_search() {
         // Rows deliberately supplied in reverse order; binary search over the
@@ -492,9 +476,7 @@ mod tests {
         );
     }
 
-    // --------------------------------------------------------------
     // short beta vector is a typed error, not β = 1.0
-    // --------------------------------------------------------------
     #[test]
     fn matcher_errors_on_beta_shape_mismatch() {
         // Two betas for a three-level hierarchy.
@@ -526,10 +508,8 @@ mod tests {
         }
     }
 
-    // --------------------------------------------------------------
     // unknown issuer with partial tags is an error;
     // with no tags at all it stays the PC-only proxy fallback
-    // --------------------------------------------------------------
     #[test]
     fn unknown_issuer_with_partial_tags_errors_instead_of_truncating() {
         let matcher = CreditHierarchicalMatcher::new(CreditHierarchicalConfig {
@@ -568,10 +548,8 @@ mod tests {
         );
     }
 
-    // --------------------------------------------------------------
     // Folded-level sentinel: β = 0.0 levels emit no entry and are not
     // enumerated
-    // --------------------------------------------------------------
     #[test]
     fn zero_beta_levels_are_skipped_in_matching_and_enumeration() {
         // Level 1 folded (β = 0.0).
@@ -607,9 +585,7 @@ mod tests {
         );
     }
 
-    // --------------------------------------------------------------
     // PR-2 test: unknown issuer with full tags → BucketOnly (β = 1)
-    // --------------------------------------------------------------
     #[test]
     fn credit_hierarchical_matcher_treats_unknown_issuer_as_bucket_only_when_tags_exist() {
         // Configure with NO known issuers; all matches must come from instrument tags.
@@ -647,9 +623,7 @@ mod tests {
         );
     }
 
-    // --------------------------------------------------------------
     // Non-credit dependency falls through to None
-    // --------------------------------------------------------------
     #[test]
     fn non_credit_dependency_falls_through() {
         let matcher = matcher_with_one_issuer();
@@ -659,9 +633,7 @@ mod tests {
         assert!(result.is_none());
     }
 
-    // --------------------------------------------------------------
     // Custom dimension keys read from `Custom(name)`
-    // --------------------------------------------------------------
     #[test]
     fn custom_hierarchy_dimension_uses_caller_supplied_key() {
         let spec = CreditHierarchySpec {
@@ -697,9 +669,7 @@ mod tests {
         );
     }
 
-    // --------------------------------------------------------------
     // enumerate_factor_ids covers every bucket present in calibrated rows
-    // --------------------------------------------------------------
     #[test]
     fn enumerate_factor_ids_returns_pc_and_all_buckets() {
         let matcher = matcher_with_one_issuer();
@@ -712,9 +682,7 @@ mod tests {
         )));
     }
 
-    // --------------------------------------------------------------
     // Issuer betas are looked up via binary search; sort order matters.
-    // --------------------------------------------------------------
     #[test]
     fn binary_search_finds_issuer_in_sorted_vec() {
         let mut rows = Vec::new();
@@ -742,9 +710,7 @@ mod tests {
         assert!((entries[0].beta - 1.5).abs() < 1e-12);
     }
 
-    // --------------------------------------------------------------
     // Serde round-trip on the config
-    // --------------------------------------------------------------
     #[test]
     fn credit_hierarchical_config_serde_roundtrip() {
         let config = CreditHierarchicalConfig {

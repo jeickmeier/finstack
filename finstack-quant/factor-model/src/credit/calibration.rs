@@ -80,9 +80,7 @@ use finstack_quant_core::types::IssuerId;
 
 use finstack_quant_core::{Error, Result};
 
-// ---------------------------------------------------------------------------
 // Public configuration types
-// ---------------------------------------------------------------------------
 
 /// Whether the calibrator works in price-difference (return) or raw-level space.
 ///
@@ -258,9 +256,7 @@ impl Default for CreditCalibrationConfig {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Input panels
-// ---------------------------------------------------------------------------
 
 /// Sparse issuer-spread history aligned to a sorted date grid.
 ///
@@ -319,9 +315,7 @@ pub struct CreditCalibrationInputs {
     pub idiosyncratic_overrides: BTreeMap<IssuerId, f64>,
 }
 
-// ---------------------------------------------------------------------------
 // Calibrator
-// ---------------------------------------------------------------------------
 
 /// Deterministic calibrator that produces a [`CreditFactorModel`].
 ///
@@ -575,9 +569,7 @@ impl CreditCalibrator {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Helpers — small, single-responsibility, no I/O.
-// ---------------------------------------------------------------------------
 
 fn validation_err(msg: impl Into<String>) -> Error {
     Error::Validation(msg.into())

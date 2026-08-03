@@ -34,9 +34,7 @@ use crate::credit::hierarchy::{
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::types::IssuerId;
 
-// ---------------------------------------------------------------------------
 // Result types
-// ---------------------------------------------------------------------------
 
 /// Per-level bucket values produced by a single decomposition.
 ///
@@ -100,9 +98,7 @@ pub struct PeriodDecomposition {
     pub d_adder: BTreeMap<IssuerId, f64>,
 }
 
-// ---------------------------------------------------------------------------
 // Errors
-// ---------------------------------------------------------------------------
 
 /// Failure modes for the decomposition routines.
 #[derive(Debug, Clone, PartialEq, thiserror::Error, serde::Serialize, serde::Deserialize)]
@@ -164,9 +160,7 @@ pub enum DecompositionError {
     },
 }
 
-// ---------------------------------------------------------------------------
 // Internal helpers
-// ---------------------------------------------------------------------------
 
 /// Indexes every issuer beta row by `issuer_id` for O(log n) lookup.
 fn index_issuer_betas(model: &CreditFactorModel) -> BTreeMap<&IssuerId, &IssuerBetaRow> {
@@ -186,9 +180,7 @@ fn unit_betas(num_levels: usize) -> IssuerBetas {
     }
 }
 
-// ---------------------------------------------------------------------------
 // decompose_levels
-// ---------------------------------------------------------------------------
 
 /// Decompose observed issuer spreads at `as_of` into per-level factor values
 /// and per-issuer residual adders.
@@ -271,9 +263,7 @@ pub fn decompose_levels(
         }
     }
 
-    // ------------------------------------------------------------------
     // Step 0 — defensive shape check on model.issuer_betas. Cheap: O(N).
-    // ------------------------------------------------------------------
     for row in &model.issuer_betas {
         if row.betas.levels.len() != num_levels {
             return Err(DecompositionError::ModelInconsistent {
@@ -396,9 +386,7 @@ pub fn decompose_levels(
     })
 }
 
-// ---------------------------------------------------------------------------
 // decompose_period
-// ---------------------------------------------------------------------------
 
 /// Difference two [`LevelsAtDate`] snapshots component-wise.
 ///

@@ -96,9 +96,7 @@ impl CreditFactorModelSchema {
     }
 }
 
-// ---------------------------------------------------------------------------
 // dimension_key helper — lives here so CreditHierarchySpec can use it
-// ---------------------------------------------------------------------------
 
 /// Canonical lowercase key used to read a [`HierarchyDimension`] from a tag map.
 ///
@@ -121,9 +119,7 @@ pub fn dimension_key(dim: &HierarchyDimension) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Date range (no DateRange exists yet in finstack-quant-core)
-// ---------------------------------------------------------------------------
 
 /// A closed calendar-date interval `[start, end]`.
 ///
@@ -141,9 +137,7 @@ pub struct DateRange {
     pub end: Date,
 }
 
-// ---------------------------------------------------------------------------
 // Policy types
-// ---------------------------------------------------------------------------
 
 /// Per-issuer regression behavior override supplied by the user before calibration.
 ///
@@ -201,9 +195,7 @@ pub enum IssuerBetaPolicy {
     GloballyOff,
 }
 
-// ---------------------------------------------------------------------------
 // Hierarchy specification
-// ---------------------------------------------------------------------------
 
 /// A single level in the credit factor hierarchy.
 ///
@@ -262,9 +254,7 @@ impl CreditHierarchySpec {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Issuer tags and betas
-// ---------------------------------------------------------------------------
 
 /// Flat key-value taxonomy tags for an issuer.
 ///
@@ -346,9 +336,7 @@ pub struct IssuerBetaRow {
     pub fit_quality: Option<FitQuality>,
 }
 
-// ---------------------------------------------------------------------------
 // Anchor state
-// ---------------------------------------------------------------------------
 
 /// Factor level values for a single hierarchy level at the calibration anchor date.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -376,9 +364,7 @@ pub struct LevelsAtAnchor {
     pub by_level: Vec<LevelAnchor>,
 }
 
-// ---------------------------------------------------------------------------
 // Correlation matrix
-// ---------------------------------------------------------------------------
 
 /// Static factor correlation matrix `ρ` for the covariance decomposition
 /// `Σ(t) = D(t) · ρ · D(t)` where `D(t)` is the diagonal vol matrix.
@@ -532,9 +518,7 @@ impl FactorCorrelationMatrix {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Vol state
-// ---------------------------------------------------------------------------
 
 /// Volatility model for a single factor.
 ///
@@ -627,9 +611,7 @@ pub struct VolState {
     pub idiosyncratic: BTreeMap<IssuerId, IdiosyncraticVolModel>,
 }
 
-// ---------------------------------------------------------------------------
 // Factor histories
-// ---------------------------------------------------------------------------
 
 /// Embedded time-series of factor returns.
 ///
@@ -650,9 +632,7 @@ pub struct FactorHistories {
     pub values: BTreeMap<FactorId, Vec<f64>>,
 }
 
-// ---------------------------------------------------------------------------
 // Diagnostics
-// ---------------------------------------------------------------------------
 
 /// Record of a single fold-up event during calibration.
 ///
@@ -708,9 +688,7 @@ pub struct CalibrationDiagnostics {
     pub tag_taxonomy: BTreeMap<String, BTreeSet<String>>,
 }
 
-// ---------------------------------------------------------------------------
 // Generic factor spec
-// ---------------------------------------------------------------------------
 
 /// Reference to the generic (PC) time series used as the first factor.
 ///
@@ -725,9 +703,7 @@ pub struct GenericFactorSpec {
     pub series_id: String,
 }
 
-// ---------------------------------------------------------------------------
 // Top-level artifact
-// ---------------------------------------------------------------------------
 
 /// Fully self-contained credit factor model artifact.
 ///
@@ -941,9 +917,7 @@ impl CreditFactorModel {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -955,9 +929,7 @@ mod tests {
     use finstack_quant_core::dates::create_date;
     use time::Month;
 
-    // ------------------------------------------------------------------
     // Test helpers
-    // ------------------------------------------------------------------
 
     fn empty_factor_model_config() -> FactorModelConfig {
         FactorModelConfig {
@@ -1029,9 +1001,7 @@ mod tests {
         }
     }
 
-    // ------------------------------------------------------------------
     // PR-plan test 1: round-trip JSON
-    // ------------------------------------------------------------------
     #[test]
     fn credit_factor_model_round_trips_json() {
         let model = minimal_model();
@@ -1098,13 +1068,11 @@ mod tests {
         );
     }
 
-    // ------------------------------------------------------------------
     // INVARIANTS.md §8 contract: the root artifact is closed
     // (`deny_unknown_fields`), so an unknown root key must FAIL to
     // deserialize; `CalibrationDiagnostics` is an open extension point, so
     // an unknown diagnostics key must deserialize successfully. Adding a
     // root key therefore requires a coordinated v1 contract change.
-    // ------------------------------------------------------------------
     #[test]
     fn unknown_root_key_is_rejected_but_diagnostics_extension_is_accepted() {
         let model = minimal_model();
@@ -1148,9 +1116,7 @@ mod tests {
             .expect_err("unsupported schema marker must fail during deserialization");
     }
 
-    // ------------------------------------------------------------------
     // PR-plan test 2: reject duplicate issuers
-    // ------------------------------------------------------------------
     #[test]
     fn credit_factor_model_rejects_duplicate_issuers() {
         let mut model = minimal_model();
@@ -1163,9 +1129,7 @@ mod tests {
         assert!(model.validate().is_err());
     }
 
-    // ------------------------------------------------------------------
     // PR-plan test 3: custom dimensions serialize deterministically
-    // ------------------------------------------------------------------
     #[test]
     fn credit_hierarchy_custom_dimensions_serialize_deterministically() {
         let spec = CreditHierarchySpec {
@@ -1183,9 +1147,7 @@ mod tests {
         assert_eq!(back.levels, spec.levels);
     }
 
-    // ------------------------------------------------------------------
     // PR-plan test 4: factor IDs are stable for same hierarchy
-    // ------------------------------------------------------------------
     #[test]
     fn credit_factor_ids_are_stable_for_same_hierarchy() {
         // Two models with the same hierarchy spec and same factor IDs in config
@@ -1221,9 +1183,7 @@ mod tests {
         assert_eq!(json_a, json_b);
     }
 
-    // ------------------------------------------------------------------
     // PR-plan test 5: empty hierarchy is valid
-    // ------------------------------------------------------------------
     #[test]
     fn empty_hierarchy_is_valid() {
         let mut model = minimal_model();
@@ -1236,9 +1196,7 @@ mod tests {
         assert!(back.hierarchy.levels.is_empty());
     }
 
-    // ------------------------------------------------------------------
     // Additional: duplicate hierarchy dimensions are rejected
-    // ------------------------------------------------------------------
     #[test]
     fn validate_rejects_duplicate_hierarchy_dimensions() {
         let mut model = minimal_model();
@@ -1248,9 +1206,7 @@ mod tests {
         assert!(model.validate().is_err());
     }
 
-    // ------------------------------------------------------------------
     // Additional: FactorCorrelationMatrix constructors
-    // ------------------------------------------------------------------
     #[test]
     fn factor_correlation_matrix_identity_roundtrips() {
         let fids = vec![FactorId::new("f1"), FactorId::new("f2")];
@@ -1280,9 +1236,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // ------------------------------------------------------------------
     // Additional: IssuerTags deterministic order
-    // ------------------------------------------------------------------
     #[test]
     fn issuer_tags_serialize_in_btree_order() {
         // BTreeMap guarantees alphabetical key order, so "rating" < "region" < "sector"
@@ -1300,9 +1254,7 @@ mod tests {
         assert!(region_pos < sector_pos);
     }
 
-    // ------------------------------------------------------------------
     // Additional: FactorHistories length mismatch is rejected by validate
-    // ------------------------------------------------------------------
     #[test]
     fn validate_rejects_mismatched_factor_history_lengths() {
         let mut model = minimal_model();
@@ -1318,9 +1270,7 @@ mod tests {
         assert!(model.validate().is_err());
     }
 
-    // ------------------------------------------------------------------
     // Additional: Dynamic policy round-trips
-    // ------------------------------------------------------------------
     #[test]
     fn dynamic_policy_round_trips_json() {
         let mut overrides = BTreeMap::new();
@@ -1341,9 +1291,7 @@ mod tests {
         assert_eq!(policy, back);
     }
 
-    // ------------------------------------------------------------------
     // Fix 1 test: FactorCorrelationMatrix rejects duplicate factor IDs
-    // ------------------------------------------------------------------
     #[test]
     fn factor_correlation_matrix_rejects_duplicate_factor_ids() {
         let fid_a = FactorId::new("f1");
@@ -1352,9 +1300,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // ------------------------------------------------------------------
     // Fix 2 test: validate() rejects a corrupt static_correlation
-    // ------------------------------------------------------------------
     #[test]
     fn validate_rejects_corrupt_static_correlation() {
         let mut model = minimal_model();
@@ -1367,9 +1313,7 @@ mod tests {
         assert!(model.validate().is_err());
     }
 
-    // ------------------------------------------------------------------
     // CreditHierarchySpec::bucket_path — unit tests (Fix A)
-    // ------------------------------------------------------------------
 
     fn tags_rrs(rating: &str, region: &str, sector: &str) -> IssuerTags {
         let mut m = BTreeMap::new();
