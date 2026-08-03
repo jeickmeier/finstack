@@ -737,10 +737,6 @@ class McEngine:
         >>> McEngine(10, TimeGrid(1.0, 5), seed=1, use_parallel=True)  # doctest: +ELLIPSIS
         McEngine(...)
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -785,7 +781,12 @@ class McEngine:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``rate`` or ``div_yield`` is non-finite, ``vol`` is negative or non-finite,
+            the engine's path count is zero or exceeds ``10_000_000``,
+            ``currency`` is unknown, or discounting produces a non-finite value.
+        TypeError
+            If a non-``None`` ``currency`` is neither a string nor a ``Currency`` instance.
+
         """
         ...
 
@@ -830,7 +831,12 @@ class McEngine:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``rate`` or ``div_yield`` is non-finite, ``vol`` is negative or non-finite,
+            the engine's path count is zero or exceeds ``10_000_000``,
+            ``currency`` is unknown, or discounting produces a non-finite value.
+        TypeError
+            If a non-``None`` ``currency`` is neither a string nor a ``Currency`` instance.
+
         """
         ...
 
@@ -881,7 +887,11 @@ def simulate_gbm_paths(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``spot`` is non-finite or not strictly positive; ``rate`` or
+        ``div_yield`` is non-finite; ``vol`` is negative or non-finite;
+        ``expiry`` is non-finite or not strictly positive; ``num_steps`` is
+        zero or cannot form a time grid; ``num_paths`` is zero or exceeds the
+        ``100_000``-path capture limit; or ``antithetic`` is ``True``.
 
     Examples
     --------
@@ -912,7 +922,8 @@ def heston_satisfies_feller(kappa: float, theta: float, vol_of_vol: float) -> bo
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``kappa``, ``theta``, or ``vol_of_vol`` is non-finite or not
+        strictly positive.
 
     Examples
     --------
@@ -957,10 +968,6 @@ class EuropeanPricer:
         >>> EuropeanPricer(500, 9).seed
         9
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1060,7 +1067,13 @@ class EuropeanPricer:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``rate`` or ``div_yield`` is non-finite, ``vol`` is negative or non-finite,
+            ``expiry`` is non-finite or not strictly positive, ``num_steps`` is zero, the
+            configured path count is zero or exceeds ``10_000_000``,
+            ``currency`` is unknown, or discounting produces a non-finite value.
+        TypeError
+            If a non-``None`` ``currency`` is neither a string nor a ``Currency`` instance.
+
         """
         ...
 
@@ -1111,7 +1124,13 @@ class EuropeanPricer:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``rate`` or ``div_yield`` is non-finite, ``vol`` is negative or non-finite,
+            ``expiry`` is non-finite or not strictly positive, ``num_steps`` is zero, the
+            configured path count is zero or exceeds ``10_000_000``,
+            ``currency`` is unknown, or discounting produces a non-finite value.
+        TypeError
+            If a non-``None`` ``currency`` is neither a string nor a ``Currency`` instance.
+
         """
         ...
 
@@ -1150,10 +1169,6 @@ class PathDependentPricer:
         >>> PathDependentPricer(100, 1, use_parallel=True).num_paths
         100
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1206,7 +1221,13 @@ class PathDependentPricer:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``rate`` or ``div_yield`` is non-finite, ``vol`` is negative or non-finite,
+            ``expiry`` is non-finite or not strictly positive, ``num_steps`` is zero, the
+            configured path count is zero or exceeds ``10_000_000``,
+            ``currency`` is unknown, or discounting produces a non-finite value.
+        TypeError
+            If a non-``None`` ``currency`` is neither a string nor a ``Currency`` instance.
+
         """
         ...
 
@@ -1259,7 +1280,13 @@ class PathDependentPricer:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``rate`` or ``div_yield`` is non-finite, ``vol`` is negative or non-finite,
+            ``expiry`` is non-finite or not strictly positive, ``num_steps`` is zero, the
+            configured path count is zero or exceeds ``10_000_000``,
+            ``currency`` is unknown, or discounting produces a non-finite value.
+        TypeError
+            If a non-``None`` ``currency`` is neither a string nor a ``Currency`` instance.
+
         """
         ...
 
@@ -1462,7 +1489,15 @@ class LsmcPricer:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``strike`` is non-positive, or is no greater than ``1e-14``
+            with the normalized-polynomial basis; ``rate`` or ``div_yield``
+            is non-finite; ``vol`` is negative or non-finite; ``expiry`` is
+            non-finite or not strictly positive;
+            ``num_steps`` or the configured path count is zero; or
+            ``currency`` is unknown.
+        TypeError
+            If a non-``None`` ``currency`` is neither a string nor a ``Currency`` instance.
+
         """
         ...
 
@@ -1513,7 +1548,15 @@ class LsmcPricer:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``strike`` is non-positive, or is no greater than ``1e-14``
+            with the normalized-polynomial basis; ``rate`` or ``div_yield``
+            is non-finite; ``vol`` is negative or non-finite; ``expiry`` is
+            non-finite or not strictly positive;
+            ``num_steps`` or the configured path count is zero; or
+            ``currency`` is unknown.
+        TypeError
+            If a non-``None`` ``currency`` is neither a string nor a ``Currency`` instance.
+
         """
         ...
 
@@ -1771,7 +1814,14 @@ def price_european_call(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``rate`` or ``div_yield`` is non-finite, ``vol`` is negative or
+        non-finite, ``expiry`` is non-finite or not strictly positive,
+        ``num_steps`` is zero,
+        ``num_paths`` is zero or exceeds ``10_000_000``, ``currency`` is
+        unknown, or discounting produces a non-finite value.
+    TypeError
+        If a non-``None`` ``currency`` is neither a string nor a ``Currency`` instance.
+
     """
     ...
 
@@ -1827,7 +1877,14 @@ def price_european_put(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``rate`` or ``div_yield`` is non-finite, ``vol`` is negative or
+        non-finite, ``expiry`` is non-finite or not strictly positive,
+        ``num_steps`` is zero,
+        ``num_paths`` is zero or exceeds ``10_000_000``, ``currency`` is
+        unknown, or discounting produces a non-finite value.
+    TypeError
+        If a non-``None`` ``currency`` is neither a string nor a ``Currency`` instance.
+
     """
     ...
 

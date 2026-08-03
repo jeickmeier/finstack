@@ -413,10 +413,6 @@ class FactorCovarianceForecast:
         model : CreditFactorModel
             Calibrated hierarchy artifact used as the risk factor basis.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
