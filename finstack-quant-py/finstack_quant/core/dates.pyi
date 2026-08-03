@@ -302,7 +302,7 @@ class DayCount:
         -------
         DayCount
 
-            Result of from name for this `DayCount` in the annotated representation.
+            Day-count convention corresponding to the exact canonical lowercase name.
         Raises
         ------
         ValueError
@@ -598,7 +598,8 @@ class DayCountContextState:
         Returns
         -------
         DayCountContext
-            Result of to context for this `DayCountContextState` in the annotated representation.
+            New runtime context with every snapshot field copied; calendar
+            resolution remains deferred until a calculation needs it.
         """
         ...
 
@@ -731,7 +732,8 @@ class TenorUnit:
         -------
         TenorUnit
 
-            Result of from char for this `TenorUnit` in the annotated representation.
+            Day, week, month, or year unit selected by the case-insensitive
+            ``D``, ``W``, ``M``, or ``Y`` designator.
         Raises
         ------
         ValueError
@@ -807,7 +809,7 @@ class Tenor:
         -------
         Tenor
 
-            Result of parse for this `Tenor` in the annotated representation.
+            Validated tenor preserving the positive count and unit parsed from ``s``.
         Raises
         ------
         ValueError
@@ -831,7 +833,7 @@ class Tenor:
         Returns
         -------
         Tenor
-            Result of daily for this `Tenor` in the annotated representation.
+            One-calendar-day tenor.
 
         Examples
         --------
@@ -851,7 +853,7 @@ class Tenor:
         Returns
         -------
         Tenor
-            Result of weekly for this `Tenor` in the annotated representation.
+            One-week tenor, equivalent to seven calendar days.
 
         Examples
         --------
@@ -871,7 +873,7 @@ class Tenor:
         Returns
         -------
         Tenor
-            Result of biweekly for this `Tenor` in the annotated representation.
+            Two-week tenor, equivalent to fourteen calendar days.
 
         Examples
         --------
@@ -891,7 +893,7 @@ class Tenor:
         Returns
         -------
         Tenor
-            Result of monthly for this `Tenor` in the annotated representation.
+            One-month tenor.
 
         Examples
         --------
@@ -911,7 +913,7 @@ class Tenor:
         Returns
         -------
         Tenor
-            Result of bimonthly for this `Tenor` in the annotated representation.
+            Two-month tenor.
 
         Examples
         --------
@@ -930,7 +932,7 @@ class Tenor:
         Returns
         -------
         Tenor
-            Result of quarterly for this `Tenor` in the annotated representation.
+            Three-month tenor.
 
         Examples
         --------
@@ -949,7 +951,7 @@ class Tenor:
         Returns
         -------
         Tenor
-            Result of semi annual for this `Tenor` in the annotated representation.
+            Six-month tenor.
 
         Examples
         --------
@@ -968,7 +970,7 @@ class Tenor:
         Returns
         -------
         Tenor
-            Result of annual for this `Tenor` in the annotated representation.
+            One-year ``1Y`` tenor.
 
         Examples
         --------
@@ -993,7 +995,7 @@ class Tenor:
         -------
         Tenor
 
-            Result of from payments per year for this `Tenor` in the annotated representation.
+            Month tenor with ``12 / payments`` months per coupon period.
         Raises
         ------
         ValueError
@@ -1064,7 +1066,9 @@ class Tenor:
         Returns
         -------
         float
-            Result of to years simple for this `Tenor` in the annotated representation.
+            Approximate years using days divided by 365, weeks multiplied by
+            seven and divided by 365, months divided by 12, or the stored year
+            count.
         """
         ...
 
@@ -1075,7 +1079,8 @@ class Tenor:
         Returns
         -------
         int
-            Result of to days approx for this `Tenor` in the annotated representation.
+            Nearest whole-day length using seven-day weeks, ``365 / 12`` days
+            per month, and 365-day years.
         """
         ...
 
@@ -1124,13 +1129,13 @@ class PeriodKind:
         Parameters
         ----------
         name : str
-            Period kind identifier (e.g. ``"quarterly"``, ``"m"``, ``"annual"``).
+            Exact canonical period-kind name, such as ``"quarterly"`` or ``"annual"``.
 
         Returns
         -------
         PeriodKind
 
-            Result of from name for this `PeriodKind` in the annotated representation.
+            Canonical frequency represented by the exact canonical lowercase name.
         Raises
         ------
         ValueError
@@ -1204,7 +1209,7 @@ class PeriodId:
         -------
         PeriodId
 
-            Result of parse for this `PeriodId` in the annotated representation.
+            Validated calendar or ``FY`` period encoded by ``code``.
         Raises
         ------
         ValueError
@@ -1234,7 +1239,7 @@ class PeriodId:
         Returns
         -------
         PeriodId
-            Result of month for this `PeriodId` in the annotated representation.
+            Calendar-month identifier formatted as ``YYYYMmm``.
 
         Raises
         ------
@@ -1266,7 +1271,7 @@ class PeriodId:
         Returns
         -------
         PeriodId
-            Result of quarter for this `PeriodId` in the annotated representation.
+            Calendar-quarter identifier formatted as ``YYYYQq``.
 
         Raises
         ------
@@ -1296,7 +1301,7 @@ class PeriodId:
         Returns
         -------
         PeriodId
-            Result of annual for this `PeriodId` in the annotated representation.
+            Calendar-year identifier formatted as ``YYYY``.
 
 
         Examples
@@ -1323,7 +1328,7 @@ class PeriodId:
         Returns
         -------
         PeriodId
-            Result of half for this `PeriodId` in the annotated representation.
+            Calendar-half identifier formatted as ``YYYYHh``.
 
         Raises
         ------
@@ -1355,7 +1360,7 @@ class PeriodId:
         Returns
         -------
         PeriodId
-            Result of week for this `PeriodId` in the annotated representation.
+            ISO week-year identifier formatted as ``YYYYWww``.
 
         Raises
         ------
@@ -1387,7 +1392,7 @@ class PeriodId:
         Returns
         -------
         PeriodId
-            Result of day for this `PeriodId` in the annotated representation.
+            Calendar ordinal-day identifier formatted as ``YYYYDddd``.
 
         Raises
         ------
@@ -1484,7 +1489,7 @@ class PeriodId:
         -------
         PeriodId
 
-            Result of next for this `PeriodId` in the annotated representation.
+            Following non-fiscal period of the same frequency, with year rollover.
         Raises
         ------
         ValueError
@@ -1501,7 +1506,7 @@ class PeriodId:
         -------
         PeriodId
 
-            Result of prev for this `PeriodId` in the annotated representation.
+            Preceding non-fiscal period of the same frequency, with year rollover.
         Raises
         ------
         ValueError
@@ -1526,7 +1531,8 @@ class PeriodId:
         Returns
         -------
         PeriodId
-            Result of next fiscal for this `PeriodId` in the annotated representation.
+            Following fiscal period of the same kind, with week and day
+            capacity determined by ``fiscal_config``.
 
         Raises
         ------
@@ -1550,7 +1556,8 @@ class PeriodId:
         Returns
         -------
         PeriodId
-            Result of prev fiscal for this `PeriodId` in the annotated representation.
+            Preceding fiscal period of the same kind, with week and day
+            capacity determined by ``fiscal_config``.
 
         Raises
         ------
@@ -1714,7 +1721,7 @@ class FiscalConfig:
         Returns
         -------
         FiscalConfig
-            Result of calendar year for this `FiscalConfig` in the annotated representation.
+            Fiscal configuration beginning January 1.
 
         Examples
         --------
@@ -1734,7 +1741,7 @@ class FiscalConfig:
         Returns
         -------
         FiscalConfig
-            Result of us federal for this `FiscalConfig` in the annotated representation.
+            US federal fiscal configuration beginning October 1.
 
         Examples
         --------
@@ -1754,7 +1761,7 @@ class FiscalConfig:
         Returns
         -------
         FiscalConfig
-            Result of uk for this `FiscalConfig` in the annotated representation.
+            UK fiscal configuration beginning April 6.
 
         Examples
         --------
@@ -1774,7 +1781,7 @@ class FiscalConfig:
         Returns
         -------
         FiscalConfig
-            Result of japan for this `FiscalConfig` in the annotated representation.
+            Japanese fiscal configuration beginning April 1.
 
         Examples
         --------
@@ -1794,7 +1801,7 @@ class FiscalConfig:
         Returns
         -------
         FiscalConfig
-            Result of canada for this `FiscalConfig` in the annotated representation.
+            Canadian fiscal configuration beginning April 1.
 
         Examples
         --------
@@ -1814,7 +1821,7 @@ class FiscalConfig:
         Returns
         -------
         FiscalConfig
-            Result of australia for this `FiscalConfig` in the annotated representation.
+            Australian fiscal configuration beginning July 1.
 
         Examples
         --------
@@ -1834,7 +1841,7 @@ class FiscalConfig:
         Returns
         -------
         FiscalConfig
-            Result of germany for this `FiscalConfig` in the annotated representation.
+            German fiscal configuration beginning January 1.
 
         Examples
         --------
@@ -1854,7 +1861,7 @@ class FiscalConfig:
         Returns
         -------
         FiscalConfig
-            Result of france for this `FiscalConfig` in the annotated representation.
+            French fiscal configuration beginning January 1.
 
         Examples
         --------
@@ -2290,7 +2297,8 @@ class StubKind:
         -------
         StubKind
 
-            Result of from name for this `StubKind` in the annotated representation.
+            No-stub, front-stub, or back-stub rule represented by the exact
+            canonical lowercase name.
         Raises
         ------
         ValueError
@@ -2382,7 +2390,7 @@ class Schedule:
         Returns
         -------
         bool
-            Result of used graceful fallback for this `Schedule` in the annotated representation.
+            ``True`` exactly when the schedule warnings include a graceful-fallback warning.
         """
         ...
 
@@ -2472,7 +2480,7 @@ class ScheduleBuilder:
         Returns
         -------
         ScheduleBuilder
-            Result of frequency for this `ScheduleBuilder` in the annotated representation.
+            Same builder instance after replacing its validated coupon or roll tenor.
 
         Raises
         ------
@@ -2494,7 +2502,7 @@ class ScheduleBuilder:
         Returns
         -------
         ScheduleBuilder
-            Result of stub rule for this `ScheduleBuilder` in the annotated representation.
+            Same builder instance after replacing its stub rule with ``stub``.
 
         """
         ...
@@ -2513,7 +2521,8 @@ class ScheduleBuilder:
         Returns
         -------
         ScheduleBuilder
-            Result of adjust with for this `ScheduleBuilder` in the annotated representation.
+            Same builder instance after storing the convention and calendar ID
+            used to adjust dates during ``build()``.
 
         """
         ...
@@ -2530,7 +2539,7 @@ class ScheduleBuilder:
         Returns
         -------
         ScheduleBuilder
-            Result of end of month for this `ScheduleBuilder` in the annotated representation.
+            Same builder instance after enabling or disabling end-of-month rolling.
 
         """
         ...
@@ -2570,7 +2579,7 @@ class ScheduleBuilder:
         Returns
         -------
         ScheduleBuilder
-            Result of error policy for this `ScheduleBuilder` in the annotated representation.
+            Same builder instance after fully replacing its schedule-build error policy.
 
         """
         ...

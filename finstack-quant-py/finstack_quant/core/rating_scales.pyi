@@ -108,7 +108,8 @@ class UnknownScalePolicy:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If *json* is not one of the exact JSON strings ``"error"``,
+            ``"fallback_to_default"``, or ``"warn_and_fallback"``.
 
         Examples
         --------
@@ -243,7 +244,9 @@ class RatingLevel:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If *json* is malformed, has unknown or missing fields, names a
+            blank level, or gives either score as non-finite or outside
+            ``[0, 100]``.
 
         Examples
         --------
@@ -363,7 +366,9 @@ class ScorecardScale:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If *json* is malformed, has unknown or missing fields, or its
+            ratings are empty, duplicated, invalid, or not strictly ordered
+            best-to-worst by both score fields.
 
         Examples
         --------
@@ -509,7 +514,9 @@ class RatingScaleRegistry:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If *json* is malformed or violates the supported schema version,
+            identifier, alias, default-scale, score-range, or rating-order
+            invariants.
 
         Examples
         --------

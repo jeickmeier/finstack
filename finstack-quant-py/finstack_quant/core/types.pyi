@@ -101,7 +101,7 @@ class Rate:
         -------
         Rate
 
-            Result of from percent for this `Rate` in the annotated representation.
+            Rate stored as ``percent / 100`` in decimal-rate form.
         Raises
         ------
         ValueError
@@ -129,7 +129,7 @@ class Rate:
         Returns
         -------
         Rate
-            Result of from bp for this `Rate` in the annotated representation.
+            Rate stored as ``bp / 10_000`` in decimal-rate form.
 
 
         Examples
@@ -475,7 +475,8 @@ class CreditRating:
         -------
         CreditRating
 
-            Result of from name for this `CreditRating` in the annotated representation.
+            Canonical S&P/Fitch grade after case normalization, agency-alias
+            mapping, and notch preservation.
         Raises
         ------
         ValueError
@@ -569,7 +570,7 @@ class CurveId:
         -------
         str
 
-            Result of as str for this `CurveId` in the annotated representation.
+            Exact curve-identifier text supplied at construction.
         Examples
         --------
         >>> from finstack_quant.core.types import CurveId
@@ -663,7 +664,7 @@ class InstrumentId:
         -------
         str
 
-            Result of as str for this `InstrumentId` in the annotated representation.
+            Exact instrument-identifier text supplied at construction.
         Examples
         --------
         >>> from finstack_quant.core.types import InstrumentId
@@ -780,7 +781,7 @@ class Attributes:
         -------
         bool
 
-            Result of contains meta key for this `Attributes` in the annotated representation.
+            ``True`` when the metadata map contains ``key``; otherwise ``False``.
         """
         ...
 
@@ -792,7 +793,7 @@ class Attributes:
         -------
         list[str]
 
-            Result of keys for this `Attributes` in the annotated representation.
+            Metadata keys sorted lexicographically for deterministic iteration.
         """
         ...
 

@@ -111,7 +111,7 @@ class Money:
         Returns
         -------
         Money
-            Result of from decimal for this `Money` in the annotated representation.
+            Decimal-backed amount in ``currency`` without an intermediate binary float.
 
         Examples
         --------
@@ -267,7 +267,8 @@ class Money:
         Returns
         -------
         tuple[float, str]
-            Result of to tuple for this `Money` in the annotated representation.
+            Binary-float amount, which may lose Decimal precision, and the
+            ISO-4217 alphabetic currency code.
         """
         ...
 
@@ -289,14 +290,16 @@ class Money:
         Returns
         -------
         Money
-            Result of convert at rate for this `Money` in the annotated representation.
+            Decimal-backed amount multiplied by ``rate`` and denominated in
+            ``target``; same-currency conversion returns this amount unchanged
+            without validating ``rate``.
 
         Raises
         ------
         ValueError
-            If *target* is not a recognized currency, *rate* is non-finite or
-            not strictly positive, or the converted amount exceeds Decimal's
-            representable range.
+            If *target* is not a recognized currency or, for a different
+            currency, *rate* is non-finite or not strictly positive or the
+            converted amount exceeds Decimal's representable range.
 
         """
         ...
@@ -315,7 +318,8 @@ class Money:
         -------
         Money
 
-            Result of from tuple for this `Money` in the annotated representation.
+            Money built through the binary-float ingest path, using the
+            shortest round-trippable Decimal representation and parsed ISO code.
         Raises
         ------
         ValueError

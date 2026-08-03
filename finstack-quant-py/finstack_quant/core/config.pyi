@@ -51,7 +51,7 @@ class RoundingMode:
     @classmethod
     def from_name(cls, name: str) -> RoundingMode:
         """
-        Parse a rounding mode from a human-readable label (case-insensitive).
+        Parse a rounding mode from its exact canonical lowercase label.
 
         Parameters
         ----------
@@ -62,7 +62,8 @@ class RoundingMode:
         -------
         RoundingMode
 
-            Result of from name for this `RoundingMode` in the annotated representation.
+            Rounding policy matching the exact canonical lowercase name,
+            including its documented tie-breaking convention.
         Raises
         ------
         ValueError

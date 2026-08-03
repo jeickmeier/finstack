@@ -999,7 +999,8 @@ class scoring:
         Returns
         -------
         tuple[float, str, float | None]
-            Result of altman z double prime for this `scoring` in the annotated representation.
+            Unitless ``(Z'' score, lowercase zone, implied_pd)``; PD is
+            ``None`` without calibration and otherwise a decimal probability.
 
         Raises
         ------
@@ -1104,7 +1105,8 @@ class scoring:
         Returns
         -------
         tuple[float, str, float]
-            Result of ohlson o score for this `scoring` in the annotated representation.
+            Unitless ``(O logit, lowercase zone, implied_pd)`` with decimal PD
+            ``1 / (1 + exp(-O))``.
 
         Raises
         ------
@@ -1145,7 +1147,8 @@ class scoring:
         Returns
         -------
         tuple[float, str, float]
-            Result of zmijewski score for this `scoring` in the annotated representation.
+            Unitless ``(Y probit, lowercase zone, implied_pd)`` with decimal PD
+            equal to ``Phi(Y)``.
 
         Raises
         ------
@@ -1875,16 +1878,19 @@ class migration:
 
         def __init__(self, scale: migration.RatingScale, data: list[float], horizon: float) -> None:
             """
-            Compute   init for `migration.TransitionMatrix`.
+            Construct a validated discrete-horizon transition matrix.
 
             Parameters
             ----------
-            scale : object
-                Value supplied for `scale` to the documented binding operation.
-            data : object
-                Ordered input values consumed by the calculation in the documented representation.
-            horizon : object
-                Value supplied for `horizon` to the documented binding operation.
+            scale : migration.RatingScale
+                Ordered rating states defining the row and column labels and,
+                when configured, the absorbing default state.
+            data : list[float]
+                Row-major ``n * n`` transition probabilities for the ``n``
+                states in ``scale``. Entries must lie in ``[0, 1]``, every row
+                must sum to one, and a configured default row must be absorbing.
+            horizon : float
+                Finite, strictly positive transition horizon in years.
 
             Raises
             ------
@@ -2023,14 +2029,17 @@ class migration:
 
         def __init__(self, scale: migration.RatingScale, data: list[float]) -> None:
             """
-            Compute   init for `migration.GeneratorMatrix`.
+            Construct a validated continuous-time generator matrix.
 
             Parameters
             ----------
-            scale : object
-                Value supplied for `scale` to the documented binding operation.
-            data : object
-                Ordered input values consumed by the calculation in the documented representation.
+            scale : migration.RatingScale
+                Ordered rating states defining the row and column labels and,
+                when configured, the absorbing default state.
+            data : list[float]
+                Row-major ``n * n`` generator entries for the ``n`` states in
+                ``scale``. Off-diagonals must be non-negative, every row must
+                sum to zero, and a configured default row must be absorbing.
 
             Raises
             ------
@@ -2317,14 +2326,15 @@ class migration:
 
         def __init__(self, generator: migration.GeneratorMatrix, horizon: float) -> None:
             """
-            Compute   init for `migration.MigrationSimulator`.
+            Construct a continuous-time rating-migration simulator.
 
             Parameters
             ----------
-            generator : object
-                Value supplied for `generator` to the documented binding operation.
-            horizon : object
-                Value supplied for `horizon` to the documented binding operation.
+            generator : migration.GeneratorMatrix
+                Continuous-time transition intensities and rating-state order
+                used to generate each path.
+            horizon : float
+                Finite, strictly positive simulation horizon in years.
 
             Raises
             ------

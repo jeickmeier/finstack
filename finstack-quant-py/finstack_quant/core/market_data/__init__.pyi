@@ -184,7 +184,7 @@ class DiscountCurve:
         Returns
         -------
         DiscountCurve
-            Result of flat for this `DiscountCurve` in the annotated representation.
+            Curve with ``DF(t) = exp(-continuous_rate * t)`` for year fraction ``t``.
 
         Raises
         ------
@@ -412,7 +412,9 @@ class ForwardCurve:
         Returns
         -------
         ForwardCurve
-            Result of from knots for this `ForwardCurve` in the annotated representation.
+            Validated curve of simple annualized decimal forwards using the
+            resolved interpolation, extrapolation, day-count, reset-lag, and
+            projection conventions.
 
         Raises
         ------
@@ -471,7 +473,7 @@ class ForwardCurve:
         Returns
         -------
         float
-            Result of rate between for this `ForwardCurve` in the annotated representation.
+            Simple decimal forward ``(DF(t1) / DF(t2) - 1) / (t2 - t1)``.
         """
         ...
 
@@ -713,7 +715,8 @@ class BaseCorrelationCurve:
         Returns
         -------
         float
-            Result of correlation for this `BaseCorrelationCurve` in the annotated representation.
+            Decimal correlation in ``[0, 1]``, linearly interpolated by
+            percentage detachment and flat-extrapolated outside the pillars.
 
         """
         ...
@@ -950,24 +953,30 @@ class InflationCurve:
         interp: str = "log_linear",
     ) -> None:
         """
-        Compute   init for `InflationCurve`.
+        Construct an inflation curve from CPI levels at year-fraction knots.
 
         Parameters
         ----------
-        id : object
-            Stable identifier used to select the required object or result entry.
-        base_date : object
-            Date used in the documented calculation or scheduling role.
-        base_cpi : object
-            Value supplied for `base_cpi` to the documented binding operation.
-        knots : object
-            Value supplied for `knots` to the documented binding operation.
-        day_count : object
-            Value supplied for `day_count` to the documented binding operation.
-        indexation_lag_months : object
-            Value supplied for `indexation_lag_months` to the documented binding operation.
-        interp : object
-            Value supplied for `interp` to the documented binding operation.
+        id : str
+            Exact curve identifier used for market-context registration and lookup.
+        base_date : date
+            Curve valuation date from which knot times and query dates are measured.
+        base_cpi : float
+            CPI index level at curve time zero, used for non-positive-time
+            lookups and as the denominator of index ratios. Construction
+            accepts any float, but index-ratio calculation requires it to be
+            finite and strictly positive.
+        knots : list[tuple[float, float]]
+            Strictly increasing ``(time_years, cpi_level)`` pairs; each time is
+            measured from ``base_date`` and every CPI level must be positive.
+        day_count : str
+            Day-count name used when dates are converted to curve times;
+            defaults to ``"act_365f"``.
+        indexation_lag_months : int
+            Non-negative observation lag stored for ``cpi_with_lag``; defaults
+            to three months and zero disables the shift.
+        interp : str
+            CPI interpolation style; defaults to ``"log_linear"``.
 
         Raises
         ------
@@ -991,7 +1000,7 @@ class InflationCurve:
         Returns
         -------
         float
-            Result of cpi for this `InflationCurve` in the annotated representation.
+            Interpolated CPI index level; times at or before zero return ``base_cpi``.
 
         """
         ...
@@ -1008,7 +1017,9 @@ class InflationCurve:
         Returns
         -------
         float
-            Result of cpi with lag for this `InflationCurve` in the annotated representation.
+            CPI evaluated at ``t - indexation_lag_months / 12`` through the
+            curve interpolation, without monthly reference-index interpolation
+            or seasonality.
 
         """
         ...
@@ -1057,7 +1068,8 @@ class InflationCurve:
         Returns
         -------
         float
-            Result of inflation rate for this `InflationCurve` in the annotated representation.
+            Decimal CAGR ``(CPI(t2) / CPI(t1)) ** (1 / (t2 - t1)) - 1``;
+            non-finite or non-increasing times yield ``NaN`` in release builds.
 
         """
         ...
@@ -1076,7 +1088,8 @@ class InflationCurve:
         Returns
         -------
         float
-            Result of inflation rate simple for this `InflationCurve` in the annotated representation.
+            Simple annual decimal rate ``(CPI(t2) / CPI(t1) - 1) / (t2 - t1)``;
+            non-finite or non-increasing times yield ``NaN`` in release builds.
 
         """
         ...
@@ -1189,24 +1202,30 @@ class VolSurface:
         quote_type: str = "black_lognormal",
     ) -> None:
         """
-        Compute   init for `VolSurface`.
+        Construct a volatility surface from an expiry-major grid.
 
         Parameters
         ----------
-        id : object
-            Stable identifier used to select the required object or result entry.
-        expiries : object
-            Value supplied for `expiries` to the documented binding operation.
-        strikes : object
-            Value supplied for `strikes` to the documented binding operation.
-        vols_row_major : object
-            Value supplied for `vols_row_major` to the documented binding operation.
-        secondary_axis : object
-            Value supplied for `secondary_axis` to the documented binding operation.
-        interpolation_mode : object
-            Value supplied for `interpolation_mode` to the documented binding operation.
-        quote_type : object
-            Value supplied for `quote_type` to the documented binding operation.
+        id : str
+            Exact surface identifier used for market-context registration and lookup.
+        expiries : list[float]
+            Strictly increasing finite option expiries in years.
+        strikes : list[float]
+            Strictly increasing finite strike or tenor coordinates for the
+            surface's second axis.
+        vols_row_major : list[float]
+            Non-negative finite annualized volatilities in expiry-major order,
+            with length ``len(expiries) * len(strikes)``. Values are decimal
+            Black vols or absolute-rate normal vols according to ``quote_type``.
+        secondary_axis : str
+            Meaning of the second coordinate, either ``"strike"`` or
+            ``"tenor"``; defaults to ``"strike"``.
+        interpolation_mode : str
+            Interpolate either volatility via ``"vol"`` or total variance via
+            ``"total_variance"``; defaults to ``"vol"``.
+        quote_type : str
+            Volatility convention, ``"black_lognormal"`` or ``"normal"``;
+            defaults to ``"black_lognormal"``.
 
         Raises
         ------
@@ -1232,7 +1251,8 @@ class VolSurface:
         Returns
         -------
         float
-            Result of value checked for this `VolSurface` in the annotated representation.
+            Interpolated annualized volatility in the stored quote convention:
+            relative Black decimal or normal absolute-rate units, without extrapolation.
 
         Raises
         ------
@@ -1257,7 +1277,8 @@ class VolSurface:
         Returns
         -------
         float
-            Result of value clamped for this `VolSurface` in the annotated representation.
+            Stored-convention volatility after clamping both coordinates to
+            grid edges, or ``NaN`` for non-finite inputs.
 
         """
         ...
@@ -1453,7 +1474,8 @@ class FxDeltaVolSurface:
         Returns
         -------
         tuple[float, float, float]
-            Result of pillar vols for this `FxDeltaVolSurface` in the annotated representation.
+            Annualized decimal ``(ATM, 25-delta put, 25-delta call)``
+            volatilities recovered from the expiry's ATM, RR, and BF quotes.
         """
         ...
 
@@ -1478,7 +1500,8 @@ class FxDeltaVolSurface:
         Returns
         -------
         float
-            Result of implied vol for this `FxDeltaVolSurface` in the annotated representation.
+            Annualized decimal volatility from expiry-interpolated delta quotes
+            and a linearly interpolated strike smile with flat wing extrapolation.
 
         Raises
         ------
@@ -1506,7 +1529,8 @@ class FxDeltaVolSurface:
         Returns
         -------
         VolSurface
-            Result of to vol surface for this `FxDeltaVolSurface` in the annotated representation.
+            Black strike-grid compatibility surface whose axis is the union of
+            the per-expiry delta-derived strikes.
 
         Raises
         ------
@@ -1526,7 +1550,8 @@ class FxDeltaVolSurface:
         Parameters
         ----------
         delta : float
-            Forward call delta, with the sign selecting call or put convention.
+            Positive premium-unadjusted forward call delta, normally strictly
+            between zero and one; this helper does not select a put convention.
         forward : float
             Positive FX forward in the chosen base/quote quotation direction.
         vol : float
@@ -1537,7 +1562,8 @@ class FxDeltaVolSurface:
         Returns
         -------
         float
-            Result of delta to strike for this `FxDeltaVolSurface` in the annotated representation.
+            FX strike ``F * exp(-N^-1(delta) * vol * sqrt(T) + 0.5 * vol**2 * T)``
+            in forward quotation units.
 
 
         Examples
@@ -1568,7 +1594,7 @@ class FxDeltaVolSurface:
         Returns
         -------
         float
-            Result of strike to delta for this `FxDeltaVolSurface` in the annotated representation.
+            Unitless premium-unadjusted forward call delta ``N(d1)``.
 
 
         Examples
@@ -1633,22 +1659,27 @@ class VolCube:
         interpolation_mode: str = "vol",
     ) -> None:
         """
-        Compute   init for `VolCube`.
+        Construct a SABR volatility cube from expiry-major grid data.
 
         Parameters
         ----------
-        id : object
-            Stable identifier used to select the required object or result entry.
-        expiries : object
-            Value supplied for `expiries` to the documented binding operation.
-        tenors : object
-            Value supplied for `tenors` to the documented binding operation.
-        params_row_major : object
-            Value supplied for `params_row_major` to the documented binding operation.
-        forwards_row_major : object
-            Value supplied for `forwards_row_major` to the documented binding operation.
-        interpolation_mode : object
-            Value supplied for `interpolation_mode` to the documented binding operation.
+        id : str
+            Exact cube identifier used for market-context registration and lookup.
+        expiries : list[float]
+            Strictly increasing positive option expiries in years.
+        tenors : list[float]
+            Strictly increasing positive underlying swap tenors in years.
+        params_row_major : list[dict[str, float]]
+            Exactly ``len(expiries) * len(tenors)`` SABR parameter dictionaries
+            in expiry-major order. Each requires positive ``alpha`` and ``nu``,
+            ``beta`` in ``[0, 1]``, and ``rho`` in ``(-1, 1)``; optional finite
+            ``shift`` is an additive decimal-rate shift.
+        forwards_row_major : list[float]
+            Finite decimal forward rates in expiry-major order, with length
+            ``len(expiries) * len(tenors)``.
+        interpolation_mode : str
+            Interpolate either volatility via ``"vol"`` or total variance via
+            ``"total_variance"``; defaults to ``"vol"``.
 
         Raises
         ------
@@ -1702,7 +1733,9 @@ class VolCube:
         Returns
         -------
         float
-            Result of vol clamped for this `VolCube` in the annotated representation.
+            Annualized Black decimal volatility with finite expiry and tenor
+            clamped to cube edges; finite degeneracies are floored and invalid
+            model inputs return ``NaN``.
 
         """
         ...
@@ -1755,7 +1788,9 @@ class VolCube:
         Returns
         -------
         float
-            Result of vol normal clamped for this `VolCube` in the annotated representation.
+            Bachelier volatility in absolute annual rate units after finite edge
+            clamping; finite degeneracies are floored and invalid model inputs
+            return ``NaN``.
 
         """
         ...
@@ -1774,7 +1809,8 @@ class VolCube:
         Returns
         -------
         VolSurface
-            Result of materialize tenor slice for this `VolCube` in the annotated representation.
+            Black-vol surface on the cube expiry axis and supplied strike axis;
+            a finite out-of-grid ``tenor`` is clamped to the nearest cube edge.
 
         Raises
         ------
@@ -1802,7 +1838,8 @@ class VolCube:
         Returns
         -------
         VolSurface
-            Result of materialize tenor slice normal for this `VolCube` in the annotated representation.
+            Normal-quote surface in absolute-rate units on the cube expiry axis
+            and supplied strikes; a finite out-of-grid ``tenor`` is clamped.
 
         Raises
         ------
@@ -1828,7 +1865,8 @@ class VolCube:
         Returns
         -------
         VolSurface
-            Result of materialize expiry slice for this `VolCube` in the annotated representation.
+            Black-vol surface using cube tenors as its first axis and linear
+            volatility interpolation; a finite out-of-grid ``expiry`` is clamped.
 
         Raises
         ------
@@ -1856,7 +1894,9 @@ class VolCube:
         Returns
         -------
         VolSurface
-            Result of materialize expiry slice normal for this `VolCube` in the annotated representation.
+            Normal-quote surface in absolute-rate units using cube tenors as its
+            first axis and linear volatility interpolation; a finite
+            out-of-grid ``expiry`` is clamped.
 
         Raises
         ------
@@ -2382,7 +2422,8 @@ class ScalarTimeSeries:
         Returns
         -------
         float
-            Result of value on for this `ScalarTimeSeries` in the annotated representation.
+            Exact, step-carried, or linearly interpolated value under the
+            configured mode; dates after the final observation use its value.
 
         Raises
         ------
@@ -2421,7 +2462,8 @@ class ScalarTimeSeries:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If *json* is malformed, contains unknown or invalid fields, or its
+            observations are empty, duplicate-dated, or non-finite.
 
         Examples
         --------
@@ -2542,7 +2584,8 @@ class InflationIndex:
         Returns
         -------
         float
-            Result of value on for this `InflationIndex` in the annotated representation.
+            Index level after publication lag, configured interpolation, and
+            the effective month's seasonal factor.
 
         Raises
         ------
@@ -2584,7 +2627,8 @@ class InflationIndex:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If *json* is malformed, contains unknown or invalid fields, or its
+            observations are empty, duplicate-dated, or non-finite.
 
         Examples
         --------
@@ -2767,11 +2811,13 @@ class MarketContext:
         -------
         DiscountCurve
 
-            Requested discount resolved from this `MarketContext` in the annotated representation.
+            Stored discount curve under exact ``id``; no alias or default fallback is attempted.
         Raises
         ------
         KeyError
             If no discount curve with this *id* exists.
+        ValueError
+            If *id* names a curve of a different market-data type.
         """
         ...
 
@@ -2788,11 +2834,13 @@ class MarketContext:
         -------
         ForwardCurve
 
-            Requested forward resolved from this `MarketContext` in the annotated representation.
+            Stored forward curve under exact ``id``; no alias or tenor fallback is attempted.
         Raises
         ------
         KeyError
             If no forward curve with this *id* exists.
+        ValueError
+            If *id* names a curve of a different market-data type.
         """
         ...
 
@@ -2809,11 +2857,13 @@ class MarketContext:
         -------
         HazardCurve
 
-            Requested hazard resolved from this `MarketContext` in the annotated representation.
+            Stored hazard curve under exact ``id``; no issuer or default fallback is attempted.
         Raises
         ------
         KeyError
             If no hazard curve with this *id* exists.
+        ValueError
+            If *id* names a curve of a different market-data type.
         """
         ...
 
@@ -2829,7 +2879,7 @@ class MarketContext:
         Returns
         -------
         BaseCorrelationCurve
-            Requested base correlation resolved from this `MarketContext` in the annotated representation.
+            Stored base-correlation curve under exact ``id``; no fallback is attempted.
 
         Raises
         ------
@@ -2854,11 +2904,13 @@ class MarketContext:
         -------
         InflationCurve
 
-            Requested inflation curve resolved from this `MarketContext` in the annotated representation.
+            Stored forward inflation curve under exact ``id``; no index fallback is attempted.
         Raises
         ------
         KeyError
             If no inflation curve with this *id* exists.
+        ValueError
+            If *id* names a curve of a different market-data type.
         """
         ...
 
@@ -2875,11 +2927,13 @@ class MarketContext:
         -------
         PriceCurve
 
-            Requested price curve resolved from this `MarketContext` in the annotated representation.
+            Stored price curve under exact ``id``; no spot-price fallback is attempted.
         Raises
         ------
         KeyError
             If no price curve with this *id* exists.
+        ValueError
+            If *id* names a curve of a different market-data type.
         """
         ...
 
@@ -2899,7 +2953,8 @@ class MarketContext:
         Returns
         -------
         tuple[float | Decimal, str | None]
-            Requested price resolved from this `MarketContext` in the annotated representation.
+            ``(Decimal, ISO code)`` for money prices or ``(float, None)`` for
+            unitless values stored under exact ``id``; no fallback is attempted.
 
         Raises
         ------
@@ -2921,7 +2976,7 @@ class MarketContext:
         Returns
         -------
         ScalarTimeSeries
-            Requested series resolved from this `MarketContext` in the annotated representation.
+            Stored scalar series copied from exact ``id``; no alternate-series fallback is attempted.
 
         Raises
         ------
@@ -2943,7 +2998,7 @@ class MarketContext:
         Returns
         -------
         InflationIndex
-            Requested inflation index resolved from this `MarketContext` in the annotated representation.
+            Stored historical inflation index under exact ``id``; no curve fallback is attempted.
 
         Raises
         ------
@@ -2966,7 +3021,7 @@ class MarketContext:
         -------
         VolSurface
 
-            Requested surface resolved from this `MarketContext` in the annotated representation.
+            Stored strike-grid volatility surface under exact ``id``; no cube fallback is attempted.
         Raises
         ------
         KeyError
@@ -3007,7 +3062,7 @@ class MarketContext:
         -------
         VolCube
 
-            Requested vol cube resolved from this `MarketContext` in the annotated representation.
+            Stored SABR volatility cube under exact ``id``; no surface fallback is attempted.
         Raises
         ------
         KeyError
@@ -3047,7 +3102,8 @@ class MarketContext:
         Returns
         -------
         CreditIndexData
-            Requested credit index resolved from this `MarketContext` in the annotated representation.
+            Stored synthetic credit-index data bundle under exact ``id``; no
+            alias or default fallback is attempted.
 
         Raises
         ------
