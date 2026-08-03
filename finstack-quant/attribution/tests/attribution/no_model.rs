@@ -17,9 +17,7 @@ use finstack_quant_valuations::instruments::json_loader::InstrumentJson;
 use finstack_quant_valuations::instruments::Bond;
 use time::Month;
 
-// ---------------------------------------------------------------------------
 // Shared helpers
-// ---------------------------------------------------------------------------
 
 const CURVE_ID: &str = "USD-OIS";
 

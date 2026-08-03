@@ -378,9 +378,7 @@ fn test_attribution_result_envelope_roundtrip() {
     assert_eq!(parsed.result.attribution.total_pnl, total);
 }
 
-// =============================================================================
 // Attribution Type Serialization Tests
-// =============================================================================
 
 #[test]
 fn test_attribution_method_parallel_roundtrip() {

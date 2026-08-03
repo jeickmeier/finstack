@@ -157,9 +157,7 @@ pub fn compute_credit_factor_attribution(
     positions: &[CreditAttributionInput],
     period: &PeriodDecomposition,
 ) -> Result<CreditFactorAttribution, Error> {
-    // ------------------------------------------------------------------
     // Shape check: period decomposition must agree with model hierarchy.
-    // ------------------------------------------------------------------
     let num_levels = model.hierarchy.levels.len();
     if period.by_level.len() != num_levels {
         return Err(Error::Validation(format!(
@@ -182,11 +180,9 @@ pub fn compute_credit_factor_attribution(
         }
     }
 
-    // ------------------------------------------------------------------
     // Output currency: all positions must share one currency. No implicit
     // cross-currency math (workspace invariant); reject empty input instead
     // of fabricating an arbitrary-currency zero result.
-    // ------------------------------------------------------------------
     let Some(first) = positions.first() else {
         return Err(Error::Validation(
             "credit_factor_attribution: positions is empty".to_string(),
@@ -204,19 +200,15 @@ pub fn compute_credit_factor_attribution(
         }
     }
 
-    // ------------------------------------------------------------------
     // Index issuer beta rows by id for O(log n) lookup.
-    // ------------------------------------------------------------------
     let mut beta_idx: BTreeMap<&IssuerId, &IssuerBetaRow> = BTreeMap::new();
     for row in &model.issuer_betas {
         beta_idx.insert(&row.issuer_id, row);
     }
 
-    // ------------------------------------------------------------------
     // Pre-validate: every position with non-zero CS01 must have a beta row
     // in the model and an entry in `period.d_adder`. Silently dropping (or
     // partially attributing) risk is forbidden — error loudly instead.
-    // ------------------------------------------------------------------
     let mut unknown_issuers: Vec<&str> = Vec::new();
     let mut missing_adder: Vec<&str> = Vec::new();
     for input in positions {

@@ -73,10 +73,8 @@ fn flat_discount_curve(id: &str, base: Date, rate: f64) -> DiscountCurve {
         .expect("flat discount curve construction")
 }
 
-// ---------------------------------------------------------------------------
 // Bond fixture shape (subset — base valuation fields are exercised by the
 // valuations-side test; here we only need spec + scenario + expected_attribution)
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize)]
 struct BondFixture {
@@ -254,9 +252,7 @@ fn quantlib_parity_metrics_based_bond_attribution() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // IRS attribution parity
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize)]
 struct IrsFixture {
@@ -487,9 +483,7 @@ fn quantlib_parity_metrics_based_irs_attribution() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FX-forward attribution parity
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize)]
 struct FxForwardFixture {

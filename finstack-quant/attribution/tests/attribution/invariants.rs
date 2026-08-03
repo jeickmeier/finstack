@@ -186,9 +186,7 @@ impl Instrument for CompositeInstrument {
     }
 }
 
-// =============================================================================
 // Zero Change Identity Tests
-// =============================================================================
 
 /// Property: When market conditions are unchanged, total P&L should be approximately
 /// equal to carry (time value) only.
@@ -256,9 +254,7 @@ fn test_zero_market_change_identity() {
     );
 }
 
-// =============================================================================
 // Sign Convention Tests
-// =============================================================================
 
 /// Property: For a long bond position, rates increasing should produce negative P&L.
 ///
@@ -358,9 +354,7 @@ fn test_rates_pnl_positive_when_rates_decrease() {
     );
 }
 
-// =============================================================================
 // Portfolio and Position Invariants
-// =============================================================================
 
 #[test]
 fn test_long_short_net_zero_invariant() {
@@ -527,9 +521,7 @@ fn test_portfolio_additivity_invariant() {
     );
 }
 
-// =============================================================================
 // Property-Based Tests
-// =============================================================================
 
 proptest! {
     // Fixed RNG seed per the repo testing standard (deterministic runs;
@@ -728,9 +720,7 @@ proptest! {
     }
 }
 
-// =============================================================================
 // Edge Case Tests
-// =============================================================================
 
 /// Test attribution with very small notional.
 #[test]

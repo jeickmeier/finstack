@@ -48,9 +48,7 @@ use std::hint::black_box;
 use std::sync::Arc;
 use time::{Date, Month};
 
-// ---------------------------------------------------------------------------
 // Shared fixture
-// ---------------------------------------------------------------------------
 
 const CURVE_ID: &str = "USD-OIS";
 const BASE_RATE: f64 = 0.04;
@@ -136,9 +134,7 @@ fn bond_attribution_metrics() -> Vec<MetricId> {
     vec![MetricId::Dv01, MetricId::Theta, MetricId::Convexity]
 }
 
-// ---------------------------------------------------------------------------
 // Per-methodology inner loops
-// ---------------------------------------------------------------------------
 
 fn run_simple_bridge(fx: &Fixture) {
     for bond in &fx.bonds {
@@ -229,9 +225,7 @@ fn run_taylor(fx: &Fixture, taylor_cfg: &TaylorAttributionConfig) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Criterion entry point
-// ---------------------------------------------------------------------------
 
 fn bench_attribution_scale(c: &mut Criterion) {
     let mut group = c.benchmark_group("attribution");
@@ -272,9 +266,7 @@ fn bench_attribution_scale(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // PR-12: 200-position portfolio with a credit factor model
-// ---------------------------------------------------------------------------
 
 use finstack_quant_attribution::{AttributionEnvelope, AttributionSpec, CreditFactorDetailOptions};
 use finstack_quant_core::market_data::context::{CurveState, MarketContextState};
