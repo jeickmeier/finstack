@@ -438,10 +438,6 @@ class PnlAttribution:
         >>> attr.residual_within_tolerance(pct_tolerance=0.1)  # doctest: +SKIP
         True
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -687,7 +683,15 @@ def attribute_pnl(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``method`` or ``config`` cannot be serialized, an input JSON or ISO
+        date is malformed, or attribution validation, pricing, or result
+        serialization fails.
+    KeyError
+        If a required curve, market item, calendar, or FX triangulation leg is
+        unavailable.
+    RuntimeError
+        If calibration or solver convergence fails, or attribution encounters
+        an internal operational failure.
     """
     ...
 
@@ -715,7 +719,15 @@ def attribute_pnl_from_spec(spec_json: str) -> str:
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``spec_json`` is malformed or violates the exact attribution
+        envelope schema, attribution validation or pricing fails, or the result
+        cannot be serialized.
+    KeyError
+        If execution cannot find a required curve, market item, calendar, or FX
+        triangulation leg.
+    RuntimeError
+        If calibration or solver convergence fails, or attribution encounters
+        an internal operational failure.
     """
     ...
 
@@ -740,7 +752,13 @@ def attribute_return_contribution(spec_json: str) -> str:
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``spec_json`` is malformed; required identifiers or positions are
+        empty; numeric inputs are non-finite; position weighting modes are
+        mixed or incomplete; factor or benchmark inputs are incomplete; or
+        benchmark-relative weights do not sum to one.
+    RuntimeError
+        If result serialization fails or an internal post-validation invariant
+        is violated.
     """
     ...
 
@@ -768,7 +786,8 @@ def validate_attribution_json(json: str) -> str:
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``json`` is malformed, violates the exact attribution envelope
+        schema, or cannot be canonically reserialized.
     """
     ...
 
@@ -788,7 +807,12 @@ def validate_return_contribution_json(spec_json: str) -> None:
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``spec_json`` is malformed; required identifiers or positions are
+        empty; numeric inputs are non-finite; position weighting modes are
+        mixed or incomplete; factor or benchmark inputs are incomplete; or
+        benchmark-relative weights do not sum to one.
+    RuntimeError
+        If execution violates an internal invariant after validation.
     """
     ...
 

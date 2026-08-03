@@ -628,8 +628,9 @@ class LookbackReturns:
 
         Raises
         ------
-        AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        ValueError
+            If ``ticker_names`` does not contain one label for each ticker in
+            the lookback vectors.
         """
         ...
 
@@ -893,14 +894,19 @@ class Performance:
         Parameters
         ----------
         start : object
-            Start date (``datetime.date``, ``pd.Timestamp``, or ISO string).
+            Start date as an object exposing integer ``year``, ``month``, and
+            ``day`` attributes, such as ``datetime.date`` or ``pd.Timestamp``.
         end : object
-            End date (``datetime.date``, ``pd.Timestamp``, or ISO string).
+            End date as an object exposing integer ``year``, ``month``, and
+            ``day`` attributes, such as ``datetime.date`` or ``pd.Timestamp``.
 
         Raises
         ------
-        AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        TypeError
+            If ``start`` or ``end`` is not a date-like object exposing integer
+            ``year``, ``month``, and ``day`` attributes.
+        ValueError
+            If either object's components do not form a valid calendar date.
         """
 
     def reset_bench_ticker(self, ticker: str) -> None:
@@ -915,7 +921,7 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``ticker`` does not match a loaded ticker name.
         """
 
     # -- Getters --
@@ -990,7 +996,7 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``ticker_idx`` is outside the loaded ticker columns.
         """
 
     # -- Scalar-per-ticker methods --
@@ -1024,10 +1030,6 @@ class Performance:
         list[float]
             Mean return per ticker.
 
-        Raises
-        ------
-        AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
 
     def volatility(self, annualize: bool = True) -> list[float]:
@@ -1044,10 +1046,6 @@ class Performance:
         list[float]
             Standard deviation of returns per ticker.
 
-        Raises
-        ------
-        AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
 
     def sharpe(self, risk_free_rate: float = 0.0) -> list[float]:
@@ -1064,10 +1062,6 @@ class Performance:
         list[float]
             Per-ticker Sharpe ratios over the active return window.
 
-        Raises
-        ------
-        AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
 
     def sortino(self, mar: float = 0.0) -> list[float]:
@@ -1088,10 +1082,6 @@ class Performance:
         -----
         ``mar`` is per-period; Sharpe ``risk_free_rate`` inputs are annualized.
 
-        Raises
-        ------
-        AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
 
     def calmar(self) -> list[float]:
@@ -1143,10 +1133,6 @@ class Performance:
         list[float]
             Historical VaR per ticker (negative).
 
-        Raises
-        ------
-        AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
 
     def expected_shortfall(self, confidence: float = 0.95) -> list[float]:
@@ -1163,10 +1149,6 @@ class Performance:
         list[float]
             Expected shortfall per ticker (negative).
 
-        Raises
-        ------
-        AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
 
     def tracking_error(self) -> list[float]:
@@ -1246,10 +1228,6 @@ class Performance:
         tuple[list[float], list[float]]
             ``(var_list, es_list)`` per ticker.
 
-        Raises
-        ------
-        AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
 
     def downside_deviation(self, mar: float = 0.0) -> list[float]:
@@ -1268,10 +1246,6 @@ class Performance:
         list[float]
             Downside deviation per ticker.
 
-        Raises
-        ------
-        AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
 
     def max_drawdown_duration(self) -> list[int]:
@@ -1328,10 +1302,6 @@ class Performance:
         list[float]
             Omega ratio per ticker.
 
-        Raises
-        ------
-        AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
 
     def treynor(self, risk_free_rate: float = 0.0) -> list[float]:
@@ -1348,10 +1318,6 @@ class Performance:
         list[float]
             Excess return per unit of beta per ticker.
 
-        Raises
-        ------
-        AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
 
     def gain_to_pain(self) -> list[float]:
@@ -1443,10 +1409,6 @@ class Performance:
         list[float]
             Right-tail gain divided by left-tail loss per ticker.
 
-        Raises
-        ------
-        AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
 
     def r_squared(self) -> list[float]:
@@ -1483,10 +1445,6 @@ class Performance:
         list[float]
             Parametric VaR per ticker (negative).
 
-        Raises
-        ------
-        AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
 
     def cornish_fisher_var(self, confidence: float = 0.95) -> list[float]:
@@ -1503,10 +1461,6 @@ class Performance:
         list[float]
             Cornish-Fisher modified VaR per ticker (negative).
 
-        Raises
-        ------
-        AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
 
     def cdar(self, confidence: float = 0.95) -> list[float]:
@@ -1523,10 +1477,6 @@ class Performance:
         list[float]
             Conditional drawdown-at-risk per ticker (negative).
 
-        Raises
-        ------
-        AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
 
     def m_squared(self, risk_free_rate: float = 0.0) -> list[float]:
@@ -1543,10 +1493,6 @@ class Performance:
         list[float]
             M-squared measure per ticker.
 
-        Raises
-        ------
-        AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
 
     def modified_sharpe(
@@ -1569,10 +1515,6 @@ class Performance:
         list[float]
             Modified Sharpe ratio per ticker.
 
-        Raises
-        ------
-        AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
 
     def sterling_ratio(self, risk_free_rate: float = 0.0, n: int = 5) -> list[float]:
@@ -1655,7 +1597,7 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``ticker_idx`` is outside the loaded ticker columns.
         """
 
     def cumulative_returns(self) -> list[list[float]]:
@@ -1729,10 +1671,6 @@ class Performance:
         list[list[float]]
             Per-ticker excess return series.
 
-        Raises
-        ------
-        AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
 
     # -- Per-ticker structured methods --
@@ -1761,10 +1699,6 @@ class Performance:
         list[GreeksResult]
             Per-ticker :class:`GreeksResult`.
 
-        Raises
-        ------
-        AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
 
     def rolling_greeks(
@@ -1793,7 +1727,7 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``ticker_idx`` is outside the loaded ticker columns.
         """
 
     def rolling_volatility(self, ticker_idx: int, window: int = 63) -> DatedSeries:
@@ -1815,7 +1749,7 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``ticker_idx`` is outside the loaded ticker columns.
         """
 
     def rolling_sortino(self, ticker_idx: int, window: int = 63, mar: float = 0.0) -> DatedSeries:
@@ -1839,7 +1773,7 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``ticker_idx`` is outside the loaded ticker columns.
         """
 
     def rolling_sharpe(
@@ -1868,7 +1802,7 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``ticker_idx`` is outside the loaded ticker columns.
         """
 
     def rolling_returns(self, ticker_idx: int, window: int) -> DatedSeries:
@@ -1890,7 +1824,7 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``ticker_idx`` is outside the loaded ticker columns.
         """
 
     def drawdown_details(self, ticker_idx: int, n: int = 5) -> list[DrawdownEpisode]:
@@ -1912,7 +1846,7 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``ticker_idx`` is outside the loaded ticker columns.
         """
 
     def multi_factor_greeks(
@@ -1939,7 +1873,10 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``ticker_idx`` is out of range, no factors are supplied, factor
+            lengths differ from the ticker return series, returns are
+            non-finite, observations are insufficient, or the regression is
+            numerically singular.
         """
 
     def lookback_returns(
@@ -2044,7 +1981,8 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If a ticker's active range has no positive holding period and
+            therefore cannot be annualized.
         """
         ...
 
@@ -2147,7 +2085,7 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``ticker_idx`` is outside the loaded ticker columns.
         """
         ...
 
