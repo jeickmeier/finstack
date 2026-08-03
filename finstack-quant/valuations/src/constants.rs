@@ -10,9 +10,8 @@
 //! - [`finstack_quant_core::types::Bps`] — `Bps::new(500).as_decimal()`
 //! - [`finstack_quant_core::types::Percentage`] — `Percentage::new(5.0).as_decimal()`
 //!
-//! The raw `f64` constants below (`ONE_BASIS_POINT`, `BASIS_POINTS_PER_UNIT`,
-//! `PERCENT_TO_DECIMAL`, `DECIMAL_TO_PERCENT`) exist for use in **performance-sensitive
-//! inner loops** where:
+//! The raw `f64` constants below (`ONE_BASIS_POINT`, `BASIS_POINTS_PER_UNIT`, and
+//! `DECIMAL_TO_PERCENT`) exist for use in **performance-sensitive inner loops** where:
 //! - Values are already `f64` (e.g., from `Decimal::to_f64()` or curve interpolation)
 //! - The `Rate`/`Bps` types are not in scope or would require `i32` truncation
 //!   (e.g., fractional basis point spreads)
@@ -58,21 +57,6 @@ pub const ONE_BASIS_POINT: f64 = 0.0001;
 /// ```
 pub const BASIS_POINTS_PER_UNIT: f64 = 10_000.0;
 
-/// Convert percentage to decimal (1% = 0.01).
-///
-/// **Prefer [`finstack_quant_core::types::Rate::from_percent()`]** or
-/// [`finstack_quant_core::types::Percentage::as_decimal()`] for type-safe conversions
-/// outside hot paths.
-///
-/// # Examples
-/// ```rust
-/// use finstack_quant_valuations::constants::PERCENT_TO_DECIMAL;
-///
-/// let rate_pct = 5.0; // 5%
-/// let rate_decimal = rate_pct * PERCENT_TO_DECIMAL; // 0.05
-/// ```
-pub const PERCENT_TO_DECIMAL: f64 = 0.01;
-
 /// Convert decimal to percentage (0.01 = 1%).
 ///
 /// **Prefer [`finstack_quant_core::types::Rate::as_percent()`]** or
@@ -96,15 +80,6 @@ pub mod numerical {
     ///
     /// Re-exported from [`finstack_quant_core::math::ZERO_TOLERANCE`].
     pub use finstack_quant_core::math::ZERO_TOLERANCE;
-
-    /// Step size factor for numerical differentiation and integration.
-    ///
-    /// When computing finite differences or integration steps, multiply the
-    /// interval length by this factor: `h = (t_end - t_start) * INTEGRATION_STEP_FACTOR`.
-    ///
-    /// Value: 1e-4 (provides good balance between numerical stability and
-    /// truncation error for typical financial time horizons of 0.1-30 years).
-    pub const INTEGRATION_STEP_FACTOR: f64 = 1e-4;
 
     /// Tolerance for iterative solver convergence (bootstrap, calibration).
     ///
@@ -170,28 +145,16 @@ pub mod bloomberg_cdso {
     pub const INDEX_OPTION_FEP_START_LAG_BD: i32 = 2;
 }
 
-/// ISDA 2014 standard constants used by the engine
+/// ISDA 2014 standard recovery constant used by the engine.
 pub mod isda {
     /// Standard recovery rate for senior unsecured (40%)
     pub const STANDARD_RECOVERY_SENIOR: f64 = 0.40;
-
-    /// Standard recovery rate for subordinated (20%)
-    pub const STANDARD_RECOVERY_SUB: f64 = 0.20;
-
-    /// Standard integration points per year for protection leg
-    pub const STANDARD_INTEGRATION_POINTS: usize = 40;
 }
 
-/// Business days per year constants by market region
+/// US-market business-days-per-year convention.
 pub mod time {
     /// Business days per year for North America (US markets)
     pub const BUSINESS_DAYS_PER_YEAR_US: f64 = 252.0;
-
-    /// Business days per year for Europe (UK markets)
-    pub const BUSINESS_DAYS_PER_YEAR_UK: f64 = 250.0;
-
-    /// Business days per year for Asia (Japan markets)
-    pub const BUSINESS_DAYS_PER_YEAR_JP: f64 = 255.0;
 }
 
 /// Credit derivatives specific constants
@@ -205,41 +168,6 @@ pub mod credit {
     /// Value: 1e-15 (well above f64 machine epsilon ~2.2e-16, allowing for
     /// cumulative multiplication errors in survival probability calculations).
     pub const SURVIVAL_PROBABILITY_FLOOR: f64 = 1e-15;
-
-    /// Minimum time-to-expiry (in years) for Greeks calculations.
-    ///
-    /// Below this threshold, option Greeks become numerically unstable.
-    /// Approximately 1 calendar day.
-    pub const MIN_TIME_TO_EXPIRY_GREEKS: f64 = 1.0 / 365.0;
-
-    /// Minimum volatility for option Greeks calculations.
-    ///
-    /// Below this threshold, d1/d2 calculations can overflow.
-    /// Value: 0.1% annualized volatility.
-    pub const MIN_VOLATILITY_GREEKS: f64 = 0.001;
-
-    /// Minimum forward spread (in decimal, not bp) for CDS option Black formula.
-    ///
-    /// Below this threshold, the log(forward/strike) in d1/d2 becomes numerically
-    /// unstable or undefined. Returns zero option value when violated.
-    ///
-    /// Value: 1e-8 (equivalent to 0.0001 bp, effectively zero spread)
-    pub const MIN_FORWARD_SPREAD: f64 = 1e-8;
-
-    /// Minimum hazard rate for bootstrapping (0.1 bp annualized).
-    ///
-    /// Acts as lower bound for root-finding bracket.
-    pub const MIN_HAZARD_RATE: f64 = 1e-5;
-
-    /// Default maximum hazard rate for bootstrapping (100% annualized).
-    ///
-    /// For deeply distressed credits, this may be dynamically increased.
-    pub const DEFAULT_MAX_HAZARD_RATE: f64 = 1.0;
-
-    /// Hazard rate multiplier for adaptive upper bound in bootstrapping.
-    ///
-    /// Upper bound = max(DEFAULT_MAX_HAZARD_RATE, spread_implied_hazard * this multiplier).
-    pub const HAZARD_RATE_BRACKET_MULTIPLIER: f64 = 2.0;
 
     /// Par spread denominator tolerance.
     ///
@@ -282,17 +210,3 @@ pub mod credit {
 /// denominator for annualizing daily equity and FX option statistics (realized vol,
 /// Sharpe ratio, theta decay, etc.).
 pub const TRADING_DAYS_PER_YEAR: f64 = time::BUSINESS_DAYS_PER_YEAR_US;
-
-/// Default day count convention for equity/FX options (ACT/365 Fixed).
-///
-/// Most equity and FX option models express time-to-expiry using ACT/365 Fixed,
-/// which divides actual calendar days by 365 regardless of leap years.
-pub const DEFAULT_OPTION_DAY_COUNT: finstack_quant_core::dates::DayCount =
-    finstack_quant_core::dates::DayCount::Act365F;
-
-/// Default RNG seed for reproducible Monte Carlo simulations.
-///
-/// Use this seed when deterministic results are required (regression tests,
-/// golden-file comparisons, debugging). Production runs should use a
-/// high-entropy seed instead.
-pub const DEFAULT_SEED: u64 = 42;
