@@ -118,7 +118,6 @@ fn test_build_futures() {
         expiry: Date::from_calendar_date(2025, time::Month::September, 15).unwrap(),
         price: 96.50,
         convexity_adjustment: None,
-        vol_surface_id: None,
     };
 
     let instrument = build_rate_instrument(&quote, &ctx).expect("build futures");
@@ -144,7 +143,6 @@ fn test_build_euribor_futures() {
         expiry: Date::from_calendar_date(2025, time::Month::September, 15).unwrap(),
         price: 97.15,
         convexity_adjustment: None,
-        vol_surface_id: None,
     };
 
     let instrument = build_rate_instrument(&quote, &ctx).expect("build euribor futures");

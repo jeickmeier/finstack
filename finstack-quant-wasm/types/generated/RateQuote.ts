@@ -100,19 +100,10 @@ price: number,
 /**
  * Optional convexity adjustment (rate, decimal).
  *
- * This fixed value is currently required for calibration. If omitted,
- * futures-quote calibration will fail closed rather than silently assume
- * zero or attempt an unwired dynamic lookup.
+ * Calibration treats an omitted adjustment as zero. Instrument construction
+ * may instead use the futures contract convention's default adjustment.
  */
-convexity_adjustment: number | null,
-/**
- * Optional volatility surface identifier for dynamic convexity adjustment.
- *
- * Reserved for future dynamic convexity support. Until that wiring exists,
- * providing `vol_surface_id` without `convexity_adjustment` is treated as
- * an invalid quote shape during calibration.
- */
-vol_surface_id: string | null, } | { "type": "swap",
+convexity_adjustment: number | null, } | { "type": "swap",
 /**
  * Unique identifier for the quote.
  */

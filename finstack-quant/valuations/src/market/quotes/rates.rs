@@ -3,7 +3,7 @@
 use super::ids::{Pillar, QuoteId};
 use crate::market::conventions::ids::IrFutureContractId;
 use finstack_quant_core::dates::Date;
-use finstack_quant_core::types::{CurveId, IndexId};
+use finstack_quant_core::types::IndexId;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "ts_export")]
 use ts_rs::TS;
@@ -104,19 +104,10 @@ pub enum RateQuote {
         price: f64,
         /// Optional convexity adjustment (rate, decimal).
         ///
-        /// This fixed value is currently required for calibration. If omitted,
-        /// futures-quote calibration will fail closed rather than silently assume
-        /// zero or attempt an unwired dynamic lookup.
+        /// Calibration treats an omitted adjustment as zero. Instrument construction
+        /// may instead use the futures contract convention's default adjustment.
         #[serde(default)]
         convexity_adjustment: Option<f64>,
-        /// Optional volatility surface identifier for dynamic convexity adjustment.
-        ///
-        /// Reserved for future dynamic convexity support. Until that wiring exists,
-        /// providing `vol_surface_id` without `convexity_adjustment` is treated as
-        /// an invalid quote shape during calibration.
-        #[serde(default)]
-        #[cfg_attr(feature = "ts_export", ts(type = "string | null"))]
-        vol_surface_id: Option<CurveId>,
     },
     /// Interest Rate Swap (par rate).
     Swap {
@@ -279,7 +270,6 @@ impl RateQuote {
                 expiry,
                 price,
                 convexity_adjustment,
-                vol_surface_id,
             } => RateQuote::Futures {
                 id: id.clone(),
                 contract: contract.clone(),
@@ -287,7 +277,6 @@ impl RateQuote {
                 // price = 100·(1 − rate): a +rate bump lowers the price 100×.
                 price: price - rate_bump * 100.0,
                 convexity_adjustment: *convexity_adjustment,
-                vol_surface_id: vol_surface_id.clone(),
             },
             RateQuote::Swap {
                 id,
@@ -493,7 +482,6 @@ mod tests {
                 .expect("valid date"),
             price: 96.00,
             convexity_adjustment: Some(0.0),
-            vol_surface_id: None,
         };
 
         let bumped = quote.bump_rate_bp(1.0);

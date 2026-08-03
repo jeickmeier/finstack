@@ -404,7 +404,6 @@ fn rate_quotes_from_recipe(
                     expiry,
                     price,
                     convexity_adjustment,
-                    vol_surface_id,
                 } => RateQuote::Futures {
                     id,
                     contract: crate::market::conventions::ids::IrFutureContractId::new(
@@ -413,7 +412,6 @@ fn rate_quotes_from_recipe(
                     expiry: *expiry,
                     price: *price,
                     convexity_adjustment: *convexity_adjustment,
-                    vol_surface_id: vol_surface_id.clone(),
                 },
                 RateCalibrationQuote::Swap {
                     index_id,
@@ -1925,7 +1923,6 @@ mod tests {
                     .expect("valid date"),
                 price: 96.00, // implied rate 4%
                 convexity_adjustment: Some(0.0),
-                vol_surface_id: None,
             },
             RateQuote::Swap {
                 id: QuoteId::new("USD-SWAP-2Y"),
@@ -2238,7 +2235,6 @@ mod tests {
                     expiry: date,
                     price: 95.75,
                     convexity_adjustment: Some(0.0001),
-                    vol_surface_id: Some(CurveId::new("USD-SR3-VOL")),
                 },
                 RateCalibrationQuote::Swap {
                     index_id: IndexId::new("USD-SOFR-OIS"),

@@ -479,7 +479,7 @@
             },
             "convexity_adjustment": {
               "default": null,
-              "description": "Optional convexity adjustment (rate, decimal).\n\nThis fixed value is currently required for calibration. If omitted,\nfutures-quote calibration will fail closed rather than silently assume\nzero or attempt an unwired dynamic lookup.",
+              "description": "Optional convexity adjustment (rate, decimal).\n\nCalibration treats an omitted adjustment as zero. Instrument construction\nmay instead use the futures contract convention's default adjustment.",
               "format": "double",
               "type": [
                 "number",
@@ -502,18 +502,6 @@
             "type": {
               "const": "futures",
               "type": "string"
-            },
-            "vol_surface_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "description": "Optional volatility surface identifier for dynamic convexity adjustment.\n\nReserved for future dynamic convexity support. Until that wiring exists,\nproviding `vol_surface_id` without `convexity_adjustment` is treated as\nan invalid quote shape during calibration."
             }
           },
           "required": [

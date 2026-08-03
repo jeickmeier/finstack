@@ -4,6 +4,10 @@
 
 ### Changed
 
+- **Breaking (Rust, JSON, WASM):** Removed the unwired
+  `RateQuote::Futures.vol_surface_id` field and its persisted
+  `RateCalibrationQuote` copy. Futures calibration continues to use the
+  explicit `convexity_adjustment` value.
 - **Breaking (Rust, Python):** Removed statement formula alias and fuzzy-name
   rewriting, including `ModelBuilder::with_name_normalization`. Formulas and
   `where` clauses now require exact node IDs; unknown IDs retain the dependency

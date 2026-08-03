@@ -230,14 +230,12 @@ impl ForwardCurveTarget {
                 expiry,
                 price,
                 convexity_adjustment,
-                vol_surface_id,
                 ..
             } => RateCalibrationQuote::Futures {
                 contract: RateCalibrationFutureContractId::new(contract.as_str()),
                 expiry: *expiry,
                 price: *price,
                 convexity_adjustment: *convexity_adjustment,
-                vol_surface_id: vol_surface_id.clone(),
             },
             RateQuote::Swap {
                 index,
@@ -348,18 +346,8 @@ impl ForwardCurveTarget {
             RateQuote::Futures {
                 price,
                 convexity_adjustment,
-                vol_surface_id,
                 ..
-            } => {
-                if vol_surface_id.is_some() && convexity_adjustment.is_none() {
-                    return Err(finstack_quant_core::Error::Validation(
-                        "Forward curve calibration requires a pre-computed convexity_adjustment \
-                         for futures quotes; dynamic vol-surface lookup is not wired"
-                            .to_string(),
-                    ));
-                }
-                Ok((100.0 - price) / 100.0 - convexity_adjustment.unwrap_or(0.0))
-            }
+            } => Ok((100.0 - price) / 100.0 - convexity_adjustment.unwrap_or(0.0)),
         }
     }
 
@@ -1172,7 +1160,6 @@ mod tests {
                 expiry: base_date,
                 price: 98.50,
                 convexity_adjustment: Some(0.0010),
-                vol_surface_id: None,
             }),
             Arc::new(DummyInstrument),
             base_date,
@@ -1181,42 +1168,6 @@ mod tests {
 
         let guess = target.initial_guess(&quote).expect("initial guess");
         assert!((guess - 0.014).abs() < 1e-12, "expected 1.40%, got {guess}");
-    }
-
-    #[test]
-    fn futures_initial_guess_rejects_unwired_dynamic_convexity_shape() {
-        let base_date = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
-        let target = ForwardCurveTarget::new(ForwardCurveTargetParams {
-            base_date,
-            currency: Currency::USD,
-            fwd_curve_id: CurveId::new("fwd"),
-            tenor_years: 1.0,
-            solve_interp: InterpStyle::Linear,
-            config: CalibrationConfig::default(),
-            time_day_count: DayCount::Act365F,
-            base_context: MarketContext::new(),
-        });
-
-        let quote = CalibrationQuote::Rates(PreparedQuote::new(
-            Arc::new(RateQuote::Futures {
-                id: QuoteId::new("SR3"),
-                contract: IrFutureContractId::new("CME:SR3"),
-                expiry: base_date,
-                price: 98.50,
-                convexity_adjustment: None,
-                vol_surface_id: Some(CurveId::new("USD-SR3-VOL")),
-            }),
-            Arc::new(DummyInstrument),
-            base_date,
-            1.0,
-        ));
-
-        let err = target
-            .initial_guess(&quote)
-            .expect_err("unsupported dynamic convexity shape should fail closed");
-        assert!(err
-            .to_string()
-            .contains("pre-computed convexity_adjustment"));
     }
 
     #[test]

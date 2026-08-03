@@ -643,14 +643,12 @@ Global solve requires strictly increasing times.",
                 expiry,
                 price,
                 convexity_adjustment,
-                vol_surface_id,
                 ..
             } => RateCalibrationQuote::Futures {
                 contract: RateCalibrationFutureContractId::new(contract.as_str()),
                 expiry: *expiry,
                 price: *price,
                 convexity_adjustment: *convexity_adjustment,
-                vol_surface_id: vol_surface_id.clone(),
             },
             RateQuote::Swap {
                 index,
@@ -898,16 +896,8 @@ impl BootstrapTarget for DiscountCurveTarget {
                 RateQuote::Futures {
                     price,
                     convexity_adjustment,
-                    vol_surface_id,
                     ..
                 } => {
-                    if vol_surface_id.is_some() && convexity_adjustment.is_none() {
-                        return Err(finstack_quant_core::Error::Validation(
-                            "Discount curve calibration requires a pre-computed convexity_adjustment \
-                             for futures quotes; dynamic vol-surface lookup is not wired"
-                                .to_string(),
-                        ));
-                    }
                     // Hull convention: forward = futures - convexity_adjustment
                     let futures_rate = (100.0 - price) / 100.0;
                     let forward_rate = futures_rate - convexity_adjustment.unwrap_or(0.0);
@@ -1604,7 +1594,6 @@ mod tests {
                 expiry: maturity,
                 price: 95.0, // implies 5% futures rate
                 convexity_adjustment: adj,
-                vol_surface_id: None,
             };
             // Use a Deposit instrument as a placeholder -- initial_guess only
             // inspects the quote, not the instrument.
@@ -1690,7 +1679,6 @@ mod tests {
                 expiry: date,
                 price: 95.75,
                 convexity_adjustment: Some(0.0001),
-                vol_surface_id: Some(CurveId::new("USD-SR3-VOL")),
             },
             RateQuote::Swap {
                 id: crate::market::quotes::ids::QuoteId::new("SWAP"),

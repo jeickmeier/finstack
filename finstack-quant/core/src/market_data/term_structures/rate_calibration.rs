@@ -101,7 +101,7 @@ pub enum RateCalibrationPillar {
 
 /// Lossless rate quote representation used by calibration replay.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum RateCalibrationQuote {
     /// Money-market deposit quote.
     Deposit {
@@ -135,8 +135,6 @@ pub enum RateCalibrationQuote {
         price: f64,
         /// Optional pre-computed convexity adjustment.
         convexity_adjustment: Option<f64>,
-        /// Optional volatility surface used for the adjustment.
-        vol_surface_id: Option<CurveId>,
     },
     /// Interest-rate swap quote.
     Swap {
@@ -220,8 +218,7 @@ mod tests {
                         "contract": "CME:SR3",
                         "expiry": "2025-09-17",
                         "price": 95.75,
-                        "convexity_adjustment": 0.0001,
-                        "vol_surface_id": "USD-SR3-VOL"
+                        "convexity_adjustment": 0.0001
                     }
                 },
                 {
@@ -239,6 +236,14 @@ mod tests {
                 }
             ]
         });
+
+        let mut legacy = json.clone();
+        legacy["quotes"][2]["futures"]["vol_surface_id"] =
+            serde_json::Value::String("USD-SR3-VOL".to_string());
+        assert!(
+            serde_json::from_value::<RateCalibrationRecipe>(legacy).is_err(),
+            "removed futures volatility-surface IDs must not be accepted"
+        );
 
         let recipe: RateCalibrationRecipe =
             serde_json::from_value(json).expect("mixed typed rate recipe");

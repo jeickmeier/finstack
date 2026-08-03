@@ -544,7 +544,6 @@ fn forward_curve_future_global_solve_reprices_df_implied_quote() {
         expiry: Date::from_calendar_date(2025, Month::March, 17).expect("expiry"),
         price: 95.0,
         convexity_adjustment: Some(0.0),
-        vol_surface_id: None,
     };
     let envelope = forward_only_envelope(base_date, quote.clone(), "USD-SOFR-3M", 0.25);
     let output = engine::execute(&envelope).expect("future forward calibration");

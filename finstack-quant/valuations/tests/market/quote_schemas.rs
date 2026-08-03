@@ -21,6 +21,7 @@ use finstack_quant_valuations::market::quotes::cds_tranche::CDSTrancheQuote;
 use finstack_quant_valuations::market::quotes::fx::FxQuote;
 use finstack_quant_valuations::market::quotes::ids::{Pillar, QuoteId};
 use finstack_quant_valuations::market::quotes::inflation::InflationQuote;
+use finstack_quant_valuations::market::quotes::rates::RateQuote;
 use finstack_quant_valuations::market::quotes::vol::VolQuote;
 use finstack_quant_valuations::market::quotes::xccy::XccyQuote;
 use std::str::FromStr;
@@ -598,6 +599,18 @@ fn quote_rejects_invalid_dates() {
 #[test]
 fn quote_denies_unknown_fields() {
     // All these schemas use `deny_unknown_fields`; validate it on at least one variant each.
+
+    let legacy_rate_future = r#"
+    {
+      "type": "futures",
+      "id": "SR3-MAR25",
+      "contract": "CME:SR3",
+      "expiry": "2025-03-17",
+      "price": 95.0,
+      "convexity_adjustment": 0.0,
+      "vol_surface_id": "USD-SR3-VOL"
+    }"#;
+    assert!(serde_json::from_str::<RateQuote>(legacy_rate_future).is_err());
 
     let cds_bad = r#"
     {

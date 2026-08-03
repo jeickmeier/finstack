@@ -372,7 +372,6 @@ fn build_future(
         contract,
         price,
         convexity_adjustment,
-        vol_surface_id,
         ..
     } = quote
     else {
@@ -416,7 +415,6 @@ fn build_future(
         .contract_specs(contract_specs)
         .discount_curve_id(CurveId::new(ctx.require_curve_id("discount")?.to_string()))
         .forward_curve_id(CurveId::new(ctx.require_curve_id("forward")?.to_string()))
-        .vol_surface_id_opt(vol_surface_id.clone())
         .attributes(Default::default())
         .build()?;
 

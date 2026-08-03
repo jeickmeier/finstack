@@ -21150,6 +21150,7 @@
           "description": "Money-market deposit quote.",
           "properties": {
             "deposit": {
+              "additionalProperties": false,
               "properties": {
                 "index_id": {
                   "$ref": "#/$defs/Id",
@@ -21183,6 +21184,7 @@
           "description": "Forward-rate agreement quote.",
           "properties": {
             "fra": {
+              "additionalProperties": false,
               "properties": {
                 "end": {
                   "$ref": "#/$defs/RateCalibrationPillar",
@@ -21221,6 +21223,7 @@
           "description": "Interest-rate futures quote.",
           "properties": {
             "futures": {
+              "additionalProperties": false,
               "properties": {
                 "contract": {
                   "$ref": "#/$defs/RateCalibrationFutureContractId",
@@ -21242,17 +21245,6 @@
                   "description": "Quoted futures price.",
                   "format": "double",
                   "type": "number"
-                },
-                "vol_surface_id": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/$defs/Id"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Optional volatility surface used for the adjustment."
                 }
               },
               "required": [
@@ -21273,6 +21265,7 @@
           "description": "Interest-rate swap quote.",
           "properties": {
             "swap": {
+              "additionalProperties": false,
               "properties": {
                 "index_id": {
                   "$ref": "#/$defs/Id",
@@ -21314,6 +21307,7 @@
           "description": "Tenor-basis spread quote versus the linked discount curve.",
           "properties": {
             "basis": {
+              "additionalProperties": false,
               "properties": {
                 "index_id": {
                   "$ref": "#/$defs/Id",

@@ -240,7 +240,6 @@ mod tests {
             expiry: Date::from_calendar_date(2025, Month::September, 15).expect("valid expiry"),
             price: 96.50,
             convexity_adjustment: None,
-            vol_surface_id: None,
         };
 
         let prepared = prepare_rate_quote(quote, &ctx, DayCount::Act365F, as_of, true)
