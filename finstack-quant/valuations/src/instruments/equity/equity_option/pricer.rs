@@ -131,23 +131,18 @@ pub(crate) fn option_currency(inst: &EquityOption) -> Currency {
 
 /// Collected market inputs for equity option pricing.
 ///
-/// Separates time-to-expiry calculations by day count convention:
-/// - `t_rate`: Time using the discount curve's day count (for rate lookups)
-/// - `t_vol`: Time using ACT/365F (equity vol market standard)
+/// The effective rate `r` reproduces the curve-native date-to-date discount
+/// factor when applied over the ACT/365F model time `t_vol`.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct EquityOptionInputs {
     /// Spot price of the underlying
     pub(crate) spot: f64,
-    /// Risk-free rate (from discount curve)
     /// Effective risk-free rate consistent with `t_vol`
     pub(crate) r: f64,
     /// Dividend yield
     pub(crate) q: f64,
     /// Implied volatility
     pub(crate) sigma: f64,
-    /// Time to expiry for rate calculations (curve day count)
-    #[allow(dead_code)] // part of public API result struct
-    pub(crate) t_rate: f64,
     /// Time to expiry for vol calculations (ACT/365F standard)
     pub(crate) t_vol: f64,
 }
@@ -155,8 +150,8 @@ pub(crate) struct EquityOptionInputs {
 /// Collect standard inputs (spot, risk-free, dividend yield, vol, time to expiry).
 ///
 /// **Day Count Convention Handling:**
-/// - Rate calculations use the discount curve's own day count
-/// - Vol surface lookups use ACT/365F (equity market standard)
+/// - Discount factors use the discount curve's own day count
+/// - Vol surface lookups and model time use ACT/365F (equity market standard)
 ///
 /// This separation ensures consistent pricing when discount curves use different
 /// conventions (e.g., OIS curves with ACT/360) than the vol surface.
@@ -170,11 +165,10 @@ pub(crate) fn collect_inputs(
     Ok((inputs.spot, inputs.r, inputs.q, inputs.sigma, inputs.t_vol))
 }
 
-/// Collect inputs with separate rate and vol time fractions.
+/// Collect inputs with curve-native discounting and ACT/365F model time.
 ///
-/// Returns `EquityOptionInputs` with properly separated day count handling:
-/// - `t_rate`: Uses the discount curve's day count for rate lookups
-/// - `t_vol`: Uses ACT/365F for volatility surface lookups (equity market standard)
+/// The curve's day count is consumed by its date-to-date discount-factor
+/// lookup; `t_vol` uses ACT/365F for volatility lookup and option pricing.
 ///
 /// # Discrete Dividend Handling
 ///
@@ -246,35 +240,10 @@ pub(crate) fn collect_inputs_extended(
     curves: &MarketContext,
     as_of: Date,
 ) -> Result<EquityOptionInputs> {
-    // Two-clock rate handling (W-35).
-    //
-    // The discount factor and the volatility surface live on *different* day
-    // counts: the discount curve uses its own convention (e.g. ACT/360 for an
-    // OIS curve), the vol surface uses ACT/365F (the equity-vol market
-    // standard). The two clocks must be kept separate:
-    //
-    //  - `t_rate` (curve clock): retained for curve-native reporting and
-    //    downstream diagnostics. The economic DF is read date-to-date so a
-    //    seasoned curve is correctly rebased at `as_of`.
-    //  - `t_vol` (ACT/365F): the time-to-expiry that drives the whole
-    //    Black–Scholes calculation — `d1`/`d2`, the carry term `(r−q)·t_vol`
-    //    and the discount term `e^{−r·t_vol}`.
-    //
-    // Black–Scholes is a single-`T` model: it applies one time `t_vol` to both
-    // the discount and the carry. The *effective* rate `r` must therefore be
-    // the rate that, compounded over the BSM clock `t_vol`, reproduces the true
-    // curve discount factor:
-    //
-    //     e^{−r · t_vol} = df            ⟹   r = −ln(df) / t_vol
-    //
-    // Dividing by `t_vol` (NOT `t_rate`) is deliberate and correct: it is the
-    // step that *bridges* the two clocks. It guarantees both legs of BSM are
-    // right — the discount `e^{−r·t_vol}` equals `df` exactly, and the forward
-    // `F = S·e^{(r−q)·t_vol}` equals the no-arbitrage forward `(S/df)·e^{−q·t_vol}`.
-    // Using `r = −ln(df)/t_rate` here would instead make `e^{−r·t_vol} ≠ df`
-    // whenever the clocks differ, mispricing both the discount and the carry.
+    // The curve evaluates the economic discount factor on its own day-count
+    // clock. Black–Scholes and the vol surface use ACT/365F, so bridge the two
+    // clocks with an effective rate satisfying exp(-r * t_vol) = df.
     let disc_curve = curves.get_discount(inst.discount_curve_id.as_str())?;
-    let t_rate = year_fraction(disc_curve.day_count(), as_of, inst.expiry)?;
     let df = disc_curve.df_between_dates(as_of, inst.expiry)?;
 
     // Vol time uses ACT/365F (equity market standard for vol surfaces)
@@ -340,7 +309,6 @@ pub(crate) fn collect_inputs_extended(
         r,
         q,
         sigma,
-        t_rate,
         t_vol,
     })
 }

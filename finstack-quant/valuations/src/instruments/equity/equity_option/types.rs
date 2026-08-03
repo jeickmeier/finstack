@@ -761,7 +761,7 @@ mod tests {
     }
 
     use super::*;
-    use crate::instruments::common_impl::traits::Instrument;
+    use crate::instruments::common_impl::{helpers::year_fraction, traits::Instrument};
     use crate::instruments::equity::equity_option::pricer;
     use crate::instruments::{
         Attributes, ExerciseStyle, InstrumentPricingOverrides, OptionType, SettlementType,
@@ -1068,23 +1068,26 @@ mod tests {
 
         let option = base_option(expiry);
 
-        // Verify inputs are correctly separated
+        // Verify the curve and model clocks remain separate.
         let inputs = pricer::collect_inputs_extended(&option, &curves, as_of)
             .expect("collect_inputs_extended should succeed");
+        let discount_curve = curves.get_discount(DISC_ID).expect("discount curve");
+        let curve_time = year_fraction(discount_curve.day_count(), as_of, expiry)
+            .expect("curve day-count fraction");
 
         // ACT/360: 365 days / 360 = 1.01389 years
         // ACT/365F: 365 days / 365 = 1.0 years
-        let expected_t_rate = 365.0 / 360.0; // ACT/360 for rate
+        let expected_curve_time = 365.0 / 360.0; // ACT/360 for discounting
         let expected_t_vol = 365.0 / 365.0; // ACT/365F for vol
 
-        approx_eq(inputs.t_rate, expected_t_rate, 1e-4);
+        approx_eq(curve_time, expected_curve_time, 1e-4);
         approx_eq(inputs.t_vol, expected_t_vol, 1e-4);
 
-        // The difference between t_rate and t_vol should be non-trivial
-        let time_diff = (inputs.t_rate - inputs.t_vol).abs();
+        // The difference between the curve and model clocks should be non-trivial.
+        let time_diff = (curve_time - inputs.t_vol).abs();
         assert!(
             time_diff > 0.01,
-            "t_rate and t_vol should differ significantly with ACT/360 vs ACT/365F: got {time_diff}"
+            "curve and model clocks should differ with ACT/360 vs ACT/365F: got {time_diff}"
         );
 
         // Verify pricing works and produces reasonable values
@@ -1094,14 +1097,11 @@ mod tests {
         assert!(pv.amount() > 0.0, "Call option should have positive value");
 
         // W-35 two-clock bridging — DISCOUNT leg.
-        // The discount factor is read off the curve on the curve clock
-        // (`t_rate`), but BSM applies the effective rate over the vol clock
-        // (`t_vol`). The bridge `r = −ln(df)/t_vol` must make the BSM discount
-        // `e^{−r·t_vol}` reproduce the true curve `df(t_rate)` exactly.
-        let df_curve = curves
-            .get_discount(DISC_ID)
-            .expect("discount curve")
-            .df(inputs.t_rate);
+        // The curve uses its own day-count clock in the date-to-date lookup,
+        // while BSM applies the effective rate over the ACT/365F model clock.
+        let df_curve = discount_curve
+            .df_between_dates(as_of, expiry)
+            .expect("date-to-date discount factor");
         let df_from_r = (-inputs.r * inputs.t_vol).exp();
         approx_eq(df_from_r, df_curve, 1e-10);
 
