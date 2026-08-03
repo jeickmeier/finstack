@@ -191,56 +191,16 @@ pub fn parse_period_to_days(period: &str) -> Result<i64> {
     Ok(parsed.to_days_approx())
 }
 
-/// Result of interpolation weight calculation, including any extrapolation info.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct InterpolationResult {
-    /// Weights as (knot_index, weight) pairs.
-    pub weights: Vec<(usize, f64)>,
-    /// True if target is beyond the curve's maximum knot (extrapolation).
-    pub is_extrapolation: bool,
-    /// If extrapolation, how far beyond the curve (in years).
-    pub extrapolation_distance: Option<f64>,
+/// Interpolation weights and flat-extrapolation metadata for a curve-node shock.
+#[derive(Debug, Clone)]
+pub(crate) struct InterpolationResult {
+    pub(crate) weights: Vec<(usize, f64)>,
+    pub(crate) is_extrapolation: bool,
+    pub(crate) extrapolation_distance: Option<f64>,
 }
 
-/// Calculate linear interpolation weights with detailed extrapolation information.
-///
-/// Produces `(index, weight)` pairs that distribute a bump at `target` onto the
-/// nearest knot points so the weighted average time matches `target`. Also
-/// reports whether extrapolation occurred and how far beyond the curve the
-/// target lies so callers can emit warnings when applying shocks outside the
-/// supported knot range.
-///
-/// # Arguments
-/// - `target`: The time (in years) where the shock is applied.
-/// - `knots`: Sorted slice of knot times (in years).
-///
-/// # Returns
-/// [`InterpolationResult`] containing weights and extrapolation metadata.
-///
-/// # Extrapolation Behavior
-///
-/// When `target` falls outside the curve's knot range, flat extrapolation is
-/// used: all weight is assigned to the nearest endpoint knot and
-/// `is_extrapolation` is set to `true` with the gap recorded in
-/// `extrapolation_distance`.
-///
-/// # Example
-///
-/// ```rust
-/// use finstack_quant_scenarios::calculate_interpolation_weights;
-///
-/// let knots = vec![1.0, 2.0, 5.0, 10.0];
-///
-/// // Interpolation case
-/// let result = calculate_interpolation_weights(3.0, &knots);
-/// assert!(!result.is_extrapolation);
-///
-/// // Extrapolation case (beyond 10Y curve)
-/// let result = calculate_interpolation_weights(15.0, &knots);
-/// assert!(result.is_extrapolation);
-/// assert!((result.extrapolation_distance.unwrap() - 5.0).abs() < 1e-6);
-/// ```
-pub fn calculate_interpolation_weights(target: f64, knots: &[f64]) -> InterpolationResult {
+/// Split a target time across its nearest knots and report flat extrapolation.
+pub(crate) fn calculate_interpolation_weights(target: f64, knots: &[f64]) -> InterpolationResult {
     if knots.is_empty() {
         return InterpolationResult {
             weights: vec![],
@@ -317,6 +277,22 @@ mod tests {
         assert!((out[0] - 0.03).abs() < 1e-9);
         assert!((out[1] - 0.07).abs() < 1e-9);
         assert!(bp_to_fractions(&[]).is_empty());
+    }
+
+    #[test]
+    fn interpolation_weights_preserve_math_and_extrapolation_metadata() {
+        let interpolated = calculate_interpolation_weights(3.0, &[1.0, 2.0, 5.0, 10.0]);
+        assert_eq!(interpolated.weights[0].0, 1);
+        assert!((interpolated.weights[0].1 - 2.0 / 3.0).abs() < 1e-12);
+        assert_eq!(interpolated.weights[1].0, 2);
+        assert!((interpolated.weights[1].1 - 1.0 / 3.0).abs() < 1e-12);
+        assert!(!interpolated.is_extrapolation);
+        assert_eq!(interpolated.extrapolation_distance, None);
+
+        let extrapolated = calculate_interpolation_weights(15.0, &[1.0, 2.0, 5.0, 10.0]);
+        assert_eq!(extrapolated.weights, vec![(3, 1.0)]);
+        assert!(extrapolated.is_extrapolation);
+        assert_eq!(extrapolated.extrapolation_distance, Some(5.0));
     }
 
     #[test]

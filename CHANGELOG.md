@@ -31,6 +31,9 @@
   registry, and the corresponding `FrtbSbaEngine` builder and accessors. FRTB
   SBA continues to use the fixed BCBS d457 constants under
   `regulatory::frtb::params`.
+- **Breaking (Rust):** `InterpolationResult` and
+  `calculate_interpolation_weights` are now crate-private scenario adapter
+  details and no longer part of the public or serialized API.
 - **Breaking (Rust):** `TemplateRegistry` now has one validated registration
   path. Use the fallible `TemplateRegistry::with_embedded_builtins`,
   `register_json_template_str`, or `load_json_dir`; the builder-factory

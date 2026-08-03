@@ -381,7 +381,6 @@ NON_MAINTAINED_SERDE_EXCEPTIONS = (
         "persisted envelope from the contract catalog.",
     ),
     *_computed_output("scenarios", "src/horizon.rs", ("HorizonResult",)),
-    *_computed_output("scenarios", "src/utils.rs", ("InterpolationResult",)),
     *_computed_output("statements", "src/adjustments/types.rs", ("NormalizationResult",)),
     *_in_process_spec(
         "statements",

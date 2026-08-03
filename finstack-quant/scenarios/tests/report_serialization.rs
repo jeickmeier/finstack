@@ -2,7 +2,7 @@
 
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
-use finstack_quant_scenarios::{ArbitrageViolation, InterpolationResult, RollForwardReport};
+use finstack_quant_scenarios::{ArbitrageViolation, RollForwardReport};
 use indexmap::IndexMap;
 use time::macros::date;
 
@@ -47,11 +47,5 @@ fn test_scenarios_report_and_diagnostics_roundtrip() {
         expiry: 2.0,
         prev_variance: 0.09,
         curr_variance: 0.08,
-    });
-
-    assert_roundtrip_value(&InterpolationResult {
-        weights: vec![(2, 0.25), (3, 0.75)],
-        is_extrapolation: false,
-        extrapolation_distance: None,
     });
 }
