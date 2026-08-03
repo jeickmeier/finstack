@@ -97,48 +97,19 @@ mod deliverable_basket_wire {
     }
 }
 
-/// A bond in the deliverable basket with its conversion factor.
+/// An eligible deliverable and the conversion factor used by pricing.
 ///
-/// Each bond future contract has a basket of deliverable bonds that can be delivered
-/// to satisfy the contract. The conversion factor normalizes bonds with different
-/// coupons and maturities to a standard notional bond.
-///
-/// # Conversion Factor Requirements
-///
-/// **IMPORTANT**: Conversion factors must match the values published by the exchange
-/// (CME for UST, Eurex for Bund, ICE for Gilt). The implementation does **not**
-/// calculate CFs internally - they must be sourced from official exchange publications.
-///
-/// The CF calculation formula (using 6% notional yield for UST/Bund, 4% for Gilt)
-/// is documented in exchange rulebooks:
-/// - **CME**: CBOT US Treasury Futures Contract Specifications
-/// - **Eurex**: Euro-Bund Futures Contract Specifications
-/// - **ICE**: Long Gilt Futures Contract Specifications
-///
-/// Using incorrect CFs will result in material pricing errors for invoice price,
-/// CTD determination, and basis calculations.
-///
-/// # Examples
-///
-/// ```rust
-/// use finstack_quant_valuations::instruments::fixed_income::bond_future::DeliverableBond;
-/// use finstack_quant_core::types::InstrumentId;
-///
-/// // CF from CME publication for a specific deliverable bond
-/// let deliverable = DeliverableBond {
-///     bond_id: InstrumentId::new("US912828XG33"),
-///     conversion_factor: 0.8234,  // Must match CME-published value
-/// };
-/// ```
+/// Pricing and CTD helpers consume the supplied positive factor; they do not
+/// recalculate it. Prefer the exchange-published value for the security and
+/// delivery month. For CME/CBOT contracts, callers can use
+/// [`super::BondFuturePricer::calculate_conversion_factor`] to calculate a
+/// factor and store the result here.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DeliverableBond {
     /// Identifier of the deliverable bond
     pub bond_id: InstrumentId,
-    /// Conversion factor for this bond.
-    ///
-    /// **Must match exchange-published value**. CFs are not calculated internally.
-    /// See struct-level documentation for exchange references.
+    /// Positive conversion factor consumed by invoice, basis, and pricing calculations.
     #[serde(
         serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
         deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
@@ -168,9 +139,9 @@ pub struct DeliverableBond {
 pub struct BondFutureSpecs {
     /// Face value of a single contract (e.g., $100,000 for UST)
     pub contract_size: f64,
-    /// Minimum price increment (e.g., 1/32 = 0.03125 for UST)
+    /// Minimum quoted-price increment, in the contract's quote units.
     pub tick_size: f64,
-    /// Value of one tick in currency units (e.g., $31.25 for UST)
+    /// Cash value of one tick for one contract, in the notional currency.
     pub tick_value: f64,
     /// Standard coupon rate for conversion factor calculation (e.g., 0.06 for 6%)
     pub standard_coupon: f64,
@@ -409,51 +380,50 @@ impl BondFutureSpecs {
 
 /// Bond future instrument.
 ///
-/// A bond future is a standardized contract to buy or sell a government bond at a
-/// specified price on a future date. The contract has a basket of deliverable bonds,
-/// each with a conversion factor. The holder of the short position chooses which
-/// bond to deliver (typically the Cheapest-to-Deliver or CTD bond).
+/// A standardized contract with a basket of eligible deliverables. The short
+/// chooses the bond to deliver, commonly the cheapest-to-deliver (CTD) bond.
 ///
 /// # Contract Mechanics
 ///
-/// - **Deliverable Basket**: Multiple bonds eligible for delivery
-/// - **Conversion Factors**: Published by exchange to normalize different bonds
-/// - **CTD Selection**: Short side chooses which bond to deliver (user-specified in this implementation)
-/// - **Invoice Price**: (Futures Price × Conversion Factor) + Accrued Interest
+/// - **Conversion factors**: Supplied per deliverable, preferably from the exchange.
+/// - **CTD resolution**: Explicit `ctd_bond_id`, then embedded `ctd_bond.id`,
+///   then the sole basket member. A larger basket requires an explicit or embedded CTD.
+/// - **CTD analysis**: The `determine_ctd*` helpers return ranked candidates but
+///   do not mutate the selected CTD; pricing never ranks the basket automatically.
+/// - **Invoice price**: `(Futures Price × Conversion Factor) + Accrued Interest`.
 ///
 /// # Examples
 ///
-/// ```ignore
-/// use finstack_quant_valuations::instruments::fixed_income::bond_future::{
-///     BondFuture, BondFutureBuilder, BondFutureSpecs, DeliverableBond,
-/// };
-/// use finstack_quant_valuations::instruments::Position;
-/// use finstack_quant_core::money::Money;
+/// ```rust
 /// use finstack_quant_core::currency::Currency;
-/// use finstack_quant_core::dates::Date;
-/// use finstack_quant_core::types::{InstrumentId, CurveId};
-/// use time::Month;
+/// use finstack_quant_core::money::Money;
+/// use finstack_quant_core::types::{CurveId, InstrumentId};
+/// use finstack_quant_valuations::instruments::fixed_income::bond_future::{
+///     BondFuture, BondFutureSpecs, DeliverableBond,
+/// };
+/// use finstack_quant_valuations::instruments::{Attributes, Position};
+/// use time::macros::date;
 ///
-/// // Create a UST 10-year future
+/// # fn main() -> finstack_quant_core::Result<()> {
 /// let future = BondFuture::builder()
 ///     .id(InstrumentId::new("TYH5"))
 ///     .notional(Money::new(1_000_000.0, Currency::USD))
-///     .expiry(Date::from_calendar_date(2025, Month::March, 20).unwrap())
-///     .delivery_start(Date::from_calendar_date(2025, Month::March, 21).unwrap())
-///     .delivery_end(Date::from_calendar_date(2025, Month::March, 31).unwrap())
+///     .expiry(date!(2025 - 03 - 20))
+///     .delivery_start(date!(2025 - 03 - 21))
+///     .delivery_end(date!(2025 - 03 - 31))
 ///     .quoted_price(125.50)
 ///     .position(Position::Long)
 ///     .contract_specs(BondFutureSpecs::ust_10y())
-///     .deliverable_basket(vec![
-///         DeliverableBond {
-///             bond_id: InstrumentId::new("US912828XG33"),
-///             conversion_factor: 0.8234,
-///         },
-///     ])
-///     .ctd_bond_id(InstrumentId::new("US912828XG33"))
+///     .deliverable_basket(vec![DeliverableBond {
+///         bond_id: InstrumentId::new("US912828XG33"),
+///         conversion_factor: 0.8234,
+///     }])
 ///     .discount_curve_id(CurveId::new("USD-TREASURY"))
-///     .build()
-///     .expect("Valid bond future");
+///     .attributes(Attributes::new())
+///     .build_validated()?;
+/// assert_eq!(future.deliverable_basket.len(), 1);
+/// # Ok(())
+/// # }
 /// ```
 #[derive(
     Clone,
@@ -510,52 +480,26 @@ pub struct BondFuture {
     #[schemars(length(min = 1))]
     pub deliverable_basket: Vec<DeliverableBond>,
 
-    /// Cheapest-to-Deliver (CTD) bond identifier.
+    /// Selected cheapest-to-deliver (CTD) bond identifier.
     ///
-    /// The CTD bond is the deliverable bond that maximizes the implied repo rate
-    /// (or equivalently, minimizes the basis). Users can:
+    /// Resolution is deterministic: this explicit identifier takes precedence,
+    /// followed by `ctd_bond.id`, then the sole basket member. A larger basket
+    /// with neither form of selection fails validation. The resolved identifier
+    /// must be in `deliverable_basket`; an embedded bond must have the same ID.
     ///
-    /// 1. **Specify directly**: Set this to a known CTD bond ID
-    /// 2. **Calculate automatically**: Use [`BondFuture::determine_ctd`] with bond clean prices
-    ///
-    /// # CTD Selection Methodology
-    ///
-    /// The CTD is determined by comparing the **gross basis** for each deliverable bond:
-    ///
-    /// ```text
-    /// Gross Basis = Clean Price - (Futures Price × Conversion Factor)
-    /// ```
-    ///
-    /// (The *net* basis additionally subtracts the carry to delivery:
-    /// `Net Basis = Gross Basis - Carry`.)
-    ///
-    /// The bond with the **lowest basis** (or highest implied repo) is the CTD.
-    /// In practice, this is usually the bond with:
-    /// - Highest duration (in a rising rate environment)
-    /// - Lowest duration (in a falling rate environment)
-    /// - Lowest coupon (when yields are above the notional coupon)
-    ///
-    /// # Production Note
-    ///
-    /// For production systems, use [`BondFuture::determine_ctd`] or integrate with
-    /// a real-time CTD analysis service. The CTD can change throughout the day as
-    /// bond prices and repo rates fluctuate.
-    ///
-    /// Optional to support workflow where CTD is selected by pricing logic.
-    /// If omitted, the engine resolves CTD as:
-    /// 1) `ctd_bond.id` when embedded CTD bond is provided
-    /// 2) single deliverable bond in basket when basket length is 1
+    /// [`Self::determine_ctd`] ranks clean prices by gross basis;
+    /// [`Self::determine_ctd_with_accrued`] includes current and delivery accrued
+    /// interest; [`Self::determine_ctd_by_implied_repo`] ranks by highest implied
+    /// repo after coupon income and time to delivery. These helpers return a
+    /// candidate and do not update this field.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ctd_bond_id: Option<InstrumentId>,
 
     /// Optional embedded CTD bond definition.
     ///
-    /// When present, the bond future can be priced without relying on any external
-    /// instrument registry. This keeps `finstack_quant_core::market_data::MarketContext`
-    /// purely market-data focused (curves/surfaces/scalars) and fully serializable.
-    ///
-    /// If `None`, pricing will return a validation error instructing callers to
-    /// provide the CTD bond at the pricing boundary.
+    /// Model-price and NPV paths require this definition because
+    /// `MarketContext` contains market data, not an instrument registry.
+    /// Identifier-only CTD analysis and conversion-factor lookup do not require it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub ctd_bond: Option<crate::instruments::fixed_income::bond::Bond>,
@@ -579,7 +523,6 @@ pub struct BondFuture {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub repo_curve_id: Option<CurveId>,
 
-    /// Attributes for scenario selection and tagging
     #[builder(default)]
     /// Instrument-owned pricing inputs.
     #[serde(
@@ -775,59 +718,6 @@ impl BondFuture {
     /// - Cashflow schedule building fails
     /// - Accrued interest calculation fails
     ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// use finstack_quant_core::currency::Currency;
-    /// use finstack_quant_core::market_data::context::MarketContext;
-    /// use finstack_quant_core::money::Money;
-    /// use finstack_quant_core::types::{CurveId, InstrumentId};
-    /// use finstack_quant_valuations::instruments::Bond;
-    /// use finstack_quant_valuations::instruments::fixed_income::bond_future::{
-    ///     BondFuture, BondFutureSpecs, DeliverableBond,
-    /// };
-    /// use finstack_quant_valuations::instruments::Position;
-    /// use time::macros::date;
-    ///
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let ctd_bond_id = InstrumentId::new("US912828XG33");
-    /// let future = BondFuture::builder()
-    ///     .id(InstrumentId::new("TYH5"))
-    ///     .notional(Money::new(1_000_000.0, Currency::USD))
-    ///     .expiry(date!(2025-03-20))
-    ///     .delivery_start(date!(2025-03-21))
-    ///     .delivery_end(date!(2025-03-31))
-    ///     .quoted_price(125.50)
-    ///     .position(Position::Long)
-    ///     .contract_specs(BondFutureSpecs::ust_10y())
-    ///     .deliverable_basket(vec![DeliverableBond {
-    ///         bond_id: ctd_bond_id.clone(),
-    ///         conversion_factor: 0.8234,
-    ///     }])
-    ///     .ctd_bond_id(ctd_bond_id.clone())
-    ///     .discount_curve_id(CurveId::new("USD-TREASURY"))
-    ///     .build()
-    ///     .expect("Valid bond future");
-    /// let ctd_bond = Bond::fixed(
-    ///     ctd_bond_id.as_str(),
-    ///     Money::new(100_000.0, Currency::USD),
-    ///     0.05,
-    ///     date!(2020-01-15),
-    ///     date!(2030-01-15),
-    ///     "USD-OIS",
-    /// )?;
-    /// let market = MarketContext::new();
-    ///
-    /// // Calculate invoice price for settlement 2 days after expiry
-    /// let settlement = date!(2025-03-23);
-    /// let invoice = future.invoice_price(&ctd_bond, &market, settlement)?;
-    ///
-    /// // For futures price 125.50 and CF 0.8234:
-    /// // Invoice = (125.50 × 0.8234) + accrued
-    /// # let _ = invoice;
-    /// # Ok(())
-    /// # }
-    /// ```
     pub fn invoice_price(
         &self,
         ctd_bond: &crate::instruments::fixed_income::bond::Bond,
@@ -920,61 +810,6 @@ impl BondFuture {
     /// - No valid bond prices are provided for any bond in the basket
     /// - All provided prices are non-positive
     ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// use finstack_quant_valuations::instruments::fixed_income::bond_future::{
-    ///     BondFuture, BondFutureSpecs, DeliverableBond,
-    /// };
-    /// use finstack_quant_valuations::instruments::Position;
-    /// use finstack_quant_core::currency::Currency;
-    /// use finstack_quant_core::money::Money;
-    /// use finstack_quant_core::types::{CurveId, InstrumentId};
-    /// use time::macros::date;
-    ///
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// // Create a bond future with multiple deliverables
-    /// let bond1_id = InstrumentId::new("US912828XG33");
-    /// let bond2_id = InstrumentId::new("US912828XG34");
-    ///
-    /// let future = BondFuture::builder()
-    ///     .id(InstrumentId::new("TYH5"))
-    ///     .notional(Money::new(1_000_000.0, Currency::USD))
-    ///     .expiry(date!(2025-03-20))
-    ///     .delivery_start(date!(2025-03-21))
-    ///     .delivery_end(date!(2025-03-31))
-    ///     .quoted_price(125.50)
-    ///     .position(Position::Long)
-    ///     .contract_specs(BondFutureSpecs::ust_10y())
-    ///     .deliverable_basket(vec![
-    ///         DeliverableBond { bond_id: bond1_id.clone(), conversion_factor: 0.8234 },
-    ///         DeliverableBond { bond_id: bond2_id.clone(), conversion_factor: 0.8567 },
-    ///     ])
-    ///     .ctd_bond_id(bond1_id.clone())
-    ///     .discount_curve_id(CurveId::new("USD-TREASURY"))
-    ///     .build()
-    ///     .expect("Valid bond future");
-    ///
-    /// // Determine CTD based on current market prices
-    /// let bond_prices = vec![
-    ///     (bond1_id.clone(), 103.25),  // Clean price per 100 face
-    ///     (bond2_id.clone(), 107.50),
-    /// ];
-    ///
-    /// let (ctd_id, gross_basis) = future.determine_ctd(&bond_prices)?;
-    /// println!("CTD bond: {}, Gross basis: {:.4}", ctd_id.as_str(), gross_basis);
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// # Production Considerations
-    ///
-    /// - **Accrued Interest**: For precise CTD determination including carry, use
-    ///   [`determine_ctd_with_accrued`](Self::determine_ctd_with_accrued) which accounts
-    ///   for accrued interest and settlement timing.
-    /// - **Repo Rates**: In practice, different bonds may have different financing costs
-    ///   (repo rates). The true CTD analysis should incorporate implied repo calculations.
-    /// - **Timing**: CTD can change intraday as prices move; recalculate periodically.
     pub fn determine_ctd(
         &self,
         bond_clean_prices: &[(InstrumentId, f64)],
@@ -1036,49 +871,9 @@ impl BondFuture {
     ///
     /// Returns the `InstrumentId` of the CTD bond and its gross basis.
     ///
-    /// # Examples
+    /// # Errors
     ///
-    /// ```ignore
-    /// use finstack_quant_valuations::instruments::fixed_income::bond_future::{
-    ///     BondFuture, BondFutureSpecs, DeliverableBond,
-    /// };
-    /// use finstack_quant_valuations::instruments::Position;
-    /// use finstack_quant_core::currency::Currency;
-    /// use finstack_quant_core::money::Money;
-    /// use finstack_quant_core::types::{CurveId, InstrumentId};
-    /// use time::macros::date;
-    ///
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let bond1_id = InstrumentId::new("US912828XG33");
-    /// let bond2_id = InstrumentId::new("US912828XG34");
-    ///
-    /// let future = BondFuture::builder()
-    ///     .id(InstrumentId::new("TYH5"))
-    ///     .notional(Money::new(1_000_000.0, Currency::USD))
-    ///     .expiry(date!(2025-03-20))
-    ///     .delivery_start(date!(2025-03-21))
-    ///     .delivery_end(date!(2025-03-31))
-    ///     .quoted_price(125.50)
-    ///     .position(Position::Long)
-    ///     .contract_specs(BondFutureSpecs::ust_10y())
-    ///     .deliverable_basket(vec![
-    ///         DeliverableBond { bond_id: bond1_id.clone(), conversion_factor: 0.8234 },
-    ///         DeliverableBond { bond_id: bond2_id.clone(), conversion_factor: 0.8567 },
-    ///     ])
-    ///     .ctd_bond_id(bond1_id.clone())
-    ///     .discount_curve_id(CurveId::new("USD-TREASURY"))
-    ///     .build()
-    ///     .expect("Valid bond future");
-    ///
-    /// let bond_data = vec![
-    ///     (bond1_id.clone(), 103.25, 1.25, 1.75),  // (id, clean, accrued_today, accrued_at_delivery)
-    ///     (bond2_id.clone(), 107.50, 1.50, 2.00),
-    /// ];
-    ///
-    /// let (ctd_id, gross_basis) = future.determine_ctd_with_accrued(&bond_data)?;
-    /// # Ok(())
-    /// # }
-    /// ```
+    /// Returns an error if no basket member has a supplied positive clean price.
     pub fn determine_ctd_with_accrued(
         &self,
         bond_prices_with_accrued: &[(InstrumentId, f64, f64, f64)],
@@ -1236,51 +1031,6 @@ impl BondFuture {
     /// - The purchase price is non-positive
     /// - Days to delivery is zero or negative
     ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// use finstack_quant_valuations::instruments::fixed_income::bond_future::{
-    ///     BondFuture, BondFutureSpecs, DeliverableBond,
-    /// };
-    /// use finstack_quant_valuations::instruments::Position;
-    /// use finstack_quant_core::currency::Currency;
-    /// use finstack_quant_core::money::Money;
-    /// use finstack_quant_core::types::{CurveId, InstrumentId};
-    /// use time::macros::date;
-    ///
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let bond_id = InstrumentId::new("US912828XG33");
-    /// let future = BondFuture::builder()
-    ///     .id(InstrumentId::new("TYH5"))
-    ///     .notional(Money::new(1_000_000.0, Currency::USD))
-    ///     .expiry(date!(2025-03-20))
-    ///     .delivery_start(date!(2025-03-21))
-    ///     .delivery_end(date!(2025-03-31))
-    ///     .quoted_price(125.50)
-    ///     .position(Position::Long)
-    ///     .contract_specs(BondFutureSpecs::ust_10y())
-    ///     .deliverable_basket(vec![
-    ///         DeliverableBond { bond_id: bond_id.clone(), conversion_factor: 0.8234 },
-    ///     ])
-    ///     .ctd_bond_id(bond_id.clone())
-    ///     .discount_curve_id(CurveId::new("USD-TREASURY"))
-    ///     .build()
-    ///     .expect("Valid bond future");
-    ///
-    /// // Calculate implied repo for the CTD bond
-    /// let implied_repo = future.implied_repo_rate(
-    ///     &bond_id,
-    ///     103.25,  // clean price
-    ///     1.25,    // accrued today
-    ///     1.75,    // accrued at delivery
-    ///     0.0,     // no coupons between now and delivery
-    ///     30,      // days to delivery
-    /// )?;
-    ///
-    /// println!("Implied repo rate: {:.2}%", implied_repo * 100.0);
-    /// # Ok(())
-    /// # }
-    /// ```
     pub fn implied_repo_rate(
         &self,
         bond_id: &InstrumentId,
@@ -1346,40 +1096,6 @@ impl BondFutureBuilder {
     /// - Any required field is missing (from the generated builder)
     /// - Validation fails (from `BondFuture::validate`)
     ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// use finstack_quant_core::currency::Currency;
-    /// use finstack_quant_core::money::Money;
-    /// use finstack_quant_core::types::{CurveId, InstrumentId};
-    /// use finstack_quant_valuations::instruments::fixed_income::bond_future::{
-    ///     BondFuture, BondFutureSpecs, DeliverableBond,
-    /// };
-    /// use finstack_quant_valuations::instruments::Position;
-    /// use time::macros::date;
-    ///
-    /// # fn main() -> finstack_quant_core::Result<()> {
-    /// let ctd_bond_id = InstrumentId::new("US912828XG33");
-    /// let future = BondFuture::builder()
-    ///     .id(InstrumentId::new("TYH5"))
-    ///     .notional(Money::new(1_000_000.0, Currency::USD))
-    ///     .expiry(date!(2025-03-20))
-    ///     .delivery_start(date!(2025-03-21))
-    ///     .delivery_end(date!(2025-03-31))
-    ///     .quoted_price(125.50)
-    ///     .position(Position::Long)
-    ///     .contract_specs(BondFutureSpecs::ust_10y())
-    ///     .deliverable_basket(vec![DeliverableBond {
-    ///         bond_id: ctd_bond_id.clone(),
-    ///         conversion_factor: 0.8234,
-    ///     }])
-    ///     .ctd_bond_id(ctd_bond_id)
-    ///     .discount_curve_id(CurveId::new("USD-TREASURY"))
-    ///     .build_validated()?; // Validates after construction
-    /// # let _ = future;
-    /// # Ok(())
-    /// # }
-    /// ```
     pub fn build_validated(self) -> finstack_quant_core::Result<BondFuture> {
         let bond_future = self.build().map_err(|e| {
             finstack_quant_core::Error::Validation(format!("BondFuture construction failed: {}", e))

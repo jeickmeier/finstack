@@ -1,9 +1,10 @@
-//! Bond future pricing logic.
+//! Bond-future conversion-factor, model-price, and mark-to-market helpers.
 //!
-//! This module implements pricing and valuation for bond futures, including:
-//! - Conversion factor calculation
-//! - Model futures price calculation
-//! - NPV calculation
+//! Instrument valuation consumes the resolved basket conversion factor and
+//! carries the embedded CTD bond with `repo_curve_id` or, when absent, the
+//! future's `discount_curve_id`. The standalone model-price helper has no
+//! future-level financing inputs and therefore uses the CTD bond's discount
+//! curve.
 
 use crate::pricer::PricingError;
 use finstack_quant_core::dates::Date;
@@ -58,16 +59,15 @@ impl BondFuturePricer {
     ///   d = (coupon / r) × (1 − c)
     /// ```
     ///
-    /// # Important
+    /// # Pricing use
     ///
-    /// When the exchange publishes a conversion factor for a deliverable, use
-    /// that value: it is carried on [`super::DeliverableBond::conversion_factor`]
-    /// and is what the pricing path (`base_value`, the futures-price and
-    /// conversion-factor metrics) actually uses. This function reproduces the
-    /// published CME methodology and is the fallback when no exchange value is
-    /// supplied.
+    /// Instrument valuation uses the factor stored on
+    /// [`super::DeliverableBond::conversion_factor`] and does not call this
+    /// helper automatically. Use this helper explicitly to reproduce the CME
+    /// methodology when an exchange-published factor is unavailable, then
+    /// store the result with the deliverable.
     ///
-    /// # Parameters
+    /// # Arguments
     ///
     /// - `bond`: The deliverable bond. Must be fixed-rate (or step-up); the
     ///   stated annual coupon is read from the bond's cashflow spec.
@@ -87,8 +87,9 @@ impl BondFuturePricer {
     /// # Errors
     ///
     /// Returns [`finstack_quant_core::Error::Validation`] if the bond has no fixed
-    /// coupon (e.g. a floating-rate note), if the notional coupon is
-    /// non-positive, or if the bond matures before the delivery month.
+    /// coupon (e.g. a floating-rate note), if the notional coupon is not positive
+    /// and finite, or if the bond's maturity or first call date is not after the
+    /// delivery-month start.
     pub fn calculate_conversion_factor(
         bond: &Bond,
         standard_coupon: f64,
@@ -193,70 +194,36 @@ impl BondFuturePricer {
     /// Model_Price       = Forward_Clean_CTD_percent / CF
     /// ```
     ///
-    /// The spot dirty price is carried forward at the CTD bond's own discount
-    /// curve (the cost of financing the position to delivery), and any coupons
-    /// received before delivery are credited at their present value. This
-    /// removes the bias of the previous `Clean_Price / CF` proxy, which priced
-    /// the futures off the *spot* clean price and so omitted cost-of-carry.
+    /// This standalone helper uses the CTD bond's discount curve both to value
+    /// interim cashflows and to carry the remaining dirty value to delivery.
     ///
-    /// # Repo specials
+    /// # Financing curve
     ///
-    /// This convenience entry point uses the CTD bond's discount curve as the
-    /// financing proxy. Position pricing calls the financing-aware helper and
-    /// uses the future's dedicated repo curve when configured, falling back to
-    /// the future's own `discount_curve_id` otherwise.
+    /// Instrument valuation uses the future's `repo_curve_id` when configured
+    /// and otherwise uses the future's `discount_curve_id`; it does not call
+    /// this standalone helper's CTD-curve default.
     ///
-    /// # Parameters
+    /// # Arguments
     ///
-    /// - `ctd_bond`: The cheapest-to-deliver bond
-    /// - `conversion_factor`: Pre-calculated conversion factor for the CTD bond
-    /// - `market`: Market context with discount curves for pricing
-    /// - `as_of`: Valuation date
-    /// - `delivery_date`: Contract delivery date the CTD is carried forward to
+    /// - `ctd_bond`: Cheapest-to-deliver bond whose dirty value, cashflows,
+    ///   accrued interest, notional, and discount curve determine the forward
+    ///   clean price.
+    /// - `conversion_factor`: Positive, finite, unitless conversion factor for
+    ///   `ctd_bond`.
+    /// - `market`: Market context containing the CTD bond's required pricing
+    ///   inputs and discount curve.
+    /// - `as_of`: Valuation date used for the spot bond value and cashflow cutoff.
+    /// - `delivery_date`: Date to which the CTD position is carried.
     ///
     /// # Returns
     ///
-    /// Model futures price as a decimal (e.g., 125.50 for 125-16 in 32nds)
+    /// Model futures price in points per 100 face (e.g., `125.50` for 125-16).
     ///
     /// # Errors
     ///
-    /// Returns an error if `conversion_factor` is non-positive, the discount
-    /// factor to delivery is non-positive, or the CTD schedule/curve lookups
-    /// fail.
-    ///
-    /// # Example
-    ///
-    /// ```text
-    /// use finstack_quant_core::currency::Currency;
-    /// use finstack_quant_core::market_data::context::MarketContext;
-    /// use finstack_quant_core::money::Money;
-    /// use finstack_quant_valuations::instruments::Bond;
-    /// use finstack_quant_valuations::instruments::fixed_income::bond_future::pricer::BondFuturePricer;
-    /// use time::macros::date;
-    ///
-    /// # fn main() -> finstack_quant_core::Result<()> {
-    /// let market = MarketContext::new();
-    /// let ctd_bond = Bond::fixed(
-    ///     "US-CTD",
-    ///     Money::new(100_000.0, Currency::USD),
-    ///     0.05,
-    ///     date!(2020-01-15),
-    ///     date!(2030-01-15),
-    ///     "USD-OIS",
-    /// )?;
-    /// let cf = 0.8234;
-    /// let model_price = BondFuturePricer::calculate_model_price(
-    ///     &ctd_bond,
-    ///     cf,
-    ///     &market,
-    ///     date!(2025-01-15),
-    ///     date!(2025-03-31),
-    /// )?;
-    /// // model_price might be 125.50
-    /// # let _ = model_price;
-    /// # Ok(())
-    /// # }
-    /// ```
+    /// Returns an error if `conversion_factor` is not positive and finite, the
+    /// discount factor to delivery is not positive and finite, or CTD pricing,
+    /// schedule, accrual, or curve lookup fails.
     pub fn calculate_model_price(
         ctd_bond: &Bond,
         conversion_factor: f64,
@@ -338,8 +305,9 @@ impl BondFuturePricer {
 
     /// Calculate the model price using the financing convention declared by a future.
     ///
-    /// The financing curve is `future.repo_curve_id` when set, otherwise the
-    /// future's own `discount_curve_id`.
+    /// The CTD is carried to `max(future.delivery_start, as_of)`. The financing
+    /// curve is `future.repo_curve_id` when set, otherwise the future's own
+    /// `discount_curve_id`.
     pub(crate) fn calculate_model_price_for_future(
         future: &super::BondFuture,
         ctd_bond: &Bond,
@@ -381,68 +349,26 @@ impl BondFuturePricer {
     /// Note: No discount factor is applied because exchange-traded futures
     /// settle daily via variation margin (mark-to-market).
     ///
-    /// # Parameters
+    /// # Arguments
     ///
-    /// - `future`: The bond future contract
-    /// - `ctd_bond`: The cheapest-to-deliver bond
-    /// - `conversion_factor`: Pre-calculated conversion factor for the CTD bond
-    /// - `market`: Market context with discount curves
-    /// - `as_of`: Valuation date
+    /// - `future`: Bond future supplying entry price, notional, position side,
+    ///   delivery dates, and financing-curve policy.
+    /// - `ctd_bond`: Cheapest-to-deliver bond whose carry-adjusted clean price
+    ///   determines the model futures price.
+    /// - `conversion_factor`: Positive, finite, unitless conversion factor for
+    ///   `ctd_bond`.
+    /// - `market`: Market context containing the CTD pricing inputs and required
+    ///   discount or repo curves.
+    /// - `as_of`: Valuation date. Dates after `future.delivery_end` return zero.
     ///
     /// # Returns
     ///
-    /// Present value in the same currency as the future's notional
+    /// Undiscounted mark-to-market value in the future notional's currency.
     ///
-    /// # Example
+    /// # Errors
     ///
-    /// ```text
-    /// use finstack_quant_core::currency::Currency;
-    /// use finstack_quant_core::market_data::context::MarketContext;
-    /// use finstack_quant_core::money::Money;
-    /// use finstack_quant_core::types::{CurveId, InstrumentId};
-    /// use finstack_quant_valuations::instruments::Bond;
-    /// use finstack_quant_valuations::instruments::fixed_income::bond_future::{BondFuture, DeliverableBond};
-    /// use finstack_quant_valuations::instruments::fixed_income::bond_future::pricer::BondFuturePricer;
-    /// use finstack_quant_valuations::instruments::Position;
-    /// use time::macros::date;
-    ///
-    /// # fn main() -> finstack_quant_core::Result<()> {
-    /// let market = MarketContext::new();
-    /// let ctd_bond_id = InstrumentId::new("US912828XG33");
-    /// let future = BondFuture::ust_10y(
-    ///     InstrumentId::new("TYH5"),
-    ///     Money::new(1_000_000.0, Currency::USD),
-    ///     date!(2025-03-20),
-    ///     date!(2025-03-21),
-    ///     date!(2025-03-31),
-    ///     125.50,
-    ///     Position::Long,
-    ///     vec![DeliverableBond { bond_id: ctd_bond_id.clone(), conversion_factor: 0.8234 }],
-    ///     ctd_bond_id.clone(),
-    ///     CurveId::new("USD-TREASURY"),
-    /// )?;
-    /// let ctd_bond = Bond::fixed(
-    ///     ctd_bond_id.as_str(),
-    ///     Money::new(100_000.0, Currency::USD),
-    ///     0.05,
-    ///     date!(2020-01-15),
-    ///     date!(2030-01-15),
-    ///     "USD-OIS",
-    /// )?;
-    /// let cf = 0.8234;
-    ///
-    /// let npv = BondFuturePricer::calculate_npv(
-    ///     &future,
-    ///     &ctd_bond,
-    ///     cf,
-    ///     &market,
-    ///     date!(2025-01-15),
-    /// )?;
-    /// // For a long position with model > contract price, NPV is positive
-    /// # let _ = npv;
-    /// # Ok(())
-    /// # }
-    /// ```
+    /// Returns an error if the conversion factor or delivery discount factor
+    /// is invalid, or if CTD pricing, schedule, accrual, or curve lookup fails.
     pub fn calculate_npv(
         future: &super::BondFuture,
         ctd_bond: &Bond,
