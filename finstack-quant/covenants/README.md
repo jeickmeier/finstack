@@ -55,7 +55,7 @@ Forecast IDs use `Covenant::instance_key()` so outputs can join to engine report
 
 ## Threshold schedules
 
-`ThresholdSchedule` supports step-down limits used by covenant evaluation. `ThresholdSchedule::try_new` validates finite values and rejects duplicate dates.
+`ThresholdSchedule` supports step-down limits used by covenant evaluation. `ThresholdSchedule::new` validates finite values and rejects duplicate dates.
 
 ## Windows
 

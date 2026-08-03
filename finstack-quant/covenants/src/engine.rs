@@ -603,11 +603,7 @@ impl CovenantSpec {
     }
 
     pub(crate) fn validate(&self) -> finstack_quant_core::Result<()> {
-        self.covenant.validate()?;
-        if let Some(schedule) = &self.threshold_schedule {
-            schedule.validate()?;
-        }
-        Ok(())
+        self.covenant.validate()
     }
 }
 

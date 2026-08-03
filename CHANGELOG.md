@@ -4,6 +4,9 @@
 
 ### Changed
 
+- **Breaking (Rust):** `ThresholdSchedule::new` now returns `Result` and is the
+  sole threshold-schedule constructor; `try_new` was removed. Deserialization
+  routes through the same finite-value and unique-date validation.
 - **Breaking (Python):** Removed the module-level `price_european_call` and
   `price_european_put` functions. Use `EuropeanPricer.price_call` /
   `price_put` or `McEngine.price_european_call` / `price_european_put`.

@@ -50,3 +50,14 @@ def test_covenant_engine_rejects_unknown_fields() -> None:
 
     with pytest.raises(ValueError, match="unknown field"):
         covenants.validate_covenant_engine(json.dumps(engine))
+
+
+def test_threshold_schedule_validation_maps_to_value_error() -> None:
+    spec = json.loads(covenants.lbo_standard(5.0, 1.5, 1.2, 10_000_000.0))[0]
+    spec["threshold_schedule"] = [
+        ["2025-01-01", 5.0],
+        ["2025-01-01", 4.5],
+    ]
+
+    with pytest.raises(ValueError, match="duplicate date"):
+        covenants.validate_covenant_spec(json.dumps(spec))

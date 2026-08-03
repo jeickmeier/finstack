@@ -343,8 +343,11 @@ fn validation_rejects_negative_cure_duplicate_schedule_and_overlapping_windows()
     assert!(negative_cure.validate().is_err());
 
     let duplicate_schedule =
-        ThresholdSchedule::try_new(vec![(d(2025, 1, 1), 4.5), (d(2025, 1, 1), 4.0)]);
+        ThresholdSchedule::new(vec![(d(2025, 1, 1), 4.5), (d(2025, 1, 1), 4.0)]);
     assert!(duplicate_schedule.is_err());
+
+    let non_finite_schedule = ThresholdSchedule::new(vec![(d(2025, 1, 1), f64::NAN)]);
+    assert!(non_finite_schedule.is_err());
 
     let mut overlapping = CovenantEngine::new();
     let spec = CovenantSpec::with_metric(

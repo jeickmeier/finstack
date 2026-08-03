@@ -12,36 +12,49 @@ use serde::{Deserialize, Serialize};
 /// Entries are stored sorted by date ascending. The effective threshold for a
 /// test date is the last entry with date <= test_date. If no entry applies,
 /// `threshold_for_date` returns `None`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ThresholdSchedule(Vec<(Date, f64)>);
 
+impl<'de> Deserialize<'de> for ThresholdSchedule {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let entries = Vec::<(Date, f64)>::deserialize(deserializer)?;
+        Self::new(entries).map_err(serde::de::Error::custom)
+    }
+}
+
 impl ThresholdSchedule {
-    /// Create a new threshold schedule, sorting entries by date.
+    /// Create a validated threshold schedule, sorting entries by date.
     ///
     /// # Arguments
     ///
-    /// * `entries` - Entries supplied by the caller for this operation
-    pub fn new(mut entries: Vec<(Date, f64)>) -> Self {
-        entries.sort_by_key(|(d, _)| *d);
-        Self(entries)
-    }
-
-    /// Create a validated threshold schedule, sorting entries by date.
-    ///
-    /// A schedule is piecewise constant: each entry takes effect on its date
-    /// and remains in force until a later entry. Use this constructor for an
-    /// externally supplied schedule; unlike [`new`](Self::new), it rejects
-    /// non-finite thresholds and duplicate effective dates.
+    /// * `entries` - Effective dates and finite threshold values. Dates may be
+    ///   supplied in any order but must be unique.
     ///
     /// # Errors
     ///
     /// Returns a validation error when a threshold is `NaN` or infinite, or
-    /// when two entries have the same effective date. The entries are sorted
-    /// before validation, so input ordering does not affect the result.
-    pub fn try_new(entries: Vec<(Date, f64)>) -> finstack_quant_core::Result<Self> {
-        let schedule = Self::new(entries);
-        schedule.validate()?;
-        Ok(schedule)
+    /// when two entries have the same effective date.
+    pub fn new(mut entries: Vec<(Date, f64)>) -> finstack_quant_core::Result<Self> {
+        entries.sort_by_key(|(d, _)| *d);
+        for (_, value) in &entries {
+            if !value.is_finite() {
+                return Err(finstack_quant_core::Error::Validation(
+                    "threshold schedule values must be finite".to_string(),
+                ));
+            }
+        }
+        for pair in entries.windows(2) {
+            if pair[0].0 == pair[1].0 {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "threshold schedule contains duplicate date {}",
+                    pair[0].0
+                )));
+            }
+        }
+        Ok(Self(entries))
     }
 
     /// Check if the threshold schedule is empty.
@@ -62,25 +75,6 @@ impl ThresholdSchedule {
     /// Consume the schedule and return the sorted entries.
     pub fn into_inner(self) -> Vec<(Date, f64)> {
         self.0
-    }
-
-    pub(crate) fn validate(&self) -> finstack_quant_core::Result<()> {
-        for (_, value) in &self.0 {
-            if !value.is_finite() {
-                return Err(finstack_quant_core::Error::Validation(
-                    "threshold schedule values must be finite".to_string(),
-                ));
-            }
-        }
-        for pair in self.0.windows(2) {
-            if pair[0].0 == pair[1].0 {
-                return Err(finstack_quant_core::Error::Validation(format!(
-                    "threshold schedule contains duplicate date {}",
-                    pair[0].0
-                )));
-            }
-        }
-        Ok(())
     }
 }
 

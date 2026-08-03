@@ -493,7 +493,8 @@ fn threshold_schedule_roundtrip() {
         (date(2025, 7, 1), 4.75),
         (date(2026, 1, 1), 4.5),
         (date(2026, 7, 1), 4.25),
-    ]);
+    ])
+    .expect("valid threshold schedule");
 
     let rt = roundtrip(&schedule);
     assert_eq!(schedule, rt);
@@ -501,18 +502,30 @@ fn threshold_schedule_roundtrip() {
 
 #[test]
 fn threshold_schedule_empty_roundtrip() {
-    let schedule = ThresholdSchedule::new(vec![]);
+    let schedule = ThresholdSchedule::new(vec![]).expect("empty schedule is valid");
     let rt = roundtrip(&schedule);
     assert_eq!(schedule, rt);
 }
 
 #[test]
 fn threshold_schedule_is_empty_helper() {
-    let empty = ThresholdSchedule::new(vec![]);
+    let empty = ThresholdSchedule::new(vec![]).expect("empty schedule is valid");
     assert!(empty.is_empty());
 
-    let populated = ThresholdSchedule::new(vec![(date(2025, 1, 1), 5.0)]);
+    let populated = ThresholdSchedule::new(vec![(date(2025, 1, 1), 5.0)])
+        .expect("single-entry schedule is valid");
     assert!(!populated.is_empty());
+}
+
+#[test]
+fn threshold_schedule_deserialization_uses_constructor_validation() {
+    let duplicate_entries = vec![(date(2025, 1, 1), 5.0), (date(2025, 1, 1), 4.5)];
+    let json = serde_json::to_string(&duplicate_entries).expect("serialize duplicate entries");
+
+    let error = serde_json::from_str::<ThresholdSchedule>(&json)
+        .expect_err("duplicate effective dates must be rejected");
+
+    assert!(error.to_string().contains("duplicate date"));
 }
 
 // ============================================================================
