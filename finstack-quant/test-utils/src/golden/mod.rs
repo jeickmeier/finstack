@@ -53,17 +53,12 @@
 //! ## Loading fixtures
 //!
 //! ```ignore
-//! use finstack_quant_test_utils::golden::{load_suite_from_path, is_suite_ready};
+//! use finstack_quant_test_utils::golden::load_suite_from_path;
 //! use finstack_quant_test_utils::golden_path;
 //!
 //! // Load from file
 //! let path = golden_path!("data/my_suite.json");
 //! let suite = load_suite_from_path::<MyTestCase>(&path)?;
-//!
-//! // Check if suite is ready for testing
-//! if !is_suite_ready(&suite.meta, "my_suite") {
-//!     return Ok(()); // Skip non-certified suites
-//! }
 //!
 //! for case in &suite.cases {
 //!     // Run tests...
@@ -87,12 +82,10 @@
 //! ## Path macros
 //!
 //! ```ignore
-//! use finstack_quant_test_utils::{golden_path, golden_data_dir, golden_dir};
+//! use finstack_quant_test_utils::golden_path;
 //!
 //! // Get paths relative to calling crate's CARGO_MANIFEST_DIR
 //! let path = golden_path!("data/my_suite.json");  // <crate>/tests/golden/data/my_suite.json
-//! let data_dir = golden_data_dir!();               // <crate>/tests/golden/data
-//! let root_dir = golden_dir!();                    // <crate>/tests/golden
 //! ```
 //!
 //! # Directory Structure
@@ -131,10 +124,7 @@ pub use types::{
 };
 
 // Re-export loaders
-pub use loader::{
-    golden_data_dir, golden_dir, golden_path, is_suite_ready, load_cases_from_dir,
-    load_suite_from_dir, load_suite_from_path, load_suite_from_str,
-};
+pub use loader::{golden_path, load_suite_from_path, load_suite_from_str};
 
 // Re-export comparison utilities
 pub use compare::{

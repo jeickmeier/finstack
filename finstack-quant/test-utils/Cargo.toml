@@ -12,7 +12,6 @@ description = "Internal test fixtures and helpers shared across Finstack Quant c
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
-tracing = { version = "0.1", default-features = false }
 
 [lints]
 workspace = true
