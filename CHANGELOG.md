@@ -4,6 +4,12 @@
 
 ### Changed
 
+- **Breaking (Rust):** Removed low-value public aliases and helpers from the
+  foundational crates: use `analytics::regression::constrained_least_squares`
+  and the correlation crate-root exports; construct `DatedSeries` with its
+  public fields or `Default`; evaluate covenant schedules through covenant
+  APIs; and import core `Error` / `Result` directly. The unused credit-calibrator
+  `config` and `diagnostics` accessors were also removed.
 - **Breaking (Rust, JSON, Python, WASM):** Removed the duplicate feature-operation
   names `clip_by_quantile` / `ClipByQuantile` and
   `dollar_neutral_weights` / `DollarNeutralWeights`. Use `winsorize` /
