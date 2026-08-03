@@ -6,9 +6,9 @@ lives in the ``.pyi`` stubs and in ``dataframe.py``.
 
 Examples:
 --------
->>> import finstack_quant.features as features
->>> features.__name__
-'finstack_quant.features'
+>>> from finstack_quant.features import transform_cross_sectional
+>>> transform_cross_sectional([1.0, 3.0], ["2026-01-01"] * 2, "rank")
+[0.0, 1.0]
 """
 
 from importlib import import_module as _import_module

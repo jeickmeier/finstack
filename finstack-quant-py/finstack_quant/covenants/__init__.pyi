@@ -7,9 +7,10 @@ covenant packages (LBO, covenant-lite, real estate, project finance) as JSON.
 
 Examples
 --------
->>> import finstack_quant.covenants as covenants
->>> covenants.__name__
-'finstack_quant.covenants'
+>>> import json
+>>> from finstack_quant.covenants import cov_lite
+>>> len(json.loads(cov_lite(7.0, 4.5)))
+3
 """
 
 from __future__ import annotations
@@ -46,8 +47,11 @@ def validate_covenant_spec(spec_json: str) -> str:
 
     Examples
     --------
-    >>> from finstack_quant.covenants import validate_covenant_spec
-    >>> canonical = validate_covenant_spec(spec_json)  # doctest: +SKIP
+    >>> import json
+    >>> from finstack_quant.covenants import lbo_standard, validate_covenant_spec
+    >>> spec = json.loads(lbo_standard(5.0, 1.5, 1.2, 10_000_000.0))[0]
+    >>> json.loads(validate_covenant_spec(json.dumps(spec)))["metric_id"]
+    'debt_to_ebitda'
     """
 
 def validate_covenant_report(report_json: str) -> str:
@@ -71,8 +75,19 @@ def validate_covenant_report(report_json: str) -> str:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.covenants import validate_covenant_report
-    >>> canonical = validate_covenant_report(report_json)  # doctest: +SKIP
+    >>> report = {
+    ...     "covenant_type": "Debt/EBITDA <= 5.00x",
+    ...     "covenant_id": "max_debt_ebitda",
+    ...     "passed": False,
+    ...     "actual_value": 5.5,
+    ...     "threshold": 5.0,
+    ...     "details": "Exceeded",
+    ...     "headroom": -0.1,
+    ... }
+    >>> json.loads(validate_covenant_report(json.dumps(report)))["passed"]
+    False
     """
 
 def validate_covenant_engine(engine_json: str) -> str:
@@ -97,8 +112,11 @@ def validate_covenant_engine(engine_json: str) -> str:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.covenants import validate_covenant_engine
-    >>> canonical = validate_covenant_engine(engine_json)  # doctest: +SKIP
+    >>> engine = {"specs": [], "breach_history": [], "windows": [], "waivers": []}
+    >>> len(json.loads(validate_covenant_engine(json.dumps(engine)))["specs"])
+    0
     """
 
 def evaluate_engine(engine_json: str, metrics_json: str, as_of: str) -> str:
@@ -127,8 +145,13 @@ def evaluate_engine(engine_json: str, metrics_json: str, as_of: str) -> str:
 
     Examples
     --------
-    >>> from finstack_quant.covenants import evaluate_engine
-    >>> report_json = evaluate_engine(engine_json, metrics_json, "2025-06-30")  # doctest: +SKIP
+    >>> import json
+    >>> from finstack_quant.covenants import evaluate_engine, lbo_standard
+    >>> spec = json.loads(lbo_standard(5.0, 1.5, 1.2, 10_000_000.0))[0]
+    >>> engine = json.dumps({"specs": [spec], "breach_history": [], "windows": [], "waivers": []})
+    >>> report = json.loads(evaluate_engine(engine, '{"debt_to_ebitda": 4.0}', "2026-03-31"))
+    >>> report["max_debt_ebitda"]["passed"]
+    True
     """
 
 def lbo_standard(
@@ -163,8 +186,10 @@ def lbo_standard(
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.covenants import lbo_standard
-    >>> spec_json = lbo_standard(6.0, 2.0, 1.5, 0.05)  # doctest: +SKIP
+    >>> len(json.loads(lbo_standard(5.0, 1.5, 1.2, 10_000_000.0)))
+    4
     """
 
 def cov_lite(max_leverage: float, max_senior_leverage: float) -> str:
@@ -190,8 +215,10 @@ def cov_lite(max_leverage: float, max_senior_leverage: float) -> str:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.covenants import cov_lite
-    >>> spec_json = cov_lite(7.0, 4.5)  # doctest: +SKIP
+    >>> len(json.loads(cov_lite(7.0, 4.5)))
+    3
     """
 
 def real_estate(min_dscr: float, min_debt_yield: float, max_ltv: float) -> str:
@@ -219,8 +246,10 @@ def real_estate(min_dscr: float, min_debt_yield: float, max_ltv: float) -> str:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.covenants import real_estate
-    >>> spec_json = real_estate(1.25, 0.08, 0.75)  # doctest: +SKIP
+    >>> len(json.loads(real_estate(1.25, 0.08, 0.75)))
+    3
     """
 
 def project_finance(
@@ -255,6 +284,8 @@ def project_finance(
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.covenants import project_finance
-    >>> spec_json = project_finance(1.30, 1.10, 5_000_000.0, 5.0)  # doctest: +SKIP
+    >>> len(json.loads(project_finance(1.30, 1.10, 5_000_000.0, 5.0)))
+    4
     """

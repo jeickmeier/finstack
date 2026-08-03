@@ -6,9 +6,11 @@ inputs surfaced by `Performance` methods.
 
 Examples:
 --------
->>> import finstack_quant.analytics as analytics
->>> analytics.__name__
-'finstack_quant.analytics'
+>>> from datetime import date
+>>> from finstack_quant.analytics import Performance
+>>> perf = Performance.from_returns_arrays([date(2024, 1, 1), date(2024, 1, 2)], [[0.01, 0.02]], ["FUND"])
+>>> perf.ticker_names
+['FUND']
 """
 
 from finstack_quant.finstack_quant import analytics as _analytics

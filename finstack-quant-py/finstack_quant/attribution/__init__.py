@@ -2,9 +2,9 @@
 
 Examples:
 --------
->>> import finstack_quant.attribution as attribution
->>> attribution.__name__
-'finstack_quant.attribution'
+>>> from finstack_quant.attribution import default_waterfall_order
+>>> default_waterfall_order()[:2]
+['carry', 'rates_curves']
 """
 
 from finstack_quant.finstack_quant import attribution as _attribution

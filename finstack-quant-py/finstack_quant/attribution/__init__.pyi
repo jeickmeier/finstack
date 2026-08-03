@@ -8,9 +8,9 @@ helpers and default metric / waterfall ordering utilities.
 
 Examples
 --------
->>> import finstack_quant.attribution as attribution
->>> attribution.__name__
-'finstack_quant.attribution'
+>>> from finstack_quant.attribution import default_waterfall_order
+>>> default_waterfall_order()[:2]
+['carry', 'rates_curves']
 """
 
 from __future__ import annotations
@@ -47,7 +47,11 @@ class PnlAttribution:
     Examples
     --------
     >>> from finstack_quant.attribution import PnlAttribution
-    >>> attr = PnlAttribution.from_json(result_json)  # doctest: +SKIP
+    >>> try:
+    ...     PnlAttribution.from_json("{}")
+    ... except ValueError as exc:
+    ...     "total_pnl" in str(exc)
+    True
     """
 
     @staticmethod
@@ -69,7 +73,11 @@ class PnlAttribution:
         Examples
         --------
         >>> from finstack_quant.attribution import PnlAttribution
-        >>> attr = PnlAttribution.from_json(result_json)  # doctest: +SKIP
+        >>> try:
+        ...     PnlAttribution.from_json("{}")
+        ... except ValueError as exc:
+        ...     "total_pnl" in str(exc)
+        True
 
         Raises
         ------
@@ -87,10 +95,6 @@ class PnlAttribution:
         str
             Compact JSON string.
 
-        Examples
-        --------
-        >>> attr = PnlAttribution.from_json(result_json)  # doctest: +SKIP
-        >>> json_str = attr.to_json()  # doctest: +SKIP
         """
         ...
 
@@ -103,12 +107,6 @@ class PnlAttribution:
         dict[str, object]
             Attribution payload as a Python dict.
 
-        Examples
-        --------
-        >>> attr = PnlAttribution.from_json(result_json)  # doctest: +SKIP
-        >>> d = attr.to_dict()  # doctest: +SKIP
-        >>> "total_pnl" in d  # doctest: +SKIP
-        True
         """
         ...
 
@@ -432,12 +430,6 @@ class PnlAttribution:
         bool
             ``True`` if residual is within tolerance.
 
-        Examples
-        --------
-        >>> attr = PnlAttribution.from_json(result_json)  # doctest: +SKIP
-        >>> attr.residual_within_tolerance(pct_tolerance=0.1)  # doctest: +SKIP
-        True
-
         """
         ...
 
@@ -450,11 +442,6 @@ class PnlAttribution:
         bool
 
             Result of residual within meta tolerance for this `PnlAttribution` in the annotated representation.
-        Examples
-        --------
-        >>> attr = PnlAttribution.from_json(result_json)  # doctest: +SKIP
-        >>> attr.residual_within_meta_tolerance()  # doctest: +SKIP
-        True
         """
         ...
 
@@ -469,10 +456,6 @@ class PnlAttribution:
         ValueError
             When any factor's currency differs from ``total_pnl.currency``.
 
-        Examples
-        --------
-        >>> attr = PnlAttribution.from_json(result_json)  # doctest: +SKIP
-        >>> attr.validate_currencies()  # doctest: +SKIP
         """
         ...
 
@@ -485,10 +468,6 @@ class PnlAttribution:
         str
             Multi-line string with tree structure showing P&L breakdown.
 
-        Examples
-        --------
-        >>> attr = PnlAttribution.from_json(result_json)  # doctest: +SKIP
-        >>> print(attr.explain())  # doctest: +SKIP
         """
         ...
 
@@ -501,10 +480,6 @@ class PnlAttribution:
         str
             Multi-line string with tree structure showing all factors.
 
-        Examples
-        --------
-        >>> attr = PnlAttribution.from_json(result_json)  # doctest: +SKIP
-        >>> print(attr.explain_verbose())  # doctest: +SKIP
         """
         ...
 
@@ -522,10 +497,6 @@ class PnlAttribution:
         pd.DataFrame
             Single-row DataFrame.
 
-        Examples
-        --------
-        >>> attr = PnlAttribution.from_json(result_json)  # doctest: +SKIP
-        >>> df = attr.to_dataframe()  # doctest: +SKIP
         """
         ...
 
@@ -563,10 +534,6 @@ class PnlAttribution:
         pd.DataFrame
             Long-format DataFrame.
 
-        Examples
-        --------
-        >>> attr = PnlAttribution.from_json(result_json)  # doctest: +SKIP
-        >>> df = attr.to_long_dataframe()  # doctest: +SKIP
         """
         ...
 
@@ -587,10 +554,6 @@ class PnlAttribution:
         pd.DataFrame
             Carry-decomposition DataFrame.
 
-        Examples
-        --------
-        >>> attr = PnlAttribution.from_json(result_json)  # doctest: +SKIP
-        >>> df = attr.to_carry_detail_dataframe()  # doctest: +SKIP
         """
         ...
 
@@ -611,10 +574,6 @@ class PnlAttribution:
         pd.DataFrame
             Credit-factor DataFrame.
 
-        Examples
-        --------
-        >>> attr = PnlAttribution.from_json(result_json)  # doctest: +SKIP
-        >>> df = attr.to_credit_factor_dataframe()  # doctest: +SKIP
         """
         ...
 
@@ -676,9 +635,12 @@ def attribute_pnl(
 
     Examples
     --------
-    >>> attr_json = attribute_pnl(inst, mkt_t0, mkt_t1, "2025-01-15", "2025-01-16", "parallel")
-    >>> attr = PnlAttribution.from_json(attr_json)  # doctest: +SKIP
-    >>> print(attr.explain())  # doctest: +SKIP
+    >>> from finstack_quant.attribution import attribute_pnl
+    >>> try:
+    ...     attribute_pnl("{}", "{}", "{}", "2025-01-15", "2025-01-16", "parallel")
+    ... except ValueError as exc:
+    ...     "instrument envelope" in str(exc)
+    True
 
     Raises
     ------
@@ -714,7 +676,12 @@ def attribute_pnl_from_spec(spec_json: str) -> str:
 
     Examples
     --------
-    >>> result = attribute_pnl_from_spec(spec_json)  # doctest: +SKIP
+    >>> from finstack_quant.attribution import attribute_pnl_from_spec
+    >>> try:
+    ...     attribute_pnl_from_spec("{}")
+    ... except ValueError as exc:
+    ...     "missing field" in str(exc)
+    True
 
     Raises
     ------
@@ -747,7 +714,16 @@ def attribute_return_contribution(spec_json: str) -> str:
 
     Examples
     --------
-    >>> result = attribute_return_contribution(spec_json)  # doctest: +SKIP
+    >>> import json
+    >>> from finstack_quant.attribution import attribute_return_contribution
+    >>> spec = {
+    ...     "as_of": "2026-01-02",
+    ...     "weighting": "gross",
+    ...     "factors": [],
+    ...     "positions": [{"id": "A", "market_value": 100.0, "return": 0.02, "groups": {}}],
+    ... }
+    >>> json.loads(attribute_return_contribution(json.dumps(spec)))["portfolio_return"]
+    0.02
 
     Raises
     ------
@@ -781,7 +757,12 @@ def validate_attribution_json(json: str) -> str:
 
     Examples
     --------
-    >>> canonical = validate_attribution_json(spec_json)  # doctest: +SKIP
+    >>> from finstack_quant.attribution import validate_attribution_json
+    >>> try:
+    ...     validate_attribution_json("{}")
+    ... except ValueError as exc:
+    ...     "missing field" in str(exc)
+    True
 
     Raises
     ------
@@ -802,7 +783,16 @@ def validate_return_contribution_json(spec_json: str) -> None:
 
     Examples
     --------
-    >>> validate_return_contribution_json(spec_json)  # doctest: +SKIP
+    >>> import json
+    >>> from finstack_quant.attribution import validate_return_contribution_json
+    >>> spec = {
+    ...     "as_of": "2026-01-02",
+    ...     "weighting": "gross",
+    ...     "factors": [],
+    ...     "positions": [{"id": "A", "market_value": 100.0, "return": 0.02, "groups": {}}],
+    ... }
+    >>> validate_return_contribution_json(json.dumps(spec)) is None
+    True
 
     Raises
     ------
@@ -828,8 +818,8 @@ def default_waterfall_order() -> list[str]:
     Examples
     --------
     >>> from finstack_quant.attribution import default_waterfall_order
-    >>> default_waterfall_order()  # doctest: +SKIP
-    ['carry', 'rates_curves', 'credit_curves', ...]
+    >>> default_waterfall_order()[:3]
+    ['carry', 'rates_curves', 'credit_curves']
     """
     ...
 
@@ -845,7 +835,7 @@ def default_attribution_metrics() -> list[str]:
     Examples
     --------
     >>> from finstack_quant.attribution import default_attribution_metrics
-    >>> default_attribution_metrics()  # doctest: +SKIP
-    ['theta', 'dv01', 'cs01', ...]
+    >>> default_attribution_metrics()[:3]
+    ['theta', 'dv01', 'cs01']
     """
     ...

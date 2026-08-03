@@ -2,9 +2,12 @@
 
 Examples:
 --------
->>> import finstack_quant.factor_model.credit as credit
->>> credit.__name__
-'finstack_quant.factor_model.credit'
+>>> from finstack_quant.factor_model.credit import CreditFactorModel
+>>> try:
+...     CreditFactorModel.from_json("{}")
+... except ValueError as exc:
+...     "missing field" in str(exc)
+True
 """
 
 from __future__ import annotations

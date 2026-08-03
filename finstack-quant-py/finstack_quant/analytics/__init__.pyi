@@ -14,9 +14,11 @@ methods (`LookbackReturns`, `PeriodStats`, etc.).
 
 Examples
 --------
->>> import finstack_quant.analytics as analytics
->>> analytics.__name__
-'finstack_quant.analytics'
+>>> from datetime import date
+>>> from finstack_quant.analytics import Performance
+>>> perf = Performance.from_returns_arrays([date(2024, 1, 1), date(2024, 1, 2)], [[0.01, 0.02]], ["FUND"])
+>>> perf.ticker_names
+['FUND']
 """
 
 from __future__ import annotations
@@ -53,8 +55,8 @@ class AnalyticsError(ValueError):
     Examples
     --------
     >>> from finstack_quant.analytics import AnalyticsError
-    >>> AnalyticsError.__name__
-    'AnalyticsError'
+    >>> str(AnalyticsError("invalid analytics input"))
+    'invalid analytics input'
     """
 
 # ---------------------------------------------------------------------------
@@ -67,11 +69,14 @@ class PeriodStats:
 
     Examples
     --------
+    >>> from datetime import date, timedelta
     >>> from finstack_quant.analytics import Performance
-    >>> perf = Performance.from_arrays(dates, prices, ["A"])  # doctest: +SKIP
-    >>> stats = perf.period_stats(0)  # doctest: +SKIP
-    >>> stats.win_rate  # doctest: +SKIP
-    0.55
+    >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(6)]
+    >>> perf = Performance.from_returns_arrays(
+    ...     dates, [[0.10, -0.05, 0.02, 0.0, 0.03, -0.01]], ["FUND"], frequency="monthly"
+    ... )
+    >>> round(perf.period_stats(0, aggregation_frequency="monthly").win_rate, 1)
+    1.0
     """
 
     @property
@@ -217,11 +222,19 @@ class BetaResult:
 
     Examples
     --------
+    >>> from datetime import date, timedelta
     >>> from finstack_quant.analytics import Performance
-    >>> perf = Performance.from_arrays(dates, prices, ["A", "B"])  # doctest: +SKIP
-    >>> betas = perf.beta()  # doctest: +SKIP
-    >>> betas[0].beta  # doctest: +SKIP
-    1.02
+    >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(6)]
+    >>> benchmark = [-0.02, -0.01, 0.0, 0.01, 0.02, 0.03]
+    >>> perf = Performance.from_returns_arrays(
+    ...     dates,
+    ...     [[2.0 * value for value in benchmark], benchmark],
+    ...     ["FUND", "BENCH"],
+    ...     benchmark_ticker="BENCH",
+    ...     frequency="monthly",
+    ... )
+    >>> perf.beta()[0].beta
+    2.0
     """
 
     @property
@@ -276,11 +289,19 @@ class GreeksResult:
 
     Examples
     --------
+    >>> from datetime import date, timedelta
     >>> from finstack_quant.analytics import Performance
-    >>> perf = Performance.from_arrays(dates, prices, ["A", "B"])  # doctest: +SKIP
-    >>> g = perf.greeks(0)  # doctest: +SKIP
-    >>> g[0].alpha  # doctest: +SKIP
-    0.03
+    >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(6)]
+    >>> benchmark = [-0.02, -0.01, 0.0, 0.01, 0.02, 0.03]
+    >>> perf = Performance.from_returns_arrays(
+    ...     dates,
+    ...     [[2.0 * value for value in benchmark], benchmark],
+    ...     ["FUND", "BENCH"],
+    ...     benchmark_ticker="BENCH",
+    ...     frequency="monthly",
+    ... )
+    >>> round(perf.greeks()[0].alpha, 12)
+    0.0
     """
 
     @property
@@ -336,11 +357,20 @@ class RollingGreeks:
 
     Examples
     --------
+    >>> from datetime import date, timedelta
     >>> from finstack_quant.analytics import Performance
-    >>> perf = Performance.from_arrays(dates, prices, ["A", "B"])  # doctest: +SKIP
-    >>> rg = perf.rolling_greeks(0, window=63)  # doctest: +SKIP
-    >>> rg.betas[0]  # doctest: +SKIP
-    1.05
+    >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(6)]
+    >>> benchmark = [-0.02, -0.01, 0.0, 0.01, 0.02, 0.03]
+    >>> perf = Performance.from_returns_arrays(
+    ...     dates,
+    ...     [[2.0 * value for value in benchmark], benchmark],
+    ...     ["FUND", "BENCH"],
+    ...     benchmark_ticker="BENCH",
+    ...     frequency="monthly",
+    ... )
+    >>> rolling = perf.rolling_greeks(0, window=3)
+    >>> len(rolling.dates) == len(rolling.betas)
+    True
     """
 
     @property
@@ -395,11 +425,15 @@ class MultiFactorResult:
 
     Examples
     --------
+    >>> from datetime import date, timedelta
     >>> from finstack_quant.analytics import Performance
-    >>> perf = Performance.from_arrays(dates, prices, ["A", "B"])  # doctest: +SKIP
-    >>> mf = perf.multi_factor_greeks(0, factor_returns)  # doctest: +SKIP
-    >>> mf.alpha  # doctest: +SKIP
-    0.02
+    >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(6)]
+    >>> factor = [-0.02, -0.01, 0.0, 0.01, 0.02, 0.03]
+    >>> perf = Performance.from_returns_arrays(
+    ...     dates, [[2.0 * value for value in factor]], ["FUND"], frequency="monthly"
+    ... )
+    >>> round(float(perf.multi_factor_greeks(0, [factor]).betas[0]), 1)
+    2.0
     """
 
     @property
@@ -467,11 +501,12 @@ class DrawdownEpisode:
 
     Examples
     --------
+    >>> from datetime import date, timedelta
     >>> from finstack_quant.analytics import Performance
-    >>> perf = Performance.from_arrays(dates, prices, ["A"])  # doctest: +SKIP
-    >>> episodes = perf.drawdown_details(0, n=3)  # doctest: +SKIP
-    >>> episodes[0].max_drawdown  # doctest: +SKIP
-    -0.15
+    >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(5)]
+    >>> perf = Performance.from_arrays(dates, [[100.0, 90.0, 95.0, 80.0, 100.0]], ["FUND"])
+    >>> round(perf.drawdown_details(0, n=1)[0].max_drawdown, 1)
+    -0.2
     """
 
     @property
@@ -559,11 +594,12 @@ class LookbackReturns:
 
     Examples
     --------
+    >>> from datetime import date, timedelta
     >>> from finstack_quant.analytics import Performance
-    >>> perf = Performance.from_arrays(dates, prices, ["A"])  # doctest: +SKIP
-    >>> lb = perf.lookback_returns("2025-06-15")  # doctest: +SKIP
-    >>> lb.mtd[0]  # doctest: +SKIP
-    0.03
+    >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(5)]
+    >>> perf = Performance.from_arrays(dates, [[100.0, 90.0, 95.0, 80.0, 100.0]], ["FUND"])
+    >>> len(perf.lookback_returns(date(2024, 1, 5)).mtd)
+    1
     """
 
     @property
@@ -645,11 +681,13 @@ class DatedSeries:
 
     Examples
     --------
+    >>> from datetime import date, timedelta
     >>> from finstack_quant.analytics import Performance
-    >>> perf = Performance.from_arrays(dates, prices, ["A"])  # doctest: +SKIP
-    >>> rv = perf.rolling_volatility(0, window=63)  # doctest: +SKIP
-    >>> rv.values[0]  # doctest: +SKIP
-    0.15
+    >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(5)]
+    >>> perf = Performance.from_arrays(dates, [[100.0, 90.0, 95.0, 80.0, 100.0]], ["FUND"])
+    >>> series = perf.rolling_returns(0, window=2)
+    >>> (len(series.values) == len(series.dates), series.value_column)
+    (True, 'return')
     """
 
     @property
@@ -718,9 +756,12 @@ class Performance:
     --------
     >>> import pandas as pd
     >>> from finstack_quant.analytics import Performance
-    >>> perf = Performance(prices_df, benchmark_ticker="SPX")  # doctest: +SKIP
-    >>> perf.sharpe()  # doctest: +SKIP
-    [1.2, 0.8]
+    >>> prices = pd.DataFrame(
+    ...     {"FUND": [100.0, 101.0, 103.0]},
+    ...     index=pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-03"]),
+    ... )
+    >>> Performance(prices).ticker_names
+    ['FUND']
     """
 
     def __init__(
@@ -753,11 +794,6 @@ class Performance:
             If ``prices`` is not a pandas ``DataFrame`` (use
             :meth:`from_arrays` for raw lists).
 
-        Examples
-        --------
-        >>> import pandas as pd
-        >>> from finstack_quant.analytics import Performance
-        >>> perf = Performance(prices_df, benchmark_ticker="SPX", frequency="daily")  # doctest: +SKIP
         """
 
     @staticmethod
@@ -800,8 +836,15 @@ class Performance:
 
         Examples
         --------
+        >>> from datetime import date
         >>> from finstack_quant.analytics import Performance
-        >>> perf = Performance.from_arrays(dates, prices, ["A", "B"])  # doctest: +SKIP
+        >>> perf = Performance.from_arrays(
+        ...     [date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3)],
+        ...     [[100.0, 101.0, 103.0]],
+        ...     ["FUND"],
+        ... )
+        >>> perf.ticker_names
+        ['FUND']
         """
 
     @staticmethod
@@ -839,8 +882,14 @@ class Performance:
 
         Examples
         --------
+        >>> import pandas as pd
         >>> from finstack_quant.analytics import Performance
-        >>> perf = Performance.from_returns(returns_df, frequency="monthly")  # doctest: +SKIP
+        >>> returns = pd.DataFrame(
+        ...     {"FUND": [0.01, 0.02]},
+        ...     index=pd.to_datetime(["2024-01-01", "2024-01-02"]),
+        ... )
+        >>> Performance.from_returns(returns).ticker_names
+        ['FUND']
         """
 
     @staticmethod
@@ -881,8 +930,11 @@ class Performance:
 
         Examples
         --------
+        >>> from datetime import date
         >>> from finstack_quant.analytics import Performance
-        >>> perf = Performance.from_returns_arrays(dates, returns, ["A", "B"])  # doctest: +SKIP
+        >>> perf = Performance.from_returns_arrays([date(2024, 1, 1), date(2024, 1, 2)], [[0.01, 0.02]], ["FUND"])
+        >>> perf.ticker_names
+        ['FUND']
         """
 
     # -- Mutators --

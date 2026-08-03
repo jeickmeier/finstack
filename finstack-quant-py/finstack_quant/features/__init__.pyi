@@ -8,9 +8,9 @@ weights) plus a general panel dispatcher :func:`transform_panel`.
 
 Examples
 --------
->>> import finstack_quant.features as features
->>> features.__name__
-'finstack_quant.features'
+>>> from finstack_quant.features import transform_cross_sectional
+>>> transform_cross_sectional([1.0, 3.0], ["2026-01-01"] * 2, "rank")
+[0.0, 1.0]
 """
 
 from __future__ import annotations
@@ -103,8 +103,8 @@ def transform_timeseries(
     Examples
     --------
     >>> from finstack_quant.features import transform_timeseries
-    >>> callable(transform_timeseries)
-    True
+    >>> transform_timeseries([1.0, 3.0, 6.0], ["A"] * 3, ["1", "2", "3"], "diff")
+    [None, 2.0, 3.0]
     """
     ...
 
@@ -170,8 +170,8 @@ def transform_cross_sectional(
     Examples
     --------
     >>> from finstack_quant.features import transform_cross_sectional
-    >>> callable(transform_cross_sectional)
-    True
+    >>> transform_cross_sectional([1.0, 2.0, 3.0], ["2026-01-01"] * 3, "rank")
+    [0.0, 0.5, 1.0]
     """
     ...
 
@@ -220,8 +220,13 @@ def transform_cross_sectional_grouped(
     Examples
     --------
     >>> from finstack_quant.features import transform_cross_sectional_grouped
-    >>> callable(transform_cross_sectional_grouped)
-    True
+    >>> transform_cross_sectional_grouped(
+    ...     [1.0, 3.0, 10.0, 14.0],
+    ...     ["2026-01-01"] * 4,
+    ...     ["tech", "tech", "finance", "finance"],
+    ...     "zscore",
+    ... )
+    [-1.0, 1.0, -1.0, 1.0]
     """
     ...
 
@@ -268,8 +273,8 @@ def neutralize(
     Examples
     --------
     >>> from finstack_quant.features import neutralize
-    >>> callable(neutralize)
-    True
+    >>> neutralize([1.0, 2.0, 2.0, 4.0], ["2026-01-01"] * 4, [[0.0, 1.0, 0.0, 1.0]])
+    [-0.5, -1.0, 0.5, 1.0]
     """
     ...
 
@@ -326,8 +331,16 @@ def transform_timeseries_pairwise(
     Examples
     --------
     >>> from finstack_quant.features import transform_timeseries_pairwise
-    >>> callable(transform_timeseries_pairwise)
-    True
+    >>> beta = transform_timeseries_pairwise(
+    ...     [1.0, 2.0, 3.0],
+    ...     [1.0, 2.0, 4.0],
+    ...     ["A"] * 3,
+    ...     ["1", "2", "3"],
+    ...     "rolling_beta",
+    ...     {"window": 3, "min_periods": 3},
+    ... )
+    >>> [None if value is None else round(value, 3) for value in beta]
+    [None, None, 0.643]
     """
     ...
 
@@ -378,8 +391,15 @@ def rolling_regression_residual(
     Examples
     --------
     >>> from finstack_quant.features import rolling_regression_residual
-    >>> callable(rolling_regression_residual)
-    True
+    >>> residual = rolling_regression_residual(
+    ...     [1.0, 2.0, 5.0],
+    ...     [[0.0, 1.0, 2.0]],
+    ...     ["A"] * 3,
+    ...     ["1", "2", "3"],
+    ...     {"window": 3, "min_periods": 3},
+    ... )
+    >>> [None if value is None else round(value, 3) for value in residual]
+    [None, None, 0.333]
     """
     ...
 
@@ -425,8 +445,8 @@ def risk_scaled_weights(
     Examples
     --------
     >>> from finstack_quant.features import risk_scaled_weights
-    >>> callable(risk_scaled_weights)
-    True
+    >>> risk_scaled_weights([1.0, 2.0], ["2026-01-01"] * 2, [1.0, 2.0])
+    [0.5, 0.5]
     """
     ...
 
@@ -468,8 +488,8 @@ def clean_signal(
     Examples
     --------
     >>> from finstack_quant.features import clean_signal
-    >>> callable(clean_signal)
-    True
+    >>> clean_signal([1.0, 2.0, 100.0], ["2026-01-01"] * 3, {"lower": 0.0, "upper": 0.5})
+    [1.0, 2.0, 2.0]
     """
     ...
 
@@ -511,8 +531,8 @@ def normalize_signal(
     Examples
     --------
     >>> from finstack_quant.features import normalize_signal
-    >>> callable(normalize_signal)
-    True
+    >>> normalize_signal([1.0, 2.0, 100.0], ["2026-01-01"] * 3, {"method": "rank"})
+    [0.0, 0.5, 1.0]
     """
     ...
 
@@ -548,8 +568,8 @@ def rank_to_weights(
     Examples
     --------
     >>> from finstack_quant.features import rank_to_weights
-    >>> callable(rank_to_weights)
-    True
+    >>> rank_to_weights([1.0, 2.0, 100.0], ["2026-01-01"] * 3)
+    [-0.5, 0.0, 0.5]
     """
     ...
 
@@ -595,8 +615,9 @@ def neutralize_and_zscore(
     Examples
     --------
     >>> from finstack_quant.features import neutralize_and_zscore
-    >>> callable(neutralize_and_zscore)
-    True
+    >>> scores = neutralize_and_zscore([1.0, 2.0, 2.0, 4.0], ["2026-01-01"] * 4, [[0.0, 1.0, 0.0, 1.0]])
+    >>> [round(value, 3) for value in scores]
+    [-0.632, -1.265, 0.632, 1.265]
     """
     ...
 
@@ -639,8 +660,14 @@ def transform_panel(spec_json: str) -> str:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.features import transform_panel
-    >>> callable(transform_panel)
-    True
+    >>> spec = {
+    ...     "values": [10.0, 12.0, 20.0, 21.0],
+    ...     "time_key": ["1", "2", "1", "2"],
+    ...     "operations": [{"name": "rank", "family": "cross_sectional", "op": "rank"}],
+    ... }
+    >>> json.loads(transform_panel(json.dumps(spec)))["columns"][0]["values"]
+    [0.0, 0.0, 1.0, 1.0]
     """
     ...

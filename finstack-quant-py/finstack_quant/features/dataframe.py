@@ -17,9 +17,11 @@ it installed raises :class:`ImportError`.
 
 Examples:
 --------
->>> import finstack_quant.features.dataframe as dataframe
->>> dataframe.__name__
-'finstack_quant.features.dataframe'
+>>> import pandas as pd
+>>> from finstack_quant.features.dataframe import cross_sectional
+>>> frame = pd.DataFrame({"date": ["2026-01-01"] * 2, "signal": [1.0, 3.0]})
+>>> cross_sectional(frame, "signal", "date", "rank").tolist()
+[0.0, 1.0]
 """
 
 from __future__ import annotations
@@ -214,9 +216,11 @@ def cross_sectional(
 
     Examples:
     --------
+    >>> import pandas as pd
     >>> from finstack_quant.features.dataframe import cross_sectional
-    >>> callable(cross_sectional)
-    True
+    >>> frame = pd.DataFrame({"date": ["2026-01-01"] * 2, "signal": [1.0, 3.0]})
+    >>> cross_sectional(frame, "signal", "date", "rank").tolist()
+    [0.0, 1.0]
     """
     op = _require_operation(op)
     out = _transform_cross_sectional(
@@ -273,9 +277,11 @@ def timeseries(
 
     Examples:
     --------
+    >>> import pandas as pd
     >>> from finstack_quant.features.dataframe import timeseries
-    >>> callable(timeseries)
-    True
+    >>> frame = pd.DataFrame({"date": ["1", "2", "3"], "asset": ["A"] * 3, "signal": [1.0, 3.0, 6.0]})
+    >>> timeseries(frame, "signal", "asset", "date", "diff").iloc[1:].tolist()
+    [2.0, 3.0]
     """
     op = _require_operation(op)
     out = _transform_timeseries(
@@ -334,9 +340,12 @@ def panel(
 
     Examples:
     --------
+    >>> import pandas as pd
     >>> from finstack_quant.features.dataframe import panel
-    >>> callable(panel)
-    True
+    >>> frame = pd.DataFrame({"date": ["1", "1", "2", "2"], "signal": [1.0, 3.0, 2.0, 4.0]})
+    >>> operations = [{"name": "rank", "family": "cross_sectional", "op": "rank"}]
+    >>> panel(frame, "signal", operations, time_key="date")["rank"].tolist()
+    [0.0, 1.0, 0.0, 1.0]
     """
     pd = _require_pandas()
     spec: dict[str, Any] = {
@@ -410,9 +419,15 @@ def grouped(
 
     Examples:
     --------
+    >>> import pandas as pd
     >>> from finstack_quant.features.dataframe import grouped
-    >>> callable(grouped)
-    True
+    >>> frame = pd.DataFrame({
+    ...     "date": ["2026-01-01"] * 4,
+    ...     "group": ["x", "x", "y", "y"],
+    ...     "signal": [1.0, 3.0, 10.0, 14.0],
+    ... })
+    >>> grouped(frame, "signal", "date", "group", "zscore").tolist()
+    [-1.0, 1.0, -1.0, 1.0]
     """
     op = _require_operation(op)
     out = _transform_cross_sectional_grouped(
@@ -467,9 +482,15 @@ def neutralize(
 
     Examples:
     --------
+    >>> import pandas as pd
     >>> from finstack_quant.features.dataframe import neutralize
-    >>> callable(neutralize)
-    True
+    >>> frame = pd.DataFrame({
+    ...     "date": ["2026-01-01"] * 4,
+    ...     "signal": [1.0, 2.0, 2.0, 4.0],
+    ...     "factor": [0.0, 1.0, 0.0, 1.0],
+    ... })
+    >>> neutralize(frame, "signal", "date", ["factor"]).tolist()
+    [-0.5, -1.0, 0.5, 1.0]
     """
     out = _neutralize(
         _numeric_column(df, value),
@@ -528,9 +549,25 @@ def pairwise(
 
     Examples:
     --------
+    >>> import pandas as pd
     >>> from finstack_quant.features.dataframe import pairwise
-    >>> callable(pairwise)
-    True
+    >>> frame = pd.DataFrame({
+    ...     "date": ["1", "2", "3"],
+    ...     "asset": ["A"] * 3,
+    ...     "signal": [1.0, 2.0, 3.0],
+    ...     "other": [1.0, 2.0, 4.0],
+    ... })
+    >>> beta = pairwise(
+    ...     frame,
+    ...     "signal",
+    ...     "other",
+    ...     "asset",
+    ...     "date",
+    ...     "rolling_beta",
+    ...     {"window": 3, "min_periods": 3},
+    ... )
+    >>> round(float(beta.iloc[-1]), 3)
+    0.643
     """
     op = _require_operation(op)
     out = _transform_timeseries_pairwise(
@@ -584,9 +621,19 @@ def rolling_regression_residual(
 
     Examples:
     --------
+    >>> import pandas as pd
     >>> from finstack_quant.features.dataframe import rolling_regression_residual
-    >>> callable(rolling_regression_residual)
-    True
+    >>> frame = pd.DataFrame({
+    ...     "date": ["1", "2", "3"],
+    ...     "asset": ["A"] * 3,
+    ...     "signal": [1.0, 2.0, 5.0],
+    ...     "factor": [0.0, 1.0, 2.0],
+    ... })
+    >>> residual = rolling_regression_residual(
+    ...     frame, "signal", ["factor"], "asset", "date", {"window": 3, "min_periods": 3}
+    ... )
+    >>> round(float(residual.iloc[-1]), 3)
+    0.333
     """
     out = _rolling_regression_residual(
         _numeric_column(df, value),
@@ -635,9 +682,11 @@ def risk_scaled_weights(
 
     Examples:
     --------
+    >>> import pandas as pd
     >>> from finstack_quant.features.dataframe import risk_scaled_weights
-    >>> callable(risk_scaled_weights)
-    True
+    >>> frame = pd.DataFrame({"date": ["2026-01-01"] * 2, "signal": [1.0, 2.0], "vol": [1.0, 2.0]})
+    >>> risk_scaled_weights(frame, "signal", "date", "vol").tolist()
+    [0.5, 0.5]
     """
     out = _risk_scaled_weights(
         _numeric_column(df, value),
@@ -686,9 +735,11 @@ def clean_signal(
 
     Examples:
     --------
+    >>> import pandas as pd
     >>> from finstack_quant.features.dataframe import clean_signal
-    >>> callable(clean_signal)
-    True
+    >>> frame = pd.DataFrame({"date": ["2026-01-01"] * 3, "signal": [1.0, 2.0, 100.0]})
+    >>> clean_signal(frame, "signal", "date", {"lower": 0.0, "upper": 0.5}).tolist()
+    [1.0, 2.0, 2.0]
     """
     out = _clean_signal(
         _numeric_column(df, value),
@@ -738,9 +789,11 @@ def normalize_signal(
 
     Examples:
     --------
+    >>> import pandas as pd
     >>> from finstack_quant.features.dataframe import normalize_signal
-    >>> callable(normalize_signal)
-    True
+    >>> frame = pd.DataFrame({"date": ["2026-01-01"] * 3, "signal": [1.0, 2.0, 100.0]})
+    >>> normalize_signal(frame, "signal", "date", {"method": "rank"}).tolist()
+    [0.0, 0.5, 1.0]
     """
     out = _normalize_signal(
         _numeric_column(df, value),
@@ -785,9 +838,11 @@ def rank_to_weights(
 
     Examples:
     --------
+    >>> import pandas as pd
     >>> from finstack_quant.features.dataframe import rank_to_weights
-    >>> callable(rank_to_weights)
-    True
+    >>> frame = pd.DataFrame({"date": ["2026-01-01"] * 3, "signal": [1.0, 2.0, 100.0]})
+    >>> rank_to_weights(frame, "signal", "date").tolist()
+    [-0.5, 0.0, 0.5]
     """
     out = _rank_to_weights(
         _numeric_column(df, value),
@@ -839,9 +894,16 @@ def neutralize_and_zscore(
 
     Examples:
     --------
+    >>> import pandas as pd
     >>> from finstack_quant.features.dataframe import neutralize_and_zscore
-    >>> callable(neutralize_and_zscore)
-    True
+    >>> frame = pd.DataFrame({
+    ...     "date": ["2026-01-01"] * 4,
+    ...     "signal": [1.0, 2.0, 2.0, 4.0],
+    ...     "factor": [0.0, 1.0, 0.0, 1.0],
+    ... })
+    >>> scores = neutralize_and_zscore(frame, "signal", "date", ["factor"])
+    >>> [round(value, 3) for value in scores.tolist()]
+    [-0.632, -1.265, 0.632, 1.265]
     """
     out = _neutralize_and_zscore(
         _numeric_column(df, value),

@@ -2,9 +2,10 @@
 
 Examples:
 --------
->>> import finstack_quant.covenants as covenants
->>> covenants.__name__
-'finstack_quant.covenants'
+>>> import json
+>>> from finstack_quant.covenants import cov_lite
+>>> len(json.loads(cov_lite(7.0, 4.5)))
+3
 """
 
 from __future__ import annotations
