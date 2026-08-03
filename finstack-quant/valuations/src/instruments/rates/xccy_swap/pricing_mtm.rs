@@ -187,7 +187,7 @@ pub(crate) fn pv_mtm_reset(
         )?;
         n_c / historical_fx
     } else {
-        compute_resetting_notional(
+        compute_resetting_notional_and_df_r(
             n_c,
             spot_x_at_as_of,
             as_of,
@@ -196,6 +196,7 @@ pub(crate) fn pv_mtm_reset(
             disc_r.as_ref(),
             &swap.id,
         )?
+        .0
     };
 
     let fixing_id_c = finstack_quant_core::market_data::fixings::fixing_series_id(
@@ -454,7 +455,7 @@ pub(crate) fn mtm_cashflow_schedule(
         )?;
         n_c / historical_fx
     } else {
-        compute_resetting_notional(
+        compute_resetting_notional_and_df_r(
             n_c,
             spot_x_at_as_of,
             as_of,
@@ -463,6 +464,7 @@ pub(crate) fn mtm_cashflow_schedule(
             disc_r.as_ref(),
             &swap.id,
         )?
+        .0
     };
 
     // Initial principal exchanges.
@@ -536,7 +538,7 @@ pub(crate) fn mtm_cashflow_schedule(
             require_positive_finite(historical_fx, swap.id.as_str(), "historical FX reset")?;
             n_c / historical_fx
         } else {
-            compute_resetting_notional(
+            compute_resetting_notional_and_df_r(
                 n_c,
                 spot_x_at_as_of,
                 as_of,
@@ -545,6 +547,7 @@ pub(crate) fn mtm_cashflow_schedule(
                 disc_r.as_ref(),
                 &swap.id,
             )?
+            .0
         };
 
         // Coupon at payment date on the period-start notional N_j^R.
@@ -666,29 +669,6 @@ fn compute_resetting_notional_and_df_r(
     Ok((n_constant / x_t, p_r))
 }
 
-/// Thin wrapper retained for call sites that only need the notional (initial principal
-/// exchange, final exchange, schedule-builder pre-loop).
-fn compute_resetting_notional(
-    n_constant: f64,
-    spot_x_at_as_of: f64,
-    as_of: Date,
-    date: Date,
-    disc_c: &finstack_quant_core::market_data::term_structures::DiscountCurve,
-    disc_r: &finstack_quant_core::market_data::term_structures::DiscountCurve,
-    swap_id: &finstack_quant_core::types::InstrumentId,
-) -> Result<f64> {
-    let (n_r, _) = compute_resetting_notional_and_df_r(
-        n_constant,
-        spot_x_at_as_of,
-        as_of,
-        date,
-        disc_c,
-        disc_r,
-        swap_id,
-    )?;
-    Ok(n_r)
-}
-
 /// Guard that a discount factor is finite and strictly positive; returns the value on success.
 fn require_positive_df(
     df: f64,
@@ -740,7 +720,7 @@ mod tests {
     }
 
     #[test]
-    fn compute_resetting_notional_matches_formula() {
+    fn resetting_notional_matches_formula() {
         use finstack_quant_core::market_data::term_structures::DiscountCurve;
         use finstack_quant_core::math::interp::{ExtrapolationPolicy, InterpStyle};
         use finstack_quant_core::types::{CurveId, InstrumentId};
@@ -778,8 +758,10 @@ mod tests {
         let p_r = disc_r.df_on_date_curve(date).expect("p_r");
         let expected = n_c / (spot * p_r / p_c);
 
-        let actual = compute_resetting_notional(n_c, spot, base, date, &disc_c, &disc_r, &swap_id)
-            .expect("formula ok");
+        let actual =
+            compute_resetting_notional_and_df_r(n_c, spot, base, date, &disc_c, &disc_r, &swap_id)
+                .expect("formula ok")
+                .0;
         assert!(
             (actual - expected).abs() < 1e-6,
             "got {actual}, expected {expected}"
@@ -842,8 +824,10 @@ mod tests {
         );
         let expected = n_c / forward;
 
-        let actual = compute_resetting_notional(n_c, spot, base, date, &disc_c, &disc_r, &swap_id)
-            .expect("formula ok");
+        let actual =
+            compute_resetting_notional_and_df_r(n_c, spot, base, date, &disc_c, &disc_r, &swap_id)
+                .expect("formula ok")
+                .0;
         assert!(
             (actual - expected).abs() < 1e-6,
             "got {actual}, expected hand-computed {expected}"
