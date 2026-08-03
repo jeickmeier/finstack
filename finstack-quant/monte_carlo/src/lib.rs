@@ -17,97 +17,43 @@
 )]
 #![doc(test(attr(allow(clippy::expect_used))))]
 
-//! Monte Carlo pricing infrastructure for derivative valuation and diagnostics.
+//! Monte Carlo simulation, pricing, and diagnostics for quantitative finance.
 //!
-//! This crate combines stochastic-process definitions, discretization schemes,
-//! random-number generators, payoffs, and pricing engines behind composable
-//! traits. Most users start with [`engine::McEngine`] for generic simulations or
-//! [`pricer::european::EuropeanPricer`] for a GBM-only entry point.
+//! # Entry points
 //!
-//! # What Is Available
+//! - [`engine::McEngine`] composes a [`traits::RandomStream`],
+//!   [`traits::StochasticProcess`], [`traits::Discretization`], and
+//!   [`traits::Payoff`] into a generic simulation.
+//! - [`pricer`] provides higher-level European, path-dependent, and LSMC workflows.
+//! - [`simulate_gbm_paths`] returns compact captured GBM paths for plotting and
+//!   diagnostics.
+//! - [`prelude`] re-exports commonly used types.
 //!
-//! The crate provides:
+//! # Module map
 //!
-//! - [`rng::philox::PhiloxRng`] for deterministic pseudo-random sampling
-//! - [`rng::sobol::SobolRng`] for quasi-random Sobol generators
-//! - [`process::gbm::GbmProcess`] and related Brownian / OU-style processes
-//! - Heston, CIR, Hull-White, jump-diffusion, Bates, and Schwartz-Smith models
-//! - [`discretization::exact::ExactGbm`] and other exact schemes
-//! - Euler / Milstein / QE discretizations, path-dependent payoffs, LSMC, Greeks,
-//!   control variates, and antithetic pairing (see [`variance_reduction`])
-//! - deterministic seed helpers in [`crate::seed`]
-//! - vanilla and exotic payoffs and the core [`traits`] / [`engine`] infrastructure
-//!
-//! Rayon-backed path simulation is compiled in by default. Parallel mode
-//! requires an RNG that supports deterministic stream splitting, such as
-//! [`rng::philox::PhiloxRng`].
+//! - Models and simulation inputs: [`rng`], [`process`], and [`discretization`].
+//! - Engine contracts and execution: [`traits`], [`time_grid`], [`engine`], and
+//!   [`engine_fractional`].
+//! - Products and analytics: [`payoff`], [`pricer`], [`barriers`], [`greeks`], and
+//!   [`variance_reduction`].
+//! - Results and diagnostics: [`estimate`], [`online_stats`], [`paths`], and [`results`].
+//! - Runtime defaults and reproducibility: [`registry`] and [`seed`].
+//! - Common imports: [`prelude`].
 //!
 //! # Conventions
 //!
-//! Public APIs in this crate use the following conventions unless a module says
-//! otherwise:
+//! Unless a module documents otherwise:
 //!
-//! - Rates, dividend yields, and volatilities are quoted in decimals, not basis points.
-//! - Times and time-grid coordinates are year fractions.
-//! - [`engine::McEngine::price`] expects a caller-supplied discount factor for the
-//!   payoff horizon, typically `exp(-rT)` under a flat continuously compounded rate.
-//! - [`traits::Payoff::value`] returns an undiscounted [`finstack_quant_core::money::Money`]
-//!   amount in the requested currency; the engine applies the discount factor outside
-//!   the payoff implementation.
-//! - Captured path statistics such as percentiles and ranges are computed from the
-//!   captured subset, not necessarily from the full Monte Carlo population.
+//! - Rates, dividend yields, and volatilities are decimals; times and time-grid
+//!   coordinates are year fractions.
+//! - [`traits::Payoff::value`] returns an undiscounted
+//!   [`finstack_quant_core::money::Money`]; [`engine::McEngine::price`] applies
+//!   the caller-supplied discount factor.
+//! - Captured-path statistics such as percentiles and ranges describe the
+//!   captured subset, not necessarily the full Monte Carlo population.
 //!
-//! # Start Here
-//!
-//! - Use [`prelude`] for ergonomic imports in examples and downstream code.
-//! - Read [`traits`] to understand the contracts shared by processes, schemes, and payoffs.
-//! - Read [`engine`] for runtime constraints such as parallel RNG requirements and
-//!   unsupported configuration combinations.
-//! - Read [`rng`], [`process`], and [`discretization`] module docs for model- and
-//!   scheme-specific assumptions.
-//!
-//! # Examples
-//!
-//! ```ignore
-//! use finstack_quant_core::currency::Currency;
-//! use finstack_quant_monte_carlo::prelude::*;
-//!
-//! let engine = McEngine::builder()
-//!     .num_paths(50_000)
-//!     .uniform_grid(1.0, 252)
-//!     .build()
-//!     .expect("valid Monte Carlo configuration");
-//!
-//! let rng = PhiloxRng::new(7);
-//! let process = GbmProcess::with_params(0.03, 0.01, 0.20).unwrap();
-//! let disc = ExactGbm::new();
-//! let payoff = EuropeanCall::new(100.0, 1.0, 252);
-//! let discount_factor = (-0.03_f64).exp();
-//!
-//! let result = engine
-//!     .price(
-//!         &rng,
-//!         &process,
-//!         &disc,
-//!         &[100.0],
-//!         &payoff,
-//!         Currency::USD,
-//!         discount_factor,
-//!     )
-//!     .expect("pricing should succeed");
-//!
-//! assert!(result.mean.amount().is_finite());
-//! ```
-//!
-//! # References
-//!
-//! - Heston-style stochastic-volatility documentation should cite
-//!   [`docs/REFERENCES.md#heston-1993`](../../docs/REFERENCES.md#heston-1993).
-//! - Rate-discounting and option-pricing conventions should cite
-//!   [`docs/REFERENCES.md#hull-options-futures`](../../docs/REFERENCES.md#hull-options-futures).
-//! - Monte Carlo path generation and variance-reduction routines follow the
-//!   standard references discussed in the relevant module docs, especially
-//!   Glasserman (2003) and Andersen (2008).
+//! See [`engine`] for parallel-execution and configuration constraints. Model,
+//! scheme, and estimator assumptions and references live in their leaf modules.
 
 // --- Simulation primitives ---
 mod captured_path_stats;
