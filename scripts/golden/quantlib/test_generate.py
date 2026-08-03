@@ -52,6 +52,78 @@ def test_check_detects_fixture_drift(tmp_path) -> None:
         generate("fra", tmp_path, check=True)
 
 
+def test_generate_attribution_bond_is_deterministic_and_complete(tmp_path) -> None:
+    """Attribution bond fixtures are deterministic and carry T0/T1 + expected P&L."""
+    [path] = generate("bond", tmp_path, family="attribution")
+    first = path.read_bytes()
+    generate("bond", tmp_path, family="attribution")
+    assert path.read_bytes() == first
+    assert path.name == "bond_5pct_10y_usd.json"
+
+    fixture = json.loads(first)
+    assert fixture["instrument"] == "FixedRateBond"
+    assert set(fixture) >= {
+        "conventions",
+        "expected_attribution",
+        "quantlib",
+        "scenario",
+        "spec",
+    }
+    assert set(fixture["quantlib"]) == {"t0", "t1", "version"}
+    assert {"npv", "dv01", "theta_one_day"} <= set(fixture["quantlib"]["t0"])
+    assert "npv" in fixture["quantlib"]["t1"]
+    assert {
+        "actual_pnl",
+        "carry_pnl",
+        "rates_pnl_first_order",
+        "residual_first_order",
+    } <= set(fixture["expected_attribution"])
+    assert all(math.isfinite(value) for value in fixture["expected_attribution"].values())
+
+
+def test_attribution_check_detects_fixture_drift(tmp_path) -> None:
+    """Attribution check mode fails when a written fixture differs."""
+    [path] = generate("bond", tmp_path, family="attribution")
+    generate("bond", tmp_path, family="attribution", check=True)
+    path.write_text("{}\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="stale"):
+        generate("bond", tmp_path, family="attribution", check=True)
+
+
+@pytest.mark.parametrize(
+    ("product", "filename", "instrument"),
+    [
+        ("bond", "bond_5pct_10y_usd.json", "FixedRateBond"),
+        ("irs", "irs_5y_usd.json", "VanillaSwap"),
+        ("fx_forward", "fx_forward_1y_eurusd.json", "FxForward"),
+    ],
+)
+def test_generate_attribution_products_are_complete(
+    tmp_path,
+    product: str,
+    filename: str,
+    instrument: str,
+) -> None:
+    """Each attribution product emits finite expected-attribution factors."""
+    [path] = generate(product, tmp_path, family="attribution")
+    assert path.name == filename
+    fixture = json.loads(path.read_text(encoding="utf-8"))
+    assert fixture["instrument"] == instrument
+    assert "expected_attribution" in fixture
+    assert "actual_pnl" in fixture["expected_attribution"]
+    assert all(math.isfinite(value) for value in fixture["expected_attribution"].values())
+
+
+def test_generate_attribution_all_writes_three_fixtures(tmp_path) -> None:
+    """Family attribution --product all regenerates the full committed set."""
+    paths = generate("all", tmp_path, family="attribution")
+    assert sorted(path.name for path in paths) == [
+        "bond_5pct_10y_usd.json",
+        "fx_forward_1y_eurusd.json",
+        "irs_5y_usd.json",
+    ]
+
+
 @pytest.mark.parametrize(
     "product",
     [

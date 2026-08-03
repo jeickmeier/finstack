@@ -65,12 +65,20 @@ uv run pytest finstack-quant-py/tests/golden -v
 """
 
 [tasks.goldens-quantlib-generate]
-description = "Regenerate committed native QuantLib golden fixtures"
-run = "uv run python -m scripts.golden.quantlib.generate --product all"
+description = "Regenerate committed native QuantLib pricing golden fixtures"
+run = "uv run python -m scripts.golden.quantlib.generate --family pricing --product all"
 
 [tasks.goldens-quantlib-check]
-description = "Check native QuantLib golden fixtures for generator drift"
-run = "uv run python -m scripts.golden.quantlib.generate --product all --check"
+description = "Check native QuantLib pricing golden fixtures for generator drift"
+run = "uv run python -m scripts.golden.quantlib.generate --family pricing --product all --check"
+
+[tasks.goldens-quantlib-attribution-generate]
+description = "Regenerate QuantLib T0/T1 + attribution parity fixtures"
+run = "uv run python -m scripts.golden.quantlib.generate --family attribution --product all"
+
+[tasks.goldens-quantlib-attribution-check]
+description = "Check QuantLib attribution parity fixtures for generator drift"
+run = "uv run python -m scripts.golden.quantlib.generate --family attribution --product all --check"
 
 [tasks.all-fmt]
 description = "Format + auto-fix Rust, Python, and WASM code (mutating)"

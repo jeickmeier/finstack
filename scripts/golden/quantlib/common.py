@@ -32,6 +32,11 @@ def ql_date(iso_date: str) -> ql.Date:
     return ql.Date(day, month, year)
 
 
+def ql_date_to_iso(d: ql.Date) -> str:
+    """Convert a QuantLib date to an ISO8601 calendar date string."""
+    return f"{d.year():04d}-{d.month():02d}-{d.dayOfMonth():02d}"
+
+
 def metadata(
     *,
     name: str,

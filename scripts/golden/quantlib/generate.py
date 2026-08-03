@@ -1,4 +1,4 @@
-"""Generate native QuantLib pricing goldens."""
+"""Generate native QuantLib fixtures (pricing goldens or attribution parity)."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from .attribution import build_bond_fixture, build_fx_forward_fixture, build_irs_fixture
 from .bonds import (
     build_fixed_callable_oas_bond,
     build_fixed_hazard_bond,
@@ -38,7 +39,9 @@ from .rate_options import (
 from .rates import build_fra, build_irs, build_sofr_future
 
 WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_OUTPUT_ROOT = WORKSPACE_ROOT / "finstack-quant/valuations/tests/golden/data/pricing/quantlib"
+DEFAULT_PRICING_ROOT = WORKSPACE_ROOT / "finstack-quant/valuations/tests/golden/data/pricing/quantlib"
+DEFAULT_ATTRIBUTION_ROOT = WORKSPACE_ROOT / "finstack-quant/valuations/tests/data/quantlib_parity"
+
 PRODUCTS: dict[str, tuple[str, Callable[[], dict[str, Any]]]] = {
     "deposit": ("deposit/usd_deposit_3m.json", build_deposit),
     "single_name_cds": (
@@ -138,13 +141,50 @@ PRODUCTS: dict[str, tuple[str, Callable[[], dict[str, Any]]]] = {
 DEFERRED_PRODUCTS: dict[str, tuple[str, Callable[[], dict[str, Any]]]] = {
     "irs": ("irs/usd_sofr_5y_quantlib.json", build_irs),
 }
+ATTRIBUTION_PRODUCTS: dict[str, tuple[str, Callable[[], dict[str, Any]]]] = {
+    "bond": ("bond_5pct_10y_usd.json", build_bond_fixture),
+    "irs": ("irs_5y_usd.json", build_irs_fixture),
+    "fx_forward": ("fx_forward_1y_eurusd.json", build_fx_forward_fixture),
+}
+
+FamilyConfig = tuple[
+    Path, dict[str, tuple[str, Callable[[], dict[str, Any]]]], dict[str, tuple[str, Callable[[], dict[str, Any]]]]
+]
+FAMILIES: dict[str, FamilyConfig] = {
+    "pricing": (DEFAULT_PRICING_ROOT, PRODUCTS, DEFERRED_PRODUCTS),
+    "attribution": (DEFAULT_ATTRIBUTION_ROOT, ATTRIBUTION_PRODUCTS, {}),
+}
 
 
-def generate(product: str, output_root: Path, *, check: bool = False) -> list[Path]:
-    """Generate one product or every registered product."""
+def generate(
+    product: str,
+    output_root: Path,
+    *,
+    family: str = "pricing",
+    check: bool = False,
+) -> list[Path]:
+    """Generate one product or every registered product for a fixture family.
+
+    # Arguments
+    - `product`: Product key, or ``all`` for every non-deferred product in the family.
+    - `output_root`: Directory that receives relative fixture paths.
+    - `family`: ``pricing`` (golden schema) or ``attribution`` (T0/T1 parity JSON).
+    - `check`: When true, fail if committed content differs instead of writing.
+    """
     require_supported_quantlib()
-    all_products = PRODUCTS | DEFERRED_PRODUCTS
-    selected = PRODUCTS.items() if product == "all" else [(product, all_products[product])]
+    if family not in FAMILIES:
+        msg = f"Unknown QuantLib fixture family: {family}"
+        raise ValueError(msg)
+    _, products, deferred = FAMILIES[family]
+    all_products = products | deferred
+    if product == "all":
+        selected = products.items()
+    elif product in all_products:
+        selected = [(product, all_products[product])]
+    else:
+        known = ", ".join(["all", *sorted(all_products)])
+        msg = f"Unknown {family} product {product!r}; expected one of: {known}"
+        raise ValueError(msg)
     paths = []
     for _, (relative_path, builder) in selected:
         path = output_root / relative_path
@@ -154,17 +194,30 @@ def generate(product: str, output_root: Path, *, check: bool = False) -> list[Pa
 
 
 def main() -> None:
-    """Run the QuantLib golden generator CLI."""
+    """Run the QuantLib fixture generator CLI."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--product",
-        choices=["all", *PRODUCTS, *DEFERRED_PRODUCTS],
-        default="all",
+        "--family",
+        choices=sorted(FAMILIES),
+        default="pricing",
+        help="pricing goldens (default) or attribution T0/T1 parity fixtures",
     )
-    parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
+    parser.add_argument(
+        "--product",
+        default="all",
+        help="product key within the selected family, or 'all'",
+    )
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=None,
+        help="override the family's default output directory",
+    )
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    for path in generate(args.product, args.output_root, check=args.check):
+    default_root, _, _ = FAMILIES[args.family]
+    output_root = args.output_root if args.output_root is not None else default_root
+    for path in generate(args.product, output_root, family=args.family, check=args.check):
         print(f"checked {path}" if args.check else f"wrote {path}")
 
 

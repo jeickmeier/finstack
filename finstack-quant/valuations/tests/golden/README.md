@@ -132,9 +132,21 @@ every unresolved metric as a normal failure.
 ## Native QuantLib fixtures
 
 Deterministic native QuantLib generators live in
-[`scripts/golden/quantlib/`](../../../../scripts/golden/quantlib/). Regenerate
-the committed set with `mise run goldens-quantlib-generate`; verify committed
-fixtures have not drifted with `mise run goldens-quantlib-check`.
+[`scripts/golden/quantlib/`](../../../../scripts/golden/quantlib/). The package
+hosts two families with different schemas and consumers:
+
+| Family | Output | Regenerate / check |
+| --- | --- | --- |
+| **pricing** | [`data/pricing/quantlib/`](data/pricing/quantlib/) (`finstack_quant.golden/1`) | `mise run goldens-quantlib-generate` / `goldens-quantlib-check` |
+| **attribution** | [`../data/quantlib_parity/`](../data/quantlib_parity/) (T0/T1 + `expected_attribution`) | `mise run goldens-quantlib-attribution-generate` / `goldens-quantlib-attribution-check` |
+
+Attribution fixtures feed valuations external parity and attribution
+decomposition tests; they are not interchangeable with pricing goldens.
+
+### Pricing family
+
+Regenerate the committed pricing set with `mise run goldens-quantlib-generate`;
+verify committed fixtures have not drifted with `mise run goldens-quantlib-check`.
 
 | Product | Status | Native QuantLib API |
 | --- | --- | --- |

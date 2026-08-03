@@ -1,62 +1,28 @@
-"""Generate QuantLib reference fixtures for finstack parity tests.
+"""QuantLib T0/T1 + attribution parity fixture builders.
 
-Runs QuantLib's analytical/pricing engines on three canonical instruments and
-emits JSON fixtures consumed by:
+Emits JSON consumed by:
 
-- ``finstack-quant/valuations/tests/sanity_invariants/test_bond_quantlib_external_parity.rs``
-  — base valuation parity (NPV, DV01)
+- ``finstack-quant/valuations/tests/sanity_invariants/test_quantlib_external_parity.rs``
 - ``finstack-quant/attribution/tests/attribution/quantlib_parity.rs``
-  — attribution decomposition parity (carry, rates, residual via
-    ``attribute_pnl_metrics_based``)
 
-Run with::
-
-    uv run python scripts/generate_quantlib_fixture.py
-
-Outputs three JSON files under
-``finstack-quant/valuations/tests/data/quantlib_parity/``:
-
-- ``bond_5pct_10y_usd.json``        vanilla USD fixed-rate bond
-- ``irs_5y_usd.json``               vanilla USD interest-rate swap (5y, semi/quarterly)
-- ``fx_forward_1y_eurusd.json``     EUR/USD outright forward (1y)
-
-Each fixture pins:
-
-- the canonical inputs (coupon, maturity, day count, frequencies, calendars,
-  rate curves at T0 and T1)
-- QuantLib-computed values at T0 and T1 (clean price, dirty price, NPV)
-- first-order risk metrics at T0 (DV01, Convexity, Theta)
-- the expected one-day attribution decomposition (carry = Theta * dt,
-  rates = -DV01 * 10000 * d(yield), residual = remainder).
-
-The fixtures are committed to the repo; the Rust tests do NOT invoke
-QuantLib. Re-run this script when the canonical scenarios change.
+This is a separate generator family from pricing goldens
+(``finstack_quant.golden/1``). Scenarios, schemas, and output paths differ on
+purpose; do not merge the two fixture sets.
 """
 
 from __future__ import annotations
 
 import contextlib
-import json
-from pathlib import Path
+import math
 from typing import Any
 
-import QuantLib as ql  # type: ignore[import-not-found]  # noqa: N813  (QuantLib's canonical Python alias)
+import QuantLib as ql  # type: ignore[import-not-found]  # noqa: N813
 
-FIXTURE_DIR = (
-    Path(__file__).resolve().parents[1] / "finstack-quant" / "valuations" / "tests" / "data" / "quantlib_parity"
-)
-
-
-# Helpers
-
-
-def ql_date_to_iso(d: ql.Date) -> str:
-    """QuantLib Date -> ISO8601 calendar date string."""
-    return f"{d.year():04d}-{d.month():02d}-{d.dayOfMonth():02d}"
+from .common import ql_date_to_iso
 
 
 def _flat_yield_handle(rate: float, day_count: ql.DayCounter) -> ql.YieldTermStructureHandle:
-    """Build a flat yield-term-structure handle quoted continuously compounded."""
+    """Build a flat continuously compounded yield-term-structure handle."""
     quote = ql.SimpleQuote(rate)
     ts = ql.FlatForward(
         0,
@@ -69,21 +35,11 @@ def _flat_yield_handle(rate: float, day_count: ql.DayCounter) -> ql.YieldTermStr
     return ql.YieldTermStructureHandle(ts)
 
 
-def _write_fixture(name: str, data: dict[str, Any]) -> None:
-    FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
-    path = FIXTURE_DIR / name
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
-    print(f"wrote {path}")
-
-
-# 1. Vanilla USD fixed-rate bond
-
-
 def build_bond_fixture() -> dict[str, Any]:
     """5% semi-annual USD bond, 10y to maturity.
 
-    Convention set is chosen to match finstack-quant's `Bond::fixed` defaults so the
-    parity test does not require any special builder calls on the Rust side:
+    Convention set matches finstack-quant's ``Bond::fixed`` defaults so the
+    parity test does not require special builder calls on the Rust side:
 
       day count          = 30/360 (Bond Basis)
       frequency          = semi-annual
@@ -212,9 +168,6 @@ def build_bond_fixture() -> dict[str, Any]:
     }
 
 
-# 2. Vanilla USD interest-rate swap (5y, fixed semi vs SOFR-like quarterly)
-
-
 def build_irs_fixture() -> dict[str, Any]:
     """5y USD IRS, fixed 4% semi-annual vs simple float quarterly on a flat curve.
 
@@ -252,12 +205,7 @@ def build_irs_fixture() -> dict[str, Any]:
 
     # Build the swap ONCE at t0 (schedule anchored to the t0 spot date) and
     # revalue THE SAME trade for theta / DV01 / the t1 mark by relinking the
-    # curve handle and moving the evaluation date. The previous version
-    # rebuilt a fresh 5Y swap with MakeVanillaSwap at every date — a
-    # constant-maturity roll whose "theta" included the schedule
-    # reconstruction effect (~$500/day on this fixture, an order of
-    # magnitude above the true trade-level carry) and whose "P&L" was not
-    # the P&L of any single trade (quant review M14).
+    # curve handle and moving the evaluation date.
     relink = ql.RelinkableYieldTermStructureHandle()
 
     def flat_ts(rate: float) -> ql.FlatForward:
@@ -304,8 +252,8 @@ def build_irs_fixture() -> dict[str, Any]:
     npv_t1 = swap.NPV()
 
     # Convention: `dv01` is the dollar PV change per 1bp UP shift (computed
-    # by `(npv_up − npv_dn)/2`). For a long bond it is negative. The signed
-    # rate P&L is therefore `dv01 × Δrate_bp` directly — no sign flip.
+    # by `(npv_up − npv_dn)/2`). The signed rate P&L is therefore
+    # `dv01 × Δrate_bp` directly — no sign flip.
     rate_pnl = dv01 * 10_000.0 * (rate_t1 - rate_t0)
     actual_pnl = npv_t1 - npv_t0
 
@@ -356,17 +304,13 @@ def build_irs_fixture() -> dict[str, Any]:
     }
 
 
-# 3. EUR/USD 1y outright forward
-
-
 def build_fx_forward_fixture() -> dict[str, Any]:
     """EUR/USD outright forward, 1y to maturity, settled in USD.
 
     Priced under no-arbitrage from interest-rate parity:
       F = S * exp((r_usd - r_eur) * T)
     PV in USD of a contract to pay K EUR / receive S0_eur EUR notional
-    is `(F - K) * df_usd(T) * notional`. We use a deliberately simple
-    model so the parity test is easy to verify.
+    is ``(F - K) * df_usd(T) * notional``.
     """
     t0 = ql.Date(15, 1, 2025)
     t1 = ql.Date(16, 1, 2025)
@@ -388,15 +332,11 @@ def build_fx_forward_fixture() -> dict[str, Any]:
         # Closed-form FX-forward PV under no-arbitrage with continuous rates:
         #   PV_USD = N_EUR * (S * df_eur(T) − K * df_usd(T))
         #          ≡ N_EUR * (F − K) * df_usd(T) where F = S * exp((r_usd−r_eur)T)
-        import math
-
         df_usd = math.exp(-r_usd * tau)
         df_eur = math.exp(-r_eur * tau)
         return notional_eur * (spot * df_eur - strike * df_usd)
 
     # Strike chosen at the forward at T0 → initial NPV is zero.
-    import math
-
     strike = spot_t0 * math.exp((r_usd_t0 - r_eur_t0) * tau_t0)
 
     npv_t0 = forward_npv(t0, spot_t0, r_usd_t0, r_eur_t0, strike)
@@ -480,22 +420,3 @@ def build_fx_forward_fixture() -> dict[str, Any]:
             "residual_first_order": actual_pnl - theta_one_day - fx_pnl - usd_rate_pnl - eur_rate_pnl,
         },
     }
-
-
-# Entry point
-
-
-def main() -> None:
-    """Regenerate all three QuantLib parity fixtures."""
-    bond = build_bond_fixture()
-    _write_fixture("bond_5pct_10y_usd.json", bond)
-
-    irs = build_irs_fixture()
-    _write_fixture("irs_5y_usd.json", irs)
-
-    fxf = build_fx_forward_fixture()
-    _write_fixture("fx_forward_1y_eurusd.json", fxf)
-
-
-if __name__ == "__main__":
-    main()

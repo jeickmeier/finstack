@@ -1,7 +1,7 @@
 //! External QuantLib parity for vanilla bond, IRS, and FX-forward pricing.
 //!
 //! Loads `data/quantlib_parity/bond_5pct_10y_usd.json` (generated offline by
-//! `scripts/generate_quantlib_fixture.py`) and asserts:
+//! `mise run goldens-quantlib-attribution-generate`) and asserts:
 //!
 //! - finstack `Bond::value()` matches QL `bond.NPV()` at T₀ and T₁ within $0.05
 //!   on a $100 face (≈ 5 bp).
