@@ -1724,10 +1724,13 @@ def scenario_pnl(
 
     Raises
     ------
+    TypeError
+        If ``portfolio`` or ``market`` is neither its typed wrapper nor a JSON string.
+    ValueError
+        If a JSON input is malformed or does not match its serialized schema.
     PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or
-        domain constraints, or if a position's shocked and base values carry
-        different currencies.
+        If scenario application or either valuation fails, including for
+        missing market data or mismatched base and shocked currencies.
 
     Examples
     --------

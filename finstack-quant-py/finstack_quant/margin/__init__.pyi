@@ -3466,10 +3466,10 @@ class XvaNettingSet:
 
         Parameters
         ----------
-        id : object
-            Stable identifier used to select the required object or result entry.
-        counterparty_id : object
-            Stable identifier used to select the required object or result entry.
+        id : str
+            Stable netting-set identifier carried into XVA results.
+        counterparty_id : str
+            Counterparty identifier used to group the netting set's exposures.
         csa : CsaTerms or None, default None
             Collateral agreement applied to the netting set; ``None`` models
             an uncollateralized agreement.
@@ -5049,8 +5049,8 @@ class SaCcrTrade:
 
         Parameters
         ----------
-        trade_id : object
-            Stable identifier used to select the required object or result entry.
+        trade_id : str
+            Stable trade identifier carried into SA-CCR aggregation and diagnostics.
         asset_class : str
             One of ``"interest_rate"``, ``"foreign_exchange"``, ``"credit"``,
             ``"equity"``, or ``"commodity"``.

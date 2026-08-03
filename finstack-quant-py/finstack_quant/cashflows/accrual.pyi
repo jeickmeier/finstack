@@ -117,9 +117,11 @@ class ExCouponRule:
 
         Raises
         ------
-        ValueError
-            If constructor inputs violate the documented type or domain
-            constraints.
+        TypeError
+            If ``days_before_coupon`` is not an integer or ``calendar_id`` is
+            neither a string nor ``None``.
+        OverflowError
+            If ``days_before_coupon`` is outside the unsigned 32-bit integer range.
 
         Examples
         --------
@@ -220,9 +222,12 @@ class AccrualConfig:
 
         Raises
         ------
+        TypeError
+            If ``method`` or ``ex_coupon`` is not its documented wrapper type,
+            ``include_pik`` is not boolean, or ``frequency`` is neither a
+            ``Tenor`` nor a string.
         ValueError
-            If constructor inputs violate the documented type or domain
-            constraints.
+            If a string ``frequency`` is not a valid tenor.
 
         Examples
         --------
