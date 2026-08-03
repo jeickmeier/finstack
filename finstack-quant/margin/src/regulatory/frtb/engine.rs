@@ -11,7 +11,6 @@ use super::drc::drc_charge;
 use super::rrao::rrao_charge;
 use super::types::{CorrelationScenario, FrtbRiskClass, FrtbSbaResult, FrtbSensitivities};
 use super::vega::vega_charge;
-use finstack_quant_core::currency::Currency;
 use finstack_quant_core::HashMap;
 use finstack_quant_core::Result;
 
@@ -26,9 +25,6 @@ pub struct FrtbSbaEngine {
     scenarios: Vec<CorrelationScenario>,
     /// Which risk classes to include (default: all).
     risk_classes: Vec<FrtbRiskClass>,
-    /// Base currency for reporting.
-    #[allow(dead_code)]
-    reporting_currency: Currency,
 }
 
 impl FrtbSbaEngine {
@@ -111,7 +107,6 @@ impl FrtbSbaEngine {
 pub struct FrtbSbaEngineBuilder {
     scenarios: Option<Vec<CorrelationScenario>>,
     risk_classes: Option<Vec<FrtbRiskClass>>,
-    reporting_currency: Option<Currency>,
 }
 
 impl FrtbSbaEngineBuilder {
@@ -126,13 +121,6 @@ impl FrtbSbaEngineBuilder {
     #[must_use]
     pub fn risk_classes(mut self, rc: Vec<FrtbRiskClass>) -> Self {
         self.risk_classes = Some(rc);
-        self
-    }
-
-    /// Set reporting currency (default: USD).
-    #[must_use]
-    pub fn reporting_currency(mut self, ccy: Currency) -> Self {
-        self.reporting_currency = Some(ccy);
         self
     }
 
@@ -163,7 +151,6 @@ impl FrtbSbaEngineBuilder {
         Ok(FrtbSbaEngine {
             scenarios,
             risk_classes,
-            reporting_currency: self.reporting_currency.unwrap_or(Currency::USD),
         })
     }
 }
@@ -172,6 +159,7 @@ impl FrtbSbaEngineBuilder {
 mod tests {
     use super::*;
     use crate::regulatory::frtb::types::*;
+    use finstack_quant_core::currency::Currency;
 
     // -----------------------------------------------------------------------
     // Builder tests
