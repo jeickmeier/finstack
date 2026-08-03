@@ -549,9 +549,7 @@ pub fn sample_beta(
     Ok(x / sum)
 }
 
-// ============================================================================
 // Exponential Distribution
-// ============================================================================
 
 /// Sample from Exponential(λ) distribution using inverse CDF method.
 ///
@@ -785,9 +783,7 @@ pub fn exponential_quantile(p: f64, lambda: f64) -> crate::Result<f64> {
     }
 }
 
-// ============================================================================
 // Log-Normal Distribution
-// ============================================================================
 
 /// Sample from LogNormal(μ, σ) distribution.
 ///
@@ -1046,9 +1042,7 @@ pub fn lognormal_quantile(p: f64, mu: f64, sigma: f64) -> crate::Result<f64> {
     }
 }
 
-// ============================================================================
 // Gamma Distribution (public helper)
-// ============================================================================
 
 /// Sample from Gamma(shape, 1) distribution using Marsaglia-Tsang method.
 ///
@@ -1159,9 +1153,7 @@ fn sample_gamma_with_max_attempts(
     )))
 }
 
-// ============================================================================
 // Chi-Squared Distribution
-// ============================================================================
 
 /// Sample from Chi-Squared(k) distribution.
 ///
@@ -1386,9 +1378,7 @@ pub fn chi_squared_quantile(p: f64, df: f64) -> crate::Result<f64> {
     }
 }
 
-// ============================================================================
 // Student's t Distribution (Sampler)
-// ============================================================================
 
 /// Sample from Student's t(ν) distribution.
 ///
@@ -1747,9 +1737,7 @@ mod tests {
         );
     }
 
-    // ========================================================================
     // Exponential Distribution Tests
-    // ========================================================================
 
     #[test]
     fn test_sample_exponential_basic() {
@@ -1862,9 +1850,7 @@ mod tests {
         assert!(exponential_quantile(0.5, -1.0).is_err());
     }
 
-    // ========================================================================
     // Log-Normal Distribution Tests
-    // ========================================================================
 
     #[test]
     fn test_sample_lognormal_basic() {
@@ -2022,9 +2008,7 @@ mod tests {
         assert!(lognormal_quantile(0.5, 0.0, -1.0).is_err());
     }
 
-    // ========================================================================
     // Gamma Distribution Tests
-    // ========================================================================
 
     #[test]
     fn test_sample_gamma_basic() {
@@ -2104,9 +2088,7 @@ mod tests {
         }
     }
 
-    // ========================================================================
     // Chi-Squared Distribution Tests
-    // ========================================================================
 
     #[test]
     fn test_sample_chi_squared_basic() {
@@ -2214,9 +2196,7 @@ mod tests {
         assert!(chi_squared_quantile(0.5, -1.0).is_err());
     }
 
-    // ========================================================================
     // Student's t Distribution Tests
-    // ========================================================================
 
     #[test]
     fn test_sample_student_t_basic() {

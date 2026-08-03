@@ -32,9 +32,7 @@ use super::{
     error::MigrationError, generator::GeneratorMatrix, matrix::TransitionMatrix, scale::RatingScale,
 };
 
-// ---------------------------------------------------------------------------
 // RatingPath
-// ---------------------------------------------------------------------------
 
 /// A simulated rating trajectory: sequence of (time, state_index) pairs.
 ///
@@ -128,9 +126,7 @@ impl RatingPath {
     }
 }
 
-// ---------------------------------------------------------------------------
 // MigrationSimulator
-// ---------------------------------------------------------------------------
 
 /// Simulator for generating rating paths from a generator matrix.
 ///
@@ -254,9 +250,7 @@ impl MigrationSimulator {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Core Gillespie algorithm
-// ---------------------------------------------------------------------------
 
 /// Run Gillespie's competing-exponentials scheme and return the terminal state.
 ///

@@ -152,9 +152,7 @@ fn test_financial_yield_curve_integration() {
     assert!((integrated_rate - 0.055).abs() < 1e-3);
 }
 
-// ==========================================
 // Additional integration behavior
-// ==========================================
 
 #[test]
 fn gauss_hermite_supported_orders_match_standard_normal_moments() {

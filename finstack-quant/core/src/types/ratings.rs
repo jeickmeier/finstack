@@ -33,9 +33,7 @@ use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
-// ============================================================================
 // CREDIT RATING
-// ============================================================================
 
 /// Unified credit rating scale with notch-level precision (agency-agnostic).
 ///
@@ -337,9 +335,7 @@ impl core::fmt::Display for CreditRating {
     }
 }
 
-// ============================================================================
 // RATING LABEL
-// ============================================================================
 
 /// Stable label for referring to ratings (curve names, exports, etc.).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -506,9 +502,7 @@ fn parse_credit_rating(value: &str) -> Result<CreditRating, crate::Error> {
     Ok(rating)
 }
 
-// ============================================================================
 // RATING FACTOR TABLE
-// ============================================================================
 
 /// Rating factor table for a specific rating agency methodology.
 ///
@@ -650,9 +644,7 @@ impl RatingFactorTable {
     }
 }
 
-// ============================================================================
 // CONVENIENCE FUNCTIONS
-// ============================================================================
 
 /// Lazily initialized Moody's WARF rating factor table
 static MOODYS_WARF_TABLE: OnceLock<crate::Result<RatingFactorTable>> = OnceLock::new();
@@ -692,9 +684,7 @@ pub fn moodys_warf_factor(rating: CreditRating) -> crate::Result<f64> {
     }
 }
 
-// ============================================================================
 // TESTS
-// ============================================================================
 
 #[cfg(test)]
 mod tests {

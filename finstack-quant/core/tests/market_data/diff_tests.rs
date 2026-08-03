@@ -21,9 +21,7 @@ use finstack_quant_core::money::{
 use std::sync::Arc;
 use time::Month;
 
-// ===================================================================
 // Test Helpers
-// ===================================================================
 
 fn sample_date() -> Date {
     Date::from_calendar_date(2025, Month::January, 1).expect("Valid test date")
@@ -75,9 +73,7 @@ fn market_with_price(id: &'static str, scalar: MarketScalar) -> MarketContext {
     MarketContext::new().insert_price(id, scalar)
 }
 
-// ===================================================================
 // Discount Curve Shift Tests
-// ===================================================================
 
 #[test]
 fn test_discount_curve_parallel_shift() {
@@ -250,9 +246,7 @@ fn test_discount_curve_custom_sampling() {
     assert!((shift - 50.0).abs() < 5.0, "Expected ~50bp, got {}", shift);
 }
 
-// ===================================================================
 // Hazard Curve Shift Tests
-// ===================================================================
 
 #[test]
 fn test_hazard_curve_parallel_shift() {
@@ -355,9 +349,7 @@ fn test_hazard_curve_dynamic_sampling() {
     assert_eq!(shift, 0.0, "Same market should produce zero shift");
 }
 
-// ===================================================================
 // Inflation Curve Shift Tests
-// ===================================================================
 
 #[test]
 fn test_inflation_curve_shift() {
@@ -395,9 +387,7 @@ fn test_inflation_curve_missing_error() {
     assert!(result.is_err(), "Should error on missing curve");
 }
 
-// ===================================================================
 // Volatility Surface Shift Tests
-// ===================================================================
 
 #[test]
 fn test_vol_surface_point_shift() {
@@ -489,9 +479,7 @@ fn test_vol_surface_zero_shift() {
     assert_eq!(shift, 0.0, "Same surface should produce zero shift");
 }
 
-// ===================================================================
 // FX Shift Tests
-// ===================================================================
 
 #[test]
 fn test_fx_shift_strengthening() {
@@ -600,9 +588,7 @@ fn test_fx_shift_zero_baseline_errors() {
     assert!(result.is_err(), "zero t0 FX rate should be rejected");
 }
 
-// ===================================================================
 // Scalar Shift Tests
-// ===================================================================
 
 #[test]
 fn test_scalar_price_shift() {
@@ -687,9 +673,7 @@ fn test_scalar_shift_non_finite_results_error() {
     assert!(measure_scalar_absolute_shift("BAD", &market_t0, &market_t1).is_err());
 }
 
-// ===================================================================
 // Tenor Sampling Method Tests
-// ===================================================================
 
 #[test]
 fn test_standard_tenors_constant() {
@@ -746,9 +730,7 @@ fn test_tenor_sampling_with_all_methods() {
     assert_eq!(shift_custom, 0.0);
 }
 
-// ===================================================================
 // Edge Cases and Boundary Conditions
-// ===================================================================
 
 #[test]
 fn test_discount_shift_negative_shift() {

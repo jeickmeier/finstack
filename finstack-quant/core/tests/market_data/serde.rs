@@ -36,9 +36,7 @@ fn test_date() -> Date {
     Date::from_calendar_date(2025, Month::January, 15).unwrap()
 }
 
-// =============================================================================
 // VolSurface Tests
-// =============================================================================
 
 #[test]
 fn vol_surface_roundtrip() {
@@ -59,9 +57,7 @@ fn vol_surface_roundtrip() {
     assert_eq!(deserialized.grid_shape(), surface.grid_shape());
 }
 
-// =============================================================================
 // ScalarTimeSeries Tests
-// =============================================================================
 
 #[test]
 fn scalar_time_series_roundtrip() {
@@ -79,9 +75,7 @@ fn scalar_time_series_roundtrip() {
     assert_eq!(deserialized.observations(), series.observations());
 }
 
-// =============================================================================
 // InflationIndex Tests
-// =============================================================================
 
 #[test]
 fn inflation_index_roundtrip() {
@@ -102,9 +96,7 @@ fn inflation_index_roundtrip() {
     assert_eq!(deserialized.lag(), index.lag());
 }
 
-// =============================================================================
 // MarketContext Tests
-// =============================================================================
 
 #[test]
 fn market_context_roundtrip() {
@@ -864,9 +856,7 @@ fn market_context_state_roundtrip_hits_more_state_serde_lines() {
     assert!(rebuilt.get_collateral("USD-CSA").is_ok());
 }
 
-// =============================================================================
 // Strict serde: unknown fields rejected on inbound curve/surface states
-// =============================================================================
 
 /// Asserts `value` round-trips through JSON and that adding one unknown
 /// top-level field makes deserialization fail (deny_unknown_fields works).

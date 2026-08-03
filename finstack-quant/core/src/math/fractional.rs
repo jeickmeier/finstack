@@ -38,9 +38,7 @@ use statrs::function::gamma::ln_gamma;
 
 use crate::{Error, Result};
 
-// ---------------------------------------------------------------------------
 // HurstExponent
-// ---------------------------------------------------------------------------
 
 /// Validated Hurst exponent H ∈ (0, 1).
 ///
@@ -87,9 +85,7 @@ impl HurstExponent {
     }
 }
 
-// ---------------------------------------------------------------------------
 // RiemannLiouvilleKernel
-// ---------------------------------------------------------------------------
 
 /// Riemann–Liouville power-law kernel.
 ///
@@ -133,9 +129,7 @@ impl RiemannLiouvilleKernel {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Covariance utilities
-// ---------------------------------------------------------------------------
 
 /// Covariance of fractional Brownian motion.
 ///
@@ -218,9 +212,7 @@ pub fn fbm_increment_covariance_matrix(times: &[f64], h: f64) -> DMatrix<f64> {
     })
 }
 
-// ---------------------------------------------------------------------------
 // Mittag-Leffler function
-// ---------------------------------------------------------------------------
 
 /// Maximum number of series terms for Mittag-Leffler evaluation.
 const ML_MAX_TERMS: usize = 200;
@@ -343,9 +335,7 @@ pub fn mittag_leffler(z: Complex64, alpha: f64, beta: f64) -> Result<Complex64> 
     Ok(sum)
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

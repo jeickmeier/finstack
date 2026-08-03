@@ -15,9 +15,7 @@ use finstack_quant_core::dates::{BusinessDayConvention, CalendarMetadata, Holida
 use finstack_quant_core::InputError;
 use time::Date;
 
-// ============================================
 // Basic Holiday Calendar Trait
-// ============================================
 
 #[test]
 fn test_holiday_calendar_trait() {
@@ -40,9 +38,7 @@ fn test_holiday_calendar_trait() {
     assert!(cal.is_business_day(make_date(2025, 1, 2))); // Thursday
 }
 
-// ============================================
 // Unadjusted Convention
-// ============================================
 
 #[test]
 fn test_adjust_unadjusted() {
@@ -54,9 +50,7 @@ fn test_adjust_unadjusted() {
     assert_eq!(result, saturday);
 }
 
-// ============================================
 // Following Convention
-// ============================================
 
 #[test]
 fn test_adjust_following() {
@@ -92,9 +86,7 @@ fn following_skips_multiple_consecutive_holidays() {
     assert_eq!(adjusted, make_date(2025, 7, 7));
 }
 
-// ============================================
 // Preceding Convention
-// ============================================
 
 #[test]
 fn test_adjust_preceding() {
@@ -123,9 +115,7 @@ fn preceding_skips_multiple_consecutive_holidays() {
     assert_eq!(adjusted, make_date(2025, 12, 26)); // Friday, skipping weekend + holidays
 }
 
-// ============================================
 // ModifiedFollowing Convention
-// ============================================
 
 #[test]
 fn test_adjust_modified_following() {
@@ -155,9 +145,7 @@ fn test_adjust_modified_following() {
     assert_eq!(result, make_date(2025, 1, 29)); // Wednesday
 }
 
-// ============================================
 // ModifiedPreceding Convention
-// ============================================
 
 #[test]
 fn test_adjust_modified_preceding() {
@@ -170,9 +158,7 @@ fn test_adjust_modified_preceding() {
     assert_eq!(result, make_date(2025, 2, 4)); // Tuesday (since Feb 3 is holiday)
 }
 
-// ============================================
 // Available Calendars
-// ============================================
 
 #[test]
 fn test_available_calendars() {
@@ -202,9 +188,7 @@ fn available_calendars_count_matches_module_docs() {
     );
 }
 
-// ============================================
 // Infinite Loop Guard
-// ============================================
 
 /// Test calendar that marks ALL days as holidays to trigger infinite loop scenarios.
 struct AllHolidaysCal;
@@ -271,9 +255,7 @@ fn test_all_conventions_infinite_loop_guard_and_error_messages() {
     }
 }
 
-// ============================================
 // Business Day Convention Display
-// ============================================
 
 #[test]
 fn business_day_convention_display_strings() {
@@ -296,9 +278,7 @@ fn business_day_convention_display_strings() {
     }
 }
 
-// ============================================
 // Calendar Metadata
-// ============================================
 
 /// Custom calendar that exposes metadata for testing.
 struct MetadataCal;
@@ -337,9 +317,7 @@ fn calendar_metadata_override_is_respected() {
     assert!(!cal.is_business_day(new_year));
 }
 
-// ============================================
 // Joint business days T+0 behavior
-// ============================================
 
 #[test]
 fn add_joint_business_days_t0_returns_start_unadjusted() {

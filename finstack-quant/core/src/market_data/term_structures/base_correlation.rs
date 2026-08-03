@@ -80,9 +80,7 @@ use crate::Result;
 /// exact apart from floating-point roundoff.
 pub const BASE_CORR_DETACHMENT_MATCH_TOLERANCE: f64 = 1.0e-10;
 
-// ============================================================================
 // Arbitrage Validation Types
-// ============================================================================
 
 /// Result of arbitrage-free validation for a base correlation curve.
 ///
@@ -241,9 +239,7 @@ impl core::fmt::Display for ArbitrageViolation {
     }
 }
 
-// ============================================================================
 // Smoothing Methods
-// ============================================================================
 
 /// Smoothing method for enforcing arbitrage-free base correlation curves.
 ///
@@ -447,9 +443,7 @@ impl BaseCorrelationCurve {
             .ok()
     }
 
-    // ========================================================================
     // Arbitrage Validation
-    // ========================================================================
 
     /// Validate that the curve is arbitrage-free.
     ///
@@ -531,9 +525,7 @@ impl BaseCorrelationCurve {
         self.correlations.windows(2).all(|w| w[1] >= w[0] - 1e-9)
     }
 
-    // ========================================================================
     // Smoothing Methods
-    // ========================================================================
 
     /// Apply smoothing to create an arbitrage-free curve.
     ///

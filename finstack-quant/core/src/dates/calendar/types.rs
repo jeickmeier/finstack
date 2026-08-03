@@ -176,9 +176,7 @@ mod tests {
     use super::*;
     use time::Month;
 
-    // ------------------------------------------------------------------
     // WeekendRule::is_weekend unit tests
-    // ------------------------------------------------------------------
 
     #[test]
     fn saturday_sunday_rule() {
@@ -233,9 +231,7 @@ mod tests {
         assert_eq!(WeekendRule::default(), WeekendRule::SaturdaySunday);
     }
 
-    // ------------------------------------------------------------------
     // Calendar with FridaySaturday weekend rule
-    // ------------------------------------------------------------------
 
     #[test]
     fn friday_saturday_calendar_business_days() {

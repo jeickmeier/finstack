@@ -45,9 +45,7 @@ use crate::Result;
 
 use serde::{Deserialize, Serialize};
 
-// -----------------------------------------------------------------------------
 // Constants
-// -----------------------------------------------------------------------------
 
 /// Standard market tenors for curve sampling (in years).
 ///
@@ -62,9 +60,7 @@ pub const ATM_MONEYNESS: f64 = 1.0;
 /// Default volatility surface expiry for sampling (1 year).
 pub const DEFAULT_VOL_EXPIRY: f64 = 1.0;
 
-// -----------------------------------------------------------------------------
 // Tenor Sampling Method
-// -----------------------------------------------------------------------------
 
 /// Method for selecting tenor points when measuring curve shifts.
 ///
@@ -108,13 +104,9 @@ impl TenorSamplingMethod {
     }
 }
 
-// -----------------------------------------------------------------------------
 // Curve Shift Measurements
-// -----------------------------------------------------------------------------
 
-// -----------------------------------------------------------------------------
 // Curve Shift Measurements
-// -----------------------------------------------------------------------------
 
 /// Generic internal measurement helper for curve-like objects.
 fn measure_average_shift(
@@ -506,9 +498,7 @@ pub fn measure_inflation_source_shift(
     }
 }
 
-// -----------------------------------------------------------------------------
 // Surface Shift Measurements
-// -----------------------------------------------------------------------------
 
 /// Measure volatility surface shift (percentage points).
 ///
@@ -604,9 +594,7 @@ pub fn measure_vol_surface_shift(
     Ok(total_shift / sample_count as f64)
 }
 
-// -----------------------------------------------------------------------------
 // FX and Scalar Shift Measurements
-// -----------------------------------------------------------------------------
 
 /// Measure FX spot rate shift (percentage change).
 ///

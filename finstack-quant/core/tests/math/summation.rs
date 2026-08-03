@@ -2,9 +2,7 @@
 //!
 use finstack_quant_core::math::summation::{kahan_sum, neumaier_sum, NeumaierAccumulator};
 
-// ===================================================================
 // Kahan Sum Tests
-// ===================================================================
 
 #[test]
 fn test_kahan_sum_basic() {
@@ -85,9 +83,7 @@ fn test_kahan_sum_mixed_sign() {
     );
 }
 
-// ===================================================================
 // Neumaier Sum Tests
-// ===================================================================
 
 #[test]
 fn test_neumaier_sum_basic() {
@@ -171,9 +167,7 @@ fn test_neumaier_sum_large_then_small_additions() {
     );
 }
 
-// ===================================================================
 // Neumaier Accumulator Tests
-// ===================================================================
 
 #[test]
 fn test_neumaier_accumulator_basic() {
@@ -272,9 +266,7 @@ fn test_neumaier_accumulator_alternating() {
     );
 }
 
-// ===================================================================
 // Comparative Tests
-// ===================================================================
 
 #[test]
 fn test_all_methods_agree_simple() {

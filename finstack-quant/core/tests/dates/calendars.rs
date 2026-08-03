@@ -394,9 +394,7 @@ fn test_calendar_weekend_behavior() {
     assert!(cal.is_business_day(make_date(2025, 6, 18)));
 }
 
-// ============================================
 // Chinese New Year Edge Cases (1970-2150)
-// ============================================
 
 fn check_cny_dates(dates: &[(i32, u8, u8)]) {
     // Check multiple calendars that observe CNY
@@ -417,9 +415,7 @@ fn check_cny_dates(dates: &[(i32, u8, u8)]) {
     }
 }
 
-// ============================================
 // Mainland China (SSE / CNBE) closure notices
-// ============================================
 
 /// Every date SSE officially announced as closed for 2024-2026 must be a
 /// non-business day, and each post-holiday reopen weekday must be a business
@@ -604,10 +600,8 @@ fn test_cny_late_years_2100s() {
     check_cny_dates(&[(2101, 1, 29), (2125, 2, 3), (2150, 1, 28)]);
 }
 
-// ============================================
 // Observance-convention regressions
 // ( — Major: schedules/calendars)
-// ============================================
 
 /// Federal Reserve convention (USNY): Sunday holidays move to Monday; Saturday
 /// holidays get NO substitute (banks open the preceding Friday). NYSE keeps the

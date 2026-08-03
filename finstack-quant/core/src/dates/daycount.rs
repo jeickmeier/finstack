@@ -1061,9 +1061,7 @@ pub fn act_act_isma_year_fraction_with_reference_period(
     recurse(start, end, reference_start, reference_end, traversal, 0)
 }
 
-// -------------------------------------------------------------------------------------------------
 // 30/360 generalized helper
-// -------------------------------------------------------------------------------------------------
 /// 30/360 day-count variants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -1225,9 +1223,7 @@ pub fn days_30e_360_isda(start: Date, end: Date, end_is_termination_date: bool) 
 
 // (Wrappers removed in favor of the public `days_30_360` with `Thirty360Convention`.)
 
-// -------------------------------------------------------------------------------------------------
 // ACT/ACT (ISDA) helper
-// -------------------------------------------------------------------------------------------------
 fn year_fraction_act_act_isda(start: Date, end: Date) -> crate::Result<f64> {
     if start == end {
         return Ok(0.0);
@@ -1258,9 +1254,7 @@ fn year_fraction_act_act_isda(start: Date, end: Date) -> crate::Result<f64> {
     Ok(frac)
 }
 
-// -------------------------------------------------------------------------------------------------
 // Context-aware helpers for year_fraction_impl
-// -------------------------------------------------------------------------------------------------
 
 /// ACT/ACT (ISMA) with context extraction.
 ///
@@ -1294,9 +1288,7 @@ fn year_fraction_bus252(start: Date, end: Date, ctx: DayCountContext<'_>) -> cra
     Ok(biz_days / f64::from(basis))
 }
 
-// -------------------------------------------------------------------------------------------------
 // ACT/ACT (ISMA/ICMA) helper
-// -------------------------------------------------------------------------------------------------
 /// Calculate year fraction for ACT/ACT (ISMA/ICMA) convention with coupon-period awareness.
 fn year_fraction_act_act_isma(start: Date, end: Date, frequency: Tenor) -> crate::Result<f64> {
     if start == end {
@@ -1389,9 +1381,7 @@ fn year_fraction_act_act_isma(start: Date, end: Date, frequency: Tenor) -> crate
     Ok(total_fraction)
 }
 
-// -------------------------------------------------------------------------------------------------
 // ACT/365L helper
-// -------------------------------------------------------------------------------------------------
 /// Calculate year fraction for Act/365L convention per ICMA Rule 251.1(i)(c).
 ///
 /// The denominator rule depends on the coupon frequency supplied via
@@ -1445,9 +1435,7 @@ fn interval_contains_feb_29(start: Date, end: Date) -> bool {
     false
 }
 
-// -------------------------------------------------------------------------------------------------
 // NL/365 helper
-// -------------------------------------------------------------------------------------------------
 /// Calculate year fraction for NL/365 (Actual/365 No Leap).
 ///
 /// Counts actual days in `[start, end)` excluding any February 29, divided by
@@ -1473,9 +1461,7 @@ fn year_fraction_nl_365(start: Date, end: Date) -> f64 {
     (actual_days - leap_days) as f64 / 365.0
 }
 
-// -------------------------------------------------------------------------------------------------
 // Bus/252 helper
-// -------------------------------------------------------------------------------------------------
 /// Count business days between start (inclusive) and end (exclusive) using the given calendar.
 fn count_business_days<C: HolidayCalendar + ?Sized>(start: Date, end: Date, calendar: &C) -> i32 {
     BusinessDayIter::new(start, end, calendar).count() as i32
@@ -1490,9 +1476,7 @@ const fn days_in_year(year: i32) -> i32 {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Display + FromStr
-// ---------------------------------------------------------------------------
 
 impl std::fmt::Display for DayCount {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -1612,9 +1596,7 @@ mod tests {
         assert!((back_stub - expected_back).abs() < 1e-14);
     }
 
-    // -----------------------------------------------------------------------
     // FromStr / Display roundtrip tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn daycount_display_roundtrip() {
@@ -1675,14 +1657,12 @@ mod tests {
         assert!("garbage".parse::<super::DayCount>().is_err());
     }
 
-    // -----------------------------------------------------------------------
     // Act/365L ICMA Rule 251 boundary tests
     //
     // Updated the
     // Feb-29 window for the annual rule is (start, end] per ICMA Rule 251,
     // not [start, end), and a non-annual coupon frequency switches the
     // denominator rule to "366 iff the period END falls in a leap year".
-    // -----------------------------------------------------------------------
 
     #[test]
     fn act365l_period_ending_on_feb29_uses_366() {
@@ -1787,9 +1767,7 @@ mod tests {
         assert_eq!(yf, days / 365.0, "annual, no Feb 29 in (start,end] → 365");
     }
 
-    // -----------------------------------------------------------------------
     // 30E/360 (ISDA) — ISDA 2006 §4.16(h) examples
-    // -----------------------------------------------------------------------
 
     #[test]
     fn thirty_e_360_isda_last_day_of_month_rules() {
@@ -1852,9 +1830,7 @@ mod tests {
         assert_eq!(days_30e_360_isda(start, end, false), 30);
     }
 
-    // -----------------------------------------------------------------------
     // NL/365
-    // -----------------------------------------------------------------------
 
     #[test]
     fn nl365_excludes_feb_29() {
@@ -1888,9 +1864,7 @@ mod tests {
         assert_eq!(nl, act365f);
     }
 
-    // -----------------------------------------------------------------------
     // DayCountContextState coupon_period round-trip
-    // -----------------------------------------------------------------------
 
     #[test]
     fn daycount_context_state_roundtrips_coupon_period() {
@@ -1939,9 +1913,7 @@ mod tests {
         assert!(error.to_string().contains("not_a_calendar"));
     }
 
-    // -----------------------------------------------------------------------
     // Act/Act ISMA coupon_period routing tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn act_act_isma_coupon_period_mid_coupon_accrual() {

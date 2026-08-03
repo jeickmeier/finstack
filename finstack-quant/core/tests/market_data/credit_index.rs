@@ -71,9 +71,7 @@ fn credit_index_builder_validates_bad_input() {
     assert!(matches!(err, finstack_quant_core::Error::Input(_)));
 }
 
-// =============================================================================
 // Additional credit index behavior
-// =============================================================================
 
 #[test]
 fn test_credit_index_recovery_rate_scenarios() {

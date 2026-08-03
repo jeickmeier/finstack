@@ -18,9 +18,7 @@
 
 use time::{Date, Duration, Month};
 
-// -------------------------------------------------------------------------------------------------
 // Easter
-// -------------------------------------------------------------------------------------------------
 
 /// Computes Easter Monday for a given Gregorian year.
 ///
@@ -91,9 +89,7 @@ pub(crate) fn easter_monday(year: i32) -> Date {
     easter_sunday + Duration::days(1) // Easter Monday = Sunday + 1
 }
 
-// -------------------------------------------------------------------------------------------------
 // Chinese New Year (generated lookup, 1970-2150)
-// -------------------------------------------------------------------------------------------------
 
 // The generated table provides `cny_date_for_year` and `is_cny_date` helpers.
 include!("../../generated/cny_generated.rs");
@@ -166,9 +162,7 @@ pub(crate) fn cny_date(year: i32) -> Option<Date> {
         .and_then(|(m, d)| Date::from_calendar_date(year, Month::try_from(m).ok()?, d).ok())
 }
 
-// -------------------------------------------------------------------------------------------------
 // Dragon Boat / Mid-Autumn (generated lookup, 1970-2150)
-// -------------------------------------------------------------------------------------------------
 
 // The generated table provides `dragon_boat_date_for_year`, `is_dragon_boat_date`,
 // `mid_autumn_date_for_year`, and `is_mid_autumn_date` helpers.

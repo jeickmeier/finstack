@@ -18,9 +18,7 @@ macro_rules! new_strict {
     };
 }
 
-// ============================================================================
 // Basic Tests (macro-generated for all interpolator types)
-// ============================================================================
 
 macro_rules! interp_basic_tests {
     ($mod_name:ident, $ty:ty) => {
@@ -223,9 +221,7 @@ mod monotone_convex_strategy {
     }
 }
 
-// ============================================================================
 // InterpStyle::build Tests
-// ============================================================================
 
 mod interp_style_build {
     use super::*;
@@ -331,9 +327,7 @@ mod interp_style_build {
     }
 }
 
-// ============================================================================
 // Extrapolation Policy Tests
-// ============================================================================
 
 macro_rules! extrapolation_tests {
     ($mod_name:ident, $ty:ty) => {
@@ -493,9 +487,7 @@ no_extrapolation_tests!(
     Interpolator<PiecewiseQuadraticForwardStrategy>
 );
 
-// ============================================================================
 // Derivative (interp_prime) Tests
-// ============================================================================
 
 macro_rules! derivative_tests {
     ($mod_name:ident, $ty:ty) => {
@@ -653,9 +645,7 @@ derivative_tests!(
     Interpolator<PiecewiseQuadraticForwardStrategy>
 );
 
-// ============================================================================
 // Type-Specific Tests
-// ============================================================================
 
 mod linear_specific {
     use super::*;
@@ -1212,9 +1202,7 @@ mod monotone_convex_specific {
         assert!(approx_eq(interp.interp(3.0), 0.85, 1e-12));
     }
 
-    // ========================================================================
     // Hagan-West monotonicity projection
-    // ========================================================================
     //
     // Regression tests for the Hagan-West 2006 Figure 6 projection. The
     // original implementation collapsed same-sign α, β scalings to
@@ -1412,9 +1400,7 @@ mod monotone_convex_specific {
     }
 }
 
-// ============================================================================
 // Trait Tests
-// ============================================================================
 
 mod traits {
     use super::*;
@@ -1569,9 +1555,7 @@ mod traits {
     }
 }
 
-// ============================================================================
 // Serialization Tests
-// ============================================================================
 
 mod serde_tests {
     use super::*;
@@ -1663,9 +1647,7 @@ mod serde_tests {
     }
 }
 
-// ============================================================================
 // ExtrapolationPolicy Tests
-// ============================================================================
 
 #[cfg(test)]
 mod extrapolation_policy_tests {
@@ -1733,9 +1715,7 @@ mod extrapolation_policy_tests {
     }
 }
 
-// ============================================================================
 // Hagan-West forward non-negativity property tests (seeded)
-// ============================================================================
 
 mod monotone_convex_positivity {
     use super::*;
@@ -1804,9 +1784,7 @@ mod monotone_convex_positivity {
     }
 }
 
-// ============================================================================
 // Negative-rate curve support
-// ============================================================================
 //
 // Per Hagan & West (2006), forward-positivity enforcement is an optional
 // amelioration valid only for positive curves. MonotoneConvex auto-detects

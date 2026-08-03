@@ -33,9 +33,7 @@ fn d(year: i32, month: u8, day: u8) -> Date {
     Date::from_calendar_date(year, Month::try_from(month).unwrap(), day).unwrap()
 }
 
-// ---------------------------------------------------------------------------
 // Money formatting parity
-// ---------------------------------------------------------------------------
 
 #[test]
 fn format_with_default_matches_format_with_separators() {
@@ -73,7 +71,6 @@ fn format_with_handles_negative_amounts() {
     assert_eq!(amt.format_with_separators(2), "USD -1,234.50");
 }
 
-// ---------------------------------------------------------------------------
 // DiscountCurveBuilder::validation parity
 
 #[test]
@@ -99,8 +96,6 @@ fn validation_mode_resolves_binding_presets_canonically() {
         assert!(result.is_err());
     }
 }
-
-// ---------------------------------------------------------------------------
 
 #[test]
 fn validation_market_standard_builds_monotonic_curve() {
@@ -157,9 +152,7 @@ fn validation_raw_allows_non_monotonic_without_forward_floor() {
     assert!(curve.df(4.5) < curve.df(1.0));
 }
 
-// ---------------------------------------------------------------------------
 // VolSurface construction parity
-// ---------------------------------------------------------------------------
 
 fn sample_grid() -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     let expiries = vec![0.25, 0.5, 1.0, 2.0];
@@ -254,9 +247,7 @@ fn from_grid_opts_preserves_axis_and_interpolation_mode() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // VolSurface bilinear evaluation parity (value_checked vs value_clamped)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn value_checked_matches_value_clamped_on_interior() {
@@ -280,9 +271,7 @@ fn value_checked_matches_value_clamped_on_interior() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Rate / Percentage / Bps: TryFrom<f64> parity and NaN rejection
-// ---------------------------------------------------------------------------
 
 #[test]
 fn rate_try_from_decimal_matches_from_decimal_for_valid_inputs() {
@@ -331,9 +320,7 @@ fn bp_try_from_f64_rejects_non_finite() {
     assert!(Bps::try_from(f64::INFINITY).is_err());
 }
 
-// ---------------------------------------------------------------------------
 // XIRR: trait irr() delegation to xirr_with_daycount_ctx(Act365F, default ctx)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn xirr_trait_matches_ctx_helper_on_act365f_default() {

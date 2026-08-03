@@ -31,9 +31,7 @@ use crate::money::fx::{
     reciprocal_rate_or_err, FxConversionPolicy, FxMatrix, FxMatrixState, FxProvider,
 };
 
-// -----------------------------------------------------------------------------
 // Serde: CurveState and (De)Serialize impls
-// -----------------------------------------------------------------------------
 
 macro_rules! define_curve_state {
     ($( $variant:ident => {
@@ -114,9 +112,7 @@ impl<'de> serde::Deserialize<'de> for CurveStorage {
     }
 }
 
-// -----------------------------------------------------------------------------
 // Credit Index State (for serialization of CreditIndexData)
-// -----------------------------------------------------------------------------
 
 /// Serializable state for credit index data.
 ///
@@ -143,9 +139,7 @@ pub struct CreditIndexState {
     pub issuer_weights: Option<std::collections::BTreeMap<String, f64>>,
 }
 
-// -----------------------------------------------------------------------------
 // Market Context State (complete snapshot)
-// -----------------------------------------------------------------------------
 
 /// Current schema version for [`MarketContextState`].
 pub const MARKET_CONTEXT_STATE_VERSION: u32 = 1;
@@ -815,9 +809,7 @@ impl MarketContext {
     }
 }
 
-// -----------------------------------------------------------------------------
 // Optional Serialize/Deserialize for MarketContext (via State)
-// -----------------------------------------------------------------------------
 
 impl serde::Serialize for MarketContext {
     fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>

@@ -641,9 +641,7 @@ where
     adaptive_simpson_inner(f, a, b, tol, fa, fb, fc, whole, 0, max_depth)
 }
 
-// -----------------------------------------------------------------------------
 // Gauss–Legendre Quadrature (finite intervals)
-// -----------------------------------------------------------------------------
 
 /// Return Gauss–Legendre nodes and weights for supported orders.
 fn gl_nodes_weights(order: usize) -> Result<(&'static [f64], &'static [f64]), Error> {
@@ -1035,9 +1033,7 @@ where
     Ok(sum * h)
 }
 
-// -----------------------------------------------------------------------------
 // Gauss-Laguerre quadrature via Golub-Welsch
-// -----------------------------------------------------------------------------
 
 /// Gauss-Laguerre quadrature for the weight `e^{−x}` on `[0, ∞)`.
 ///

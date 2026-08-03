@@ -24,9 +24,7 @@ fn create_test_data() -> (SimpleContext, Vec<Vec<f64>>) {
     (ctx, data)
 }
 
-// =============================================================================
 // Basic Evaluation: Column and Literal
-// =============================================================================
 
 #[test]
 fn column_evaluation() {
@@ -68,9 +66,7 @@ fn literal_zero_length() {
     assert!(result.is_empty());
 }
 
-// =============================================================================
 // Binary Operations
-// =============================================================================
 
 #[test]
 fn binop_add() {
@@ -235,9 +231,7 @@ fn try_new_scalar_accepts_scalar_functions_and_rejects_statements_functions() {
     assert!(CompiledExpr::try_new_scalar(statements_layer).is_err());
 }
 
-// =============================================================================
 // Conditional Expressions
-// =============================================================================
 
 #[test]
 fn if_then_else_evaluation() {
@@ -285,9 +279,7 @@ fn if_then_else_mixed_condition() {
     assert_eq!(out, vec![1.0, 1.0, 3.0, 5.0]);
 }
 
-// =============================================================================
 // Metadata and Results
-// =============================================================================
 
 #[test]
 fn evaluation_result_metadata() {
@@ -301,9 +293,7 @@ fn evaluation_result_metadata() {
     assert_eq!(format!("{:?}", result.metadata.numeric_mode), "F64");
 }
 
-// =============================================================================
 // DAG Planning Integration
-// =============================================================================
 
 #[test]
 fn with_planning_produces_same_result() {
@@ -416,9 +406,7 @@ fn eval_stamps_metadata_from_planning_meta() {
     assert_eq!(result.metadata.rounding.mode, RoundingMode::AwayFromZero);
 }
 
-// =============================================================================
 // Edge Cases
-// =============================================================================
 
 #[test]
 fn empty_data_column() {
@@ -456,9 +444,7 @@ fn single_element_data() {
     assert_eq!(result, vec![42.0]);
 }
 
-// =============================================================================
 // Complex Expression Evaluation
-// =============================================================================
 
 #[test]
 fn nested_function_calls() {

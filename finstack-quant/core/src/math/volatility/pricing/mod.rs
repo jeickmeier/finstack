@@ -309,9 +309,7 @@ mod tests {
         assert_eq!(black_call(forward, strike_otm, 0.0, t), 0.0);
     }
 
-    // =========================================================================
     // Implied Volatility Approximation Tests
-    // =========================================================================
 
     #[test]
     fn test_brenner_subrahmanyam_atm() {

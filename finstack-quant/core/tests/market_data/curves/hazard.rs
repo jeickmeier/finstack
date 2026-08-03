@@ -15,9 +15,7 @@ fn base_date() -> Date {
     Date::from_calendar_date(2025, Month::January, 1).unwrap()
 }
 
-// =============================================================================
 // Builder Validation Tests
-// =============================================================================
 
 #[test]
 fn builder_rejects_empty_knots() {
@@ -36,9 +34,7 @@ fn builder_rejects_negative_hazard_rate() {
     assert!(matches!(err, finstack_quant_core::Error::Input(_)));
 }
 
-// =============================================================================
 // Survival and Default Probability Tests
-// =============================================================================
 
 #[test]
 fn survival_and_default_probabilities() {
@@ -70,9 +66,7 @@ fn hazard_shift_rejects_negative_rates() {
     assert!(err.to_string().contains("negative hazard rate after bump"));
 }
 
-// =============================================================================
 // Metadata Preservation Tests
-// =============================================================================
 
 #[test]
 fn to_builder_preserves_metadata() {
@@ -100,9 +94,7 @@ fn to_builder_preserves_metadata() {
     );
 }
 
-// =============================================================================
 // Analytical Verification Tests
-// =============================================================================
 
 #[test]
 fn sp_analytical_verification_constant_hazard() {
@@ -190,9 +182,7 @@ fn explicit_zero_time_knot_defines_first_positive_interval() {
     );
 }
 
-// =============================================================================
 // Additional hazard curve behavior
-// =============================================================================
 
 fn test_date() -> Date {
     Date::from_calendar_date(2025, Month::January, 1).unwrap()

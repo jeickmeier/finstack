@@ -117,9 +117,7 @@ fn date_discounting_supports_dates_before_curve_base() {
     assert!((forward - via_base).abs() < 1e-12);
 }
 
-// =============================================================================
 // Builder Validation Tests
-// =============================================================================
 
 #[test]
 fn builder_rejects_fewer_than_two_points() {
@@ -212,9 +210,7 @@ fn allow_non_monotonic_flag_overrides_validation() {
     );
 }
 
-// =============================================================================
 // No-Arbitrage Validation Tests
-// =============================================================================
 
 #[test]
 fn non_monotonic_df_rejected_by_default() {
@@ -297,9 +293,7 @@ fn reasonable_negative_forward_accepted() {
     );
 }
 
-// =============================================================================
 // Interpolation Tests
-// =============================================================================
 
 #[test]
 fn interpolation_consistency_at_knot_points() {
@@ -372,9 +366,7 @@ fn interpolation_styles_produce_valid_results() {
     }
 }
 
-// =============================================================================
 // Extrapolation Tests
-// =============================================================================
 
 fn create_test_curve(
     extrapolation: ExtrapolationPolicy,
@@ -498,9 +490,7 @@ fn interpolation_styles_with_both_extrapolation_policies() {
     }
 }
 
-// =============================================================================
 // MonotoneConvex Specific Tests
-// =============================================================================
 
 #[test]
 fn monotone_convex_guarantees_positive_forwards() {
@@ -554,9 +544,7 @@ fn monotone_convex_forward_continuity_at_knots() {
     }
 }
 
-// =============================================================================
 // Bump Tests
-// =============================================================================
 
 #[test]
 fn parallel_bump_and_df_batch() {
@@ -732,9 +720,7 @@ fn triangular_key_rate_bump_weight_verification() {
     );
 }
 
-// =============================================================================
 // Analytical Verification Tests
-// =============================================================================
 
 #[test]
 fn forward_rate_analytical_verification() {
@@ -846,9 +832,7 @@ fn df_batch_handles_beyond_last_knot() {
     assert!(dfs[3].is_finite());
 }
 
-// =============================================================================
 // Special Environment Tests
-// =============================================================================
 
 #[test]
 fn negative_rate_environment() {
@@ -974,9 +958,7 @@ fn minimal_two_point_curve() {
     assert_eq!(minimal_curve.df(2.0), 0.95); // Flat-zero right
 }
 
-// =============================================================================
 // Forward-rate numerical precision
-// =============================================================================
 //
 // `DiscountCurve::forward` is implemented as the canonical
 //
@@ -1096,9 +1078,7 @@ fn forward_short_tenor_retains_precision() {
     }
 }
 
-// =============================================================================
 // Serialization Tests
-// =============================================================================
 
 mod serde_tests {
     use super::*;

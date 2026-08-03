@@ -323,9 +323,7 @@ fn simple_fx_provider_many_currencies() {
     }
 }
 
-// ===================================================================
 // Edge Case Tests (Market Standards Review)
-// ===================================================================
 
 #[test]
 fn simple_fx_provider_very_small_rate() {

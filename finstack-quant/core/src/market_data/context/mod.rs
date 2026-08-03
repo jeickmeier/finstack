@@ -482,9 +482,7 @@ impl MarketContext {
     }
 }
 
-// -----------------------------------------------------------------------------
 // Heterogeneous curve storage
-// -----------------------------------------------------------------------------
 
 macro_rules! for_each_context_curve {
     ($macro:ident) => {
@@ -507,9 +505,7 @@ macro_rules! for_each_context_curve {
     };
 }
 pub(crate) use for_each_context_curve;
-// -----------------------------------------------------------------------------
 // RebuildableWithId trait for preserving curve ID after bumping
-// -----------------------------------------------------------------------------
 /// Trait for curves that can be rebuilt with a new ID while preserving all other data.
 ///
 /// This is used during market bumping operations where the bump produces a curve
@@ -923,14 +919,10 @@ mod curve_storage_tests {
     }
 }
 
-// -----------------------------------------------------------------------------
 // MarketContext typed getters
-// -----------------------------------------------------------------------------
 
 impl MarketContext {
-    // -----------------------------------------------------------------------------
     // Internal helpers
-    // -----------------------------------------------------------------------------
     #[inline]
     fn not_found_error(id: &str) -> crate::Error {
         crate::error::InputError::NotFound { id: id.to_string() }.into()
@@ -973,9 +965,7 @@ impl MarketContext {
             None => Err(self.missing_curve_error(id)),
         }
     }
-    // -----------------------------------------------------------------------------
     // Public API: typed getters
-    // -----------------------------------------------------------------------------
     /// Get a discount curve by identifier.
     ///
     /// Returns an [`Arc`] clone of the stored curve so callers can retain the
@@ -1371,9 +1361,7 @@ impl MarketContext {
         self.get_discount(curve_id.as_str())
             .map(|arc| arc as Arc<dyn Discounting + Send + Sync>)
     }
-    // -----------------------------------------------------------------------------
     // Update methods for special cases
-    // -----------------------------------------------------------------------------
     /// Update only the base correlation curve for a credit index.
     ///
     /// Handy for calibration loops that tweak base correlation while leaving
@@ -1403,14 +1391,10 @@ impl MarketContext {
     }
 }
 
-// -----------------------------------------------------------------------------
 // MarketContext insert and mutation APIs
-// -----------------------------------------------------------------------------
 
 impl MarketContext {
-    // -----------------------------------------------------------------------------
     // Insert methods (canonical: builder-by-value)
-    // -----------------------------------------------------------------------------
     /// Insert a generic curve storage entry.
     ///
     /// This is primarily intended for downstream crates that operate on heterogeneous
@@ -1770,7 +1754,6 @@ impl MarketContext {
         self.map_collateral_mut(csa_code, discount_id);
         self
     }
-    // -----------------------------------------------------------------------------
     // Insert methods (mutable variants for binding layers)
     //
     // These `&mut self` variants mirror the consuming `insert_*` methods above but
@@ -1780,7 +1763,6 @@ impl MarketContext {
     //
     // The behaviour is identical to the fluent variants — same storage layout,
     // same credit-index rebinding — just with `&mut self` instead of `mut self`.
-    // -----------------------------------------------------------------------------
     /// Insert a generic curve storage entry, mutating in place.
     ///
     /// Mirrors [`Self::insert`] but takes `&mut self`.

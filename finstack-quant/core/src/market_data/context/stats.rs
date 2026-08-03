@@ -19,9 +19,7 @@ use crate::market_data::{
 };
 
 impl MarketContext {
-    // -----------------------------------------------------------------------------
     // Introspection and statistics
-    // -----------------------------------------------------------------------------
 
     /// Get curve storage by ID (for generic access)
     pub fn curve(&self, id: impl AsRef<str>) -> Option<&CurveStorage> {
@@ -154,9 +152,7 @@ impl MarketContext {
             + if self.fx.is_some() { 1 } else { 0 }
     }
 
-    // -----------------------------------------------------------------------------
     // Iterators for Market Scalars (P&L Attribution Support)
-    // -----------------------------------------------------------------------------
 
     /// Iterate over all market prices/scalars.
     ///
@@ -293,9 +289,7 @@ impl MarketContext {
     }
 }
 
-// -----------------------------------------------------------------------------
 // Context Statistics
-// -----------------------------------------------------------------------------
 
 /// Statistics about the contents of a [`MarketContext`].
 ///

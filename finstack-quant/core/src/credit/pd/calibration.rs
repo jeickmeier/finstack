@@ -176,9 +176,7 @@ pub fn central_tendency(annual_default_rates: &[f64]) -> Result<f64, PdCalibrati
     Ok(sum / n)
 }
 
-// ---------------------------------------------------------------------------
 // Validation helpers
-// ---------------------------------------------------------------------------
 
 fn validate_pd(pd: f64) -> Result<(), PdCalibrationError> {
     if pd <= 0.0 || pd >= 1.0 || !pd.is_finite() {

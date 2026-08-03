@@ -597,9 +597,7 @@ impl VolatilityIndexCurveBuilder {
     }
 }
 
-// -----------------------------------------------------------------------------
 // Trait implementations
-// -----------------------------------------------------------------------------
 
 impl TermStructure for VolatilityIndexCurve {
     #[inline]
@@ -608,9 +606,7 @@ impl TermStructure for VolatilityIndexCurve {
     }
 }
 
-// -----------------------------------------------------------------------------
 // Tests
-// -----------------------------------------------------------------------------
 #[cfg(test)]
 mod tests {
     use super::*;

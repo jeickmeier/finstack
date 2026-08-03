@@ -733,9 +733,7 @@ pub fn calibrate_sabr(
     let default_weights: Vec<f64> = vec![1.0; strikes.len()];
     let w = weights.unwrap_or(&default_weights);
 
-    // ------------------------------------------------------------------
     // Primary solver: Levenberg-Marquardt on weighted residual vector
-    // ------------------------------------------------------------------
     // Unconstrained parametrisation:
     //   x[0] = ln(alpha)        → alpha = exp(x[0])  > 0
     //   x[1] = atanh(rho)       → rho   = tanh(x[1]) ∈ (-1, 1)
@@ -812,9 +810,7 @@ pub fn calibrate_sabr(
         }
     });
 
-    // ------------------------------------------------------------------
     // Fallback: coordinate descent (if LM failed or produced worse RMSE)
-    // ------------------------------------------------------------------
     let cd_result = calibrate_sabr_coordinate_descent(
         forward,
         expiry,
@@ -984,9 +980,7 @@ fn calibrate_sabr_coordinate_descent(
     }
 }
 
-// =============================================================================
 // Tests
-// =============================================================================
 
 #[cfg(test)]
 mod tests {

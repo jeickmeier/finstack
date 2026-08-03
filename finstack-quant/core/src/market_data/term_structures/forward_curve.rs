@@ -1083,9 +1083,7 @@ impl ForwardCurveBuilder {
     }
 }
 
-// -----------------------------------------------------------------------------
 // Minimal trait implementations for polymorphism where needed
-// -----------------------------------------------------------------------------
 
 impl Forward for ForwardCurve {
     #[inline]
@@ -1101,9 +1099,7 @@ impl TermStructure for ForwardCurve {
     }
 }
 
-// -----------------------------------------------------------------------------
 // Tests
-// -----------------------------------------------------------------------------
 #[cfg(test)]
 mod tests {
     use super::*;

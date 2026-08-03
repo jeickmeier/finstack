@@ -54,9 +54,7 @@ use crate::dates::calendar::algo;
 use crate::dates::calendar::business_days::HolidayCalendar;
 use time::{Date, Duration, Month, Weekday};
 
-// ---------------------------------------------------------------------------
 // Supporting enums
-// ---------------------------------------------------------------------------
 
 /// Weekend observation convention for fixed-date holidays.
 ///
@@ -191,9 +189,7 @@ pub enum Direction {
     Before,
 }
 
-// ---------------------------------------------------------------------------
 // Rule enum
-// ---------------------------------------------------------------------------
 
 /// Holiday rule pattern for calendar date computations.
 ///
@@ -545,9 +541,7 @@ const fn year_in_effective_range(year: i32, from: Option<i32>, to: Option<i32>) 
     true
 }
 
-// ---------------------------------------------------------------------------
 // Public helper constructors for ergonomics
-// ---------------------------------------------------------------------------
 impl Rule {
     /// Convenience for `Rule::Fixed { … }` with no observation.
     #[inline]
@@ -580,9 +574,7 @@ impl Rule {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Internal helpers reused by applies()
-// ---------------------------------------------------------------------------
 
 // is_leap_year and add_months provided by shared utils
 
@@ -740,9 +732,7 @@ fn shift_to_weekday(mut d: Date, weekday: Weekday, dir: Direction) -> Date {
     d
 }
 
-// ---------------------------------------------------------------------------
 // Reusable span materialization helper
-// ---------------------------------------------------------------------------
 #[inline]
 fn push_span_range<A: smallvec::Array<Item = Date>>(
     out: &mut smallvec::SmallVec<A>,
@@ -762,9 +752,7 @@ fn push_span_range<A: smallvec::Array<Item = Date>>(
     }
 }
 
-// ---------------------------------------------------------------------------
 // China 连休 (bridge) block materialization helper
-// ---------------------------------------------------------------------------
 /// Push the **weekday** market closures for a single-day Chinese festival that
 /// falls on `festival`, joining it to the adjacent weekend per the modern 3-day
 /// 连休 convention (see [`Rule::ChinaBridge`]). Weekend days are not emitted.
@@ -793,9 +781,7 @@ fn push_china_bridge_block<A: smallvec::Array<Item = Date>>(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Core implementation – applies()
-// ---------------------------------------------------------------------------
 impl Rule {
     /// Returns `true` when the rule marks `date` a holiday.
     #[inline]
@@ -1028,16 +1014,12 @@ impl Rule {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Implement HolidayCalendar for &[Rule]
-// ---------------------------------------------------------------------------
 impl HolidayCalendar for &[Rule] {
     fn is_holiday(&self, date: Date) -> bool {
         self.iter().any(|r| r.applies(date))
     }
 }
 
-// ---------------------------------------------------------------------------
 // Blanket impl for slices of holiday calendars (composite-union semantics)
 // (removed: use CompositeCalendar for composition)
-// ---------------------------------------------------------------------------

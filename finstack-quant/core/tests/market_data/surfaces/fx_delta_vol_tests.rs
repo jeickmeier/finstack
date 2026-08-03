@@ -101,10 +101,8 @@ fn lin_interp(xs: &[f64], ys: &[f64], x: f64) -> f64 {
     ys[i - 1] + t * (ys[i] - ys[i - 1])
 }
 
-// ---------------------------------------------------------------------------
 // Regression: short-expiry smile is its own 3/5-point smile, not flattened
 // wing vol from long-expiry strikes (merged strike grid).
-// ---------------------------------------------------------------------------
 
 #[test]
 fn short_expiry_smile_not_flattened_by_long_expiry_strikes() {
@@ -168,11 +166,9 @@ fn short_expiry_smile_not_flattened_by_long_expiry_strikes() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Pillar reproduction: exact pillar strikes return pillar vols to 1e-12 at
 // every expiry, on both the materialized surface and the delta-quote query
 // path.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn pillar_strikes_reproduce_pillar_vols_exactly() {
@@ -235,12 +231,10 @@ fn pillar_strikes_reproduce_pillar_vols_three_point_smile() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Off-pillar expiries: the delta-quote query path rebuilds the smile at the
 // query expiry's forward (smile-faithful), while the materialized rectangular
 // grid blends rows at fixed strike — a documented limitation of the
 // materialization, not of the query path.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn implied_vol_rebuilds_smile_at_intermediate_expiry() {

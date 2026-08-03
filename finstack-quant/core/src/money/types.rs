@@ -120,9 +120,7 @@ pub struct Money {
 }
 
 impl Money {
-    // ---------------------------------------------------------------------
     // Constructors & accessors
-    // ---------------------------------------------------------------------
 
     /// Format the amount with custom decimals and optional currency symbol.
     ///
@@ -449,9 +447,7 @@ impl Money {
         self.amount_and_currency()
     }
 
-    // ---------------------------------------------------------------------
     // Checked arithmetic
-    // ---------------------------------------------------------------------
 
     /// Add two amounts, returning an error when currencies do not match.
     ///
@@ -699,9 +695,7 @@ impl Money {
     }
 }
 
-// -------------------------------------------------------------------------
 // Formatting
-// -------------------------------------------------------------------------
 impl fmt::Display for Money {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Default formatting uses ISO-4217 minor units and bankers rounding.
@@ -744,9 +738,7 @@ impl Money {
     }
 }
 
-// -------------------------------------------------------------------------
 // Scalar arithmetic keeping currency intact
-// -------------------------------------------------------------------------
 /// Scale a [`Money`] by an `f64`, preserving currency.
 ///
 /// # Panics
@@ -781,9 +773,7 @@ impl Div<f64> for Money {
     }
 }
 
-// -------------------------------------------------------------------------
 // Conversions
-// -------------------------------------------------------------------------
 // Generic tuple conversions for common numeric primitives.
 //
 // Integer conversions route through `Decimal::from`, which is exact for the
@@ -812,9 +802,7 @@ impl From<(f64, Currency)> for Money {
     }
 }
 
-// -------------------------------------------------------------------------
 // Convenience macro
-// -------------------------------------------------------------------------
 
 /// Shorthand for constructing [`Money`] literals.
 /// See unit tests and `examples/` for usage.
@@ -825,9 +813,7 @@ macro_rules! money {
     };
 }
 
-// -------------------------------------------------------------------------
 // Unchecked arithmetic – currency must match or panic
-// -------------------------------------------------------------------------
 // NOTE: AddAssign and SubAssign require matching currencies. Currency
 // mismatch will always panic regardless of build type. For explicit error
 // handling, use `checked_add` and `checked_sub` which return `Result<Money, Error>`.
@@ -924,9 +910,7 @@ fn ensure_same_currency(lhs: &Money, rhs: &Money) -> Result<(), Error> {
     Ok(())
 }
 
-// -------------------------------------------------------------------------
 // Tests (basic – exhaustive suite lives in `tests/` folder)
-// -------------------------------------------------------------------------
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1112,9 +1096,7 @@ mod tests {
         );
     }
 
-    // -------------------------------------------------------------------------
     // Fallible constructor tests (Money::try_new / Money::try_new_with_config)
-    // -------------------------------------------------------------------------
 
     #[test]
     fn try_new_succeeds_for_finite_values() {

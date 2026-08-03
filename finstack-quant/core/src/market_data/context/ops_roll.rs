@@ -15,9 +15,7 @@ use std::sync::Arc;
 use super::MarketContext;
 
 impl MarketContext {
-    // -----------------------------------------------------------------------------
     // Curve Rolling (Time Roll-Forward Support)
-    // -----------------------------------------------------------------------------
 
     /// Roll all curves forward by a specified number of days.
     ///

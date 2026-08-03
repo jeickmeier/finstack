@@ -108,9 +108,7 @@
 //! assert!(three_decimal_currencies.contains(&Currency::KWD));
 //! ```
 
-// ---------------------------------------------------------------------------
 // Generated enum (ISO-4217)
-// ---------------------------------------------------------------------------
 // The build script copies the generated currency enum to OUT_DIR for inclusion.
 // This allows IDEs (`rust-analyzer`) to parse the generated code for auto-completion
 // and navigation. We load it and publicly re-export all items.

@@ -15,9 +15,7 @@ fn jan(day: u8) -> Date {
     Date::from_calendar_date(2025, Month::January, day).unwrap()
 }
 
-// =============================================================================
 // DividendSchedule Tests
-// =============================================================================
 
 #[test]
 fn dividend_schedule_builds_and_filters() {

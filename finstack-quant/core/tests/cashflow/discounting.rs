@@ -21,9 +21,7 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
 use time::Month;
 
-// =============================================================================
 // Test Helpers
-// =============================================================================
 
 /// Tolerance for financial amount comparisons based on notional.
 fn financial_tolerance(notional: f64) -> f64 {
@@ -77,9 +75,7 @@ impl Discounting for FlatRateCurve {
     }
 }
 
-// =============================================================================
 // Large Cashflow Count Tests
-// =============================================================================
 
 #[test]
 fn npv_100_cashflows_maintains_precision() {
@@ -164,9 +160,7 @@ fn npv_500_cashflows_maintains_precision() {
     assert!(pv.amount() > 0.0, "PV should be positive");
 }
 
-// =============================================================================
 // Extreme Duration Tests
-// =============================================================================
 
 #[test]
 fn npv_50_year_cashflow_is_positive_and_small() {
@@ -256,9 +250,7 @@ fn npv_cashflow_at_base_date_is_excluded_by_default() {
     );
 }
 
-// =============================================================================
 // Rate Sensitivity Tests
-// =============================================================================
 
 #[test]
 fn npv_negative_rate_inflates_value() {
@@ -306,9 +298,7 @@ fn npv_zero_rate_preserves_value() {
     );
 }
 
-// =============================================================================
 // Extreme Amount Tests
-// =============================================================================
 
 #[test]
 fn npv_very_large_amounts() {
@@ -345,9 +335,7 @@ fn npv_very_small_amounts() {
     assert!(pv.amount() < 0.01, "Small amount PV should be < original");
 }
 
-// =============================================================================
 // Discount Factor Property Tests
-// =============================================================================
 
 #[test]
 fn discount_factor_monotonically_decreases() {
@@ -404,9 +392,7 @@ fn discount_factor_handles_negative_time() {
     );
 }
 
-// =============================================================================
 // Currency Safety Tests
-// =============================================================================
 
 #[test]
 fn npv_rejects_mixed_currencies() {

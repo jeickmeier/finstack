@@ -12,9 +12,7 @@
 
 use crate::dates::{Date, DayCount, DayCountContext};
 
-// -----------------------------------------------------------------------------
 // Minimal traits for polymorphism only
-// -----------------------------------------------------------------------------
 
 /// Minimal trait for discount curve polymorphism.
 ///
@@ -457,9 +455,7 @@ pub trait VolProvider: Send + Sync {
     fn vol_id(&self) -> &crate::types::CurveId;
 }
 
-// -----------------------------------------------------------------------------
 // Tests
-// -----------------------------------------------------------------------------
 #[cfg(test)]
 mod tests {
     use super::*;

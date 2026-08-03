@@ -58,9 +58,7 @@ use crate::math::special_functions::ln_gamma;
 /// Maximum real part of exponents to avoid overflow in `exp()`.
 const EXPONENT_REAL_LIMIT: f64 = 700.0;
 
-// ---------------------------------------------------------------------------
 // FractionalRiccatiSolver
-// ---------------------------------------------------------------------------
 
 /// Solves the fractional Riccati ODE via the Adams predictor-corrector method.
 ///
@@ -250,9 +248,7 @@ impl FractionalRiccatiSolver {
     }
 }
 
-// ---------------------------------------------------------------------------
 // RoughHestonFourierParams
-// ---------------------------------------------------------------------------
 
 /// Rough Heston model parameters for Fourier-based European option pricing.
 ///
@@ -598,17 +594,13 @@ impl RoughHestonFourierParams {
     }
 }
 
-// =============================================================================
 // Tests
-// =============================================================================
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // -----------------------------------------------------------------------
     // Parameter validation
-    // -----------------------------------------------------------------------
 
     #[test]
     fn valid_params() {
@@ -676,9 +668,7 @@ mod tests {
         assert!(serde_json::from_str::<RoughHestonFourierParams>(unknown).is_err());
     }
 
-    // -----------------------------------------------------------------------
     // Fractional Riccati solver
-    // -----------------------------------------------------------------------
 
     #[test]
     fn riccati_initial_condition() {
@@ -749,9 +739,7 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------------
     // Characteristic function
-    // -----------------------------------------------------------------------
 
     #[test]
     fn char_func_at_zero() {
@@ -796,9 +784,7 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------------
     // European pricing
-    // -----------------------------------------------------------------------
 
     #[test]
     fn call_price_positive_and_bounded() {
@@ -872,9 +858,7 @@ mod tests {
         assert!(otm_call.abs() < 1e-10, "Expired OTM call: {otm_call}");
     }
 
-    // -----------------------------------------------------------------------
     // Black-Scholes limit golden values (σ → 0, B1/M7 regression)
-    // -----------------------------------------------------------------------
 
     /// With vanishing vol-of-vol and v₀ = θ the variance is deterministic at
     /// θ, so the model degenerates to Black-Scholes at vol √θ. This is a
@@ -936,9 +920,7 @@ mod tests {
         }
     }
 
-    // -----------------------------------------------------------------------
     // Convergence to standard Heston at H → 0.5
-    // -----------------------------------------------------------------------
 
     #[test]
     fn matches_standard_heston_near_h_half_across_moneyness() {
@@ -976,9 +958,7 @@ mod tests {
         }
     }
 
-    // -----------------------------------------------------------------------
     // Price sensitivity
-    // -----------------------------------------------------------------------
 
     #[test]
     fn price_increases_with_vol_of_vol() {
@@ -1021,9 +1001,7 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------------
     // Implied volatility
-    // -----------------------------------------------------------------------
 
     #[test]
     fn implied_vol_produces_valid_result() {

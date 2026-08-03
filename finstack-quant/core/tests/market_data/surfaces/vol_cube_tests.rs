@@ -329,9 +329,7 @@ fn test_vol_cube_materialize_grid_flattens_expiry_tenor_strike_order() {
     assert!(cube.materialize_grid(&[]).is_err());
 }
 
-// ---------------------------------------------------------------------------
 // VolProvider trait tests (Task 5)
-// ---------------------------------------------------------------------------
 
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::surfaces::VolSurface;
@@ -364,9 +362,7 @@ fn test_vol_provider_surface_ignores_tenor() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // MarketContext integration tests (Task 6)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_market_context_vol_cube_insert_and_get() {
@@ -410,9 +406,7 @@ fn test_market_context_stats_includes_vol_cubes() {
     assert_eq!(ctx.stats().vol_cube_count, 1);
 }
 
-// ---------------------------------------------------------------------------
 // Normal (Bachelier) vol quoting tests
-// ---------------------------------------------------------------------------
 
 use finstack_quant_core::market_data::surfaces::VolQuoteType;
 use finstack_quant_core::math::volatility::{

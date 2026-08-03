@@ -175,9 +175,7 @@ pub enum CFKind {
     /// long stub (> regular period). Accrual factor reflects actual period length.
     Stub,
 
-    // -------------------------------------------------------------------------
     // Margin and Collateral Cashflows (ISDA CSA / GMRA / BCBS-IOSCO)
-    // -------------------------------------------------------------------------
     /// Initial margin posting (collateral transfer out to counterparty).
     ///
     /// Represents the posting of initial margin collateral under CSA or clearing
@@ -216,9 +214,7 @@ pub enum CFKind {
     CollateralSubstitutionOut,
 }
 
-// ---------------------------------------------------------------------------
 // Display + FromStr
-// ---------------------------------------------------------------------------
 
 impl std::fmt::Display for CFKind {
     #[allow(unreachable_patterns)] // non_exhaustive future-proofing
@@ -505,9 +501,7 @@ fn non_finite_kind(x: f64) -> NonFiniteKind {
     }
 }
 
-// -------------------------------------------------------------------------
 // Compile-time size assertion (≤ 56 bytes)
-// -------------------------------------------------------------------------
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -764,9 +758,7 @@ mod tests {
         assert!(sub_out.validate().is_ok());
     }
 
-    // -----------------------------------------------------------------------
     // CFKind FromStr / Display roundtrip tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn cfkind_display_roundtrip() {

@@ -18,9 +18,7 @@ fn make_date(y: i32, m: u8, d: u8) -> Date {
     Date::from_calendar_date(y, Month::try_from(m).unwrap(), d).unwrap()
 }
 
-// ============================================
 // Fixed Date Rules
-// ============================================
 
 #[test]
 fn rule_fixed_no_observation() {
@@ -171,9 +169,7 @@ fn rule_materialize_year_fixed() {
     assert_eq!(out[0], make_date(2025, 7, 4));
 }
 
-// ============================================
 // Nth Weekday Rules
-// ============================================
 
 #[test]
 fn rule_nth_weekday_positive() {
@@ -255,9 +251,7 @@ fn rule_materialize_year_nth_weekday() {
     assert_eq!(out[0], make_date(2025, 11, 27));
 }
 
-// ============================================
 // Weekday Shift Rules
-// ============================================
 
 #[test]
 fn rule_weekday_shift_after() {
@@ -366,9 +360,7 @@ fn direction_before_finds_same_day() {
     assert!(rule.applies(make_date(2025, 1, 1)));
 }
 
-// ============================================
 // Easter-Based Rules
-// ============================================
 
 #[test]
 fn rule_easter_offset() {
@@ -480,9 +472,7 @@ fn rule_easter_sunday_is_1_day_before_easter_monday() {
     }
 }
 
-// ============================================
 // Chinese Calendar Rules
-// ============================================
 
 #[test]
 fn rule_qing_ming() {
@@ -508,9 +498,7 @@ fn rule_buddhas_birthday() {
     assert!(rule.applies(bb_2024));
 }
 
-// ============================================
 // Japanese Equinox Rules
-// ============================================
 
 #[test]
 fn rule_vernal_equinox_jp() {
@@ -542,9 +530,7 @@ fn rule_vernal_equinox_jp_applies() {
     assert!(!rule.applies(make_date(2024, 3, 22)));
 }
 
-// ============================================
 // Span Rules (Multi-Day Holidays)
-// ============================================
 
 // A static start rule for Dec 31 each year
 static DEC31: Rule = Rule::fixed(Month::December, 31);
@@ -585,9 +571,7 @@ fn span_len3_cross_year() {
     assert!(!rules.is_holiday(jan03));
 }
 
-// ============================================
 // Observed Edge Cases
-// ============================================
 
 #[test]
 fn rule_observed_friday_for_saturday() {
@@ -647,9 +631,7 @@ fn rule_observed_next_monday_sunday() {
     assert!(!rule.applies(make_date(2022, 12, 25)));
 }
 
-// ============================================
 // Rule Combinations
-// ============================================
 
 #[test]
 fn rule_slice_as_holiday_calendar() {
@@ -689,9 +671,7 @@ fn rule_multiple_rules_combine() {
     assert!(!rules.is_holiday(make_date(2025, 6, 15)));
 }
 
-// ============================================
 // Year-boundary observance
-// ============================================
 
 #[test]
 fn rule_fixed_observance_crosses_year_boundary() {
@@ -724,9 +704,7 @@ fn rule_fixed_observance_crosses_year_boundary() {
     assert!(!rule.applies(make_date(2024, 12, 31)));
 }
 
-// ============================================
 // Nth weekday occurrence overflow
-// ============================================
 
 #[test]
 fn rule_nth_weekday_overflow_does_not_spill_into_next_month() {

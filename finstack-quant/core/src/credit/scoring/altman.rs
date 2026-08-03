@@ -24,9 +24,7 @@ pub enum AltmanPdCalibration {
     Heuristic,
 }
 
-// ---------------------------------------------------------------------------
 // Input structs
-// ---------------------------------------------------------------------------
 
 /// Input ratios for the original Altman Z-Score (1968).
 ///
@@ -94,9 +92,7 @@ pub struct AltmanZDoublePrimeInput {
     pub book_equity_to_total_liabilities: f64,
 }
 
-// ---------------------------------------------------------------------------
 // Scoring functions
-// ---------------------------------------------------------------------------
 
 /// Compute the original Altman Z-Score (1968).
 ///
@@ -385,9 +381,7 @@ pub fn altman_z_double_prime_with_pd(
     Ok(result)
 }
 
-// ---------------------------------------------------------------------------
 // EM-Score (emerging markets)
-// ---------------------------------------------------------------------------
 
 /// Constant added to the Z''-Score to obtain the EM-Score.
 ///
@@ -475,9 +469,7 @@ pub fn altman_em_score(
     })
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// Classify a Z-score into Safe/Grey/Distress zones.
 fn z_score_zone(z: f64, safe_threshold: f64, distress_threshold: f64) -> ScoringZone {

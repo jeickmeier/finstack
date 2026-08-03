@@ -182,9 +182,7 @@ mod tests {
     }
 }
 
-// ---------------------------------------------------------------------------
 // BuilderInternal – raw date sequence generator
-// ---------------------------------------------------------------------------
 
 #[derive(Clone, Copy)]
 pub(super) struct BuilderInternal {

@@ -11,9 +11,7 @@ fn _test_date() -> Date {
     Date::from_calendar_date(2025, Month::January, 15).unwrap()
 }
 
-// =============================================================================
 // Serialization Tests
-// =============================================================================
 
 mod serde_tests {
     use super::*;

@@ -40,9 +40,7 @@ use super::{
     VolSurface,
 };
 
-// ---------------------------------------------------------------------------
 // FxDeltaVolSurface
-// ---------------------------------------------------------------------------
 
 /// Delta-quoted FX volatility surface.
 ///
@@ -244,9 +242,7 @@ impl FxDeltaVolSurface {
         (atm, sigma_put, sigma_call)
     }
 
-    // -----------------------------------------------------------------------
     // Delta / strike conversions (forward delta, premium-unadjusted)
-    // -----------------------------------------------------------------------
 
     /// Convert a forward delta to a strike using Garman-Kohlhagen.
     ///
@@ -277,9 +273,7 @@ impl FxDeltaVolSurface {
         norm_cdf(d1)
     }
 
-    // -----------------------------------------------------------------------
     // Implied-vol lookup
-    // -----------------------------------------------------------------------
 
     /// Implied vol at a given expiry time, strike, forward rate, and interest rates.
     ///
@@ -339,9 +333,7 @@ impl FxDeltaVolSurface {
         Ok(interp_linear_clamp(&known_strikes, &known_vols, strike))
     }
 
-    // -----------------------------------------------------------------------
     // Conversion to strike-based VolSurface
-    // -----------------------------------------------------------------------
 
     /// Convert this delta-quoted surface to a strike-based [`VolSurface`].
     ///
@@ -392,9 +384,7 @@ impl FxDeltaVolSurface {
         builder.build()
     }
 
-    // -----------------------------------------------------------------------
     // Validation
-    // -----------------------------------------------------------------------
 
     fn validate(
         expiries: &[f64],
@@ -469,9 +459,7 @@ impl FxDeltaVolSurface {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

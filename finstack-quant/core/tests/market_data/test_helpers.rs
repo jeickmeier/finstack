@@ -10,9 +10,7 @@ use finstack_quant_core::market_data::term_structures::InflationCurve;
 use finstack_quant_core::math::interp::InterpStyle;
 use time::Month;
 
-// ===================================================================
 // Test Fixtures
-// ===================================================================
 
 pub(crate) fn sample_base_date() -> Date {
     Date::from_calendar_date(2024, Month::January, 1).unwrap()

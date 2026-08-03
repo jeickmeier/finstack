@@ -15,9 +15,7 @@ use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::money::Money;
 use time::Month;
 
-// =============================================================================
 // Test Helpers
-// =============================================================================
 
 /// Helper to create dates
 fn d(year: i32, month: u8, day: u8) -> Date {
@@ -37,9 +35,7 @@ fn valid_cashflow() -> CashFlow {
     }
 }
 
-// =============================================================================
 // Construction and Field Tests
-// =============================================================================
 
 #[test]
 fn cashflow_fixed_construction() {
@@ -80,9 +76,7 @@ fn cashflow_floating_construction() {
     assert!(cf.validate().is_ok());
 }
 
-// =============================================================================
 // Amount Validation Tests
-// =============================================================================
 
 // Note: Money::new() validates that amounts are finite and panics on NaN/Infinity.
 // These tests verify that behavior at the Money level.
@@ -151,9 +145,7 @@ fn cashflow_accepts_small_but_nonzero_amount() {
     );
 }
 
-// =============================================================================
 // Accrual Factor Validation Tests
-// =============================================================================
 
 #[test]
 fn cashflow_rejects_nan_accrual_factor() {
@@ -217,9 +209,7 @@ fn cashflow_rejects_negative_accrual_factor() {
     );
 }
 
-// =============================================================================
 // Rate Validation Tests
-// =============================================================================
 
 #[test]
 fn cashflow_rejects_nan_rate() {
@@ -292,9 +282,7 @@ fn cashflow_accepts_high_rate() {
     assert!(cf.validate().is_ok(), "High rate should be accepted");
 }
 
-// =============================================================================
 // Reset Date Validation Tests
-// =============================================================================
 
 #[test]
 fn cashflow_rejects_reset_date_after_payment() {
@@ -372,9 +360,7 @@ fn cashflow_accepts_no_reset_date() {
     );
 }
 
-// =============================================================================
 // Combined Validation Tests
-// =============================================================================
 
 #[test]
 fn cashflow_valid_with_all_fields_populated() {

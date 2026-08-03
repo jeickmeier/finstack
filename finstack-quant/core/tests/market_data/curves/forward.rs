@@ -16,9 +16,7 @@ fn test_date() -> Date {
     Date::from_calendar_date(2025, Month::January, 1).unwrap()
 }
 
-// =============================================================================
 // Clone Safety Tests
-// =============================================================================
 
 /// Verifies that cloning a ForwardCurve is infallible and produces identical results.
 #[test]
@@ -257,9 +255,7 @@ fn rate_period_handles_zero_width_and_long_flat_intervals() {
     assert!((curve.rate_period(0.0, 25.0) - 0.04).abs() < 1e-14);
 }
 
-// =============================================================================
 // Serialization Tests
-// =============================================================================
 
 mod serde_tests {
     use super::*;
@@ -347,9 +343,7 @@ mod serde_tests {
     }
 }
 
-// =============================================================================
 // Additional forward curve behavior
-// =============================================================================
 
 #[test]
 fn test_forward_curve_spread_based_construction() {

@@ -36,9 +36,7 @@
 //! # }
 //! ```
 
-// ----------------------------------------------------------------------------------
 // Time constants – canonical "days per year" values
-// ----------------------------------------------------------------------------------
 
 /// Calendar days per year under the ACT/365 Fixed day-count convention.
 ///
@@ -66,9 +64,7 @@ pub const CALENDAR_DAYS_PER_YEAR: f64 = 365.0;
 /// should only be used when the model explicitly calls for it.
 pub const AVERAGE_DAYS_PER_YEAR: f64 = 365.25;
 
-// ----------------------------------------------------------------------------------
 // Re-exports – keep list short & focused
-// ----------------------------------------------------------------------------------
 
 pub use time::{Date, Duration, Month, OffsetDateTime, PrimitiveDateTime};
 
@@ -203,9 +199,7 @@ pub fn create_date(year: i32, month: time::Month, day: u8) -> crate::Result<Date
         .map_err(Into::into)
 }
 
-// ----------------------------------------------------------------------------------
 // Epoch conversion utilities
-// ----------------------------------------------------------------------------------
 
 /// Julian day number of the Unix epoch (1970-01-01).
 const UNIX_EPOCH_JULIAN_DAY: i32 = 2_440_588;

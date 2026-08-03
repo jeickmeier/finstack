@@ -190,10 +190,8 @@ fn base_correlation_curve_uses_percent_bumps() {
     assert_eq!(bumped.id().as_str(), "CDX_bump_5pct");
 }
 
-// =============================================================================
 // Metadata threading through rebuild paths (// "Major — market data" item 4): bumps and rolls must preserve fx_policy and
 // hazard issuer/seniority/currency metadata.
-// =============================================================================
 
 #[test]
 fn discount_curve_rebuild_paths_preserve_fx_policy() {

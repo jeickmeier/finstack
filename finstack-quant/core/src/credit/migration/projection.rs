@@ -96,9 +96,7 @@ pub fn project_pade(
     project(generator, t)
 }
 
-// ---------------------------------------------------------------------------
 // Padé [13/13] scaling-and-squaring
-// ---------------------------------------------------------------------------
 
 /// Pade [13/13] threshold from Higham (2005), Table 1.
 const THETA_13: f64 = 5.371_920_351_148_152;
@@ -189,9 +187,7 @@ pub(crate) fn pade_expm(a: &DMatrix<f64>) -> Result<DMatrix<f64>, MigrationError
     Ok(result)
 }
 
-// ---------------------------------------------------------------------------
 // Post-processing
-// ---------------------------------------------------------------------------
 
 /// Clamp negative entries to 0 and re-normalize rows to sum to 1.
 ///
@@ -217,9 +213,7 @@ fn post_process(mut m: DMatrix<f64>) -> DMatrix<f64> {
     m
 }
 
-// ---------------------------------------------------------------------------
 // Utilities
-// ---------------------------------------------------------------------------
 
 /// Column-sum norm (‖A‖₁ = max_j Σ_i |a_ij|).
 fn one_norm(m: &DMatrix<f64>) -> f64 {

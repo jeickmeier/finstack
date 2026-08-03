@@ -33,9 +33,7 @@ fn to_slice_refs(data: &[Vec<f64>]) -> Vec<&[f64]> {
     data.iter().map(|v| v.as_slice()).collect()
 }
 
-// =============================================================================
 // Shift Operations: Lag, Lead, Shift, Diff, PctChange
-// =============================================================================
 
 mod shift_operations {
     use super::*;
@@ -281,9 +279,7 @@ mod shift_operations {
     }
 }
 
-// =============================================================================
 // Cumulative Operations: CumSum, CumProd, CumMin, CumMax
-// =============================================================================
 
 mod cumulative_operations {
     use super::*;
@@ -416,9 +412,7 @@ mod cumulative_operations {
     }
 }
 
-// =============================================================================
 // Rolling Window Operations
-// =============================================================================
 
 mod rolling_operations {
     use super::*;
@@ -647,9 +641,7 @@ mod rolling_operations {
     }
 }
 
-// =============================================================================
 // Exponentially Weighted Operations
-// =============================================================================
 
 mod ewm_operations {
     use super::*;
@@ -1066,9 +1058,7 @@ mod ewm_operations {
     }
 }
 
-// =============================================================================
 // Statistical Operations: Std, Var, Median, Rank, Quantile
-// =============================================================================
 
 mod statistical_operations {
     use super::*;
@@ -1554,9 +1544,7 @@ mod statistical_operations {
     }
 }
 
-// =============================================================================
 // Edge Cases and Determinism
-// =============================================================================
 
 mod edge_cases {
     use super::*;

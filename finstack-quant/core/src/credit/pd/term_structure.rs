@@ -215,9 +215,7 @@ impl PdTermStructure {
         &self.cumulative_pds
     }
 
-    // -----------------------------------------------------------------------
     // Internal helpers
-    // -----------------------------------------------------------------------
 
     /// Hazard rate for the first segment (from time 0 to first tenor).
     fn hazard_rate_segment(&self, idx: usize) -> f64 {
@@ -252,9 +250,7 @@ impl PdTermStructure {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Builder
-// ---------------------------------------------------------------------------
 
 /// Builder for [`PdTermStructure`] from multiple sources.
 ///

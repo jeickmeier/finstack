@@ -18,9 +18,7 @@ use finstack_quant_core::dates::{Date, DayCount, DayCountContext, Tenor};
 use finstack_quant_core::Error;
 use time::Month;
 
-// =============================================================================
 // Constants and Helpers
-// =============================================================================
 
 /// Tolerance for XIRR comparisons (matches Excel precision)
 const XIRR_TOLERANCE: f64 = 1e-6;
@@ -59,9 +57,7 @@ fn compute_periodic_npv(amounts: &[f64], rate: f64) -> f64 {
         .sum()
 }
 
-// =============================================================================
 // Golden Value Tests - Textbook References
-// =============================================================================
 
 /// Reference: Brealey, Myers, Allen - Principles of Corporate Finance (13th ed)
 /// Chapter 5, Example 5.3 (simplified for annual IRR)
@@ -128,9 +124,7 @@ fn xirr_hull_simple_annual_return() {
     );
 }
 
-// =============================================================================
 // Golden Value Tests - Private Equity / GIPS Style
-// =============================================================================
 
 /// Reference: CFA Institute GIPS Standards - PE/VC performance measurement
 ///
@@ -197,9 +191,7 @@ fn xirr_gips_vc_high_return() {
     );
 }
 
-// =============================================================================
 // Golden Value Tests - Excel XIRR Parity
-// =============================================================================
 
 /// Reference: Microsoft Excel XIRR function
 ///
@@ -268,9 +260,7 @@ fn xirr_excel_irregular_dates() {
     );
 }
 
-// =============================================================================
 // Day Count Convention Tests
-// =============================================================================
 
 /// Test that Act/365F and Act/360 produce different but related results
 #[test]
@@ -303,9 +293,7 @@ fn xirr_daycount_act365f_vs_act360() {
     );
 }
 
-// =============================================================================
 // Edge Cases - Break-Even and Boundaries
-// =============================================================================
 
 /// Test XIRR with exactly break-even return (IRR = 0)
 #[test]
@@ -387,9 +375,7 @@ fn xirr_long_duration_30_years() {
     );
 }
 
-// =============================================================================
 // Edge Cases - Near Singularity (r approaching -1)
-// =============================================================================
 
 #[test]
 fn irr_handles_near_minus_one_singularity() {
@@ -468,9 +454,7 @@ fn irr_handles_99_percent_loss() {
     }
 }
 
-// =============================================================================
 // Edge Cases - Multiple Roots (Non-Conventional Cashflows)
-// =============================================================================
 
 #[test]
 fn irr_multiple_sign_changes_is_not_rejected_as_ambiguous() {
@@ -501,9 +485,7 @@ fn irr_two_sign_changes_pattern_is_not_rejected_as_ambiguous() {
     }
 }
 
-// =============================================================================
 // Edge Cases - Extreme Returns
-// =============================================================================
 
 #[test]
 fn irr_handles_very_high_return() {
@@ -596,9 +578,7 @@ fn irr_handles_small_negative_return() {
     );
 }
 
-// =============================================================================
 // XIRR Duration and Pattern Edge Cases
-// =============================================================================
 
 #[test]
 fn xirr_handles_very_short_duration() {
@@ -705,9 +685,7 @@ fn xirr_supports_contextual_day_counts_via_explicit_ctx() {
     assert!((result - 0.10).abs() < XIRR_TOLERANCE);
 }
 
-// =============================================================================
 // Input Validation Tests
-// =============================================================================
 
 #[test]
 fn irr_rejects_single_cashflow() {

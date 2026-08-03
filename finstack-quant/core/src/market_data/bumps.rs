@@ -28,9 +28,7 @@ use crate::currency::Currency;
 use crate::dates::{Date, DayCount, DayCountContext};
 use crate::types::CurveId;
 
-// -----------------------------------------------------------------------------
 // Bump Specification Types
-// -----------------------------------------------------------------------------
 
 /// Mode of applying a bump.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -483,9 +481,7 @@ pub enum MarketBump {
     },
 }
 
-// -----------------------------------------------------------------------------
 // ID formatting helpers
-// -----------------------------------------------------------------------------
 
 /// Format a bump magnitude for embedding in a derived curve ID.
 ///
@@ -519,9 +515,7 @@ pub(crate) fn id_bump_pct(id: &str, pct: f64) -> CurveId {
     CurveId::new(format!("{}_bump_{}pct", id, format_bump_magnitude(pct)))
 }
 
-// -----------------------------------------------------------------------------
 // Bumpable trait for generic bump operations
-// -----------------------------------------------------------------------------
 
 /// Trait for types that can be bumped with a BumpSpec.
 ///
@@ -545,9 +539,7 @@ pub trait Bumpable: Sized + Send + Sync {
     fn apply_bump(&self, spec: BumpSpec) -> crate::Result<Self>;
 }
 
-// -----------------------------------------------------------------------------
 // Bumpable implementations for each curve type
-// -----------------------------------------------------------------------------
 
 impl Bumpable for DiscountCurve {
     fn apply_bump(&self, spec: BumpSpec) -> crate::Result<Self> {

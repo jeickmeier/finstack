@@ -153,9 +153,7 @@ pub enum InterpStyle {
     PiecewiseQuadraticForward,
 }
 
-// ---------------------------------------------------------------------------
 // Display + FromStr for ExtrapolationPolicy
-// ---------------------------------------------------------------------------
 
 impl std::fmt::Display for ExtrapolationPolicy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -181,9 +179,7 @@ impl std::str::FromStr for ExtrapolationPolicy {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Display + FromStr for InterpStyle
-// ---------------------------------------------------------------------------
 
 impl std::fmt::Display for InterpStyle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -443,9 +439,7 @@ mod tests {
         (a - b).abs() < tol
     }
 
-    // ========================================================================
     // build_enum Tests with ValidationPolicy
-    // ========================================================================
 
     #[test]
     fn build_enum_linear_strict() {
@@ -504,9 +498,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    // ========================================================================
     // ValidationPolicy::AllowNegative Tests
-    // ========================================================================
 
     #[test]
     fn allow_negative_linear_with_negative_values() {
@@ -574,9 +566,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // ========================================================================
     // Interp Enum Method Tests
-    // ========================================================================
 
     #[test]
     fn interp_method_all_variants() {
@@ -624,9 +614,7 @@ mod tests {
         assert_eq!(log_linear.style(), InterpStyle::LogLinear);
     }
 
-    // ========================================================================
     // ExtrapolationPolicy Tests
-    // ========================================================================
 
     #[test]
     fn extrapolation_default_is_flat_zero() {
@@ -637,9 +625,7 @@ mod tests {
         }
     }
 
-    // ========================================================================
     // ValidationPolicy Tests
-    // ========================================================================
 
     #[test]
     fn validation_policy_default_is_strict() {
@@ -647,18 +633,14 @@ mod tests {
         assert_eq!(default, ValidationPolicy::Strict);
     }
 
-    // ========================================================================
     // DERIVATIVE_EPSILON Tests
-    // ========================================================================
 
     #[test]
     fn derivative_epsilon_defined() {
         assert_eq!(DERIVATIVE_EPSILON, 1e-6);
     }
 
-    // ========================================================================
     // InterpStyle FromStr / Display roundtrip tests
-    // ========================================================================
 
     #[test]
     fn interp_style_display_roundtrip() {
@@ -700,9 +682,7 @@ mod tests {
         assert!("garbage".parse::<InterpStyle>().is_err());
     }
 
-    // ========================================================================
     // ExtrapolationPolicy FromStr / Display roundtrip tests
-    // ========================================================================
 
     #[test]
     fn extrap_policy_display_roundtrip() {

@@ -367,9 +367,7 @@ pub(crate) fn adjust_with_limit<C: HolidayCalendar + ?Sized>(
     }
 }
 
-// -----------------------------------------------------------------------------
 // Runtime discovery helpers
-// -----------------------------------------------------------------------------
 
 /// Returns the identifiers of all built-in holiday calendars that have been
 /// compiled into the crate.

@@ -350,9 +350,7 @@ pub fn fx_spot_date(
     Ok(date)
 }
 
-// ============================================================================
 // Batch-optimized variants (pre-resolved calendars)
-// ============================================================================
 
 /// Pre-resolved calendar pair for batch FX date operations.
 ///

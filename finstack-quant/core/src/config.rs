@@ -73,9 +73,7 @@ pub enum RoundingMode {
 
 // Default derived above
 
-// ---------------------------------------------------------------------------
 // Display + FromStr
-// ---------------------------------------------------------------------------
 
 impl std::fmt::Display for RoundingMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -712,9 +710,7 @@ pub fn results_meta_with_timestamp(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

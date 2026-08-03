@@ -15,9 +15,7 @@ fn _test_date() -> Date {
     Date::from_calendar_date(2025, Month::January, 1).unwrap()
 }
 
-// =============================================================================
 // Clone Safety Tests
-// =============================================================================
 
 /// Verifies that cloning an InflationCurve is infallible and produces identical results.
 #[test]
@@ -138,9 +136,7 @@ fn builder_requires_explicit_base_date() {
     );
 }
 
-// =============================================================================
 // Serialization Tests
-// =============================================================================
 
 mod serde_tests {
     use super::*;

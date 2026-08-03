@@ -8,9 +8,7 @@
 use finstack_quant_core::expr::{BinOp, Expr, ExprNode, Function};
 use std::collections::HashSet;
 
-// =============================================================================
 // Expression Builder Tests
-// =============================================================================
 
 #[test]
 fn column_builder() {
@@ -82,9 +80,7 @@ fn with_id_builder() {
     assert_eq!(expr.id, Some(42));
 }
 
-// =============================================================================
 // Structural Equality Tests
-// =============================================================================
 
 #[test]
 fn equality_ignores_id() {
@@ -169,9 +165,7 @@ fn different_structure_not_equal() {
     assert_ne!(a, c, "Different column names should not be equal");
 }
 
-// =============================================================================
 // Complex Expression Tree Tests
-// =============================================================================
 
 #[test]
 fn nested_expression_construction() {

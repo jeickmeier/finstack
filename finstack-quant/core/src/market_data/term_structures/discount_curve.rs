@@ -1315,9 +1315,7 @@ impl DiscountCurve {
     }
 }
 
-// -----------------------------------------------------------------------------
 // Minimal trait implementation for polymorphism where needed
-// -----------------------------------------------------------------------------
 
 impl Discounting for DiscountCurve {
     #[inline]
@@ -1343,9 +1341,7 @@ impl TermStructure for DiscountCurve {
     }
 }
 
-// -----------------------------------------------------------------------------
 // Builder
-// -----------------------------------------------------------------------------
 
 /// Validation preset for [`DiscountCurveBuilder::validation`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1704,9 +1700,7 @@ impl DiscountCurveBuilder {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Builder validation helpers (private to this module)
-// ---------------------------------------------------------------------------
 
 /// Validate that discount factors are monotone (non-increasing) within tolerance.
 ///
