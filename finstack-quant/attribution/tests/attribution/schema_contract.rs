@@ -2,7 +2,6 @@
 
 #![allow(clippy::expect_used)]
 
-use finstack_quant_attribution::schema::{generated_schema, ATTRIBUTION_SCHEMA_BASE};
 use finstack_quant_attribution::{
     AttributionEnvelope, AttributionMethod, AttributionResult, AttributionResultEnvelope,
     PnlAttribution,
@@ -15,6 +14,7 @@ use std::path::{Path, PathBuf};
 use time::macros::date;
 
 const JSON_SCHEMA_2020_12: &str = "https://json-schema.org/draft/2020-12/schema";
+const ATTRIBUTION_SCHEMA_BASE: &str = "https://finstack_quant.dev/schemas/attribution/1/";
 const CANONICAL_DECIMAL_PATTERN: &str = r"^-?\d+(\.\d+)?([eE][+-]?\d+)?$";
 
 fn schema_root() -> PathBuf {
@@ -58,18 +58,21 @@ fn validate_fixture(schema: &Value, fixture: &Value) {
 
 #[test]
 fn checked_in_attribution_schemas_match_derived_types() {
-    let expected_spec = generated_schema::<AttributionEnvelope>(
+    let expected_spec = finstack_quant_core::schema::generated_schema::<AttributionEnvelope>(
+        ATTRIBUTION_SCHEMA_BASE,
         "attribution.schema.json",
         "Finstack Quant Attribution Specification",
         "Complete specification for P&L attribution runs with instrument and market snapshots",
     )
     .expect("attribution schema generates");
-    let expected_result = generated_schema::<AttributionResultEnvelope>(
-        "attribution_result.schema.json",
-        "Finstack Quant Attribution Result",
-        "Complete result of a P&L attribution run including factor decomposition and metadata",
-    )
-    .expect("attribution result schema generates");
+    let expected_result =
+        finstack_quant_core::schema::generated_schema::<AttributionResultEnvelope>(
+            ATTRIBUTION_SCHEMA_BASE,
+            "attribution_result.schema.json",
+            "Finstack Quant Attribution Result",
+            "Complete result of a P&L attribution run including factor decomposition and metadata",
+        )
+        .expect("attribution result schema generates");
 
     assert_eq!(
         read_schema(&schema_root().join("attribution.schema.json")),

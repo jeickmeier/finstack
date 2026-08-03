@@ -124,7 +124,6 @@ pub(crate) mod model_params;
 pub(crate) mod parallel;
 pub(crate) mod return_contribution;
 /// JSON Schema generation helpers for attribution contracts.
-pub mod schema;
 pub(crate) mod spec;
 pub(crate) mod target_currency;
 pub(crate) mod taylor;
