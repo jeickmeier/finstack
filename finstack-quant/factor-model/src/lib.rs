@@ -95,7 +95,6 @@ pub use envelope::{
     FactorModelConfigEnvelope, FactorModelConfigSchema, FACTOR_MODEL_CONFIG_CONTRACT,
 };
 pub use error::{FactorModelError, UnmatchedPolicy};
-pub use finstack_quant_core::{Error, Result};
 pub use matching::{
     bucket_factor_id, AttributeFilter, CascadeMatcher, CreditHierarchicalConfig, DependencyFilter,
     FactorMatchEntry, FactorMatchError, FactorMatcher, FactorNode, HierarchicalConfig,

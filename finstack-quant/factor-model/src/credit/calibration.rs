@@ -342,18 +342,6 @@ impl CreditCalibrator {
         Self { config }
     }
 
-    /// Borrow the calibrator configuration.
-    #[must_use]
-    pub fn config(&self) -> &CreditCalibrationConfig {
-        &self.config
-    }
-
-    /// Borrow diagnostics from a calibrated model artifact.
-    #[must_use]
-    pub fn diagnostics(model: &CreditFactorModel) -> &CalibrationDiagnostics {
-        &model.diagnostics
-    }
-
     /// Run the full calibration pipeline.
     ///
     /// # Errors
