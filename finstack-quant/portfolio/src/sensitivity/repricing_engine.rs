@@ -5,8 +5,7 @@ use super::traits::{FactorRepricingPlan, FactorSensitivityEngine};
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::{Error, Result};
-use finstack_quant_factor_model::sensitivity_matrix::SensitivityMatrix;
-use finstack_quant_factor_model::{BumpSizeConfig, FactorDefinition, FactorId};
+use finstack_quant_factor_model::{BumpSizeConfig, FactorDefinition, FactorId, SensitivityMatrix};
 use finstack_quant_valuations::instruments::Instrument;
 
 /// P&L profile for one factor across a scenario grid.

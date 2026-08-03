@@ -9,7 +9,7 @@
 //! - `FactorSensitivityEngine`: shared trait.
 //!
 //! `SensitivityMatrix` is re-exported from
-//! [`finstack_quant_factor_model::sensitivity_matrix`] for binding stability.
+//! [`finstack_quant_factor_model`] for binding stability.
 //!
 //! The `json` submodule holds the JSON-facing helpers used by Python and WASM
 //! bindings; the `positions` submodule parses tagged position JSON into boxed
@@ -22,7 +22,7 @@ mod repricing_engine;
 mod traits;
 
 pub use delta_engine::{mapping_to_market_bumps, DeltaBasedEngine};
-pub use finstack_quant_factor_model::sensitivity_matrix::SensitivityMatrix;
+pub use finstack_quant_factor_model::SensitivityMatrix;
 pub use json::{
     compute_factor_sensitivities_from_json, compute_factor_sensitivities_json,
     compute_pnl_profiles_from_json, compute_pnl_profiles_json, parse_bump_config_json,

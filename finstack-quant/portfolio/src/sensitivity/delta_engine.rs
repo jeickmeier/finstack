@@ -6,9 +6,8 @@ use finstack_quant_core::market_data::bumps::{BumpMode, BumpSpec, BumpType, Mark
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::{Error, InputError, Result};
-use finstack_quant_factor_model::sensitivity_matrix::SensitivityMatrix;
 use finstack_quant_factor_model::{
-    BumpSizeConfig, FactorBumpUnit, FactorDefinition, MarketMapping,
+    BumpSizeConfig, FactorBumpUnit, FactorDefinition, MarketMapping, SensitivityMatrix,
 };
 use finstack_quant_valuations::instruments::Instrument;
 

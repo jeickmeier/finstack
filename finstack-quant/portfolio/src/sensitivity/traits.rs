@@ -5,8 +5,7 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::{CurveStorage, MarketContext};
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::{Error, Result};
-use finstack_quant_factor_model::sensitivity_matrix::SensitivityMatrix;
-use finstack_quant_factor_model::{FactorDefinition, MarketMapping};
+use finstack_quant_factor_model::{FactorDefinition, MarketMapping, SensitivityMatrix};
 use finstack_quant_valuations::instruments::{Instrument, RatesCurveKind};
 
 /// Resolve one factor definition to the exact dependency keys its market bump

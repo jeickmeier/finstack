@@ -21,10 +21,9 @@ use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::Result;
-use finstack_quant_factor_model::sensitivity_matrix::SensitivityMatrix;
 use finstack_quant_factor_model::{
     BumpSizeConfig, FactorCovarianceMatrix, FactorDefinition, FactorId, FactorType, MarketMapping,
-    PricingMode, RiskMeasure, UnmatchedPolicy,
+    PricingMode, RiskMeasure, SensitivityMatrix, UnmatchedPolicy,
 };
 use finstack_quant_portfolio::factor_model::{
     FactorModelBuilder, RiskDecomposer, SimulationDecomposer,
