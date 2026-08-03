@@ -14,7 +14,7 @@
 //! - **Comparisons** (`compare`): Assertion helpers with actionable error messages
 //!
 //! The stable public surface is the assertion/comparison layer (`assert_abs`,
-//! `assert_bp`, `assert_pct`, [`GoldenAssert`], and [`Tolerance`]). Loader and
+//! `assert_expected_value`, [`GoldenAssert`], and [`Tolerance`]). Loader and
 //! fixture metadata helpers remain public for existing tests, but they are
 //! intended primarily for crate-internal golden suites rather than runtime APIs.
 //!
@@ -73,17 +73,15 @@
 //! ## Making assertions
 //!
 //! ```ignore
-//! use finstack_quant_test_utils::golden::{GoldenAssert, assert_abs, Tolerance};
-//! use finstack_quant_test_utils::golden_assert;
+//! use finstack_quant_test_utils::golden::{assert_abs, GoldenAssert};
 //!
 //! // Simple assertion
-//! golden_assert!(assert_abs("suite", "case", "price", actual, expected, 0.01));
+//! assert_abs("suite", "case", "price", actual, expected, 0.01)?;
 //!
 //! // With assertion builder
 //! let assert = GoldenAssert::new(&suite.meta, &case.id);
 //! assert.abs("price", actual_price, expected_price, 0.01)?;
-//! assert.bp("spread", actual_spread, expected_spread, 0.5)?;
-//! assert.pct("pv", actual_pv, expected_pv, 0.25)?;
+//! assert.expected("spread", actual_spread, &case.expected.spread)?;
 //! ```
 //!
 //! ## Path macros
@@ -140,7 +138,5 @@ pub use loader::{
 
 // Re-export comparison utilities
 pub use compare::{
-    assert_abs, assert_bp, assert_expected_f64, assert_expected_value, assert_map_f64,
-    assert_money, assert_money_abs, assert_nested_map_f64, assert_pct, assert_range,
-    assert_within_tolerance, ComparisonResult, GoldenAssert,
+    assert_abs, assert_expected_f64, assert_expected_value, assert_within_tolerance, GoldenAssert,
 };
