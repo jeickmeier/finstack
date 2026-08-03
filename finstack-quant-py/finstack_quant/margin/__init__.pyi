@@ -1445,12 +1445,13 @@ class VmCalculator:
 
     def __init__(self, csa: CsaSpec) -> None:
         """
-        Compute   init for `VmCalculator`.
+        Bind a variation-margin calculator to one CSA specification.
 
         Parameters
         ----------
-        csa : object
-            Value supplied for `csa` to the documented binding operation.
+        csa : CsaSpec
+            Thresholds, transfer minimums, rounding rules, eligible
+            currencies, and calendar terms applied to each margin call.
         """
         ...
 
@@ -2640,18 +2641,21 @@ class XvaConfig:
         funding: FundingConfig | None = None,
     ) -> None:
         """
-        Compute   init for `XvaConfig`.
+        Configure exposure dates, recovery assumptions, and FVA funding.
 
         Parameters
         ----------
-        time_grid : object
-            Value supplied for `time_grid` to the documented binding operation.
-        recovery_rate : object
-            Rate or spread expressed in the convention documented for this API.
-        own_recovery_rate : object
-            Rate or spread expressed in the convention documented for this API.
-        funding : object
-            Value supplied for `funding` to the documented binding operation.
+        time_grid : list[float] or None, default None
+            Exposure times in years; ``None`` uses the library's standard XVA grid.
+        recovery_rate : float or None, default None
+            Counterparty recovery as a decimal fraction; ``None`` uses the
+            library default.
+        own_recovery_rate : float or None, default None
+            Own recovery as a decimal fraction for DVA; ``None`` uses the
+            library default.
+        funding : FundingConfig or None, default None
+            Funding and collateral spread assumptions for FVA; ``None``
+            disables explicit funding configuration.
         """
         ...
 
@@ -2874,18 +2878,18 @@ class ExposureProfile:
         ene: list[float],
     ) -> None:
         """
-        Compute   init for `ExposureProfile`.
+        Create aligned MtM, EPE, and ENE vectors on an exposure time grid.
 
         Parameters
         ----------
-        times : object
-            Value supplied for `times` to the documented binding operation.
-        mtm_values : object
-            Value supplied for `mtm_values` to the documented binding operation.
-        epe : object
-            Value supplied for `epe` to the documented binding operation.
-        ene : object
-            Value supplied for `ene` to the documented binding operation.
+        times : list[float]
+            Exposure times in years from the valuation date.
+        mtm_values : list[float]
+            Portfolio mark-to-market amounts at the corresponding times.
+        epe : list[float]
+            Expected positive exposure amounts at the corresponding times.
+        ene : list[float]
+            Expected negative exposure amounts at the corresponding times.
         """
         ...
 
@@ -3331,18 +3335,19 @@ class CsaTerms:
         independent_amount: float,
     ) -> None:
         """
-        Compute   init for `CsaTerms`.
+        Set collateral threshold, transfer minimum, MPOR, and independent amount.
 
         Parameters
         ----------
-        threshold : object
-            Value supplied for `threshold` to the documented binding operation.
-        mta : object
-            Value supplied for `mta` to the documented binding operation.
-        mpor_days : object
-            Value supplied for `mpor_days` to the documented binding operation.
-        independent_amount : object
-            Value supplied for `independent_amount` to the documented binding operation.
+        threshold : float
+            Unsecured exposure amount allowed before collateral is required,
+            in the netting set's reporting currency.
+        mta : float
+            Minimum transfer amount in the reporting currency.
+        mpor_days : int
+            Margin period of risk in calendar days.
+        independent_amount : float
+            Independent amount or initial margin in the reporting currency.
         """
         ...
 
@@ -3457,7 +3462,7 @@ class XvaNettingSet:
         reporting_currency: str | None = None,
     ) -> None:
         """
-        Compute   init for `XvaNettingSet`.
+        Create a counterparty netting set with optional collateral terms.
 
         Parameters
         ----------
@@ -3465,10 +3470,12 @@ class XvaNettingSet:
             Stable identifier used to select the required object or result entry.
         counterparty_id : object
             Stable identifier used to select the required object or result entry.
-        csa : object
-            Value supplied for `csa` to the documented binding operation.
-        reporting_currency : object
-            Value supplied for `reporting_currency` to the documented binding operation.
+        csa : CsaTerms or None, default None
+            Collateral agreement applied to the netting set; ``None`` models
+            an uncollateralized agreement.
+        reporting_currency : str or None, default None
+            ISO-4217 currency code for XVA amounts; ``None`` leaves the
+            reporting currency unspecified.
 
         Raises
         ------
@@ -4036,16 +4043,16 @@ class MarginUtilization:
         currency: str,
     ) -> None:
         """
-        Compute   init for `MarginUtilization`.
+        Compare posted and required margin in one reporting currency.
 
         Parameters
         ----------
-        posted_amount : object
-            Value supplied for `posted_amount` to the documented binding operation.
-        required_amount : object
-            Value supplied for `required_amount` to the documented binding operation.
-        currency : object
-            Value supplied for `currency` to the documented binding operation.
+        posted_amount : float
+            Margin already posted, in ``currency`` units.
+        required_amount : float
+            Margin requirement, in the same ``currency`` units.
+        currency : str
+            ISO-4217 code shared by both amounts.
 
         Raises
         ------
@@ -4177,16 +4184,16 @@ class ExcessCollateral:
         currency: str,
     ) -> None:
         """
-        Compute   init for `ExcessCollateral`.
+        Compare collateral value with the required collateral amount.
 
         Parameters
         ----------
-        collateral_value : object
-            Value supplied for `collateral_value` to the documented binding operation.
-        required_value : object
-            Value supplied for `required_value` to the documented binding operation.
-        currency : object
-            Value supplied for `currency` to the documented binding operation.
+        collateral_value : float
+            Current collateral mark, in ``currency`` units.
+        required_value : float
+            Required collateral amount in the same currency.
+        currency : str
+            ISO-4217 code shared by both values.
 
         Raises
         ------
@@ -4338,18 +4345,18 @@ class MarginFundingCost:
         currency: str,
     ) -> None:
         """
-        Compute   init for `MarginFundingCost`.
+        Describe the annual funding spread and cost of posted margin.
 
         Parameters
         ----------
-        margin_posted : object
-            Value supplied for `margin_posted` to the documented binding operation.
-        funding_rate : object
-            Rate or spread expressed in the convention documented for this API.
-        collateral_rate : object
-            Rate or spread expressed in the convention documented for this API.
-        currency : object
-            Value supplied for `currency` to the documented binding operation.
+        margin_posted : float
+            Posted margin principal, in ``currency`` units.
+        funding_rate : float
+            Annual funding rate as a decimal, such as ``0.05`` for 5%.
+        collateral_rate : float
+            Annual collateral remuneration rate as a decimal.
+        currency : str
+            ISO-4217 code for the margin and calculated costs.
 
         Raises
         ------
@@ -4503,16 +4510,16 @@ class Haircut01:
         currency: str,
     ) -> None:
         """
-        Compute   init for `Haircut01`.
+        Measure collateral-value sensitivity to a one-basis-point haircut increase.
 
         Parameters
         ----------
-        collateral_value : object
-            Value supplied for `collateral_value` to the documented binding operation.
-        current_haircut : object
-            Value supplied for `current_haircut` to the documented binding operation.
-        currency : object
-            Value supplied for `currency` to the documented binding operation.
+        collateral_value : float
+            Pre-haircut collateral mark, in ``currency`` units.
+        current_haircut : float
+            Current haircut as a decimal fraction, such as ``0.05`` for 5%.
+        currency : str
+            ISO-4217 code for the collateral value and PV change.
 
         Raises
         ------
@@ -4613,12 +4620,13 @@ class FrtbSensitivities:
 
     def __init__(self, base_currency: str = "USD") -> None:
         """
-        Compute   init for `FrtbSensitivities`.
+        Create an empty FRTB sensitivity set in one reporting currency.
 
         Parameters
         ----------
-        base_currency : object
-            Value supplied for `base_currency` to the documented binding operation.
+        base_currency : str, default "USD"
+            Recognized ISO-4217 currency code used for all SBA sensitivities
+            and capital amounts.
 
         Raises
         ------
@@ -4645,7 +4653,8 @@ class FrtbSensitivities:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or does not match the serialized
+            ``FrtbSensitivities`` schema.
 
         Examples
         --------
@@ -4937,12 +4946,13 @@ class FrtbSbaEngine:
 
     def __init__(self, correlation_scenario: str | None = None) -> None:
         """
-        Compute   init for `FrtbSbaEngine`.
+        Select the correlation scenarios evaluated by the FRTB SBA engine.
 
         Parameters
         ----------
-        correlation_scenario : object
-            Value supplied for `correlation_scenario` to the documented binding operation.
+        correlation_scenario : str or None, default None
+            ``"low"``, ``"medium"``, or ``"high"`` to evaluate one BCBS
+            correlation scenario; ``None`` evaluates all three.
 
         Raises
         ------
@@ -5035,36 +5045,38 @@ class SaCcrTrade:
         mtm: float = 0.0,
     ) -> None:
         """
-        Compute   init for `SaCcrTrade`.
+        Create a linear SA-CCR trade with an explicit active date window.
 
         Parameters
         ----------
         trade_id : object
             Stable identifier used to select the required object or result entry.
-        asset_class : object
-            Value supplied for `asset_class` to the documented binding operation.
-        notional : object
-            Value supplied for `notional` to the documented binding operation.
-        start_year : object
-            Value supplied for `start_year` to the documented binding operation.
-        start_month : object
-            Value supplied for `start_month` to the documented binding operation.
-        start_day : object
-            Value supplied for `start_day` to the documented binding operation.
-        end_year : object
-            Value supplied for `end_year` to the documented binding operation.
-        end_month : object
-            Value supplied for `end_month` to the documented binding operation.
-        end_day : object
-            Value supplied for `end_day` to the documented binding operation.
-        underlier : object
-            Value supplied for `underlier` to the documented binding operation.
-        hedging_set : object
-            Value supplied for `hedging_set` to the documented binding operation.
-        direction : object
-            Value supplied for `direction` to the documented binding operation.
-        mtm : object
-            Value supplied for `mtm` to the documented binding operation.
+        asset_class : str
+            One of ``"interest_rate"``, ``"foreign_exchange"``, ``"credit"``,
+            ``"equity"``, or ``"commodity"``.
+        notional : float
+            Adjusted notional in the engine's reporting currency.
+        start_year : int
+            Four-digit start-date year.
+        start_month : int
+            Start-date month from 1 through 12.
+        start_day : int
+            Start-date calendar day.
+        end_year : int
+            Four-digit maturity-date year.
+        end_month : int
+            Maturity-date month from 1 through 12.
+        end_day : int
+            Maturity-date calendar day.
+        underlier : str
+            Currency pair, issuer, index, or other supervisory underlier key.
+        hedging_set : str
+            Hedging-set key used for within-asset-class offsetting.
+        direction : float, default 1.0
+            ``1.0`` for a long trade or ``-1.0`` for a short trade; also used
+            as the default supervisory delta.
+        mtm : float, default 0.0
+            Current mark-to-market amount in the reporting currency.
 
         Raises
         ------
@@ -5092,7 +5104,8 @@ class SaCcrTrade:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or does not match the serialized
+            ``SaCcrTrade`` schema.
 
         Examples
         --------
@@ -5301,7 +5314,8 @@ class SaCcrNettingSetConfig:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or does not match the serialized
+            ``SaCcrNettingSetConfig`` schema.
 
         Examples
         --------
@@ -5368,14 +5382,15 @@ class SaCcrEngine:
 
     def __init__(self, alpha: float | None = None, reporting_currency: str = "USD") -> None:
         """
-        Compute   init for `SaCcrEngine`.
+        Configure the supervisory multiplier and reporting currency for SA-CCR.
 
         Parameters
         ----------
-        alpha : object
-            Value supplied for `alpha` to the documented binding operation.
-        reporting_currency : object
-            Value supplied for `reporting_currency` to the documented binding operation.
+        alpha : float or None, default None
+            Supervisory alpha multiplier; ``None`` uses the regulatory default
+            of ``1.4`` and explicit values must be at least ``1.0``.
+        reporting_currency : str, default "USD"
+            Recognized ISO-4217 code for notional, MtM, add-on, and EAD amounts.
 
         Raises
         ------
