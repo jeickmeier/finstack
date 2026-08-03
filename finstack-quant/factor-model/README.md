@@ -12,19 +12,11 @@ inflation factors are first-class through the generic `FactorType`,
 `FactorDefinition`, `FactorModelConfig`, matching, covariance, and portfolio
 sensitivity/risk engines.
 
-## Layout
+## Public API
 
-```
-factor-model/
-├── schemas/factor_model/1/ # Generated versioned JSON contracts
-├── primitives/             # FactorId, FactorType, FactorDefinition, dependencies
-├── matching/               # Mapping-table, cascade, hierarchy matchers
-├── credit/                 # Credit hierarchy, calibration, decomposition
-├── calibration/            # Shared calibrator trait shape
-├── config.rs               # FactorModelConfig, RiskMeasure, unmatched policy, bump config
-├── covariance.rs           # FactorCovarianceMatrix
-└── sensitivity_matrix.rs   # SensitivityMatrix: positions × factors
-```
+Generic configuration, covariance, envelope, factor, dependency, and
+sensitivity types are exported at the crate root. The public submodules are
+`matching`, `credit`, and `schema`.
 
 Pricing engines that take `&dyn Instrument` (delta and full-repricing) live
 in `finstack-quant-portfolio::sensitivity` because they depend on the instrument

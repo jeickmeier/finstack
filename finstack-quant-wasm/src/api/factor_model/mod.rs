@@ -52,7 +52,7 @@ fn ensure_finite(field: &str, v: f64) -> Result<(), JsValue> {
 
 /// Validate every entry of a factor covariance matrix is finite.
 fn ensure_covariance_finite(
-    cov: &finstack_quant_factor_model::covariance::FactorCovarianceMatrix,
+    cov: &finstack_quant_factor_model::FactorCovarianceMatrix,
 ) -> Result<(), JsValue> {
     for (i, v) in cov.as_slice().iter().enumerate() {
         ensure_finite(&format!("covariance.data[{i}]"), *v)?;

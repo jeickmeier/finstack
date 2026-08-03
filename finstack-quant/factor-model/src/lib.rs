@@ -6,16 +6,14 @@
 //! equity, volatility, commodity, and inflation factors are expressed
 //! through generic [`FactorType`] and [`FactorDefinition`].
 //!
-//! # Module Guide
+//! # Public API
 //!
-//! | Module | Purpose |
-//! |--------|---------|
-//! | [`primitives`] | `FactorId`, `FactorType`, `FactorDefinition`, market dependencies |
-//! | [`matching`] | Mapping-table, cascade, and hierarchy matchers for dependency-to-factor resolution |
-//! | [`credit`] | Credit hierarchy artifacts, calibration, and spread decomposition |
-//! | [`config`] | `FactorModelConfig`, `RiskMeasure`, `PricingMode`, unmatched policy, bump sizing |
-//! | [`covariance`] | `FactorCovarianceMatrix` with symmetry and PSD validation |
-//! | [`sensitivity_matrix`] | `SensitivityMatrix`: positions × factors dense layout |
+//! Generic configuration, covariance, envelope, factor, dependency, and
+//! sensitivity types are exported at the crate root. Public submodules are:
+//!
+//! - [`matching`] for dependency-to-factor matching.
+//! - [`credit`] for credit hierarchy artifacts, calibration, and decomposition.
+//! - [`schema`] for versioned JSON Schema contracts.
 //!
 //! # Quick Start
 //!
@@ -70,21 +68,21 @@
 #![doc(test(attr(allow(clippy::expect_used))))]
 
 /// Factor-model run configuration, risk measures, and bump sizing.
-pub mod config;
+mod config;
 /// Factor covariance matrix storage and validation.
-pub mod covariance;
+mod covariance;
 /// Credit factor hierarchy artifacts, calibration, and decomposition.
 pub mod credit;
 /// Versioned persistence envelope for factor-model configuration.
-pub mod envelope;
+mod envelope;
 /// Matching primitives and built-in matcher components.
 pub mod matching;
 /// Generic factor identifiers, definitions, and market dependencies.
-pub mod primitives;
+mod primitives;
 /// JSON Schema generation helpers for factor-model contracts.
 pub mod schema;
 /// Positions × factors sensitivity matrix storage.
-pub mod sensitivity_matrix;
+mod sensitivity_matrix;
 
 pub use config::{
     BumpSizeConfig, FactorBumpUnit, FactorModelConfig, PricingMode, RiskMeasure, UnmatchedPolicy,

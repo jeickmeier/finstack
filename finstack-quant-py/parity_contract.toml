@@ -175,15 +175,11 @@ rust_lib   = "finstack-quant/factor-model/src/lib.rs"
 python_package = "finstack_quant.factor_model"
 visibility = "pub"
 status = "exists"
-note = "Generic factor-model primitives are Rust-first today; credit hierarchy APIs are exposed under finstack_quant.factor_model.credit. Known asymmetry: WASM handles (finstack-quant-wasm/src/api/factor_model/mod.rs) are toJson-only, while Python exposes typed accessors on CreditFactorModel/LevelsAtDate/PeriodDecomposition; this is an accepted host-language divergence, not drift."
+note = "Generic factor-model types are exported at the Rust crate root and cross host boundaries through JSON contracts; credit hierarchy APIs are exposed under finstack_quant.factor_model.credit. Known asymmetry: WASM handles (finstack-quant-wasm/src/api/factor_model/mod.rs) are toJson-only, while Python exposes typed accessors on CreditFactorModel/LevelsAtDate/PeriodDecomposition; this is an accepted host-language divergence, not drift."
 
 [crates.factor_model.modules]
-primitives         = { python = "finstack_quant.factor_model.primitives", status = "missing", note = "FactorId/FactorType/FactorDefinition typed host-language constructors deferred; JSON contracts remain Rust-owned." }
 matching           = { python = "finstack_quant.factor_model.matching", status = "missing", note = "MatchingConfig typed host-language constructors deferred; JSON contracts remain Rust-owned." }
 credit             = { python = "finstack_quant.factor_model.credit", status = "exists", note = "CreditFactorModel, CreditCalibrator, LevelsAtDate, PeriodDecomposition, FactorCovarianceForecast, decompose_levels, decompose_period." }
-config             = { python = "finstack_quant.factor_model.config", status = "missing", note = "FactorModelConfig is consumed as JSON via portfolio risk bindings; no typed host-language constructors." }
-covariance         = { python = "finstack_quant.factor_model.covariance", status = "missing", note = "FactorCovarianceMatrix is JSON-only at the binding boundary (produced by FactorCovarianceForecast.covariance_at)." }
-sensitivity_matrix = { python = "finstack_quant.factor_model.sensitivity_matrix", status = "missing", note = "Sensitivity-matrix assembly is Rust-internal to the portfolio risk pipeline." }
 
 # ---------------------------------------------------------------------------
 # finstack-quant-analytics  →  finstack_quant.analytics

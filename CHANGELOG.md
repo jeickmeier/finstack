@@ -4,6 +4,9 @@
 
 ### Changed
 
+- **Breaking (Rust):** Factor-model configuration, covariance, envelope,
+  primitive, and sensitivity types are now exposed only through their existing
+  crate-root paths. The `matching`, `credit`, and `schema` modules remain public.
 - **Breaking (Rust):** Removed the unused `FactorModelError` hierarchy. Factor-model
   workflows continue to return their canonical core or portfolio errors, and
   `UnmatchedPolicy` remains available at the factor-model crate root with the
