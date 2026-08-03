@@ -72,14 +72,13 @@ impl MetricCalculator for OasCalculator {
                 })
             })?;
         // True option-adjusted spread from the Monte Carlo model.
-        let result = calculate_mc_oas(
+        calculate_mc_oas(
             mbs,
             market_price,
             context.curves.as_ref(),
             context.as_of,
             &McOasConfig::default(),
-        )?;
-        Ok(result.oas)
+        )
     }
 }
 
@@ -180,9 +179,8 @@ mod tests {
                 0.0,
             )
             .expect("static z-spread");
-        let mc_oas = calculate_mc_oas(&mbs, quote, &market, as_of, &McOasConfig::default())
-            .expect("mc oas")
-            .oas;
+        let mc_oas =
+            calculate_mc_oas(&mbs, quote, &market, as_of, &McOasConfig::default()).expect("mc oas");
 
         // The registered metric.
         let ctx = MetricContext::new(

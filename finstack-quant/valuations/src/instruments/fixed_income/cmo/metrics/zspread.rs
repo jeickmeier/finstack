@@ -13,20 +13,6 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::solver::{BrentSolver, Solver};
 use finstack_quant_core::Result;
 
-/// CMO tranche Z-spread result.
-#[derive(Debug, Clone)]
-#[allow(dead_code)] // public API result struct
-pub(crate) struct CmoZSpreadResult {
-    /// Static Z-spread (decimal)
-    pub(crate) zspread: f64,
-    /// Model price at the solved spread
-    pub(crate) model_price: f64,
-    /// Market price (target)
-    pub(crate) market_price: f64,
-    /// Iterations to converge
-    pub(crate) iterations: u32,
-}
-
 /// Calculate the static Z-spread for a CMO tranche.
 ///
 /// Uses Brent's method on waterfall-generated tranche cashflows.
@@ -41,7 +27,7 @@ pub(crate) fn calculate_tranche_zspread(
     market_price_pct: f64,
     market: &MarketContext,
     as_of: Date,
-) -> Result<CmoZSpreadResult> {
+) -> Result<f64> {
     let tranche = cmo.reference_tranche().ok_or_else(|| {
         finstack_quant_core::Error::Validation(format!(
             "Tranche {} not found",
@@ -104,19 +90,11 @@ pub(crate) fn calculate_tranche_zspread(
         return Err(err);
     }
 
-    let zspread = result.map_err(|e| {
+    result.map_err(|e| {
         finstack_quant_core::Error::Validation(format!(
             "CMO tranche Z-spread solver failed to converge within bounds [-10%, 20%]: {e}. \
              Check that market price {market_price_pct} pct is within the model's reachable PV range."
         ))
-    })?;
-
-    let final_price = price_at_spread(zspread)?;
-    Ok(CmoZSpreadResult {
-        zspread,
-        model_price: final_price,
-        market_price,
-        iterations: MAX_ITERATIONS as u32,
     })
 }
 
@@ -161,8 +139,7 @@ mod tests {
 
         assert!(
             result.is_err(),
-            "an unbracketable Z-spread solve must return Err, got {:?}",
-            result.map(|r| r.zspread)
+            "an unbracketable Z-spread solve must return Err, got {result:?}"
         );
     }
 
@@ -189,8 +166,8 @@ mod tests {
         let price_pct = model_price / tranche.current_face.amount() * 100.0;
 
         // Z-spread should be near zero at the model price.
-        let result = calculate_tranche_zspread(&cmo, price_pct, &market, as_of).expect("zspread");
+        let zspread = calculate_tranche_zspread(&cmo, price_pct, &market, as_of).expect("zspread");
 
-        assert!(result.zspread.abs() < 0.01);
+        assert!(zspread.abs() < 0.01);
     }
 }

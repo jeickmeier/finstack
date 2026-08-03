@@ -88,26 +88,6 @@ impl Default for McOasConfig {
     }
 }
 
-/// Result of a Monte Carlo OAS calculation.
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub(crate) struct McOasResult {
-    /// Option-adjusted spread in decimal (e.g., 0.01 for 100 bp).
-    pub oas: f64,
-    /// Average model price across all paths at the calculated OAS.
-    pub model_price: f64,
-    /// Target (market) price.
-    pub market_price: f64,
-    /// Price error at the solution.
-    pub price_error: f64,
-    /// Number of simulation paths used.
-    pub num_paths: usize,
-    /// Whether the solver converged.
-    pub converged: bool,
-    /// Standard error of the price estimate across paths.
-    pub price_std_error: f64,
-}
-
 /// A single simulated short-rate path.
 struct RatePath {
     /// Monthly short rates along the path.
@@ -394,7 +374,7 @@ fn price_on_path(
 ///
 /// # Returns
 ///
-/// Monte Carlo OAS result with spread, convergence, and standard error.
+/// Option-adjusted spread in decimal (for example, `0.01` for 100 bp).
 ///
 /// # Example
 ///
@@ -406,8 +386,8 @@ fn price_on_path(
 ///
 /// let mbs = AgencyMbsPassthrough::example().unwrap();
 /// let config = McOasConfig { num_paths: 1024, ..Default::default() };
-/// let result = calculate_mc_oas(&mbs, 98.5, &market, as_of, &config)?;
-/// println!("MC OAS: {:.0} bp", result.oas * 10_000.0);
+/// let oas = calculate_mc_oas(&mbs, 98.5, &market, as_of, &config)?;
+/// println!("MC OAS: {:.0} bp", oas * 10_000.0);
 /// ```
 pub(crate) fn calculate_mc_oas(
     mbs: &AgencyMbsPassthrough,
@@ -415,7 +395,7 @@ pub(crate) fn calculate_mc_oas(
     market: &MarketContext,
     as_of: Date,
     config: &McOasConfig,
-) -> Result<McOasResult> {
+) -> Result<f64> {
     let market_price = market_price_pct / 100.0 * mbs.current_face.amount();
 
     let discount_curve = market.get_discount(&mbs.discount_curve_id)?;
@@ -502,48 +482,11 @@ pub(crate) fn calculate_mc_oas(
     // Solver failure is now informative: the underlying pricing succeeded but
     // no OAS bracketed the target market price (likely far-from-feasible
     // bounds, or a market price outside the model's reachable PV range).
-    let oas = result.map_err(|e| {
+    result.map_err(|e| {
         CoreError::Validation(format!(
             "MC OAS Brent solver failed to converge within bounds [-10%, 20%]: {e}. \
              Check that market price {market_price_pct} pct is within the model's reachable PV range."
         ))
-    })?;
-
-    // Recompute path prices at the converged OAS for statistics (in parallel,
-    // collected in path order so the downstream mean/variance are unchanged).
-    let path_prices: Vec<f64> = paths
-        .par_iter()
-        .map(|path| {
-            price_on_path(
-                mbs,
-                path,
-                initial_rate,
-                oas,
-                config.prepay_rate_sensitivity,
-                &steps,
-            )
-        })
-        .collect::<Result<Vec<f64>>>()?;
-
-    let avg_price = path_prices.iter().sum::<f64>() / config.num_paths as f64;
-
-    // Standard error of the mean
-    let variance = if config.num_paths > 1 {
-        let mean = avg_price;
-        path_prices.iter().map(|p| (p - mean).powi(2)).sum::<f64>() / (config.num_paths - 1) as f64
-    } else {
-        0.0
-    };
-    let std_error = (variance / config.num_paths as f64).sqrt();
-
-    Ok(McOasResult {
-        oas,
-        model_price: avg_price,
-        market_price,
-        price_error: avg_price - market_price,
-        num_paths: config.num_paths,
-        converged: true,
-        price_std_error: std_error,
     })
 }
 
@@ -762,14 +705,14 @@ mod tests {
         let market_price_pct = avg_price / mbs.current_face.amount() * 100.0;
 
         // MC OAS at model price should be approximately 0
-        let result =
+        let oas =
             calculate_mc_oas(&mbs, market_price_pct, &market, as_of, &config).expect("mc oas");
 
         // Allow wider tolerance due to MC noise
         assert!(
-            result.oas.abs() < 0.005,
+            oas.abs() < 0.005,
             "OAS should be near zero at model price, got {}",
-            result.oas
+            oas
         );
     }
 
@@ -823,12 +766,12 @@ mod tests {
         };
 
         // Discount price should give positive OAS
-        let result = calculate_mc_oas(&mbs, 80.0, &market, as_of, &config).expect("mc oas");
+        let oas = calculate_mc_oas(&mbs, 80.0, &market, as_of, &config).expect("mc oas");
 
         assert!(
-            result.oas > 0.0,
+            oas > 0.0,
             "OAS should be positive for discount price, got {}",
-            result.oas
+            oas
         );
     }
 
@@ -1036,12 +979,12 @@ mod tests {
             ..Default::default()
         };
 
-        let result1 = calculate_mc_oas(&mbs, 95.0, &market, as_of, &config).expect("mc oas 1");
-        let result2 = calculate_mc_oas(&mbs, 95.0, &market, as_of, &config).expect("mc oas 2");
+        let oas1 = calculate_mc_oas(&mbs, 95.0, &market, as_of, &config).expect("mc oas 1");
+        let oas2 = calculate_mc_oas(&mbs, 95.0, &market, as_of, &config).expect("mc oas 2");
 
         // Same seed should give identical results
         assert!(
-            (result1.oas - result2.oas).abs() < 1e-12,
+            (oas1 - oas2).abs() < 1e-12,
             "Same seed should give identical OAS"
         );
     }

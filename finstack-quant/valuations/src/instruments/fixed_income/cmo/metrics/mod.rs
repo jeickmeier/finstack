@@ -28,9 +28,7 @@ impl MetricCalculator for ZSpreadCalculator {
                 })
             })?;
         // Non-convergence propagates as an error (no silent zero spread).
-        let result =
-            calculate_tranche_zspread(cmo, market_price, context.curves.as_ref(), context.as_of)?;
-        Ok(result.zspread)
+        calculate_tranche_zspread(cmo, market_price, context.curves.as_ref(), context.as_of)
     }
 }
 
