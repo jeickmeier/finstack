@@ -1380,8 +1380,10 @@ def run_corporate_analysis(
     Returns
     -------
     dict[str, Any]
-        Dict with ``statement_json``, optional ``equity`` scalars, and ``credit`` (instrument_id → metrics JSON).
-        The credit metrics include ``skipped_periods`` for periods dropped from min/max stats.
+        Dict with ``statement_json``, optional ``equity`` scalars, ``credit``
+        (instrument_id → direct metrics JSON), and
+        ``ev_suppressed_non_positive``. The credit metrics include
+        ``skipped_periods`` for periods dropped from min/max stats.
 
     Raises
     ------
@@ -1397,7 +1399,7 @@ def run_corporate_analysis(
     >>> builder.periods("2025Q1..Q1")
     >>> builder.value("ebitda", [("2025Q1", 25.0)])
     >>> sorted(run_corporate_analysis(builder.build()))
-    ['credit', 'statement_json']
+    ['credit', 'ev_suppressed_non_positive', 'statement_json']
 
     """
     ...

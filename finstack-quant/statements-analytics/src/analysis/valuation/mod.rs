@@ -13,4 +13,4 @@ pub use corporate::{
     DcfSensitivityResult, ExitMultipleBump,
 };
 pub use lbo::{evaluate_lbo, LboCheckMappings, LboConfig, LboResult, LboTranche};
-pub use orchestrator::{CorporateAnalysis, CorporateAnalysisBuilder, CreditInstrumentAnalysis};
+pub use orchestrator::{CorporateAnalysis, CorporateAnalysisBuilder};

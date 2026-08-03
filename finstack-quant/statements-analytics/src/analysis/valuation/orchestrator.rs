@@ -13,7 +13,6 @@ use finstack_quant_statements::evaluator::StatementResult;
 use finstack_quant_statements::types::FinancialModelSpec;
 use finstack_quant_valuations::instruments::equity::dcf_equity::TerminalValueSpec;
 use indexmap::IndexMap;
-use serde::{Deserialize, Serialize};
 
 /// Unified analysis result combining statement, equity, and credit perspectives.
 ///
@@ -26,23 +25,11 @@ pub struct CorporateAnalysis {
     pub statement: StatementResult,
     /// Equity valuation result (if DCF was configured)
     pub equity: Option<CorporateValuationResult>,
-    /// Per-instrument credit analysis
-    pub credit: IndexMap<String, CreditInstrumentAnalysis>,
-}
-
-/// Credit analysis for a single instrument.
-///
-/// This currently exposes statement-derived credit context only, leaving room
-/// for future spread, rating, or recovery analytics.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreditInstrumentAnalysis {
-    /// Coverage and leverage metrics from statement context
-    pub coverage: CreditContextMetrics,
-    /// `true` when a DCF enterprise value was computed but suppressed as
-    /// the LTV reference because it was non-positive. LTV-style metrics
-    /// in [`coverage`](Self::coverage) are then computed without an EV
-    /// reference and should be interpreted accordingly.
-    #[serde(default)]
+    /// Per-instrument coverage and leverage metrics.
+    pub credit: IndexMap<String, CreditContextMetrics>,
+    /// `true` when a DCF enterprise value was computed but suppressed as the
+    /// LTV reference because it was non-positive. Credit metrics are then
+    /// computed without an enterprise-value reference.
     pub ev_suppressed_non_positive: bool,
 }
 
@@ -400,7 +387,7 @@ impl CorporateAnalysisBuilder {
         let mut credit = IndexMap::new();
         if let Some(ref cs) = statement.cs_cashflows {
             for instrument_id in cs.by_instrument.keys() {
-                let coverage = compute_credit_context(
+                let metrics = compute_credit_context(
                     &statement,
                     cs,
                     instrument_id,
@@ -408,13 +395,7 @@ impl CorporateAnalysisBuilder {
                     &self.model.periods,
                     ev_for_ltv,
                 );
-                credit.insert(
-                    instrument_id.clone(),
-                    CreditInstrumentAnalysis {
-                        coverage,
-                        ev_suppressed_non_positive,
-                    },
-                );
+                credit.insert(instrument_id.clone(), metrics);
             }
         }
 
@@ -422,6 +403,7 @@ impl CorporateAnalysisBuilder {
             statement,
             equity,
             credit,
+            ev_suppressed_non_positive,
         })
     }
 }
@@ -490,6 +472,7 @@ mod tests {
 
         assert!(result.equity.is_none());
         assert!(result.credit.is_empty());
+        assert!(!result.ev_suppressed_non_positive);
         assert!(result
             .statement
             .get("ebitda", &PeriodId::quarter(2025, 1))
@@ -536,6 +519,29 @@ mod tests {
         let equity = result.equity.as_ref().expect("equity should be present");
         assert!(equity.equity_value.amount() > 0.0);
         assert!(equity.enterprise_value.amount() > equity.equity_value.amount());
+        assert!(!result.ev_suppressed_non_positive);
+    }
+
+    #[test]
+    fn test_non_positive_enterprise_value_status_is_top_level() {
+        let model = ModelBuilder::new("non-positive-ev")
+            .periods("2025Q1..Q1", None)
+            .expect("periods")
+            .value(
+                "ufcf",
+                &[(PeriodId::quarter(2025, 1), AmountOrScalar::scalar(0.0))],
+            )
+            .with_meta("currency", serde_json::json!("USD"))
+            .build()
+            .expect("model");
+
+        let result = CorporateAnalysisBuilder::new(model)
+            .dcf(0.10, TerminalValueSpec::GordonGrowth { growth_rate: 0.02 })
+            .net_debt_override(0.0)
+            .analyze()
+            .expect("analysis should succeed");
+
+        assert!(result.ev_suppressed_non_positive);
     }
 
     #[test]

@@ -21,6 +21,11 @@
   rewriting, including `ModelBuilder::with_name_normalization`. Formulas and
   `where` clauses now require exact node IDs; unknown IDs retain the dependency
   graph's nearest-name diagnostics.
+- **Breaking (Rust, Python):** Corporate analysis now stores direct
+  `CreditContextMetrics` per instrument instead of the speculative
+  `CreditInstrumentAnalysis` wrapper. Non-positive DCF enterprise-value
+  suppression is reported once at the top level as
+  `ev_suppressed_non_positive`.
 - **Breaking (Rust):** Removed the unused
   `CreditScoringError::OutOfRange` variant. Credit scoring input failures
   continue to use `NonFiniteInput` and `InvalidBinaryIndicator`.

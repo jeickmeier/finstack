@@ -122,14 +122,15 @@ fn test_full_lbo_analysis() {
         );
         let bond = bond_analysis.expect("bond analysis");
         // DSCR should be positive (EBITDA > debt service)
-        if !bond.coverage.dscr.is_empty() {
+        if !bond.dscr.is_empty() {
             assert!(
-                bond.coverage.dscr[0].1 > 0.0,
+                bond.dscr[0].1 > 0.0,
                 "DSCR should be positive, got {}",
-                bond.coverage.dscr[0].1
+                bond.dscr[0].1
             );
         }
     }
+    assert!(!analysis.ev_suppressed_non_positive);
 }
 
 #[test]
@@ -159,6 +160,7 @@ fn test_statement_only_no_equity_no_credit() {
 
     assert!(analysis.equity.is_none());
     assert!(analysis.credit.is_empty());
+    assert!(!analysis.ev_suppressed_non_positive);
     assert!(analysis
         .statement
         .get("revenue", &PeriodId::quarter(2025, 1))

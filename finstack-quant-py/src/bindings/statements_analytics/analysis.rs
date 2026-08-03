@@ -735,7 +735,8 @@ fn wacc(
 /// dict
 ///     Dict with ``statement_json`` (str), optional ``equity`` (dict of
 ///     scalar values), and ``credit`` (dict mapping instrument_id to
-///     credit metrics JSON).
+///     credit metrics JSON). ``ev_suppressed_non_positive`` reports whether
+///     a non-positive DCF enterprise value was excluded from LTV metrics.
 #[pyfunction]
 #[pyo3(signature = (
     model,
@@ -806,6 +807,10 @@ fn run_corporate_analysis<'py>(
         credit_dict.set_item(inst_id.as_str(), cred_json)?;
     }
     dict.set_item("credit", credit_dict)?;
+    dict.set_item(
+        "ev_suppressed_non_positive",
+        analysis.ev_suppressed_non_positive,
+    )?;
 
     Ok(dict)
 }

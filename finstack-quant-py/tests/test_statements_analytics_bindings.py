@@ -19,6 +19,7 @@ from finstack_quant.statements_analytics import (
     add_roll_forward_with_opening,
     goal_seek,
     run_checks,
+    run_corporate_analysis,
 )
 
 
@@ -78,6 +79,12 @@ class TestRunChecks:
         }
         report_json = run_checks(_model_json(), json.dumps(spec))
         assert "revenue_positive" in report_json
+
+
+class TestCorporateAnalysis:
+    def test_suppressed_enterprise_value_status_is_top_level(self) -> None:
+        result = run_corporate_analysis(_model_json())
+        assert result["ev_suppressed_non_positive"] is False
 
 
 class TestScorecardConfig:

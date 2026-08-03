@@ -77,8 +77,8 @@ pub use scenarios::{
 };
 pub use valuation::{
     dcf_sensitivity, evaluate_dcf_with_market, evaluate_lbo, wacc, CorporateAnalysis,
-    CorporateAnalysisBuilder, CorporateValuationResult, CreditInstrumentAnalysis, DcfOptions,
-    DcfSensitivityResult, ExitMultipleBump, LboCheckMappings, LboConfig, LboResult, LboTranche,
+    CorporateAnalysisBuilder, CorporateValuationResult, DcfOptions, DcfSensitivityResult,
+    ExitMultipleBump, LboCheckMappings, LboConfig, LboResult, LboTranche,
 };
 
 // ---- Check-framework re-exports ----
