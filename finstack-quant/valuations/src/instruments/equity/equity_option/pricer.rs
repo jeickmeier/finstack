@@ -11,7 +11,7 @@ use crate::instruments::common_impl::parameters::{OptionMarketParams, OptionType
 use crate::instruments::equity::equity_option::types::EquityOption;
 use crate::instruments::ExerciseStyle;
 use crate::models::trees::binomial_tree::BinomialTree;
-use crate::models::{bs_greeks, bs_price, BsGreeks};
+use crate::models::{bs_greeks, bs_price};
 use crate::pricer::{ModelKey, PricingError, PricingErrorContext};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount};
@@ -721,61 +721,6 @@ fn tree_finite_difference_greeks(
     })
 }
 
-/// Unit greeks (per share, not scaled by contract size).
-pub(crate) type UnitGreeks = BsGreeks;
-
-/// Compute unit greeks from explicit inputs (no market lookups).
-#[allow(dead_code)] // May be used by external bindings or tests
-#[inline]
-pub(crate) fn greeks_unit(
-    spot: f64,
-    strike: f64,
-    r: f64,
-    q: f64,
-    sigma: f64,
-    t: f64,
-    option_type: OptionType,
-) -> UnitGreeks {
-    if t <= 0.0 {
-        // ATM convention: 0.5 / -0.5 (QuantLib/Bloomberg standard)
-        let delta = match option_type {
-            OptionType::Call => {
-                if spot > strike {
-                    1.0
-                } else if (spot - strike).abs() < 1e-12 * strike.abs().max(1.0) {
-                    0.5
-                } else {
-                    0.0
-                }
-            }
-            OptionType::Put => {
-                if spot < strike {
-                    -1.0
-                } else if (spot - strike).abs() < 1e-12 * strike.abs().max(1.0) {
-                    -0.5
-                } else {
-                    0.0
-                }
-            }
-        };
-        return UnitGreeks {
-            delta,
-            ..Default::default()
-        };
-    }
-
-    bs_greeks(
-        spot,
-        strike,
-        r,
-        q,
-        sigma,
-        t,
-        option_type,
-        TRADING_DAYS_PER_YEAR,
-    )
-}
-
 // ========================= REGISTRY PRICER =========================
 
 /// Registry pricer for Equity Option using Black-Scholes model
@@ -1169,7 +1114,7 @@ mod tests {
     }
 
     #[test]
-    fn test_expired_atm_delta_convention_matches_compute_greeks_and_unit_greeks() {
+    fn test_expired_atm_delta_convention() {
         let as_of = date(2025, 1, 1);
         let call = option(as_of, OptionType::Call, ExerciseStyle::European);
         let put = option(as_of, OptionType::Put, ExerciseStyle::European);
@@ -1177,13 +1122,9 @@ mod tests {
 
         let call_greeks = compute_greeks(&call, &curves, as_of).expect("call greeks");
         let put_greeks = compute_greeks(&put, &curves, as_of).expect("put greeks");
-        let call_unit = greeks_unit(100.0, 100.0, 0.03, 0.01, 0.20, 0.0, OptionType::Call);
-        let put_unit = greeks_unit(100.0, 100.0, 0.03, 0.01, 0.20, 0.0, OptionType::Put);
 
         assert_eq!(call_greeks.delta, 50.0);
         assert_eq!(put_greeks.delta, -50.0);
-        assert_eq!(call_unit.delta, 0.5);
-        assert_eq!(put_unit.delta, -0.5);
         assert_eq!(call_greeks.gamma, 0.0);
         assert_eq!(put_greeks.gamma, 0.0);
     }

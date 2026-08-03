@@ -528,7 +528,7 @@ impl Pricer for BermudanSwaptionLmmPricer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::calibration::targets::lmm::{rebonato_shape_factor, CoTerminalSlice};
+    use crate::calibration::targets::lmm::{rebonato_factors, CoTerminalSlice};
     use crate::instruments::rates::swaption::types::BermudanSchedule;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, StubKind, Tenor};
@@ -606,7 +606,7 @@ mod tests {
         };
         // The loadings already carry base_vol, so the "shape factor" of the
         // *already-scaled* loadings equals the implied swaption vol directly.
-        rebonato_shape_factor(&slice).expect("shape factor")
+        rebonato_factors(&slice).expect("factors").shape_factor
     }
 
     /// Index of the first forward alive at the Bermudan's first exercise.
@@ -744,7 +744,7 @@ mod tests {
             loading_shapes: &old_shapes,
             first_alive,
         };
-        let old_implied = rebonato_shape_factor(&old_slice).expect("shape factor");
+        let old_implied = rebonato_factors(&old_slice).expect("factors").shape_factor;
 
         // The old loadings do NOT reprice the surface: |old_implied - vol|
         // is well outside calibration tolerance.

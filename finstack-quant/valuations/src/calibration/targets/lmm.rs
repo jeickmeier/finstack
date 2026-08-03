@@ -104,19 +104,6 @@ pub(crate) struct RebonatoFactors {
     pub shifted_level: f64,
 }
 
-/// Rebonato shape factor `R` linking `base_vol` to the co-terminal European
-/// swaption vol on the shifted level: `σ_displaced = base_vol · R`.
-///
-/// Returns `None` when the swap is degenerate (no live forwards, zero
-/// annuity, or a non-positive basket level).
-///
-/// Production callers use [`rebonato_factors`] directly; this thin wrapper
-/// is retained for tests that only need the shape factor.
-#[cfg(test)]
-pub(crate) fn rebonato_shape_factor(slice: &CoTerminalSlice<'_>) -> Option<f64> {
-    rebonato_factors(slice).map(|f| f.shape_factor)
-}
-
 /// Full Rebonato decomposition; see [`RebonatoFactors`].
 pub(crate) fn rebonato_factors(slice: &CoTerminalSlice<'_>) -> Option<RebonatoFactors> {
     let n = slice.accrual_factors.len();
@@ -254,7 +241,7 @@ mod tests {
             loading_shapes: &shapes,
             first_alive: 0,
         };
-        let r = rebonato_shape_factor(&slice).expect("shape factor");
+        let r = rebonato_factors(&slice).expect("factors").shape_factor;
         assert!(
             r.is_finite() && r > 0.0,
             "R must be positive finite, got {r}"
@@ -329,7 +316,7 @@ mod tests {
             loading_shapes: &shapes,
             first_alive: 1, // no live forwards
         };
-        assert!(rebonato_shape_factor(&slice).is_none());
+        assert!(rebonato_factors(&slice).is_none());
         assert!(super::calibrate_base_vol(&slice, 0.2).is_none());
         // Non-positive market vol rejected.
         let live_slice = CoTerminalSlice {
@@ -409,8 +396,10 @@ mod tests {
             displacements: &shifted,
             ..base.clone()
         };
-        let r0 = rebonato_shape_factor(&base).expect("r0");
-        let r1 = rebonato_shape_factor(&shifted_slice).expect("r1");
+        let r0 = rebonato_factors(&base).expect("base factors").shape_factor;
+        let r1 = rebonato_factors(&shifted_slice)
+            .expect("shifted factors")
+            .shape_factor;
         assert!(
             (r0 - r1).abs() > 1e-9,
             "displacement must change the shape factor"

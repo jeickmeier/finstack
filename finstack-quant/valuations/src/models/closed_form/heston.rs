@@ -1090,24 +1090,6 @@ fn heston_pj_on_grid(
     }
 }
 
-/// Compute the Pj probability for Heston call pricing via Fourier inversion.
-///
-/// Thin wrapper over [`heston_pj_with_diagnostics`] returning only the clamped
-/// probability. Production callers need the corruption / truncation diagnostics
-/// (e.g. [`heston_call_price_fourier_with_settings`]) and use the diagnostics
-/// variant directly, so this convenience form is exercised only by tests.
-#[cfg(test)]
-fn heston_pj(
-    j: u8,
-    spot: f64,
-    strike: f64,
-    time: f64,
-    params: &HestonParams,
-    settings: &HestonFourierSettings,
-) -> f64 {
-    heston_pj_with_diagnostics(j, spot, strike, time, params, settings).probability
-}
-
 /// Price a European call option under the Heston model using Fourier inversion.
 ///
 /// # Arguments
@@ -1615,8 +1597,10 @@ mod tests {
 
         // Test various moneyness levels
         for strike in [80.0, 100.0, 120.0] {
-            let p1 = heston_pj(1, 100.0, strike, 1.0, &params, &settings);
-            let p2 = heston_pj(2, 100.0, strike, 1.0, &params, &settings);
+            let p1 =
+                heston_pj_with_diagnostics(1, 100.0, strike, 1.0, &params, &settings).probability;
+            let p2 =
+                heston_pj_with_diagnostics(2, 100.0, strike, 1.0, &params, &settings).probability;
 
             assert!(
                 (0.0..=1.0).contains(&p1),
@@ -2294,16 +2278,9 @@ mod tests {
         assert_eq!(cf.kappa, 2.0);
     }
 
-    /// Audit item 5: the scalar `heston_pj` Fourier path silently integrated
-    /// overflow-zeroed characteristic-function nodes (`Complex::ZERO`) into a
-    /// finite-but-wrong probability — unlike the strip pricer, which counts
-    /// corrupted nodes and falls back to Black-Scholes.
-    ///
-    /// Failure mode locked in: with parameters that overflow the characteristic
-    /// function on a large fraction of integration nodes, the scalar
-    /// `heston_call_price_fourier_with_settings` must degrade to the same
-    /// Black-Scholes fallback the strip pricer uses, not return a plausible
-    /// mass-losing Fourier price.
+    /// The scalar and strip Fourier paths both fall back to Black-Scholes when
+    /// characteristic-function nodes overflow rather than returning a price
+    /// computed from incomplete probability mass.
     #[test]
     fn scalar_fourier_falls_back_to_bs_on_corrupted_nodes() {
         // Same extreme parameter set the strip-pricer corruption test uses:
