@@ -6,9 +6,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-// =============================================================================
 // Suite-level types
-// =============================================================================
 
 /// A golden test suite containing metadata and test cases.
 ///
@@ -169,9 +167,7 @@ pub struct ValidatedInfo {
     pub notes: Option<String>,
 }
 
-// =============================================================================
 // Case-level types
-// =============================================================================
 
 /// Optional metadata for individual test cases.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -193,9 +189,7 @@ pub struct CaseMeta {
     pub extra: HashMap<String, serde_json::Value>,
 }
 
-// =============================================================================
 // Comparison types
-// =============================================================================
 
 /// Tolerance specification for numeric comparisons.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

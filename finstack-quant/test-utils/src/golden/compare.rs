@@ -6,9 +6,7 @@
 use crate::golden::types::{Expectation, SuiteMeta, Tolerance};
 use crate::Error;
 
-// =============================================================================
 // Core assertion functions
-// =============================================================================
 
 /// Assert that actual is within tolerance of expected.
 ///
@@ -128,9 +126,7 @@ pub fn assert_abs(
     )
 }
 
-// =============================================================================
 // Context-aware assertion builder
-// =============================================================================
 
 /// Builder for golden test assertions with suite context.
 ///

@@ -9,9 +9,7 @@ use serde::de::DeserializeOwned;
 use std::fs;
 use std::path::Path;
 
-// =============================================================================
 // Core loaders
-// =============================================================================
 
 /// Load a golden suite from a JSON file.
 ///
@@ -80,9 +78,7 @@ where
     })
 }
 
-// =============================================================================
 // Path utilities
-// =============================================================================
 
 /// Construct a path to a golden data file relative to CARGO_MANIFEST_DIR.
 ///
@@ -104,9 +100,7 @@ pub fn golden_path(manifest_dir: &str, relative_path: &str) -> std::path::PathBu
         .join(relative_path)
 }
 
-// =============================================================================
 // Macros for path construction
-// =============================================================================
 
 /// Macro to construct a path to a golden file relative to the calling crate.
 ///
