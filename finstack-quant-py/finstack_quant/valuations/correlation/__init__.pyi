@@ -1896,7 +1896,8 @@ def simulate_portfolio_loss(
     Returns
     -------
     PortfolioLossResult
-        Result of simulate portfolio loss for the binding in the annotated representation.
+        Path losses in path-index order together with loss-positive expected
+        loss, nearest-rank VaR, expected shortfall, and the configured confidence.
 
     Raises
     ------

@@ -968,7 +968,8 @@ class ScenarioResultSet:
         Returns
         -------
         StatementResult | None
-            Result of get for this `ScenarioResultSet` in the annotated representation.
+            Evaluated statement result for ``name``, or ``None`` when the
+            result set has no scenario with that name.
 
         """
         ...
@@ -1854,7 +1855,8 @@ class DependencyTracer:
         Returns
         -------
         str
-            Result of dependency tree for this `DependencyTracer` in the annotated representation.
+            Multi-line ASCII tree rooted at ``node_id`` and containing its
+            complete upstream dependency hierarchy.
 
         Raises
         ------
@@ -1880,7 +1882,8 @@ class DependencyTracer:
         Returns
         -------
         str
-            Result of dependency tree detailed for this `DependencyTracer` in the annotated representation.
+            Multi-line ASCII dependency tree whose nodes are annotated with
+            values from ``results`` for ``period``.
 
         Raises
         ------
@@ -1902,7 +1905,7 @@ class DependencyTracer:
         Returns
         -------
         list[str]
-            Result of direct dependencies for this `DependencyTracer` in the annotated representation.
+            Statement node IDs referenced directly by ``node_id``.
 
         Raises
         ------
@@ -1923,7 +1926,8 @@ class DependencyTracer:
         Returns
         -------
         list[str]
-            Result of all dependencies for this `DependencyTracer` in the annotated representation.
+            Direct and transitive upstream node IDs in dependency order, with
+            dependencies preceding their dependents.
 
         Raises
         ------
@@ -1944,7 +1948,7 @@ class DependencyTracer:
         Returns
         -------
         list[str]
-            Result of dependents for this `DependencyTracer` in the annotated representation.
+            Statement node IDs that directly depend on ``node_id``.
 
         Raises
         ------
@@ -2900,7 +2904,8 @@ class ScorecardMetric:
         Returns
         -------
         str
-            Result of thresholds json for this `ScorecardMetric` in the annotated representation.
+            JSON object mapping rating labels to two-element lower and upper
+            threshold arrays.
         """
         ...
     def to_json(self) -> str:
@@ -3157,7 +3162,8 @@ class ScorecardReport:
         Returns
         -------
         str
-            Result of data json for this `ScorecardReport` in the annotated representation.
+            JSON serialization of the structured scorecard payload, including
+            the rated period, metric scores, rating, partial flag, and weight coverage.
         """
         ...
     def to_json(self) -> str:
@@ -3233,7 +3239,7 @@ class CreditScorecardExtension:
         Returns
         -------
         CreditScorecardExtension
-            Result of with config for this `CreditScorecardExtension` in the annotated representation.
+            New extension preloaded with ``config``.
 
         Examples
         --------
@@ -3278,7 +3284,8 @@ class CreditScorecardExtension:
         Returns
         -------
         ScorecardReport
-            Result of execute for this `CreditScorecardExtension` in the annotated representation.
+            Scorecard status, diagnostics, rating, and per-metric results for
+            the supplied model evaluation.
 
         Raises
         ------
@@ -3343,7 +3350,7 @@ class AccountType:
         Returns
         -------
         AccountType
-            Result of from str for this `AccountType` in the annotated representation.
+            Enum member corresponding to the exact snake-case account type.
 
         Raises
         ------
@@ -3365,7 +3372,7 @@ class AccountType:
         Returns
         -------
         str
-            Result of value for this `AccountType` in the annotated representation.
+            Exact JSON identifier: ``"asset"``, ``"liability"``, or ``"equity"``.
         """
         ...
 
@@ -3682,7 +3689,8 @@ class CorkscrewReport:
         Returns
         -------
         str
-            Result of data json for this `CorkscrewReport` in the annotated representation.
+            JSON serialization of the structured reconciliation payload,
+            including account-level balance checks and differences.
         """
         ...
     def to_json(self) -> str:
@@ -3758,7 +3766,7 @@ class CorkscrewExtension:
         Returns
         -------
         CorkscrewExtension
-            Result of with config for this `CorkscrewExtension` in the annotated representation.
+            New extension preloaded with ``config``.
 
         Examples
         --------
@@ -3803,7 +3811,8 @@ class CorkscrewExtension:
         Returns
         -------
         CorkscrewReport
-            Result of execute for this `CorkscrewExtension` in the annotated representation.
+            Reconciliation status, diagnostics, and account-level roll-forward
+            results for the supplied model evaluation.
 
         Raises
         ------
@@ -4563,7 +4572,7 @@ class LeaseGrowthConvention:
         Returns
         -------
         LeaseGrowthConvention
-            Result of from str for this `LeaseGrowthConvention` in the annotated representation.
+            Enum member corresponding to the exact snake-case growth convention.
 
         Raises
         ------
@@ -4585,7 +4594,8 @@ class LeaseGrowthConvention:
         Returns
         -------
         str
-            Result of value for this `LeaseGrowthConvention` in the annotated representation.
+            Exact JSON identifier, either ``"per_period"`` or
+            ``"annual_escalator"``.
         """
         ...
 
@@ -4986,7 +4996,7 @@ class ManagementFeeBase:
         Returns
         -------
         ManagementFeeBase
-            Result of from str for this `ManagementFeeBase` in the annotated representation.
+            Enum member corresponding to the exact snake-case fee basis.
 
         Raises
         ------
@@ -5008,7 +5018,7 @@ class ManagementFeeBase:
         Returns
         -------
         str
-            Result of value for this `ManagementFeeBase` in the annotated representation.
+            Exact JSON identifier, either ``"egi"`` or ``"effective_rent"``.
         """
         ...
 

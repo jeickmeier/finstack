@@ -440,8 +440,9 @@ class PnlAttribution:
         Returns
         -------
         bool
-
-            Result of residual within meta tolerance for this `PnlAttribution` in the annotated representation.
+            ``True`` when the residual satisfies the absolute or percentage
+            tolerance stored in the attribution metadata; ``False`` for an
+            invalid result or an out-of-tolerance residual.
         """
         ...
 

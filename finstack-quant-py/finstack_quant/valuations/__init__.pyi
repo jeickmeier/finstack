@@ -279,7 +279,8 @@ class ValuationResult:
         Returns
         -------
         list[tuple[list[str], float]]
-            Result of metric series for this `ValuationResult` in the annotated representation.
+            Ordered ``(coordinate_components, value)`` pairs for matching
+            composite metrics; the scalar aggregate stored at ``base`` is omitted.
         """
         ...
 
@@ -2108,7 +2109,8 @@ def inverse_floater_coupon_profile(
     Returns
     -------
     list[float]
-        Result of inverse floater coupon profile for the binding in the annotated representation.
+        Coupon rate for each fixing after applying ``fixed_rate - leverage *
+        fixing`` and clamping the result to ``[floor, cap]``.
 
     Raises
     ------
