@@ -1,7 +1,7 @@
 ---
 trigger: glob
 description:
-globs: *.tsx,*.ts,*.js
+globs: "*.tsx,*.ts,*.js"
 ---
 
 # JavaScript/TypeScript Usage Standards for finstack-quant-wasm
