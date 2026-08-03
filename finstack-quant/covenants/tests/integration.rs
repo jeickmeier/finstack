@@ -14,9 +14,7 @@ use finstack_quant_covenants::{
     CovenantType, HashMapMetricSource, ThresholdTest,
 };
 
-// =============================================================================
 // CovenantReport Construction Tests
-// =============================================================================
 
 #[test]
 fn test_covenant_report_smoke() {
@@ -52,9 +50,7 @@ fn covenant_report_failed_with_negative_headroom() {
     assert!(report.headroom.unwrap() < 0.0);
 }
 
-// =============================================================================
 // Headroom Calculation Tests
-// =============================================================================
 
 #[test]
 fn headroom_calculation_max_covenant() {
@@ -94,9 +90,7 @@ fn headroom_calculation_min_covenant() {
     );
 }
 
-// =============================================================================
 // CovenantEngine Spec Management Tests
-// =============================================================================
 
 #[test]
 fn covenant_engine_add_specs() {
@@ -191,9 +185,7 @@ fn covenant_description_formatting() {
     assert_eq!(custom.description(), "DSCR >= 1.20");
 }
 
-// =============================================================================
 // Covenant Type Pass/Fail Logic Tests
-// =============================================================================
 
 #[test]
 fn max_covenant_type_pass_fail_logic() {
@@ -249,9 +241,7 @@ fn min_covenant_type_pass_fail_logic() {
     );
 }
 
-// =============================================================================
 // Covenant Consequence Tests
-// =============================================================================
 
 #[test]
 fn covenant_with_multiple_consequences() {
@@ -269,9 +259,7 @@ fn covenant_with_multiple_consequences() {
     assert_eq!(covenant.cure_period_days, Some(30));
 }
 
-// =============================================================================
 // Covenant Scope Tests
-// =============================================================================
 
 #[test]
 fn covenant_scope_maintenance_vs_incurrence() {
@@ -292,9 +280,7 @@ fn covenant_scope_maintenance_vs_incurrence() {
     assert_eq!(incurrence.scope, CovenantScope::Incurrence);
 }
 
-// =============================================================================
 // Basket Covenant Tests
-// =============================================================================
 
 #[test]
 fn basket_covenant_utilization() {
@@ -321,9 +307,7 @@ fn basket_covenant_utilization() {
     assert!((available - 15_000_000.0).abs() < 1.0, "15M available");
 }
 
-// =============================================================================
 // Threshold Test Variants
-// =============================================================================
 
 #[test]
 fn threshold_test_maximum() {

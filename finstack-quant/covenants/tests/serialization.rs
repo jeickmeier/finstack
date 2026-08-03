@@ -30,9 +30,7 @@ where
     serde_json::from_str(&json).expect("deserialize from JSON")
 }
 
-// ============================================================================
 // mod_types.rs
-// ============================================================================
 
 #[test]
 fn covenant_report_roundtrip() {
@@ -57,9 +55,7 @@ fn covenant_report_passed_roundtrip() {
     assert_eq!(report, rt);
 }
 
-// ============================================================================
 // engine.rs
-// ============================================================================
 
 #[test]
 fn covenant_scope_roundtrip() {
@@ -364,9 +360,7 @@ fn consequence_application_roundtrip() {
     assert_eq!(application, rt);
 }
 
-// ============================================================================
 // forward.rs
-// ============================================================================
 
 #[test]
 fn bound_kind_roundtrip() {
@@ -482,9 +476,7 @@ fn future_breach_roundtrip() {
     assert_eq!(breach, rt);
 }
 
-// ============================================================================
 // schedule.rs
-// ============================================================================
 
 #[test]
 fn threshold_schedule_roundtrip() {
@@ -528,9 +520,7 @@ fn threshold_schedule_deserialization_uses_constructor_validation() {
     assert!(error.to_string().contains("duplicate date"));
 }
 
-// ============================================================================
 // Complex nested structures
-// ============================================================================
 
 #[test]
 fn complex_covenant_package_roundtrip() {
