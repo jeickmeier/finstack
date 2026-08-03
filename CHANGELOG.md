@@ -4,6 +4,13 @@
 
 ### Changed
 
+- **Breaking (Rust):** Simplified the valuations surface. Use
+  `schema::instrument_schema("bond")`, `TreePricer::calculate_oas`, and the
+  free `solve_ytm` function in place of the removed bond wrappers and YTM
+  solver objects. Tranche loss methods now use their stored balance, the
+  valuations prelude no longer re-exports the core prelude, unused constants
+  were removed, and rate-exotic Monte Carlo settings must be constructed as
+  typed `RateExoticMcConfig` values.
 - **Breaking (Rust):** Removed low-value public aliases and helpers from the
   foundational crates: use `analytics::regression::constrained_least_squares`
   and the correlation crate-root exports; construct `DatedSeries` with its
