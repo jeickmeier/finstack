@@ -183,7 +183,6 @@ matching           = { python = "finstack_quant.factor_model.matching", status =
 credit             = { python = "finstack_quant.factor_model.credit", status = "exists", note = "CreditFactorModel, CreditCalibrator, LevelsAtDate, PeriodDecomposition, FactorCovarianceForecast, decompose_levels, decompose_period." }
 config             = { python = "finstack_quant.factor_model.config", status = "missing", note = "FactorModelConfig is consumed as JSON via portfolio risk bindings; no typed host-language constructors." }
 covariance         = { python = "finstack_quant.factor_model.covariance", status = "missing", note = "FactorCovarianceMatrix is JSON-only at the binding boundary (produced by FactorCovarianceForecast.covariance_at)." }
-error              = { python = "finstack_quant.factor_model.error", status = "missing", note = "FactorModelError surfaces as Python exceptions via the centralized error mapping; not a host-language module." }
 sensitivity_matrix = { python = "finstack_quant.factor_model.sensitivity_matrix", status = "missing", note = "Sensitivity-matrix assembly is Rust-internal to the portfolio risk pipeline." }
 
 # ---------------------------------------------------------------------------

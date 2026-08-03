@@ -4,6 +4,10 @@
 
 ### Changed
 
+- **Breaking (Rust):** Removed the unused `FactorModelError` hierarchy. Factor-model
+  workflows continue to return their canonical core or portfolio errors, and
+  `UnmatchedPolicy` remains available at the factor-model crate root with the
+  same `snake_case` JSON representation.
 - **Breaking (Rust):** Renamed the serialize-only scenario outputs
   `ScenarioRevalueEnvelope` and `ScenarioPnlEnvelope` to
   `ScenarioRevalueView` and `ScenarioPnlView`, and renamed their helpers to

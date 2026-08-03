@@ -21,9 +21,8 @@ factor-model/
 ├── matching/               # Mapping-table, cascade, hierarchy matchers
 ├── credit/                 # Credit hierarchy, calibration, decomposition
 ├── calibration/            # Shared calibrator trait shape
-├── config.rs               # FactorModelConfig, RiskMeasure, bump config
+├── config.rs               # FactorModelConfig, RiskMeasure, unmatched policy, bump config
 ├── covariance.rs           # FactorCovarianceMatrix
-├── error.rs                # FactorModelError, UnmatchedPolicy
 └── sensitivity_matrix.rs   # SensitivityMatrix: positions × factors
 ```
 

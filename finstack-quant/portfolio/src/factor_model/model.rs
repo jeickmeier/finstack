@@ -36,8 +36,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_factor_model::matching::ISSUER_ID_META_KEY;
 use finstack_quant_factor_model::{
     BumpSizeConfig, CurveType, FactorCovarianceMatrix, FactorDefinition, FactorModelConfig,
-    FactorModelError, FactorType, MarketDependency, MatchingConfig, PricingMode, RiskMeasure,
-    UnmatchedPolicy,
+    FactorType, MarketDependency, MatchingConfig, PricingMode, RiskMeasure, UnmatchedPolicy,
 };
 use finstack_quant_valuations::calibration::bumps::{bump_hazard_shift, BumpRequest};
 use finstack_quant_valuations::instruments::dependencies_flatten::decompose as flatten_dependencies;
@@ -264,11 +263,10 @@ impl FactorModel {
 
             if self.unmatched_policy == UnmatchedPolicy::Strict && !position_unmatched.is_empty() {
                 let first_unmatched = &position_unmatched[0];
-                let message = FactorModelError::UnmatchedDependency {
-                    position_id: first_unmatched.position_id.to_string(),
-                    dependency: first_unmatched.dependency.clone(),
-                }
-                .to_string();
+                let message = format!(
+                    "No factor matched dependency {:?} for position '{}'",
+                    first_unmatched.dependency, first_unmatched.position_id
+                );
                 return Err(Error::invalid_input(message));
             }
 

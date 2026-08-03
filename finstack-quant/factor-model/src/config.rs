@@ -10,12 +10,62 @@ use super::covariance::FactorCovarianceMatrix;
 use super::matching::MatchingConfig;
 use super::primitives::definition::FactorDefinition;
 use super::primitives::factor_types::{FactorId, FactorType};
-use super::UnmatchedPolicy;
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
+
+/// Policy for handling dependencies that do not match any factor.
+///
+/// Serializes in `snake_case`, matching the crate-wide wire convention and
+/// this type's own `Display`/`FromStr` representation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum UnmatchedPolicy {
+    /// Fail immediately when any dependency is unmatched.
+    ///
+    /// Use this in production risk runs where dropping unmapped risk would be a
+    /// control failure.
+    Strict,
+    /// Roll unmatched risk into a residual bucket.
+    ///
+    /// Use this when the engine should preserve total exposure while making the
+    /// unmatched component explicit as residual risk.
+    #[default]
+    Residual,
+    /// Continue but surface a warning to the caller.
+    ///
+    /// Suitable for exploratory workflows where visibility matters but a hard
+    /// failure would be too disruptive.
+    Warn,
+}
+
+impl fmt::Display for UnmatchedPolicy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Strict => write!(f, "strict"),
+            Self::Residual => write!(f, "residual"),
+            Self::Warn => write!(f, "warn"),
+        }
+    }
+}
+
+impl FromStr for UnmatchedPolicy {
+    type Err = finstack_quant_core::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "strict" => Ok(Self::Strict),
+            "residual" => Ok(Self::Residual),
+            "warn" => Ok(Self::Warn),
+            _ => Err(finstack_quant_core::Error::Validation(format!(
+                "UnmatchedPolicy: unknown label {s:?}"
+            ))),
+        }
+    }
+}
 
 /// Strategy used when extracting factor sensitivities.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -419,6 +469,62 @@ mod tests {
     };
     use finstack_quant_core::market_data::bumps::BumpUnits;
     use finstack_quant_core::types::CurveId;
+
+    #[test]
+    fn test_unmatched_policy_default() {
+        assert_eq!(UnmatchedPolicy::default(), UnmatchedPolicy::Residual);
+    }
+
+    #[test]
+    fn test_unmatched_policy_serde() {
+        let policy = UnmatchedPolicy::Strict;
+        let json_result = serde_json::to_string(&policy);
+        assert!(json_result.is_ok());
+        let Ok(json) = json_result else {
+            return;
+        };
+
+        let back_result: Result<UnmatchedPolicy, _> = serde_json::from_str(&json);
+        assert!(back_result.is_ok());
+        let Ok(back) = back_result else {
+            return;
+        };
+        assert_eq!(policy, back);
+    }
+
+    #[test]
+    fn test_unmatched_policy_fromstr_display_roundtrip() {
+        for (input, expected) in [
+            ("strict", UnmatchedPolicy::Strict),
+            ("residual", UnmatchedPolicy::Residual),
+            ("warn", UnmatchedPolicy::Warn),
+        ] {
+            assert!(matches!(input.parse::<UnmatchedPolicy>(), Ok(value) if value == expected));
+        }
+
+        for variant in [
+            UnmatchedPolicy::Strict,
+            UnmatchedPolicy::Residual,
+            UnmatchedPolicy::Warn,
+        ] {
+            let display = variant.to_string();
+            assert!(matches!(display.parse::<UnmatchedPolicy>(), Ok(value) if value == variant));
+        }
+    }
+
+    #[test]
+    fn test_unmatched_policy_fromstr_rejects_unknown() {
+        for rejected in ["error", "ignore", "Strict", " warn"] {
+            assert!(rejected.parse::<UnmatchedPolicy>().is_err());
+        }
+    }
+
+    #[test]
+    fn unmatched_policy_serializes_snake_case_and_rejects_pascal_case() {
+        let json = serde_json::to_string(&UnmatchedPolicy::Strict).unwrap_or_default();
+        assert_eq!(json, "\"strict\"");
+        assert!(serde_json::from_str::<UnmatchedPolicy>("\"Residual\"").is_err());
+    }
 
     #[test]
     fn test_risk_measure_serde_roundtrip_for_all_variants() {

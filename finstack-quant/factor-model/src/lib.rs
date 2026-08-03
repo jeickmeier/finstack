@@ -13,9 +13,8 @@
 //! | [`primitives`] | `FactorId`, `FactorType`, `FactorDefinition`, market dependencies |
 //! | [`matching`] | Mapping-table, cascade, and hierarchy matchers for dependency-to-factor resolution |
 //! | [`credit`] | Credit hierarchy artifacts, calibration, and spread decomposition |
-//! | [`config`] | `FactorModelConfig`, `RiskMeasure`, `PricingMode`, bump sizing |
+//! | [`config`] | `FactorModelConfig`, `RiskMeasure`, `PricingMode`, unmatched policy, bump sizing |
 //! | [`covariance`] | `FactorCovarianceMatrix` with symmetry and PSD validation |
-//! | [`error`] | `FactorModelError` and `UnmatchedPolicy` |
 //! | [`sensitivity_matrix`] | `SensitivityMatrix`: positions × factors dense layout |
 //!
 //! # Quick Start
@@ -78,8 +77,6 @@ pub mod covariance;
 pub mod credit;
 /// Versioned persistence envelope for factor-model configuration.
 pub mod envelope;
-/// Factor-model specific error and unmatched-dependency policy types.
-pub mod error;
 /// Matching primitives and built-in matcher components.
 pub mod matching;
 /// Generic factor identifiers, definitions, and market dependencies.
@@ -89,12 +86,13 @@ pub mod schema;
 /// Positions × factors sensitivity matrix storage.
 pub mod sensitivity_matrix;
 
-pub use config::{BumpSizeConfig, FactorBumpUnit, FactorModelConfig, PricingMode, RiskMeasure};
+pub use config::{
+    BumpSizeConfig, FactorBumpUnit, FactorModelConfig, PricingMode, RiskMeasure, UnmatchedPolicy,
+};
 pub use covariance::FactorCovarianceMatrix;
 pub use envelope::{
     FactorModelConfigEnvelope, FactorModelConfigSchema, FACTOR_MODEL_CONFIG_CONTRACT,
 };
-pub use error::{FactorModelError, UnmatchedPolicy};
 pub use matching::{
     bucket_factor_id, AttributeFilter, CascadeMatcher, CreditHierarchicalConfig, DependencyFilter,
     FactorMatchEntry, FactorMatchError, FactorMatcher, FactorNode, HierarchicalConfig,
