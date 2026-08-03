@@ -796,9 +796,7 @@ pub trait Discretization<P: StochasticProcess + ?Sized>: Send + Sync {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Pricing-specific traits
-// ---------------------------------------------------------------------------
 
 /// Payoff computation with currency safety.
 ///

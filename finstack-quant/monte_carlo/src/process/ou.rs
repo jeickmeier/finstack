@@ -312,9 +312,7 @@ impl StochasticProcess for HullWhite1FProcess {
     }
 }
 
-// ============================================================================
 // Curve-Derived θ(t) Calibration
-// ============================================================================
 
 /// Build Hull-White 1F parameters with θ(t) derived from a discount curve.
 ///
@@ -773,9 +771,7 @@ mod tests {
         }
     }
 
-    // ========================================================================
     // Hull-White drift initial-curve fit
-    // ========================================================================
 
     /// Behavioural regression for the Vasicek / Brigo-Mercurio θ
     /// convention split.

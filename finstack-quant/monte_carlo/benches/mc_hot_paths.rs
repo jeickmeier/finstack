@@ -33,9 +33,7 @@ use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_monte_carlo::traits::Discretization;
 use std::hint::black_box;
 
-// ---------------------------------------------------------------------------
 // European pricer: GBM + ExactGbm at various path counts
-// ---------------------------------------------------------------------------
 
 fn bench_european_pricer(c: &mut Criterion) {
     let mut group = c.benchmark_group("european_pricer");
@@ -57,9 +55,7 @@ fn bench_european_pricer(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // LSMC: American put backward induction at various path counts
-// ---------------------------------------------------------------------------
 
 fn bench_lsmc_pricer(c: &mut Criterion) {
     let mut group = c.benchmark_group("lsmc_pricer");
@@ -97,9 +93,7 @@ fn bench_lsmc_pricer(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // LSQ regression: SVD solve at various observation counts
-// ---------------------------------------------------------------------------
 
 fn bench_lsq_regression(c: &mut Criterion) {
     let mut group = c.benchmark_group("lsq_regression");
@@ -124,11 +118,9 @@ fn bench_lsq_regression(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // Heston QE: stochastic-vol European pricing via the generic engine.
 // Exercises populate_path_state (default impl), the QE variance step, and the
 // per-step dt-constant transcendentals.
-// ---------------------------------------------------------------------------
 
 fn bench_heston_qe_pricer(c: &mut Criterion) {
     let mut group = c.benchmark_group("heston_qe_pricer");
@@ -164,11 +156,9 @@ fn bench_heston_qe_pricer(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // Rough Heston hybrid step: the O(n^2)-per-path Volterra discretization.
 // Drives a single 252-step path's worth of `step()` calls, mirroring the
 // engine's per-path loop, isolating the discretization cost.
-// ---------------------------------------------------------------------------
 
 fn bench_rough_heston_step(c: &mut Criterion) {
     let mut group = c.benchmark_group("rough_heston_step");
@@ -204,10 +194,8 @@ fn bench_rough_heston_step(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // Hull-White 1F exact: a short-rate exact scheme whose per-step cost is
 // dominated by the `dt`-dependent transcendentals hoisted by `prepare`.
-// ---------------------------------------------------------------------------
 
 fn bench_hw1f_pricer(c: &mut Criterion) {
     let mut group = c.benchmark_group("hw1f_pricer");

@@ -300,9 +300,7 @@ where
     Ok((gamma, stderr))
 }
 
-// ---------------------------------------------------------------------------
 // CRN-paired finite differences (true CRN stderr)
-// ---------------------------------------------------------------------------
 
 /// Run a paired CRN finite-difference loop and return per-path payoff
 /// differences for each of `n_states` initial-state perturbations.

@@ -33,9 +33,7 @@ use finstack_quant_core::math::fractional::{
 use finstack_quant_core::{Error, Result};
 use nalgebra::DMatrix;
 
-// ---------------------------------------------------------------------------
 // FractionalNoiseGenerator trait
-// ---------------------------------------------------------------------------
 
 /// Generates correlated fractional Brownian motion increments from i.i.d. normals.
 ///
@@ -76,9 +74,7 @@ pub trait FractionalNoiseGenerator: Send + Sync {
     fn hurst(&self) -> f64;
 }
 
-// ---------------------------------------------------------------------------
 // CholeskyFbm
-// ---------------------------------------------------------------------------
 
 /// Exact fBM generator via Cholesky decomposition of the increment covariance matrix.
 ///
@@ -163,9 +159,7 @@ impl FractionalNoiseGenerator for CholeskyFbm {
     }
 }
 
-// ---------------------------------------------------------------------------
 // HybridFbm
-// ---------------------------------------------------------------------------
 
 /// Configuration for the hybrid fBM generator.
 #[derive(Debug, Clone, Default)]
@@ -379,9 +373,7 @@ impl FractionalNoiseGenerator for HybridFbm {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Canonical auto-selecting factory
-// ---------------------------------------------------------------------------
 
 /// Number of steps below which the auto factory uses exact Cholesky generation.
 pub const FBM_AUTO_CHOLESKY_MAX_STEPS: usize = 199;
@@ -419,9 +411,7 @@ pub fn create_fbm_generator(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// Validate that a time grid is strictly increasing with at least two finite
 /// non-negative values.
@@ -453,9 +443,7 @@ fn auto_near_field_size(n: usize) -> usize {
     sqrt_n.clamp(10, 50)
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
