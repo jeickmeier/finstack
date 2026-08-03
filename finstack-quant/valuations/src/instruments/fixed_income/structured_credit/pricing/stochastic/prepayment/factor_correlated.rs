@@ -23,12 +23,9 @@
 //! - Factor loading (β): 0.3-0.5
 //! - CPR volatility (σ): 0.15-0.30
 
-#![allow(dead_code)]
-
 use super::traits::StochasticPrepayment;
 use crate::cashflow::builder::specs::{PrepaymentCurve, PrepaymentModelSpec};
 use crate::instruments::fixed_income::structured_credit::utils::rates::clamped_cpr_to_smm;
-use finstack_quant_core::types::Percentage;
 
 /// Factor-correlated prepayment model.
 ///
@@ -61,47 +58,6 @@ impl FactorCorrelatedPrepay {
             factor_loading: factor_loading.clamp(-1.0, 1.0),
             cpr_volatility: cpr_volatility.clamp(0.0, 1.0),
         }
-    }
-
-    /// Create a factor-correlated prepayment model with typed volatility.
-    pub(crate) fn new_typed(
-        base_spec: PrepaymentModelSpec,
-        factor_loading: f64,
-        cpr_volatility: Percentage,
-    ) -> Self {
-        Self {
-            base_spec,
-            factor_loading: factor_loading.clamp(-1.0, 1.0),
-            cpr_volatility: cpr_volatility.as_decimal().clamp(0.0, 1.0),
-        }
-    }
-
-    /// Create with RMBS-standard calibration.
-    ///
-    /// Uses 100% PSA as base with:
-    /// - Factor loading: 0.4
-    /// - CPR volatility: 0.20
-    pub(crate) fn rmbs_standard(base_spec: PrepaymentModelSpec) -> Self {
-        Self::new(base_spec, 0.4, 0.20)
-    }
-
-    /// Create with CLO-standard calibration.
-    ///
-    /// Uses lower factor loading (loans less rate-sensitive):
-    /// - Factor loading: 0.25
-    /// - CPR volatility: 0.15
-    pub(crate) fn clo_standard(base_spec: PrepaymentModelSpec) -> Self {
-        Self::new(base_spec, 0.25, 0.15)
-    }
-
-    /// Get the base prepayment specification.
-    pub(crate) fn base_spec(&self) -> &PrepaymentModelSpec {
-        &self.base_spec
-    }
-
-    /// Get the CPR volatility.
-    pub(crate) fn cpr_volatility(&self) -> f64 {
-        self.cpr_volatility
     }
 
     /// Get the base CPR at a given seasoning.
@@ -185,7 +141,7 @@ mod tests {
         let model = FactorCorrelatedPrepay::new(base, 0.4, 0.20);
 
         assert!((model.factor_loading() - 0.4).abs() < 1e-10);
-        assert!((model.cpr_volatility() - 0.20).abs() < 1e-10);
+        assert!((model.cpr_volatility - 0.20).abs() < 1e-10);
     }
 
     #[test]
@@ -254,16 +210,5 @@ mod tests {
 
         let smm = model.conditional_smm(12, &[2.0], 0.05, 1.0);
         assert!(smm.abs() < 1e-10);
-    }
-
-    #[test]
-    fn test_standard_calibrations() {
-        let base = PrepaymentModelSpec::psa(1.0);
-
-        let rmbs = FactorCorrelatedPrepay::rmbs_standard(base.clone());
-        assert!((rmbs.factor_loading() - 0.4).abs() < 1e-10);
-
-        let clo = FactorCorrelatedPrepay::clo_standard(base);
-        assert!((clo.factor_loading() - 0.25).abs() < 1e-10);
     }
 }

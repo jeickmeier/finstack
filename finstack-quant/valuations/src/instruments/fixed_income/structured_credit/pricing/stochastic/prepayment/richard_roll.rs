@@ -33,12 +33,9 @@
 //! - Richard, S.F., & Roll, R. (1989). "Prepayments on Fixed-Rate Mortgage-Backed Securities."
 //!   *Journal of Portfolio Management*, 15(3), 9-14.
 
-#![allow(dead_code)]
-
 use super::super::calibrations::rmbs_standard;
 use super::traits::StochasticPrepayment;
 use crate::instruments::fixed_income::structured_credit::utils::rates::clamped_cpr_to_smm;
-use finstack_quant_core::types::{Percentage, Rate};
 
 /// Richard-Roll prepayment model for RMBS.
 ///
@@ -64,11 +61,6 @@ pub(crate) struct RichardRollPrepay {
     cpr_volatility: f64,
     /// Ramp months (typically 30 for PSA-like ramp)
     ramp_months: u32,
-    /// Calendar month of pool origination (1-12). Used to map seasoning to
-    /// the calendar month for the seasonality multiplier. When unset,
-    /// seasonality falls back to keying off `seasoning % 12` (origination
-    /// assumed in January).
-    origination_month: Option<u32>,
 }
 
 impl RichardRollPrepay {
@@ -95,28 +87,6 @@ impl RichardRollPrepay {
             factor_loading: 0.4,
             cpr_volatility: 0.20,
             ramp_months: 30,
-            origination_month: None,
-        }
-    }
-
-    /// Create a Richard-Roll prepayment model using typed rates.
-    pub(crate) fn new_typed(
-        base_cpr: Percentage,
-        refi_sensitivity: f64,
-        pool_coupon: Rate,
-        burnout_rate: Percentage,
-    ) -> Self {
-        Self {
-            base_cpr: base_cpr.as_decimal().clamp(0.0, 1.0),
-            refi_sensitivity: refi_sensitivity.clamp(0.0, 10.0),
-            refi_slope: 20.0,
-            pool_coupon: pool_coupon.as_decimal(),
-            burnout_rate: burnout_rate.as_decimal().clamp(0.0, 1.0),
-            seasonality_amplitude: 0.0,
-            factor_loading: 0.4,
-            cpr_volatility: 0.20,
-            ramp_months: 30,
-            origination_month: None,
         }
     }
 
@@ -143,34 +113,6 @@ impl RichardRollPrepay {
             factor_loading: factor_loading.clamp(-1.0, 1.0),
             cpr_volatility: cpr_volatility.clamp(0.0, 1.0),
             ramp_months: ramp_months.max(1),
-            origination_month: None,
-        }
-    }
-
-    /// Create with full customization using typed rates.
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn with_all_params_typed(
-        base_cpr: Percentage,
-        refi_sensitivity: f64,
-        refi_slope: f64,
-        pool_coupon: Rate,
-        burnout_rate: Percentage,
-        seasonality_amplitude: Percentage,
-        factor_loading: f64,
-        cpr_volatility: Percentage,
-        ramp_months: u32,
-    ) -> Self {
-        Self {
-            base_cpr: base_cpr.as_decimal().clamp(0.0, 1.0),
-            refi_sensitivity: refi_sensitivity.clamp(0.0, 10.0),
-            refi_slope: refi_slope.clamp(1.0, 100.0),
-            pool_coupon: pool_coupon.as_decimal(),
-            burnout_rate: burnout_rate.as_decimal().clamp(0.0, 1.0),
-            seasonality_amplitude: seasonality_amplitude.as_decimal().clamp(0.0, 0.5),
-            factor_loading: factor_loading.clamp(-1.0, 1.0),
-            cpr_volatility: cpr_volatility.as_decimal().clamp(0.0, 1.0),
-            ramp_months: ramp_months.max(1),
-            origination_month: None,
         }
     }
 
@@ -195,57 +137,6 @@ impl RichardRollPrepay {
         )
     }
 
-    /// RMBS agency standard calibration using a typed pool coupon.
-    pub(crate) fn agency_standard_rate(pool_coupon: Rate) -> Self {
-        Self::agency_standard(pool_coupon.as_decimal())
-    }
-
-    /// RMBS non-agency calibration (higher voluntary prepay).
-    pub(crate) fn non_agency_standard(pool_coupon: f64) -> Self {
-        Self::new(0.08, 2.5, pool_coupon, 0.15)
-    }
-
-    /// RMBS non-agency calibration using a typed pool coupon.
-    pub(crate) fn non_agency_standard_rate(pool_coupon: Rate) -> Self {
-        Self {
-            base_cpr: 0.08,
-            refi_sensitivity: 2.5,
-            refi_slope: 20.0,
-            pool_coupon: pool_coupon.as_decimal(),
-            burnout_rate: 0.15,
-            seasonality_amplitude: 0.0,
-            factor_loading: 0.4,
-            cpr_volatility: 0.20,
-            ramp_months: 30,
-            origination_month: None,
-        }
-    }
-
-    /// Set the calendar month of pool origination (1-12).
-    ///
-    /// Enables calendar-correct seasonality: a pool originated in `month`
-    /// reaches calendar month `((month - 1 + seasoning) % 12) + 1` at a given
-    /// seasoning. Values outside 1-12 are clamped.
-    pub(crate) fn with_origination_month(mut self, month: u32) -> Self {
-        self.origination_month = Some(month.clamp(1, 12));
-        self
-    }
-
-    /// Get the base CPR.
-    pub(crate) fn base_cpr(&self) -> f64 {
-        self.base_cpr
-    }
-
-    /// Get the refinancing sensitivity.
-    pub(crate) fn refi_sensitivity(&self) -> f64 {
-        self.refi_sensitivity
-    }
-
-    /// Get the burnout rate.
-    pub(crate) fn burnout_rate(&self) -> f64 {
-        self.burnout_rate
-    }
-
     /// Calculate the refinancing incentive multiplier.
     ///
     /// Uses arctangent function for smooth, bounded response:
@@ -265,17 +156,6 @@ impl RichardRollPrepay {
             1.0
         } else {
             seasoning as f64 / self.ramp_months as f64
-        }
-    }
-
-    /// Calendar month (1-12) reached at the given seasoning.
-    ///
-    /// Anchored to `origination_month` when set; otherwise falls back to
-    /// `seasoning % 12 + 1` (origination assumed in January).
-    fn calendar_month(&self, seasoning: u32) -> u32 {
-        match self.origination_month {
-            Some(m0) => ((m0 - 1 + seasoning) % 12) + 1,
-            None => (seasoning % 12) + 1,
         }
     }
 
@@ -304,7 +184,7 @@ impl StochasticPrepayment for RichardRollPrepay {
         // Base CPR with multipliers
         let refi_mult = self.refi_multiplier(market_rate);
         let season_mult = self.seasoning_multiplier(seasoning);
-        let month_mult = self.seasonality_multiplier(self.calendar_month(seasoning));
+        let month_mult = self.seasonality_multiplier((seasoning % 12) + 1);
 
         let base_conditional_cpr = self.base_cpr * refi_mult * season_mult * month_mult * burnout;
 
@@ -323,7 +203,7 @@ impl StochasticPrepayment for RichardRollPrepay {
         // at-the-money convention changes.
         let refi_mult = self.refi_multiplier(self.pool_coupon);
         let season_mult = self.seasoning_multiplier(seasoning);
-        let month_mult = self.seasonality_multiplier(self.calendar_month(seasoning));
+        let month_mult = self.seasonality_multiplier((seasoning % 12) + 1);
         // Jensen correction: `conditional_smm` applies a lognormal factor
         // shock `e^{βσz}`, so E[shock] = e^{β²σ²/2}, not 1.
         let jensen = (0.5 * (self.factor_loading * self.cpr_volatility).powi(2)).exp();
@@ -418,9 +298,9 @@ mod tests {
     fn test_richard_roll_creation() {
         let model = RichardRollPrepay::new(0.06, 2.0, 0.045, 0.10);
 
-        assert!((model.base_cpr() - 0.06).abs() < 1e-10);
-        assert!((model.refi_sensitivity() - 2.0).abs() < 1e-10);
-        assert!((model.burnout_rate() - 0.10).abs() < 1e-10);
+        assert!((model.base_cpr - 0.06).abs() < 1e-10);
+        assert!((model.refi_sensitivity - 2.0).abs() < 1e-10);
+        assert!((model.burnout_rate - 0.10).abs() < 1e-10);
         assert!(model.has_burnout());
         assert!(model.is_rate_sensitive());
     }
@@ -497,11 +377,8 @@ mod tests {
     }
 
     #[test]
-    fn test_standard_calibrations() {
+    fn test_agency_standard_calibration() {
         let agency = RichardRollPrepay::agency_standard(0.045);
-        assert!((agency.base_cpr() - 0.06).abs() < 1e-10);
-
-        let non_agency = RichardRollPrepay::non_agency_standard(0.055);
-        assert!(non_agency.base_cpr() > agency.base_cpr());
+        assert!((agency.base_cpr - 0.06).abs() < 1e-10);
     }
 }
