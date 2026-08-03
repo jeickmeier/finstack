@@ -28,7 +28,7 @@ def main() -> None:
                 "cashflow_spec": {
                     "fixed": {
                         "coupon_type": "cash",
-                        "rate": 0.0425,
+                        "rate": "0.0425",
                         "frequency": {"count": 6, "unit": "months"},
                         "day_count": "30_360",
                         "business_day_convention": "following",
