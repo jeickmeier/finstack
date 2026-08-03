@@ -95,12 +95,6 @@ class AmortizationSpec:
         AmortizationSpec
             A linear-paydown amortization rule.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type or domain
-            constraints.
-
         Examples
         --------
         >>> from finstack_quant.cashflows.builder import AmortizationSpec
@@ -130,9 +124,11 @@ class AmortizationSpec:
 
         Raises
         ------
+        TypeError
+            If a schedule date does not expose integer ``year``, ``month``,
+            and ``day`` attributes.
         ValueError
-            If supplied inputs violate the documented type or domain
-            constraints.
+            If a schedule entry contains an invalid calendar date.
 
         Examples
         --------
@@ -160,12 +156,6 @@ class AmortizationSpec:
         -------
         AmortizationSpec
             A sinking-fund style amortization rule.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type or domain
-            constraints.
 
         Examples
         --------
@@ -195,9 +185,11 @@ class AmortizationSpec:
 
         Raises
         ------
+        TypeError
+            If an item date does not expose integer ``year``, ``month``,
+            and ``day`` attributes.
         ValueError
-            If supplied inputs violate the documented type or domain
-            constraints.
+            If an item contains an invalid calendar date.
 
         Examples
         --------
@@ -1005,9 +997,12 @@ class CouponType:
 
         Raises
         ------
+        TypeError
+            If either percentage is not a ``Decimal``, ``float``, or
+            ``int``.
         ValueError
-            If supplied inputs violate the documented type or domain
-            constraints.
+            If either percentage cannot be represented as a finite
+            ``Decimal``.
 
         Examples
         --------
@@ -1047,12 +1042,6 @@ class DefaultModelSpec:
         DefaultModelSpec
             A default model using a flat annual CDR.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type or domain
-            constraints.
-
         Examples
         --------
         >>> from finstack_quant.cashflows.builder import DefaultModelSpec
@@ -1075,12 +1064,6 @@ class DefaultModelSpec:
         -------
         DefaultModelSpec
             A default model driven by the SDA seasoning ramp.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type or domain
-            constraints.
 
         Examples
         --------
@@ -1195,12 +1178,6 @@ class FeeBase:
         FeeBase
             A fee base tied to the undrawn balance.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type or domain
-            constraints.
-
         Examples
         --------
         >>> from finstack_quant.cashflows.builder import FeeBase
@@ -1246,9 +1223,11 @@ class FeeSpec:
 
         Raises
         ------
+        TypeError
+            If *date* is not a date-like object exposing integer ``year``,
+            ``month``, and ``day`` attributes.
         ValueError
-            If supplied inputs violate the documented type or domain
-            constraints.
+            If *date* contains invalid calendar fields.
 
         Examples
         --------
@@ -1300,9 +1279,13 @@ class FeeSpec:
 
         Raises
         ------
+        TypeError
+            If *bp* is not a ``Decimal``, ``float``, or ``int``, or if a
+            convention argument is neither its documented wrapper nor a
+            string.
         ValueError
-            If supplied inputs violate the documented type or domain
-            constraints.
+            If *bp* cannot be represented as a finite ``Decimal``, or a
+            tenor or business-day convention string is invalid.
 
         Examples
         --------
@@ -1426,11 +1409,6 @@ class FloatingCouponSpec:
         coupon_type : CouponType, optional
             Cash (default), PIK, or split settlement.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type or domain
-            constraints.
         """
         ...
 
@@ -1483,9 +1461,10 @@ class FloatingRateFallback:
 
         Raises
         ------
+        TypeError
+            If *rate* is not a ``Decimal``, ``float``, or ``int``.
         ValueError
-            If supplied inputs violate the documented type or domain
-            constraints.
+            If *rate* cannot be represented as a finite ``Decimal``.
 
         Examples
         --------
@@ -1579,9 +1558,14 @@ class FloatingRateSpec:
 
         Raises
         ------
+        TypeError
+            If a decimal quote is not a ``Decimal``, ``float``, or ``int``,
+            or a tenor is neither a ``Tenor`` nor a string.
         ValueError
-            If supplied inputs violate the documented type, shape,
-            finite-value, or domain constraints.
+            If a decimal quote is not representable as a finite ``Decimal``,
+            or a tenor string is invalid.
+        OverflowError
+            If *reset_lag_days* is outside the signed 32-bit integer range.
         """
         ...
 
@@ -1763,9 +1747,8 @@ class OvernightCompoundingMethod:
 
         Raises
         ------
-        ValueError
-            If supplied inputs violate the documented type or domain
-            constraints.
+        OverflowError
+            If *lookback_days* is outside the unsigned 32-bit integer range.
 
         Examples
         --------
@@ -1792,9 +1775,8 @@ class OvernightCompoundingMethod:
 
         Raises
         ------
-        ValueError
-            If supplied inputs violate the documented type or domain
-            constraints.
+        OverflowError
+            If *lockout_days* is outside the unsigned 32-bit integer range.
 
         Examples
         --------
@@ -1823,9 +1805,8 @@ class OvernightCompoundingMethod:
 
         Raises
         ------
-        ValueError
-            If supplied inputs violate the documented type or domain
-            constraints.
+        OverflowError
+            If *shift_days* is outside the unsigned 32-bit integer range.
 
         Examples
         --------
@@ -1884,12 +1865,6 @@ class PrepaymentModelSpec:
         PrepaymentModelSpec
             A prepayment model using a flat annual CPR.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type or domain
-            constraints.
-
         Examples
         --------
         >>> from finstack_quant.cashflows.builder import PrepaymentModelSpec
@@ -1912,12 +1887,6 @@ class PrepaymentModelSpec:
         -------
         PrepaymentModelSpec
             A prepayment model driven by the PSA seasoning ramp.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type or domain
-            constraints.
 
         Examples
         --------
@@ -1964,9 +1933,8 @@ class PrepaymentModelSpec:
 
         Raises
         ------
-        ValueError
-            If supplied inputs violate the documented type or domain
-            constraints.
+        OverflowError
+            If *lockout_months* is outside the unsigned 32-bit integer range.
 
         Examples
         --------
@@ -2262,9 +2230,13 @@ class ScheduleParams:
 
         Raises
         ------
+        TypeError
+            If *frequency* or *business_day_convention* is neither the
+            documented wrapper type nor a string.
         ValueError
-            If supplied inputs violate the documented type, shape, or
-            domain constraints.
+            If a tenor or business-day convention string is invalid.
+        OverflowError
+            If *payment_lag_days* is outside the signed 32-bit integer range.
         """
         ...
 
@@ -2569,9 +2541,12 @@ class StepUpCouponSpec:
 
         Raises
         ------
+        TypeError
+            If a rate is not a ``Decimal``, ``float``, or ``int``, or a
+            step date is not date-like.
         ValueError
-            If supplied inputs violate the documented type, shape, or
-            domain constraints.
+            If a rate is not representable as a finite ``Decimal`` or a
+            step date contains invalid calendar fields.
         """
         ...
 
