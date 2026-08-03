@@ -92,9 +92,4 @@ pub use policy::{
 };
 
 // Re-export portfolio aggregation.
-//
-// NOTE: `portfolio::compute_waterfall_with_write_offs` is intentionally not
-// re-exported here yet: `analysis/mod.rs` re-exports this module's items by
-// explicit list, and adding it there is pending. Re-export both together to
-// avoid an unused-import lint on a dead re-export.
 pub use portfolio::{compute_waterfall, PortfolioEclResult, ProvisionWaterfall};

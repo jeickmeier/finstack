@@ -241,7 +241,8 @@ pub struct ProvisionWaterfall {
     pub cured_to_stage2: f64,
     /// Derecognitions (maturities, repayments, sales).
     pub derecognitions: f64,
-    /// Write-offs.
+    /// Write-offs, currently reported as `0.0` because disappearing exposures
+    /// are classified as derecognitions.
     pub write_offs: f64,
     /// Model/parameter changes (remeasurement, i.e., the residual).
     pub remeasurement: f64,
@@ -253,9 +254,7 @@ pub struct ProvisionWaterfall {
 ///
 /// Matches exposures by ID across periods to track stage movements and
 /// identify new originations and derecognitions. All disappearing exposures
-/// are reported as derecognitions (`write_offs` stays 0.0); use
-/// `compute_waterfall_with_write_offs` to split write-offs onto their own
-/// line.
+/// are reported as derecognitions, and `write_offs` remains `0.0`.
 ///
 /// # Arguments
 ///
@@ -266,27 +265,6 @@ pub struct ProvisionWaterfall {
 pub fn compute_waterfall(
     previous: &PortfolioEclResult,
     current: &PortfolioEclResult,
-) -> ProvisionWaterfall {
-    compute_waterfall_with_write_offs(previous, current, &[])
-}
-
-/// Compute the provision waterfall, splitting write-offs out of derecognitions.
-///
-/// Identical to [`compute_waterfall`], except that exposures listed in
-/// `written_off_ids` which disappear between the two snapshots are reported
-/// on the `write_offs` line (IFRS 7.35I) instead of being folded into
-/// `derecognitions`. Ids that do not correspond to a disappearing exposure
-/// are ignored.
-///
-/// # Arguments
-///
-/// * `previous` -- Previous period portfolio result
-/// * `current` -- Current period portfolio result
-/// * `written_off_ids` -- Exposure ids written off during the period
-pub fn compute_waterfall_with_write_offs(
-    previous: &PortfolioEclResult,
-    current: &PortfolioEclResult,
-    written_off_ids: &[String],
 ) -> ProvisionWaterfall {
     let opening = previous.total_ecl;
     let closing = current.total_ecl;
@@ -306,7 +284,6 @@ pub fn compute_waterfall_with_write_offs(
 
     let mut new_originations = 0.0;
     let mut derecognitions = 0.0;
-    let mut write_offs = 0.0;
     let mut transfers_to_stage2 = 0.0;
     let mut transfers_to_stage3 = 0.0;
     let mut cured_to_stage1 = 0.0;
@@ -320,14 +297,10 @@ pub fn compute_waterfall_with_write_offs(
         }
     }
 
-    // Derecognitions / write-offs: in previous but not in current
+    // Derecognitions: in previous but not in current
     for (id, prev_result) in &prev_map {
         if !curr_map.contains_key(id) {
-            if written_off_ids.iter().any(|w| w == id) {
-                write_offs -= prev_result.ecl_result.ecl; // Negative = utilisation
-            } else {
-                derecognitions -= prev_result.ecl_result.ecl; // Negative = release
-            }
+            derecognitions -= prev_result.ecl_result.ecl; // Negative = release
         }
     }
 
@@ -373,7 +346,7 @@ pub fn compute_waterfall_with_write_offs(
         cured_to_stage1,
         cured_to_stage2,
         derecognitions,
-        write_offs,
+        write_offs: 0.0,
         remeasurement,
         closing,
     }
@@ -514,26 +487,17 @@ mod tests {
         assert!((waterfall.opening - 300.0).abs() < 1e-10);
         assert!((waterfall.closing - 100.0).abs() < 1e-10);
         assert!((waterfall.derecognitions - (-200.0)).abs() < 1e-10);
-    }
-
-    #[test]
-    fn test_provision_waterfall_write_offs_split_from_derecognitions() {
-        let previous = PortfolioEclResult::from_results(vec![
-            make_exposure_result("A", Stage::Stage1, 100.0, 10_000.0),
-            make_exposure_result("B", Stage::Stage3, 400.0, 20_000.0),
-            make_exposure_result("C", Stage::Stage1, 50.0, 5_000.0),
-        ]);
-        let current = PortfolioEclResult::from_results(vec![make_exposure_result(
-            "A",
-            Stage::Stage1,
-            100.0,
-            10_000.0,
-        )]);
-
-        let waterfall = compute_waterfall_with_write_offs(&previous, &current, &["B".to_string()]);
-
-        assert!((waterfall.write_offs - (-400.0)).abs() < 1e-10);
-        assert!((waterfall.derecognitions - (-50.0)).abs() < 1e-10);
+        assert_eq!(waterfall.write_offs, 0.0);
+        let reconciled = waterfall.opening
+            + waterfall.new_originations
+            + waterfall.transfers_to_stage2
+            + waterfall.transfers_to_stage3
+            + waterfall.cured_to_stage1
+            + waterfall.cured_to_stage2
+            + waterfall.derecognitions
+            + waterfall.write_offs
+            + waterfall.remeasurement;
+        assert!((reconciled - waterfall.closing).abs() < 1e-10);
     }
 
     #[test]
