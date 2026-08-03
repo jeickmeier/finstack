@@ -136,9 +136,8 @@ use std::sync::LazyLock;
 
 use finstack_quant_core::HashMap;
 
-// Index the small `pub const` slices into hashmaps so per-trade lookups
-// are O(1). Built once on first use; the registry-backed `FrtbParams`
-// path remains the source of truth for revision-tagged parameters.
+// Index the fixed D457 `pub const` slices into hashmaps so per-trade lookups
+// are O(1). Built once on first use.
 static CSR_NONSEC_BY_BUCKET: LazyLock<HashMap<u8, f64>> =
     LazyLock::new(|| CSR_NONSEC_RISK_WEIGHTS.iter().copied().collect());
 static CSR_SEC_CTP_BY_BUCKET: LazyLock<HashMap<u8, f64>> =

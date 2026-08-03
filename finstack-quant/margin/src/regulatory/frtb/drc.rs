@@ -157,10 +157,7 @@ static DRC_LGD_BY_SENIORITY: LazyLock<finstack_quant_core::HashMap<DrcSeniority,
 /// rating. Callers who want a stricter policy should validate rating
 /// assignment upstream and not rely on this fallback.
 ///
-/// The defaults are mirrored in
-/// [`crate::regulatory::frtb::params::DrcParams::d457`] so a
-/// [`super::params::FrtbParams`] bundle carries the same values for
-/// audit-trail tagging and JSON-overlay substitution.
+/// The fixed D457 table above is the canonical regulatory source.
 fn drc_risk_weight(rating_bucket: u8) -> f64 {
     DRC_RW_BY_BUCKET
         .get(&rating_bucket)
@@ -171,8 +168,7 @@ fn drc_risk_weight(rating_bucket: u8) -> f64 {
 /// Look up LGD by seniority.
 ///
 /// Defaults to 75% (senior unsecured) per Basel guidance for unmapped
-/// seniorities. Mirrored in
-/// [`crate::regulatory::frtb::params::DrcParams::d457`].
+/// seniorities.
 fn drc_lgd(seniority: DrcSeniority) -> f64 {
     DRC_LGD_BY_SENIORITY
         .get(&seniority)

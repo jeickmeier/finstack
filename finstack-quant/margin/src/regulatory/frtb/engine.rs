@@ -1,7 +1,7 @@
 //! FRTB Sensitivity-Based Approach engine.
 //!
 //! Computes the standardized market risk capital charge per BCBS d457.
-//! The engine is configured at build time; all parameter validation
+//! The engine is configured at build time; all configuration validation
 //! happens in the builder so `calculate()` is infallible given valid inputs.
 
 use super::aggregation::aggregate_sba;
@@ -18,10 +18,8 @@ use finstack_quant_core::Result;
 /// FRTB Sensitivity-Based Approach engine.
 ///
 /// Computes the standardized market risk capital charge per BCBS d457.
-/// The engine carries the exact D457 [`super::params::FrtbParams`]
-/// bundle so audit logs can match a result to its regulatory vintage.
-/// Alternate bundles fail at build time until every charge helper is
-/// parameterized, preventing a result from carrying a false revision tag.
+/// Prescribed risk weights and correlations come directly from the fixed
+/// D457 constants in [`super::params`].
 #[derive(Debug)]
 pub struct FrtbSbaEngine {
     /// Which correlation scenarios to evaluate (default: all three).
@@ -31,22 +29,6 @@ pub struct FrtbSbaEngine {
     /// Base currency for reporting.
     #[allow(dead_code)]
     reporting_currency: Currency,
-    /// Active FRTB parameter set (revision-tagged).
-    params: super::params::FrtbParams,
-}
-
-impl FrtbSbaEngine {
-    /// Revision tag of the active parameter set, for audit stamping.
-    #[must_use]
-    pub fn parameter_revision(&self) -> &super::params::FrtbRevision {
-        &self.params.revision
-    }
-
-    /// The active parameter bundle.
-    #[must_use]
-    pub fn parameters(&self) -> &super::params::FrtbParams {
-        &self.params
-    }
 }
 
 impl FrtbSbaEngine {
@@ -130,7 +112,6 @@ pub struct FrtbSbaEngineBuilder {
     scenarios: Option<Vec<CorrelationScenario>>,
     risk_classes: Option<Vec<FrtbRiskClass>>,
     reporting_currency: Option<Currency>,
-    params: Option<super::params::FrtbParams>,
 }
 
 impl FrtbSbaEngineBuilder {
@@ -152,16 +133,6 @@ impl FrtbSbaEngineBuilder {
     #[must_use]
     pub fn reporting_currency(mut self, ccy: Currency) -> Self {
         self.reporting_currency = Some(ccy);
-        self
-    }
-
-    /// Supply an FRTB parameter set (default: exact D457).
-    ///
-    /// Alternate/custom bundles currently fail at `build()` rather than being
-    /// silently ignored by the D457 calculation helpers.
-    #[must_use]
-    pub fn params(mut self, params: super::params::FrtbParams) -> Self {
-        self.params = Some(params);
         self
     }
 
@@ -189,20 +160,10 @@ impl FrtbSbaEngineBuilder {
             ));
         }
 
-        let params = self.params.unwrap_or_else(super::params::FrtbParams::d457);
-        params.validate()?;
-        if params != super::params::FrtbParams::d457() {
-            return Err(finstack_quant_core::Error::Validation(
-                "FRTB calculation currently supports only the exact BCBS D457 parameter bundle; alternate/custom bundles are rejected until all charge helpers are parameterized"
-                    .into(),
-            ));
-        }
-
         Ok(FrtbSbaEngine {
             scenarios,
             risk_classes,
             reporting_currency: self.reporting_currency.unwrap_or(Currency::USD),
-            params,
         })
     }
 }
@@ -239,17 +200,6 @@ mod tests {
             .build()
             .expect_err("empty risk classes");
         assert!(err.to_string().contains("risk class"));
-    }
-
-    #[test]
-    fn builder_rejects_parameter_bundle_that_calculation_cannot_honor() {
-        let mut params = super::super::params::FrtbParams::d457();
-        params.girr.delta_risk_weights_pct[0].1 *= 2.0;
-        let err = FrtbSbaEngine::builder()
-            .params(params)
-            .build()
-            .expect_err("unsupported alternate parameters");
-        assert!(err.to_string().contains("only the exact BCBS D457"));
     }
 
     // -----------------------------------------------------------------------

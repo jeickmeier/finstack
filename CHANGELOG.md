@@ -19,6 +19,11 @@
   and `market_price` parameters were removed. The presentation-owned
   `recommended_metrics` helper was also removed, so callers select metrics in
   the valuations API before rendering.
+- **Breaking (Rust):** Removed the speculative FRTB parameter-bundle and
+  revision APIs, including `FrtbParams`, `FrtbRevision`, the JSON-overlay
+  registry, and the corresponding `FrtbSbaEngine` builder and accessors. FRTB
+  SBA continues to use the fixed BCBS d457 constants under
+  `regulatory::frtb::params`.
 - **Breaking (Rust):** Simplified the valuations surface. Use
   `schema::instrument_schema("bond")`, `TreePricer::calculate_oas`, and the
   free `solve_ytm` function in place of the removed bond wrappers and YTM
