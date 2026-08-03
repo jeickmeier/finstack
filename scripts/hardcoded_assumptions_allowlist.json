@@ -2469,21 +2469,9 @@
     },
     {
       "path": "finstack-quant/valuations/src/instruments/fixed_income/structured_credit/pricing/stochastic/default/copula_based.rs",
-      "category": "contract_spec",
-      "contains": "(self.base_cdr * multiplier).clamp(0.0, 1.0)",
-      "reason": "Financial formula or unit conversion, not an external default to configure."
-    },
-    {
-      "path": "finstack-quant/valuations/src/instruments/fixed_income/structured_credit/pricing/stochastic/default/copula_based.rs",
       "category": "credit_assumption",
       "contains": "let p = pd.clamp(1e-10, 1.0 - 1e-10);",
       "reason": "Financial formula or unit conversion, not an external default to configure."
-    },
-    {
-      "path": "finstack-quant/valuations/src/instruments/fixed_income/structured_credit/pricing/stochastic/default/copula_based.rs",
-      "category": "structured_credit",
-      "contains": ".with_seasoning_curve(SeasoningCurve::sda(1.0))",
-      "reason": "Structured-credit formula, named standard factory, or diagnostic; mutable assumptions live in structured-credit/TBA registries."
     },
     {
       "path": "finstack-quant/valuations/src/instruments/fixed_income/structured_credit/pricing/stochastic/default/hazard_curve_adapter.rs",
