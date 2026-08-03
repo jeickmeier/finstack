@@ -260,6 +260,37 @@ impl CapitalStructureCashflows {
         Self::default()
     }
 
+    /// Build the compact cashflow snapshot used to evaluate one model period.
+    pub(crate) fn period_snapshot(&self, period_id: PeriodId) -> Self {
+        let mut snapshot = Self::new();
+        for (instrument_id, period_map) in &self.by_instrument {
+            if let Some(breakdown) = period_map.get(&period_id) {
+                snapshot
+                    .by_instrument
+                    .entry(instrument_id.clone())
+                    .or_default()
+                    .insert(period_id, breakdown.clone());
+            }
+        }
+        if let Some(breakdown) = self.totals.get(&period_id) {
+            snapshot.totals.insert(period_id, breakdown.clone());
+        }
+        for (currency, period_map) in &self.totals_by_currency {
+            if let Some(breakdown) = period_map.get(&period_id) {
+                snapshot
+                    .totals_by_currency
+                    .entry(*currency)
+                    .or_default()
+                    .insert(period_id, breakdown.clone());
+            }
+        }
+        if let Some(equity) = self.equity_distribution.get(&period_id) {
+            snapshot.equity_distribution.insert(period_id, *equity);
+        }
+        snapshot.reporting_currency = self.reporting_currency;
+        snapshot
+    }
+
     /// Set a single period's cashflows into this accumulator.
     ///
     /// Copies per-instrument breakdowns, totals, and per-currency totals from `period_cs`

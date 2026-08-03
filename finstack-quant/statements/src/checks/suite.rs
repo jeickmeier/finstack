@@ -202,9 +202,7 @@ impl CheckSuiteBuilder {
 /// Serializable descriptor for a [`CheckSuite`] that can be saved/loaded as
 /// JSON for team-wide check policies.
 ///
-/// Only built-in checks are resolved by [`CheckSuiteSpec::resolve`];
-/// [`FormulaCheckSpec`] entries are stored for later resolution by the
-/// analytics crate, which owns the [`FormulaCheck`](super::super) type.
+/// Both built-in and formula checks are resolved by [`CheckSuiteSpec::resolve`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CheckSuiteSpec {
@@ -216,7 +214,7 @@ pub struct CheckSuiteSpec {
     /// Built-in checks to include.
     #[serde(default)]
     pub builtin_checks: Vec<BuiltinCheckSpec>,
-    /// User-defined formula checks (resolved by the analytics crate).
+    /// User-defined formula checks.
     #[serde(default)]
     pub formula_checks: Vec<FormulaCheckSpec>,
     /// Suite configuration.
@@ -227,23 +225,26 @@ pub struct CheckSuiteSpec {
 impl CheckSuiteSpec {
     /// Resolve the spec into a runnable [`CheckSuite`].
     ///
-    /// Only built-in checks are materialized; [`FormulaCheckSpec`] entries
-    /// require the analytics crate's `FormulaCheck` and must be resolved
-    /// separately. The resolved suite preserves this spec's name, description,
-    /// and filtering configuration.
+    /// The resolved suite preserves this spec's name, description, and
+    /// filtering configuration.
     ///
     /// # Errors
     ///
-    /// This currently returns `Ok` for every deserialized spec because built-in
-    /// variants are converted without runtime I/O or model access. Formula
-    /// checks are intentionally omitted rather than treated as an error; the
-    /// analytics crate owns their resolution.
+    /// This currently returns `Ok` for every deserialized spec because checks
+    /// are materialized without runtime I/O or model access. Formula syntax and
+    /// references are validated when the suite runs against a model.
     pub fn resolve(&self) -> Result<CheckSuite> {
-        let checks: Vec<Box<dyn Check>> = self
+        let mut checks: Vec<Box<dyn Check>> = self
             .builtin_checks
             .iter()
             .map(BuiltinCheckSpec::to_check)
             .collect();
+        checks.extend(
+            self.formula_checks
+                .iter()
+                .cloned()
+                .map(|check| Box::new(check) as Box<dyn Check>),
+        );
         Ok(CheckSuite {
             name: self.name.clone(),
             description: self.description.clone(),
@@ -398,9 +399,8 @@ impl BuiltinCheckSpec {
 
 /// Serializable descriptor for a user-defined formula check.
 ///
-/// This mirrors the analytics crate's `FormulaCheck` fields so that full
-/// suite definitions (built-in + formula) can be stored as a single JSON
-/// document. Resolution into a runnable check requires the analytics crate.
+/// Full suite definitions (built-in + formula) can be stored as a single JSON
+/// document and resolved directly with [`CheckSuiteSpec::resolve`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FormulaCheckSpec {
@@ -412,7 +412,10 @@ pub struct FormulaCheckSpec {
     pub category: CheckCategory,
     /// Severity assigned to findings when the formula fails.
     pub severity: Severity,
-    /// Expression to evaluate (e.g. `"revenue > 0"`).
+    /// Statements DSL expression to evaluate (e.g. `"revenue > 0"`).
+    ///
+    /// Formula checks use the same evaluator as calculated statement nodes,
+    /// including time-series functions and `cs.*` capital-structure references.
     pub formula: String,
     /// Template for the finding message (`{period}` is replaced at runtime).
     pub message_template: String,
@@ -420,3 +423,12 @@ pub struct FormulaCheckSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tolerance: Option<f64>,
 }
+
+/// Runnable user-defined statement formula check.
+///
+/// This alias preserves the concise construction name while the serialized
+/// suite field continues to use [`FormulaCheckSpec`]. Evaluation uses the
+/// canonical statements DSL compiler and evaluator. A non-zero finite result
+/// passes; zero and non-finite results produce a finding, while parse, lookup,
+/// and evaluation failures are returned explicitly.
+pub type FormulaCheck = FormulaCheckSpec;

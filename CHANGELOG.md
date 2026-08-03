@@ -4,6 +4,11 @@
 
 ### Changed
 
+- **Breaking (Rust behavior):** Statement formula checks now use the canonical
+  statements DSL evaluator, including time-series functions and `cs.*`
+  references. `CheckSuiteSpec::resolve()` materializes formula checks directly;
+  the duplicate analytics resolver was removed, and missing references or
+  evaluation failures are returned instead of being silently skipped.
 - Comparable-company flat field construction, named-field access, and metric
   selector parsing now share one canonical Rust implementation across scoring,
   Python, and WASM; accepted fields and scoring behavior are unchanged.

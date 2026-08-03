@@ -335,7 +335,7 @@ impl Evaluator {
             // Add to historical context for next period (move, not clone)
             std::sync::Arc::make_mut(&mut historical).insert(period.id, period_results);
             if has_cs {
-                let period_snapshot = build_cs_period_snapshot(&cs_cashflows_accum, period.id);
+                let period_snapshot = cs_cashflows_accum.period_snapshot(period.id);
                 std::sync::Arc::make_mut(&mut historical_cs).insert(period.id, period_snapshot);
             }
 
@@ -931,40 +931,6 @@ impl Default for Evaluator {
     fn default() -> Self {
         Self::new()
     }
-}
-
-/// Build a per-period snapshot of `accum` containing only the entries for `period_id`.
-///
-/// Called after each period in `evaluate_inner` to populate `historical_cs` without
-/// carrying O(P²×I) data — only the current period's slice is stored per historical entry.
-fn build_cs_period_snapshot(
-    accum: &crate::capital_structure::CapitalStructureCashflows,
-    period_id: PeriodId,
-) -> crate::capital_structure::CapitalStructureCashflows {
-    let mut snapshot = crate::capital_structure::CapitalStructureCashflows::new();
-    for (inst_id, period_map) in &accum.by_instrument {
-        if let Some(breakdown) = period_map.get(&period_id) {
-            snapshot
-                .by_instrument
-                .entry(inst_id.clone())
-                .or_default()
-                .insert(period_id, breakdown.clone());
-        }
-    }
-    if let Some(breakdown) = accum.totals.get(&period_id) {
-        snapshot.totals.insert(period_id, breakdown.clone());
-    }
-    for (currency, period_map) in &accum.totals_by_currency {
-        if let Some(breakdown) = period_map.get(&period_id) {
-            snapshot
-                .totals_by_currency
-                .entry(*currency)
-                .or_default()
-                .insert(period_id, breakdown.clone());
-        }
-    }
-    snapshot.reporting_currency = accum.reporting_currency;
-    snapshot
 }
 
 fn compile_text_into_cache(

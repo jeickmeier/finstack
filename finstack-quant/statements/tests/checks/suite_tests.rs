@@ -66,7 +66,7 @@ fn suite_spec_json_roundtrip_and_resolve() {
     assert_eq!(deserialized.formula_checks.len(), 1);
 
     let suite = deserialized.resolve().unwrap();
-    assert_eq!(suite.len(), 3); // only builtins resolved
+    assert_eq!(suite.len(), 4);
     assert_eq!(suite.name(), "roundtrip_suite");
     assert_eq!(suite.description(), Some("Testing JSON roundtrip"));
 }

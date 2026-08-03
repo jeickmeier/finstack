@@ -1225,8 +1225,7 @@ fn run_checks(
     let model = extract_model_ref(model)?.into_owned();
     let spec: finstack_quant_statements::checks::CheckSuiteSpec =
         serde_json::from_str(suite_spec_json).map_err(display_to_py)?;
-    let suite = finstack_quant_statements_analytics::analysis::resolve_check_suite(&spec)
-        .map_err(display_to_py)?;
+    let suite = spec.resolve().map_err(display_to_py)?;
     let provided_results = match results {
         Some(r) => Some(extract_results_ref(r)?.into_owned()),
         None => None,

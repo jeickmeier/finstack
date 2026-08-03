@@ -12,12 +12,13 @@
 //! ```
 
 pub mod builtins;
+mod formula;
 pub mod suite;
 pub mod traits;
 pub mod types;
 
 pub use suite::{
-    BuiltinCheckSpec, CheckSuite, CheckSuiteBuilder, CheckSuiteSpec, FormulaCheckSpec,
+    BuiltinCheckSpec, CheckSuite, CheckSuiteBuilder, CheckSuiteSpec, FormulaCheck, FormulaCheckSpec,
 };
 pub use traits::{Check, CheckContext};
 pub use types::{

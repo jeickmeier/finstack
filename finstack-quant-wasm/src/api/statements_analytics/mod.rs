@@ -624,8 +624,7 @@ pub fn run_checks(
         serde_json::from_str(model_json).map_err(to_js_err)?;
     let spec: finstack_quant_statements::checks::CheckSuiteSpec =
         serde_json::from_str(suite_spec_json).map_err(to_js_err)?;
-    let suite = finstack_quant_statements_analytics::analysis::resolve_check_suite(&spec)
-        .map_err(to_js_err)?;
+    let suite = spec.resolve().map_err(to_js_err)?;
     let results = evaluate_or_parse_results(&model, results_json)?;
     let report = suite.run(&model, &results).map_err(to_js_err)?;
     serde_json::to_string(&report).map_err(to_js_err)

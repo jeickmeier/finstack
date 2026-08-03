@@ -16,7 +16,6 @@
 pub(crate) mod consistency;
 pub(crate) mod corkscrew_adapter;
 pub(crate) mod credit;
-pub(crate) mod formula_check;
 pub(crate) mod mappings;
 pub(crate) mod reconciliation;
 pub(crate) mod renderer;
@@ -35,12 +34,10 @@ pub use reconciliation::{
 };
 
 pub use corkscrew_adapter::corkscrew_as_checks;
-pub use formula_check::FormulaCheck;
+pub use finstack_quant_statements::checks::FormulaCheck;
 pub use mappings::{CreditMapping, ThreeStatementMapping};
 pub use renderer::CheckReportRenderer;
-pub use suites::{
-    credit_underwriting_checks, lbo_model_checks, resolve_check_suite, three_statement_checks,
-};
+pub use suites::{credit_underwriting_checks, lbo_model_checks, three_statement_checks};
 
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_statements::evaluator::StatementResult;

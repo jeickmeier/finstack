@@ -2,12 +2,16 @@
 //!
 #![allow(clippy::unwrap_used)]
 
+use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::PeriodId;
+use finstack_quant_core::money::Money;
 use finstack_quant_statements::builder::ModelBuilder;
-use finstack_quant_statements::checks::{Check, CheckCategory, CheckContext, Severity};
+use finstack_quant_statements::capital_structure::{CapitalStructureCashflows, CashflowBreakdown};
+use finstack_quant_statements::checks::{
+    Check, CheckCategory, CheckContext, FormulaCheck, Severity,
+};
 use finstack_quant_statements::evaluator::Evaluator;
 use finstack_quant_statements::types::AmountOrScalar;
-use finstack_quant_statements_analytics::analysis::checks::FormulaCheck;
 
 fn q(quarter: u8) -> PeriodId {
     PeriodId::quarter(2025, quarter)
@@ -180,11 +184,11 @@ fn json_deserialization_works() {
 }
 
 // ============================================================================
-// Missing node skips gracefully
+// Missing nodes are explicit evaluation errors
 // ============================================================================
 
 #[test]
-fn missing_node_skips_period() {
+fn missing_node_returns_error() {
     let model = ModelBuilder::new("test")
         .periods("2025Q1..Q1", None)
         .unwrap()
@@ -205,10 +209,9 @@ fn missing_node_skips_period() {
     };
 
     let ctx = CheckContext::new(&model, &results);
-    let result = check.execute(&ctx).unwrap();
+    let error = check.execute(&ctx).unwrap_err();
 
-    assert!(result.passed);
-    assert!(result.findings.is_empty());
+    assert!(error.to_string().contains("nonexistent"));
 }
 
 // ============================================================================
@@ -456,5 +459,84 @@ fn if_conditional_formula() {
 
     let ctx = CheckContext::new(&model, &results);
     let result = check.execute(&ctx).unwrap();
+    assert!(result.passed);
+}
+
+#[test]
+fn canonical_variadic_function_is_supported() {
+    let model = ModelBuilder::new("test")
+        .periods("2025Q1..Q1", None)
+        .unwrap()
+        .value("a", &[(q(1), s(10.0))])
+        .value("b", &[(q(1), s(20.0))])
+        .build()
+        .unwrap();
+    let results = Evaluator::new().evaluate(&model).unwrap();
+    let check = FormulaCheck {
+        id: "sum_check".into(),
+        name: "Canonical sum".into(),
+        category: CheckCategory::InternalConsistency,
+        severity: Severity::Error,
+        formula: "sum(a, b) == 30".into(),
+        message_template: "Sum failed in {period}".into(),
+        tolerance: None,
+    };
+
+    let result = check.execute(&CheckContext::new(&model, &results)).unwrap();
+
+    assert!(result.passed);
+}
+
+#[test]
+fn canonical_time_series_function_uses_evaluated_history() {
+    let model = ModelBuilder::new("test")
+        .periods("2025Q1..Q2", None)
+        .unwrap()
+        .value("revenue", &[(q(1), s(100.0)), (q(2), s(110.0))])
+        .build()
+        .unwrap();
+    let results = Evaluator::new().evaluate(&model).unwrap();
+    let check = FormulaCheck {
+        id: "lag_check".into(),
+        name: "Canonical lag".into(),
+        category: CheckCategory::InternalConsistency,
+        severity: Severity::Error,
+        formula: "if(revenue == 100, 1, lag(revenue, 1) == 100)".into(),
+        message_template: "Lag failed in {period}".into(),
+        tolerance: None,
+    };
+
+    let result = check.execute(&CheckContext::new(&model, &results)).unwrap();
+
+    assert!(result.passed);
+}
+
+#[test]
+fn capital_structure_reference_uses_result_cashflows() {
+    let model = ModelBuilder::new("test")
+        .periods("2025Q1..Q1", None)
+        .unwrap()
+        .build()
+        .unwrap();
+    let mut results = Evaluator::new().evaluate(&model).unwrap();
+    let mut breakdown = CashflowBreakdown::with_currency(Currency::USD);
+    breakdown.interest_expense_cash = Money::new(25.0, Currency::USD);
+    let mut cashflows = CapitalStructureCashflows::new();
+    cashflows.totals.insert(q(1), breakdown);
+    cashflows.reporting_currency = Some(Currency::USD);
+    results.cs_cashflows = Some(cashflows);
+
+    let check = FormulaCheck {
+        id: "interest_check".into(),
+        name: "Canonical capital structure reference".into(),
+        category: CheckCategory::InternalConsistency,
+        severity: Severity::Error,
+        formula: "cs.interest_expense.total == 25".into(),
+        message_template: "Interest failed in {period}".into(),
+        tolerance: None,
+    };
+
+    let result = check.execute(&CheckContext::new(&model, &results)).unwrap();
+
     assert!(result.passed);
 }
