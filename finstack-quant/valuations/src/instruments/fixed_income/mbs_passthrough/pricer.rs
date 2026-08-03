@@ -399,6 +399,7 @@ pub(crate) fn price_mbs(
 /// Price an agency MBS with a spread adjustment.
 ///
 /// Adds a spread (in decimal) to the discount rate when computing present value.
+#[cfg(test)]
 pub(crate) fn price_with_spread(
     mbs: &AgencyMbsPassthrough,
     market: &MarketContext,

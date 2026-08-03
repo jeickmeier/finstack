@@ -11,7 +11,6 @@
 
 pub(crate) mod duration;
 pub(crate) mod mc_oas;
-pub(crate) mod oas;
 
 /// Prepayment rate-sensitivity coefficient β shared by every rate-dependent
 /// prepayment adjustment in this module.
@@ -30,8 +29,6 @@ pub(crate) const PREPAY_RATE_SENSITIVITY: f64 = std::f64::consts::LN_2 / 0.01;
 
 pub(crate) use duration::{effective_convexity, effective_duration};
 pub(crate) use mc_oas::{calculate_mc_oas, McOasConfig};
-#[cfg(test)]
-pub(crate) use oas::calculate_static_zspread;
 
 use crate::instruments::fixed_income::mbs_passthrough::AgencyMbsPassthrough;
 use crate::metrics::{MetricCalculator, MetricContext, MetricRegistry};
@@ -58,12 +55,8 @@ impl MetricCalculator for EffectiveConvexityCalculator {
 
 /// Calculator for option-adjusted spread (OAS).
 ///
-/// Reports the **Monte Carlo OAS** ([`calculate_mc_oas`]): a true
-/// option-adjusted spread computed over stochastic Hull-White rate paths with
-/// rate-dependent prepayment. The bare-curve static Z-spread
-/// ([`calculate_static_zspread`]) does not account for the prepayment option and is
-/// retained only as a separate public-API helper — it is *not* what the `Oas`
-/// metric returns.
+/// Reports the Monte Carlo OAS from [`calculate_mc_oas`], using stochastic
+/// Hull-White rate paths and rate-dependent prepayment.
 pub(crate) struct OasCalculator;
 
 impl MetricCalculator for OasCalculator {
@@ -114,6 +107,7 @@ pub(crate) fn register_mbs_passthrough_metrics(registry: &mut MetricRegistry) {
 mod tests {
     use super::*;
     use crate::cashflow::builder::specs::PrepaymentModelSpec;
+    use crate::instruments::fixed_income::mbs_passthrough::pricer::price_with_spread;
     use crate::instruments::fixed_income::mbs_passthrough::{AgencyProgram, PoolType};
     use crate::metrics::{MetricCalculator, MetricContext};
     use finstack_quant_core::currency::Currency;
@@ -121,18 +115,14 @@ mod tests {
     use finstack_quant_core::market_data::context::MarketContext;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
     use finstack_quant_core::math::interp::InterpStyle;
+    use finstack_quant_core::math::solver::{BrentSolver, Solver};
     use finstack_quant_core::money::Money;
     use finstack_quant_core::types::{CurveId, InstrumentId};
     use std::sync::Arc;
     use time::Month;
 
-    /// Item 4 regression: the registered `Oas` metric must report the Monte
-    /// Carlo OAS, not the bare-curve static Z-spread.
-    ///
-    /// Before the fix, `OasCalculator` called `calculate_oas` (static
-    /// Z-spread mislabeled as OAS). This test computes the static Z-spread and
-    /// the MC-OAS independently for a discounted pool and asserts the metric
-    /// matches the MC-OAS and is materially different from the static spread.
+    /// The registered `Oas` metric reports Monte Carlo OAS rather than a
+    /// deterministic bare-curve spread.
     #[test]
     fn oas_metric_reports_monte_carlo_oas_not_static_zspread() {
         let as_of = Date::from_calendar_date(2024, Month::January, 15).expect("valid");
@@ -177,9 +167,19 @@ mod tests {
             .quoted_clean_price = Some(quote);
 
         // Reference values computed directly.
-        let static_zspread = calculate_static_zspread(&mbs, quote, &market, as_of)
-            .expect("static z-spread")
-            .spread;
+        let target = quote / 100.0 * mbs.current_face.amount();
+        let static_zspread = BrentSolver::new()
+            .tolerance(1e-8)
+            .max_iterations(100)
+            .bracket_bounds(-0.10, 0.20)
+            .initial_bracket_size(Some(0.05))
+            .solve(
+                |spread| {
+                    price_with_spread(&mbs, &market, as_of, spread).expect("static price") - target
+                },
+                0.0,
+            )
+            .expect("static z-spread");
         let mc_oas = calculate_mc_oas(&mbs, quote, &market, as_of, &McOasConfig::default())
             .expect("mc oas")
             .oas;
@@ -202,8 +202,7 @@ mod tests {
             (metric_oas - mc_oas).abs() < 1e-9,
             "Oas metric {metric_oas} should equal MC-OAS {mc_oas}"
         );
-        // ... and the MC-OAS must differ from the static Z-spread, proving the
-        // metric is no longer the mislabeled static spread.
+        // ... and the MC-OAS must differ from the static Z-spread.
         assert!(
             (mc_oas - static_zspread).abs() > 1e-4,
             "MC-OAS {mc_oas} should differ from static Z-spread {static_zspread}"
