@@ -4,6 +4,9 @@
 
 ### Changed
 
+- **Breaking (Rust):** Removed the unused
+  `CreditScoringError::OutOfRange` variant. Credit scoring input failures
+  continue to use `NonFiniteInput` and `InvalidBinaryIndicator`.
 - **Breaking (Rust):** Removed the unused `MigrationError::NotSquare` variant.
   Credit migration matrix shape failures continue to use `DimensionMismatch`.
 - **Breaking (Rust):** Removed the unused

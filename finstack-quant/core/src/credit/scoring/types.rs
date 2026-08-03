@@ -57,19 +57,6 @@ pub enum CreditScoringError {
         value: f64,
     },
 
-    /// An input value is outside the valid domain for the model.
-    #[error("input field '{field}' = {value} is outside valid range [{min}, {max}]")]
-    OutOfRange {
-        /// Name of the offending field.
-        field: &'static str,
-        /// The out-of-range value.
-        value: f64,
-        /// Minimum allowed value (inclusive).
-        min: f64,
-        /// Maximum allowed value (inclusive).
-        max: f64,
-    },
-
     /// A binary indicator was not exactly zero or one.
     #[error("input field '{field}' must be exactly 0 or 1, got {value}")]
     InvalidBinaryIndicator {
