@@ -11,15 +11,6 @@ use thiserror::Error;
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum MigrationError {
-    /// Matrix is not square.
-    #[error("matrix is not square: {rows}x{cols}")]
-    NotSquare {
-        /// Number of rows.
-        rows: usize,
-        /// Number of columns.
-        cols: usize,
-    },
-
     /// Matrix dimension does not match rating scale size.
     #[error("matrix dimension {actual} does not match rating scale size {expected}")]
     DimensionMismatch {

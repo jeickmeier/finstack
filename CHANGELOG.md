@@ -4,6 +4,8 @@
 
 ### Changed
 
+- **Breaking (Rust):** Removed the unused `MigrationError::NotSquare` variant.
+  Credit migration matrix shape failures continue to use `DimensionMismatch`.
 - **Breaking (Rust):** Removed the unused
   `InputError::JointCalendarNonConvergent` variant. Active joint-calendar safety
   failures continue to use `JointCalendarIterationLimitExceeded`.
