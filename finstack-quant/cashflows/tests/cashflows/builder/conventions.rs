@@ -17,9 +17,7 @@ fn d(year: i32, month: u8, day: u8) -> Date {
     Date::from_calendar_date(year, m, day).expect("valid date")
 }
 
-// =============================================================================
 // Cross-Currency Aggregation Tests
-// =============================================================================
 
 /// Aggregating flows in different currencies should error.
 #[test]
@@ -54,9 +52,7 @@ fn test_single_currency_aggregation() {
     );
 }
 
-// =============================================================================
 // Currency Preservation Tests
-// =============================================================================
 
 /// Build a USD bond and verify every flow is USD-denominated.
 #[test]
@@ -109,9 +105,7 @@ fn test_all_flows_preserve_currency() {
     }
 }
 
-// =============================================================================
 // Bus/252 Day Count Validation
-// =============================================================================
 
 /// Bus/252 year fraction for a known date range using TARGET2 calendar.
 #[test]

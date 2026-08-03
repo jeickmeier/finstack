@@ -32,9 +32,7 @@ use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
 use time::Month;
 
-// =============================================================================
 // Amortization Scheme Tests
-// =============================================================================
 
 #[test]
 fn linear_vs_step_parity() {
@@ -248,9 +246,7 @@ fn linear_amortization_uses_first_coupon_leg_cadence() {
     );
 }
 
-// =============================================================================
 // Flow Ordering Tests
-// =============================================================================
 
 #[test]
 fn ordering_invariants_within_date() {
@@ -312,9 +308,7 @@ fn ordering_invariants_within_date() {
     }
 }
 
-// =============================================================================
 // PV/NPV Calculation Tests
-// =============================================================================
 
 #[test]
 fn fixed_schedule_npv_equals_sum_cashflows() {
@@ -382,9 +376,7 @@ fn fixed_schedule_npv_equals_sum_cashflows() {
     );
 }
 
-// =============================================================================
 // Stub Period Detection Tests
-// =============================================================================
 
 #[test]
 fn detects_stub_periods() {
@@ -498,9 +490,7 @@ fn negative_rate_fixed_coupons_are_emitted() {
     }
 }
 
-// =============================================================================
 // Strict serde on builder specs
-// =============================================================================
 
 /// Unknown (typo'd) fields in nested specs must be rejected, not silently
 /// defaulted.
@@ -538,9 +528,7 @@ fn floating_rate_spec_rejects_floor_bp_alias() {
     assert!(error.to_string().contains("floor_bp"));
 }
 
-// =============================================================================
 // Outstanding Balance Tracking Tests
-// =============================================================================
 
 #[test]
 fn outstanding_by_date_dedup_and_values() {
@@ -797,9 +785,7 @@ fn fixed_fee_on_issue_date_is_emitted() {
     );
 }
 
-// =============================================================================
 // Error Handling Tests
-// =============================================================================
 
 #[test]
 fn schedule_errors_on_unknown_calendar() {
@@ -842,9 +828,7 @@ fn schedule_errors_on_unknown_calendar() {
     );
 }
 
-// =============================================================================
 // Day Count Convention in Schedule Context Tests
-// =============================================================================
 
 #[test]
 fn stub_period_thirty360_produces_proportional_accrual() {
@@ -1031,9 +1015,7 @@ fn coupon_amount_golden_values() {
     );
 }
 
-// =============================================================================
 // Conservation Invariant Tests
-// =============================================================================
 
 /// Invariant test: cashflow conservation for a par bullet bond.
 ///
@@ -1278,9 +1260,7 @@ fn npv_decreases_with_higher_discount_rate() {
     );
 }
 
-// =============================================================================
 // Weighted Average Life (WAL) Tests
-// =============================================================================
 
 #[test]
 fn test_weighted_average_life_two_amort() {

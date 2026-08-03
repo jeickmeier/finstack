@@ -20,9 +20,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::traits::Survival;
 use finstack_quant_core::money::Money;
 
-// =============================================================================
 // Helper functions for DataFrame construction (extracted for testability)
-// =============================================================================
 
 /// Initialize an optional column vector, reusing existing allocation if available.
 ///

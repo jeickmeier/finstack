@@ -176,9 +176,7 @@ fn term_index_rate_is_invariant_to_payment_frequency() {
     );
 }
 
-// =============================================================================
 // Test 1: FloatingRateFallback::Error + no curve => Err
-// =============================================================================
 
 #[test]
 fn test_floating_rate_fallback_error_no_curve() {
@@ -199,9 +197,7 @@ fn test_floating_rate_fallback_error_no_curve() {
     );
 }
 
-// =============================================================================
 // Test 2: FloatingRateFallback::SpreadOnly + no curve => spread-only rate
-// =============================================================================
 
 #[test]
 fn test_floating_rate_fallback_spread_only_no_curve() {
@@ -246,9 +242,7 @@ fn test_floating_rate_fallback_spread_only_no_curve() {
     }
 }
 
-// =============================================================================
 // Test 3: FloatingRateFallback::FixedRate(0.045) + no curve => 0.045 + spread
-// =============================================================================
 
 #[test]
 fn test_floating_rate_fallback_fixed_rate() {
@@ -295,9 +289,7 @@ fn test_floating_rate_fallback_fixed_rate() {
     }
 }
 
-// =============================================================================
 // Test 4: FixedRate fallback respects floor/cap
-// =============================================================================
 
 #[test]
 fn test_floating_rate_fallback_fixed_rate_with_floor_cap() {
@@ -338,9 +330,7 @@ fn test_floating_rate_fallback_fixed_rate_with_floor_cap() {
     }
 }
 
-// =============================================================================
 // Test 5: Default fallback (Error) still works when curve IS present
-// =============================================================================
 
 #[test]
 fn test_floating_rate_default_fallback_with_curve() {
@@ -396,9 +386,7 @@ fn test_floating_rate_default_fallback_with_curve() {
     }
 }
 
-// =============================================================================
 // Test 6: PIK flows carry rate and accrual_factor from parent coupon
-// =============================================================================
 
 /// PIK flows should carry rate and accrual_factor from the parent coupon.
 #[test]
@@ -465,9 +453,7 @@ fn test_pik_flow_metadata() {
     );
 }
 
-// =============================================================================
 // Golden Value Tests
-// =============================================================================
 
 const RATE_TOLERANCE: f64 = 1e-10;
 
@@ -489,9 +475,7 @@ fn make_flat_forward_market(
     MarketContext::new().insert(fwd)
 }
 
-// =============================================================================
 // Golden Value Test 1: SOFR + 200bp flat curve
-// =============================================================================
 
 /// Golden value: SOFR + 200bp, quarterly, Act/360, $1M notional.
 /// Flat forward curve at 4.5%.
@@ -564,9 +548,7 @@ fn test_floating_rate_golden_sofr_200bp() {
     }
 }
 
-// =============================================================================
 // Golden Value Test 2: Zero spread (index only)
-// =============================================================================
 
 /// Golden value: SOFR + 0bp. Rate should equal index rate (4.5%).
 #[test]
@@ -625,9 +607,7 @@ fn test_floating_rate_golden_zero_spread() {
     }
 }
 
-// =============================================================================
 // Golden Value Test 3: Gearing (gearing_includes_spread = true)
-// =============================================================================
 
 /// Golden value: gearing=1.5 on 4.5% SOFR + 200bp.
 /// With gearing_includes_spread=true: rate = 1.5 * (4.5% + 2.0%) = 9.75%
@@ -690,9 +670,7 @@ fn test_floating_rate_golden_gearing_includes_spread() {
     }
 }
 
-// =============================================================================
 // Golden Value Test 3b: Gearing (gearing_includes_spread = false, affine)
-// =============================================================================
 
 /// Golden value: gearing=1.5 on 4.5% SOFR + 200bp.
 /// With gearing_includes_spread=false: rate = (1.5 * 4.5%) + 2.0% = 6.75% + 2.0% = 8.75%
@@ -769,9 +747,7 @@ fn test_floating_rate_golden_gearing_excludes_spread() {
     );
 }
 
-// =============================================================================
 // Cap/Floor and Negative Rate Tests
-// =============================================================================
 
 /// Index floor at 0%: negative index rates are clamped to 0.
 /// Flat curve at -0.4% with floor at 0 -> all-in rate = 0% + spread.
@@ -1009,9 +985,7 @@ fn test_floating_rate_all_in_floor() {
     }
 }
 
-// =============================================================================
 // Overnight Compounding Tests
-// =============================================================================
 
 use finstack_quant_cashflows::builder::specs::OvernightCompoundingMethod;
 
@@ -1548,9 +1522,7 @@ fn test_overnight_vs_term_rate_flat_curve_equivalence() {
     }
 }
 
-// =============================================================================
 // Test: Overnight compounding accrual starts on a weekend
-// =============================================================================
 
 /// Verifies that overnight compounding correctly accounts for non-business days
 /// at the start of an accrual period (e.g., accrual_start on a Saturday).
@@ -1682,9 +1654,7 @@ fn test_overnight_compounding_weekend_start_no_lost_days() {
     );
 }
 
-// =============================================================================
 // Empty overnight observation window must fail loudly
-// =============================================================================
 
 /// An accrual period containing no business-day fixings (Unadjusted BDC, stub
 /// entirely on a weekend) must be a validation error, not a silent 0% index
@@ -1751,9 +1721,7 @@ fn test_overnight_empty_fixing_window_errors() {
     );
 }
 
-// =============================================================================
 // Strictly-past observations route through the fallback policy
-// =============================================================================
 
 /// With the default `Error` fallback, a coupon whose projection start is
 /// strictly before the curve base date fails with a descriptive error naming
@@ -1833,9 +1801,7 @@ fn test_seasoned_coupon_before_curve_base_uses_fixed_rate_fallback() {
     );
 }
 
-// =============================================================================
 // Fixing calendar is used for overnight sampling
-// =============================================================================
 
 /// Overnight fixings must be sampled on the index's fixing calendar, not the
 /// accrual calendar. With a rising curve, skipping the 2025-07-04 US holiday
@@ -1895,9 +1861,7 @@ fn test_overnight_sampling_uses_fixing_calendar() {
     );
 }
 
-// =============================================================================
 // Historical fixings for seasoned instruments (FIXING:{index} series)
-// =============================================================================
 
 use finstack_quant_core::market_data::scalars::ScalarTimeSeries;
 

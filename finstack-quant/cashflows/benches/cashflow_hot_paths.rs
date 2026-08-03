@@ -43,9 +43,7 @@ use rust_decimal_macros::dec;
 use std::hint::black_box;
 use time::Month;
 
-// =============================================================================
 // Shared fixtures
-// =============================================================================
 
 fn base_date() -> Date {
     Date::from_calendar_date(2025, Month::January, 15).unwrap()
@@ -181,9 +179,7 @@ fn make_amortizing_schedule(base: Date, n_periods: usize) -> CashFlowSchedule {
     )
 }
 
-// =============================================================================
 // Benchmark: pv_by_period (plain, no credit)
-// =============================================================================
 
 fn bench_pv_by_period(c: &mut Criterion) {
     let mut group = c.benchmark_group("cashflow_pv_by_period");
@@ -221,9 +217,7 @@ fn bench_pv_by_period(c: &mut Criterion) {
     group.finish();
 }
 
-// =============================================================================
 // Benchmark: pv_by_period credit-adjusted
-// =============================================================================
 
 fn bench_pv_by_period_credit(c: &mut Criterion) {
     let mut group = c.benchmark_group("cashflow_pv_by_period_credit");
@@ -287,9 +281,7 @@ fn bench_pv_by_period_credit(c: &mut Criterion) {
     group.finish();
 }
 
-// =============================================================================
 // Benchmark: to_period_dataframe (hot O(n+m) cursor path)
-// =============================================================================
 
 fn bench_period_dataframe(c: &mut Criterion) {
     let mut group = c.benchmark_group("cashflow_period_dataframe");
@@ -343,9 +335,7 @@ fn bench_period_dataframe(c: &mut Criterion) {
     group.finish();
 }
 
-// =============================================================================
 // Benchmark: build (full schedule generation)
-// =============================================================================
 
 fn bench_build_fixed_schedule(c: &mut Criterion) {
     let mut group = c.benchmark_group("cashflow_build_fixed");
@@ -393,9 +383,7 @@ fn bench_build_fixed_schedule(c: &mut Criterion) {
     group.finish();
 }
 
-// =============================================================================
 // Benchmark: aggregate_by_period (nominal dated-flow rollup)
-// =============================================================================
 
 fn bench_aggregate_by_period(c: &mut Criterion) {
     let mut group = c.benchmark_group("cashflow_aggregate_by_period");
@@ -415,9 +403,7 @@ fn bench_aggregate_by_period(c: &mut Criterion) {
     group.finish();
 }
 
-// =============================================================================
 // Benchmark: aggregate_cashflows_checked (compensated single-ccy sum)
-// =============================================================================
 
 fn bench_aggregate_precise(c: &mut Criterion) {
     let mut group = c.benchmark_group("cashflow_aggregate_precise");
@@ -435,9 +421,7 @@ fn bench_aggregate_precise(c: &mut Criterion) {
     group.finish();
 }
 
-// =============================================================================
 // Benchmark: CashFlowSchedule::npv (per-instrument NPV, one allocation per call)
-// =============================================================================
 
 fn bench_npv(c: &mut Criterion) {
     let mut group = c.benchmark_group("cashflow_npv");
@@ -463,9 +447,7 @@ fn bench_npv(c: &mut Criterion) {
     group.finish();
 }
 
-// =============================================================================
 // Benchmark: merge_cashflow_schedules (concat + re-sort)
-// =============================================================================
 
 fn bench_merge_schedules(c: &mut Criterion) {
     let mut group = c.benchmark_group("cashflow_merge_schedules");
@@ -494,9 +476,7 @@ fn bench_merge_schedules(c: &mut Criterion) {
     group.finish();
 }
 
-// =============================================================================
 // Benchmark: outstanding_by_date (balance tracking)
-// =============================================================================
 
 fn bench_outstanding_by_date(c: &mut Criterion) {
     let mut group = c.benchmark_group("cashflow_outstanding_by_date");
@@ -515,9 +495,7 @@ fn bench_outstanding_by_date(c: &mut Criterion) {
     group.finish();
 }
 
-// =============================================================================
 // Benchmark: weighted_average_life
-// =============================================================================
 
 fn bench_wal(c: &mut Criterion) {
     let mut group = c.benchmark_group("cashflow_wal");
@@ -540,9 +518,7 @@ fn bench_wal(c: &mut Criterion) {
     group.finish();
 }
 
-// =============================================================================
 // Registration
-// =============================================================================
 
 criterion_group!(
     benches,

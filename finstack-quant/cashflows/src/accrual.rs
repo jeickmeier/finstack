@@ -866,9 +866,7 @@ mod tests {
         }
     }
 
-    // =========================================================================
     // Issue date requirement tests
-    // =========================================================================
 
     #[test]
     fn test_missing_issue_date_errors() {
@@ -1017,9 +1015,7 @@ mod tests {
         );
     }
 
-    // =========================================================================
     // Ex-coupon window tests (negative accrued interest, UK gilt convention)
-    // =========================================================================
 
     /// Semiannual 30/360 schedule: issue 2025-01-01, coupons 2025-07-01 and
     /// 2026-01-01, $25k per coupon, builder accrual factor 0.5.
@@ -1091,9 +1087,7 @@ mod tests {
         );
     }
 
-    // =========================================================================
     // Year-fraction basis consistency (payment lag / BDC-shifted period ends)
-    // =========================================================================
 
     /// Period reconstructed from payment dates (end = 2025-07-05, e.g. a
     /// payment lag) while the builder accrual factor 0.5 covers the true
@@ -1191,9 +1185,7 @@ mod tests {
         assert!(accrued <= 0.0, "ex-window AI must be ≤ 0, got {accrued}");
     }
 
-    // =========================================================================
     // Compounded accrual method
-    // =========================================================================
 
     fn compounded_inputs() -> PeriodInputs {
         PeriodInputs {
@@ -1248,9 +1240,7 @@ mod tests {
         assert!(accrued < 0.0);
     }
 
-    // =========================================================================
     // Validation tests
-    // =========================================================================
 
     #[test]
     fn act_act_isma_without_frequency_errors() {

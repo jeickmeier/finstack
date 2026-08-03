@@ -106,9 +106,7 @@ pub mod schema;
 
 mod serde_defaults;
 
-// -----------------------------------------------------------------------------
 // Canonical flow aliases (deduplicated across the cashflow module)
-// -----------------------------------------------------------------------------
 
 pub use accrual::{
     accrued_interest_amount, AccrualConfig, AccrualIndex, AccrualMethod, ExCouponRule,

@@ -33,9 +33,7 @@ use finstack_quant_core::money::Money;
 use crate::primitives::is_cash_settlement_kind;
 use indexmap::IndexMap;
 
-// =============================================================================
 // Generic Flow Iterator
-// =============================================================================
 
 /// Trait for types that have an associated date.
 ///
@@ -258,9 +256,7 @@ pub fn aggregate_by_period(
     aggregate_by_period_sorted(&sorted, periods)
 }
 
-// =============================================================================
 // Precision-Preserving Aggregation
-// =============================================================================
 
 use finstack_quant_core::market_data::traits::{Discounting, Survival};
 
@@ -319,9 +315,7 @@ pub fn aggregate_cashflows_checked(
     Ok(Money::new(acc.total(), target))
 }
 
-// =============================================================================
 // Pre-Period PV Aggregation
-// =============================================================================
 
 /// Shared implementation for PV aggregation across plain and credit-adjusted variants.
 ///

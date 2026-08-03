@@ -17,9 +17,7 @@
 
 use crate::helpers::{FACTOR_TOLERANCE, RATE_TOLERANCE};
 
-// =============================================================================
 // PSA Golden Values
-// =============================================================================
 
 #[test]
 fn psa_smm_golden_values() {
@@ -78,9 +76,7 @@ fn psa_smm_golden_values() {
     );
 }
 
-// =============================================================================
 // SDA Golden Values
-// =============================================================================
 
 #[test]
 fn sda_mdr_golden_values() {
@@ -155,9 +151,7 @@ fn sda_mdr_golden_values() {
     );
 }
 
-// =============================================================================
 // CPR/SMM Conversion Tests
-// =============================================================================
 
 #[test]
 fn cpr_smm_conversion_roundtrip_precision() {
@@ -211,9 +205,7 @@ fn smm_to_cpr_rejects_invalid_smm() {
     );
 }
 
-// =============================================================================
 // PSA Industry Standard Benchmark Tests
-// =============================================================================
 
 #[test]
 fn psa_matches_industry_standard_ramp() {
@@ -325,9 +317,7 @@ fn psa_terminal_rate_is_flat() {
     }
 }
 
-// =============================================================================
 // SDA Industry Standard Benchmark Tests
-// =============================================================================
 
 #[test]
 fn sda_matches_industry_standard_curve() {
@@ -429,9 +419,7 @@ fn sda_multiplier_scales_correctly() {
     );
 }
 
-// =============================================================================
 // CMBS Lockout Boundary Tests
-// =============================================================================
 
 #[test]
 fn cmbs_lockout_boundary_months() {
@@ -462,9 +450,7 @@ fn cmbs_lockout_boundary_months() {
     );
 }
 
-// =============================================================================
 // Over-Unity Multiplier Validation Tests
-// =============================================================================
 
 #[test]
 fn psa_over_unity_multiplier_gives_descriptive_error() {
@@ -696,9 +682,7 @@ fn credit_adjusted_period_pv_respects_explicit_default_and_recovery_flows() {
     );
 }
 
-// =============================================================================
 // Property-Based Tests
-// =============================================================================
 
 mod property_tests {
     use super::*;

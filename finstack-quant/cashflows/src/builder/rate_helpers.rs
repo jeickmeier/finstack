@@ -924,9 +924,7 @@ mod tests {
         assert!((projected - reset_fixing).abs() < 1e-14);
     }
 
-    // =========================================================================
     // Validation tests
-    // =========================================================================
 
     #[test]
     fn test_params_validate_default_succeeds() {
@@ -1087,9 +1085,7 @@ mod tests {
         assert!(result.is_err(), "Should fail with contradictory floor/cap");
     }
 
-    // =========================================================================
     // Overnight compounding tests
-    // =========================================================================
 
     #[test]
     fn test_compounded_rate_constant_fixings() {
@@ -1256,9 +1252,7 @@ mod tests {
         assert!(rate > 0.0 && rate.is_finite(), "Lookback rate: {rate:.6}");
     }
 
-    // =========================================================================
     // FloatingRateSpec → FloatingRateParams conversion
-    // =========================================================================
 
     #[test]
     fn try_from_floating_rate_spec_round_trips_all_fields() {

@@ -212,9 +212,7 @@ fn test_amortization_spec_default() {
     assert!(matches!(default_spec, AmortizationSpec::None));
 }
 
-// =============================================================================
 // Edge Case Tests (Market Standards Review - Safety)
-// =============================================================================
 
 #[test]
 fn test_amortization_spec_percent_nan_rejected() {
@@ -348,9 +346,7 @@ fn test_amortization_spec_linear_to_zero_ok() {
     );
 }
 
-// =============================================================================
 // Amortization Computation Tests (Golden Values)
-// =============================================================================
 
 mod computation {
     use super::*;

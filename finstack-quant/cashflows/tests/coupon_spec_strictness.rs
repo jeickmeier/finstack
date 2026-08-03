@@ -102,10 +102,8 @@ fn step_up_coupon_spec_rejects_unknown_field() {
     );
 }
 
-// -----------------------------------------------------------------------------
 // Credit-model specs (prepayment / default / recovery) must be closed inbound
 // types: a typo'd key silently deserializing to defaults changes cashflows.
-// -----------------------------------------------------------------------------
 
 #[test]
 fn prepayment_model_spec_rejects_unknown_field() {

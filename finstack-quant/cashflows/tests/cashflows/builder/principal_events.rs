@@ -25,9 +25,7 @@ use time::Month;
 
 use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, StubKind, Tenor};
 
-// =============================================================================
 // Principal Event Date Validation
-// =============================================================================
 
 #[test]
 fn principal_events_after_maturity_rejected() {
@@ -98,9 +96,7 @@ fn principal_events_at_maturity_accepted() {
     );
 }
 
-// =============================================================================
 // Principal Event Before Issue Date
-// =============================================================================
 
 #[test]
 fn principal_events_before_issue_included_and_adjusts_outstanding() {
@@ -179,9 +175,7 @@ fn principal_events_at_issue_accepted() {
     );
 }
 
-// =============================================================================
 // Currency Mismatch Validation
-// =============================================================================
 
 #[test]
 fn principal_events_currency_mismatch_rejected() {
@@ -242,9 +236,7 @@ fn principal_event_delta_cash_currency_mismatch_rejected() {
     );
 }
 
-// =============================================================================
 // Multiple Events on Same Date
-// =============================================================================
 
 #[test]
 fn multiple_principal_events_same_date_accepted() {
@@ -326,9 +318,7 @@ fn multiple_principal_events_same_date_accepted() {
     );
 }
 
-// =============================================================================
 // Draw and Repay Semantics
-// =============================================================================
 
 #[test]
 fn principal_event_draw_increases_outstanding() {
@@ -498,9 +488,7 @@ fn principal_event_emitted_cashflow_sign_follows_kind() {
     assert!((post_repay - 1_050_000.0).abs() < 0.01);
 }
 
-// =============================================================================
 // Empty Events List
-// =============================================================================
 
 #[test]
 fn empty_principal_events_accepted() {
@@ -521,9 +509,7 @@ fn empty_principal_events_accepted() {
     );
 }
 
-// =============================================================================
 // Pre-Issue / At-Issue Emission Exclusivity (M2)
-// =============================================================================
 
 /// Count flows matching a date and kind.
 fn count_flows(schedule: &CashFlowSchedule, date: Date, kind: CFKind) -> usize {
@@ -710,9 +696,7 @@ fn fixed_fee_before_issue_emitted_once_at_its_date() {
     assert_eq!(fee.amount.amount(), 2_500.0);
 }
 
-// =============================================================================
 // Maturity Redemption Date Adjustment (M9)
-// =============================================================================
 
 #[test]
 fn weekend_maturity_redemption_matches_final_coupon_date() {
@@ -781,9 +765,7 @@ fn weekend_maturity_redemption_matches_final_coupon_date() {
     );
 }
 
-// =============================================================================
 // Principal Event Sign Conventions
-// =============================================================================
 
 #[test]
 fn amortization_event_with_positive_delta_rejected() {
