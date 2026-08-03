@@ -189,12 +189,8 @@ pub struct PyScenarioSet {
 #[pymethods]
 impl PyScenarioSet {
     #[new]
-    #[pyo3(signature = (scenarios, parents=None, model_ids=None))]
-    fn new(
-        scenarios: &Bound<'_, PyDict>,
-        parents: Option<&Bound<'_, PyDict>>,
-        model_ids: Option<&Bound<'_, PyDict>>,
-    ) -> PyResult<Self> {
+    #[pyo3(signature = (scenarios, parents=None))]
+    fn new(scenarios: &Bound<'_, PyDict>, parents: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
         let mut definitions = IndexMap::with_capacity(scenarios.len());
         for (name, overrides) in scenarios.iter() {
             let name = name.extract::<String>()?;
@@ -204,19 +200,7 @@ impl PyScenarioSet {
                 .transpose()?
                 .map(|value| value.extract::<String>())
                 .transpose()?;
-            let model_id = model_ids
-                .and_then(|items| items.get_item(&name).transpose())
-                .transpose()?
-                .map(|value| value.extract::<String>())
-                .transpose()?;
-            definitions.insert(
-                name,
-                ScenarioDefinition {
-                    model_id,
-                    parent,
-                    overrides,
-                },
-            );
+            definitions.insert(name, ScenarioDefinition { parent, overrides });
         }
         Ok(Self {
             inner: RustScenarioSet {

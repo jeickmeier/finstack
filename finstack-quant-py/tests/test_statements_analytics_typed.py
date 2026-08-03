@@ -52,11 +52,12 @@ def test_typed_configs_round_trip_structured_fields() -> None:
     scenarios = ScenarioSet(
         {"base": {}, "downside": {"revenue": 90.0}},
         parents={"downside": "base"},
-        model_ids={"base": "typed-analytics"},
     )
     scenario_doc = json.loads(scenarios.to_json())
     assert scenario_doc["scenarios"]["downside"]["parent"] == "base"
     assert ScenarioSet.from_json(scenarios.to_json()).names == ["base", "downside"]
+    with pytest.raises(ValueError, match="unknown field `model_id`"):
+        ScenarioSet.from_json('{"scenarios":{"base":{"model_id":"legacy"}}}')
 
     monte_carlo = MonteCarloConfig(
         n_paths=8,

@@ -887,7 +887,6 @@ mod tests {
         let scenario_set = finstack_quant_statements_analytics::analysis::ScenarioSet {
             scenarios: indexmap::indexmap! {
                 "upside".to_string() => finstack_quant_statements_analytics::analysis::ScenarioDefinition {
-                    model_id: None,
                     parent: None,
                     overrides,
                 },
@@ -898,6 +897,15 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&result).expect("parse");
         assert!(parsed.is_object());
         assert!(parsed.get("upside").is_some());
+    }
+
+    #[test]
+    fn evaluate_scenario_set_rejects_removed_model_id() {
+        assert!(evaluate_scenario_set(
+            &test_model_json(),
+            r#"{"scenarios":{"base":{"model_id":"legacy"}}}"#,
+        )
+        .is_err());
     }
 
     #[test]

@@ -375,9 +375,6 @@ class ScenarioSet:
     parents : dict[str, str] or None
         Optional mapping from scenario to inherited parent scenario; omitted
         scenarios have no parent.
-    model_ids : dict[str, str] or None
-        Optional mapping from scenario name to the model ID it targets.
-
     Examples
     --------
     >>> from finstack_quant.statements_analytics import ScenarioSet
@@ -389,7 +386,6 @@ class ScenarioSet:
         self,
         scenarios: dict[str, dict[str, float]],
         parents: dict[str, str] | None = ...,
-        model_ids: dict[str, str] | None = ...,
     ) -> None:
         """
         Define named overrides and optional scenario inheritance relationships.
@@ -400,9 +396,6 @@ class ScenarioSet:
             Mapping from scenario names to statement node IDs and numeric overrides.
         parents : dict[str, str] or None, default None
             Optional mapping from each child scenario to its inherited parent.
-        model_ids : dict[str, str] or None, default None
-            Optional mapping from scenario names to target financial-model IDs.
-
         """
         ...
 

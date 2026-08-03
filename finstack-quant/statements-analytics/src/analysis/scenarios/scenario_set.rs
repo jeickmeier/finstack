@@ -15,7 +15,7 @@
 //! ```json
 //! {
 //!   "scenario_set": {
-//!     "base": { "model_id": "acme-2025", "overrides": {} },
+//!     "base": { "overrides": {} },
 //!     "downside": {
 //!       "parent": "base",
 //!       "overrides": { "revenue_growth": -0.05, "margin": -0.02 }
@@ -48,7 +48,6 @@ use serde_json::json;
 /// Definition for a single named scenario.
 ///
 /// Scenarios are attached to a base [`FinancialModelSpec`] and specify:
-/// - An optional `model_id` hint (for multi-model workflows).
 /// - An optional `parent` scenario to inherit overrides from.
 /// - A set of scalar overrides applied as explicit values for all periods
 ///   of the referenced nodes.
@@ -64,14 +63,6 @@ use serde_json::json;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ScenarioDefinition {
-    /// Optional identifier of the underlying financial model.
-    ///
-    /// This is a **hint only** in the first implementation and is not
-    /// enforced at runtime. It enables future multi-model workflows while
-    /// remaining compatible with the current single-model design.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub model_id: Option<String>,
-
     /// Optional parent scenario to inherit overrides from.
     ///
     /// Parent chains can be arbitrarily deep but must be acyclic. Later
@@ -163,7 +154,6 @@ impl ScenarioSet {
     /// scenarios.insert(
     ///     "base".to_string(),
     ///     ScenarioDefinition {
-    ///         model_id: Some(model.id.clone()),
     ///         parent: None,
     ///         overrides: IndexMap::new(),
     ///     },
@@ -171,7 +161,6 @@ impl ScenarioSet {
     /// scenarios.insert(
     ///     "downside".to_string(),
     ///     ScenarioDefinition {
-    ///         model_id: Some(model.id.clone()),
     ///         parent: Some("base".to_string()),
     ///         overrides: IndexMap::from([("revenue".to_string(), 90.0)]),
     ///     },
@@ -248,12 +237,10 @@ impl ScenarioSet {
     ///
     /// let scenarios = IndexMap::from([
     ///     ("base".to_string(), ScenarioDefinition {
-    ///         model_id: Some(model.id.clone()),
     ///         parent: None,
     ///         overrides: IndexMap::new(),
     ///     }),
     ///     ("downside".to_string(), ScenarioDefinition {
-    ///         model_id: Some(model.id.clone()),
     ///         parent: Some("base".to_string()),
     ///         overrides: IndexMap::from([("revenue".to_string(), 90.0)]),
     ///     }),
@@ -333,12 +320,10 @@ impl ScenarioSet {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let scenarios = IndexMap::from([
     ///     ("base".to_string(), ScenarioDefinition {
-    ///         model_id: None,
     ///         parent: None,
     ///         overrides: IndexMap::new(),
     ///     }),
     ///     ("stress".to_string(), ScenarioDefinition {
-    ///         model_id: None,
     ///         parent: Some("base".to_string()),
     ///         overrides: IndexMap::new(),
     ///     }),
@@ -515,12 +500,10 @@ impl ScenarioResults {
     ///     .build()?;
     /// let scenarios = IndexMap::from([
     ///     ("base".to_string(), ScenarioDefinition {
-    ///         model_id: Some(model.id.clone()),
     ///         parent: None,
     ///         overrides: IndexMap::new(),
     ///     }),
     ///     ("downside".to_string(), ScenarioDefinition {
-    ///         model_id: Some(model.id.clone()),
     ///         parent: Some("base".to_string()),
     ///         overrides: IndexMap::from([("revenue".to_string(), 90.0)]),
     ///     }),
@@ -716,7 +699,6 @@ mod tests {
         scenarios.insert(
             "base".to_string(),
             ScenarioDefinition {
-                model_id: None,
                 parent: None,
                 overrides: IndexMap::new(),
             },
@@ -727,7 +709,6 @@ mod tests {
         scenarios.insert(
             "downside".to_string(),
             ScenarioDefinition {
-                model_id: None,
                 parent: Some("base".to_string()),
                 overrides: downside_overrides,
             },
@@ -738,7 +719,6 @@ mod tests {
         scenarios.insert(
             "stress".to_string(),
             ScenarioDefinition {
-                model_id: None,
                 parent: Some("downside".to_string()),
                 overrides: stress_overrides,
             },
@@ -760,5 +740,14 @@ mod tests {
             .resolve_overrides("stress")
             .expect("stress overrides should resolve");
         assert_eq!(stress.get("revenue"), Some(&80_000.0));
+    }
+
+    #[test]
+    fn removed_model_id_is_rejected_as_an_unknown_field() {
+        let json = r#"{"model_id":"legacy","overrides":{}}"#;
+        let error = serde_json::from_str::<ScenarioDefinition>(json)
+            .expect_err("removed model_id must not be accepted");
+
+        assert!(error.to_string().contains("unknown field `model_id`"));
     }
 }

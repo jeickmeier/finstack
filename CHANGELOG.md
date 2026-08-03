@@ -24,6 +24,10 @@
   rewriting, including `ModelBuilder::with_name_normalization`. Formulas and
   `where` clauses now require exact node IDs; unknown IDs retain the dependency
   graph's nearest-name diagnostics.
+- **Breaking (Rust, JSON, Python):** Removed the unused
+  `ScenarioDefinition.model_id` field and Python `ScenarioSet.model_ids`
+  constructor input. Scenario-set JSON containing `model_id` is now rejected
+  by the existing unknown-field validation.
 - **Breaking (Rust, Python):** Corporate analysis now stores direct
   `CreditContextMetrics` per instrument instead of the speculative
   `CreditInstrumentAnalysis` wrapper. Non-positive DCF enterprise-value

@@ -39,7 +39,6 @@ fn evaluate_all_applies_overrides_and_evaluates() {
     scenarios.insert(
         "base".to_string(),
         ScenarioDefinition {
-            model_id: Some(model.id.clone()),
             parent: None,
             overrides: IndexMap::new(),
         },
@@ -50,7 +49,6 @@ fn evaluate_all_applies_overrides_and_evaluates() {
     scenarios.insert(
         "downside".to_string(),
         ScenarioDefinition {
-            model_id: Some(model.id.clone()),
             parent: Some("base".to_string()),
             overrides: downside_overrides,
         },
@@ -102,7 +100,6 @@ fn diff_uses_variance_analyzer() {
     scenarios.insert(
         "base".to_string(),
         ScenarioDefinition {
-            model_id: Some(model.id.clone()),
             parent: None,
             overrides: IndexMap::new(),
         },
@@ -113,7 +110,6 @@ fn diff_uses_variance_analyzer() {
     scenarios.insert(
         "downside".to_string(),
         ScenarioDefinition {
-            model_id: Some(model.id.clone()),
             parent: Some("base".to_string()),
             overrides: downside_overrides,
         },
@@ -189,7 +185,6 @@ fn evaluate_all_preserves_actual_history_when_applying_overrides() {
     scenarios.insert(
         "base".to_string(),
         ScenarioDefinition {
-            model_id: Some(model.id.clone()),
             parent: None,
             overrides: IndexMap::new(),
         },
@@ -200,7 +195,6 @@ fn evaluate_all_preserves_actual_history_when_applying_overrides() {
     scenarios.insert(
         "downside".to_string(),
         ScenarioDefinition {
-            model_id: Some(model.id.clone()),
             parent: Some("base".to_string()),
             overrides: downside_overrides,
         },
@@ -259,7 +253,6 @@ fn comparison_table_emits_null_pct_on_zero_baseline() {
     scenarios.insert(
         "base".to_string(),
         ScenarioDefinition {
-            model_id: Some(model.id.clone()),
             parent: None,
             overrides: IndexMap::new(),
         },
@@ -269,7 +262,6 @@ fn comparison_table_emits_null_pct_on_zero_baseline() {
     scenarios.insert(
         "upside".to_string(),
         ScenarioDefinition {
-            model_id: Some(model.id.clone()),
             parent: Some("base".to_string()),
             overrides: upside_overrides,
         },
