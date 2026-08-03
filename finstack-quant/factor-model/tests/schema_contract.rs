@@ -6,19 +6,20 @@ use finstack_quant_factor_model::credit::calibration::{
 use finstack_quant_factor_model::credit::hierarchy::CreditFactorModel;
 use finstack_quant_factor_model::schema::{
     credit_calibration_config_schema, credit_calibration_inputs_schema, credit_factor_model_schema,
-    factor_model_config_schema, generated_schema as generate_schema,
-    CREDIT_CALIBRATION_CONFIG_SCHEMA_DESCRIPTION, CREDIT_CALIBRATION_CONFIG_SCHEMA_FILENAME,
-    CREDIT_CALIBRATION_CONFIG_SCHEMA_TITLE, CREDIT_CALIBRATION_INPUTS_SCHEMA_DESCRIPTION,
-    CREDIT_CALIBRATION_INPUTS_SCHEMA_FILENAME, CREDIT_CALIBRATION_INPUTS_SCHEMA_TITLE,
-    CREDIT_FACTOR_MODEL_SCHEMA_DESCRIPTION, CREDIT_FACTOR_MODEL_SCHEMA_FILENAME,
-    CREDIT_FACTOR_MODEL_SCHEMA_TITLE, FACTOR_MODEL_SCHEMA_BASE, FACTOR_MODEL_SCHEMA_DESCRIPTION,
-    FACTOR_MODEL_SCHEMA_FILENAME, FACTOR_MODEL_SCHEMA_TITLE,
+    factor_model_config_schema, CREDIT_CALIBRATION_CONFIG_SCHEMA_DESCRIPTION,
+    CREDIT_CALIBRATION_CONFIG_SCHEMA_FILENAME, CREDIT_CALIBRATION_CONFIG_SCHEMA_TITLE,
+    CREDIT_CALIBRATION_INPUTS_SCHEMA_DESCRIPTION, CREDIT_CALIBRATION_INPUTS_SCHEMA_FILENAME,
+    CREDIT_CALIBRATION_INPUTS_SCHEMA_TITLE, CREDIT_FACTOR_MODEL_SCHEMA_DESCRIPTION,
+    CREDIT_FACTOR_MODEL_SCHEMA_FILENAME, CREDIT_FACTOR_MODEL_SCHEMA_TITLE,
+    FACTOR_MODEL_SCHEMA_BASE, FACTOR_MODEL_SCHEMA_DESCRIPTION, FACTOR_MODEL_SCHEMA_FILENAME,
+    FACTOR_MODEL_SCHEMA_TITLE,
 };
 use finstack_quant_factor_model::FactorModelConfigEnvelope;
 use serde_json::{json, Value};
 
 fn generated_schema() -> Value {
-    generate_schema::<FactorModelConfigEnvelope>(
+    finstack_quant_core::schema::generated_schema::<FactorModelConfigEnvelope>(
+        FACTOR_MODEL_SCHEMA_BASE,
         FACTOR_MODEL_SCHEMA_FILENAME,
         FACTOR_MODEL_SCHEMA_TITLE,
         FACTOR_MODEL_SCHEMA_DESCRIPTION,
@@ -34,7 +35,8 @@ fn checked_in_schema() -> Value {
 }
 
 fn generated_credit_factor_model_schema() -> Value {
-    generate_schema::<CreditFactorModel>(
+    finstack_quant_core::schema::generated_schema::<CreditFactorModel>(
+        FACTOR_MODEL_SCHEMA_BASE,
         CREDIT_FACTOR_MODEL_SCHEMA_FILENAME,
         CREDIT_FACTOR_MODEL_SCHEMA_TITLE,
         CREDIT_FACTOR_MODEL_SCHEMA_DESCRIPTION,
@@ -43,7 +45,8 @@ fn generated_credit_factor_model_schema() -> Value {
 }
 
 fn generated_credit_calibration_config_schema() -> Value {
-    generate_schema::<CreditCalibrationConfig>(
+    finstack_quant_core::schema::generated_schema::<CreditCalibrationConfig>(
+        FACTOR_MODEL_SCHEMA_BASE,
         CREDIT_CALIBRATION_CONFIG_SCHEMA_FILENAME,
         CREDIT_CALIBRATION_CONFIG_SCHEMA_TITLE,
         CREDIT_CALIBRATION_CONFIG_SCHEMA_DESCRIPTION,
@@ -52,7 +55,8 @@ fn generated_credit_calibration_config_schema() -> Value {
 }
 
 fn generated_credit_calibration_inputs_schema() -> Value {
-    generate_schema::<CreditCalibrationInputs>(
+    finstack_quant_core::schema::generated_schema::<CreditCalibrationInputs>(
+        FACTOR_MODEL_SCHEMA_BASE,
         CREDIT_CALIBRATION_INPUTS_SCHEMA_FILENAME,
         CREDIT_CALIBRATION_INPUTS_SCHEMA_TITLE,
         CREDIT_CALIBRATION_INPUTS_SCHEMA_DESCRIPTION,

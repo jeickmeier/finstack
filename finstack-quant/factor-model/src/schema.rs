@@ -2,7 +2,6 @@
 
 use std::sync::OnceLock;
 
-use finstack_quant_core::schema::SerdeSchema;
 use serde_json::Value;
 
 /// Stable base URI for factor-model-owned schemas.
@@ -38,36 +37,6 @@ pub const CREDIT_CALIBRATION_INPUTS_SCHEMA_TITLE: &str = "CreditCalibrationInput
 /// Canonical description of the credit calibration input schema.
 pub const CREDIT_CALIBRATION_INPUTS_SCHEMA_DESCRIPTION: &str =
     "Typed issuer histories, tags, generic factor series, anchor date, and overrides for one credit calibration run.";
-
-/// Build a factor-model-owned schema with canonical metadata.
-///
-/// This is public so the generator binary and schema parity integration test
-/// use exactly the same assembly path.
-///
-/// # Arguments
-///
-/// * `filename` - Version-directory filename appended to
-///   [`FACTOR_MODEL_SCHEMA_BASE`].
-/// * `title` - Stable human-readable title for the generated root type.
-/// * `description` - Stable description for the persisted contract.
-///
-/// # Errors
-///
-/// Returns [`finstack_quant_core::Error::Internal`] if schemars output cannot
-/// be serialized as a JSON object.
-#[doc(hidden)]
-pub fn generated_schema<T: SerdeSchema>(
-    filename: &str,
-    title: &str,
-    description: &str,
-) -> finstack_quant_core::Result<Value> {
-    finstack_quant_core::schema::generated_schema::<T>(
-        FACTOR_MODEL_SCHEMA_BASE,
-        filename,
-        title,
-        description,
-    )
-}
 
 fn parse_schema(
     cache: &'static OnceLock<std::result::Result<Value, String>>,
