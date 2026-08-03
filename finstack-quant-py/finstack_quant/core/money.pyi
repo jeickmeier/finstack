@@ -207,10 +207,6 @@ class Money:
         str
             Formatted string such as ``"USD 100.00"``.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -292,7 +288,10 @@ class Money:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *target* is not a recognized currency, *rate* is non-finite or
+            not strictly positive, or the converted amount exceeds Decimal's
+            representable range.
+
         """
         ...
 

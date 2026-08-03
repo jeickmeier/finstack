@@ -472,10 +472,6 @@ class recovery_waterfall:
                 Optional ``(market_value, haircut)`` collateral tuple. The
                 haircut is a decimal fraction deducted before estate allocation.
 
-            Raises
-            ------
-            ValueError
-                If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
             """
             ...
         @property
@@ -789,7 +785,14 @@ class recovery_waterfall:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If the estate or claim amounts are negative or non-finite, a claim
+            identifier or seniority is blank, identifiers are duplicated,
+            a haircut is outside ``[0, 1]``, a claim total overflows, or net
+            collateral exceeds the estate.
+        RuntimeError
+            If the allocator cannot reserve its claim-index storage or a
+            recovery-conservation invariant fails.
+
 
         Examples
         --------
@@ -912,6 +915,11 @@ class scoring:
             ``"grey"``, or ``"distress"``. PD is absent unless an explicit
             versioned heuristic is supplied.
 
+        Raises
+        ------
+        ValueError
+            If any accounting ratio is non-finite.
+
         Sources
         -------
         - Altman (1968/1983): see docs/REFERENCES.md#altman-1968
@@ -923,10 +931,6 @@ class scoring:
         >>> zone in ("safe", "grey", "distress")
         True
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -973,7 +977,8 @@ class scoring:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If any accounting ratio is non-finite.
+
         """
         ...
 
@@ -1076,7 +1081,9 @@ class scoring:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If any accounting input is non-finite, or if either binary
+            indicator is not exactly ``0.0`` or ``1.0``.
+
         """
         ...
 
@@ -1115,7 +1122,8 @@ class scoring:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If any accounting ratio is non-finite.
+
         """
         ...
 
@@ -1152,15 +1160,17 @@ class pd:
         float
             Through-the-cycle PD in ``(0, 1)``.
 
+        Raises
+        ------
+        ValueError
+            If *pit_pd* or *asset_correlation* is not strictly between zero
+            and one, or if *cycle_index* is non-finite.
+
         Examples
         --------
         >>> from finstack_quant.core.credit import pd
         >>> ttc = pd.pit_to_ttc(0.02, 0.12, 0.0)  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1186,15 +1196,17 @@ class pd:
         float
             Point-in-time PD in ``(0, 1)``.
 
+        Raises
+        ------
+        ValueError
+            If *ttc_pd* or *asset_correlation* is not strictly between zero
+            and one, or if *cycle_index* is non-finite.
+
         Examples
         --------
         >>> from finstack_quant.core.credit import pd
         >>> pit = pd.ttc_to_pit(0.02, 0.12, 1.0)  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1213,16 +1225,18 @@ class pd:
         float
             Long-run average PD.
 
+        Raises
+        ------
+        ValueError
+            If *annual_default_rates* is empty or contains a non-finite value
+            or a rate outside ``[0, 1]``.
+
         Examples
         --------
         >>> from finstack_quant.core.credit import pd
         >>> pd.central_tendency([0.01, 0.02, 0.015])  # doctest: +SKIP
         0.015
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1261,6 +1275,12 @@ class lgd:
         dict[str, float]
             Dict with keys ``{"mean", "std", "alpha", "beta"}``.
 
+        Raises
+        ------
+        ValueError
+            If *seniority* is unknown, *rating_agency* is unsupported, or the
+            selected calibration does not contain the seniority class.
+
         Examples
         --------
         >>> from finstack_quant.core.credit import lgd
@@ -1268,10 +1288,6 @@ class lgd:
         >>> "mean" in stats
         True
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1301,15 +1317,17 @@ class lgd:
         list[float]
             Sampled recovery rates in ``(0, 1)``.
 
+        Raises
+        ------
+        ValueError
+            If *mean* is not strictly between zero and one, or if *std* is not
+            positive and compatible with a Beta distribution having that mean.
+
         Examples
         --------
         >>> from finstack_quant.core.credit import lgd
         >>> samples = lgd.beta_recovery_sample(0.4, 0.2, 100, 42)  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1332,15 +1350,17 @@ class lgd:
         float
             Recovery rate at the given quantile.
 
+        Raises
+        ------
+        ValueError
+            If *mean* and *std* cannot parameterize a Beta distribution, or if
+            *q* is non-finite or outside ``[0, 1]``.
+
         Examples
         --------
         >>> from finstack_quant.core.credit import lgd
         >>> lgd.beta_recovery_quantile(0.4, 0.2, 0.95)  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1377,15 +1397,18 @@ class lgd:
         tuple[float, float]
             ``(net_recovery, lgd)`` with ``lgd`` clamped to ``[0, 1]``.
 
+        Raises
+        ------
+        ValueError
+            If *ead* is not finite and strictly positive; a collateral type is
+            unknown; a collateral value, haircut, cost rate, workout horizon,
+            or discount rate is non-finite or outside its documented range.
+
         Examples
         --------
         >>> from finstack_quant.core.credit import lgd
         >>> net_rec, loss = lgd.workout_lgd(100.0, [("cash", 40.0, 1.0)], 0.02, 0.01, 1.5, 0.05)  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1419,15 +1442,18 @@ class lgd:
         float
             Stressed LGD in ``[0, 1]``.
 
+        Raises
+        ------
+        ValueError
+            If *base_lgd* is outside ``[0, 1]``, *asset_correlation* or
+            *stress_quantile* is not strictly between zero and one, or
+            *lgd_sensitivity* is negative or non-finite.
+
         Examples
         --------
         >>> from finstack_quant.core.credit import lgd
         >>> lgd.downturn_lgd_stressed(0.4, 0.12, 0.3, 0.999)  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1454,15 +1480,17 @@ class lgd:
         float
             Floored downturn LGD in ``[0, 1]``.
 
+        Raises
+        ------
+        ValueError
+            If *base_lgd* or *floor* is non-finite or outside ``[0, 1]``, or
+            if *add_on* is negative or non-finite.
+
         Examples
         --------
         >>> from finstack_quant.core.credit import lgd
         >>> lgd.downturn_lgd_regulatory_floor(0.4, 0.05, 0.45)  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1481,16 +1509,17 @@ class lgd:
         float
             EAD equal to ``principal``.
 
+        Raises
+        ------
+        ValueError
+            If *principal* is negative or non-finite.
+
         Examples
         --------
         >>> from finstack_quant.core.credit import lgd
         >>> lgd.ead_term_loan(1_000_000.0)  # doctest: +SKIP
         1000000.0
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1513,16 +1542,18 @@ class lgd:
         float
             EAD for the revolver facility.
 
+        Raises
+        ------
+        ValueError
+            If *drawn* or *undrawn* is negative or non-finite, or if *ccf* is
+            non-finite or outside ``[0, 1]``.
+
         Examples
         --------
         >>> from finstack_quant.core.credit import lgd
         >>> lgd.ead_revolver(50.0, 50.0, 0.5)  # doctest: +SKIP
         75.0
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1647,14 +1678,15 @@ class migration:
             migration.RatingScale
                 Custom scale.
 
+            Raises
+            ------
+            ValueError
+                If fewer than two labels are supplied or any label is duplicated.
+
             Example
             -------
             >>> scale = migration.RatingScale.custom(["A", "B", "C", "D"])  # doctest: +SKIP
 
-            Raises
-            ------
-            ValueError
-                If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
             Examples
             --------
@@ -1681,14 +1713,17 @@ class migration:
             migration.RatingScale
                 Custom scale with the default state appended.
 
+            Raises
+            ------
+            ValueError
+                If fewer than two labels are supplied or any label is duplicated.
+            KeyError
+                If *default_label* is not present in *labels*.
+
             Example
             -------
             >>> scale = migration.RatingScale.custom_with_default(["A", "B", "C"], "DEFAULT")  # doctest: +SKIP
 
-            Raises
-            ------
-            ValueError
-                If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
             Examples
             --------
@@ -1735,10 +1770,6 @@ class migration:
             >>> scale.index_of("BBB")  # doctest: +SKIP
             3
 
-            Raises
-            ------
-            ValueError
-                If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
             """
             ...
 
@@ -1817,16 +1848,18 @@ class migration:
             str
                 Rating label whose WARF bucket contains the given value.
 
+            Raises
+            ------
+            ValueError
+                If *warf* is non-finite or the scale contains no label with a
+                known Moody's WARF factor.
+
             Example
             -------
             >>> scale = migration.RatingScale.standard()  # doctest: +SKIP
             >>> scale.rating_from_warf(250.0)  # doctest: +SKIP
             'BBB'
 
-            Raises
-            ------
-            ValueError
-                If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
             """
             ...
 
@@ -1878,7 +1911,11 @@ class migration:
             Raises
             ------
             ValueError
-                If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+                If *horizon* is not finite and strictly positive; *data* is not
+                an ``n x n`` row-major matrix; an entry is non-finite or outside
+                ``[0, 1]``; a row does not sum to one; or the default row is not
+                absorbing.
+
             """
             ...
 
@@ -1898,15 +1935,16 @@ class migration:
             float
                 Transition probability in ``[0, 1]``.
 
+            Raises
+            ------
+            KeyError
+                If *from_* or *to* is not a label on the matrix's rating scale.
+
             Example
             -------
             >>> tm.probability("BBB", "BB")  # doctest: +SKIP
             0.04
 
-            Raises
-            ------
-            ValueError
-                If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
             """
             ...
 
@@ -1924,15 +1962,16 @@ class migration:
             list[float]
                 Transition probabilities to every state on the scale.
 
+            Raises
+            ------
+            KeyError
+                If *from_* is not a label on the matrix's rating scale.
+
             Example
             -------
             >>> tm.row("BBB")  # doctest: +SKIP
             [0.9, 0.05, 0.04, ...]
 
-            Raises
-            ------
-            ValueError
-                If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
             """
             ...
 
@@ -2045,7 +2084,10 @@ class migration:
             Raises
             ------
             ValueError
-                If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+                If *data* is not an ``n x n`` row-major matrix; an off-diagonal
+                entry is negative or non-finite; a row does not sum to zero; or
+                the default row is not absorbing.
+
             """
             ...
 
@@ -2066,14 +2108,18 @@ class migration:
             migration.GeneratorMatrix
                 Estimated generator matrix.
 
+            Raises
+            ------
+            RuntimeError
+                If the transition matrix has complex or non-positive
+                eigenvalues, its matrix logarithm is singular, or the
+                reconstructed transition matrix exceeds the round-trip
+                tolerance.
+
             Example
             -------
             >>> gm = migration.GeneratorMatrix.from_transition_matrix(tm)  # doctest: +SKIP
 
-            Raises
-            ------
-            ValueError
-                If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
             Examples
             --------
@@ -2099,15 +2145,16 @@ class migration:
             float
                 Generator intensity.  Diagonal entries are negative (exit rates).
 
+            Raises
+            ------
+            KeyError
+                If *from_* or *to* is not a label on the generator's rating scale.
+
             Example
             -------
             >>> gm.intensity("BBB", "BB")  # doctest: +SKIP
             0.04
 
-            Raises
-            ------
-            ValueError
-                If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
             """
             ...
 
@@ -2126,15 +2173,16 @@ class migration:
             float
                 Non-negative exit rate.  The default absorbing state has rate 0.
 
+            Raises
+            ------
+            KeyError
+                If *state* is not a label on the generator's rating scale.
+
             Example
             -------
             >>> gm.exit_rate("BBB")  # doctest: +SKIP
             0.06
 
-            Raises
-            ------
-            ValueError
-                If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
             """
             ...
 
@@ -2236,10 +2284,6 @@ class migration:
             >>> path.state_at(0.5)  # doctest: +SKIP
             3
 
-            Raises
-            ------
-            ValueError
-                If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
             """
             ...
 
@@ -2262,10 +2306,6 @@ class migration:
             >>> path.label_at(0.5)  # doctest: +SKIP
             'BBB'
 
-            Raises
-            ------
-            ValueError
-                If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
             """
             ...
 
@@ -2387,7 +2427,8 @@ class migration:
             Raises
             ------
             ValueError
-                If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+                If *horizon* is non-finite or not strictly positive.
+
             """
             ...
 
@@ -2414,16 +2455,17 @@ class migration:
             list[migration.RatingPath]
                 Simulated paths.
 
+            Raises
+            ------
+            ValueError
+                If *initial_state* is outside the generator's state range.
+
             Example
             -------
             >>> paths = sim.simulate(3, 1000, 42)  # doctest: +SKIP
             >>> len(paths)  # doctest: +SKIP
             1000
 
-            Raises
-            ------
-            ValueError
-                If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
             """
             ...
 
@@ -2446,14 +2488,15 @@ class migration:
             migration.TransitionMatrix
                 Empirically estimated transition matrix.
 
+            Raises
+            ------
+            ValueError
+                If *n_paths_per_state* is zero.
+
             Example
             -------
             >>> tm = sim.empirical_matrix(5000, 42)  # doctest: +SKIP
 
-            Raises
-            ------
-            ValueError
-                If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
             """
             ...
 
@@ -2492,14 +2535,19 @@ class migration:
         migration.TransitionMatrix
             Transition matrix at time ``t``.
 
+        Raises
+        ------
+        ValueError
+            If *t* is non-finite or not strictly positive, or the projected
+            matrix fails transition-matrix validation.
+        RuntimeError
+            If the matrix exponential encounters a singular or numerically
+            degenerate system.
+
         Example
         -------
         >>> tm = migration.project(gm, 5.0)  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------

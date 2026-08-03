@@ -187,7 +187,9 @@ class DiscountCurve:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *continuous_rate* is non-finite or implies a one-year discount
+            factor that is not finite and strictly positive.
+
 
         Examples
         --------
@@ -211,10 +213,6 @@ class DiscountCurve:
         float
             Discount factor.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -232,10 +230,6 @@ class DiscountCurve:
         float
             Zero rate.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -416,7 +410,10 @@ class ForwardCurve:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If a convention or interpolation name is unknown, *tenor* is not
+            finite and positive, the knot grid is empty or invalid, or a
+            supplied projection grid is non-finite or not strictly increasing.
+
 
         Examples
         --------
@@ -440,10 +437,6 @@ class ForwardCurve:
         float
             Forward rate.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -601,10 +594,6 @@ class HazardCurve:
         float
             Survival probability in ``[0, 1]``.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -622,10 +611,6 @@ class HazardCurve:
         float
             Hazard rate.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -681,7 +666,10 @@ class BaseCorrelationCurve:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If fewer than two knots are supplied; a detachment is negative or
+            non-finite; a correlation is non-finite or outside ``[0, 1]``; or
+            the correlation curve is non-monotonic.
+
         """
         ...
 
@@ -711,10 +699,6 @@ class BaseCorrelationCurve:
         float
             Result of correlation for this `BaseCorrelationCurve` in the annotated representation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -755,7 +739,9 @@ class CreditIndexData:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *num_constituents* is zero or *recovery_rate* is non-finite or
+            outside ``[0, 1]``.
+
         """
         ...
 
@@ -864,10 +850,6 @@ class PriceCurve:
         float
             Forward price.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -965,7 +947,10 @@ class InflationCurve:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *day_count* or *interp* is unknown, no knots are supplied, knot
+            times are non-finite or not strictly increasing, or a CPI knot is
+            non-finite or not strictly positive.
+
         """
         ...
 
@@ -983,10 +968,6 @@ class InflationCurve:
         float
             Result of cpi for this `InflationCurve` in the annotated representation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1004,10 +985,6 @@ class InflationCurve:
         float
             Result of cpi with lag for this `InflationCurve` in the annotated representation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1057,10 +1034,6 @@ class InflationCurve:
         float
             Result of inflation rate for this `InflationCurve` in the annotated representation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1080,10 +1053,6 @@ class InflationCurve:
         float
             Result of inflation rate simple for this `InflationCurve` in the annotated representation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1215,7 +1184,10 @@ class VolSurface:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If an option name is unknown; an axis is empty, non-finite, or not
+            strictly increasing; the flat grid length does not match the axis
+            dimensions; or a volatility is negative or non-finite.
+
         """
         ...
 
@@ -1238,7 +1210,9 @@ class VolSurface:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *expiry* or *strike* is non-finite or outside the stored grid,
+            or interpolation segments cannot be determined.
+
         """
         ...
 
@@ -1258,10 +1232,6 @@ class VolSurface:
         float
             Result of value clamped for this `VolSurface` in the annotated representation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1484,7 +1454,10 @@ class FxDeltaVolSurface:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *expiry*, *strike*, or *forward* is non-finite or not strictly
+            positive, or if the interpolated smile produces a non-positive
+            wing volatility.
+
         """
         ...
 
@@ -1509,7 +1482,10 @@ class FxDeltaVolSurface:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *spot* is non-finite or not strictly positive, either rate is
+            non-finite, or the stored delta quotes cannot produce a valid
+            strike-grid surface.
+
         """
         ...
 
@@ -1534,10 +1510,6 @@ class FxDeltaVolSurface:
         float
             Result of delta to strike for this `FxDeltaVolSurface` in the annotated representation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -1568,10 +1540,6 @@ class FxDeltaVolSurface:
         float
             Result of strike to delta for this `FxDeltaVolSurface` in the annotated representation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -1651,7 +1619,11 @@ class VolCube:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *interpolation_mode* is unknown; either axis is empty,
+            non-finite, non-positive, or not strictly increasing; row-major
+            lengths do not match the grid; a forward is non-finite; or any
+            SABR parameter dictionary is incomplete or invalid.
+
         """
         ...
 
@@ -1698,10 +1670,6 @@ class VolCube:
         float
             Result of vol clamped for this `VolCube` in the annotated representation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1755,10 +1723,6 @@ class VolCube:
         float
             Result of vol normal clamped for this `VolCube` in the annotated representation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1781,7 +1745,9 @@ class VolCube:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *strikes* is empty or contains a non-finite value, *tenor* is
+            non-finite, or the materialized surface fails grid validation.
+
         """
         ...
 
@@ -1807,7 +1773,10 @@ class VolCube:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *strikes* is empty or contains a non-finite value, *tenor* is
+            non-finite, or the materialized normal-vol surface fails grid
+            validation.
+
         """
         ...
 
@@ -1830,7 +1799,9 @@ class VolCube:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *strikes* is empty or contains a non-finite value, *expiry* is
+            non-finite, or the materialized surface fails grid validation.
+
         """
         ...
 
@@ -1856,7 +1827,10 @@ class VolCube:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *strikes* is empty or contains a non-finite value, *expiry* is
+            non-finite, or the materialized normal-vol surface contains an
+            invalid value or otherwise fails grid validation.
+
         """
         ...
 
@@ -2003,10 +1977,6 @@ class VolatilityIndexCurve:
         float
             Forward volatility index level.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -2206,7 +2176,9 @@ class FxMatrix:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If either currency or *policy* is unrecognized, or if *rate* is
+            non-finite or not strictly positive.
+
         """
         ...
 
@@ -2290,8 +2262,13 @@ class ScalarTimeSeries:
 
         Raises
         ------
+        TypeError
+            If an observation value is not a float, integer, or ``Decimal``.
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *observations* is empty, contains duplicate dates or non-finite
+            values, or contains a ``Decimal`` not exactly representable as a
+            float; or if *currency* or *interpolation* is unrecognized.
+
         """
         ...
     @property
@@ -2358,8 +2335,9 @@ class ScalarTimeSeries:
 
         Raises
         ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        KeyError
+            If *date* precedes the first available observation.
+
         """
         ...
     def to_json(self) -> str:
@@ -2438,8 +2416,13 @@ class InflationIndex:
 
         Raises
         ------
+        TypeError
+            If an observation value is not a float, integer, or ``Decimal``.
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *observations* is empty, contains duplicate dates or non-finite
+            values, or contains a ``Decimal`` not exactly representable as a
+            float; or if *currency* or *interpolation* is unrecognized.
+
         """
         ...
     @property
@@ -2506,8 +2489,12 @@ class InflationIndex:
 
         Raises
         ------
+        KeyError
+            If the lag-adjusted date cannot be resolved from the observations.
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If applying the configured lag moves the date outside the
+            supported date range.
+
         """
         ...
     def to_json(self) -> str:
@@ -2630,10 +2617,6 @@ class MarketContext:
         fx : FxMatrix
             FX rate matrix.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -2659,8 +2642,12 @@ class MarketContext:
 
         Raises
         ------
+        TypeError
+            If *value* is not a supported numeric type.
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *currency* is unrecognized, *value* is non-finite, or a
+            unitless ``Decimal`` cannot be represented exactly as a float.
+
         """
         ...
 
@@ -2675,10 +2662,6 @@ class MarketContext:
         data : CreditIndexData
             Credit index data bundle.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -2691,10 +2674,6 @@ class MarketContext:
         series : ScalarTimeSeries
             Fully validated date-indexed series whose ``id`` becomes the lookup key.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -2707,10 +2686,6 @@ class MarketContext:
         index : InflationIndex
             Fully validated index observation series whose ``id`` becomes the lookup key.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -2793,8 +2768,11 @@ class MarketContext:
 
         Raises
         ------
+        KeyError
+            If no curve with this *id* exists.
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *id* names a curve of a different market-data type.
+
         """
         ...
 
@@ -2860,8 +2838,9 @@ class MarketContext:
 
         Raises
         ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        KeyError
+            If no scalar market price with this *id* exists.
+
         """
         ...
 
@@ -2881,8 +2860,9 @@ class MarketContext:
 
         Raises
         ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        KeyError
+            If no scalar time series with this *id* exists.
+
         """
         ...
 
@@ -2902,8 +2882,9 @@ class MarketContext:
 
         Raises
         ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        KeyError
+            If no inflation index with this *id* exists.
+
         """
         ...
 
@@ -3005,8 +2986,9 @@ class MarketContext:
 
         Raises
         ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        KeyError
+            If no credit-index data with this *id* exists.
+
         """
         ...
 

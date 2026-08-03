@@ -153,15 +153,16 @@ class ToleranceConfig:
         generic_epsilon : float | None
             Epsilon for generic floating-point comparisons.
 
+        Raises
+        ------
+        ValueError
+            If either supplied epsilon is non-finite or not strictly positive.
+
         Examples
         --------
         >>> from finstack_quant.core.config import ToleranceConfig
         >>> tol = ToleranceConfig(rate_epsilon=1e-9, generic_epsilon=1e-12)  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -254,10 +255,6 @@ class FinstackConfig:
         >>> from finstack_quant.core.config import FinstackConfig, RoundingMode
         >>> cfg = FinstackConfig(rounding_mode=RoundingMode.BANKERS)  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -327,15 +324,18 @@ class FinstackConfig:
         value:
             Python data or a JSON string.
 
+        Raises
+        ------
+        ValueError
+            If *key* is not a versioned namespaced key of the form
+            ``namespace.domain.vN``, or if *value* cannot be represented as
+            JSON data.
+
         Examples
         --------
         >>> cfg = FinstackConfig()  # doctest: +SKIP
         >>> cfg.set_extension("custom_key", '{"v":1}')  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -359,10 +359,6 @@ class FinstackConfig:
         >>> cfg.remove_extension("custom_key")  # doctest: +SKIP
         False
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -403,10 +399,6 @@ class FinstackConfig:
         >>> cfg.get_extension_json("custom_key")  # doctest: +SKIP
         None
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -430,10 +422,6 @@ class FinstackConfig:
         >>> cfg.get_extension("custom_key")  # doctest: +SKIP
         None
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 

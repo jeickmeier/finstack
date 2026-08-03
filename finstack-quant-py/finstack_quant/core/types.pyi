@@ -129,10 +129,6 @@ class Rate:
         Rate
             Result of from bp for this `Rate` in the annotated representation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -554,10 +550,6 @@ class CurveId:
         >>> CurveId("USD-OIS").as_str()
         'USD-OIS'
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -651,10 +643,6 @@ class InstrumentId:
         >>> InstrumentId("BOND_A").as_str()
         'BOND_A'
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -761,10 +749,6 @@ class Attributes:
         >>> attrs.get_meta("missing")  # doctest: +SKIP
         None
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -784,10 +768,6 @@ class Attributes:
         >>> attrs = Attributes()  # doctest: +SKIP
         >>> attrs.set_meta("sector", "tech")  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -811,10 +791,6 @@ class Attributes:
         >>> attrs.contains_meta_key("sector")  # doctest: +SKIP
         False
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 

@@ -36,10 +36,6 @@ def count_consecutive(values: list[float]) -> int:
     >>> count_consecutive([1.0, 2.0, -1.0, 3.0])
     2
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -244,10 +240,6 @@ class stats:
         >>> stats.mean([1.0, 2.0, 3.0])
         2.0
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -274,10 +266,6 @@ class stats:
         >>> round(stats.variance([1.0, 2.0, 3.0]), 10)
         1.0
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -304,10 +292,6 @@ class stats:
         >>> round(stats.population_variance([1.0, 2.0, 3.0]), 10)
         0.6666666667
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -336,10 +320,6 @@ class stats:
         >>> round(stats.correlation([1.0, 2.0, 3.0], [2.0, 4.0, 6.0]), 10)
         1.0
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -368,10 +348,6 @@ class stats:
         >>> round(stats.covariance([1.0, 2.0, 3.0], [2.0, 4.0, 6.0]), 10)
         2.0
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -401,10 +377,6 @@ class stats:
         >>> stats.quantile([1.0, 2.0, 3.0, 4.0, 5.0], 0.5)
         3.0
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -659,10 +631,6 @@ class summation:
         >>> summation.kahan_sum([1.0, 2.0, 3.0])
         6.0
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -690,9 +658,5 @@ class summation:
         >>> summation.neumaier_sum([1.0, -2.0, 3.0])
         2.0
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...

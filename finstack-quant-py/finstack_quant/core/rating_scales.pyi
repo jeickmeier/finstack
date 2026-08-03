@@ -181,10 +181,6 @@ class RatingLevel:
         >>> from finstack_quant.core.rating_scales import RatingLevel
         >>> lvl = RatingLevel("BBB", 70.0, 65.0)  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
     @property
@@ -322,10 +318,6 @@ class ScorecardScale:
         >>> from finstack_quant.core.rating_scales import ScorecardScale, RatingLevel
         >>> scale = ScorecardScale("custom", [RatingLevel("A", 90.0, 85.0)])  # doctest: +SKIP
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
     @property
@@ -515,10 +507,6 @@ class RatingScaleRegistry:
         >>> reg.is_known_rating_scale("sp")  # doctest: +SKIP
         True
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
 
     def rating_scale(self, name: str) -> ScorecardScale:
@@ -630,16 +618,18 @@ def registry_from_config(config: FinstackConfig) -> RatingScaleRegistry:
     RatingScaleRegistry
         Embedded or config-overridden registry.
 
+    Raises
+    ------
+    ValueError
+        If the configured extension is malformed or violates rating-scale
+        registry invariants.
+
     Examples
     --------
     >>> from finstack_quant.core.config import FinstackConfig
     >>> from finstack_quant.core.rating_scales import registry_from_config
     >>> reg = registry_from_config(FinstackConfig.default())  # doctest: +SKIP
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
 
 RATING_SCALES_EXTENSION_KEY: str

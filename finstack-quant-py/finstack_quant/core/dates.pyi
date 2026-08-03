@@ -98,10 +98,6 @@ class SifmaSettlementClass:
         SifmaSettlementClass
             Settlement class used to select the monthly SIFMA delivery date.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -130,7 +126,8 @@ def sifma_settlement_date(month: int, year: int) -> datetime.date | None:
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If *month* is outside ``1`` through ``12``.
+
 
     Examples
     --------
@@ -163,7 +160,8 @@ def sifma_settlement_date_for_class(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If *month* is outside ``1`` through ``12``.
+
 
     Examples
     --------
@@ -196,7 +194,8 @@ def estimated_sifma_settlement_date_for_class(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If *month* is outside ``1`` through ``12``.
+
 
     Examples
     --------
@@ -220,10 +219,6 @@ def next_sifma_settlement(date: datetime.date) -> datetime.date | None:
     datetime.date or None
         Earliest available settlement date not before ``date``, or ``None``.
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
     Examples
     --------
@@ -386,10 +381,6 @@ class DayCount:
         int
             Signed number of calendar days (end - start).
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -457,7 +448,8 @@ class DayCountContext:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *coupon_period* is supplied and its start is not before its end.
+
         """
         ...
 
@@ -576,10 +568,6 @@ class DayCountContextState:
         end_is_termination_date : bool
             Whether the accrual end is the instrument termination date.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -775,7 +763,9 @@ class Tenor:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *count* is zero, exceeds the supported range for *unit*, or
+            cannot be converted safely between equivalent tenor units.
+
         """
         ...
 
@@ -1211,7 +1201,8 @@ class PeriodId:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *month* is outside ``1`` through ``12``.
+
 
         Examples
         --------
@@ -1241,7 +1232,8 @@ class PeriodId:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *quarter* is outside ``1`` through ``4``.
+
 
         Examples
         --------
@@ -1266,10 +1258,6 @@ class PeriodId:
         PeriodId
             Result of annual for this `PeriodId` in the annotated representation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -1299,7 +1287,8 @@ class PeriodId:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *half* is not ``1`` or ``2``.
+
 
         Examples
         --------
@@ -1329,7 +1318,8 @@ class PeriodId:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *week* is not a valid ISO week number for *year*.
+
 
         Examples
         --------
@@ -1359,7 +1349,8 @@ class PeriodId:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *ordinal* is not a valid day of *year*.
+
 
         Examples
         --------
@@ -1496,7 +1487,9 @@ class PeriodId:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *fiscal_config* does not define a valid fiscal-year start date,
+            or the next fiscal boundary is outside the supported date range.
+
         """
         ...
 
@@ -1518,7 +1511,9 @@ class PeriodId:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If *fiscal_config* does not define a valid fiscal-year start date,
+            or the preceding fiscal boundary is outside the supported date range.
+
         """
         ...
 
@@ -2077,10 +2072,6 @@ class HolidayCalendar:
         bool
             Whether holiday holds for this `HolidayCalendar`.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -2098,10 +2089,6 @@ class HolidayCalendar:
         bool
             Whether business day holds for this `HolidayCalendar`.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -2408,7 +2395,8 @@ class ScheduleBuilder:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If a string *frequency* is not a valid supported tenor.
+
         """
         ...
 
@@ -2426,10 +2414,6 @@ class ScheduleBuilder:
         ScheduleBuilder
             Result of stub rule for this `ScheduleBuilder` in the annotated representation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -2449,10 +2433,6 @@ class ScheduleBuilder:
         ScheduleBuilder
             Result of adjust with for this `ScheduleBuilder` in the annotated representation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -2470,10 +2450,6 @@ class ScheduleBuilder:
         ScheduleBuilder
             Result of end of month for this `ScheduleBuilder` in the annotated representation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -2514,10 +2490,6 @@ class ScheduleBuilder:
         ScheduleBuilder
             Result of error policy for this `ScheduleBuilder` in the annotated representation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -2594,10 +2566,6 @@ def days_since_epoch(date: datetime.date) -> int:
     int
         Signed number of days since 1970-01-01.
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
     Examples
     --------
