@@ -4,9 +4,10 @@ Mirrors ``finstack_quant_valuations::models::credit``.
 
 Examples:
 --------
->>> import finstack_quant.valuations.models.credit as credit
->>> credit.__name__
-'finstack_quant.valuations.models.credit'
+>>> from finstack_quant.valuations.models.credit import MertonModel
+>>> round(MertonModel(100.0, 0.25, 80.0, 0.05).default_probability(1.0), 6)
+0.166629
+
 """
 
 from __future__ import annotations

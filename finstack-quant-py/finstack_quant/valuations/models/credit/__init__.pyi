@@ -7,9 +7,10 @@ bonds and similar instruments.
 
 Examples
 --------
->>> import finstack_quant.valuations.models.credit as credit
->>> credit.__name__
-'finstack_quant.valuations.models.credit'
+>>> from finstack_quant.valuations.models.credit import MertonModel
+>>> round(MertonModel(100.0, 0.25, 80.0, 0.05).default_probability(1.0), 6)
+0.166629
+
 """
 
 from __future__ import annotations
@@ -34,7 +35,9 @@ class MertonModel:
     --------
     >>> from finstack_quant.valuations.models.credit import MertonModel
     >>> model = MertonModel(100.0, 0.25, 80.0, 0.05)
-    >>> model.default_probability(1.0)  # doctest: +SKIP
+    >>> (round(model.distance_to_default(1.0), 6), round(model.default_probability(1.0), 6))
+    (0.967574, 0.166629)
+
     """
 
     def __init__(
@@ -117,8 +120,10 @@ class MertonModel:
         Examples
         --------
         >>> from finstack_quant.valuations.models.credit import MertonModel
-        >>> callable(MertonModel.credit_grades)
-        True
+        >>> model = MertonModel.credit_grades(100.0, 0.3, 80.0, 0.05, 0.3, 0.4)
+        >>> round(model.default_probability(1.0), 6)
+        0.00013
+
         """
         ...
 
@@ -145,8 +150,10 @@ class MertonModel:
         Examples
         --------
         >>> from finstack_quant.valuations.models.credit import MertonModel
-        >>> callable(MertonModel.from_json)
-        True
+        >>> model = MertonModel(100.0, 0.25, 80.0, 0.05)
+        >>> round(MertonModel.from_json(model.to_json()).default_probability(1.0), 6)
+        0.166629
+
         """
         ...
 
@@ -227,8 +234,10 @@ class DynamicRecoverySpec:
     Examples
     --------
     >>> from finstack_quant.valuations.models.credit import DynamicRecoverySpec
-    >>> DynamicRecoverySpec.__name__
-    'DynamicRecoverySpec'
+    >>> spec = DynamicRecoverySpec.constant(0.4)
+    >>> spec.recovery_at_notional(100.0)
+    0.4
+
     """
 
     @staticmethod
@@ -254,8 +263,10 @@ class DynamicRecoverySpec:
         Examples
         --------
         >>> from finstack_quant.valuations.models.credit import DynamicRecoverySpec
-        >>> callable(DynamicRecoverySpec.constant)
-        True
+        >>> spec = DynamicRecoverySpec.constant(0.4)
+        >>> spec.recovery_at_notional(100.0)
+        0.4
+
         """
         ...
 
@@ -282,8 +293,10 @@ class DynamicRecoverySpec:
         Examples
         --------
         >>> from finstack_quant.valuations.models.credit import DynamicRecoverySpec
-        >>> callable(DynamicRecoverySpec.from_json)
-        True
+        >>> spec = DynamicRecoverySpec.constant(0.4)
+        >>> DynamicRecoverySpec.from_json(spec.to_json()).recovery_at_notional(100.0)
+        0.4
+
         """
         ...
 
@@ -321,8 +334,10 @@ class EndogenousHazardSpec:
     Examples
     --------
     >>> from finstack_quant.valuations.models.credit import EndogenousHazardSpec
-    >>> EndogenousHazardSpec.__name__
-    'EndogenousHazardSpec'
+    >>> spec = EndogenousHazardSpec.power_law(0.02, 4.0, 2.0)
+    >>> (spec.hazard_at_leverage(4.0), spec.hazard_at_leverage(8.0))
+    (0.02, 0.08)
+
     """
 
     @staticmethod
@@ -356,8 +371,10 @@ class EndogenousHazardSpec:
         Examples
         --------
         >>> from finstack_quant.valuations.models.credit import EndogenousHazardSpec
-        >>> callable(EndogenousHazardSpec.power_law)
-        True
+        >>> spec = EndogenousHazardSpec.power_law(0.02, 4.0, 2.0)
+        >>> spec.hazard_at_leverage(8.0)
+        0.08
+
         """
         ...
 
@@ -384,8 +401,10 @@ class EndogenousHazardSpec:
         Examples
         --------
         >>> from finstack_quant.valuations.models.credit import EndogenousHazardSpec
-        >>> callable(EndogenousHazardSpec.from_json)
-        True
+        >>> spec = EndogenousHazardSpec.power_law(0.02, 4.0, 2.0)
+        >>> EndogenousHazardSpec.from_json(spec.to_json()).hazard_at_leverage(8.0)
+        0.08
+
         """
         ...
 
@@ -444,9 +463,12 @@ class CreditState:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.valuations.models.credit import CreditState
-    >>> CreditState.__name__
-    'CreditState'
+    >>> state = CreditState(hazard_rate=0.02, leverage=4.0)
+    >>> (json.loads(state.to_json())["hazard_rate"], json.loads(state.to_json())["leverage"])
+    (0.02, 4.0)
+
     """
 
     def __init__(
@@ -495,9 +517,12 @@ class ToggleExerciseModel:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.valuations.models.credit import ToggleExerciseModel
-    >>> ToggleExerciseModel.__name__
-    'ToggleExerciseModel'
+    >>> model = ToggleExerciseModel.threshold("leverage", 5.0, "above")
+    >>> json.loads(model.to_json())["threshold"]["state_variable"]
+    'leverage'
+
     """
 
     @staticmethod
@@ -531,9 +556,12 @@ class ToggleExerciseModel:
 
         Examples
         --------
+        >>> import json
         >>> from finstack_quant.valuations.models.credit import ToggleExerciseModel
-        >>> callable(ToggleExerciseModel.threshold)
-        True
+        >>> model = ToggleExerciseModel.threshold("leverage", 5.0, "above")
+        >>> json.loads(model.to_json())["threshold"]["direction"]
+        'above'
+
         """
         ...
 
@@ -568,9 +596,12 @@ class ToggleExerciseModel:
 
         Examples
         --------
+        >>> import json
         >>> from finstack_quant.valuations.models.credit import ToggleExerciseModel
-        >>> callable(ToggleExerciseModel.optimal)
-        True
+        >>> model = ToggleExerciseModel.optimal(100, 0.12, 0.3, 0.05, 1.0)
+        >>> json.loads(model.to_json())["optimal_exercise"]["nested_paths"]
+        100
+
         """
         ...
 
@@ -596,9 +627,13 @@ class ToggleExerciseModel:
 
         Examples
         --------
+        >>> import json
         >>> from finstack_quant.valuations.models.credit import ToggleExerciseModel
-        >>> callable(ToggleExerciseModel.from_json)
-        True
+        >>> model = ToggleExerciseModel.threshold("leverage", 5.0, "above")
+        >>> restored = ToggleExerciseModel.from_json(model.to_json())
+        >>> json.loads(restored.to_json())["threshold"]["threshold"]
+        5.0
+
         """
         ...
 

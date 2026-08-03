@@ -5,9 +5,10 @@ wrappers live in submodules, while JSON pricing helpers are exported here.
 
 Examples:
 --------
->>> import finstack_quant.valuations.instruments as instruments
->>> instruments.__name__
-'finstack_quant.valuations.instruments'
+>>> from finstack_quant.valuations.instruments import TermLoan
+>>> TermLoan.example().id
+'TERM-LOAN-USD-5Y'
+
 """
 
 from __future__ import annotations

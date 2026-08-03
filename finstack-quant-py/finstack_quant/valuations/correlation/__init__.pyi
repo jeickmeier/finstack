@@ -5,9 +5,10 @@ Correlation infrastructure: copulas, factor models, recovery models.
 
 Examples
 --------
->>> import finstack_quant.valuations.correlation as correlation
->>> correlation.__name__
-'finstack_quant.valuations.correlation'
+>>> from finstack_quant.valuations.correlation import correlation_bounds
+>>> tuple(round(value, 3) for value in correlation_bounds(0.05, 0.03))
+(-0.04, 0.767)
+
 """
 
 from __future__ import annotations
@@ -58,8 +59,10 @@ class CopulaSpec:
     Examples
     --------
     >>> from finstack_quant.valuations.correlation import CopulaSpec
-    >>> CopulaSpec.__name__
-    'CopulaSpec'
+    >>> spec = CopulaSpec.gaussian()
+    >>> (spec.is_gaussian, spec.build().model_name)
+    (True, 'One-Factor Gaussian Copula')
+
     """
 
     @classmethod
@@ -75,8 +78,9 @@ class CopulaSpec:
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import CopulaSpec
-        >>> callable(CopulaSpec.gaussian)
-        True
+        >>> (CopulaSpec.gaussian().is_gaussian, CopulaSpec.gaussian().build().num_factors)
+        (True, 1)
+
         """
         ...
 
@@ -104,8 +108,10 @@ class CopulaSpec:
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import CopulaSpec
-        >>> callable(CopulaSpec.student_t)
-        True
+        >>> copula = CopulaSpec.student_t(5.0).build()
+        >>> (copula.model_name, round(copula.tail_dependence(0.3), 6))
+        ('Student-t Copula', 0.122387)
+
         """
         ...
 
@@ -127,8 +133,10 @@ class CopulaSpec:
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import CopulaSpec
-        >>> callable(CopulaSpec.random_factor_loading)
-        True
+        >>> spec = CopulaSpec.random_factor_loading(0.2)
+        >>> (spec.is_rfl, spec.build().model_name)
+        (True, 'Random Factor Loading Copula')
+
         """
         ...
 
@@ -150,8 +158,10 @@ class CopulaSpec:
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import CopulaSpec
-        >>> callable(CopulaSpec.multi_factor)
-        True
+        >>> spec = CopulaSpec.multi_factor(3)
+        >>> (spec.is_multi_factor, spec.build().num_factors)
+        (True, 3)
+
         """
         ...
 
@@ -236,9 +246,11 @@ class Copula:
 
     Examples
     --------
-    >>> from finstack_quant.valuations.correlation import Copula
-    >>> Copula.__name__
-    'Copula'
+    >>> from finstack_quant.valuations.correlation import CopulaSpec
+    >>> copula = CopulaSpec.gaussian().build()
+    >>> (copula.model_name, round(copula.conditional_default_prob(-2.33, [0.0], 0.3), 6))
+    ('One-Factor Gaussian Copula', 0.002677)
+
     """
 
     def conditional_default_prob(
@@ -356,8 +368,10 @@ class CreditExposure:
     Examples
     --------
     >>> from finstack_quant.valuations.correlation import CreditExposure
-    >>> CreditExposure.__name__
-    'CreditExposure'
+    >>> exposure = CreditExposure("ACME", 1_000_000.0, 0.02, 0.6, [0.3])
+    >>> (exposure.id, exposure.notional, exposure.default_probability, exposure.factor_loadings)
+    ('ACME', 1000000.0, 0.02, [0.3])
+
     """
 
     def __init__(
@@ -466,9 +480,11 @@ class PortfolioLossConfig:
 
     Examples
     --------
-    >>> from finstack_quant.valuations.correlation import PortfolioLossConfig
-    >>> PortfolioLossConfig.__name__
-    'PortfolioLossConfig'
+    >>> from finstack_quant.valuations.correlation import CopulaSpec, PortfolioLossConfig
+    >>> config = PortfolioLossConfig(1000, 42, 0.99, CopulaSpec.gaussian())
+    >>> (config.num_paths, config.seed, config.confidence, config.copula.is_gaussian)
+    (1000, 42, 0.99, True)
+
     """
 
     def __init__(
@@ -560,9 +576,18 @@ class PortfolioLossResult:
 
     Examples
     --------
-    >>> from finstack_quant.valuations.correlation import PortfolioLossResult
-    >>> PortfolioLossResult.__name__
-    'PortfolioLossResult'
+    >>> from finstack_quant.valuations.correlation import (
+    ...     CopulaSpec,
+    ...     CreditExposure,
+    ...     PortfolioLossConfig,
+    ...     simulate_portfolio_loss,
+    ... )
+    >>> exposures = [CreditExposure("A", 100.0, 0.05, 0.6, [0.3]), CreditExposure("B", 100.0, 0.03, 0.6, [0.3])]
+    >>> config = PortfolioLossConfig(200, 42, 0.99, CopulaSpec.gaussian())
+    >>> result = simulate_portfolio_loss(exposures, config)
+    >>> (len(result.losses), result.expected_loss >= 0.0, result.var >= 0.0)
+    (200, True, True)
+
     """
 
     @property
@@ -690,9 +715,19 @@ class TrancheLossStatistics:
 
     Examples
     --------
-    >>> from finstack_quant.valuations.correlation import TrancheLossStatistics
-    >>> TrancheLossStatistics.__name__
-    'TrancheLossStatistics'
+    >>> from finstack_quant.valuations.correlation import (
+    ...     CopulaSpec,
+    ...     CreditExposure,
+    ...     PortfolioLossConfig,
+    ...     simulate_portfolio_loss,
+    ... )
+    >>> exposures = [CreditExposure("A", 100.0, 0.05, 0.6, [0.3]), CreditExposure("B", 100.0, 0.03, 0.6, [0.3])]
+    >>> config = PortfolioLossConfig(200, 42, 0.99, CopulaSpec.gaussian())
+    >>> result = simulate_portfolio_loss(exposures, config)
+    >>> statistics = result.tranche_loss_statistics(0.0, 0.1, 200.0)
+    >>> (statistics.attachment, statistics.detachment, statistics.tranche_notional)
+    (0.0, 0.1, 20.0)
+
     """
 
     @property
@@ -853,8 +888,10 @@ class RecoverySpec:
     Examples
     --------
     >>> from finstack_quant.valuations.correlation import RecoverySpec
-    >>> RecoverySpec.__name__
-    'RecoverySpec'
+    >>> spec = RecoverySpec.constant(0.4)
+    >>> (spec.expected_recovery, spec.build().lgd)
+    (0.4, 0.6)
+
     """
 
     @classmethod
@@ -880,8 +917,10 @@ class RecoverySpec:
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import RecoverySpec
-        >>> callable(RecoverySpec.constant)
-        True
+        >>> spec = RecoverySpec.constant(0.4)
+        >>> (spec.expected_recovery, spec.build().conditional_recovery(0.0))
+        (0.4, 0.4)
+
         """
         ...
 
@@ -914,8 +953,10 @@ class RecoverySpec:
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import RecoverySpec
-        >>> callable(RecoverySpec.market_correlated)
-        True
+        >>> model = RecoverySpec.market_correlated(0.4, 0.2, 0.3).build()
+        >>> (model.is_stochastic, model.recovery_volatility)
+        (True, 0.2)
+
         """
         ...
 
@@ -935,8 +976,10 @@ class RecoverySpec:
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import RecoverySpec
-        >>> callable(RecoverySpec.market_standard_stochastic)
-        True
+        >>> model = RecoverySpec.market_standard_stochastic().build()
+        >>> (model.model_name, round(model.expected_recovery, 3))
+        ('Market-Correlated Stochastic Recovery', 0.404)
+
         """
         ...
 
@@ -978,9 +1021,11 @@ class RecoveryModel:
 
     Examples
     --------
-    >>> from finstack_quant.valuations.correlation import RecoveryModel
-    >>> RecoveryModel.__name__
-    'RecoveryModel'
+    >>> from finstack_quant.valuations.correlation import RecoverySpec
+    >>> model = RecoverySpec.constant(0.4).build()
+    >>> (model.expected_recovery, model.lgd, model.is_stochastic)
+    (0.4, 0.6, False)
+
     """
 
     @property
@@ -1090,8 +1135,10 @@ class LatentFactorSpec:
     Examples
     --------
     >>> from finstack_quant.valuations.correlation import LatentFactorSpec
-    >>> LatentFactorSpec.__name__
-    'LatentFactorSpec'
+    >>> spec = LatentFactorSpec.single_factor(0.2, 0.05)
+    >>> (spec.num_factors, spec.build().model_name)
+    (1, 'Single Factor Model')
+
     """
 
     @classmethod
@@ -1114,8 +1161,10 @@ class LatentFactorSpec:
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import LatentFactorSpec
-        >>> callable(LatentFactorSpec.single_factor)
-        True
+        >>> model = LatentFactorSpec.single_factor(0.2, 0.05).build()
+        >>> (model.num_factors, model.factor_names)
+        (1, ['Market'])
+
         """
         ...
 
@@ -1141,8 +1190,10 @@ class LatentFactorSpec:
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import LatentFactorSpec
-        >>> callable(LatentFactorSpec.two_factor)
-        True
+        >>> model = LatentFactorSpec.two_factor(0.15, 0.1, -0.2).build()
+        >>> (model.num_factors, model.factor_names)
+        (2, ['Prepayment', 'Credit'])
+
         """
         ...
 
@@ -1183,9 +1234,11 @@ class LatentFactorKind:
 
     Examples
     --------
-    >>> from finstack_quant.valuations.correlation import LatentFactorKind
-    >>> LatentFactorKind.__name__
-    'LatentFactorKind'
+    >>> from finstack_quant.valuations.correlation import LatentFactorSpec
+    >>> model = LatentFactorSpec.single_factor(0.2, 0.05).build()
+    >>> (model.model_name, model.volatilities)
+    ('Single Factor Model', [0.2])
+
     """
 
     @property
@@ -1280,8 +1333,10 @@ class LatentSingleFactor:
     Examples
     --------
     >>> from finstack_quant.valuations.correlation import LatentSingleFactor
-    >>> LatentSingleFactor.__name__
-    'LatentSingleFactor'
+    >>> model = LatentSingleFactor(0.2, 0.05)
+    >>> (model.volatility, model.mean_reversion, model.num_factors)
+    (0.2, 0.05, 1)
+
     """
 
     def __init__(self, volatility: float, mean_reversion: float) -> None:
@@ -1347,8 +1402,10 @@ class LatentTwoFactor:
     Examples
     --------
     >>> from finstack_quant.valuations.correlation import LatentTwoFactor
-    >>> LatentTwoFactor.__name__
-    'LatentTwoFactor'
+    >>> model = LatentTwoFactor(0.15, 0.1, -0.2)
+    >>> (model.prepay_vol, model.credit_vol, model.correlation, model.num_factors)
+    (0.15, 0.1, -0.2, 2)
+
     """
 
     def __init__(self, prepay_vol: float, credit_vol: float, correlation: float) -> None:
@@ -1379,8 +1436,10 @@ class LatentTwoFactor:
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import LatentTwoFactor
-        >>> callable(LatentTwoFactor.rmbs_standard)
-        True
+        >>> model = LatentTwoFactor.rmbs_standard()
+        >>> (model.prepay_vol, model.credit_vol, model.correlation)
+        (0.2, 0.25, -0.3)
+
         """
         ...
 
@@ -1397,8 +1456,10 @@ class LatentTwoFactor:
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import LatentTwoFactor
-        >>> callable(LatentTwoFactor.clo_standard)
-        True
+        >>> model = LatentTwoFactor.clo_standard()
+        >>> (model.prepay_vol, model.credit_vol, model.correlation)
+        (0.15, 0.3, -0.2)
+
         """
         ...
 
@@ -1492,8 +1553,10 @@ class LatentMultiFactor:
     Examples
     --------
     >>> from finstack_quant.valuations.correlation import LatentMultiFactor
-    >>> LatentMultiFactor.__name__
-    'LatentMultiFactor'
+    >>> model = LatentMultiFactor(2, [0.2, 0.15], [1.0, 0.3, 0.3, 1.0])
+    >>> (model.num_factors, model.volatilities, model.correlation_matrix)
+    (2, [0.2, 0.15], [1.0, 0.3, 0.3, 1.0])
+
     """
 
     def __init__(
@@ -1541,8 +1604,10 @@ class LatentMultiFactor:
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import LatentMultiFactor
-        >>> callable(LatentMultiFactor.uncorrelated)
-        True
+        >>> model = LatentMultiFactor.uncorrelated(2, [0.2, 0.15])
+        >>> model.correlation_matrix
+        [1.0, 0.0, 0.0, 1.0]
+
         """
         ...
 
@@ -1613,13 +1678,15 @@ class CorrelatedBernoulli:
     >>> from finstack_quant.valuations.correlation import CorrelatedBernoulli
     >>> cb = CorrelatedBernoulli(p1=0.05, p2=0.03, correlation=0.3)
     >>> cb.joint_p11  # P(both default)
-    0.00...
+    0.012653...
 
     Examples
     --------
     >>> from finstack_quant.valuations.correlation import CorrelatedBernoulli
-    >>> CorrelatedBernoulli.__name__
-    'CorrelatedBernoulli'
+    >>> distribution = CorrelatedBernoulli(0.05, 0.03, 0.3)
+    >>> (round(distribution.joint_p11, 6), round(sum(distribution.joint_probabilities()), 6))
+    (0.012654, 1.0)
+
     """
 
     def __init__(self, p1: float, p2: float, correlation: float) -> None:
@@ -1844,9 +1911,17 @@ def simulate_portfolio_loss(
 
     Examples
     --------
-    >>> from finstack_quant.valuations.correlation import simulate_portfolio_loss
-    >>> callable(simulate_portfolio_loss)
-    True
+    >>> from finstack_quant.valuations.correlation import (
+    ...     CopulaSpec,
+    ...     CreditExposure,
+    ...     PortfolioLossConfig,
+    ...     simulate_portfolio_loss,
+    ... )
+    >>> exposures = [CreditExposure("A", 100.0, 0.05, 0.6, [0.3])]
+    >>> result = simulate_portfolio_loss(exposures, PortfolioLossConfig(200, 42, 0.99, CopulaSpec.gaussian()))
+    >>> (len(result.losses), result.expected_loss >= 0.0)
+    (200, True)
+
     """
     ...
 
@@ -1874,8 +1949,9 @@ def correlation_bounds(p1: float, p2: float) -> tuple[float, float]:
     Examples
     --------
     >>> from finstack_quant.valuations.correlation import correlation_bounds
-    >>> callable(correlation_bounds)
-    True
+    >>> tuple(round(value, 3) for value in correlation_bounds(0.05, 0.03))
+    (-0.04, 0.767)
+
     """
     ...
 
@@ -1906,8 +1982,10 @@ def joint_probabilities(p1: float, p2: float, correlation: float) -> tuple[float
     Examples
     --------
     >>> from finstack_quant.valuations.correlation import joint_probabilities
-    >>> callable(joint_probabilities)
-    True
+    >>> probabilities = joint_probabilities(0.05, 0.03, 0.3)
+    >>> (round(probabilities[0], 6), round(sum(probabilities), 6))
+    (0.012654, 1.0)
+
     """
     ...
 
@@ -1930,8 +2008,9 @@ def validate_correlation_matrix(matrix: Sequence[float], n: int) -> None:
     Examples
     --------
     >>> from finstack_quant.valuations.correlation import validate_correlation_matrix
-    >>> callable(validate_correlation_matrix)
+    >>> validate_correlation_matrix([1.0, 0.3, 0.3, 1.0], 2) is None
     True
+
     """
     ...
 
@@ -1976,9 +2055,11 @@ def nearest_correlation(
 
     Examples
     --------
-    >>> from finstack_quant.valuations.correlation import nearest_correlation
-    >>> callable(nearest_correlation)
+    >>> from finstack_quant.valuations.correlation import nearest_correlation, validate_correlation_matrix
+    >>> matrix = nearest_correlation([1.0, 1.01, 1.01, 1.0], 2)
+    >>> validate_correlation_matrix(matrix, 2) is None
     True
+
     """
     ...
 
@@ -2013,7 +2094,9 @@ def cholesky_decompose(matrix: Sequence[float], n: int) -> list[float]:
     Examples
     --------
     >>> from finstack_quant.valuations.correlation import cholesky_decompose
-    >>> callable(cholesky_decompose)
-    True
+    >>> factor = cholesky_decompose([1.0, 0.3, 0.3, 1.0], 2)
+    >>> (len(factor), round(sum(value * value for value in factor), 2))
+    (4, 2.0)
+
     """
     ...

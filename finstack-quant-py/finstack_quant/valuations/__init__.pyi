@@ -6,7 +6,7 @@ from raw market quotes is :func:`calibrate`:
 
     >>> import json
     >>> from finstack_quant.valuations import calibrate
-    >>> envelope = {
+    >>> envelope = {  # doctest: +SKIP
     ...     "schema": "finstack_quant.calibration/1",
     ...     "plan": {
     ...         "id": "usd_curves",
@@ -23,9 +23,9 @@ from raw market quotes is :func:`calibrate`:
     >>> result = calibrate(json.dumps(envelope))  # doctest: +SKIP
     >>> result.success  # doctest: +SKIP
     True
-    >>> result.rmse  # doctest: +SKIP    # check the curves actually fit
+    >>> result.rmse  # doctest: +SKIP
     1.2e-9
-    >>> ctx = result.market  # doctest: +SKIP    # ready for pricing/attribution
+    >>> ctx = result.market  # doctest: +SKIP
 
 The :class:`CalibrationResult` wrapper carries the :class:`MarketContext` next
 to per-step residuals (:meth:`step_report_json`, :meth:`report_to_dataframe`)
@@ -57,9 +57,10 @@ decomposition live under :mod:`finstack_quant.portfolio`.
 
 Examples
 --------
->>> import finstack_quant.valuations as valuations
->>> valuations.__name__
-'finstack_quant.valuations'
+>>> from finstack_quant.valuations import bs_price
+>>> round(bs_price(100.0, 100.0, 0.05, 0.0, 0.2, 1.0, True), 4)
+10.4506
+
 """
 
 from __future__ import annotations
@@ -119,8 +120,20 @@ class ValuationResult:
 
     Examples
     --------
+    >>> import datetime
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.market_data import DiscountCurve, MarketContext
+    >>> from finstack_quant.core.money import Money
+    >>> from finstack_quant.core.types import Rate
     >>> from finstack_quant.valuations import ValuationResult
-    >>> ValuationResult.from_json(result_json)  # doctest: +SKIP
+    >>> from finstack_quant.valuations.instruments import Bond, price_instrument
+    >>> as_of = datetime.date(2024, 1, 1)
+    >>> bond = Bond.fixed("B", Money(1000.0, Currency("USD")), Rate(0.05), as_of, datetime.date(2026, 1, 1), "USD-OIS")
+    >>> market = MarketContext().insert(DiscountCurve.flat("USD-OIS", as_of, 0.04))
+    >>> result = ValuationResult.from_json(price_instrument(bond, market, "2024-01-01"))
+    >>> (result.instrument_id, round(result.price, 2), result.currency)
+    ('B', 1017.07, 'USD')
+
     """
 
     @staticmethod
@@ -140,8 +153,21 @@ class ValuationResult:
 
         Examples
         --------
+        >>> import datetime
+        >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.market_data import DiscountCurve, MarketContext
+        >>> from finstack_quant.core.money import Money
+        >>> from finstack_quant.core.types import Rate
         >>> from finstack_quant.valuations import ValuationResult
-        >>> ValuationResult.from_json('{"instrument_id":"x","value":{}}')  # doctest: +SKIP
+        >>> from finstack_quant.valuations.instruments import Bond, price_instrument
+        >>> as_of = datetime.date(2024, 1, 1)
+        >>> bond = Bond.fixed(
+        ...     "B", Money(1000.0, Currency("USD")), Rate(0.05), as_of, datetime.date(2026, 1, 1), "USD-OIS"
+        ... )
+        >>> market = MarketContext().insert(DiscountCurve.flat("USD-OIS", as_of, 0.04))
+        >>> result = ValuationResult.from_json(price_instrument(bond, market, "2024-01-01"))
+        >>> (result.instrument_id, round(result.price, 2), result.currency)
+        ('B', 1017.07, 'USD')
 
         Raises
         ------
@@ -159,12 +185,6 @@ class ValuationResult:
         str
             Pretty-printed JSON string.
 
-        Examples
-        --------
-        >>> ValuationResult.from_json(
-        ...     '{"instrument_id":"i","value":{"amount":1.0,"currency":"USD"},"measures":{}}'
-        ... ).to_json()  # doctest: +SKIP
-            ''
         """
         ...
 
@@ -178,11 +198,6 @@ class ValuationResult:
         str
             Instrument ID string.
 
-        Examples
-        --------
-        >>> vr = ValuationResult.from_json("{}")  # doctest: +SKIP
-        >>> vr.instrument_id  # doctest: +SKIP
-        ''
         """
         ...
 
@@ -196,11 +211,6 @@ class ValuationResult:
         float
             PV amount as a float.
 
-        Examples
-        --------
-        >>> vr = ValuationResult.from_json("{}")  # doctest: +SKIP
-        >>> vr.price  # doctest: +SKIP
-        0.0
         """
         ...
 
@@ -217,12 +227,6 @@ class ValuationResult:
         str
             Exact decimal string of the valuation amount, e.g. ``"1000000.00"``.
 
-        Examples
-        --------
-        >>> vr = ValuationResult.from_json("{}")  # doctest: +SKIP
-        >>> from decimal import Decimal
-        >>> Decimal(vr.price_decimal())  # doctest: +SKIP
-        Decimal('1000000.00')
         """
         ...
 
@@ -236,11 +240,6 @@ class ValuationResult:
         str
             Currency code string.
 
-        Examples
-        --------
-        >>> vr = ValuationResult.from_json("{}")  # doctest: +SKIP
-        >>> vr.currency  # doctest: +SKIP
-        'USD'
         """
         ...
 
@@ -258,12 +257,6 @@ class ValuationResult:
         float or None
             Metric value, or ``None`` if missing.
 
-        Examples
-        --------
-        >>> vr = ValuationResult.from_json(
-        ...     '{"instrument_id":"i","value":{"amount":1,"currency":"USD"},"measures":{}}'
-        ... )  # doctest: +SKIP
-        >>> vr.get_metric("ytm")  # doctest: +SKIP
         """
         ...
 
@@ -299,12 +292,6 @@ class ValuationResult:
         list[str]
             All measure keys as strings.
 
-        Examples
-        --------
-        >>> ValuationResult.from_json(
-        ...     '{"instrument_id":"i","value":{"amount":1,"currency":"USD"},"measures":{}}'
-        ... ).metric_keys()  # doctest: +SKIP
-        []
         """
         ...
 
@@ -317,12 +304,6 @@ class ValuationResult:
         int
             Number of entries in the measures map.
 
-        Examples
-        --------
-        >>> ValuationResult.from_json(
-        ...     '{"instrument_id":"i","value":{"amount":1,"currency":"USD"},"measures":{}}'
-        ... ).metric_count()  # doctest: +SKIP
-        0
         """
         ...
 
@@ -335,12 +316,6 @@ class ValuationResult:
         bool
             ``True`` if no covenant failures are recorded.
 
-        Examples
-        --------
-        >>> ValuationResult.from_json(
-        ...     '{"instrument_id":"i","value":{"amount":1,"currency":"USD"},"measures":{}}'
-        ... ).all_covenants_passed()  # doctest: +SKIP
-        True
         """
         ...
 
@@ -353,12 +328,6 @@ class ValuationResult:
         list[str]
             List of failed covenant identifiers.
 
-        Examples
-        --------
-        >>> ValuationResult.from_json(
-        ...     '{"instrument_id":"i","value":{"amount":1,"currency":"USD"},"measures":{}}'
-        ... ).failed_covenants()  # doctest: +SKIP
-        []
         """
         ...
 
@@ -384,11 +353,6 @@ class ValuationResult:
         -------
         str
             ``ValuationResult(id=..., price=..., currency=..., metrics=...)`` text.
-
-        Examples
-        --------
-        >>> repr(ValuationResult.from_json("{}"))  # doctest: +SKIP
-        ''
         """
         ...
 
@@ -450,9 +414,22 @@ def instrument_cashflows(
 
         Examples
         --------
+        >>> import datetime
+        >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.market_data import DiscountCurve, MarketContext
+        >>> from finstack_quant.core.money import Money
+        >>> from finstack_quant.core.types import Rate
+        >>> from finstack_quant.valuations.instruments import Bond
+        >>> as_of = datetime.date(2024, 1, 1)
+        >>> bond = Bond.fixed(
+        ...     "B", Money(1000.0, Currency("USD")), Rate(0.05), as_of, datetime.date(2026, 1, 1), "USD-OIS"
+        ... )
+        >>> market = MarketContext().insert(DiscountCurve.flat("USD-OIS", as_of, 0.04))
         >>> from finstack_quant.valuations import instrument_cashflows
-        >>> callable(instrument_cashflows)
-        True
+        >>> header, frame = instrument_cashflows(bond.to_json(), market, "2024-01-01", model="discounting")
+        >>> (header["instrument_id"], len(frame))
+        ('B', 6)
+
     """
     ...
 
@@ -471,10 +448,15 @@ class CalibrationResult:
     Examples
     --------
     >>> import json
+    >>> envelope = {
+    ...     "schema": "finstack_quant.calibration/1",
+    ...     "plan": {"id": "smoke", "description": None, "quote_sets": {}, "steps": [], "settings": {}},
+    ... }
     >>> from finstack_quant.valuations import calibrate
-    >>> result = calibrate(json.dumps(plan))  # doctest: +SKIP
-    >>> result.success  # doctest: +SKIP
-    True
+    >>> result = calibrate(json.dumps(envelope))
+    >>> (result.success, result.rmse)
+    (True, 0.0)
+
     """
 
     @staticmethod
@@ -499,9 +481,16 @@ class CalibrationResult:
 
         Examples
         --------
-        >>> from finstack_quant.valuations import CalibrationResult
-        >>> callable(CalibrationResult.from_json)
-        True
+        >>> import json
+        >>> envelope = {
+        ...     "schema": "finstack_quant.calibration/1",
+        ...     "plan": {"id": "smoke", "description": None, "quote_sets": {}, "steps": [], "settings": {}},
+        ... }
+        >>> from finstack_quant.valuations import CalibrationResult, calibrate
+        >>> restored = CalibrationResult.from_json(calibrate(json.dumps(envelope)).to_json())
+        >>> (restored.success, restored.rmse)
+        (True, 0.0)
+
         """
         ...
 
@@ -672,9 +661,13 @@ class CalibrationEnvelopeError(RuntimeError):
 
     Examples
     --------
-    >>> from finstack_quant.valuations import CalibrationEnvelopeError
-    >>> CalibrationEnvelopeError.__name__
-    'CalibrationEnvelopeError'
+    >>> from finstack_quant.valuations import CalibrationEnvelopeError, dry_run
+    >>> try:
+    ...     dry_run("{ malformed")
+    ... except CalibrationEnvelopeError as exc:
+    ...     print((exc.kind, exc.step_id))
+    ('json_parse', None)
+
     """
 
     kind: str
@@ -703,9 +696,15 @@ def validate_calibration_json(json: str) -> str:
 
     Examples
     --------
+    >>> import json
+    >>> envelope = {
+    ...     "schema": "finstack_quant.calibration/1",
+    ...     "plan": {"id": "smoke", "description": None, "quote_sets": {}, "steps": [], "settings": {}},
+    ... }
     >>> from finstack_quant.valuations import validate_calibration_json
-    >>> validate_calibration_json(plan_json)  # doctest: +SKIP
-    ''
+    >>> json.loads(validate_calibration_json(json.dumps(envelope)))["plan"]["id"]
+    'smoke'
+
     """
     ...
 
@@ -738,11 +737,16 @@ def dry_run(json: str) -> str:
 
     Examples
     --------
-    >>> import json as _json
+    >>> import json
+    >>> envelope = {
+    ...     "schema": "finstack_quant.calibration/1",
+    ...     "plan": {"id": "smoke", "description": None, "quote_sets": {}, "steps": [], "settings": {}},
+    ... }
     >>> from finstack_quant.valuations import dry_run
-    >>> report = _json.loads(dry_run(_json.dumps(envelope)))  # doctest: +SKIP
-    >>> for err in report["errors"]:  # doctest: +SKIP
-    ...     print(err["kind"], err.get("step_id"))
+    >>> report = json.loads(dry_run(json.dumps(envelope)))
+    >>> (report["errors"], report["dependency_graph"]["nodes"])
+    ([], [])
+
     """
     ...
 
@@ -769,9 +773,16 @@ def dependency_graph_json(json: str) -> str:
 
     Examples
     --------
+    >>> import json
+    >>> envelope = {
+    ...     "schema": "finstack_quant.calibration/1",
+    ...     "plan": {"id": "smoke", "description": None, "quote_sets": {}, "steps": [], "settings": {}},
+    ... }
     >>> from finstack_quant.valuations import dependency_graph_json
-    >>> callable(dependency_graph_json)
-    True
+    >>> graph = json.loads(dependency_graph_json(json.dumps(envelope)))
+    >>> (graph["initial_ids"], graph["nodes"])
+    ([], [])
+
     """
     ...
 
@@ -825,13 +836,15 @@ def calibrate(json: str) -> CalibrationResult:
 
     Examples
     --------
-    >>> import json as _json
+    >>> import json
+    >>> envelope = {
+    ...     "schema": "finstack_quant.calibration/1",
+    ...     "plan": {"id": "smoke", "description": None, "quote_sets": {}, "steps": [], "settings": {}},
+    ... }
     >>> from finstack_quant.valuations import calibrate
-    >>> result = calibrate(_json.dumps(envelope))  # doctest: +SKIP
-    >>> assert result.success and result.rmse < 1e-6  # doctest: +SKIP
-    >>> curve = result.market.get_discount("USD-OIS")  # doctest: +SKIP
-    >>> from finstack_quant.valuations.instruments import price_instrument
-    >>> price_json = price_instrument(inst_json, result.market_json, "2026-05-08")  # doctest: +SKIP
+    >>> result = calibrate(json.dumps(envelope))
+    >>> (result.success, result.rmse)
+    (True, 0.0)
 
     See Also
     --------
@@ -890,8 +903,9 @@ def bs_price(
     Examples
     --------
     >>> from finstack_quant.valuations import bs_price
-    >>> callable(bs_price)
-    True
+    >>> round(bs_price(100.0, 100.0, 0.05, 0.0, 0.2, 1.0, True), 4)
+    10.4506
+
     """
     ...
 
@@ -947,8 +961,10 @@ def bs_greeks(
     Examples
     --------
     >>> from finstack_quant.valuations import bs_greeks
-    >>> callable(bs_greeks)
-    True
+    >>> greeks = bs_greeks(100.0, 100.0, 0.05, 0.0, 0.2, 1.0, True)
+    >>> (round(greeks["delta"], 4), sorted(greeks))
+    (0.6368, ['delta', 'gamma', 'rho', 'rho_q', 'theta', 'vega'])
+
     """
     ...
 
@@ -993,9 +1009,11 @@ def bs_implied_vol(
 
     Examples
     --------
-    >>> from finstack_quant.valuations import bs_implied_vol
-    >>> callable(bs_implied_vol)
-    True
+    >>> from finstack_quant.valuations import bs_implied_vol, bs_price
+    >>> price = bs_price(100.0, 100.0, 0.05, 0.0, 0.2, 1.0, True)
+    >>> round(bs_implied_vol(100.0, 100.0, 0.05, 0.0, 1.0, price, True), 6)
+    0.2
+
     """
     ...
 
@@ -1038,8 +1056,9 @@ def black76_implied_vol(
     Examples
     --------
     >>> from finstack_quant.valuations import black76_implied_vol
-    >>> callable(black76_implied_vol)
-    True
+    >>> round(black76_implied_vol(100.0, 100.0, 0.95, 1.0, 7.5673, True), 6)
+    0.2
+
     """
     ...
 
@@ -1098,8 +1117,9 @@ def barrier_call(
     Examples
     --------
     >>> from finstack_quant.valuations import barrier_call
-    >>> callable(barrier_call)
-    True
+    >>> round(barrier_call(100.0, 100.0, 120.0, 0.05, 0.0, 0.2, 1.0, "up", "out"), 4)
+    1.1761
+
     """
     ...
 
@@ -1152,8 +1172,9 @@ def asian_option_price(
     Examples
     --------
     >>> from finstack_quant.valuations import asian_option_price
-    >>> callable(asian_option_price)
-    True
+    >>> round(asian_option_price(100.0, 100.0, 0.05, 0.0, 0.2, 1.0, 12), 4)
+    6.1742
+
     """
     ...
 
@@ -1209,8 +1230,9 @@ def lookback_option_price(
     Examples
     --------
     >>> from finstack_quant.valuations import lookback_option_price
-    >>> callable(lookback_option_price)
-    True
+    >>> round(lookback_option_price(100.0, 100.0, 0.05, 0.0, 0.2, 1.0, 90.0), 4)
+    17.2168
+
     """
     ...
 
@@ -1265,8 +1287,9 @@ def quanto_option_price(
     Examples
     --------
     >>> from finstack_quant.valuations import quanto_option_price
-    >>> callable(quanto_option_price)
-    True
+    >>> round(quanto_option_price(100.0, 100.0, 1.0, 0.05, 0.02, 0.01, 0.2, 0.1, 0.3), 4)
+    7.7844
+
     """
     ...
 
@@ -1284,8 +1307,10 @@ class SabrParameters:
     Examples
     --------
     >>> from finstack_quant.valuations import SabrParameters
-    >>> SabrParameters.__name__
-    'SabrParameters'
+    >>> params = SabrParameters(0.2, 0.5, 0.3, -0.2)
+    >>> (params.alpha, params.beta, params.nu, params.rho, params.is_shifted())
+    (0.2, 0.5, 0.3, -0.2, False)
+
     """
 
     def __init__(
@@ -1334,8 +1359,10 @@ class SabrParameters:
         Examples
         --------
         >>> from finstack_quant.valuations import SabrParameters
-        >>> callable(SabrParameters.equity_default)
-        True
+        >>> params = SabrParameters.equity_default()
+        >>> (params.alpha, params.beta, params.nu, params.rho)
+        (0.2, 1.0, 0.3, -0.2)
+
         """
         ...
 
@@ -1352,8 +1379,10 @@ class SabrParameters:
         Examples
         --------
         >>> from finstack_quant.valuations import SabrParameters
-        >>> callable(SabrParameters.rates_default)
-        True
+        >>> params = SabrParameters.rates_default()
+        >>> (params.alpha, params.beta, params.nu, params.rho)
+        (0.02, 0.5, 0.3, 0.0)
+
         """
         ...
 
@@ -1439,9 +1468,10 @@ class SabrModel:
     Examples
     --------
     >>> from finstack_quant.valuations import SabrModel, SabrParameters
-    >>> model = SabrModel(SabrParameters.rates_default())  # doctest: +SKIP
-    >>> model.implied_vol(0.02, 0.02, 1.0)  # doctest: +SKIP
-    0.20
+    >>> model = SabrModel(SabrParameters.rates_default())
+    >>> (round(model.implied_vol(0.02, 0.02, 1.0), 6), model.supports_negative_rates())
+    (0.142511, False)
+
     """
 
     def __init__(self, params: SabrParameters) -> None:
@@ -1517,10 +1547,11 @@ class SabrSmile:
 
     Examples
     --------
-    >>> from finstack_quant.valuations import SabrSmile, SabrParameters
-    >>> smile = SabrSmile(SabrParameters.equity_default(), 100.0, 1.0)  # doctest: +SKIP
-    >>> smile.atm_vol()  # doctest: +SKIP
-    0.20
+    >>> from finstack_quant.valuations import SabrParameters, SabrSmile
+    >>> smile = SabrSmile(SabrParameters.equity_default(), 100.0, 1.0)
+    >>> (round(smile.atm_vol(), 6), len(smile.generate_smile([90.0, 100.0, 110.0])))
+    (0.20081, 3)
+
     """
 
     def __init__(
@@ -1642,8 +1673,10 @@ class SabrCalibrator:
     Examples
     --------
     >>> from finstack_quant.valuations import SabrCalibrator
-    >>> cal = SabrCalibrator()  # doctest: +SKIP
-    >>> params = cal.calibrate(0.02, strikes, vols, 1.0, 0.5)  # doctest: +SKIP
+    >>> calibrator = SabrCalibrator()
+    >>> calibrator.with_tolerance(1e-6) is calibrator
+    False
+
     """
 
     def __init__(self) -> None:
@@ -1665,8 +1698,10 @@ class SabrCalibrator:
         Examples
         --------
         >>> from finstack_quant.valuations import SabrCalibrator
-        >>> callable(SabrCalibrator.high_precision)
-        True
+        >>> calibrator = SabrCalibrator.high_precision()
+        >>> calibrator.with_tolerance(1e-6) is calibrator
+        False
+
         """
         ...
 
@@ -1808,8 +1843,9 @@ def bs_cos_price(
     Examples
     --------
     >>> from finstack_quant.valuations import bs_cos_price
-    >>> callable(bs_cos_price)
-    True
+    >>> round(bs_cos_price(100.0, 100.0, 0.05, 0.0, 0.2, 1.0, True), 4)
+    10.4506
+
     """
     ...
 
@@ -1866,8 +1902,9 @@ def vg_cos_price(
     Examples
     --------
     >>> from finstack_quant.valuations import vg_cos_price
-    >>> callable(vg_cos_price)
-    True
+    >>> round(vg_cos_price(100.0, 100.0, 0.05, 0.0, 0.2, -0.1, 0.2, 1.0, True), 4)
+    10.4445
+
     """
     ...
 
@@ -1927,8 +1964,9 @@ def merton_jump_cos_price(
     Examples
     --------
     >>> from finstack_quant.valuations import merton_jump_cos_price
-    >>> callable(merton_jump_cos_price)
-    True
+    >>> round(merton_jump_cos_price(100.0, 100.0, 0.05, 0.0, 0.2, -0.1, 0.2, 0.5, 1.0, True), 4)
+    12.1642
+
     """
     ...
 
@@ -1981,8 +2019,10 @@ def tarn_coupon_profile(
     Examples
     --------
     >>> from finstack_quant.valuations import tarn_coupon_profile
-    >>> callable(tarn_coupon_profile)
-    True
+    >>> profile = tarn_coupon_profile(0.05, 0.0, [0.02, 0.03, 0.04], 0.025, 0.5)
+    >>> (profile["redeemed_early"], profile["redemption_index"], round(profile["cumulative"][-1], 3))
+    (True, 1, 0.025)
+
     """
     ...
 
@@ -2034,8 +2074,9 @@ def snowball_coupon_profile(
     Examples
     --------
     >>> from finstack_quant.valuations import snowball_coupon_profile
-    >>> callable(snowball_coupon_profile)
-    True
+    >>> snowball_coupon_profile(0.03, 0.04, [0.02, 0.03, 0.05], 0.0, 0.10)
+    [0.05, 0.06, 0.05]
+
     """
     ...
 
@@ -2080,8 +2121,9 @@ def inverse_floater_coupon_profile(
     Examples
     --------
     >>> from finstack_quant.valuations import inverse_floater_coupon_profile
-    >>> callable(inverse_floater_coupon_profile)
-    True
+    >>> [round(value, 3) for value in inverse_floater_coupon_profile(0.08, [0.02, 0.03, 0.05], 0.0, 0.10, 1.5)]
+    [0.05, 0.035, 0.005]
+
     """
     ...
 
@@ -2129,8 +2171,9 @@ def cms_spread_option_intrinsic(
     Examples
     --------
     >>> from finstack_quant.valuations import cms_spread_option_intrinsic
-    >>> callable(cms_spread_option_intrinsic)
-    True
+    >>> round(cms_spread_option_intrinsic(0.05, 0.03, 0.01, True, 1_000_000.0), 2)
+    10000.0
+
     """
     ...
 
@@ -2179,7 +2222,8 @@ def callable_range_accrual_accrued(
     Examples
     --------
     >>> from finstack_quant.valuations import callable_range_accrual_accrued
-    >>> callable(callable_range_accrual_accrued)
-    True
+    >>> callable_range_accrual_accrued(0.01, 0.03, [0.005, 0.02, 0.03, 0.04], 0.08, 0.25)
+    0.01
+
     """
     ...

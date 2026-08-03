@@ -8,9 +8,11 @@ go through the generic JSON entry points in
 
 Examples:
 --------
->>> import finstack_quant.valuations.credit_derivatives as credit_derivatives
->>> credit_derivatives.__name__
-'finstack_quant.valuations.credit_derivatives'
+>>> import json
+>>> from finstack_quant.valuations.credit_derivatives import cds_index_example_json
+>>> json.loads(cds_index_example_json())["instrument"]["type"]
+'cds_index'
+
 """
 
 from __future__ import annotations

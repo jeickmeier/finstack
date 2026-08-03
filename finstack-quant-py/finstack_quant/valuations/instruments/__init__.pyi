@@ -8,9 +8,10 @@ Inputs larger than 16 MiB raise ``ValueError`` before parsing.
 
 Examples
 --------
->>> import finstack_quant.valuations.instruments as instruments
->>> instruments.__name__
-'finstack_quant.valuations.instruments'
+>>> from finstack_quant.valuations.instruments import list_models, list_models_grouped
+>>> ("discounting" in list_models(), "bond" in list_models_grouped())
+(True, True)
+
 """
 
 from __future__ import annotations
@@ -159,9 +160,22 @@ class Bond:
 
         Examples
         --------
+        >>> import datetime
+        >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.money import Money
+        >>> from finstack_quant.core.types import Rate
         >>> from finstack_quant.valuations.instruments import Bond
-        >>> callable(Bond.fixed)
-        True
+        >>> bond = Bond.fixed(
+        ...     "B",
+        ...     Money(1000.0, Currency("USD")),
+        ...     Rate(0.05),
+        ...     datetime.date(2024, 1, 1),
+        ...     datetime.date(2029, 1, 1),
+        ...     "USD-OIS",
+        ... )
+        >>> bond.id
+        'B'
+
         """
         ...
 
@@ -215,9 +229,26 @@ class Bond:
 
         Examples
         --------
+        >>> import datetime
+        >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.dates import DayCount, Tenor
+        >>> from finstack_quant.core.money import Money
+        >>> from finstack_quant.core.types import Bps
         >>> from finstack_quant.valuations.instruments import Bond
-        >>> callable(Bond.floating)
-        True
+        >>> bond = Bond.floating(
+        ...     "FRN",
+        ...     Money(1000.0, Currency("USD")),
+        ...     "USD-SOFR-3M",
+        ...     Bps(125.0),
+        ...     datetime.date(2024, 1, 1),
+        ...     datetime.date(2029, 1, 1),
+        ...     Tenor.quarterly(),
+        ...     DayCount.ACT_360,
+        ...     "USD-OIS",
+        ... )
+        >>> bond.id
+        'FRN'
+
         """
         ...
 
@@ -246,9 +277,22 @@ class Bond:
 
         Examples
         --------
+        >>> import datetime
+        >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.money import Money
+        >>> from finstack_quant.core.types import Rate
         >>> from finstack_quant.valuations.instruments import Bond
-        >>> callable(Bond.from_json)
-        True
+        >>> bond = Bond.fixed(
+        ...     "B",
+        ...     Money(1000.0, Currency("USD")),
+        ...     Rate(0.05),
+        ...     datetime.date(2024, 1, 1),
+        ...     datetime.date(2029, 1, 1),
+        ...     "USD-OIS",
+        ... )
+        >>> Bond.from_json(bond.to_json()).id
+        'B'
+
         """
         ...
 
@@ -321,8 +365,9 @@ class TermLoan:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import TermLoan
-        >>> callable(TermLoan.from_json)
-        True
+        >>> TermLoan.from_json(TermLoan.example().to_json()).id
+        'TERM-LOAN-USD-5Y'
+
         """
         ...
 
@@ -443,11 +488,6 @@ class FixedLegSpec:
             If an enum value is invalid or the accrual period is malformed
             (``start >= end``).
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FixedLegSpec
-        >>> callable(FixedLegSpec)
-        True
         """
         ...
 
@@ -538,11 +578,6 @@ class FloatLegSpec:
             If an enum value is invalid or the accrual period is malformed
             (``start >= end``).
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FloatLegSpec
-        >>> callable(FloatLegSpec)
-        True
         """
         ...
 
@@ -616,11 +651,6 @@ class PremiumLegSpec:
         ValueError
             If an enum value is invalid.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import PremiumLegSpec
-        >>> callable(PremiumLegSpec)
-        True
         """
         ...
 
@@ -664,11 +694,6 @@ class ProtectionLegSpec:
         ValueError
             If ``recovery_rate`` is outside ``[0.0, 1.0]``.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import ProtectionLegSpec
-        >>> callable(ProtectionLegSpec)
-        True
         """
         ...
 
@@ -698,7 +723,11 @@ class InterestRateSwap:
     ...     .id("IRS-1")
     ...     .notional(Money(10_000_000.0, Currency("USD")))
     ...     .side("pay")
-    ...     .fixed(FixedLegSpec("USD-OIS", 0.04, Tenor.semi_annual(), DayCount.THIRTY_360, start, end))
+    ...     .fixed(
+    ...         FixedLegSpec(
+    ...             "USD-OIS", 0.04, Tenor.semi_annual(), DayCount.THIRTY_360, start, end, compounding_simple=False
+    ...         )
+    ...     )
     ...     .float(FloatLegSpec("USD-OIS", "USD-SOFR-3M", 0.0, Tenor.quarterly(), DayCount.ACT_360, start, end))
     ...     .build()
     ... )
@@ -731,8 +760,10 @@ class InterestRateSwap:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import InterestRateSwap
-        >>> callable(InterestRateSwap.builder)
+        >>> builder = InterestRateSwap.builder()
+        >>> builder.id("EXAMPLE") is builder
         True
+
         """
         ...
 
@@ -762,8 +793,12 @@ class InterestRateSwap:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import InterestRateSwap
-        >>> callable(InterestRateSwap.from_json)
+        >>> try:
+        ...     InterestRateSwap.from_json("{}")
+        ... except ValueError as exc:
+        ...     print("schema" in str(exc))
         True
+
         """
         ...
 
@@ -1035,8 +1070,10 @@ class Swaption:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import Swaption
-        >>> callable(Swaption.builder)
+        >>> builder = Swaption.builder()
+        >>> builder.id("EXAMPLE") is builder
         True
+
         """
         ...
 
@@ -1066,8 +1103,12 @@ class Swaption:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import Swaption
-        >>> callable(Swaption.from_json)
+        >>> try:
+        ...     Swaption.from_json("{}")
+        ... except ValueError as exc:
+        ...     print("schema" in str(exc))
         True
+
         """
         ...
 
@@ -1509,8 +1550,10 @@ class CapFloor:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import CapFloor
-        >>> callable(CapFloor.builder)
+        >>> builder = CapFloor.builder()
+        >>> builder.id("EXAMPLE") is builder
         True
+
         """
         ...
 
@@ -1540,8 +1583,12 @@ class CapFloor:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import CapFloor
-        >>> callable(CapFloor.from_json)
+        >>> try:
+        ...     CapFloor.from_json("{}")
+        ... except ValueError as exc:
+        ...     print("schema" in str(exc))
         True
+
         """
         ...
 
@@ -2080,8 +2127,10 @@ class CreditDefaultSwap:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
-        >>> callable(CreditDefaultSwap.builder)
+        >>> builder = CreditDefaultSwap.builder()
+        >>> builder.id("EXAMPLE") is builder
         True
+
         """
         ...
 
@@ -2111,8 +2160,12 @@ class CreditDefaultSwap:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
-        >>> callable(CreditDefaultSwap.from_json)
+        >>> try:
+        ...     CreditDefaultSwap.from_json("{}")
+        ... except ValueError as exc:
+        ...     print("schema" in str(exc))
         True
+
         """
         ...
 
@@ -2472,8 +2525,10 @@ class CDSIndex:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import CDSIndex
-        >>> callable(CDSIndex.builder)
+        >>> builder = CDSIndex.builder()
+        >>> builder.id("EXAMPLE") is builder
         True
+
         """
         ...
 
@@ -2503,8 +2558,12 @@ class CDSIndex:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import CDSIndex
-        >>> callable(CDSIndex.from_json)
+        >>> try:
+        ...     CDSIndex.from_json("{}")
+        ... except ValueError as exc:
+        ...     print("schema" in str(exc))
         True
+
         """
         ...
 
@@ -2988,8 +3047,10 @@ class CDSTranche:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import CDSTranche
-        >>> callable(CDSTranche.builder)
+        >>> builder = CDSTranche.builder()
+        >>> builder.id("EXAMPLE") is builder
         True
+
         """
         ...
 
@@ -3019,8 +3080,12 @@ class CDSTranche:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import CDSTranche
-        >>> callable(CDSTranche.from_json)
+        >>> try:
+        ...     CDSTranche.from_json("{}")
+        ... except ValueError as exc:
+        ...     print("schema" in str(exc))
         True
+
         """
         ...
 
@@ -3615,8 +3680,10 @@ class ConvertibleBond:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import ConvertibleBond
-        >>> callable(ConvertibleBond.builder)
+        >>> builder = ConvertibleBond.builder()
+        >>> builder.id("EXAMPLE") is builder
         True
+
         """
         ...
 
@@ -3647,8 +3714,12 @@ class ConvertibleBond:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import ConvertibleBond
-        >>> callable(ConvertibleBond.from_json)
+        >>> try:
+        ...     ConvertibleBond.from_json("{}")
+        ... except ValueError as exc:
+        ...     print("schema" in str(exc))
         True
+
         """
         ...
 
@@ -4155,8 +4226,10 @@ class FxForward:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import FxForward
-        >>> callable(FxForward.builder)
+        >>> builder = FxForward.builder()
+        >>> builder.id("EXAMPLE") is builder
         True
+
         """
         ...
 
@@ -4186,8 +4259,12 @@ class FxForward:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import FxForward
-        >>> callable(FxForward.from_json)
+        >>> try:
+        ...     FxForward.from_json("{}")
+        ... except ValueError as exc:
+        ...     print("schema" in str(exc))
         True
+
         """
         ...
 
@@ -4606,8 +4683,10 @@ class FxOption:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import FxOption
-        >>> callable(FxOption.builder)
+        >>> builder = FxOption.builder()
+        >>> builder.id("EXAMPLE") is builder
         True
+
         """
         ...
 
@@ -4637,8 +4716,12 @@ class FxOption:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import FxOption
-        >>> callable(FxOption.from_json)
+        >>> try:
+        ...     FxOption.from_json("{}")
+        ... except ValueError as exc:
+        ...     print("schema" in str(exc))
         True
+
         """
         ...
 
@@ -5053,8 +5136,10 @@ class EquityOption:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import EquityOption
-        >>> callable(EquityOption.builder)
+        >>> builder = EquityOption.builder()
+        >>> builder.id("EXAMPLE") is builder
         True
+
         """
         ...
 
@@ -5084,8 +5169,12 @@ class EquityOption:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import EquityOption
-        >>> callable(EquityOption.from_json)
+        >>> try:
+        ...     EquityOption.from_json("{}")
+        ... except ValueError as exc:
+        ...     print("schema" in str(exc))
         True
+
         """
         ...
 
@@ -5734,9 +5823,25 @@ class Tranche:
 
     Examples
     --------
+    >>> import datetime
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.money import Money
     >>> from finstack_quant.valuations.instruments import Tranche
-    >>> callable(Tranche.builder)
-    True
+    >>> tranche = (
+    ...     Tranche
+    ...     .builder()
+    ...     .id("A")
+    ...     .attachment_point(0.0)
+    ...     .detachment_point(100.0)
+    ...     .seniority("senior")
+    ...     .original_balance(Money(100.0, Currency("USD")))
+    ...     .coupon_fixed(0.05)
+    ...     .maturity(datetime.date(2029, 1, 1))
+    ...     .build()
+    ... )
+    >>> repr(tranche)
+    'Tranche(id="A", seniority=Senior, attachment_point=0, detachment_point=100)'
+
     """
 
     @staticmethod
@@ -5752,8 +5857,10 @@ class Tranche:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import Tranche
-        >>> callable(Tranche.builder)
+        >>> builder = Tranche.builder()
+        >>> builder.id("EXAMPLE") is builder
         True
+
         """
         ...
 
@@ -6026,9 +6133,26 @@ class TrancheStructure:
 
     Examples
     --------
+    >>> import datetime
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.money import Money
+    >>> from finstack_quant.valuations.instruments import Tranche
+    >>> tranche = (
+    ...     Tranche
+    ...     .builder()
+    ...     .id("A")
+    ...     .attachment_point(0.0)
+    ...     .detachment_point(100.0)
+    ...     .seniority("senior")
+    ...     .original_balance(Money(100.0, Currency("USD")))
+    ...     .coupon_fixed(0.05)
+    ...     .maturity(datetime.date(2029, 1, 1))
+    ...     .build()
+    ... )
     >>> from finstack_quant.valuations.instruments import TrancheStructure
-    >>> TrancheStructure.__name__
-    'TrancheStructure'
+    >>> "tranches=1" in repr(TrancheStructure([tranche]))
+    True
+
     """
 
     def __init__(self, tranches: list[Tranche]) -> None:
@@ -6100,8 +6224,10 @@ class StructuredCredit:
     Examples
     --------
     >>> from finstack_quant.valuations.instruments import StructuredCredit
-    >>> callable(StructuredCredit.builder)
+    >>> builder = StructuredCredit.builder()
+    >>> builder.id("EXAMPLE") is builder
     True
+
     """
 
     @staticmethod
@@ -6125,8 +6251,10 @@ class StructuredCredit:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import StructuredCredit
-        >>> callable(StructuredCredit.builder)
+        >>> builder = StructuredCredit.builder()
+        >>> builder.id("EXAMPLE") is builder
         True
+
         """
         ...
 
@@ -6269,9 +6397,30 @@ class StructuredCredit:
 
         Examples
         --------
-        >>> from finstack_quant.valuations.instruments import StructuredCredit
-        >>> callable(StructuredCredit.new_clo)
-        True
+        >>> import datetime
+        >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.money import Money
+        >>> from finstack_quant.valuations.instruments import Tranche
+        >>> tranche = (
+        ...     Tranche
+        ...     .builder()
+        ...     .id("A")
+        ...     .attachment_point(0.0)
+        ...     .detachment_point(100.0)
+        ...     .seniority("senior")
+        ...     .original_balance(Money(100.0, Currency("USD")))
+        ...     .coupon_fixed(0.05)
+        ...     .maturity(datetime.date(2029, 1, 1))
+        ...     .build()
+        ... )
+        >>> from finstack_quant.valuations.instruments import AssetPool, StructuredCredit, TrancheStructure
+        >>> pool = AssetPool("P", "clo", Currency("USD"))
+        >>> deal = StructuredCredit.new_clo(
+        ...     "D", pool, TrancheStructure([tranche]), datetime.date(2024, 1, 1), datetime.date(2029, 1, 1), "USD-OIS"
+        ... )
+        >>> (deal.id, "Clo" in repr(deal))
+        ('D', True)
+
         """
         ...
 
@@ -6317,9 +6466,30 @@ class StructuredCredit:
 
         Examples
         --------
-        >>> from finstack_quant.valuations.instruments import StructuredCredit
-        >>> callable(StructuredCredit.new_cmbs)
-        True
+        >>> import datetime
+        >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.money import Money
+        >>> from finstack_quant.valuations.instruments import Tranche
+        >>> tranche = (
+        ...     Tranche
+        ...     .builder()
+        ...     .id("A")
+        ...     .attachment_point(0.0)
+        ...     .detachment_point(100.0)
+        ...     .seniority("senior")
+        ...     .original_balance(Money(100.0, Currency("USD")))
+        ...     .coupon_fixed(0.05)
+        ...     .maturity(datetime.date(2029, 1, 1))
+        ...     .build()
+        ... )
+        >>> from finstack_quant.valuations.instruments import AssetPool, StructuredCredit, TrancheStructure
+        >>> pool = AssetPool("P", "cmbs", Currency("USD"))
+        >>> deal = StructuredCredit.new_cmbs(
+        ...     "D", pool, TrancheStructure([tranche]), datetime.date(2024, 1, 1), datetime.date(2029, 1, 1), "USD-OIS"
+        ... )
+        >>> (deal.id, "Cmbs" in repr(deal))
+        ('D', True)
+
         """
         ...
 
@@ -6365,9 +6535,30 @@ class StructuredCredit:
 
         Examples
         --------
-        >>> from finstack_quant.valuations.instruments import StructuredCredit
-        >>> callable(StructuredCredit.new_rmbs)
-        True
+        >>> import datetime
+        >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.money import Money
+        >>> from finstack_quant.valuations.instruments import Tranche
+        >>> tranche = (
+        ...     Tranche
+        ...     .builder()
+        ...     .id("A")
+        ...     .attachment_point(0.0)
+        ...     .detachment_point(100.0)
+        ...     .seniority("senior")
+        ...     .original_balance(Money(100.0, Currency("USD")))
+        ...     .coupon_fixed(0.05)
+        ...     .maturity(datetime.date(2029, 1, 1))
+        ...     .build()
+        ... )
+        >>> from finstack_quant.valuations.instruments import AssetPool, StructuredCredit, TrancheStructure
+        >>> pool = AssetPool("P", "rmbs", Currency("USD"))
+        >>> deal = StructuredCredit.new_rmbs(
+        ...     "D", pool, TrancheStructure([tranche]), datetime.date(2024, 1, 1), datetime.date(2029, 1, 1), "USD-OIS"
+        ... )
+        >>> (deal.id, "Rmbs" in repr(deal))
+        ('D', True)
+
         """
         ...
 
@@ -6398,8 +6589,12 @@ class StructuredCredit:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import StructuredCredit
-        >>> callable(StructuredCredit.from_json)
+        >>> try:
+        ...     StructuredCredit.from_json("{}")
+        ... except ValueError as exc:
+        ...     print("schema" in str(exc))
         True
+
         """
         ...
 
@@ -6847,8 +7042,12 @@ def bond_from_cashflows_json(
     Examples
     --------
     >>> from finstack_quant.valuations.instruments import bond_from_cashflows_json
-    >>> callable(bond_from_cashflows_json)
+    >>> try:
+    ...     bond_from_cashflows_json("B", "{}", "USD-OIS")
+    ... except ValueError as exc:
+    ...     print("flows" in str(exc))
     True
+
     """
     ...
 
@@ -6875,9 +7074,12 @@ def validate_instrument_json(json: str) -> str:
 
     Examples
     --------
-    >>> from finstack_quant.valuations.instruments import validate_instrument_json
-    >>> callable(validate_instrument_json)
-    True
+    >>> import json
+    >>> from finstack_quant.valuations.instruments import TermLoan, validate_instrument_json
+    >>> validated = json.loads(validate_instrument_json(TermLoan.example().to_json()))
+    >>> validated["instrument"]["type"]
+    'term_loan'
+
     """
     ...
 
@@ -6936,9 +7138,17 @@ def price_instrument(
 
     Examples
     --------
+    >>> import datetime
+    >>> from finstack_quant.core.market_data import DiscountCurve, MarketContext
+    >>> from finstack_quant.valuations.instruments import TermLoan
+    >>> loan = TermLoan.example()
+    >>> market = MarketContext().insert(DiscountCurve.flat("USD-OIS", datetime.date(2024, 1, 1), 0.04))
+    >>> from finstack_quant.valuations import ValuationResult
     >>> from finstack_quant.valuations.instruments import price_instrument
-    >>> callable(price_instrument)
-    True
+    >>> result = ValuationResult.from_json(price_instrument(loan, market, "2024-01-01"))
+    >>> (result.instrument_id, round(result.price, 2), result.currency)
+    ('TERM-LOAN-USD-5Y', 10727162.26, 'USD')
+
     """
     ...
 
@@ -7005,9 +7215,19 @@ def price_instrument_with_metrics(
 
     Examples
     --------
+    >>> import datetime
+    >>> from finstack_quant.core.market_data import DiscountCurve, MarketContext
+    >>> from finstack_quant.valuations.instruments import TermLoan
+    >>> loan = TermLoan.example()
+    >>> market = MarketContext().insert(DiscountCurve.flat("USD-OIS", datetime.date(2024, 1, 1), 0.04))
+    >>> from finstack_quant.valuations import ValuationResult
     >>> from finstack_quant.valuations.instruments import price_instrument_with_metrics
-    >>> callable(price_instrument_with_metrics)
-    True
+    >>> result = ValuationResult.from_json(
+    ...     price_instrument_with_metrics(loan, market, "2024-01-01", metrics=["all_in_rate"])
+    ... )
+    >>> (result.metric_keys(), round(result.get_metric("all_in_rate"), 4))
+    (['all_in_rate'], 0.06)
+
     """
     ...
 
@@ -7062,9 +7282,21 @@ def instrument_cashflows_json(
 
     Examples
     --------
+    >>> import datetime
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.market_data import DiscountCurve, MarketContext
+    >>> from finstack_quant.core.money import Money
+    >>> from finstack_quant.core.types import Rate
+    >>> from finstack_quant.valuations.instruments import Bond
+    >>> as_of = datetime.date(2024, 1, 1)
+    >>> bond = Bond.fixed("B", Money(1000.0, Currency("USD")), Rate(0.05), as_of, datetime.date(2026, 1, 1), "USD-OIS")
+    >>> market = MarketContext().insert(DiscountCurve.flat("USD-OIS", as_of, 0.04))
+    >>> import json
     >>> from finstack_quant.valuations.instruments import instrument_cashflows_json
-    >>> callable(instrument_cashflows_json)
-    True
+    >>> payload = json.loads(instrument_cashflows_json(bond, market, "2024-01-01", "discounting"))
+    >>> (payload["instrument_id"], len(payload["flows"]))
+    ('B', 6)
+
     """
     ...
 
@@ -7086,8 +7318,10 @@ def list_models() -> list[str]:
     Examples
     --------
     >>> from finstack_quant.valuations.instruments import list_models
-    >>> callable(list_models)
-    True
+    >>> models = list_models()
+    >>> (len(models), "discounting" in models, "black76" in models)
+    (29, True, True)
+
     """
     ...
 
@@ -7106,8 +7340,10 @@ def list_models_grouped() -> dict[str, list[str]]:
     Examples
     --------
     >>> from finstack_quant.valuations.instruments import list_models_grouped
-    >>> callable(list_models_grouped)
-    True
+    >>> grouped = list_models_grouped()
+    >>> ("bond" in grouped, "discounting" in grouped["bond"])
+    (True, True)
+
     """
     ...
 
@@ -7123,8 +7359,10 @@ def list_standard_metrics() -> list[str]:
     Examples
     --------
     >>> from finstack_quant.valuations.instruments import list_standard_metrics
-    >>> callable(list_standard_metrics)
-    True
+    >>> metrics = list_standard_metrics()
+    >>> (len(metrics), "dirty_price" in metrics, "dv01" in metrics)
+    (211, True, True)
+
     """
     ...
 
@@ -7140,8 +7378,10 @@ def list_standard_metrics_grouped() -> dict[str, list[str]]:
     Examples
     --------
     >>> from finstack_quant.valuations.instruments import list_standard_metrics_grouped
-    >>> callable(list_standard_metrics_grouped)
-    True
+    >>> grouped = list_standard_metrics_grouped()
+    >>> ("Credit" in grouped, "Rates" in grouped)
+    (True, True)
+
     """
     ...
 
@@ -7188,9 +7428,20 @@ class OasResult:
 
         Examples
         --------
+        >>> import json
         >>> from finstack_quant.valuations.instruments import OasResult
-        >>> callable(OasResult.from_json)
-        True
+        >>> result = OasResult.from_json(
+        ...     json.dumps({
+        ...         "oas": 0.0125,
+        ...         "model_price": 99.5,
+        ...         "market_price": 98.75,
+        ...         "num_paths": 256,
+        ...         "price_std_error": 0.05,
+        ...     })
+        ... )
+        >>> (result.oas, result.model_price, result.num_paths)
+        (0.0125, 99.5, 256)
+
         """
         ...
 
@@ -7316,9 +7567,25 @@ class TrancheMetrics:
 
         Examples
         --------
+        >>> import json
         >>> from finstack_quant.valuations.instruments import TrancheMetrics
-        >>> callable(TrancheMetrics.from_json)
-        True
+        >>> payload = {
+        ...     "tranche_id": "A",
+        ...     "currency": "USD",
+        ...     "pv": 1000.0,
+        ...     "price_pct": 100.0,
+        ...     "wal": 3.0,
+        ...     "z_spread_bp": 0.0,
+        ...     "cs01": -1.0,
+        ...     "spread_duration": 3.0,
+        ...     "modified_duration": 3.0,
+        ...     "convexity": 12.0,
+        ...     "target_price_pct": 100.0,
+        ... }
+        >>> metrics = TrancheMetrics.from_json(json.dumps(payload))
+        >>> (metrics.tranche_id, metrics.currency, metrics.pv)
+        ('A', 'USD', 1000.0)
+
         """
         ...
 
@@ -7509,9 +7776,16 @@ class ScenarioTable:
 
         Examples
         --------
+        >>> import json
         >>> from finstack_quant.valuations.instruments import ScenarioTable
-        >>> callable(ScenarioTable.from_json)
-        True
+        >>> payload = {
+        ...     "tranche_id": "A",
+        ...     "cells": [{"cpr": 0.06, "cdr": 0.02, "severity": 0.6, "price": 98.2, "wal": 4.1, "writedown": 0.0}],
+        ... }
+        >>> table = ScenarioTable.from_json(json.dumps(payload))
+        >>> (table.tranche_id, table.cells()[0]["price"])
+        ('A', 98.2)
+
         """
         ...
 
@@ -7604,8 +7878,12 @@ def structured_credit_tranche_discount_margin(
     Examples
     --------
     >>> from finstack_quant.valuations.instruments import structured_credit_tranche_discount_margin
-    >>> callable(structured_credit_tranche_discount_margin)
+    >>> try:
+    ...     structured_credit_tranche_discount_margin("{}", "A", "{}", "2026-01-01", 100.0)
+    ... except ValueError as exc:
+    ...     print("schema" in str(exc))
     True
+
     """
     ...
 
@@ -7644,8 +7922,12 @@ def structured_credit_tranche_breakeven_cdr(
     Examples
     --------
     >>> from finstack_quant.valuations.instruments import structured_credit_tranche_breakeven_cdr
-    >>> callable(structured_credit_tranche_breakeven_cdr)
+    >>> try:
+    ...     structured_credit_tranche_breakeven_cdr("{}", "A", "{}", "2026-01-01")
+    ... except ValueError as exc:
+    ...     print("schema" in str(exc))
     True
+
     """
     ...
 
@@ -7690,8 +7972,12 @@ def structured_credit_tranche_oas(
     Examples
     --------
     >>> from finstack_quant.valuations.instruments import structured_credit_tranche_oas
-    >>> callable(structured_credit_tranche_oas)
+    >>> try:
+    ...     structured_credit_tranche_oas("{}", "A", 100.0, "{}", "2026-01-01")
+    ... except ValueError as exc:
+    ...     print("schema" in str(exc))
     True
+
     """
     ...
 
@@ -7734,8 +8020,12 @@ def structured_credit_tranche_metrics(
     Examples
     --------
     >>> from finstack_quant.valuations.instruments import structured_credit_tranche_metrics
-    >>> callable(structured_credit_tranche_metrics)
+    >>> try:
+    ...     structured_credit_tranche_metrics("{}", "A", "{}", "2026-01-01")
+    ... except ValueError as exc:
+    ...     print("schema" in str(exc))
     True
+
     """
     ...
 
@@ -7778,7 +8068,11 @@ def structured_credit_tranche_scenario_table(
     Examples
     --------
     >>> from finstack_quant.valuations.instruments import structured_credit_tranche_scenario_table
-    >>> callable(structured_credit_tranche_scenario_table)
+    >>> try:
+    ...     structured_credit_tranche_scenario_table("{}", "A", "{}", "2026-01-01", "{}")
+    ... except ValueError as exc:
+    ...     print("schema" in str(exc))
     True
+
     """
     ...

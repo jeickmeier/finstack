@@ -4,9 +4,10 @@ Bindings for the ``finstack-quant-valuations`` Rust crate.
 
 Examples:
 --------
->>> import finstack_quant.valuations as valuations
->>> valuations.__name__
-'finstack_quant.valuations'
+>>> from finstack_quant.valuations import bs_price
+>>> round(bs_price(100.0, 100.0, 0.05, 0.0, 0.2, 1.0, True), 4)
+10.4506
+
 """
 
 import json as _json
@@ -85,9 +86,20 @@ def instrument_cashflows(
 
     Examples:
     --------
+    >>> import datetime
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.market_data import DiscountCurve, MarketContext
+    >>> from finstack_quant.core.money import Money
+    >>> from finstack_quant.core.types import Rate
+    >>> from finstack_quant.valuations.instruments import Bond
+    >>> as_of = datetime.date(2024, 1, 1)
+    >>> bond = Bond.fixed("B", Money(1000.0, Currency("USD")), Rate(0.05), as_of, datetime.date(2026, 1, 1), "USD-OIS")
+    >>> market = MarketContext().insert(DiscountCurve.flat("USD-OIS", as_of, 0.04))
     >>> from finstack_quant.valuations import instrument_cashflows
-    >>> callable(instrument_cashflows)
-    True
+    >>> header, frame = instrument_cashflows(bond.to_json(), market, "2024-01-01", model="discounting")
+    >>> (header["instrument_id"], len(frame))
+    ('B', 6)
+
     """
     import pandas as pd
 

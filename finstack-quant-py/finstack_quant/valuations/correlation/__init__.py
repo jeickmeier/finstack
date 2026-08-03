@@ -6,9 +6,10 @@ correlation lives inside ``finstack-quant-valuations``.
 
 Examples:
 --------
->>> import finstack_quant.valuations.correlation as correlation
->>> correlation.__name__
-'finstack_quant.valuations.correlation'
+>>> from finstack_quant.valuations.correlation import correlation_bounds
+>>> tuple(round(value, 3) for value in correlation_bounds(0.05, 0.03))
+(-0.04, 0.767)
+
 """
 
 from __future__ import annotations

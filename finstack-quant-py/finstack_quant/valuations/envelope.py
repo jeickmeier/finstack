@@ -6,9 +6,11 @@ Rust enum variant as a second, hand-maintained schema.
 
 Examples:
 --------
->>> import finstack_quant.valuations.envelope as envelope
->>> envelope.__name__
-'finstack_quant.valuations.envelope'
+>>> from finstack_quant.valuations.envelope import CalibrationEnvelope
+>>> envelope: CalibrationEnvelope = {"schema": "finstack_quant.calibration/1"}
+>>> envelope["schema"]
+'finstack_quant.calibration/1'
+
 """
 
 from __future__ import annotations
