@@ -4,13 +4,15 @@
 Pure formatter — reads the already-priced ``result`` (scalar metrics incl.
 ``bucketed_*::curve::tenor`` composite keys, covenants), parses ``result.to_json()``
 read-only for meta/details, and renders the optional ``cashflows`` DataFrame and
-``definition`` JSON. It never prices; ``recommended_metrics`` is a static mapping.
+``definition`` JSON. It never prices.
 
 Examples:
 --------
->>> from finstack_quant.reporting.instrument import recommended_metrics
->>> recommended_metrics("bond")[:3]
-['dirty_price', 'clean_price', 'accrued']
+>>> from finstack_quant.reporting.instrument import instrument_tearsheet
+>>> instrument_tearsheet({"schema": "finstack_quant.instrument/1"})
+Traceback (most recent call last):
+...
+TypeError: instrument_tearsheet requires a precomputed ValuationResult
 """
 
 from __future__ import annotations
@@ -26,92 +28,6 @@ from .document import KPI, Section, TearSheet, _resolve_sections
 from .theme import INSTITUTIONAL, Theme
 
 _TENOR_ORDER = ["3m", "6m", "1y", "2y", "3y", "5y", "7y", "10y", "15y", "20y", "30y"]
-
-# What to request from price_instrument_with_metrics for a full sheet, by type.
-_RECOMMENDED: dict[str, list[str]] = {
-    "bond": [
-        "dirty_price",
-        "clean_price",
-        "accrued",
-        "ytm",
-        "ytw",
-        "z_spread",
-        "oas",
-        "i_spread",
-        "duration_mod",
-        "duration_mac",
-        "convexity",
-        "dv01",
-        "bucketed_dv01",
-        "spread_duration",
-    ],
-    "interest_rate_swap": [
-        "pv_fixed",
-        "pv_float",
-        "par_rate",
-        "annuity",
-        "dv01",
-        "bucketed_dv01",
-        "pv01",
-    ],
-    "credit_default_swap": [
-        "par_spread",
-        "risky_pv01",
-        "risky_annuity",
-        "protection_leg_pv",
-        "premium_leg_pv",
-        "cs01",
-        "bucketed_cs01",
-        "jump_to_default",
-        "expected_loss",
-        "default01",
-        "recovery_01",
-    ],
-    "equity_option": [
-        "delta",
-        "gamma",
-        "vega",
-        "theta",
-        "rho",
-        # implied_vol requires a quoted market price → gated by _NEEDS_QUOTE.
-        # vanna, volga, bucketed_vega require a full vol surface and cannot be
-        # computed from a flat implied_volatility override; omit so the
-        # recommended set works with minimal markets (spot + discount + override).
-        "charm",
-    ],
-}
-
-
-_NEEDS_QUOTE: frozenset[str] = frozenset({
-    "oas",
-    "ytw",
-    "implied_vol",
-})  # metrics that require a quoted market price to solve
-
-
-def recommended_metrics(instrument_type: str) -> list[str]:
-    """Metric IDs to pass to ``price_instrument_with_metrics`` for a full sheet of ``instrument_type``.
-
-    Returns ``[]`` for unrecognised types (the sheet then renders whatever metrics are present).
-
-    Parameters
-    ----------
-    instrument_type : str
-        Canonical instrument type tag, such as ``"bond"`` or ``"swap"``, used
-        to select metrics supported by the pricing model.
-
-    Returns:
-    -------
-    list[str]
-        Supported metric identifiers in the preferred report order.
-
-    Examples:
-    --------
-    >>> from finstack_quant.reporting.instrument import recommended_metrics
-    >>> recommended_metrics("bond")[:3]
-    ['dirty_price', 'clean_price', 'accrued']
-    """
-    return list(_RECOMMENDED.get(instrument_type, []))
 
 
 def _parse_result(result: Any) -> dict[str, Any]:
@@ -612,62 +528,9 @@ def _build_sections(
     return secs
 
 
-def _price_path(
-    instrument: str | dict,
-    market: Any,
-    as_of: str | None,
-    model: str,
-    market_price: float | None,
-    cashflows: Any,
-) -> tuple[Any, Any, dict]:
-    """Price an instrument envelope and return ``(result, cashflows, definition_dict)``.
-
-    Deliberate, documented relaxation of the "reporting never prices" rule, confined
-    to this one entry point. When ``market_price`` is given it is injected as the
-    instrument's ``quoted_clean_price`` and OAS/YTW are requested in the SAME call —
-    the engine spread-calibrates to the quote, so bucketed DV01 / key-rate stay
-    correct alongside OAS.
-    """
-    if market is None or as_of is None:
-        raise ValueError("instrument_tearsheet: pricing an instrument JSON requires market= and as_of=")
-    envelope = json.loads(instrument) if isinstance(instrument, str) else json.loads(json.dumps(instrument))
-    definition = envelope.get("instrument")
-    if envelope.get("schema") != "finstack_quant.instrument/1" or not isinstance(definition, dict):
-        raise ValueError("instrument_tearsheet requires a canonical finstack_quant.instrument/1 envelope")
-    itype = definition.get("type", "")
-    metrics = recommended_metrics(itype)
-    if market_price is None:
-        metrics = [m for m in metrics if m not in _NEEDS_QUOTE]
-    else:
-        definition.setdefault("spec", {}).setdefault("instrument_pricing_overrides", {}).setdefault(
-            "market_quotes", {}
-        )["quoted_clean_price"] = market_price
-    instrument_json = json.dumps(envelope)
-    market_arg = market.to_json() if hasattr(market, "to_json") else market
-    # Lazy import keeps `import finstack_quant.reporting` light and makes the dependency explicit.
-    from finstack_quant.valuations import ValuationResult, instrument_cashflows
-    from finstack_quant.valuations.instruments import price_instrument_with_metrics
-
-    result = ValuationResult.from_json(
-        price_instrument_with_metrics(instrument_json, market_arg, as_of, model=model, metrics=metrics)
-    )
-    if cashflows is None:
-        cf_model = "hazard_rate" if model == "hazard_rate" else "discounting"
-        try:
-            cashflows = instrument_cashflows(instrument_json, market_arg, as_of, model=cf_model)
-        except (ValueError, RuntimeError):
-            # Some instruments (e.g. options) have no deterministic cashflow schedule.
-            cashflows = None
-    return result, cashflows, definition
-
-
 def instrument_tearsheet(
     result: Any,
     *,
-    market: Any = None,
-    as_of: str | None = None,
-    model: str = "discounting",
-    market_price: float | None = None,
     cashflows: Any = None,
     definition: Any = None,
     title: str | None = None,
@@ -678,26 +541,14 @@ def instrument_tearsheet(
 ) -> TearSheet:
     """Render an instrument tear sheet.
 
-    ``result`` is either an already-priced ``valuations.ValuationResult`` (pure
-    formatter path) **or** a canonical ``finstack_quant.instrument/1`` envelope
-    (``str``/``dict``). For the latter, pass ``market=`` and ``as_of=``; the
-    instrument is priced with
-    :func:`recommended_metrics` (plus ``oas``/``ytw`` when ``market_price`` is
-    given) and its cashflows fetched, then rendered.
+    ``result`` must be an already-priced ``valuations.ValuationResult``. Pricing,
+    metric selection, and cashflow generation belong to the valuations layer;
+    this function only renders their outputs.
 
     Parameters
     ----------
     result : Any
-        Priced valuation result, or canonical instrument envelope that should
-        be priced through the supplied market context.
-    market : Any
-        Market context or JSON required when ``result`` is an instrument spec.
-    as_of : str or None
-        ISO-8601 valuation date required when pricing an instrument envelope.
-    model : str
-        Pricing-model key used for the instrument-envelope pricing path.
-    market_price : float or None
-        Optional observed price used to calculate quote-dependent metrics.
+        Precomputed valuation result to render.
     cashflows : Any
         Optional precomputed cashflow payload; otherwise fetched when possible.
     definition : Any
@@ -721,8 +572,10 @@ def instrument_tearsheet(
     Raises:
     ------
     ValueError
-        If ``sections`` contains an unknown name, or if pricing an instrument
-        envelope without ``market`` and ``as_of`` or with a noncanonical envelope.
+        If ``sections`` contains an unknown name.
+    TypeError
+        If ``result`` is an instrument JSON string or mapping instead of a
+        precomputed valuation result.
     json.JSONDecodeError
         If an instrument, valuation result, or requested definition contains
         malformed JSON.
@@ -762,7 +615,7 @@ def instrument_tearsheet(
     'TEST'
     """
     if isinstance(result, (str, dict)):
-        result, cashflows, definition = _price_path(result, market, as_of, model, market_price, cashflows)
+        raise TypeError("instrument_tearsheet requires a precomputed ValuationResult")
     wanted = _resolve_sections(sections, ALL_SECTIONS, valid_label="valid")
 
     parsed = _parse_result(result)

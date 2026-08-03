@@ -11,7 +11,7 @@ from .attribution import attribution_tearsheet
 from .benchmark import benchmark_tearsheet
 from .credit import credit_tearsheet
 from .dcf import dcf_tearsheet
-from .instrument import instrument_tearsheet, recommended_metrics
+from .instrument import instrument_tearsheet
 from .performance import performance_tearsheet
 from .portfolio import portfolio_tearsheet
 from .portfolio_risk import portfolio_risk_tearsheet
@@ -30,7 +30,6 @@ __all__ = [
     "performance_tearsheet",
     "portfolio_risk_tearsheet",
     "portfolio_tearsheet",
-    "recommended_metrics",
     "scenario_tearsheet",
     "statement_tearsheet",
 ]

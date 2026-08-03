@@ -4,6 +4,11 @@
 
 ### Changed
 
+- **Breaking (Python):** `reporting.instrument_tearsheet` is now presentation-only
+  and requires a precomputed `ValuationResult`; its `market`, `as_of`, `model`,
+  and `market_price` parameters were removed. The presentation-owned
+  `recommended_metrics` helper was also removed, so callers select metrics in
+  the valuations API before rendering.
 - **Breaking (Rust):** Simplified the valuations surface. Use
   `schema::instrument_schema("bond")`, `TreePricer::calculate_oas`, and the
   free `solve_ytm` function in place of the removed bond wrappers and YTM

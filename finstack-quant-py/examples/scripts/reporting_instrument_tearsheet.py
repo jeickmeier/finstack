@@ -7,11 +7,13 @@ Run: uv run python finstack-quant-py/examples/scripts/reporting_instrument_tears
 from __future__ import annotations
 
 import datetime as dt
-import json
 from datetime import date
+import json
 
-from finstack_quant.core.market_data import DiscountCurve, MarketContext
 from finstack_quant import reporting
+from finstack_quant.core.market_data import DiscountCurve, MarketContext
+from finstack_quant.valuations import ValuationResult, instrument_cashflows
+from finstack_quant.valuations.instruments import price_instrument_with_metrics
 
 
 def main() -> None:
@@ -68,12 +70,16 @@ def main() -> None:
     )
     as_of = "2026-06-19"
 
-    # Build the market once, then render in a single call (prices internally):
+    metrics = ["dirty_price", "clean_price", "accrued", "ytm", "duration_mod", "dv01", "bucketed_dv01"]
+    result = ValuationResult.from_json(
+        price_instrument_with_metrics(bond, mc.to_json(), as_of, model="discounting", metrics=metrics)
+    )
+    _, cashflows = instrument_cashflows(bond, mc.to_json(), as_of, model="discounting")
+
     ts = reporting.instrument_tearsheet(
-        json.loads(bond),
-        market=mc,
-        as_of=as_of,
-        market_price=99.5,
+        result,
+        cashflows=cashflows,
+        definition=json.loads(bond)["instrument"],
         title="ACME 4.25% 2034 Senior Notes",
         generated=dt.date.today(),
     )
