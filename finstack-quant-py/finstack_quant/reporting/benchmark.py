@@ -27,10 +27,6 @@ ALL_SECTIONS = ["summary", "relative", "rolling", "multifactor"]
 _SECONDARY = "#3a5a82"
 
 
-def _dates_of(df: Any) -> list[Any]:
-    return [ix.date() if hasattr(ix, "date") else ix for ix in df.index]
-
-
 def _mf_get(mf: Any, key: str) -> Any:
     """Read a field from a ``MultiFactorResult`` object or a dict."""
     return mf.get(key) if isinstance(mf, dict) else getattr(mf, key, None)
@@ -71,7 +67,7 @@ def _section_summary(perf: Any, t: int, rf: float, theme: Theme) -> Section:
 
 
 def _section_relative(perf: Any, t: int, theme: Theme) -> Section:
-    dates = _dates_of(perf.cumulative_returns_to_dataframe())
+    dates = fmt._dates_of(perf.cumulative_returns_to_dataframe())
     op = perf.cumulative_returns_outperformance()[t]
     dd = perf.drawdown_difference()[t]
     n_op = min(len(dates), len(op))

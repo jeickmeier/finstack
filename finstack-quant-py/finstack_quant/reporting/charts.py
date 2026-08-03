@@ -34,10 +34,6 @@ def _xml_attr(s: str) -> str:
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
 
-def _missing(v: Any) -> bool:
-    return v is None or (isinstance(v, float) and math.isnan(v))
-
-
 def rgba(hex_color: str, alpha: float) -> str:
     """Convert an RGB hex color to a CSS ``rgba(...)`` string.
 
@@ -147,7 +143,7 @@ def color_scale(v: Any, theme: Theme, cap: float = 8.0) -> tuple[str, str]:
     >>> callable(color_scale)
     True
     """
-    if _missing(v):
+    if fmt._missing(v):
         return ("transparent", theme.grid)
     mag = min(abs(v) / cap, 1.0)
     alpha = mag * 0.85 + 0.05
@@ -276,7 +272,7 @@ def line_chart(
     ml, mr, mt, mb = 48, 14, 12, 24
     pw, ph = _W - ml - mr, height - mt - mb
     n = len(values)
-    valid = [(i, float(v)) for i, v in enumerate(values) if not _missing(v)]
+    valid = [(i, float(v)) for i, v in enumerate(values) if not fmt._missing(v)]
     if not valid:
         return f'<svg viewBox="0 0 {_W} {height}" xmlns="http://www.w3.org/2000/svg"></svg>'
 
@@ -498,7 +494,7 @@ def waterfall_chart(
     """
     ml, mr, mt, mb = 56, 14, 12, 40
     pw, ph = _W - ml - mr, height - mt - mb
-    ds = [0.0 if _missing(v) else float(v) for v in deltas]
+    ds = [0.0 if fmt._missing(v) else float(v) for v in deltas]
     n = len(ds)
 
     cum = [0.0]
@@ -612,7 +608,7 @@ def bar_chart(labels: list[str], values: list[Any], *, theme: Theme, y_pct: bool
     """
     ml, mr, mt, mb = 48, 14, 12, 24
     pw, ph = _W - ml - mr, height - mt - mb
-    nums = [0.0 if _missing(v) else float(v) for v in values]
+    nums = [0.0 if fmt._missing(v) else float(v) for v in values]
     lo, hi = min(0.0, *nums), max(0.0, *nums)
     if lo == hi:
         hi = lo + 1.0
@@ -714,8 +710,8 @@ def tornado_chart(
     height = height if height is not None else mt + mb + max(n, 1) * row_h
     pw, ph = _W - ml - mr, height - mt - mb
 
-    downs = [0.0 if _missing(d) else float(d) for _, d, _ in entries]
-    ups = [0.0 if _missing(u) else float(u) for _, _, u in entries]
+    downs = [0.0 if fmt._missing(d) else float(d) for _, d, _ in entries]
+    ups = [0.0 if fmt._missing(u) else float(u) for _, _, u in entries]
     lo = min(0.0, *downs, *ups) if entries else 0.0
     hi = max(0.0, *downs, *ups) if entries else 1.0
     if lo == hi:
@@ -826,7 +822,7 @@ def fan_chart(
     ml, mr, mt, mb = 48, 14, 12, 26
     pw, ph = _W - ml - mr, height - mt - mb
     n = len(periods)
-    vals = [float(v) for v in (*p_low, *p_mid, *p_high) if not _missing(v)]
+    vals = [float(v) for v in (*p_low, *p_mid, *p_high) if not fmt._missing(v)]
     if not vals or n == 0:
         return f'<svg viewBox="0 0 {_W} {height}" xmlns="http://www.w3.org/2000/svg"></svg>'
 
@@ -859,13 +855,13 @@ def fan_chart(
             f'fill="{theme.muted}" font-family="{_xml_attr(theme.font_num)}">{_xml_attr(str(lab))}</text>'
         )
 
-    band_idx = [i for i in range(n) if not _missing(p_low[i]) and not _missing(p_high[i])]
+    band_idx = [i for i in range(n) if not fmt._missing(p_low[i]) and not fmt._missing(p_high[i])]
     if band_idx:
         top = " ".join(f"{x(i):.1f},{y(float(p_high[i])):.1f}" for i in band_idx)
         bot = " ".join(f"{x(i):.1f},{y(float(p_low[i])):.1f}" for i in reversed(band_idx))
         parts.append(f'<polygon points="{top} {bot}" fill="{rgba(theme.accent, 0.15)}"/>')
 
-    mid = [(i, float(p_mid[i])) for i in range(n) if not _missing(p_mid[i])]
+    mid = [(i, float(p_mid[i])) for i in range(n) if not fmt._missing(p_mid[i])]
     if mid:
         pts = " ".join(f"{x(i):.1f},{y(v):.1f}" for i, v in mid)
         parts.append(
@@ -876,10 +872,10 @@ def fan_chart(
     for i, lab in enumerate(periods):
         cx = x(i)
         bx = max(ml, cx - band_w / 2)
-        lo_v = _tip_val(float(p_low[i]), y_pct) if not _missing(p_low[i]) else "·"
-        mid_v = _tip_val(float(p_mid[i]), y_pct) if not _missing(p_mid[i]) else "·"
-        hi_v = _tip_val(float(p_high[i]), y_pct) if not _missing(p_high[i]) else "·"
-        cy = y(float(p_mid[i])) if not _missing(p_mid[i]) else mt
+        lo_v = _tip_val(float(p_low[i]), y_pct) if not fmt._missing(p_low[i]) else "·"
+        mid_v = _tip_val(float(p_mid[i]), y_pct) if not fmt._missing(p_mid[i]) else "·"
+        hi_v = _tip_val(float(p_high[i]), y_pct) if not fmt._missing(p_high[i]) else "·"
+        cy = y(float(p_mid[i])) if not fmt._missing(p_mid[i]) else mt
         title = f"{lab} · p50 {mid_v} · [{lo_v}, {hi_v}]"
         parts.append(
             f'<rect class="fq-hb" x="{bx:.1f}" y="{mt}" width="{band_w:.1f}" height="{ph}" '

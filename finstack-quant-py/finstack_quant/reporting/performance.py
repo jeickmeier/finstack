@@ -23,10 +23,6 @@ from .theme import INSTITUTIONAL, Theme
 ALL_SECTIONS = ["summary", "stats", "cumulative", "drawdown", "rolling", "monthly", "annual", "drawdowns"]
 
 
-def _dates_of(df: Any) -> list[Any]:
-    return [ix.date() if hasattr(ix, "date") else ix for ix in df.index]
-
-
 def _section_cumulative(cum_dates: list[Any], cum_series: list[float], theme: Theme) -> Section:
     return Section(
         "Cumulative Return",
@@ -87,7 +83,7 @@ def _section_drawdown(perf: Any, ticker: int, theme: Theme) -> Section:
     return Section(
         "Drawdown",
         charts.line_chart(
-            _dates_of(dd),
+            fmt._dates_of(dd),
             dd_series,
             theme=theme,
             area=True,
@@ -103,9 +99,9 @@ def _section_drawdown(perf: Any, ticker: int, theme: Theme) -> Section:
 def _section_rolling(perf: Any, ticker: int, theme: Theme) -> Section:
     rs = perf.rolling_sharpe(ticker, window=252).to_dataframe()
     rv = perf.rolling_volatility(ticker, window=252).to_dataframe()
-    rs_svg = charts.line_chart(_dates_of(rs), rs.iloc[:, 0].tolist(), theme=theme, color=theme.ink, height=170)
+    rs_svg = charts.line_chart(fmt._dates_of(rs), rs.iloc[:, 0].tolist(), theme=theme, color=theme.ink, height=170)
     rv_svg = charts.line_chart(
-        _dates_of(rv),
+        fmt._dates_of(rv),
         [v * 100.0 for v in rv.iloc[:, 0].tolist()],
         theme=theme,
         y_pct=True,
@@ -209,7 +205,7 @@ def performance_tearsheet(
     row = summary.iloc[ticker]
 
     cum_series = [v * 100.0 for v in cum[col].tolist()]
-    cum_dates = _dates_of(cum)
+    cum_dates = fmt._dates_of(cum)
     total_return = cum_series[-1] if cum_series else float("nan")
 
     secs: list[Section] = []

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import datetime as dt
+from decimal import Decimal
+from types import SimpleNamespace
 
 from finstack_quant.reporting import format as fmt
 
@@ -10,6 +12,19 @@ def test_escape_html_preserves_current_byte_encoding() -> None:
     raw = """A & B <tag> "quoted" 'single'"""
     assert fmt._escape_html(raw) == "A &amp; B &lt;tag&gt; &quot;quoted&quot; &#x27;single&#x27;"
     assert fmt._escape_html(None) == "None"
+
+
+def test_dates_of_normalizes_date_like_indexes_only() -> None:
+    frame = SimpleNamespace(index=[dt.datetime(2024, 1, 2, 15, 30), dt.date(2024, 1, 3), "plain"])
+    assert fmt._dates_of(frame) == [dt.date(2024, 1, 2), dt.date(2024, 1, 3), "plain"]
+
+
+def test_missing_preserves_supported_predicate_semantics() -> None:
+    assert fmt._missing(None)
+    assert fmt._missing(float("nan"))
+    assert not fmt._missing(float("inf"))
+    assert not fmt._missing(Decimal("NaN"))
+    assert not fmt._missing("nan")
 
 
 def test_pct_basic_and_signed() -> None:

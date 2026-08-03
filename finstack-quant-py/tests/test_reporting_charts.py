@@ -47,6 +47,12 @@ def test_color_scale_signs() -> None:
     bg_neg, _ = charts.color_scale(-5.0, INSTITUTIONAL)
     assert "rgba" in bg_pos and "rgba" in bg_neg  # noqa: PT018
     assert charts.color_scale(None, INSTITUTIONAL) == ("transparent", INSTITUTIONAL.grid)
+    assert charts.color_scale(float("nan"), INSTITUTIONAL) == ("transparent", INSTITUTIONAL.grid)
+
+
+def test_line_chart_skips_missing_values() -> None:
+    svg = charts.line_chart(_dates(4), [1.0, None, float("nan"), 2.0], theme=INSTITUTIONAL)
+    assert svg.count('class="fq-hb"') == 2
 
 
 def test_line_chart_gridlines_within_plot_area() -> None:

@@ -24,6 +24,10 @@ def _escape_html(x: Any) -> str:
     return html.escape(str(x))
 
 
+def _dates_of(df: Any) -> list[Any]:
+    return [ix.date() if hasattr(ix, "date") else ix for ix in df.index]
+
+
 def _missing(x: Any) -> bool:
     if x is None:
         return True
