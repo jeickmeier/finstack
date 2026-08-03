@@ -196,8 +196,17 @@ def test_instrument_tearsheet_unknown_section_raises() -> None:
 
     from finstack_quant.reporting import instrument_tearsheet
 
-    with pytest.raises(ValueError, match=r"unknown section"):
-        instrument_tearsheet(_fake_bond_result(), sections=["typo"], generated=dt.date(2026, 6, 19))
+    with pytest.raises(ValueError, match="unknown section") as exc_info:
+        instrument_tearsheet(
+            _fake_bond_result(),
+            sections=["zzz", "definition", "aaa", "zzz"],
+            generated=dt.date(2026, 6, 19),
+        )
+
+    assert str(exc_info.value) == (
+        "unknown section(s): ['aaa', 'zzz']; valid: "
+        "['definition', 'valuation', 'keyrate', 'cashflows', 'schedule', 'payoff', 'survival', 'covenants']"
+    )
 
 
 def test_generic_kpis_skip_composite_keys() -> None:

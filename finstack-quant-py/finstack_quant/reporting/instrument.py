@@ -22,7 +22,7 @@ import re
 from typing import Any
 
 from . import charts, format as fmt, tables
-from .document import KPI, Section, TearSheet
+from .document import KPI, Section, TearSheet, _resolve_sections
 from .theme import INSTITUTIONAL, Theme
 
 _TENOR_ORDER = ["3m", "6m", "1y", "2y", "3y", "5y", "7y", "10y", "15y", "20y", "30y"]
@@ -731,10 +731,7 @@ def instrument_tearsheet(
     """
     if isinstance(result, (str, dict)):
         result, cashflows, definition = _price_path(result, market, as_of, model, market_price, cashflows)
-    wanted = sections if sections is not None else ALL_SECTIONS
-    unknown = set(wanted) - set(ALL_SECTIONS)
-    if unknown:
-        raise ValueError(f"unknown section(s): {sorted(unknown)}; valid: {ALL_SECTIONS}")
+    wanted = _resolve_sections(sections, ALL_SECTIONS, valid_label="valid")
 
     parsed = _parse_result(result)
     itype = _instrument_type(definition)

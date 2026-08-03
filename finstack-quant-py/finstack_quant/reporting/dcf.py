@@ -21,7 +21,7 @@ import math
 from typing import Any
 
 from . import charts, format as fmt
-from .document import KPI, Section, TearSheet
+from .document import KPI, Section, TearSheet, _resolve_sections
 from .statements_common import json_or_dict, parse_statement, pl_matrix_table
 from .theme import INSTITUTIONAL, Theme
 
@@ -140,10 +140,7 @@ def dcf_tearsheet(
     >>> callable(dcf_tearsheet)
     True
     """
-    wanted = sections if sections is not None else ALL_SECTIONS
-    unknown = set(wanted) - set(ALL_SECTIONS)
-    if unknown:
-        raise ValueError(f"unknown section(s): {sorted(unknown)}; valid sections: {ALL_SECTIONS}")
+    wanted = _resolve_sections(sections, ALL_SECTIONS)
 
     val = json_or_dict(valuation, noun="valuation")
 

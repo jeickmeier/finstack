@@ -107,8 +107,12 @@ def test_attribution_tearsheet_rejects_unknown_section() -> None:
 
     from finstack_quant.reporting import attribution_tearsheet
 
-    with pytest.raises(ValueError, match=r"section"):
-        attribution_tearsheet(_load_attr(), sections=["nope"])
+    with pytest.raises(ValueError, match="unknown section") as exc_info:
+        attribution_tearsheet(_load_attr(), sections=["zzz", "waterfall", "aaa", "zzz"])
+
+    assert str(exc_info.value) == (
+        "unknown section(s): ['aaa', 'zzz']; valid: ['waterfall', 'factors', 'carry', 'credit']"
+    )
 
 
 def _attribution_golden_html() -> str:

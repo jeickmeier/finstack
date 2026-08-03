@@ -19,7 +19,7 @@ import json
 from typing import Any
 
 from . import charts, format as fmt, tables
-from .document import KPI, Section, TearSheet
+from .document import KPI, Section, TearSheet, _resolve_sections
 from .theme import INSTITUTIONAL, Theme
 
 ALL_SECTIONS = ["waterfall", "factors", "carry", "credit"]
@@ -254,10 +254,7 @@ def attribution_tearsheet(
         payload = attribution if isinstance(attribution, str) else json.dumps(attribution)
         attribution = PnlAttribution.from_json(payload)
 
-    wanted = sections if sections is not None else ALL_SECTIONS
-    unknown = set(wanted) - set(ALL_SECTIONS)
-    if unknown:
-        raise ValueError(f"unknown section(s): {sorted(unknown)}; valid: {ALL_SECTIONS}")
+    wanted = _resolve_sections(sections, ALL_SECTIONS, valid_label="valid")
     cur = attribution.currency
     kpis = [
         KPI("Total P&L", fmt.money(attribution.total_pnl, cur, dp=0), fmt.sign_class(attribution.total_pnl)),

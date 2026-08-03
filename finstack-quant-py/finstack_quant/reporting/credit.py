@@ -21,7 +21,7 @@ import datetime as dt
 from typing import Any
 
 from . import charts, format as fmt, tables
-from .document import KPI, Section, TearSheet
+from .document import KPI, Section, TearSheet, _resolve_sections
 from .statements_common import json_or_dict, parse_statement, pl_matrix_table
 from .theme import INSTITUTIONAL, Theme
 
@@ -174,10 +174,7 @@ def credit_tearsheet(
     >>> callable(credit_tearsheet)
     True
     """
-    wanted = sections if sections is not None else ALL_SECTIONS
-    unknown = set(wanted) - set(ALL_SECTIONS)
-    if unknown:
-        raise ValueError(f"unknown section(s): {sorted(unknown)}; valid sections: {ALL_SECTIONS}")
+    wanted = _resolve_sections(sections, ALL_SECTIONS)
 
     asmt = json_or_dict(assessment, noun="assessment")
 

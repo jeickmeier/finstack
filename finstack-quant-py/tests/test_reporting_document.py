@@ -4,7 +4,9 @@ from __future__ import annotations
 import datetime as dt
 from pathlib import Path
 
-from finstack_quant.reporting.document import KPI, Section, TearSheet
+import pytest
+
+from finstack_quant.reporting.document import KPI, Section, TearSheet, _resolve_sections
 from finstack_quant.reporting.theme import INSTITUTIONAL
 
 
@@ -57,3 +59,30 @@ def test_to_html_includes_tooltip_script() -> None:
     html = _sheet().to_html()
     assert 'class="fq-tip"' in html
     assert "addEventListener" in html
+
+
+def test_resolve_sections_preserves_default_and_requested_sequences() -> None:
+    valid = ["second", "first"]
+    assert _resolve_sections(None, valid) is valid
+
+    requested = ["first", "first", "second"]
+    resolved = _resolve_sections(requested, valid)
+    assert resolved is requested
+    assert resolved == ["first", "first", "second"]
+
+    empty: list[str] = []
+    assert _resolve_sections(empty, valid) is empty
+
+
+def test_resolve_sections_sorts_and_deduplicates_unknowns() -> None:
+    with pytest.raises(ValueError, match="unknown section") as exc_info:
+        _resolve_sections(["zzz", "first", "aaa", "zzz"], ["first", "second"])
+
+    assert str(exc_info.value) == ("unknown section(s): ['aaa', 'zzz']; valid sections: ['first', 'second']")
+
+
+def test_resolve_sections_preserves_short_valid_label() -> None:
+    with pytest.raises(ValueError, match="unknown section") as exc_info:
+        _resolve_sections(["zzz"], ["first", "second"], valid_label="valid")
+
+    assert str(exc_info.value) == "unknown section(s): ['zzz']; valid: ['first', 'second']"

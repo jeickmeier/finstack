@@ -22,6 +22,20 @@ from pathlib import Path
 from . import format as fmt
 from .theme import Theme
 
+
+def _resolve_sections(
+    sections: list[str] | None,
+    valid_sections: list[str],
+    *,
+    valid_label: str = "valid sections",
+) -> list[str]:
+    wanted = sections if sections is not None else valid_sections
+    unknown = set(wanted) - set(valid_sections)
+    if unknown:
+        raise ValueError(f"unknown section(s): {sorted(unknown)}; {valid_label}: {valid_sections}")
+    return wanted
+
+
 _SCOPE = "fq-ts"
 
 _TOOLTIP_JS = """<script>

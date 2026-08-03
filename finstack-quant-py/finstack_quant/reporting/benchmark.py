@@ -19,7 +19,7 @@ import datetime as dt
 from typing import Any
 
 from . import charts, format as fmt, tables
-from .document import KPI, Section, TearSheet
+from .document import KPI, Section, TearSheet, _resolve_sections
 from .theme import INSTITUTIONAL, Theme
 
 ALL_SECTIONS = ["summary", "relative", "rolling", "multifactor"]
@@ -199,10 +199,7 @@ def benchmark_tearsheet(
     >>> callable(benchmark_tearsheet)
     True
     """
-    wanted = sections if sections is not None else ALL_SECTIONS
-    unknown = set(wanted) - set(ALL_SECTIONS)
-    if unknown:
-        raise ValueError(f"unknown section(s): {sorted(unknown)}; valid sections: {ALL_SECTIONS}")
+    wanted = _resolve_sections(sections, ALL_SECTIONS)
 
     names = list(perf.ticker_names)
     bench_idx = perf.benchmark_idx
