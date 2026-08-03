@@ -444,8 +444,11 @@ class Portfolio:
 
         Raises
         ------
+        ValueError
+            If ``spec_json`` is malformed or does not match the ``PortfolioSpec`` schema.
         PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If the decoded positions or portfolio identifiers violate portfolio
+            construction invariants.
 
         Examples
         --------
@@ -615,11 +618,6 @@ class PortfolioAttribution:
         -------
         dict[str, float | bool]
             Result of reconciliation check for this `PortfolioAttribution` in the annotated representation.
-
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1043,8 +1041,13 @@ class PortfolioCashflows:
 
         Raises
         ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        TypeError
+            If ``market`` is neither a ``MarketContext`` nor a JSON string.
+        ValueError
+            If the market JSON, currency, or date is invalid, or monetary
+            aggregation cannot represent the result.
+        FinstackFxError
+            If an FX rate required for base-currency conversion is unavailable.
         """
         ...
 
@@ -1140,11 +1143,6 @@ class PortfolioResult:
         -------
         float | None
             Requested metric resolved from this `PortfolioResult` in the annotated representation.
-
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1164,8 +1162,8 @@ class PortfolioResult:
 
         Raises
         ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        KeyError
+            If ``metric_id`` is absent from the result.
         """
         ...
 
@@ -1247,11 +1245,6 @@ class PortfolioMetrics:
         -------
         list[tuple[list[str], float, dict[str, float]]]
             Result of metric series for this `PortfolioMetrics` in the annotated representation.
-
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1274,8 +1267,8 @@ def parse_portfolio_spec(json_str: str) -> str:
 
     Raises
     ------
-    PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+    ValueError
+        If ``json_str`` is malformed or does not match the ``PortfolioSpec`` schema.
 
     Examples
     --------
@@ -1304,8 +1297,11 @@ def build_portfolio_from_spec(spec_json: str) -> str:
 
     Raises
     ------
+    ValueError
+        If ``spec_json`` is malformed or does not match the ``PortfolioSpec`` schema.
     PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If the decoded positions or portfolio identifiers violate portfolio
+        construction invariants.
 
     Examples
     --------
@@ -1334,8 +1330,10 @@ def portfolio_result_total_value(result: PortfolioResult | str) -> float:
 
     Raises
     ------
-    PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+    TypeError
+        If ``result`` is neither a ``PortfolioResult`` nor a JSON string.
+    ValueError
+        If a supplied JSON string is malformed or does not match the result schema.
 
     Examples
     --------
@@ -1365,8 +1363,10 @@ def portfolio_result_get_metric(result: PortfolioResult | str, metric_id: str) -
 
     Raises
     ------
-    PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+    TypeError
+        If ``result`` is neither a ``PortfolioResult`` nor a JSON string.
+    ValueError
+        If a supplied JSON string is malformed or does not match the result schema.
 
     Examples
     --------
@@ -1405,8 +1405,15 @@ def aggregate_metrics(
 
     Raises
     ------
+    TypeError
+        If ``valuation`` or ``market`` is neither its typed wrapper nor a JSON string.
+    ValueError
+        If supplied JSON, ``base_currency``, or ``as_of`` is invalid.
     PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If the valuation base currency or date is inconsistent with the
+        requested aggregation context.
+    FinstackFxError
+        If an FX rate required for base-currency aggregation is unavailable.
 
     Examples
     --------
@@ -1481,8 +1488,13 @@ def aggregate_full_cashflows(portfolio: Portfolio | str, market: MarketContext |
 
     Raises
     ------
+    TypeError
+        If ``portfolio`` or ``market`` is neither its typed wrapper nor a JSON string.
+    ValueError
+        If supplied JSON is malformed or cashflow aggregation cannot represent
+        a monetary result.
     PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If a JSON portfolio cannot be constructed from its decoded specification.
 
     Examples
     --------
@@ -1518,8 +1530,13 @@ def apply_scenario_and_revalue(
 
     Raises
     ------
+    TypeError
+        If ``portfolio`` or ``market`` is neither its typed wrapper nor a JSON string.
+    ValueError
+        If portfolio, scenario, or market JSON is malformed or schema-incompatible.
     PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If portfolio construction, scenario application, market lookup, FX
+        conversion, or valuation fails.
 
     Examples
     --------
@@ -1665,8 +1682,13 @@ def attribute_portfolio_pnl(
 
     Raises
     ------
+    TypeError
+        If a portfolio, market, method, or configuration input has an unsupported type.
+    ValueError
+        If supplied JSON, either ISO date, or the attribution method or
+        configuration is invalid.
     PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If portfolio construction, valuation, FX conversion, or attribution fails.
 
     Examples
     --------
@@ -1955,11 +1977,6 @@ def roll_effective_spread(returns: list[float]) -> float | None:
     float | None
         Result of roll effective spread for the binding in the annotated representation.
 
-    Raises
-    ------
-    PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
     Examples
     --------
     >>> from finstack_quant.portfolio import roll_effective_spread
@@ -1984,11 +2001,6 @@ def amihud_illiquidity(returns: list[float], volumes: list[float]) -> float | No
     float or None
         Average ``abs(return) / volume`` over positive-volume observations, or
         ``None`` when no valid observations are available.
-
-    Raises
-    ------
-    PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
     Examples
     --------
@@ -2047,11 +2059,6 @@ def liquidity_tier(days_to_liquidate: float) -> str:
     str
         Result of liquidity tier for the binding in the annotated representation.
 
-    Raises
-    ------
-    PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
     Examples
     --------
     >>> from finstack_quant.portfolio import liquidity_tier
@@ -2090,8 +2097,10 @@ def lvar_bangia(
 
     Raises
     ------
-    PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+    ValueError
+        If ``var`` is non-finite or non-positive; ``spread_mean`` or
+        ``spread_vol`` is non-finite or negative; ``confidence`` is outside
+        ``(0, 1)``; or ``position_value`` is non-finite.
 
     Examples
     --------
@@ -2137,8 +2146,12 @@ def almgren_chriss_impact(
 
     Raises
     ------
-    PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+    ValueError
+        If ``position_size`` is non-finite; ``avg_daily_volume``, ``volatility``,
+        or ``execution_horizon_days`` is non-finite or non-positive;
+        ``permanent_impact_coef`` is non-finite or negative;
+        ``temporary_impact_coef`` is non-finite or non-positive; or a supplied
+        ``reference_price`` is non-finite or non-positive.
 
     Examples
     --------
@@ -2166,11 +2179,6 @@ def kyle_lambda(volumes: list[float], returns: list[float]) -> float | None:
     -------
     float | None
         Result of kyle lambda for the binding in the annotated representation.
-
-    Raises
-    ------
-    PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
     Examples
     --------
@@ -4969,11 +4977,6 @@ class VolHorizon:
         VolHorizon
             Result of n steps for this `VolHorizon` in the annotated representation.
 
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.portfolio import VolHorizon
@@ -5000,8 +5003,8 @@ class VolHorizon:
 
         Raises
         ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        ValueError
+            If ``years`` is non-finite or negative.
 
         Examples
         --------
@@ -5029,8 +5032,8 @@ class VolHorizon:
 
         Raises
         ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        ValueError
+            If ``s`` is not a horizon descriptor accepted by ``VolHorizon``.
 
         Examples
         --------
@@ -5144,11 +5147,6 @@ class DecompositionConfig:
         DecompositionConfig
             Result of historical for this `DecompositionConfig` in the annotated representation.
 
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.portfolio import DecompositionConfig
@@ -5179,11 +5177,6 @@ class DecompositionConfig:
         -------
         DecompositionConfig
             Result of with seed for this `DecompositionConfig` in the annotated representation.
-
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -5422,11 +5415,6 @@ def build_credit_vol_report(
         CreditVolReport with total, generic, level, idiosyncratic, and optional
         position-level volatility contribution fields.
 
-    Raises
-    ------
-    PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
     Examples
     --------
     >>> from finstack_quant.portfolio import build_credit_vol_report
@@ -5457,8 +5445,8 @@ def position_component_var(
 
     Raises
     ------
-    PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+    KeyError
+        If ``position_id`` is absent from ``decomp``.
 
     Examples
     --------
@@ -5922,11 +5910,6 @@ class PerPositionMetric:
         PerPositionMetric
             Result of metric for this `PerPositionMetric` in the annotated representation.
 
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.portfolio import PerPositionMetric
@@ -5949,11 +5932,6 @@ class PerPositionMetric:
         -------
         PerPositionMetric
             Result of custom key for this `PerPositionMetric` in the annotated representation.
-
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -6015,11 +5993,6 @@ class PerPositionMetric:
         PerPositionMetric
             Result of attribute for this `PerPositionMetric` in the annotated representation.
 
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.portfolio import PerPositionMetric
@@ -6057,8 +6030,9 @@ class PerPositionMetric:
 
         Raises
         ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        ValueError
+            If ``op`` is unknown, or exactly one of ``text`` and ``number`` is
+            not supplied.
 
         Examples
         --------
@@ -6082,11 +6056,6 @@ class PerPositionMetric:
         -------
         PerPositionMetric
             Result of constant for this `PerPositionMetric` in the annotated representation.
-
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -6198,11 +6167,6 @@ class PositionFilter:
         PositionFilter
             Result of by entity id for this `PositionFilter` in the annotated representation.
 
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.portfolio import PositionFilter
@@ -6240,8 +6204,9 @@ class PositionFilter:
 
         Raises
         ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        ValueError
+            If ``op`` is unknown, or exactly one of ``text`` and ``number`` is
+            not supplied.
 
         Examples
         --------
@@ -6266,11 +6231,6 @@ class PositionFilter:
         PositionFilter
             Result of by position ids for this `PositionFilter` in the annotated representation.
 
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.portfolio import PositionFilter
@@ -6293,11 +6253,6 @@ class PositionFilter:
         -------
         PositionFilter
             Result of not for this `PositionFilter` in the annotated representation.
-
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -6322,11 +6277,6 @@ class PositionFilter:
         PositionFilter
             Result of and for this `PositionFilter` in the annotated representation.
 
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.portfolio import PositionFilter
@@ -6349,11 +6299,6 @@ class PositionFilter:
         -------
         PositionFilter
             Result of or for this `PositionFilter` in the annotated representation.
-
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -6453,11 +6398,6 @@ class MetricExpr:
         MetricExpr
             Result of weighted sum for this `MetricExpr` in the annotated representation.
 
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.portfolio import MetricExpr
@@ -6486,11 +6426,6 @@ class MetricExpr:
         -------
         MetricExpr
             Result of value weighted average for this `MetricExpr` in the annotated representation.
-
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -6584,11 +6519,6 @@ class Objective:
         Objective
             Result of maximize for this `Objective` in the annotated representation.
 
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.portfolio import Objective
@@ -6611,11 +6541,6 @@ class Objective:
         -------
         Objective
             Result of minimize for this `Objective` in the annotated representation.
-
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -6732,11 +6657,6 @@ class Constraint:
         Constraint
             Result of metric bound for this `Constraint` in the annotated representation.
 
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.portfolio import Constraint
@@ -6774,8 +6694,8 @@ class Constraint:
 
         Raises
         ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        ValueError
+            If ``min`` is greater than ``max``.
 
         Examples
         --------
@@ -6808,8 +6728,8 @@ class Constraint:
 
         Raises
         ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        ValueError
+            If ``max_turnover`` is negative.
 
         Examples
         --------
@@ -6837,8 +6757,8 @@ class Constraint:
 
         Raises
         ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        ValueError
+            If ``rhs`` is non-finite or negative.
 
         Examples
         --------
@@ -6877,8 +6797,8 @@ class Constraint:
 
         Raises
         ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        ValueError
+            If ``max_share`` is outside ``[0, 1]`` or is non-finite.
 
         Examples
         --------
@@ -6917,8 +6837,8 @@ class Constraint:
 
         Raises
         ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        ValueError
+            If ``min_share`` is outside ``[0, 1]`` or is non-finite.
 
         Examples
         --------
@@ -6941,11 +6861,6 @@ class Constraint:
         -------
         Constraint
             Result of with label for this `Constraint` in the annotated representation.
-
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -7254,11 +7169,6 @@ class OptimizationStatus:
         OptimizationStatus
             Result of infeasible for this `OptimizationStatus` in the annotated representation.
 
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.portfolio import OptimizationStatus
@@ -7281,11 +7191,6 @@ class OptimizationStatus:
         -------
         OptimizationStatus
             Result of error for this `OptimizationStatus` in the annotated representation.
-
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -7578,8 +7483,9 @@ class PortfolioOptimizationSpec:
 
         Raises
         ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        ValueError
+            If ``portfolio_spec_json`` is malformed or does not match the
+            ``PortfolioSpec`` schema.
 
         Examples
         --------
@@ -7602,11 +7508,6 @@ class PortfolioOptimizationSpec:
         -------
         PortfolioOptimizationSpec
             Result of with constraint for this `PortfolioOptimizationSpec` in the annotated representation.
-
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -7623,11 +7524,6 @@ class PortfolioOptimizationSpec:
         -------
         PortfolioOptimizationSpec
             Result of with objective for this `PortfolioOptimizationSpec` in the annotated representation.
-
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -7644,11 +7540,6 @@ class PortfolioOptimizationSpec:
         -------
         PortfolioOptimizationSpec
             Result of with weighting for this `PortfolioOptimizationSpec` in the annotated representation.
-
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -7665,11 +7556,6 @@ class PortfolioOptimizationSpec:
         -------
         PortfolioOptimizationSpec
             Result of with missing metric policy for this `PortfolioOptimizationSpec` in the annotated representation.
-
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -7686,11 +7572,6 @@ class PortfolioOptimizationSpec:
         -------
         PortfolioOptimizationSpec
             Result of with label for this `PortfolioOptimizationSpec` in the annotated representation.
-
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -7993,8 +7874,18 @@ def optimize_portfolio(
 
     Raises
     ------
+    TypeError
+        If ``market`` is neither a ``MarketContext`` nor a JSON string.
+    ValueError
+        If supplied market JSON is malformed or schema-incompatible.
     PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If the embedded portfolio specification cannot be constructed.
+    FinstackValuationError
+        If a required position metric cannot be valued.
+    FinstackFxError
+        If a required base-currency conversion is unavailable.
+    FinstackOptimizationError
+        If the optimization problem or solver fails.
 
     Examples
     --------
@@ -8086,8 +7977,8 @@ class SensitivityMatrix:
 
         Raises
         ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        ValueError
+            If ``position_idx`` or ``factor_idx`` is outside the matrix bounds.
         """
         ...
 
@@ -8107,8 +7998,8 @@ class SensitivityMatrix:
 
         Raises
         ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        ValueError
+            If ``position_idx`` is outside the matrix bounds.
         """
         ...
 
@@ -8128,8 +8019,8 @@ class SensitivityMatrix:
 
         Raises
         ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        ValueError
+            If ``factor_idx`` is outside the matrix bounds.
         """
         ...
 
@@ -8260,16 +8151,21 @@ def compute_factor_sensitivities(
         SensitivityMatrix
             Positions-by-factors delta matrix.
 
+        Raises
+        ------
+        TypeError
+            If ``market`` is neither a ``MarketContext`` nor a JSON string.
+        ValueError
+            If position, factor, market, bump-configuration, or date input is
+            malformed or invalid, or a factor cannot be bumped or priced.
+        KeyError
+            If repricing requires market data that is absent from ``market``.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import compute_factor_sensitivities
         >>> matrix = compute_factor_sensitivities(pos_json, fac_json, mkt_json, "2025-01-15")  # doctest: +SKIP
         >>> matrix.to_dataframe()  # doctest: +SKIP
-
-        Raises
-        ------
-        PortfolioError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -8306,16 +8202,22 @@ def compute_pnl_profiles(
     list[FactorPnlProfile]
         One profile per factor, each containing scenario P&L for every position.
 
+    Raises
+    ------
+    TypeError
+        If ``market`` is neither a ``MarketContext`` nor a JSON string.
+    ValueError
+        If position, factor, market, bump-configuration, or date input is
+        malformed or invalid; if ``n_scenario_points`` is less than ``3`` or
+        even; or if a factor cannot be bumped or priced.
+    KeyError
+        If repricing requires market data that is absent from ``market``.
+
     Examples
     --------
     >>> from finstack_quant.portfolio import compute_pnl_profiles
     >>> profiles = compute_pnl_profiles(pos_json, fac_json, mkt_json, "2025-01-15")  # doctest: +SKIP
     >>> profiles[0].to_dataframe(["bond_1", "equity_1"])  # doctest: +SKIP
-
-    Raises
-    ------
-    PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 

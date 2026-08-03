@@ -481,11 +481,6 @@ class ClearingStatus:
         --------
         >>> ClearingStatus.cleared("LCH").is_cleared
         True
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -797,11 +792,6 @@ class NettingSetId:
         --------
         >>> NettingSetId.bilateral("A", "CSA").is_cleared
         False
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -824,11 +814,6 @@ class NettingSetId:
         --------
         >>> NettingSetId.cleared("LCH").is_cleared
         True
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1271,11 +1256,6 @@ class EligibleCollateralSchedule:
         >>> s = EligibleCollateralSchedule.cash_only()
         >>> s.is_eligible(CollateralAssetClass.cash())
         True
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1298,11 +1278,6 @@ class EligibleCollateralSchedule:
         >>> s = EligibleCollateralSchedule.cash_only()
         >>> s.haircut_for(CollateralAssetClass.cash()) is not None
         True
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1468,11 +1443,6 @@ class VmCalculator:
         ----------
         csa : object
             Value supplied for `csa` to the documented binding operation.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1668,11 +1638,6 @@ class ImResult:
         Examples
         --------
         >>> # Depends on instance data
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1813,11 +1778,6 @@ class SimmSensitivities:
             Credit tenor bucket, such as ``"5Y"``.
         amount : float
             Signed CS01-style currency amount per 1bp move.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1856,11 +1816,6 @@ class SimmSensitivities:
             Equity underlier or index identifier.
         amount : float
             Signed currency sensitivity amount.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1874,11 +1829,6 @@ class SimmSensitivities:
             Equity underlier or index identifier.
         amount : float
             Signed currency vega amount.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -1931,11 +1881,6 @@ class SimmSensitivities:
             such as ``"energy"``.
         amount : float
             Signed currency sensitivity amount.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -2183,11 +2128,6 @@ class ScheduleImCalculator:
         -------
         ScheduleImCalculator
             Copy of this calculator with the default maturity changed.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -2384,11 +2324,6 @@ class HaircutImCalculator:
         HaircutImCalculator
             Calculator backed by ``schedule``.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.margin import HaircutImCalculator
@@ -2410,11 +2345,6 @@ class HaircutImCalculator:
         -------
         HaircutImCalculator
             Copy of this calculator with the default asset class changed.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -2727,11 +2657,6 @@ class XvaConfig:
             Rate or spread expressed in the convention documented for this API.
         funding : object
             Value supplied for `funding` to the documented binding operation.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -2970,11 +2895,6 @@ class ExposureProfile:
             Value supplied for `epe` to the documented binding operation.
         ene : object
             Value supplied for `ene` to the documented binding operation.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -3445,11 +3365,6 @@ class CsaTerms:
             Value supplied for `mpor_days` to the documented binding operation.
         independent_amount : object
             Value supplied for `independent_amount` to the documented binding operation.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -3580,7 +3495,7 @@ class XvaNettingSet:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If a supplied ``reporting_currency`` is not a recognized ISO currency code.
         """
         ...
 
@@ -4170,7 +4085,8 @@ class MarginUtilization:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``currency`` is unrecognized, or either amount is non-finite or
+            outside the representable monetary range.
         """
         ...
 
@@ -4310,7 +4226,8 @@ class ExcessCollateral:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``currency`` is unrecognized, or either amount is non-finite or
+            outside the representable monetary range.
         """
         ...
 
@@ -4472,7 +4389,8 @@ class MarginFundingCost:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``currency`` is unrecognized, or ``margin_posted`` is non-finite
+            or outside the representable monetary range.
         """
         ...
 
@@ -4578,11 +4496,6 @@ class MarginFundingCost:
         --------
         >>> MarginFundingCost(1e6, 0.04, 0.0, "USD").cost_for_period(0.5) >= 0
         True
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -4639,7 +4552,8 @@ class Haircut01:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``currency`` is unrecognized, or ``collateral_value`` is
+            non-finite or outside the representable monetary range.
         """
         ...
 
@@ -4744,7 +4658,7 @@ class FrtbSensitivities:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``base_currency`` is not a recognized ISO currency code.
         """
         ...
 
@@ -4803,7 +4717,7 @@ class FrtbSensitivities:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If a supplied ``currency`` is not a recognized ISO currency code.
         """
         ...
 
@@ -4821,11 +4735,6 @@ class FrtbSensitivities:
             Credit tenor bucket.
         amount : float
             Signed sensitivity amount per 1bp move.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -4841,11 +4750,6 @@ class FrtbSensitivities:
             Equity bucket number.
         amount : float
             Signed sensitivity amount per 1bp move.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -4865,7 +4769,7 @@ class FrtbSensitivities:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``ccy1`` or ``ccy2`` is not a recognized ISO currency code.
         """
         ...
 
@@ -4883,11 +4787,6 @@ class FrtbSensitivities:
             Commodity tenor bucket.
         amount : float
             Signed sensitivity amount per 1bp move.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -4915,7 +4814,7 @@ class FrtbSensitivities:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If a supplied ``currency`` is not a recognized ISO currency code.
         """
         ...
 
@@ -4933,11 +4832,6 @@ class FrtbSensitivities:
             Option maturity bucket.
         amount : float
             Signed vega amount.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -4959,7 +4853,7 @@ class FrtbSensitivities:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``ccy1`` or ``ccy2`` is not a recognized ISO currency code.
         """
         ...
 
@@ -4979,7 +4873,7 @@ class FrtbSensitivities:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If a supplied ``currency`` is not a recognized ISO currency code.
         """
         ...
 
@@ -4997,11 +4891,6 @@ class FrtbSensitivities:
             Curvature sensitivity for upward shock.
         cvr_down : float
             Curvature sensitivity for downward shock.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -5023,7 +4912,7 @@ class FrtbSensitivities:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``ccy1`` or ``ccy2`` is not a recognized ISO currency code.
         """
         ...
 
@@ -5039,11 +4928,6 @@ class FrtbSensitivities:
             Notional amount for the RRAO position.
         is_exotic : bool, default False
             Whether the instrument is exotic (higher RRAO weight).
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
 
@@ -5093,7 +4977,8 @@ class FrtbSbaEngine:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``correlation_scenario`` is not ``"low"``, ``"medium"``, or
+            ``"high"``.
         """
         ...
 
@@ -5117,7 +5002,8 @@ class FrtbSbaEngine:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If a sensitivity has an unsupported tenor or bucket, an empty
+            required identifier, or a non-finite numeric value.
         """
         ...
 
@@ -5212,7 +5098,8 @@ class SaCcrTrade:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``asset_class`` is unknown or either supplied calendar date is
+            invalid.
         """
         ...
 
@@ -5354,7 +5241,7 @@ class SaCcrNettingSetConfig:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If the supplied valuation date is not a valid calendar date.
 
         Examples
         --------
@@ -5411,7 +5298,7 @@ class SaCcrNettingSetConfig:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If the supplied valuation date is not a valid calendar date.
 
         Examples
         --------
@@ -5516,7 +5403,8 @@ class SaCcrEngine:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``reporting_currency`` is unrecognized, or a supplied ``alpha``
+            is non-finite or less than ``1.0``.
         """
         ...
 
@@ -5539,7 +5427,9 @@ class SaCcrEngine:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If netting-set amounts or trade numeric fields are non-finite, a
+            threshold or MTA is negative, a margined MPOR is zero, or a trade's
+            direction and supervisory-delta fields are inconsistent.
         """
         ...
 
@@ -5667,6 +5557,13 @@ def frtb_sba_charge(
         plus ``drc``, ``rrao``, ``binding_scenario``, and
         ``scenario_charges``.
 
+    Raises
+    ------
+    ValueError
+        If ``correlation_scenario`` is unknown, or a sensitivity has an
+        unsupported tenor or bucket, an empty required identifier, or a
+        non-finite numeric value.
+
     Examples
     --------
     >>> sens = FrtbSensitivities("USD")
@@ -5674,11 +5571,6 @@ def frtb_sba_charge(
     >>> total, breakdown = frtb_sba_charge(sens)
     >>> total > 0.0
     True
-
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 
@@ -5703,7 +5595,8 @@ def saccr_ead(trades: list[SaCcrTrade], margined: bool = False, collateral: floa
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``collateral`` or a trade numeric field is non-finite, or a trade's
+        direction and supervisory-delta fields are inconsistent.
 
     Examples
     --------

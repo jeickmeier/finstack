@@ -1330,7 +1330,7 @@ class OperationSpec:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``base`` or ``quote`` is not a recognized ISO currency code.
 
         Examples
         --------
@@ -1356,11 +1356,6 @@ class OperationSpec:
         -------
         OperationSpec
             The ``equity_price_pct`` operation.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -1388,11 +1383,6 @@ class OperationSpec:
         -------
         OperationSpec
             The ``instrument_price_pct_by_attr`` operation.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -1428,11 +1418,6 @@ class OperationSpec:
         -------
         OperationSpec
             The ``curve_parallel_bp`` operation.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -1472,11 +1457,6 @@ class OperationSpec:
         OperationSpec
             The ``curve_node_bp`` operation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
@@ -1501,11 +1481,6 @@ class OperationSpec:
         -------
         OperationSpec
             The ``vol_index_parallel_pts`` operation.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -1539,11 +1514,6 @@ class OperationSpec:
         OperationSpec
             The ``vol_index_node_pts`` operation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
@@ -1568,11 +1538,6 @@ class OperationSpec:
         -------
         OperationSpec
             The ``base_corr_parallel_pts`` operation.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -1610,11 +1575,6 @@ class OperationSpec:
         OperationSpec
             The ``base_corr_bucket_pts`` operation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
@@ -1641,11 +1601,6 @@ class OperationSpec:
         -------
         OperationSpec
             The ``vol_surface_parallel_pct`` operation.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -1685,11 +1640,6 @@ class OperationSpec:
         OperationSpec
             The ``vol_surface_bucket_pct`` operation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
@@ -1714,11 +1664,6 @@ class OperationSpec:
         -------
         OperationSpec
             The ``stmt_forecast_percent`` operation.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -1745,11 +1690,6 @@ class OperationSpec:
         OperationSpec
             The ``stmt_forecast_assign`` operation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
@@ -1772,11 +1712,6 @@ class OperationSpec:
         -------
         OperationSpec
             The ``rate_binding`` operation.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -1802,11 +1737,6 @@ class OperationSpec:
         -------
         OperationSpec
             The ``instrument_spread_bp_by_attr`` operation.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -1836,7 +1766,7 @@ class OperationSpec:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If any entry in ``instrument_types`` is not a recognized instrument type.
 
         Examples
         --------
@@ -1866,7 +1796,7 @@ class OperationSpec:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If any entry in ``instrument_types`` is not a recognized instrument type.
 
         Examples
         --------
@@ -1891,11 +1821,6 @@ class OperationSpec:
         OperationSpec
             The ``asset_correlation_pts`` operation.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
@@ -1918,11 +1843,6 @@ class OperationSpec:
         -------
         OperationSpec
             The ``prepay_default_correlation_pts`` operation.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
@@ -1965,7 +1885,7 @@ class OperationSpec:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``target_json`` is not valid JSON for a ``HierarchyTarget``.
 
         Examples
         --------
@@ -1999,7 +1919,7 @@ class OperationSpec:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``target_json`` is not valid JSON for a ``HierarchyTarget``.
 
         Examples
         --------
@@ -2029,7 +1949,7 @@ class OperationSpec:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``target_json`` is not valid JSON for a ``HierarchyTarget``.
 
         Examples
         --------
@@ -2059,7 +1979,7 @@ class OperationSpec:
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If ``target_json`` is not valid JSON for a ``HierarchyTarget``.
 
         Examples
         --------
@@ -2095,11 +2015,6 @@ class OperationSpec:
         -------
         OperationSpec
             The ``time_roll_forward`` operation.
-
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
         Examples
         --------
