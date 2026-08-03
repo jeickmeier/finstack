@@ -1,62 +1,31 @@
-//! Apache Arrow interchange for finstack-quant tabular outputs.
+//! Arrow record-batch and IPC-stream interchange for
+//! [`finstack_quant_core::table::TableEnvelope`].
 //!
-//! Converts [`finstack_quant_core::table::TableEnvelope`] to and from Arrow
-//! [`RecordBatch`] values and Arrow IPC stream bytes. Column roles and
-//! metadata round-trip losslessly through Arrow field/schema metadata
-//! ([`ROLE_METADATA_KEY`] / [`METADATA_KEY`]).
+//! Canonical envelopes round-trip semantically through [`RecordBatch`] values
+//! and stream-format bytes. This supporting crate is not umbrella-re-exported;
+//! Python bindings use it for `finstack_quant.core.table.ArrowTable`.
 //!
-//! This is a supporting crate: it is not re-exported by the `finstack-quant`
-//! umbrella crate and has no WASM binding (arrow-rs is not built for wasm32).
-//! Python bindings use it to back `finstack_quant.core.table.ArrowTable`.
-//! The crate `README.md` documents the full type map, metadata contract, and
-//! host-interop notes.
+//! # Wire contract
 //!
-//! # Public API
+//! Outbound columns map `String` to `Utf8`, `f64` to `Float64`, `u32` to
+//! `UInt32`, and `i64` to `Int64`; the nullable envelope variant controls Arrow
+//! field nullability. Inbound conversion also accepts `LargeUtf8`, `Utf8View`,
+//! and string dictionaries that Arrow can cast to `Utf8`. Other physical types
+//! are rejected. Nullability comes from the schema even when an array contains
+//! no nulls, and a non-nullable field containing nulls is invalid. Non-finite
+//! floats remain representable.
 //!
-//! - [`to_record_batch`] / [`from_record_batch`] — in-process Arrow batches
-//! - [`to_ipc_bytes`] / [`from_ipc_bytes`] — Arrow IPC **stream-format** bytes
-//! - [`ROLE_METADATA_KEY`] / [`METADATA_KEY`] — field/schema metadata key names
+//! Field metadata key [`ROLE_METADATA_KEY`] (`finstack:role`) stores
+//! `dimension`, `index`, `measure`, or `attribute`. [`METADATA_KEY`]
+//! (`finstack:metadata`) stores a JSON object in field metadata for a column and
+//! in schema metadata for the table. Missing keys restore no role or an empty
+//! metadata map; unknown roles and malformed JSON are rejected.
 //!
-//! # Supported Arrow types
-//!
-//! **Outbound** (`to_record_batch` / `to_ipc_bytes`) always emits plain
-//! `Utf8`, `Float64`, `UInt32`, and `Int64` columns.
-//!
-//! **Inbound** (`from_record_batch` / `from_ipc_bytes`) accepts that same set,
-//! plus common foreign string encodings that decode into the envelope's
-//! `String` / `NullableString` variants:
-//!
-//! - `Utf8`, `LargeUtf8`, `Utf8View`
-//! - `Dictionary(_, Utf8 | LargeUtf8 | Utf8View)` (decoded via cast to `Utf8`)
-//!
-//! Other Arrow types (dates, timestamps, booleans, nested types, …) are
-//! rejected; cast them to a supported type before calling inbound APIs.
-//!
-//! Nullability is schema-driven: a nullable field with zero nulls restores the
-//! nullable envelope variant. Non-nullable fields that contain nulls are
-//! rejected. Non-finite floats (`NaN`, `±∞`) round-trip.
-//!
-//! # Metadata keys
-//!
-//! | Key | Location | Value |
-//! |-----|----------|-------|
-//! | [`ROLE_METADATA_KEY`] (`finstack:role`) | field metadata | `dimension` / `index` / `measure` / `attribute` |
-//! | [`METADATA_KEY`] (`finstack:metadata`) | field metadata | JSON object of per-column metadata |
-//! | [`METADATA_KEY`] (`finstack:metadata`) | schema metadata | JSON object of table-level metadata |
-//!
-//! # Quick Example
-//! ```rust
-//! use finstack_quant_core::table::{TableColumn, TableColumnData, TableEnvelope};
-//! use finstack_quant_arrow::{from_record_batch, to_record_batch};
-//!
-//! let table = TableEnvelope::new(vec![TableColumn::new(
-//!     "pv",
-//!     TableColumnData::Float64(vec![101.5, 99.25]),
-//! )])
-//! .unwrap();
-//! let batch = to_record_batch(&table).unwrap();
-//! assert_eq!(from_record_batch(&batch).unwrap(), table);
-//! ```
+//! [`to_ipc_bytes`] writes one batch in Arrow IPC stream format;
+//! [`from_ipc_bytes`] concatenates every input batch. A zero-batch stream keeps
+//! its schema as a typed zero-row table. A zero-column batch with nonzero rows
+//! is not representable and is rejected. IPC compatibility is semantic rather
+//! than byte-stable across Arrow versions.
 
 #![forbid(unsafe_code)]
 #![warn(clippy::float_cmp)]
@@ -442,8 +411,7 @@ pub fn from_record_batch(batch: &RecordBatch) -> Result<TableEnvelope> {
 /// Serialize a [`TableEnvelope`] as Arrow IPC **stream-format** bytes.
 ///
 /// The output contains a single record batch and the full schema (including
-/// `finstack:*` metadata), suitable for `pyarrow.ipc.open_stream`, DuckDB,
-/// or any Arrow IPC consumer.
+/// `finstack:*` metadata), suitable for standard Arrow IPC stream consumers.
 ///
 /// # Arguments
 ///
