@@ -7,9 +7,10 @@ normalization helpers.
 
 Examples
 --------
->>> import finstack_quant.statements as statements
->>> statements.__name__
-'finstack_quant.statements'
+>>> from finstack_quant.statements import NodeId
+>>> NodeId("revenue").as_str()
+'revenue'
+
 """
 
 from __future__ import annotations
@@ -52,17 +53,12 @@ class ForecastMethod:
 
     Construct variants via static factory methods (e.g. ``growth_pct()``).
 
-    Example
-    -------
-    >>> from finstack_quant.statements import ForecastMethod
-    >>> ForecastMethod.forward_fill()
-    ForecastMethod(...)
-
     Examples
     --------
     >>> from finstack_quant.statements import ForecastMethod
-    >>> ForecastMethod.__name__
-    'ForecastMethod'
+    >>> ForecastMethod.forward_fill() == ForecastMethod.forward_fill()
+    True
+
     """
 
     @staticmethod
@@ -78,8 +74,9 @@ class ForecastMethod:
         Examples
         --------
         >>> from finstack_quant.statements import ForecastMethod
-        >>> callable(ForecastMethod.forward_fill)
+        >>> ForecastMethod.forward_fill() == ForecastMethod.forward_fill()
         True
+
         """
         ...
 
@@ -96,8 +93,9 @@ class ForecastMethod:
         Examples
         --------
         >>> from finstack_quant.statements import ForecastMethod
-        >>> callable(ForecastMethod.growth_pct)
+        >>> ForecastMethod.growth_pct() == ForecastMethod.growth_pct()
         True
+
         """
         ...
 
@@ -114,8 +112,9 @@ class ForecastMethod:
         Examples
         --------
         >>> from finstack_quant.statements import ForecastMethod
-        >>> callable(ForecastMethod.curve_pct)
+        >>> ForecastMethod.curve_pct() == ForecastMethod.curve_pct()
         True
+
         """
         ...
 
@@ -132,8 +131,9 @@ class ForecastMethod:
         Examples
         --------
         >>> from finstack_quant.statements import ForecastMethod
-        >>> callable(ForecastMethod.normal)
+        >>> ForecastMethod.normal() == ForecastMethod.normal()
         True
+
         """
         ...
 
@@ -150,8 +150,9 @@ class ForecastMethod:
         Examples
         --------
         >>> from finstack_quant.statements import ForecastMethod
-        >>> callable(ForecastMethod.log_normal)
+        >>> ForecastMethod.log_normal() == ForecastMethod.log_normal()
         True
+
         """
         ...
 
@@ -168,8 +169,9 @@ class ForecastMethod:
         Examples
         --------
         >>> from finstack_quant.statements import ForecastMethod
-        >>> callable(ForecastMethod.override_method)
+        >>> ForecastMethod.override_method() == ForecastMethod.override_method()
         True
+
         """
         ...
 
@@ -186,8 +188,9 @@ class ForecastMethod:
         Examples
         --------
         >>> from finstack_quant.statements import ForecastMethod
-        >>> callable(ForecastMethod.time_series)
+        >>> ForecastMethod.time_series() == ForecastMethod.time_series()
         True
+
         """
         ...
 
@@ -204,8 +207,9 @@ class ForecastMethod:
         Examples
         --------
         >>> from finstack_quant.statements import ForecastMethod
-        >>> callable(ForecastMethod.seasonal)
+        >>> ForecastMethod.seasonal() == ForecastMethod.seasonal()
         True
+
         """
         ...
 
@@ -225,16 +229,13 @@ class ForecastSpec:
     """
     Forecast configuration for a statement node.
 
-    Example
-    -------
-    >>> from finstack_quant.statements import ForecastSpec
-    >>> spec = ForecastSpec.forward_fill()  # doctest: +SKIP
-
     Examples
     --------
     >>> from finstack_quant.statements import ForecastSpec
-    >>> ForecastSpec.__name__
-    'ForecastSpec'
+    >>> spec = ForecastSpec.growth(0.05)
+    >>> ForecastSpec.from_json(spec.to_json()).to_json() == spec.to_json()
+    True
+
     """
 
     def __init__(self, method: ForecastMethod, params_json: str | None = None) -> None:
@@ -253,11 +254,6 @@ class ForecastSpec:
         ValueError
             If params_json is not valid JSON for the method parameter mapping.
 
-        Example
-        -------
-        >>> from finstack_quant.statements import ForecastMethod
-        >>> spec = ForecastSpec(ForecastMethod.forward_fill())  # doctest: +SKIP
-
         """
         ...
 
@@ -271,15 +267,13 @@ class ForecastSpec:
         ForecastSpec
             A forward-fill forecast specification.
 
-        Example
-        -------
-        >>> spec = ForecastSpec.forward_fill()  # doctest: +SKIP
-
         Examples
         --------
         >>> from finstack_quant.statements import ForecastSpec
-        >>> callable(ForecastSpec.forward_fill)
+        >>> spec = ForecastSpec.forward_fill()
+        >>> ForecastSpec.from_json(spec.to_json()).to_json() == spec.to_json()
         True
+
         """
         ...
 
@@ -298,15 +292,13 @@ class ForecastSpec:
         ForecastSpec
             A constant-growth forecast specification.
 
-        Example
-        -------
-        >>> spec = ForecastSpec.growth(0.05)  # doctest: +SKIP
-
         Examples
         --------
         >>> from finstack_quant.statements import ForecastSpec
-        >>> callable(ForecastSpec.growth)
+        >>> spec = ForecastSpec.growth(0.05)
+        >>> ForecastSpec.from_json(spec.to_json()).to_json() == spec.to_json()
         True
+
         """
         ...
 
@@ -325,15 +317,13 @@ class ForecastSpec:
         ForecastSpec
             A curve-based forecast specification.
 
-        Example
-        -------
-        >>> spec = ForecastSpec.curve([0.03, 0.05, 0.07])  # doctest: +SKIP
-
         Examples
         --------
         >>> from finstack_quant.statements import ForecastSpec
-        >>> callable(ForecastSpec.curve)
+        >>> spec = ForecastSpec.curve([0.03, 0.04])
+        >>> ForecastSpec.from_json(spec.to_json()).to_json() == spec.to_json()
         True
+
         """
         ...
 
@@ -356,15 +346,13 @@ class ForecastSpec:
         ForecastSpec
             A normal-draw forecast specification.
 
-        Example
-        -------
-        >>> spec = ForecastSpec.normal(0.0, 0.1, 42)  # doctest: +SKIP
-
         Examples
         --------
         >>> from finstack_quant.statements import ForecastSpec
-        >>> callable(ForecastSpec.normal)
+        >>> spec = ForecastSpec.normal(0.0, 0.1, 7)
+        >>> ForecastSpec.from_json(spec.to_json()).to_json() == spec.to_json()
         True
+
         """
         ...
 
@@ -387,15 +375,13 @@ class ForecastSpec:
         ForecastSpec
             A log-normal-draw forecast specification.
 
-        Example
-        -------
-        >>> spec = ForecastSpec.lognormal(0.0, 0.1, 42)  # doctest: +SKIP
-
         Examples
         --------
         >>> from finstack_quant.statements import ForecastSpec
-        >>> callable(ForecastSpec.lognormal)
+        >>> spec = ForecastSpec.lognormal(0.0, 0.1, 7)
+        >>> ForecastSpec.from_json(spec.to_json()).to_json() == spec.to_json()
         True
+
         """
         ...
 
@@ -419,15 +405,13 @@ class ForecastSpec:
         ValueError
             If JSON parsing or schema validation fails.
 
-        Example
-        -------
-        >>> spec = ForecastSpec.from_json('{"method":"forward_fill"}')  # doctest: +SKIP
-
         Examples
         --------
         >>> from finstack_quant.statements import ForecastSpec
-        >>> callable(ForecastSpec.from_json)
+        >>> spec = ForecastSpec.growth(0.05)
+        >>> ForecastSpec.from_json(spec.to_json()).to_json() == spec.to_json()
         True
+
         """
         ...
 
@@ -438,13 +422,8 @@ class ForecastSpec:
         Returns
         -------
         str
-            JSON text.
+            Canonical JSON representation of this forecast specification.
 
-        Example
-        -------
-        >>> spec = ForecastSpec.forward_fill()  # doctest: +SKIP
-        >>> spec.to_json()  # doctest: +SKIP
-        '{...}'
         """
         ...
 
@@ -460,17 +439,12 @@ class NodeType:
     """
     How a node combines explicit values, forecasts, and formulas.
 
-    Example
-    -------
-    >>> from finstack_quant.statements import NodeType
-    >>> NodeType.calculated()
-    NodeType(...)
-
     Examples
     --------
     >>> from finstack_quant.statements import NodeType
-    >>> NodeType.__name__
-    'NodeType'
+    >>> NodeType.calculated() == NodeType.calculated()
+    True
+
     """
 
     @staticmethod
@@ -486,8 +460,9 @@ class NodeType:
         Examples
         --------
         >>> from finstack_quant.statements import NodeType
-        >>> callable(NodeType.value)
+        >>> NodeType.value() == NodeType.value()
         True
+
         """
         ...
 
@@ -504,8 +479,9 @@ class NodeType:
         Examples
         --------
         >>> from finstack_quant.statements import NodeType
-        >>> callable(NodeType.calculated)
+        >>> NodeType.calculated() == NodeType.calculated()
         True
+
         """
         ...
 
@@ -522,8 +498,9 @@ class NodeType:
         Examples
         --------
         >>> from finstack_quant.statements import NodeType
-        >>> callable(NodeType.mixed)
+        >>> NodeType.mixed() == NodeType.mixed()
         True
+
         """
         ...
 
@@ -543,17 +520,12 @@ class NodeId:
     """
     Type-safe identifier for a node in a financial model.
 
-    Example
-    -------
+    Examples
+    --------
     >>> from finstack_quant.statements import NodeId
     >>> str(NodeId("revenue"))
     'revenue'
 
-    Examples
-    --------
-    >>> from finstack_quant.statements import NodeId
-    >>> NodeId.__name__
-    'NodeId'
     """
 
     def __init__(self, id: str) -> None:
@@ -565,8 +537,9 @@ class NodeId:
         id:
             Raw node identifier (for example ``"revenue"``).
 
-        Example
-        -------
+        Examples
+        --------
+        >>> from finstack_quant.statements import NodeId
         >>> NodeId("ebitda").as_str()
         'ebitda'
 
@@ -582,10 +555,12 @@ class NodeId:
         str
             Node id string.
 
-        Example
-        -------
+        Examples
+        --------
+        >>> from finstack_quant.statements import NodeId
         >>> NodeId("cogs").as_str()
         'cogs'
+
         """
         ...
 
@@ -609,19 +584,12 @@ class NumericMode:
     """
     Numeric evaluation mode for statement evaluation.
 
-    Example
-    -------
-    >>> from finstack_quant.statements import NumericMode
-    >>> NumericMode.float64()
-    NumericMode(...)
-    >>> NumericMode.decimal()
-    NumericMode(...)
-
     Examples
     --------
     >>> from finstack_quant.statements import NumericMode
-    >>> NumericMode.__name__
-    'NumericMode'
+    >>> NumericMode.decimal() == NumericMode.decimal()
+    True
+
     """
 
     @staticmethod
@@ -637,8 +605,9 @@ class NumericMode:
         Examples
         --------
         >>> from finstack_quant.statements import NumericMode
-        >>> callable(NumericMode.float64)
+        >>> NumericMode.float64() == NumericMode.float64()
         True
+
         """
         ...
 
@@ -659,8 +628,9 @@ class NumericMode:
         Examples
         --------
         >>> from finstack_quant.statements import NumericMode
-        >>> callable(NumericMode.decimal)
+        >>> NumericMode.decimal() == NumericMode.decimal()
         True
+
         """
         ...
 
@@ -682,25 +652,14 @@ class FinancialModelSpec:
 
     Typically built with ``ModelBuilder`` or loaded from JSON.
 
-    Example
-    -------
-    >>> from finstack_quant.statements import FinancialModelSpec
-    >>> doc = (
-    ...     '{"id":"x","periods":[{"id":"2025Q1","start":"2025-01-01",'
-    ...     '"end":"2025-04-01","is_actual":false}],"nodes":{}}'
-    ... )
-    >>> spec = FinancialModelSpec.from_json(doc)
-    >>> spec.id
-    'x'
-
-    A model must have at least one period; ``"periods":[]`` raises
-    ``ValueError``.
-
     Examples
     --------
-    >>> from finstack_quant.statements import FinancialModelSpec
-    >>> FinancialModelSpec.__name__
-    'FinancialModelSpec'
+    >>> from finstack_quant.statements import ModelBuilder
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.build().id
+    'demo'
+
     """
 
     @staticmethod
@@ -723,18 +682,16 @@ class FinancialModelSpec:
         ValueError
             If ``json`` is not valid JSON or fails schema validation.
 
-        Example
-        -------
-        >>> FinancialModelSpec.from_json(
-        ...     '{"id":"m","periods":[{"id":"2025Q1","start":"2025-01-01","end":"2025-04-01","is_actual":false}],"nodes":{}}'
-        ... ).node_count
-        0
-
         Examples
         --------
         >>> from finstack_quant.statements import FinancialModelSpec
-        >>> callable(FinancialModelSpec.from_json)
-        True
+        >>> payload = (
+        ...     '{"id":"demo","periods":[{"id":"2025Q1","start":"2025-01-01",'
+        ...     '"end":"2025-04-01","is_actual":false}],"nodes":{},"schema_version":1}'
+        ... )
+        >>> (FinancialModelSpec.from_json(payload).id, FinancialModelSpec.from_json(payload).node_count)
+        ('demo', 0)
+
         """
         ...
 
@@ -753,13 +710,14 @@ class FinancialModelSpec:
         ValueError
             If serialization fails.
 
-        Example
-        -------
-        >>> m = FinancialModelSpec.from_json(
-        ...     '{"id":"m","periods":[{"id":"2025Q1","start":"2025-01-01","end":"2025-04-01","is_actual":false}],"nodes":{}}'
-        ... )
-        >>> '"id"' in m.to_json()
+        Examples
+        --------
+        >>> from finstack_quant.statements import ModelBuilder
+        >>> builder = ModelBuilder("demo")
+        >>> builder.periods("2025Q1..Q1")
+        >>> '"id":"demo"' in builder.build().to_json()
         True
+
         """
         ...
 
@@ -805,12 +763,14 @@ class FinancialModelSpec:
         list[str]
             Ordered node id strings.
 
-        Example
-        -------
-        >>> FinancialModelSpec.from_json(
-        ...     '{"id":"m","periods":[{"id":"2025Q1","start":"2025-01-01","end":"2025-04-01","is_actual":false}],"nodes":{}}'
-        ... ).node_ids()
+        Examples
+        --------
+        >>> from finstack_quant.statements import ModelBuilder
+        >>> builder = ModelBuilder("demo")
+        >>> builder.periods("2025Q1..Q1")
+        >>> builder.build().node_ids()
         []
+
         """
         ...
 
@@ -828,11 +788,12 @@ class FinancialModelSpec:
         bool
             ``True`` if present.
 
-        Example
-        -------
-        >>> FinancialModelSpec.from_json(
-        ...     '{"id":"m","periods":[{"id":"2025Q1","start":"2025-01-01","end":"2025-04-01","is_actual":false}],"nodes":{}}'
-        ... ).has_node("x")
+        Examples
+        --------
+        >>> from finstack_quant.statements import ModelBuilder
+        >>> builder = ModelBuilder("demo")
+        >>> builder.periods("2025Q1..Q1")
+        >>> builder.build().has_node("revenue")
         False
 
         """
@@ -869,20 +830,15 @@ class ModelBuilder:
     Methods on this class mutate the builder in place and return ``None``.
     Call them sequentially rather than chaining.
 
-    Example
-    -------
-    >>> from finstack_quant.statements import ModelBuilder
-    >>> b = ModelBuilder("co")
-    >>> b.periods("2025Q1..Q2", None)  # doctest: +SKIP
-    >>> b.value("revenue", [("2025Q1", 100.0)])  # doctest: +SKIP
-    >>> b.compute("cogs", "revenue * 0.6")  # doctest: +SKIP
-    >>> spec = b.build()  # doctest: +SKIP
-
     Examples
     --------
     >>> from finstack_quant.statements import ModelBuilder
-    >>> ModelBuilder.__name__
-    'ModelBuilder'
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> builder.build().node_ids()
+    ['revenue']
+
     """
 
     def __init__(self, id: str) -> None:
@@ -894,10 +850,13 @@ class ModelBuilder:
         id:
             Model identifier assigned to the built ``FinancialModelSpec``.
 
-        Example
-        -------
-        >>> ModelBuilder("Acme")  # doctest: +ELLIPSIS
-        <finstack_quant.statements.ModelBuilder ...>
+        Examples
+        --------
+        >>> from finstack_quant.statements import ModelBuilder
+        >>> builder = ModelBuilder("demo")
+        >>> builder.periods("2025Q1..Q1")
+        >>> builder.build().id
+        'demo'
 
         """
         ...
@@ -918,10 +877,6 @@ class ModelBuilder:
         ValueError
             If periods are already set, the range is invalid, or the builder was consumed.
 
-        Example
-        -------
-        >>> b = ModelBuilder("x")
-        >>> b.periods("2025Q1..Q2", None)  # doctest: +SKIP
         """
         ...
 
@@ -941,11 +896,6 @@ class ModelBuilder:
         ValueError
             If periods were not configured, a period id is invalid, or the builder was consumed.
 
-        Example
-        -------
-        >>> b = ModelBuilder("x")
-        >>> b.periods("2025Q1..Q1", None)  # doctest: +SKIP
-        >>> b.value("rev", [("2025Q1", 10.0)])  # doctest: +SKIP
         """
         ...
 
@@ -965,11 +915,6 @@ class ModelBuilder:
         ValueError
             If periods were not configured, a period id is invalid, or the builder was consumed.
 
-        Example
-        -------
-        >>> b = ModelBuilder("x")
-        >>> b.periods("2025Q1..Q1", None)  # doctest: +SKIP
-        >>> b.value_scalar("margin_pct", [("2025Q1", 0.15)])  # doctest: +SKIP
         """
         ...
 
@@ -989,12 +934,6 @@ class ModelBuilder:
         ValueError
             If periods were not configured, a period id is invalid, or the builder was consumed.
 
-        Example
-        -------
-        >>> from finstack_quant.core.money import Money
-        >>> b = ModelBuilder("x")
-        >>> b.periods("2025Q1..Q1", None)  # doctest: +SKIP
-        >>> b.value_money("revenue", [("2025Q1", Money(100.0, "USD"))])  # doctest: +SKIP
         """
         ...
 
@@ -1014,11 +953,6 @@ class ModelBuilder:
         ValueError
             If the formula fails to compile or the builder state is invalid.
 
-        Example
-        -------
-        >>> b = ModelBuilder("x")
-        >>> b.periods("2025Q1..Q1", None)  # doctest: +SKIP
-        >>> b.compute("margin", "revenue - cogs")  # doctest: +SKIP
         """
         ...
 
@@ -1042,15 +976,6 @@ class ModelBuilder:
         ValueError
             If periods have not been configured or the builder has already been consumed.
 
-        Example
-        -------
-        >>> b = ModelBuilder("x")
-        >>> b.periods("2025Q1..Q1", None)  # doctest: +SKIP
-        >>> mb = b.mixed("hybrid")  # doctest: +SKIP
-        >>> mb.values([("2025Q1", 10.0)])  # doctest: +SKIP
-        >>> mb.formula("revenue * 0.1")  # doctest: +SKIP
-        >>> b = mb.build()  # doctest: +SKIP
-
         """
         ...
 
@@ -1070,12 +995,6 @@ class ModelBuilder:
         ValueError
             If periods have not been configured or the builder has already been consumed.
 
-        Example
-        -------
-        >>> b = ModelBuilder("x")
-        >>> b.periods("2025Q1..Q4", None)  # doctest: +SKIP
-        >>> b.forecast("revenue", ForecastSpec.from_json("..."))  # doctest: +SKIP
-
         """
         ...
 
@@ -1092,13 +1011,6 @@ class ModelBuilder:
         ------
         ValueError
             If periods have not been configured or the builder has already been consumed.
-
-        Example
-        -------
-        >>> b = ModelBuilder("x")
-        >>> b.periods("2025Q1..Q1", None)  # doctest: +SKIP
-        >>> b.value("rev", [("2025Q1", 10.0)])  # doctest: +SKIP
-        >>> b.where_clause('period == "2025Q1"')  # doctest: +SKIP
 
         """
         ...
@@ -1121,11 +1033,6 @@ class ModelBuilder:
             If value_json is malformed, periods are not configured, or the builder
             has already been consumed.
 
-        Example
-        -------
-        >>> b = ModelBuilder("x")
-        >>> b.with_meta("sector", '""healthcare""')  # doctest: +SKIP
-
         """
         ...
 
@@ -1133,10 +1040,6 @@ class ModelBuilder:
         """
         Enable standard accounting term alias normalization.
 
-        Example
-        -------
-        >>> b = ModelBuilder("x")
-        >>> b.with_name_normalization()  # doctest: +SKIP
         """
         ...
 
@@ -1144,10 +1047,6 @@ class ModelBuilder:
         """
         Add all built-in statement metrics to the model.
 
-        Example
-        -------
-        >>> b = ModelBuilder("x")
-        >>> b.with_builtin_metrics()  # doctest: +SKIP
         """
         ...
 
@@ -1168,12 +1067,6 @@ class ModelBuilder:
             If periods have not been configured or the builder has already been consumed.
         KeyError
             If qualified_id or one of its dependencies cannot be resolved in registry.
-
-        Example
-        -------
-        >>> reg = MetricRegistry.with_builtins()  # doctest: +SKIP
-        >>> b = ModelBuilder("x")
-        >>> b.add_metric_from_registry("ebitda", reg)  # doctest: +SKIP
 
         """
         ...
@@ -1215,15 +1108,6 @@ class ModelBuilder:
         RuntimeError
             If the bond cannot be added to the model capital structure.
 
-        Example
-        -------
-        >>> from finstack_quant.core.money import Money
-        >>> import datetime
-        >>> b = ModelBuilder("x")
-        >>> b.add_bond(
-        ...     "bond_a", Money(1_000_000, "USD"), 0.05, datetime.date(2025, 1, 1), datetime.date(2030, 1, 1), "USD-OIS"
-        ... )  # doctest: +SKIP
-
         """
         ...
 
@@ -1264,21 +1148,6 @@ class ModelBuilder:
         RuntimeError
             If the swap cannot be added to the model capital structure.
 
-        Example
-        -------
-        >>> from finstack_quant.core.money import Money
-        >>> import datetime
-        >>> b = ModelBuilder("x")
-        >>> b.add_swap(
-        ...     "swap_a",
-        ...     Money(10_000_000, "USD"),
-        ...     0.04,
-        ...     datetime.date(2025, 1, 1),
-        ...     datetime.date(2030, 1, 1),
-        ...     "USD-OIS",
-        ...     "USD-SOFR-3M",
-        ... )  # doctest: +SKIP
-
         """
         ...
 
@@ -1297,16 +1166,12 @@ class ModelBuilder:
                 spec_json:
                     ``finstack_quant.instrument/1`` envelope containing the debt instrument.
 
-                Example
-                -------
-                >>> b = ModelBuilder("x")
-                >>> b.add_debt("loan_a", '{"schema":"finstack_quant.instrument/1","instrument":...}')  # doctest: +SKIP
-
                 Raises
                 ------
                 ValueError
                     If the envelope is invalid or its instrument type is not supported by
                     financial statement capital structures.
+
         """
         ...
 
@@ -1325,11 +1190,6 @@ class ModelBuilder:
         ValueError
             If the builder has already been consumed.
 
-        Example
-        -------
-        >>> b = ModelBuilder("x")
-        >>> b.reporting_currency(Currency.USD)  # doctest: +SKIP
-
         """
         ...
 
@@ -1346,11 +1206,6 @@ class ModelBuilder:
         ------
         ValueError
             If policy is unknown or the builder has already been consumed.
-
-        Example
-        -------
-        >>> b = ModelBuilder("x")
-        >>> b.fx_policy("period_end")  # doctest: +SKIP
 
         """
         ...
@@ -1369,11 +1224,6 @@ class ModelBuilder:
         ValueError
             If the builder has already been consumed.
 
-        Example
-        -------
-        >>> b = ModelBuilder("x")
-        >>> b.waterfall(WaterfallSpec.from_json("..."))  # doctest: +SKIP
-
         """
         ...
 
@@ -1391,11 +1241,6 @@ class ModelBuilder:
         ValueError
             If the builder is not ready or was already consumed.
 
-        Example
-        -------
-        >>> b = ModelBuilder("x")
-        >>> b.periods("2025Q1..Q1", None)  # doctest: +SKIP
-        >>> spec = b.build()  # doctest: +SKIP
         """
         ...
 
@@ -1411,20 +1256,17 @@ class MixedNodeBuilder:
     Methods on this class mutate the builder in place and return ``None``.
     Call them sequentially rather than chaining.
 
-    Example
-    -------
-    >>> b = ModelBuilder("x")
-    >>> b.periods("2025Q1..Q2", None)  # doctest: +SKIP
-    >>> mb = b.mixed("hybrid")  # doctest: +SKIP
-    >>> mb.values([("2025Q1", 10.0)])  # doctest: +SKIP
-    >>> mb.formula("revenue * 0.1")  # doctest: +SKIP
-    >>> b = mb.build()  # doctest: +SKIP
-
     Examples
     --------
-    >>> from finstack_quant.statements import MixedNodeBuilder
-    >>> MixedNodeBuilder.__name__
-    'MixedNodeBuilder'
+    >>> from finstack_quant.statements import ModelBuilder
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> mixed = builder.mixed("profit")
+    >>> mixed.values([("2025Q1", 40.0)])
+    >>> mixed.formula("revenue - cost")
+    >>> mixed.build().build().has_node("profit")
+    True
+
     """
 
     def values(self, values: list[tuple[str, float]]) -> None:
@@ -1441,10 +1283,6 @@ class MixedNodeBuilder:
         ------
         ValueError
             If a period label is invalid or the mixed-node builder has been consumed.
-
-        Example
-        -------
-        >>> mb.values([("2025Q1", 10.0)])  # doctest: +SKIP
 
         """
         ...
@@ -1464,11 +1302,6 @@ class MixedNodeBuilder:
         ValueError
             If a period label is invalid or the mixed-node builder has been consumed.
 
-        Example
-        -------
-        >>> from finstack_quant.core.money import Money
-        >>> mb.values_money([("2025Q1", Money(100.0, "USD"))])  # doctest: +SKIP
-
         """
         ...
 
@@ -1485,10 +1318,6 @@ class MixedNodeBuilder:
         ------
         ValueError
             If the mixed-node builder has already been consumed.
-
-        Example
-        -------
-        >>> mb.forecast(ForecastSpec.from_json("..."))  # doctest: +SKIP
 
         """
         ...
@@ -1507,10 +1336,6 @@ class MixedNodeBuilder:
         ValueError
             If formula is empty or invalid, or the mixed-node builder has been consumed.
 
-        Example
-        -------
-        >>> mb.formula("revenue * 0.1")  # doctest: +SKIP
-
         """
         ...
 
@@ -1528,10 +1353,6 @@ class MixedNodeBuilder:
         ValueError
             If the mixed-node builder has already been consumed.
 
-        Example
-        -------
-        >>> mb.name("Hybrid Revenue")  # doctest: +SKIP
-
         """
         ...
 
@@ -1544,9 +1365,6 @@ class MixedNodeBuilder:
         ModelBuilder
             The parent :class:`ModelBuilder` with the mixed node attached.
 
-        Example
-        -------
-        >>> b = mb.build()  # doctest: +SKIP
         """
         ...
 
@@ -1554,27 +1372,19 @@ class MetricRegistry:
     """
     Reusable statement metric registry.
 
-    Example
-    -------
-    >>> from finstack_quant.statements import MetricRegistry
-    >>> reg = MetricRegistry.with_builtins()  # doctest: +SKIP
-    >>> reg.has("ebitda")  # doctest: +SKIP
-    True
-
     Examples
     --------
     >>> from finstack_quant.statements import MetricRegistry
-    >>> MetricRegistry.__name__
-    'MetricRegistry'
+    >>> registry = MetricRegistry.with_builtins()
+    >>> len(registry) > 0
+    True
+
     """
 
     def __init__(self) -> None:
         """
         Create an empty registry.
 
-        Example
-        -------
-        >>> reg = MetricRegistry()  # doctest: +SKIP
         """
         ...
 
@@ -1588,15 +1398,12 @@ class MetricRegistry:
         MetricRegistry
             A registry containing all built-in statement metrics.
 
-        Example
-        -------
-        >>> reg = MetricRegistry.with_builtins()  # doctest: +SKIP
-
         Examples
         --------
         >>> from finstack_quant.statements import MetricRegistry
-        >>> callable(MetricRegistry.with_builtins)
+        >>> len(MetricRegistry.with_builtins()) > 0
         True
+
         """
         ...
 
@@ -1604,10 +1411,6 @@ class MetricRegistry:
         """
         Load built-in metrics into this registry.
 
-        Example
-        -------
-        >>> reg = MetricRegistry()
-        >>> reg.load_builtins()  # doctest: +SKIP
         """
         ...
 
@@ -1626,11 +1429,6 @@ class MetricRegistry:
             If json is malformed or contains an invalid metric definition.
         KeyError
             If a referenced registry metric cannot be resolved.
-
-        Example
-        -------
-        >>> reg = MetricRegistry()
-        >>> reg.load_from_json_str('[{"id":"custom_metric",...}]')  # doctest: +SKIP
 
         """
         ...
@@ -1653,11 +1451,6 @@ class MetricRegistry:
         KeyError
             If a referenced registry metric cannot be resolved.
 
-        Example
-        -------
-        >>> reg = MetricRegistry()
-        >>> reg.load_from_json("metrics.json")  # doctest: +SKIP
-
         """
         ...
 
@@ -1675,12 +1468,6 @@ class MetricRegistry:
         bool
             ``True`` if the metric is registered.
 
-        Example
-        -------
-        >>> reg = MetricRegistry.with_builtins()  # doctest: +SKIP
-        >>> reg.has("ebitda")  # doctest: +SKIP
-        True
-
         """
         ...
 
@@ -1696,21 +1483,15 @@ class StatementResult:
     """
     Per-node, per-period numeric results from evaluating a model.
 
-    Example
-    -------
-    >>> from finstack_quant.statements import StatementResult, Evaluator, ModelBuilder
-    >>> b = ModelBuilder("demo")
-    >>> b.periods("2025Q1..Q1", None)  # doctest: +SKIP
-    >>> b.value("x", [("2025Q1", 2.0)])  # doctest: +SKIP
-    >>> r = Evaluator().evaluate(b.build())  # doctest: +SKIP
-    >>> r.get("x", "2025Q1")  # doctest: +SKIP
-    2.0
-
     Examples
     --------
-    >>> from finstack_quant.statements import StatementResult
-    >>> StatementResult.__name__
-    'StatementResult'
+    >>> from finstack_quant.statements import Evaluator, ModelBuilder
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> Evaluator().evaluate(builder.build()).get("revenue", "2025Q1")
+    100.0
+
     """
 
     @staticmethod
@@ -1733,17 +1514,16 @@ class StatementResult:
         ValueError
             If JSON parsing fails.
 
-        Example
-        -------
-        >>> # Round-trip: StatementResult.to_json() from an evaluated model
-        >>> StatementResult.from_json  # doctest: +ELLIPSIS
-        <staticmethod(...)>
-
         Examples
         --------
-        >>> from finstack_quant.statements import StatementResult
-        >>> callable(StatementResult.from_json)
-        True
+        >>> from finstack_quant.statements import Evaluator, ModelBuilder, StatementResult
+        >>> builder = ModelBuilder("demo")
+        >>> builder.periods("2025Q1..Q1")
+        >>> builder.value("revenue", [("2025Q1", 100.0)])
+        >>> result = Evaluator().evaluate(builder.build())
+        >>> StatementResult.from_json(result.to_json()).get("revenue", "2025Q1")
+        100.0
+
         """
         ...
 
@@ -1762,9 +1542,6 @@ class StatementResult:
         ValueError
             If serialization fails.
 
-        Example
-        -------
-        >>> # r = Evaluator().evaluate(spec); r.to_json()  # doctest: +SKIP
         """
         ...
 
@@ -1789,9 +1566,6 @@ class StatementResult:
         ValueError
             If ``period`` cannot be parsed as a period id.
 
-        Example
-        -------
-        >>> # r = Evaluator().evaluate(spec); r.get("revenue", "2025Q1")  # doctest: +SKIP
         """
         ...
 
@@ -1861,10 +1635,6 @@ class StatementResult:
         dict[str, float] | None
             Mapping from period string to float, or ``None`` if the node is missing.
 
-        Example
-        -------
-        >>> # m = r.get_node("revenue")  # doctest: +SKIP
-
         """
         ...
 
@@ -1877,9 +1647,6 @@ class StatementResult:
         list[str]
             Node identifiers.
 
-        Example
-        -------
-        >>> # ids = r.node_ids()  # doctest: +SKIP
         """
         ...
 
@@ -2039,32 +1806,25 @@ class Evaluator:
     """
     Evaluates a ``FinancialModelSpec`` into a ``StatementResult``.
 
-    Example
-    -------
-    >>> from finstack_quant.statements import Evaluator
-    >>> Evaluator()
-    <finstack_quant.statements.Evaluator ...>
-
     Examples
     --------
-    >>> from finstack_quant.statements import Evaluator
-    >>> Evaluator.__name__
-    'Evaluator'
+    >>> from finstack_quant.statements import Evaluator, ModelBuilder
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> Evaluator().evaluate(builder.build()).node_count
+    1
+
     """
 
     def __init__(self) -> None:
         """
         Create a fresh evaluator with default configuration.
 
-        Example
-        -------
-        >>> ev = Evaluator()
-        >>> ev.evaluate  # doctest: +ELLIPSIS
-        <built-in method evaluate ...>
-
         Returns
         -------
         None
+
         """
         ...
 
@@ -2087,12 +1847,6 @@ class Evaluator:
         ValueError
             If evaluation fails (for example cyclic dependencies or bad formulas).
 
-        Example
-        -------
-        >>> ev = Evaluator()
-        >>> # ev.evaluate(spec)  # doctest: +SKIP
-        >>> True
-        True
         """
         ...
 
@@ -2127,10 +1881,6 @@ class Evaluator:
         ValueError
             If evaluation fails or required market data is missing.
 
-        Example
-        -------
-        >>> ev = Evaluator()
-        >>> # r = ev.evaluate_with_market(spec, mkt, datetime.date(2025, 1, 1))  # doctest: +SKIP
         """
         ...
 
@@ -2153,16 +1903,12 @@ def parse_formula(formula: str) -> str:
     ValueError
         If parsing fails.
 
-    Example
-    -------
-    >>> parse_formula("revenue - cogs")  # doctest: +ELLIPSIS
-    '...'
-
     Examples
     --------
     >>> from finstack_quant.statements import parse_formula
-    >>> callable(parse_formula)
+    >>> "revenue" in parse_formula("revenue - cogs")
     True
+
     """
     ...
 
@@ -2185,16 +1931,12 @@ def validate_formula(formula: str) -> bool:
     ValueError
         If parsing or compilation fails.
 
-    Example
-    -------
-    >>> validate_formula("a + b")
-    True
-
     Examples
     --------
     >>> from finstack_quant.statements import validate_formula
-    >>> callable(validate_formula)
+    >>> validate_formula("revenue - cogs")
     True
+
     """
     ...
 
@@ -2202,17 +1944,13 @@ class NormalizationConfig:
     """
     Configuration for normalizing a target metric (for example EBITDA).
 
-    Example
-    -------
-    >>> from finstack_quant.statements import NormalizationConfig
-    >>> NormalizationConfig("ebitda").target_node
-    'ebitda'
-
     Examples
     --------
     >>> from finstack_quant.statements import NormalizationConfig
-    >>> NormalizationConfig.__name__
-    'NormalizationConfig'
+    >>> config = NormalizationConfig("ebitda")
+    >>> (config.target_node, config.adjustment_count)
+    ('ebitda', 0)
+
     """
 
     def __init__(self, target_node: str) -> None:
@@ -2224,10 +1962,11 @@ class NormalizationConfig:
         target_node:
             Node id whose values will be adjusted.
 
-        Example
-        -------
-        >>> cfg = NormalizationConfig("adjusted_ebitda")
-        >>> cfg.adjustment_count
+        Examples
+        --------
+        >>> from finstack_quant.statements import NormalizationConfig
+        >>> config = NormalizationConfig("adjusted_ebitda")
+        >>> config.adjustment_count
         0
 
         """
@@ -2253,16 +1992,13 @@ class NormalizationConfig:
         ValueError
             If JSON is invalid.
 
-        Example
-        -------
-        >>> NormalizationConfig.from_json('{"target_node":"x","adjustments":[]}').target_node
-        'x'
-
         Examples
         --------
         >>> from finstack_quant.statements import NormalizationConfig
-        >>> callable(NormalizationConfig.from_json)
-        True
+        >>> config = NormalizationConfig("ebitda")
+        >>> NormalizationConfig.from_json(config.to_json()).target_node
+        'ebitda'
+
         """
         ...
 
@@ -2281,10 +2017,13 @@ class NormalizationConfig:
         ValueError
             If serialization fails.
 
-        Example
-        -------
-        >>> NormalizationConfig("n").to_json()  # doctest: +ELLIPSIS
-        '{...'
+        Examples
+        --------
+        >>> import json
+        >>> from finstack_quant.statements import NormalizationConfig
+        >>> json.loads(NormalizationConfig("ebitda").to_json())["target_node"]
+        'ebitda'
+
         """
         ...
 
@@ -2339,17 +2078,17 @@ def normalize(results: StatementResult, config: NormalizationConfig) -> str:
     ValueError
         If the engine fails.
 
-    Example
-    -------
-    >>> # payload = normalize(evaluator_output, NormalizationConfig("ebitda"))  # doctest: +SKIP
-    >>> NormalizationConfig("ebitda").target_node
-    'ebitda'
-
     Examples
     --------
-    >>> from finstack_quant.statements import normalize
-    >>> callable(normalize)
-    True
+    >>> from finstack_quant.statements import Evaluator, ModelBuilder, NormalizationConfig, normalize
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("ebitda", [("2025Q1", 25.0)])
+    >>> result = Evaluator().evaluate(builder.build())
+    >>> import json
+    >>> json.loads(normalize(result, NormalizationConfig("ebitda")))[0]["final_value"]
+    25.0
+
     """
     ...
 
@@ -2362,18 +2101,13 @@ class CheckSuiteSpec:
     running a suite is not yet exposed through the Python bindings; this type is
     currently for loading and inspecting a policy definition only.
 
-    Example
-    -------
-    >>> from finstack_quant.statements import CheckSuiteSpec
-    >>> spec = CheckSuiteSpec.from_json('{"name":"basic","builtin_checks":[],"formula_checks":[]}')
-    >>> spec.name
-    'basic'
-
     Examples
     --------
     >>> from finstack_quant.statements import CheckSuiteSpec
-    >>> CheckSuiteSpec.__name__
-    'CheckSuiteSpec'
+    >>> suite = CheckSuiteSpec.from_json('{"name":"basic","builtin_checks":[],"formula_checks":[]}')
+    >>> (suite.name, suite.builtin_check_count, suite.formula_check_count)
+    ('basic', 0, 0)
+
     """
 
     @staticmethod
@@ -2399,8 +2133,10 @@ class CheckSuiteSpec:
         Examples
         --------
         >>> from finstack_quant.statements import CheckSuiteSpec
-        >>> callable(CheckSuiteSpec.from_json)
-        True
+        >>> suite = CheckSuiteSpec.from_json('{"name":"basic","builtin_checks":[],"formula_checks":[]}')
+        >>> suite.name
+        'basic'
+
         """
         ...
 
@@ -2470,20 +2206,15 @@ class CheckReport:
     Loaded from JSON (``from_json``) produced by the Rust checks framework,
     then inspected via properties or rendered to text/HTML.
 
-    Example
-    -------
+    Examples
+    --------
     >>> from finstack_quant.statements import CheckReport
     >>> report = CheckReport.from_json(
     ...     '{"results":[],"summary":{"total_checks":0,"passed":0,"failed":0,"errors":0,"warnings":0,"infos":0}}'
     ... )
-    >>> report.passed
-    True
+    >>> (report.passed, report.total_findings)
+    (True, 0)
 
-    Examples
-    --------
-    >>> from finstack_quant.statements import CheckReport
-    >>> CheckReport.__name__
-    'CheckReport'
     """
 
     @staticmethod
@@ -2509,8 +2240,12 @@ class CheckReport:
         Examples
         --------
         >>> from finstack_quant.statements import CheckReport
-        >>> callable(CheckReport.from_json)
-        True
+        >>> payload = (
+        ...     '{"results":[],"summary":{"total_checks":0,"passed":0,"failed":0,"errors":0,"warnings":0,"infos":0}}'
+        ... )
+        >>> CheckReport.from_json(payload).total_checks
+        0
+
         """
         ...
 
@@ -2604,8 +2339,10 @@ class EcfSweepSpec:
     Examples
     --------
     >>> from finstack_quant.statements import EcfSweepSpec
-    >>> EcfSweepSpec.__name__
-    'EcfSweepSpec'
+    >>> sweep = EcfSweepSpec("ebitda", 0.5)
+    >>> (sweep.ebitda_node, sweep.sweep_percentage)
+    ('ebitda', 0.5)
+
     """
 
     def __init__(
@@ -2664,8 +2401,10 @@ class EcfSweepSpec:
         Examples
         --------
         >>> from finstack_quant.statements import EcfSweepSpec
-        >>> callable(EcfSweepSpec.from_json)
-        True
+        >>> sweep = EcfSweepSpec("ebitda", 0.5)
+        >>> EcfSweepSpec.from_json(sweep.to_json()).sweep_percentage
+        0.5
+
         """
         ...
     def to_json(self) -> str:
@@ -2727,8 +2466,10 @@ class PikToggleSpec:
     Examples
     --------
     >>> from finstack_quant.statements import PikToggleSpec
-    >>> PikToggleSpec.__name__
-    'PikToggleSpec'
+    >>> toggle = PikToggleSpec("cash", 100.0)
+    >>> (toggle.liquidity_metric, toggle.min_periods_in_pik)
+    ('cash', 0)
+
     """
 
     def __init__(
@@ -2778,8 +2519,10 @@ class PikToggleSpec:
         Examples
         --------
         >>> from finstack_quant.statements import PikToggleSpec
-        >>> callable(PikToggleSpec.from_json)
-        True
+        >>> toggle = PikToggleSpec("cash", 100.0)
+        >>> PikToggleSpec.from_json(toggle.to_json()).threshold
+        100.0
+
         """
         ...
     def to_json(self) -> str:
@@ -2842,8 +2585,10 @@ class WaterfallSpec:
     Examples
     --------
     >>> from finstack_quant.statements import WaterfallSpec
-    >>> WaterfallSpec.__name__
-    'WaterfallSpec'
+    >>> waterfall = WaterfallSpec()
+    >>> waterfall.priority_of_payments[-1]
+    'equity'
+
     """
 
     def __init__(
@@ -2898,8 +2643,10 @@ class WaterfallSpec:
         Examples
         --------
         >>> from finstack_quant.statements import WaterfallSpec
-        >>> callable(WaterfallSpec.from_json)
-        True
+        >>> waterfall = WaterfallSpec()
+        >>> WaterfallSpec.from_json(waterfall.to_json()).has_ecf_sweep
+        False
+
         """
         ...
     def to_json(self) -> str:

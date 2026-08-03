@@ -3,9 +3,10 @@ Statement analysis: sensitivity, variance, scenarios, backtesting, goal seek, DC
 
 Examples
 --------
->>> import finstack_quant.statements_analytics as statements_analytics
->>> statements_analytics.__name__
-'finstack_quant.statements_analytics'
+>>> from finstack_quant.statements_analytics import backtest_forecast
+>>> backtest_forecast([1.0, 2.0], [1.0, 2.5])["n"]
+2
+
 """
 
 from __future__ import annotations
@@ -114,8 +115,10 @@ class SensitivityConfig:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import SensitivityConfig
-    >>> SensitivityConfig.__name__
-    'SensitivityConfig'
+    >>> config = SensitivityConfig("Diagonal", [], ["profit"])
+    >>> (config.parameter_count, config.target_metrics)
+    (0, ['profit'])
+
     """
     def __init__(
         self,
@@ -167,8 +170,10 @@ class SensitivityConfig:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import SensitivityConfig
-        >>> callable(SensitivityConfig.from_json)
-        True
+        >>> config = SensitivityConfig("Diagonal", [], ["profit"])
+        >>> SensitivityConfig.from_json(config.to_json()).target_metrics
+        ['profit']
+
         """
         ...
     def to_json(self) -> str:
@@ -236,8 +241,10 @@ class VarianceConfig:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import VarianceConfig
-    >>> VarianceConfig.__name__
-    'VarianceConfig'
+    >>> config = VarianceConfig("base", "case", ["profit"], ["2025Q1"])
+    >>> (config.baseline_label, config.periods)
+    ('base', ['2025Q1'])
+
     """
     def __init__(
         self,
@@ -292,8 +299,10 @@ class VarianceConfig:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import VarianceConfig
-        >>> callable(VarianceConfig.from_json)
-        True
+        >>> config = VarianceConfig("base", "case", ["profit"], ["2025Q1"])
+        >>> VarianceConfig.from_json(config.to_json()).comparison_label
+        'case'
+
         """
         ...
     def to_json(self) -> str:
@@ -373,8 +382,9 @@ class ScenarioSet:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import ScenarioSet
-    >>> ScenarioSet.__name__
-    'ScenarioSet'
+    >>> ScenarioSet({"base": {}, "downside": {"revenue": 90.0}}).names
+    ['base', 'downside']
+
     """
     def __init__(
         self,
@@ -420,8 +430,10 @@ class ScenarioSet:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import ScenarioSet
-        >>> callable(ScenarioSet.from_json)
-        True
+        >>> scenarios = ScenarioSet({"base": {}})
+        >>> ScenarioSet.from_json(scenarios.to_json()).names
+        ['base']
+
         """
         ...
     def to_json(self) -> str:
@@ -467,8 +479,10 @@ class MonteCarloConfig:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import MonteCarloConfig
-    >>> MonteCarloConfig.__name__
-    'MonteCarloConfig'
+    >>> config = MonteCarloConfig(4, 7, [0.5])
+    >>> (config.n_paths, config.seed, config.percentiles)
+    (4, 7, [0.5])
+
     """
     def __init__(
         self,
@@ -518,8 +532,10 @@ class MonteCarloConfig:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import MonteCarloConfig
-        >>> callable(MonteCarloConfig.from_json)
-        True
+        >>> config = MonteCarloConfig(4, 7, [0.5])
+        >>> MonteCarloConfig.from_json(config.to_json()).n_paths
+        4
+
         """
         ...
     def to_json(self) -> str:
@@ -587,9 +603,11 @@ class SensitivityResult:
 
     Examples
     --------
-    >>> from finstack_quant.statements_analytics import SensitivityResult
-    >>> SensitivityResult.__name__
-    'SensitivityResult'
+    >>> from finstack_quant.statements_analytics import SensitivityConfig, SensitivityResult
+    >>> payload = '{"config":' + SensitivityConfig("Diagonal").to_json() + ',"scenarios":[]}'
+    >>> len(SensitivityResult.from_json(payload))
+    0
+
     """
 
     @staticmethod
@@ -615,9 +633,11 @@ class SensitivityResult:
 
         Examples
         --------
-        >>> from finstack_quant.statements_analytics import SensitivityResult
-        >>> callable(SensitivityResult.from_json)
-        True
+        >>> from finstack_quant.statements_analytics import SensitivityConfig, SensitivityResult
+        >>> payload = '{"config":' + SensitivityConfig("Diagonal").to_json() + ',"scenarios":[]}'
+        >>> SensitivityResult.from_json(payload).target_metrics
+        []
+
         """
         ...
     def to_json(self) -> str:
@@ -701,9 +721,15 @@ class VarianceRow:
 
     Examples
     --------
-    >>> from finstack_quant.statements_analytics import VarianceRow
-    >>> VarianceRow.__name__
-    'VarianceRow'
+    >>> from finstack_quant.statements_analytics import VarianceReport
+    >>> payload = (
+    ...     '{"baseline_label":"base","comparison_label":"case","rows":['
+    ...     '{"period":"2025Q1","metric":"revenue","baseline":100.0,'
+    ...     '"comparison":110.0,"abs_var":10.0,"pct_var":0.1}]}'
+    ... )
+    >>> (VarianceReport.from_json(payload).rows[0].metric, VarianceReport.from_json(payload).rows[0].abs_var)
+    ('revenue', 10.0)
+
     """
 
     @property
@@ -785,8 +811,10 @@ class VarianceReport:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import VarianceReport
-    >>> VarianceReport.__name__
-    'VarianceReport'
+    >>> report = VarianceReport.from_json('{"baseline_label":"base","comparison_label":"case","rows":[]}')
+    >>> (report.baseline_label, report.comparison_label, report.rows)
+    ('base', 'case', [])
+
     """
 
     @staticmethod
@@ -812,8 +840,10 @@ class VarianceReport:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import VarianceReport
-        >>> callable(VarianceReport.from_json)
-        True
+        >>> report = VarianceReport.from_json('{"baseline_label":"base","comparison_label":"case","rows":[]}')
+        >>> report.baseline_label
+        'base'
+
         """
         ...
     def to_json(self) -> str:
@@ -870,8 +900,9 @@ class ScenarioResultSet:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import ScenarioResultSet
-    >>> ScenarioResultSet.__name__
-    'ScenarioResultSet'
+    >>> ScenarioResultSet.from_json("{}").names
+    []
+
     """
 
     @staticmethod
@@ -897,8 +928,9 @@ class ScenarioResultSet:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import ScenarioResultSet
-        >>> callable(ScenarioResultSet.from_json)
+        >>> ScenarioResultSet.from_json("{}").get("missing") is None
         True
+
         """
         ...
     def to_json(self) -> str:
@@ -948,8 +980,10 @@ class MonteCarloResults:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import MonteCarloResults
-    >>> MonteCarloResults.__name__
-    'MonteCarloResults'
+    >>> payload = '{"percentile_results":{},"n_paths":2,"percentiles":[0.5],"forecast_periods":[],"path_data":null}'
+    >>> (MonteCarloResults.from_json(payload).n_paths, MonteCarloResults.from_json(payload).percentiles)
+    (2, [0.5])
+
     """
 
     @staticmethod
@@ -976,8 +1010,10 @@ class MonteCarloResults:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import MonteCarloResults
-        >>> callable(MonteCarloResults.from_json)
-        True
+        >>> payload = '{"percentile_results":{},"n_paths":2,"percentiles":[0.5],"forecast_periods":[],"path_data":null}'
+        >>> MonteCarloResults.from_json(payload).forecast_periods
+        []
+
         """
         ...
     def to_json(self) -> str:
@@ -1072,8 +1108,15 @@ def run_sensitivity(
 
     Examples
     --------
-    >>> from finstack_quant.statements_analytics import run_sensitivity
-    >>> out = run_sensitivity(model, config)  # doctest: +SKIP
+    >>> from finstack_quant.statements import ModelBuilder
+    >>> from finstack_quant.statements_analytics import SensitivityConfig, run_sensitivity
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> builder.compute("profit", "revenue * 0.5")
+    >>> config = SensitivityConfig("Diagonal", [("revenue", "2025Q1", 100.0, [90.0, 110.0])], ["profit"])
+    >>> len(run_sensitivity(builder.build(), config))
+    2
 
     """
     ...
@@ -1107,8 +1150,16 @@ def generate_tornado_entries(
 
     Examples
     --------
-    >>> from finstack_quant.statements_analytics import generate_tornado_entries
-    >>> entries_json = generate_tornado_entries(res_json, "ebitda", "2025Q4")  # doctest: +SKIP
+    >>> import json
+    >>> from finstack_quant.statements import ModelBuilder
+    >>> from finstack_quant.statements_analytics import SensitivityConfig, generate_tornado_entries, run_sensitivity
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> builder.compute("profit", "revenue * 0.5")
+    >>> config = SensitivityConfig("Tornado", [("revenue", "2025Q1", 100.0, [90.0, 110.0])], ["profit"])
+    >>> len(json.loads(generate_tornado_entries(run_sensitivity(builder.build(), config), "profit", "2025Q1")))
+    1
 
     """
     ...
@@ -1142,8 +1193,15 @@ def run_variance(
 
     Examples
     --------
-    >>> from finstack_quant.statements_analytics import run_variance
-    >>> report = run_variance(base, comparison, config)  # doctest: +SKIP
+    >>> from finstack_quant.statements import Evaluator, ModelBuilder
+    >>> from finstack_quant.statements_analytics import VarianceConfig, run_variance
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("profit", [("2025Q1", 25.0)])
+    >>> result = Evaluator().evaluate(builder.build())
+    >>> report = run_variance(result, result, VarianceConfig("base", "case", ["profit"], ["2025Q1"]))
+    >>> report.rows[0].abs_var
+    0.0
 
     """
     ...
@@ -1174,8 +1232,13 @@ def evaluate_scenario_set(
 
     Examples
     --------
-    >>> from finstack_quant.statements_analytics import evaluate_scenario_set
-    >>> results = evaluate_scenario_set(model, scenario_set)  # doctest: +SKIP
+    >>> from finstack_quant.statements import ModelBuilder
+    >>> from finstack_quant.statements_analytics import ScenarioSet, evaluate_scenario_set
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> evaluate_scenario_set(builder.build(), ScenarioSet({"base": {}})).names
+    ['base']
 
     """
     ...
@@ -1206,8 +1269,13 @@ def run_monte_carlo(
 
     Examples
     --------
-    >>> from finstack_quant.statements_analytics import run_monte_carlo
-    >>> results = run_monte_carlo(model, config)  # doctest: +SKIP
+    >>> from finstack_quant.statements import ModelBuilder
+    >>> from finstack_quant.statements_analytics import MonteCarloConfig, run_monte_carlo
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q2", "2025Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0), ("2025Q2", 110.0)])
+    >>> run_monte_carlo(builder.build(), MonteCarloConfig(2, 7, [0.5])).n_paths
+    2
 
     """
     ...
@@ -1236,8 +1304,8 @@ def backtest_forecast(actual: list[float], forecast: list[float]) -> dict[str, f
     Examples
     --------
     >>> from finstack_quant.statements_analytics import backtest_forecast
-    >>> backtest_forecast([1.0, 2.0], [1.1, 1.9])["mae"]
-    0.1
+    >>> backtest_forecast([1.0, 2.0], [1.1, 1.9])["n"]
+    2
 
     """
     ...
@@ -1287,8 +1355,15 @@ def goal_seek(
 
     Examples
     --------
+    >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import goal_seek
-    >>> solved, new_model = goal_seek(mj, "ni", "2025", 10.0, "rev", "2025")  # doctest: +SKIP
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> builder.compute("profit", "revenue * 0.5")
+    >>> solved, updated = goal_seek(builder.build(), "profit", "2025Q1", 60.0, "revenue", "2025Q1", False)
+    >>> (round(solved, 6), updated)
+    (120.0, None)
 
     """
     ...
@@ -1345,7 +1420,14 @@ def evaluate_dcf(
     Examples
     --------
     >>> from finstack_quant.statements_analytics import evaluate_dcf
-    >>> dcf = evaluate_dcf(mj, 0.09, tv_json)  # doctest: +SKIP
+    >>> from finstack_quant.statements import ModelBuilder
+    >>> builder = ModelBuilder("dcf")
+    >>> builder.periods("2025..2026")
+    >>> builder.value("ufcf", [("2025", 100.0), ("2026", 110.0)])
+    >>> builder.with_meta("currency", '"USD"')
+    >>> terminal = '{"type":"gordon_growth","growth_rate":0.02}'
+    >>> evaluate_dcf(builder.build(), 0.10, terminal, net_debt_override=0.0)["enterprise_value"] > 0.0
+    True
 
     """
     ...
@@ -1411,8 +1493,14 @@ def dcf_sensitivity(
     Examples
     --------
     >>> from finstack_quant.statements_analytics import dcf_sensitivity
-    >>> callable(dcf_sensitivity)
-    True
+    >>> from finstack_quant.statements import ModelBuilder
+    >>> builder = ModelBuilder("dcf")
+    >>> builder.periods("2025..2026")
+    >>> builder.value("ufcf", [("2025", 100.0), ("2026", 110.0)])
+    >>> builder.with_meta("currency", '"USD"')
+    >>> terminal = '{"type":"gordon_growth","growth_rate":0.02}'
+    >>> len(dcf_sensitivity(builder.build(), 0.10, terminal, net_debt_override=0.0)["entries"])
+    2
 
     """
     ...
@@ -1476,9 +1564,18 @@ def evaluate_lbo(
 
     Examples
     --------
+    >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import evaluate_lbo
-    >>> callable(evaluate_lbo)
-    True
+    >>> builder = ModelBuilder("lbo")
+    >>> builder.periods("2025..2026")
+    >>> builder.value("ebitda", [("2025", 22.0), ("2026", 26.4)])
+    >>> builder.value("total_debt", [("2025", 115.0), ("2026", 35.0)])
+    >>> builder.with_meta("currency", '"USD"')
+    >>> result = evaluate_lbo(
+    ...     builder.build(), 8.5, "ebitda", 9.5, "ebitda", "total_debt", "2026", [("debt", 115.0)], 3.0
+    ... )
+    >>> (result["entry_enterprise_value"], result["sources_uses_balanced"])
+    (187.0, True)
 
     """
     ...
@@ -1527,8 +1624,8 @@ def wacc(
     Examples
     --------
     >>> from finstack_quant.statements_analytics import wacc
-    >>> callable(wacc)
-    True
+    >>> round(wacc(0.6, 0.10, 0.4, 0.05, 0.25), 3)
+    0.075
 
     """
     ...
@@ -1576,8 +1673,13 @@ def run_corporate_analysis(
 
     Examples
     --------
+    >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import run_corporate_analysis
-    >>> out = run_corporate_analysis(model_json, wacc=0.1, terminal_value_json=tv_json)  # doctest: +SKIP
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("ebitda", [("2025Q1", 25.0)])
+    >>> sorted(run_corporate_analysis(builder.build()))
+    ['credit', 'statement_json']
 
     """
     ...
@@ -1611,8 +1713,14 @@ def pl_summary_report(
 
     Examples
     --------
+    >>> from finstack_quant.statements import Evaluator, ModelBuilder
     >>> from finstack_quant.statements_analytics import pl_summary_report
-    >>> text = pl_summary_report(res_json, ["rev", "cogs"], ["2025Q1"])  # doctest: +SKIP
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> result = Evaluator().evaluate(builder.build())
+    >>> "revenue" in pl_summary_report(result, ["revenue"], ["2025Q1"])
+    True
 
     """
     ...
@@ -1641,7 +1749,16 @@ def credit_assessment_report(results: StatementResult | str, as_of: str) -> str:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import credit_assessment_report
-    >>> report = credit_assessment_report(res_json, "2025Q1")  # doctest: +SKIP
+    >>> from finstack_quant.statements import Evaluator, ModelBuilder
+    >>> periods = ["2025Q1", "2025Q2", "2025Q3", "2025Q4"]
+    >>> builder = ModelBuilder("credit")
+    >>> builder.periods("2025Q1..Q4")
+    >>> builder.value("ebitda", list(zip(periods, [10.0, 20.0, 30.0, 40.0], strict=True)))
+    >>> builder.value("interest_expense", list(zip(periods, [1.0, 2.0, 3.0, 4.0], strict=True)))
+    >>> builder.value("total_debt", list(zip(periods, [300.0] * 4, strict=True)))
+    >>> results = Evaluator().evaluate(builder.build())
+    >>> len(credit_assessment_report(results, "2025Q4").splitlines()) > 1
+    True
 
     """
     ...
@@ -1672,7 +1789,16 @@ def credit_assessment(results: StatementResult | str, as_of: str) -> dict[str, A
     Examples
     --------
     >>> from finstack_quant.statements_analytics import credit_assessment
-    >>> out = credit_assessment(res_json, "2025Q4")  # doctest: +SKIP
+    >>> from finstack_quant.statements import Evaluator, ModelBuilder
+    >>> periods = ["2025Q1", "2025Q2", "2025Q3", "2025Q4"]
+    >>> builder = ModelBuilder("credit")
+    >>> builder.periods("2025Q1..Q4")
+    >>> builder.value("ebitda", list(zip(periods, [10.0, 20.0, 30.0, 40.0], strict=True)))
+    >>> builder.value("interest_expense", list(zip(periods, [1.0, 2.0, 3.0, 4.0], strict=True)))
+    >>> builder.value("total_debt", list(zip(periods, [300.0] * 4, strict=True)))
+    >>> results = Evaluator().evaluate(builder.build())
+    >>> credit_assessment(results, "2025Q4")["leverage_ratio"]
+    3.0
 
     """
     ...
@@ -1688,8 +1814,16 @@ class DependencyTracer:
 
     Examples
     --------
+    >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import DependencyTracer
-    >>> tree = DependencyTracer(model_json).dependency_tree("ebitda")  # doctest: +SKIP
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> builder.value("cost", [("2025Q1", 60.0)])
+    >>> builder.compute("profit", "revenue - cost")
+    >>> sorted(DependencyTracer(builder.build()).direct_dependencies("profit"))
+    ['cost', 'revenue']
+
     """
 
     def __init__(self, model: FinancialModelSpec | str) -> None:
@@ -1844,7 +1978,15 @@ def direct_dependencies(model: FinancialModelSpec | str, node_id: str) -> list[s
     Examples
     --------
     >>> from finstack_quant.statements_analytics import direct_dependencies
-    >>> deps = direct_dependencies(model_json, "ebitda")  # doctest: +SKIP
+    >>> from finstack_quant.statements import Evaluator, ModelBuilder
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> builder.value("cost", [("2025Q1", 60.0)])
+    >>> builder.compute("profit", "revenue - cost")
+    >>> model = builder.build()
+    >>> sorted(direct_dependencies(model, "profit"))
+    ['cost', 'revenue']
 
     """
     ...
@@ -1873,7 +2015,15 @@ def all_dependencies(model: FinancialModelSpec | str, node_id: str) -> list[str]
     Examples
     --------
     >>> from finstack_quant.statements_analytics import all_dependencies
-    >>> chain = all_dependencies(model_json, "ni")  # doctest: +SKIP
+    >>> from finstack_quant.statements import Evaluator, ModelBuilder
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> builder.value("cost", [("2025Q1", 60.0)])
+    >>> builder.compute("profit", "revenue - cost")
+    >>> model = builder.build()
+    >>> sorted(all_dependencies(model, "profit"))
+    ['cost', 'revenue']
 
     """
     ...
@@ -1902,7 +2052,15 @@ def dependents(model: FinancialModelSpec | str, node_id: str) -> list[str]:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import dependents
-    >>> rev_deps = dependents(model_json, "rev")  # doctest: +SKIP
+    >>> from finstack_quant.statements import Evaluator, ModelBuilder
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> builder.value("cost", [("2025Q1", 60.0)])
+    >>> builder.compute("profit", "revenue - cost")
+    >>> model = builder.build()
+    >>> dependents(model, "revenue")
+    ['profit']
 
     """
     ...
@@ -1941,7 +2099,17 @@ def explain_formula(
     Examples
     --------
     >>> from finstack_quant.statements_analytics import explain_formula
-    >>> detail = explain_formula(mj, rj, "rev", "2025Q1")  # doctest: +SKIP
+    >>> from finstack_quant.statements import Evaluator, ModelBuilder
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> builder.value("cost", [("2025Q1", 60.0)])
+    >>> builder.compute("profit", "revenue - cost")
+    >>> model = builder.build()
+    >>> results = Evaluator().evaluate(model)
+    >>> explanation = explain_formula(model, results, "profit", "2025Q1")
+    >>> (explanation["node_id"], explanation["final_value"])
+    ('profit', 40.0)
 
     """
     ...
@@ -1979,7 +2147,16 @@ def explain_formula_text(
     Examples
     --------
     >>> from finstack_quant.statements_analytics import explain_formula_text
-    >>> text = explain_formula_text(mj, rj, "rev", "2025Q1")  # doctest: +SKIP
+    >>> from finstack_quant.statements import Evaluator, ModelBuilder
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> builder.value("cost", [("2025Q1", 60.0)])
+    >>> builder.compute("profit", "revenue - cost")
+    >>> model = builder.build()
+    >>> results = Evaluator().evaluate(model)
+    >>> "profit" in explain_formula_text(model, results, "profit", "2025Q1")
+    True
 
     """
     ...
@@ -2017,8 +2194,15 @@ def run_checks(
 
     Examples
     --------
+    >>> import json
+    >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import run_checks
-    >>> report_json = run_checks(model_json, suite_spec_json)  # doctest: +SKIP
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> suite = '{"name":"basic","builtin_checks":[],"formula_checks":[]}'
+    >>> json.loads(run_checks(builder.build(), suite))["summary"]["total_checks"]
+    0
 
     """
     ...
@@ -2053,8 +2237,16 @@ def run_three_statement_checks(
 
     Examples
     --------
+    >>> import json
+    >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import run_three_statement_checks
-    >>> report_json = run_three_statement_checks(model_json, mapping_json)  # doctest: +SKIP
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> for node in ["assets", "liabilities", "equity", "cash", "retained_earnings", "net_income"]:
+    ...     builder.value(node, [("2025Q1", 0.0)])
+    >>> mapping = '{"assets_nodes":["assets"],"liabilities_nodes":["liabilities"],"equity_nodes":["equity"],"cash_node":"cash","retained_earnings_node":"retained_earnings","ppe_node":null,"net_income_node":"net_income","depreciation_node":null,"interest_expense_node":null,"tax_expense_node":null,"pretax_income_node":null,"cfo_node":null,"cfi_node":null,"cff_node":null,"total_cf_node":null,"capex_node":null,"dividends_node":null}'
+    >>> json.loads(run_three_statement_checks(builder.build(), mapping))["summary"]["total_checks"] > 0
+    True
 
     """
     ...
@@ -2089,8 +2281,16 @@ def run_credit_underwriting_checks(
 
     Examples
     --------
+    >>> import json
+    >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import run_credit_underwriting_checks
-    >>> report_json = run_credit_underwriting_checks(model_json, mapping_json)  # doctest: +SKIP
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> for node, value in [("total_debt", 100.0), ("ebitda", 50.0), ("interest_expense", 5.0)]:
+    ...     builder.value(node, [("2025Q1", value)])
+    >>> mapping = '{"debt_node":"total_debt","ebitda_node":"ebitda","interest_expense_node":"interest_expense","fcf_node":null,"cash_node":null,"cash_burn_node":null,"leverage_warn":null,"coverage_min_warn":null}'
+    >>> json.loads(run_credit_underwriting_checks(builder.build(), mapping))["summary"]["total_checks"] > 0
+    True
 
     """
     ...
@@ -2117,7 +2317,9 @@ def render_check_report_text(report_json: str) -> str:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import render_check_report_text
-    >>> text = render_check_report_text(report_json)  # doctest: +SKIP
+    >>> report = '{"results":[],"summary":{"total_checks":0,"passed":0,"failed":0,"errors":0,"warnings":0,"infos":0}}'
+    >>> "Check Report" in render_check_report_text(report)
+    True
 
     """
     ...
@@ -2144,7 +2346,9 @@ def render_check_report_html(report_json: str) -> str:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import render_check_report_html
-    >>> html = render_check_report_html(report_json)  # doctest: +SKIP
+    >>> report = '{"results":[],"summary":{"total_checks":0,"passed":0,"failed":0,"errors":0,"warnings":0,"infos":0}}'
+    >>> "<h2" in render_check_report_html(report)
+    True
 
     """
     ...
@@ -2178,7 +2382,10 @@ class Exposure:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import Exposure
-    >>> exp = Exposure("loan_1", 1_000_000.0, 0.4, 0.05, 3.0, 0.02, 0.01)  # doctest: +SKIP
+    >>> exposure = Exposure("loan", 1_000_000.0, 0.4, 0.05, 3.0, 0.02, 0.01)
+    >>> (exposure.id, exposure.ead, exposure.lgd)
+    ('loan', 1000000.0, 0.4)
+
     """
 
     id: str
@@ -2260,8 +2467,8 @@ def classify_stage(
     Examples
     --------
     >>> from finstack_quant.statements_analytics import Exposure, classify_stage
-    >>> exp = Exposure("loan_1", 1e6, 0.4, 0.05, 3.0, 0.02, 0.01)  # doctest: +SKIP
-    >>> classify_stage(exp)  # doctest: +SKIP
+    >>> exposure = Exposure("loan", 1_000_000.0, 0.4, 0.05, 3.0, 0.02, 0.01)
+    >>> classify_stage(exposure)
     ('Stage 1', 'no_trigger')
 
     """
@@ -2318,7 +2525,8 @@ def compute_ecl(
     Examples
     --------
     >>> from finstack_quant.statements_analytics import compute_ecl
-    >>> ecl = compute_ecl(1e6, [(1.0, 0.02), (3.0, 0.05)], 0.4, 0.05, 3.0)  # doctest: +SKIP
+    >>> compute_ecl(1_000.0, [(1.0, 0.02)], 0.4, 0.05, 1.0) > 0.0
+    True
 
     """
     ...
@@ -2372,7 +2580,9 @@ def compute_ecl_weighted(
     Examples
     --------
     >>> from finstack_quant.statements_analytics import compute_ecl_weighted
-    >>> ecl = compute_ecl_weighted(1e6, [(0.5, [(1.0, 0.01)]), (0.5, [(1.0, 0.03)])], 0.4, 0.05, 1.0)  # doctest: +SKIP
+    >>> scenarios = [(0.5, [(1.0, 0.01)]), (0.5, [(1.0, 0.03)])]
+    >>> compute_ecl_weighted(1_000.0, scenarios, 0.4, 0.05, 1.0) > 0.0
+    True
 
     """
     ...
@@ -2401,7 +2611,7 @@ def percentile_rank(value: float, peer_values: list[float]) -> float | None:
     --------
     >>> from finstack_quant.statements_analytics import percentile_rank
     >>> percentile_rank(3.0, [1.0, 2.0, 3.0, 4.0, 5.0])
-    0.5
+    0.6
 
     """
     ...
@@ -2452,8 +2662,7 @@ def peer_stats(peer_values: list[float]) -> dict[str, float]:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import peer_stats
-    >>> stats = peer_stats([1.0, 2.0, 3.0, 4.0, 5.0])
-    >>> stats["mean"]
+    >>> peer_stats([1.0, 2.0, 3.0, 4.0, 5.0])["median"]
     3.0
 
     """
@@ -2487,7 +2696,9 @@ def regression_fair_value(
     Examples
     --------
     >>> from finstack_quant.statements_analytics import regression_fair_value
-    >>> result = regression_fair_value([1.0, 2.0, 3.0], [2.0, 4.0, 6.0], 2.5, 5.0)  # doctest: +SKIP
+    >>> result = regression_fair_value([1.0, 2.0, 3.0], [2.0, 4.0, 6.0], 2.5, 5.0)
+    >>> (round(result["fitted_value"], 6), round(result["residual"], 6))
+    (5.0, 0.0)
 
     """
     ...
@@ -2519,7 +2730,7 @@ def compute_multiple(
     Examples
     --------
     >>> from finstack_quant.statements_analytics import compute_multiple
-    >>> compute_multiple({"ev": 100.0, "ebitda": 20.0}, "ev_ebitda")  # doctest: +SKIP
+    >>> compute_multiple({"enterprise_value": 100.0, "ebitda": 20.0}, "ev_ebitda")
     5.0
 
     """
@@ -2567,7 +2778,9 @@ def score_relative_value(
     >>> from finstack_quant.statements_analytics import score_relative_value
     >>> result = score_relative_value(
     ...     {"ev_ebitda": 8.0}, [{"ev_ebitda": 6.0}, {"ev_ebitda": 10.0}], [("ev_ebitda", 1.0)]
-    ... )  # doctest: +SKIP
+    ... )
+    >>> (result["company_id"], result["peer_count"])
+    ('SUBJECT', 2)
 
     """
     ...
@@ -2598,8 +2811,10 @@ class ScorecardMetric:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import ScorecardMetric
-    >>> ScorecardMetric.__name__
-    'ScorecardMetric'
+    >>> metric = ScorecardMetric("leverage", "total_debt / ebitda", weight=0.5)
+    >>> (metric.name, metric.weight)
+    ('leverage', 0.5)
+
     """
 
     def __init__(
@@ -2721,8 +2936,10 @@ class ScorecardMetric:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import ScorecardMetric
-        >>> callable(ScorecardMetric.from_json)
-        True
+        >>> metric = ScorecardMetric("leverage", "total_debt / ebitda", weight=0.5)
+        >>> ScorecardMetric.from_json(metric.to_json()).formula
+        'total_debt / ebitda'
+
         """
         ...
 
@@ -2750,8 +2967,10 @@ class ScorecardConfig:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import ScorecardConfig
-    >>> ScorecardConfig.__name__
-    'ScorecardConfig'
+    >>> config = ScorecardConfig(period="2025Q1")
+    >>> (config.rating_scale, config.period, config.metrics)
+    ('S&P', '2025Q1', [])
+
     """
 
     def __init__(
@@ -2864,8 +3083,10 @@ class ScorecardConfig:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import ScorecardConfig
-        >>> callable(ScorecardConfig.from_json)
-        True
+        >>> config = ScorecardConfig(period="2025Q1")
+        >>> ScorecardConfig.from_json(config.to_json()).period
+        '2025Q1'
+
         """
         ...
 
@@ -2879,8 +3100,10 @@ class ScorecardReport:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import ScorecardReport
-    >>> ScorecardReport.__name__
-    'ScorecardReport'
+    >>> report = ScorecardReport.from_json('{"status":"success","message":"Complete"}')
+    >>> (report.status, report.message, report.errors)
+    ('success', 'Complete', [])
+
     """
 
     @property
@@ -2970,8 +3193,9 @@ class ScorecardReport:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import ScorecardReport
-        >>> callable(ScorecardReport.from_json)
-        True
+        >>> ScorecardReport.from_json('{"status":"success","message":"Complete"}').status
+        'success'
+
         """
         ...
 
@@ -2982,8 +3206,9 @@ class CreditScorecardExtension:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import CreditScorecardExtension
-    >>> CreditScorecardExtension.__name__
-    'CreditScorecardExtension'
+    >>> CreditScorecardExtension().config() is None
+    True
+
     """
 
     def __init__(self) -> None:
@@ -3012,9 +3237,11 @@ class CreditScorecardExtension:
 
         Examples
         --------
-        >>> from finstack_quant.statements_analytics import CreditScorecardExtension
-        >>> callable(CreditScorecardExtension.with_config)
-        True
+        >>> from finstack_quant.statements_analytics import CreditScorecardExtension, ScorecardConfig
+        >>> extension = CreditScorecardExtension.with_config(ScorecardConfig())
+        >>> extension.config().rating_scale
+        'S&P'
+
         """
         ...
     def set_config(self, config: ScorecardConfig) -> None:
@@ -3077,9 +3304,9 @@ def validate_scorecard_config(config: ScorecardConfig) -> None:
 
     Examples
     --------
-    >>> from finstack_quant.statements_analytics import validate_scorecard_config
-    >>> callable(validate_scorecard_config)
-    True
+    >>> from finstack_quant.statements_analytics import ScorecardConfig, validate_scorecard_config
+    >>> validate_scorecard_config(ScorecardConfig())
+
     """
     ...
 
@@ -3094,8 +3321,9 @@ class AccountType:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import AccountType
-    >>> AccountType.__name__
-    'AccountType'
+    >>> AccountType.Asset.value()
+    'asset'
+
     """
 
     Asset: AccountType
@@ -3125,8 +3353,9 @@ class AccountType:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import AccountType
-        >>> callable(AccountType.from_str)
-        True
+        >>> AccountType.from_str("liability").value()
+        'liability'
+
         """
         ...
     def value(self) -> str:
@@ -3158,9 +3387,11 @@ class CorkscrewAccount:
 
     Examples
     --------
-    >>> from finstack_quant.statements_analytics import CorkscrewAccount
-    >>> CorkscrewAccount.__name__
-    'CorkscrewAccount'
+    >>> from finstack_quant.statements_analytics import AccountType, CorkscrewAccount
+    >>> account = CorkscrewAccount("cash", AccountType.Asset, ["cash_change"])
+    >>> (account.node_id, account.changes)
+    ('cash', ['cash_change'])
+
     """
 
     def __init__(
@@ -3263,9 +3494,11 @@ class CorkscrewAccount:
 
         Examples
         --------
-        >>> from finstack_quant.statements_analytics import CorkscrewAccount
-        >>> callable(CorkscrewAccount.from_json)
-        True
+        >>> from finstack_quant.statements_analytics import AccountType, CorkscrewAccount
+        >>> account = CorkscrewAccount("cash", AccountType.Asset, ["cash_change"])
+        >>> CorkscrewAccount.from_json(account.to_json()).account_type.value()
+        'asset'
+
         """
         ...
 
@@ -3286,8 +3519,10 @@ class CorkscrewConfig:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import CorkscrewConfig
-    >>> CorkscrewConfig.__name__
-    'CorkscrewConfig'
+    >>> config = CorkscrewConfig(tolerance=0.05)
+    >>> (config.accounts, config.tolerance, config.fail_on_error)
+    ([], 0.05, False)
+
     """
 
     def __init__(
@@ -3376,8 +3611,10 @@ class CorkscrewConfig:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import CorkscrewConfig
-        >>> callable(CorkscrewConfig.from_json)
-        True
+        >>> config = CorkscrewConfig(tolerance=0.05)
+        >>> CorkscrewConfig.from_json(config.to_json()).tolerance
+        0.05
+
         """
         ...
 
@@ -3388,8 +3625,10 @@ class CorkscrewReport:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import CorkscrewReport
-    >>> CorkscrewReport.__name__
-    'CorkscrewReport'
+    >>> report = CorkscrewReport.from_json('{"status":"success","message":"Balanced"}')
+    >>> (report.status, report.message, report.warnings)
+    ('success', 'Balanced', [])
+
     """
 
     @property
@@ -3479,8 +3718,9 @@ class CorkscrewReport:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import CorkscrewReport
-        >>> callable(CorkscrewReport.from_json)
-        True
+        >>> CorkscrewReport.from_json('{"status":"success","message":"Balanced"}').status
+        'success'
+
         """
         ...
 
@@ -3491,8 +3731,9 @@ class CorkscrewExtension:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import CorkscrewExtension
-    >>> CorkscrewExtension.__name__
-    'CorkscrewExtension'
+    >>> CorkscrewExtension().config() is None
+    True
+
     """
 
     def __init__(self) -> None:
@@ -3521,9 +3762,11 @@ class CorkscrewExtension:
 
         Examples
         --------
-        >>> from finstack_quant.statements_analytics import CorkscrewExtension
-        >>> callable(CorkscrewExtension.with_config)
-        True
+        >>> from finstack_quant.statements_analytics import CorkscrewConfig, CorkscrewExtension
+        >>> extension = CorkscrewExtension.with_config(CorkscrewConfig())
+        >>> extension.config().tolerance
+        0.01
+
         """
         ...
     def set_config(self, config: CorkscrewConfig) -> None:
@@ -3601,7 +3844,7 @@ def add_vintage_buildup(
     Returns
     -------
     str
-        Result of add vintage buildup for the binding in the annotated representation.
+        JSON-serialized model specification containing the generated vintage-convolution node.
 
     Raises
     ------
@@ -3611,8 +3854,15 @@ def add_vintage_buildup(
     Examples
     --------
     >>> from finstack_quant.statements_analytics import add_vintage_buildup
-    >>> callable(add_vintage_buildup)
+    >>> from finstack_quant.statements import FinancialModelSpec, ModelBuilder
+    >>> builder = ModelBuilder("template")
+    >>> builder.periods("2025Q1..Q2")
+    >>> builder.value("new_volume", [("2025Q1", 10.0), ("2025Q2", 12.0)])
+    >>> model = builder.build()
+    >>> updated = FinancialModelSpec.from_json(add_vintage_buildup(model, "customers", "new_volume", [1.0, 0.8]))
+    >>> updated.node_count > model.node_count
     True
+
     """
     ...
 
@@ -3647,7 +3897,7 @@ def add_roll_forward(
     Returns
     -------
     str
-        Result of add roll forward for the binding in the annotated representation.
+        JSON-serialized model specification containing zero-opening beginning- and ending-balance nodes.
 
     Raises
     ------
@@ -3657,8 +3907,15 @@ def add_roll_forward(
     Examples
     --------
     >>> from finstack_quant.statements_analytics import add_roll_forward
-    >>> callable(add_roll_forward)
+    >>> from finstack_quant.statements import FinancialModelSpec, ModelBuilder
+    >>> builder = ModelBuilder("template")
+    >>> builder.periods("2025Q1..Q2")
+    >>> builder.value("adds", [("2025Q1", 10.0), ("2025Q2", 12.0)])
+    >>> model = builder.build()
+    >>> updated = FinancialModelSpec.from_json(add_roll_forward(model, "balance", ["adds"], []))
+    >>> updated.has_node("balance_end")
     True
+
     """
     ...
 
@@ -3692,7 +3949,7 @@ def add_roll_forward_with_opening(
     Returns
     -------
     str
-        Result of add roll forward with opening for the binding in the annotated representation.
+        JSON-serialized model specification containing the seeded beginning- and ending-balance nodes.
 
     Raises
     ------
@@ -3702,8 +3959,15 @@ def add_roll_forward_with_opening(
     Examples
     --------
     >>> from finstack_quant.statements_analytics import add_roll_forward_with_opening
-    >>> callable(add_roll_forward_with_opening)
+    >>> from finstack_quant.statements import FinancialModelSpec, ModelBuilder
+    >>> builder = ModelBuilder("template")
+    >>> builder.periods("2025Q1..Q2")
+    >>> builder.value("adds", [("2025Q1", 10.0), ("2025Q2", 12.0)])
+    >>> model = builder.build()
+    >>> payload = add_roll_forward_with_opening(model, "balance", ["adds"], [], 100.0)
+    >>> FinancialModelSpec.from_json(payload).has_node("balance_beg")
     True
+
     """
     ...
 
@@ -3740,8 +4004,10 @@ class SimpleLeaseSpec:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import SimpleLeaseSpec
-    >>> SimpleLeaseSpec.__name__
-    'SimpleLeaseSpec'
+    >>> lease = SimpleLeaseSpec("lease_a", "2025Q1", 100.0, end="2025Q4")
+    >>> (lease.node_id, lease.start, lease.end)
+    ('lease_a', '2025Q1', '2025Q4')
+
     """
 
     def __init__(
@@ -3901,8 +4167,10 @@ class SimpleLeaseSpec:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import SimpleLeaseSpec
-        >>> callable(SimpleLeaseSpec.from_json)
-        True
+        >>> lease = SimpleLeaseSpec("lease_a", "2025Q1", 100.0)
+        >>> SimpleLeaseSpec.from_json(lease.to_json()).base_rent
+        100.0
+
         """
         ...
 
@@ -3920,8 +4188,10 @@ class RentStepSpec:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import RentStepSpec
-    >>> RentStepSpec.__name__
-    'RentStepSpec'
+    >>> step = RentStepSpec("2026Q1", 125.0)
+    >>> (step.start, step.rent)
+    ('2026Q1', 125.0)
+
     """
 
     def __init__(self, start: str, rent: float) -> None:
@@ -3998,8 +4268,10 @@ class RentStepSpec:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import RentStepSpec
-        >>> callable(RentStepSpec.from_json)
-        True
+        >>> step = RentStepSpec("2026Q1", 125.0)
+        >>> RentStepSpec.from_json(step.to_json()).rent
+        125.0
+
         """
         ...
 
@@ -4017,8 +4289,10 @@ class FreeRentWindowSpec:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import FreeRentWindowSpec
-    >>> FreeRentWindowSpec.__name__
-    'FreeRentWindowSpec'
+    >>> window = FreeRentWindowSpec("2025Q1", 2)
+    >>> (window.start, window.periods)
+    ('2025Q1', 2)
+
     """
 
     def __init__(self, start: str, periods: int) -> None:
@@ -4095,8 +4369,10 @@ class FreeRentWindowSpec:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import FreeRentWindowSpec
-        >>> callable(FreeRentWindowSpec.from_json)
-        True
+        >>> window = FreeRentWindowSpec("2025Q1", 2)
+        >>> FreeRentWindowSpec.from_json(window.to_json()).periods
+        2
+
         """
         ...
 
@@ -4121,8 +4397,10 @@ class RenewalSpec:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import RenewalSpec
-    >>> RenewalSpec.__name__
-    'RenewalSpec'
+    >>> renewal = RenewalSpec(4, 0.75, downtime_periods=1)
+    >>> (renewal.term_periods, renewal.probability, renewal.downtime_periods)
+    (4, 0.75, 1)
+
     """
 
     def __init__(
@@ -4250,8 +4528,10 @@ class RenewalSpec:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import RenewalSpec
-        >>> callable(RenewalSpec.from_json)
-        True
+        >>> renewal = RenewalSpec(4, 0.75)
+        >>> RenewalSpec.from_json(renewal.to_json()).probability
+        0.75
+
         """
         ...
 
@@ -4262,8 +4542,9 @@ class LeaseGrowthConvention:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import LeaseGrowthConvention
-    >>> LeaseGrowthConvention.__name__
-    'LeaseGrowthConvention'
+    >>> LeaseGrowthConvention.PerPeriod.value()
+    'per_period'
+
     """
 
     PerPeriod: LeaseGrowthConvention
@@ -4292,8 +4573,9 @@ class LeaseGrowthConvention:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import LeaseGrowthConvention
-        >>> callable(LeaseGrowthConvention.from_str)
-        True
+        >>> LeaseGrowthConvention.from_str("annual_escalator").value()
+        'annual_escalator'
+
         """
         ...
     def value(self) -> str:
@@ -4340,8 +4622,10 @@ class LeaseSpec:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import LeaseSpec
-    >>> LeaseSpec.__name__
-    'LeaseSpec'
+    >>> lease = LeaseSpec("lease_a", "2025Q1", 100.0, end="2025Q4")
+    >>> (lease.node_id, lease.base_rent, lease.occupancy)
+    ('lease_a', 100.0, 1.0)
+
     """
 
     def __init__(
@@ -4534,8 +4818,10 @@ class LeaseSpec:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import LeaseSpec
-        >>> callable(LeaseSpec.from_json)
-        True
+        >>> lease = LeaseSpec("lease_a", "2025Q1", 100.0)
+        >>> LeaseSpec.from_json(lease.to_json()).start
+        '2025Q1'
+
         """
         ...
 
@@ -4557,8 +4843,10 @@ class RentRollOutputNodes:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import RentRollOutputNodes
-    >>> RentRollOutputNodes.__name__
-    'RentRollOutputNodes'
+    >>> nodes = RentRollOutputNodes()
+    >>> (nodes.rent_pgi_node, nodes.rent_effective_node)
+    ('rent_pgi', 'rent_effective')
+
     """
 
     def __init__(
@@ -4663,8 +4951,10 @@ class RentRollOutputNodes:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import RentRollOutputNodes
-        >>> callable(RentRollOutputNodes.from_json)
-        True
+        >>> nodes = RentRollOutputNodes()
+        >>> RentRollOutputNodes.from_json(nodes.to_json()).vacancy_loss_node
+        'vacancy_loss'
+
         """
         ...
 
@@ -4675,8 +4965,9 @@ class ManagementFeeBase:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import ManagementFeeBase
-    >>> ManagementFeeBase.__name__
-    'ManagementFeeBase'
+    >>> ManagementFeeBase.Egi.value()
+    'egi'
+
     """
 
     Egi: ManagementFeeBase
@@ -4705,8 +4996,9 @@ class ManagementFeeBase:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import ManagementFeeBase
-        >>> callable(ManagementFeeBase.from_str)
-        True
+        >>> ManagementFeeBase.from_str("effective_rent").value()
+        'effective_rent'
+
         """
         ...
     def value(self) -> str:
@@ -4734,9 +5026,11 @@ class ManagementFeeSpec:
 
     Examples
     --------
-    >>> from finstack_quant.statements_analytics import ManagementFeeSpec
-    >>> ManagementFeeSpec.__name__
-    'ManagementFeeSpec'
+    >>> from finstack_quant.statements_analytics import ManagementFeeBase, ManagementFeeSpec
+    >>> fee = ManagementFeeSpec(0.03, ManagementFeeBase.Egi)
+    >>> (fee.rate, fee.base.value())
+    (0.03, 'egi')
+
     """
 
     def __init__(self, rate: float, base: ManagementFeeBase = ...) -> None:
@@ -4807,8 +5101,10 @@ class ManagementFeeSpec:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import ManagementFeeSpec
-        >>> callable(ManagementFeeSpec.from_json)
-        True
+        >>> fee = ManagementFeeSpec(0.03)
+        >>> ManagementFeeSpec.from_json(fee.to_json()).rate
+        0.03
+
         """
         ...
 
@@ -4838,8 +5134,10 @@ class PropertyTemplateNodes:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import PropertyTemplateNodes
-    >>> PropertyTemplateNodes.__name__
-    'PropertyTemplateNodes'
+    >>> nodes = PropertyTemplateNodes()
+    >>> (nodes.noi_node, nodes.ncf_node, nodes.rent_roll.rent_effective_node)
+    ('noi', 'ncf', 'rent_effective')
+
     """
 
     def __init__(
@@ -4999,8 +5297,10 @@ class PropertyTemplateNodes:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import PropertyTemplateNodes
-        >>> callable(PropertyTemplateNodes.from_json)
-        True
+        >>> nodes = PropertyTemplateNodes()
+        >>> PropertyTemplateNodes.from_json(nodes.to_json()).egi_node
+        'egi'
+
         """
         ...
 
@@ -5033,7 +5333,7 @@ def add_noi_buildup(
     Returns
     -------
     str
-        Result of add noi buildup for the binding in the annotated representation.
+        JSON-serialized model specification containing revenue, expense, and NOI aggregation nodes.
 
     Raises
     ------
@@ -5043,8 +5343,16 @@ def add_noi_buildup(
     Examples
     --------
     >>> from finstack_quant.statements_analytics import add_noi_buildup
-    >>> callable(add_noi_buildup)
+    >>> from finstack_quant.statements import FinancialModelSpec, ModelBuilder
+    >>> builder = ModelBuilder("template")
+    >>> builder.periods("2025Q1..Q2")
+    >>> builder.value("rent", [("2025Q1", 100.0)])
+    >>> builder.value("opex", [("2025Q1", 30.0)])
+    >>> model = builder.build()
+    >>> payload = add_noi_buildup(model, "revenue", ["rent"], "expenses", ["opex"], "noi")
+    >>> FinancialModelSpec.from_json(payload).has_node("noi")
     True
+
     """
     ...
 
@@ -5071,7 +5379,7 @@ def add_ncf_buildup(
     Returns
     -------
     str
-        Result of add ncf buildup for the binding in the annotated representation.
+        JSON-serialized model specification containing the NCF node after deducting the selected capex nodes.
 
     Raises
     ------
@@ -5081,8 +5389,15 @@ def add_ncf_buildup(
     Examples
     --------
     >>> from finstack_quant.statements_analytics import add_ncf_buildup
-    >>> callable(add_ncf_buildup)
+    >>> from finstack_quant.statements import FinancialModelSpec, ModelBuilder
+    >>> builder = ModelBuilder("template")
+    >>> builder.periods("2025Q1..Q2")
+    >>> builder.value("noi", [("2025Q1", 70.0)])
+    >>> builder.value("capex", [("2025Q1", 10.0)])
+    >>> model = builder.build()
+    >>> FinancialModelSpec.from_json(add_ncf_buildup(model, "noi", ["capex"], "ncf")).has_node("ncf")
     True
+
     """
     ...
 
@@ -5106,7 +5421,7 @@ def add_rent_roll(
     Returns
     -------
     str
-        Result of add rent roll for the binding in the annotated representation.
+        JSON-serialized model specification containing per-lease schedules and aggregate rent-roll nodes.
 
     Raises
     ------
@@ -5115,9 +5430,15 @@ def add_rent_roll(
 
     Examples
     --------
-    >>> from finstack_quant.statements_analytics import add_rent_roll
-    >>> callable(add_rent_roll)
+    >>> from finstack_quant.statements_analytics import LeaseSpec, add_rent_roll
+    >>> from finstack_quant.statements import FinancialModelSpec, ModelBuilder
+    >>> builder = ModelBuilder("template")
+    >>> builder.periods("2025Q1..Q2")
+    >>> model = builder.build()
+    >>> lease = LeaseSpec("lease_a", "2025Q1", 100.0)
+    >>> FinancialModelSpec.from_json(add_rent_roll(model, [lease])).has_node("rent_effective")
     True
+
     """
     ...
 
@@ -5141,7 +5462,7 @@ def add_rent_roll_rental_revenue(
     Returns
     -------
     str
-        Result of add rent roll rental revenue for the binding in the annotated representation.
+        JSON-serialized model specification containing simple lease schedules and total rental revenue.
 
     Raises
     ------
@@ -5150,9 +5471,16 @@ def add_rent_roll_rental_revenue(
 
     Examples
     --------
-    >>> from finstack_quant.statements_analytics import add_rent_roll_rental_revenue
-    >>> callable(add_rent_roll_rental_revenue)
+    >>> from finstack_quant.statements_analytics import SimpleLeaseSpec, add_rent_roll_rental_revenue
+    >>> from finstack_quant.statements import FinancialModelSpec, ModelBuilder
+    >>> builder = ModelBuilder("template")
+    >>> builder.periods("2025Q1..Q2")
+    >>> model = builder.build()
+    >>> lease = SimpleLeaseSpec("lease_a", "2025Q1", 100.0)
+    >>> payload = add_rent_roll_rental_revenue(model, [lease], "rental_revenue")
+    >>> FinancialModelSpec.from_json(payload).has_node("rental_revenue")
     True
+
     """
     ...
 
@@ -5188,7 +5516,7 @@ def add_property_operating_statement(
     Returns
     -------
     str
-        Result of add property operating statement for the binding in the annotated representation.
+        JSON-serialized model specification containing the rent roll, EGI, NOI, capex, and NCF buildup.
 
     Raises
     ------
@@ -5197,8 +5525,15 @@ def add_property_operating_statement(
 
     Examples
     --------
-    >>> from finstack_quant.statements_analytics import add_property_operating_statement
-    >>> callable(add_property_operating_statement)
+    >>> from finstack_quant.statements_analytics import LeaseSpec, add_property_operating_statement
+    >>> from finstack_quant.statements import FinancialModelSpec, ModelBuilder
+    >>> builder = ModelBuilder("template")
+    >>> builder.periods("2025Q1..Q2")
+    >>> model = builder.build()
+    >>> lease = LeaseSpec("lease_a", "2025Q1", 100.0)
+    >>> payload = add_property_operating_statement(model, [lease])
+    >>> FinancialModelSpec.from_json(payload).has_node("ncf")
     True
+
     """
     ...

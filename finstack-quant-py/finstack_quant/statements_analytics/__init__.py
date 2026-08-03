@@ -5,9 +5,10 @@ Bindings for the ``finstack-quant-statements-analytics`` Rust crate.
 
 Examples:
 --------
->>> import finstack_quant.statements_analytics as statements_analytics
->>> statements_analytics.__name__
-'finstack_quant.statements_analytics'
+>>> from finstack_quant.statements_analytics import backtest_forecast
+>>> backtest_forecast([1.0, 2.0], [1.0, 2.5])["n"]
+2
+
 """
 
 from __future__ import annotations

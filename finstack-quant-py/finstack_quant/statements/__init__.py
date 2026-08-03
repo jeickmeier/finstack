@@ -4,9 +4,10 @@ Bindings for the ``finstack-quant-statements`` Rust crate.
 
 Examples:
 --------
->>> import finstack_quant.statements as statements
->>> statements.__name__
-'finstack_quant.statements'
+>>> from finstack_quant.statements import NodeId
+>>> NodeId("revenue").as_str()
+'revenue'
+
 """
 
 from __future__ import annotations
