@@ -573,9 +573,7 @@ pub enum OperationSpec {
         bp: f64,
     },
 
-    // ========================================================================
     // Structured Credit Correlation Operations
-    // ========================================================================
     /// Shock asset correlation for structured credit instruments.
     ///
     /// Applies a parallel shift to asset correlation parameters. For flat
@@ -627,9 +625,7 @@ pub enum OperationSpec {
         delta_pts: f64,
     },
 
-    // ========================================================================
     // Hierarchy-targeted operations (expanded to direct ops at execution time)
-    // ========================================================================
     /// Hierarchy-targeted parallel curve shift.
     ///
     /// During [`crate::engine::ScenarioEngine::apply`], the engine resolves
