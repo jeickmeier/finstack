@@ -1,12 +1,26 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import ts from 'typescript';
+import {
+  documentationBlocks,
+  documentationFromBlocks,
+  LEGACY_CATCH_ALL_THROW,
+} from './typescript-docs-shared.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const facadePath = join(root, 'index.d.ts');
-const rawPath = join(root, 'pkg', 'finstack_quant_wasm.d.ts');
+const optionPath = (name, fallback) => {
+  const option = process.argv.find((value) => value.startsWith(`--${name}=`));
+  return option ? resolve(process.cwd(), option.slice(name.length + 3)) : fallback;
+};
+const facadePath = optionPath('facade', join(root, 'index.d.ts'));
+const rawPath = optionPath('raw', join(root, 'pkg', 'finstack_quant_wasm.d.ts'));
 const write = process.argv.includes('--write');
+const check = process.argv.includes('--check');
+if (write && check) {
+  console.error('--write and --check are mutually exclusive');
+  process.exit(2);
+}
 const facadeText = readFileSync(facadePath, 'utf8');
 const rawText = readFileSync(rawPath, 'utf8');
 
@@ -58,7 +72,7 @@ function rawDocumentation() {
         members,
       });
     } else if (ts.isFunctionDeclaration(statement) && statement.name) {
-      functions.set(statement.name.text, leadingJsdoc(rawText, statement)?.text ?? null);
+      functions.set(statement.name.text, leadingJsdoc(rawText, statement, file)?.text ?? null);
     }
   }
   return { classes, functions };
@@ -148,14 +162,19 @@ function tagsFromRustdoc(documentationText, parameterNames) {
   const flushSection = () => {
     const description = sectionText.join(' ').replace(/\s+/g, ' ').trim();
     if (description && section === 'returns') tags.push(`@returns ${description}`);
-    if (description && section === 'throws')
-      tags.push(`@throws Error - ${description.replace(/^throws\s*/i, '')}`);
+    if (description && section === 'throws') tags.push(`@throws Error - ${description}`);
     section = null;
     sectionText = [];
   };
 
   for (const line of lines) {
-    const stripped = line.trim();
+    const stripped =
+      line.trim() === '*/'
+        ? ''
+        : line
+            .replace(/^\s*\/\*\*\s?/, '')
+            .replace(/^\s*\*\s?/, '')
+            .trim();
     if (stripped === '# Returns') {
       flushSection();
       section = 'returns';
@@ -193,65 +212,41 @@ function tagsFromRustdoc(documentationText, parameterNames) {
   return tags;
 }
 
-function mergeRustTags(documentationText, node) {
-  if (!documentationText || !('parameters' in node)) return documentationText;
-  const parameterNames = node.parameters.map((parameter) => parameter.name.getText(facade));
-  const candidate = tagsFromRustdoc(documentationText, parameterNames);
-  if (!candidate?.length) return documentationText;
-
-  const existing = new Set(
-    [...documentationText.matchAll(/@(param|returns|throws)\b[^\n]*/g)].map((match) =>
-      match[0].replace(/\s+/g, ' ').trim()
-    )
-  );
-  const existingParameters = new Set(
-    [...documentationText.matchAll(/@param\s+([A-Za-z_$][\w$]*)\b/g)].map((match) => match[1])
-  );
-  const hasReturns = [...existing].some((value) => value.startsWith('@returns'));
-  const hasThrows = [...existing].some((value) => value.startsWith('@throws'));
-  const additions = candidate.filter((tag) => {
-    const normalized = tag.replace(/\s+/g, ' ').trim();
-    const parameter = normalized.match(/^@param\s+([A-Za-z_$][\w$]*)\b/);
-    if (parameter) return !existingParameters.has(parameter[1]);
-    if (normalized.startsWith('@returns')) return !hasReturns;
-    if (normalized.startsWith('@throws')) return !hasThrows;
-    return !existing.has(normalized);
-  });
-  if (!additions.length) return documentationText;
-  return documentationText.replace(/\*\/$/, `${additions.map((tag) => ` * ${tag}\n`).join('')} */`);
-}
-
-function score(documentation) {
-  if (!documentation) return 0;
-  return (
-    documentation.length +
-    200 * (documentation.match(/@param/g)?.length ?? 0) +
-    100 * (documentation.match(/@returns/g)?.length ?? 0) +
-    100 * (documentation.match(/@throws/g)?.length ?? 0)
-  );
-}
-
-function mergeDocumentation(primary, secondary) {
-  if (!primary) return secondary;
-  if (!secondary) return primary;
-  const preferred = score(primary) >= score(secondary) ? primary : secondary;
-  const supplemental = preferred === primary ? secondary : primary;
-  const existingParameters = new Set(
-    [...preferred.matchAll(/@param\s+([A-Za-z_$][\w$]*)\b/g)].map((match) => match[1])
-  );
-  const tags = [];
-  for (const tag of supplemental.matchAll(/@(param|returns|throws)\b[^\n]*/g)) {
-    const value = tag[0].replace(/\s+/g, ' ').trim();
-    const parameter = value.match(/^@param\s+([A-Za-z_$][\w$]*)\b/);
-    if (parameter && !existingParameters.has(parameter[1])) {
-      tags.push(value);
-      existingParameters.add(parameter[1]);
-    } else if (!parameter && !preferred.includes(value)) {
-      tags.push(value);
-    }
+function synchronizeTags(rawDocumentationText, facadeDocumentationText, node) {
+  if (!rawDocumentationText) {
+    if (!facadeDocumentationText) return null;
+    const blocks = documentationBlocks(facadeDocumentationText).filter(
+      (block) =>
+        !(
+          block.kind === 'throws' &&
+          block.lines.join(' ').replace(/\s+/g, ' ').trim() === LEGACY_CATCH_ALL_THROW
+        )
+    );
+    return documentationFromBlocks(blocks);
   }
-  if (!tags.length) return preferred;
-  return preferred.replace(/\*\/$/, `${tags.map((tag) => ` * ${tag}\n`).join('')} */`);
+
+  const parameterNames =
+    'parameters' in node ? node.parameters.map((parameter) => parameter.name.getText(facade)) : [];
+  const rawTags = tagsFromRustdoc(rawDocumentationText, parameterNames);
+  const authoritative = new Map(
+    ['param', 'returns', 'throws'].map((kind) => [
+      kind,
+      rawTags.filter((tag) => tag.startsWith(`@${kind}`)),
+    ])
+  );
+  let blocks = documentationBlocks(facadeDocumentationText ?? rawDocumentationText).filter(
+    (block) =>
+      !(
+        block.kind === 'throws' &&
+        block.lines.join(' ').replace(/\s+/g, ' ').trim() === LEGACY_CATCH_ALL_THROW
+      )
+  );
+  for (const [kind, tags] of authoritative) {
+    if (!tags.length) continue;
+    blocks = blocks.filter((block) => block.kind !== kind);
+    blocks.push(...tags.map((tag) => ({ kind, lines: [tag] })));
+  }
+  return documentationFromBlocks(blocks);
 }
 
 function rawClassName(interfaceName) {
@@ -291,26 +286,33 @@ const facade = sourceFile(facadePath, facadeText);
 const replacements = [];
 let synchronized = 0;
 
+function synchronizeNode(node, rawDocumentationText) {
+  const rawCandidate = convertRustArguments(
+    normalizeParameterTags(rawDocumentationText, node),
+    node
+  );
+  const existing = leadingJsdoc(facadeText, node, facade);
+  const candidate = synchronizeTags(rawCandidate, existing?.text ?? null, node);
+  const formattedCandidate = candidate && formatDocumentation(candidate, node);
+  if (!formattedCandidate || formattedCandidate === existing?.text) return;
+  replacements.push({
+    start: existing?.start ?? node.getStart(facade, false),
+    end: existing?.end ?? node.getStart(facade, false),
+    text: existing
+      ? formattedCandidate
+      : `${formattedCandidate}\n${ts.isInterfaceDeclaration(node.parent) ? '  ' : ''}`,
+  });
+  synchronized += 1;
+}
+
 for (const statement of facade.statements) {
-  if (!ts.isInterfaceDeclaration(statement)) continue;
-  const interfaceName = statement.name.text;
-  for (const node of [statement, ...statement.members]) {
-    const rawCandidate = convertRustArguments(
-      normalizeParameterTags(candidateDocumentation(node, interfaceName, facade, raw), node),
-      node
-    );
-    const existing = leadingJsdoc(facadeText, node, facade);
-    const candidate = mergeRustTags(mergeDocumentation(rawCandidate, existing?.text ?? null), node);
-    const formattedCandidate = candidate && formatDocumentation(candidate, node);
-    if (!formattedCandidate || formattedCandidate === existing?.text) continue;
-    replacements.push({
-      start: existing?.start ?? node.getStart(facade, false),
-      end: existing?.end ?? node.getStart(facade, false),
-      text: existing
-        ? formattedCandidate
-        : `${formattedCandidate}\n${ts.isInterfaceDeclaration(node.parent) ? '  ' : ''}`,
-    });
-    synchronized += 1;
+  if (ts.isInterfaceDeclaration(statement)) {
+    const interfaceName = statement.name.text;
+    for (const node of [statement, ...statement.members]) {
+      synchronizeNode(node, candidateDocumentation(node, interfaceName, facade, raw));
+    }
+  } else if (ts.isFunctionDeclaration(statement) && statement.name) {
+    synchronizeNode(statement, raw.functions.get(statement.name.text) ?? null);
   }
 }
 
@@ -323,6 +325,11 @@ if (write && updated !== facadeText) {
   writeFileSync(facadePath, updated);
 }
 
+if (check && updated !== facadeText) {
+  console.error(`${facadePath}: facade JSDoc is not synchronized (${synchronized} block(s))`);
+  process.exit(1);
+}
+
 console.log(
-  `${write ? 'synchronized' : 'would synchronize'} ${synchronized} facade JSDoc block(s)`
+  `${write ? 'synchronized' : check ? 'verified' : 'would synchronize'} ${synchronized} facade JSDoc block(s)`
 );

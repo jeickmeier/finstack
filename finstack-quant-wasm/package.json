@@ -35,6 +35,7 @@
     "optimize": "command -v wasm-opt >/dev/null 2>&1 && wasm-opt -Oz -o pkg/finstack_quant_wasm_bg.wasm pkg/finstack_quant_wasm_bg.wasm || echo 'wasm-opt not found, skipping optimization'",
     "test": "wasm-pack test --node",
     "test:dts": "tsc -p tests/typescript/tsconfig.es2020.json && tsc -p tests/typescript/tsconfig.esnext-disposable.json",
+    "test:docs-tools": "node --test tests/scripts/typescript_docs.test.mjs",
     "test:browser": "wasm-pack test --chrome --headless",
     "test:facade": "node --test \"tests/facade/**/*.test.mjs\"",
     "lint": "eslint .",

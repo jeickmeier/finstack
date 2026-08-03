@@ -1,10 +1,18 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import ts from 'typescript';
+import {
+  documentationBlocks,
+  isLegacyPlaceholderExample,
+  LEGACY_CATCH_ALL_THROW,
+} from './typescript-docs-shared.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const declarationPath = join(root, 'index.d.ts');
+const option = process.argv.find((value) => value.startsWith('--declaration='));
+const declarationPath = option
+  ? resolve(process.cwd(), option.slice('--declaration='.length))
+  : join(root, 'index.d.ts');
 const sourceText = readFileSync(declarationPath, 'utf8');
 const sourceFile = ts.createSourceFile(
   declarationPath,
@@ -79,6 +87,18 @@ function checkDocumentedNode(node, label, options = {}) {
   const nodeSummary = summary(documentationText);
   if (!nodeSummary || nodeSummary.length < 16) {
     error(node, `${label}: missing substantive JSDoc summary`);
+  }
+
+  const blocks = documentationBlocks(documentationText);
+  if (
+    blocks.some(
+      (block) => block.lines.join(' ').replace(/\s+/g, ' ').trim() === LEGACY_CATCH_ALL_THROW
+    )
+  ) {
+    error(node, `${label}: contains fabricated catch-all @throws boilerplate`);
+  }
+  if (blocks.some(isLegacyPlaceholderExample)) {
+    error(node, `${label}: contains a non-executable placeholder @example`);
   }
 
   if (options.example && !hasTag(documentationText, 'example')) {

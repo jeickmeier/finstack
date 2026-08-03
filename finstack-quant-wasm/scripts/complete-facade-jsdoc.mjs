@@ -1,11 +1,20 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import ts from 'typescript';
+import { stripLegacyBoilerplate } from './typescript-docs-shared.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const declarationPath = join(root, 'index.d.ts');
+const option = process.argv.find((value) => value.startsWith('--declaration='));
+const declarationPath = option
+  ? resolve(process.cwd(), option.slice('--declaration='.length))
+  : join(root, 'index.d.ts');
 const write = process.argv.includes('--write');
+const check = process.argv.includes('--check');
+if (write && check) {
+  console.error('--write and --check are mutually exclusive');
+  process.exit(2);
+}
 const sourceText = readFileSync(declarationPath, 'utf8');
 const sourceFile = ts.createSourceFile(
   declarationPath,
@@ -243,57 +252,10 @@ function typeSummary(name) {
   return `TypeScript type that constrains the accepted ${humanize(name)} values.`;
 }
 
-function namespacePaths() {
-  const paths = new Map();
-  const members = new Map();
-  for (const statement of sourceFile.statements) {
-    if (ts.isVariableStatement(statement) && isExported(statement)) {
-      for (const declaration of statement.declarationList.declarations) {
-        const typeName = declaration.type?.getText(sourceFile);
-        if (typeName) paths.set(typeName, declaration.name.getText(sourceFile));
-      }
-    }
-    if (ts.isInterfaceDeclaration(statement)) members.set(statement.name.text, statement.members);
-  }
-  for (let pass = 0; pass < members.size; pass += 1) {
-    for (const [name, properties] of members) {
-      const parentPath = paths.get(name);
-      if (!parentPath) continue;
-      for (const property of properties) {
-        if (!ts.isPropertySignature(property) || !property.type || !property.name) continue;
-        paths.set(
-          property.type.getText(sourceFile),
-          `${parentPath}.${property.name.getText(sourceFile)}`
-        );
-      }
-    }
-  }
-  return paths;
-}
-
-const paths = namespacePaths();
-
-function exampleForInterface(name) {
-  const path = paths.get(name);
-  const rootExport = path?.split('.')[0];
-  const target = path ?? name;
-  const declaration = name.endsWith('Constructor') ? 'factory' : 'api';
-  const targetType = name;
-  const importLine = rootExport
-    ? `import init, { ${rootExport} } from "finstack-quant-wasm";`
-    : 'import init from "finstack-quant-wasm";';
-  return `@example\n * \`\`\`typescript\n * ${importLine}\n * await init();\n * const ${declaration}: ${targetType} = ${target};\n * void ${declaration};\n * \`\`\``;
-}
-
-function exampleForFunction(name) {
-  if (name === 'init') {
-    return '@example\n * ```typescript\n * import init from "finstack-quant-wasm";\n * const wasm = await init();\n * void wasm;\n * ```';
-  }
-  return `@example\n * \`\`\`typescript\n * import init, { ${name} } from "finstack-quant-wasm";\n * await init();\n * // Supply the documented arguments to ${name}(...) for your use case.\n * void ${name};\n * \`\`\``;
-}
-
 function completeDocumentation(node, interfaceName) {
-  let documentationText = leadingJsdoc(sourceText, node, sourceFile)?.text ?? null;
+  let documentationText = stripLegacyBoilerplate(
+    leadingJsdoc(sourceText, node, sourceFile)?.text ?? null
+  );
   const existingSummary = summary(documentationText);
   const defaultSummary = ts.isInterfaceDeclaration(node)
     ? interfaceSummary(node.name.text)
@@ -305,15 +267,6 @@ function completeDocumentation(node, interfaceName) {
   }
 
   const tags = [];
-  const needsExample =
-    ts.isInterfaceDeclaration(node) &&
-    (node.name.text.endsWith('Namespace') || node.name.text.endsWith('Constructor'));
-  if (needsExample && !hasTag(documentationText, 'example'))
-    tags.push(exampleForInterface(node.name.text));
-  if (ts.isFunctionDeclaration(node) && !hasTag(documentationText, 'example')) {
-    tags.push(exampleForFunction(nodeName(node)));
-  }
-
   if ('parameters' in node) {
     const parameters = documentedParameters(documentationText);
     for (const parameter of node.parameters ?? []) {
@@ -322,15 +275,6 @@ function completeDocumentation(node, interfaceName) {
     }
     if (node.type?.kind !== ts.SyntaxKind.VoidKeyword && !hasTag(documentationText, 'returns')) {
       tags.push(`@returns ${returnDescription(node.type)}`);
-    }
-    if (
-      (node.parameters?.length ?? 0) > 0 &&
-      !hasTag(documentationText, 'throws') &&
-      !/does not throw|never throws|non-throwing/i.test(documentationText)
-    ) {
-      tags.push(
-        '@throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.'
-      );
     }
   }
   return appendTags(documentationText, tags);
@@ -410,6 +354,10 @@ for (const replacement of replacements.sort((left, right) => right.start - left.
   updated = `${updated.slice(0, replacement.start)}${replacement.text}${updated.slice(replacement.end)}`;
 }
 if (write && updated !== sourceText) writeFileSync(declarationPath, updated);
+if (check && updated !== sourceText) {
+  console.error(`${declarationPath}: facade JSDoc is incomplete (${replacements.length} block(s))`);
+  process.exit(1);
+}
 console.log(
-  `${write ? 'completed' : 'would complete'} ${replacements.length} facade JSDoc block(s)`
+  `${write ? 'completed' : check ? 'verified' : 'would complete'} ${replacements.length} facade JSDoc block(s)`
 );
