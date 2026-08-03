@@ -60,8 +60,12 @@ use crate::errors::{portfolio_to_py, serde_json_to_py};
 ///
 /// Examples
 /// --------
+/// >>> import json
 /// >>> from finstack_quant.portfolio import cell_returns_from_reference
-/// >>> table_json = cell_returns_from_reference(reference_json, "UST", config_json)  # doctest: +SKIP
+/// >>> reference = [{"duration": 1.0, "total_return": 0.02}]
+/// >>> table = json.loads(cell_returns_from_reference(json.dumps(reference), "UST", '{"width": 2.0}'))
+/// >>> table["cells"][0]["base_return"]
+/// 0.02
 #[pyfunction]
 #[pyo3(text_signature = "(reference_json, base_label, config_json)")]
 fn cell_returns_from_reference(
@@ -141,11 +145,15 @@ fn cell_returns_from_reference(
 ///
 /// Examples
 /// --------
+/// >>> from datetime import date
+/// >>> import json
 /// >>> from finstack_quant.core.market_data import DiscountCurve
 /// >>> from finstack_quant.portfolio import cell_returns_from_curves
-/// >>> table_json = cell_returns_from_curves(
-/// ...     start, end, 0.25, 2.0, "UST", config_json,
-/// ... )  # doctest: +SKIP
+/// >>> start = DiscountCurve.flat("start", date(2025, 1, 1), 0.02)
+/// >>> end = DiscountCurve.flat("end", date(2025, 4, 1), 0.03)
+/// >>> table = json.loads(cell_returns_from_curves(start, end, 0.25, 2.0, "UST", '{"width": 1.0}'))
+/// >>> len(table["cells"])
+/// 2
 #[pyfunction]
 #[pyo3(text_signature = "(start, end, horizon_years, max_duration, base_label, config_json)")]
 fn cell_returns_from_curves(
@@ -221,9 +229,14 @@ fn cell_returns_from_curves(
 ///
 /// Examples
 /// --------
+/// >>> import json
 /// >>> from finstack_quant.portfolio import cell_returns_from_reference, excess_returns
-/// >>> table_json = cell_returns_from_reference(reference_json, "UST", config_json)  # doctest: +SKIP
-/// >>> result_json = excess_returns(positions_json, table_json)  # doctest: +SKIP
+/// >>> reference = [{"duration": 1.0, "total_return": 0.02}]
+/// >>> table = cell_returns_from_reference(json.dumps(reference), "UST", '{"width": 2.0}')
+/// >>> positions = [{"id": "B1", "weight": 1.0, "duration": 1.0, "total_return": 0.03}]
+/// >>> result = json.loads(excess_returns(json.dumps(positions), table))
+/// >>> round(result["portfolio_excess_return"], 4)
+/// 0.01
 #[pyfunction]
 #[pyo3(text_signature = "(positions_json, table_json)")]
 fn excess_returns(py: Python<'_>, positions_json: &str, table_json: &str) -> PyResult<String> {

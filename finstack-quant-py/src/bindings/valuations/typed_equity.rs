@@ -56,7 +56,8 @@ impl PyEquityOption {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import EquityOption
-    /// >>> callable(EquityOption.builder)
+    /// >>> builder = EquityOption.builder()
+    /// >>> builder.id("EXAMPLE") is builder
     /// True
     #[staticmethod]
     #[pyo3(text_signature = "()")]
@@ -90,7 +91,10 @@ impl PyEquityOption {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import EquityOption
-    /// >>> callable(EquityOption.from_json)
+    /// >>> try:
+    /// ...     EquityOption.from_json("{}")
+    /// ... except ValueError as exc:
+    /// ...     print("schema" in str(exc))
     /// True
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
@@ -446,7 +450,8 @@ impl PyEquityOptionBuilder {
     /// Raises
     /// ------
     /// ValueError
-    ///     If a required field is missing or Rust validation fails.
+    ///     If the builder was already consumed, a required field is missing,
+    ///     or the completed option fails pricing validation.
     #[pyo3(text_signature = "($self)")]
     fn build(mut slf: PyRefMut<'_, Self>) -> PyResult<PyEquityOption> {
         let b = take_equity_option(&mut slf)?;

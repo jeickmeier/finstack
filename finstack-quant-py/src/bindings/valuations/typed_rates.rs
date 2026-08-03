@@ -59,7 +59,8 @@ impl PyInterestRateSwap {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import InterestRateSwap
-    /// >>> callable(InterestRateSwap.builder)
+    /// >>> builder = InterestRateSwap.builder()
+    /// >>> builder.id("EXAMPLE") is builder
     /// True
     #[staticmethod]
     #[pyo3(text_signature = "()")]
@@ -92,7 +93,10 @@ impl PyInterestRateSwap {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import InterestRateSwap
-    /// >>> callable(InterestRateSwap.from_json)
+    /// >>> try:
+    /// ...     InterestRateSwap.from_json("{}")
+    /// ... except ValueError as exc:
+    /// ...     print("schema" in str(exc))
     /// True
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
@@ -270,7 +274,8 @@ impl PyInterestRateSwapBuilder {
     /// Raises
     /// ------
     /// ValueError
-    ///     If a required field is missing or Rust validation fails.
+    ///     If the builder was already consumed, a required field is missing,
+    ///     or the completed swap fails pricing validation.
     #[pyo3(text_signature = "($self)")]
     fn build(mut slf: PyRefMut<'_, Self>) -> PyResult<PyInterestRateSwap> {
         let b = take_irs(&mut slf)?;
@@ -316,7 +321,8 @@ impl PySwaption {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import Swaption
-    /// >>> callable(Swaption.builder)
+    /// >>> builder = Swaption.builder()
+    /// >>> builder.id("EXAMPLE") is builder
     /// True
     #[staticmethod]
     #[pyo3(text_signature = "()")]
@@ -349,7 +355,10 @@ impl PySwaption {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import Swaption
-    /// >>> callable(Swaption.from_json)
+    /// >>> try:
+    /// ...     Swaption.from_json("{}")
+    /// ... except ValueError as exc:
+    /// ...     print("schema" in str(exc))
     /// True
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
@@ -703,7 +712,8 @@ impl PySwaptionBuilder {
     /// Raises
     /// ------
     /// ValueError
-    ///     If a required field is missing or Rust validation fails.
+    ///     If the builder was already consumed, a required field is missing,
+    ///     or the completed swaption fails pricing validation.
     #[pyo3(text_signature = "($self)")]
     fn build(mut slf: PyRefMut<'_, Self>) -> PyResult<PySwaption> {
         let b = take_swaption(&mut slf)?;
@@ -749,7 +759,8 @@ impl PyCapFloor {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import CapFloor
-    /// >>> callable(CapFloor.builder)
+    /// >>> builder = CapFloor.builder()
+    /// >>> builder.id("EXAMPLE") is builder
     /// True
     #[staticmethod]
     #[pyo3(text_signature = "()")]
@@ -782,7 +793,10 @@ impl PyCapFloor {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import CapFloor
-    /// >>> callable(CapFloor.from_json)
+    /// >>> try:
+    /// ...     CapFloor.from_json("{}")
+    /// ... except ValueError as exc:
+    /// ...     print("schema" in str(exc))
     /// True
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
@@ -1185,7 +1199,8 @@ impl PyCapFloorBuilder {
     /// Raises
     /// ------
     /// ValueError
-    ///     If a required field is missing or Rust validation fails.
+    ///     If the builder was already consumed, a required field is missing,
+    ///     or the completed cap/floor fails pricing validation.
     #[pyo3(text_signature = "($self)")]
     fn build(mut slf: PyRefMut<'_, Self>) -> PyResult<PyCapFloor> {
         let b = take_cap_floor(&mut slf)?;

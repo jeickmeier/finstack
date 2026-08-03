@@ -358,13 +358,15 @@ run = [
   "uv run --no-sync ruff format . --check",
   "uv run --no-sync ruff check . --no-fix",
   "uv run --no-sync python scripts/check_python_api_input_docs.py",
+  "uv run --no-sync python scripts/check_pyo3_doc_placeholders.py",
 ]
 
 [tasks.python-doc]
 description = "Enforce complete Python IntelliSense documentation"
 run = [
-  "uv run --no-sync pytest scripts/tests/test_check_python_api_input_docs.py -q",
+  "uv run --no-sync pytest scripts/tests/test_check_python_api_input_docs.py scripts/tests/test_check_pyo3_doc_placeholders.py -q",
   "uv run --no-sync python scripts/check_python_api_input_docs.py",
+  "uv run --no-sync python scripts/check_pyo3_doc_placeholders.py",
 ]
 
 [tasks.python-typecheck]

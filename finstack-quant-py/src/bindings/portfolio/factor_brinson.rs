@@ -59,8 +59,19 @@ use crate::errors::{portfolio_to_py, serde_json_to_py};
 ///
 /// Examples
 /// --------
+/// >>> import json
 /// >>> from finstack_quant.portfolio import factor_brinson_attribution
-/// >>> result_json = factor_brinson_attribution(input_json, [0.02, 0.31 / 7.0])  # doctest: +SKIP
+/// >>> inputs = {
+/// ...     "asset_ids": ["A"],
+/// ...     "asset_returns": [0.02],
+/// ...     "exposures": [1.0],
+/// ...     "factor_names": ["Market"],
+/// ...     "portfolio_weights": [1.0],
+/// ...     "benchmark_weights": [1.0],
+/// ... }
+/// >>> result = json.loads(factor_brinson_attribution(json.dumps(inputs), [0.02]))
+/// >>> result["active_return"]
+/// 0.0
 #[pyfunction]
 #[pyo3(text_signature = "(input_json, factor_returns)")]
 fn factor_brinson_attribution(

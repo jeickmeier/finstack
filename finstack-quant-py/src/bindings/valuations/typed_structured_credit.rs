@@ -335,7 +335,8 @@ impl PyTranche {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import Tranche
-    /// >>> callable(Tranche.builder)
+    /// >>> builder = Tranche.builder()
+    /// >>> builder.id("EXAMPLE") is builder
     /// True
     #[staticmethod]
     #[pyo3(text_signature = "()")]
@@ -826,7 +827,8 @@ impl PyStructuredCredit {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import StructuredCredit
-    /// >>> callable(StructuredCredit.builder)
+    /// >>> builder = StructuredCredit.builder()
+    /// >>> builder.id("EXAMPLE") is builder
     /// True
     #[staticmethod]
     #[pyo3(text_signature = "()")]
@@ -1026,7 +1028,10 @@ impl PyStructuredCredit {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import StructuredCredit
-    /// >>> callable(StructuredCredit.from_json)
+    /// >>> try:
+    /// ...     StructuredCredit.from_json("{}")
+    /// ... except ValueError as exc:
+    /// ...     print("schema" in str(exc))
     /// True
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
@@ -1543,7 +1548,8 @@ impl PyStructuredCreditBuilder {
     /// Raises
     /// ------
     /// ValueError
-    ///     If a required field is missing or Rust validation fails.
+    ///     If the builder was already consumed, a required field is missing,
+    ///     or the completed deal fails pricing validation.
     #[pyo3(text_signature = "($self)")]
     fn build(mut slf: PyRefMut<'_, Self>) -> PyResult<PyStructuredCredit> {
         let b = take_sc(&mut slf)?;

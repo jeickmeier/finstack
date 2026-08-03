@@ -70,7 +70,8 @@ impl PyCreditDefaultSwap {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
-    /// >>> callable(CreditDefaultSwap.builder)
+    /// >>> builder = CreditDefaultSwap.builder()
+    /// >>> builder.id("EXAMPLE") is builder
     /// True
     #[staticmethod]
     #[pyo3(text_signature = "()")]
@@ -103,7 +104,10 @@ impl PyCreditDefaultSwap {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
-    /// >>> callable(CreditDefaultSwap.from_json)
+    /// >>> try:
+    /// ...     CreditDefaultSwap.from_json("{}")
+    /// ... except ValueError as exc:
+    /// ...     print("schema" in str(exc))
     /// True
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
@@ -358,7 +362,8 @@ impl PyCreditDefaultSwapBuilder {
     /// Raises
     /// ------
     /// ValueError
-    ///     If a required field is missing or Rust validation fails.
+    ///     If the builder was already consumed, a required field is missing,
+    ///     or the completed CDS fails pricing validation.
     #[pyo3(text_signature = "($self)")]
     fn build(mut slf: PyRefMut<'_, Self>) -> PyResult<PyCreditDefaultSwap> {
         let b = take_cds(&mut slf)?;
@@ -409,7 +414,8 @@ impl PyCDSIndex {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import CDSIndex
-    /// >>> callable(CDSIndex.builder)
+    /// >>> builder = CDSIndex.builder()
+    /// >>> builder.id("EXAMPLE") is builder
     /// True
     #[staticmethod]
     #[pyo3(text_signature = "()")]
@@ -445,7 +451,10 @@ impl PyCDSIndex {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import CDSIndex
-    /// >>> callable(CDSIndex.from_json)
+    /// >>> try:
+    /// ...     CDSIndex.from_json("{}")
+    /// ... except ValueError as exc:
+    /// ...     print("schema" in str(exc))
     /// True
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
@@ -802,7 +811,8 @@ impl PyCDSIndexBuilder {
     /// Raises
     /// ------
     /// ValueError
-    ///     If a required field is missing or Rust validation fails.
+    ///     If the builder was already consumed, a required field is missing,
+    ///     or the completed CDS index fails pricing validation.
     #[pyo3(text_signature = "($self)")]
     fn build(mut slf: PyRefMut<'_, Self>) -> PyResult<PyCDSIndex> {
         let b = take_cds_index(&mut slf)?;
@@ -856,7 +866,8 @@ impl PyCDSTranche {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import CDSTranche
-    /// >>> callable(CDSTranche.builder)
+    /// >>> builder = CDSTranche.builder()
+    /// >>> builder.id("EXAMPLE") is builder
     /// True
     #[staticmethod]
     #[pyo3(text_signature = "()")]
@@ -893,7 +904,10 @@ impl PyCDSTranche {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import CDSTranche
-    /// >>> callable(CDSTranche.from_json)
+    /// >>> try:
+    /// ...     CDSTranche.from_json("{}")
+    /// ... except ValueError as exc:
+    /// ...     print("schema" in str(exc))
     /// True
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
@@ -1315,7 +1329,8 @@ impl PyCDSTrancheBuilder {
     /// Raises
     /// ------
     /// ValueError
-    ///     If a required field is missing or Rust validation fails.
+    ///     If the builder was already consumed, a required field is missing,
+    ///     or the completed CDS tranche fails pricing validation.
     #[pyo3(text_signature = "($self)")]
     fn build(mut slf: PyRefMut<'_, Self>) -> PyResult<PyCDSTranche> {
         let b = take_cds_tranche(&mut slf)?;
@@ -1364,7 +1379,8 @@ impl PyConvertibleBond {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import ConvertibleBond
-    /// >>> callable(ConvertibleBond.builder)
+    /// >>> builder = ConvertibleBond.builder()
+    /// >>> builder.id("EXAMPLE") is builder
     /// True
     #[staticmethod]
     #[pyo3(text_signature = "()")]
@@ -1398,7 +1414,10 @@ impl PyConvertibleBond {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import ConvertibleBond
-    /// >>> callable(ConvertibleBond.from_json)
+    /// >>> try:
+    /// ...     ConvertibleBond.from_json("{}")
+    /// ... except ValueError as exc:
+    /// ...     print("schema" in str(exc))
     /// True
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
@@ -1809,8 +1828,9 @@ impl PyConvertibleBondBuilder {
     /// Raises
     /// ------
     /// ValueError
-    ///     If a required field is missing or Rust validation fails (e.g.
-    ///     neither ``ratio`` nor ``price`` set on the conversion terms).
+    ///     If the builder was already consumed, a required field is missing,
+    ///     or the completed convertible bond fails pricing validation (for
+    ///     example, conversion terms set neither ``ratio`` nor ``price``).
     #[pyo3(text_signature = "($self)")]
     fn build(mut slf: PyRefMut<'_, Self>) -> PyResult<PyConvertibleBond> {
         let b = take_convertible(&mut slf)?;

@@ -26,9 +26,20 @@ use pyo3::types::PyDict;
 ///     json_out = model.to_json()
 ///
 /// Example:
-///     >>> from finstack_quant.factor_model.credit import CreditFactorModel
-///     >>> model = CreditFactorModel.from_json(json_str)  # doctest: +SKIP
-///     >>> model.schema  # doctest: +SKIP
+///     >>> from finstack_quant.factor_model.credit import CreditCalibrator, CreditFactorModel
+///     >>> config_json = (
+///     ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
+///     ...     '"vol_model":"sample","covariance_strategy":"diagonal","beta_shrinkage":"none",'
+///     ...     '"use_returns_or_levels":"returns","annualization_factor":12.0}'
+///     ... )
+///     >>> inputs_json = (
+///     ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[100.0,101.0]}},'
+///     ...     '"issuer_tags":{"tags":{"A":{}}},"generic_factor":{"spec":{"name":"G","series_id":"G"},'
+///     ...     '"values":[100.0,101.0]},"as_of":"2024-02-01","as_of_spreads":{"A":101.0},'
+///     ...     '"idiosyncratic_overrides":{}}'
+///     ... )
+///     >>> calibrated = CreditCalibrator(config_json).calibrate(inputs_json)
+///     >>> CreditFactorModel.from_json(calibrated.to_json()).schema
 ///     'finstack_quant.credit_factor_model/1'
 #[pyclass(
     name = "CreditFactorModel",
@@ -176,10 +187,20 @@ impl PyCreditFactorModel {
 /// typed wrappers for every sub-field.
 ///
 /// Example:
-///     >>> import json
 ///     >>> from finstack_quant.factor_model.credit import CreditCalibrator
-///     >>> cal = CreditCalibrator(json.dumps(config))  # doctest: +SKIP
-///     >>> model = cal.calibrate(json.dumps(inputs))  # doctest: +SKIP
+///     >>> config_json = (
+///     ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
+///     ...     '"vol_model":"sample","covariance_strategy":"diagonal","beta_shrinkage":"none",'
+///     ...     '"use_returns_or_levels":"returns","annualization_factor":12.0}'
+///     ... )
+///     >>> inputs_json = (
+///     ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[100.0,101.0]}},'
+///     ...     '"issuer_tags":{"tags":{"A":{}}},"generic_factor":{"spec":{"name":"G","series_id":"G"},'
+///     ...     '"values":[100.0,101.0]},"as_of":"2024-02-01","as_of_spreads":{"A":101.0},'
+///     ...     '"idiosyncratic_overrides":{}}'
+///     ... )
+///     >>> CreditCalibrator(config_json).calibrate(inputs_json).n_issuers
+///     1
 #[pyclass(
     name = "CreditCalibrator",
     module = "finstack_quant.factor_model.credit",
@@ -244,10 +265,22 @@ impl PyCreditCalibrator {
 /// :func:`decompose_period` to compute period-over-period changes.
 ///
 /// Example:
-///     >>> from finstack_quant.factor_model.credit import decompose_levels
-///     >>> snap = decompose_levels(model, spreads, generic, "2024-03-29")  # doctest: +SKIP
-///     >>> snap.generic  # doctest: +SKIP
-///     100.5
+///     >>> from finstack_quant.factor_model.credit import CreditCalibrator, decompose_levels
+///     >>> config_json = (
+///     ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
+///     ...     '"vol_model":"sample","covariance_strategy":"diagonal","beta_shrinkage":"none",'
+///     ...     '"use_returns_or_levels":"returns","annualization_factor":12.0}'
+///     ... )
+///     >>> inputs_json = (
+///     ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[100.0,101.0]}},'
+///     ...     '"issuer_tags":{"tags":{"A":{}}},"generic_factor":{"spec":{"name":"G","series_id":"G"},'
+///     ...     '"values":[100.0,101.0]},"as_of":"2024-02-01","as_of_spreads":{"A":101.0},'
+///     ...     '"idiosyncratic_overrides":{}}'
+///     ... )
+///     >>> model = CreditCalibrator(config_json).calibrate(inputs_json)
+///     >>> levels = decompose_levels(model, '{"A": 105.0}', 100.0, "2024-03-01")
+///     >>> (levels.date, levels.generic, levels.adder())
+///     ('2024-03-01', 100.0, {'A': 5.0})
 #[pyclass(
     name = "LevelsAtDate",
     module = "finstack_quant.factor_model.credit",
@@ -355,10 +388,24 @@ impl PyLevelsAtDate {
 /// for every issuer present in both snapshots.
 ///
 /// Example:
-///     >>> from finstack_quant.factor_model.credit import decompose_period
-///     >>> period = decompose_period(snap_t0, snap_t1)  # doctest: +SKIP
-///     >>> period.d_generic  # doctest: +SKIP
-///     0.3
+///     >>> from finstack_quant.factor_model.credit import CreditCalibrator, decompose_levels, decompose_period
+///     >>> config_json = (
+///     ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
+///     ...     '"vol_model":"sample","covariance_strategy":"diagonal","beta_shrinkage":"none",'
+///     ...     '"use_returns_or_levels":"returns","annualization_factor":12.0}'
+///     ... )
+///     >>> inputs_json = (
+///     ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[100.0,101.0]}},'
+///     ...     '"issuer_tags":{"tags":{"A":{}}},"generic_factor":{"spec":{"name":"G","series_id":"G"},'
+///     ...     '"values":[100.0,101.0]},"as_of":"2024-02-01","as_of_spreads":{"A":101.0},'
+///     ...     '"idiosyncratic_overrides":{}}'
+///     ... )
+///     >>> model = CreditCalibrator(config_json).calibrate(inputs_json)
+///     >>> start = decompose_levels(model, '{"A": 105.0}', 100.0, "2024-03-01")
+///     >>> end = decompose_levels(model, '{"A": 106.5}', 101.5, "2024-03-02")
+///     >>> period = decompose_period(start, end)
+///     >>> (period.from_date, period.to_date, period.d_generic)
+///     ('2024-03-01', '2024-03-02', 1.5)
 #[pyclass(
     name = "PeriodDecomposition",
     module = "finstack_quant.factor_model.credit",
@@ -482,10 +529,21 @@ impl PyPeriodDecomposition {
 ///         or if an issuer is missing a required hierarchy tag.
 ///
 /// Example:
-///     >>> import json
-///     >>> from finstack_quant.factor_model.credit import decompose_levels
-///     >>> spreads_json = json.dumps({"ISSUER-A": 120.5})
-///     >>> snap = decompose_levels(model, spreads_json, 100.0, "2024-03-29")  # doctest: +SKIP
+///     >>> from finstack_quant.factor_model.credit import CreditCalibrator, decompose_levels
+///     >>> config_json = (
+///     ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
+///     ...     '"vol_model":"sample","covariance_strategy":"diagonal","beta_shrinkage":"none",'
+///     ...     '"use_returns_or_levels":"returns","annualization_factor":12.0}'
+///     ... )
+///     >>> inputs_json = (
+///     ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[100.0,101.0]}},'
+///     ...     '"issuer_tags":{"tags":{"A":{}}},"generic_factor":{"spec":{"name":"G","series_id":"G"},'
+///     ...     '"values":[100.0,101.0]},"as_of":"2024-02-01","as_of_spreads":{"A":101.0},'
+///     ...     '"idiosyncratic_overrides":{}}'
+///     ... )
+///     >>> model = CreditCalibrator(config_json).calibrate(inputs_json)
+///     >>> decompose_levels(model, '{"A": 125.0}', 120.0, "2025-06-30").generic
+///     120.0
 #[pyfunction]
 #[pyo3(signature = (model, observed_spreads_json, observed_generic, as_of, runtime_tags_json=None))]
 fn decompose_levels(
@@ -545,10 +603,23 @@ fn decompose_levels(
 ///         snapshots disagree on hierarchy depth.
 ///
 /// Example:
-///     >>> from finstack_quant.factor_model.credit import decompose_period
-///     >>> period = decompose_period(snap_t0, snap_t1)  # doctest: +SKIP
-///     >>> period.d_generic  # doctest: +SKIP
-///     0.3
+///     >>> from finstack_quant.factor_model.credit import CreditCalibrator, decompose_levels, decompose_period
+///     >>> config_json = (
+///     ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
+///     ...     '"vol_model":"sample","covariance_strategy":"diagonal","beta_shrinkage":"none",'
+///     ...     '"use_returns_or_levels":"returns","annualization_factor":12.0}'
+///     ... )
+///     >>> inputs_json = (
+///     ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[100.0,101.0]}},'
+///     ...     '"issuer_tags":{"tags":{"A":{}}},"generic_factor":{"spec":{"name":"G","series_id":"G"},'
+///     ...     '"values":[100.0,101.0]},"as_of":"2024-02-01","as_of_spreads":{"A":101.0},'
+///     ...     '"idiosyncratic_overrides":{}}'
+///     ... )
+///     >>> model = CreditCalibrator(config_json).calibrate(inputs_json)
+///     >>> start = decompose_levels(model, '{"A": 105.0}', 100.0, "2024-03-01")
+///     >>> end = decompose_levels(model, '{"A": 106.5}', 101.5, "2024-03-02")
+///     >>> decompose_period(start, end).d_generic
+///     1.5
 #[pyfunction]
 fn decompose_period(
     from_levels: &PyLevelsAtDate,
@@ -581,9 +652,23 @@ fn decompose_period(
 /// - ``{"n_steps": N}`` (JSON string) — variance scaled by ``N``.
 ///
 /// Example:
-///     >>> from finstack_quant.factor_model.credit import FactorCovarianceForecast
-///     >>> fcf = FactorCovarianceForecast(model)  # doctest: +SKIP
-///     >>> cov_json = fcf.covariance_at("one_step")  # doctest: +SKIP
+///     >>> import json
+///     >>> from finstack_quant.factor_model.credit import CreditCalibrator, FactorCovarianceForecast
+///     >>> config_json = (
+///     ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
+///     ...     '"vol_model":"sample","covariance_strategy":"diagonal","beta_shrinkage":"none",'
+///     ...     '"use_returns_or_levels":"returns","annualization_factor":12.0}'
+///     ... )
+///     >>> inputs_json = (
+///     ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[100.0,101.0]}},'
+///     ...     '"issuer_tags":{"tags":{"A":{}}},"generic_factor":{"spec":{"name":"G","series_id":"G"},'
+///     ...     '"values":[100.0,101.0]},"as_of":"2024-02-01","as_of_spreads":{"A":101.0},'
+///     ...     '"idiosyncratic_overrides":{}}'
+///     ... )
+///     >>> model = CreditCalibrator(config_json).calibrate(inputs_json)
+///     >>> forecast = FactorCovarianceForecast(model)
+///     >>> json.loads(forecast.covariance_at("one_step"))["factor_ids"]
+///     ['credit::generic']
 #[pyclass(
     name = "FactorCovarianceForecast",
     module = "finstack_quant.factor_model.credit",

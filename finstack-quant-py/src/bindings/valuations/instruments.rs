@@ -193,7 +193,8 @@ impl PyBond {
     /// Raises
     /// ------
     /// ValueError
-    ///     If validation fails.
+    ///     If ``notional`` is not finite and positive or ``issue`` is not
+    ///     strictly before ``maturity``.
     #[staticmethod]
     #[pyo3(
         text_signature = "(id, notional, index_id, margin_bp, issue, maturity, frequency, day_count, discount_curve_id)"
@@ -248,9 +249,21 @@ impl PyBond {
     ///
     /// Examples
     /// --------
+    /// >>> import datetime
+    /// >>> from finstack_quant.core.currency import Currency
+    /// >>> from finstack_quant.core.money import Money
+    /// >>> from finstack_quant.core.types import Rate
     /// >>> from finstack_quant.valuations.instruments import Bond
-    /// >>> callable(Bond.from_json)
-    /// True
+    /// >>> bond = Bond.fixed(
+    /// ...     "B",
+    /// ...     Money(1_000.0, Currency("USD")),
+    /// ...     Rate(0.05),
+    /// ...     datetime.date(2024, 1, 1),
+    /// ...     datetime.date(2029, 1, 1),
+    /// ...     "USD-OIS",
+    /// ... )
+    /// >>> Bond.from_json(bond.to_json()).id
+    /// 'B'
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
     fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
@@ -347,8 +360,8 @@ impl PyTermLoan {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import TermLoan
-    /// >>> callable(TermLoan.from_json)
-    /// True
+    /// >>> TermLoan.from_json(TermLoan.example().to_json()).id
+    /// 'TERM-LOAN-USD-5Y'
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
     fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {

@@ -55,7 +55,8 @@ impl PyFxForward {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import FxForward
-    /// >>> callable(FxForward.builder)
+    /// >>> builder = FxForward.builder()
+    /// >>> builder.id("EXAMPLE") is builder
     /// True
     #[staticmethod]
     #[pyo3(text_signature = "()")]
@@ -88,7 +89,10 @@ impl PyFxForward {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import FxForward
-    /// >>> callable(FxForward.from_json)
+    /// >>> try:
+    /// ...     FxForward.from_json("{}")
+    /// ... except ValueError as exc:
+    /// ...     print("schema" in str(exc))
     /// True
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
@@ -391,7 +395,8 @@ impl PyFxForwardBuilder {
     /// Raises
     /// ------
     /// ValueError
-    ///     If a required field is missing or Rust validation fails (e.g.
+    ///     If the builder was already consumed, a required field is missing,
+    ///     or the completed FX forward fails pricing validation (for example,
     ///     ``base_currency`` equals ``quote_currency``).
     #[pyo3(text_signature = "($self)")]
     fn build(mut slf: PyRefMut<'_, Self>) -> PyResult<PyFxForward> {
@@ -438,7 +443,8 @@ impl PyFxOption {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import FxOption
-    /// >>> callable(FxOption.builder)
+    /// >>> builder = FxOption.builder()
+    /// >>> builder.id("EXAMPLE") is builder
     /// True
     #[staticmethod]
     #[pyo3(text_signature = "()")]
@@ -471,7 +477,10 @@ impl PyFxOption {
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import FxOption
-    /// >>> callable(FxOption.from_json)
+    /// >>> try:
+    /// ...     FxOption.from_json("{}")
+    /// ... except ValueError as exc:
+    /// ...     print("schema" in str(exc))
     /// True
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
@@ -782,7 +791,8 @@ impl PyFxOptionBuilder {
     /// Raises
     /// ------
     /// ValueError
-    ///     If a required field is missing or Rust validation fails (e.g.
+    ///     If the builder was already consumed, a required field is missing,
+    ///     or the completed FX option fails pricing validation (for example,
     ///     ``base_currency`` equals ``quote_currency``).
     #[pyo3(text_signature = "($self)")]
     fn build(mut slf: PyRefMut<'_, Self>) -> PyResult<PyFxOption> {

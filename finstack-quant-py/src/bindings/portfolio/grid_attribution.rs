@@ -56,8 +56,13 @@ use crate::errors::{portfolio_to_py, serde_json_to_py};
 ///
 /// Examples
 /// --------
+/// >>> import json
 /// >>> from finstack_quant.portfolio import grid_attribution
-/// >>> result_json = grid_attribution(portfolio_json, benchmark_json)  # doctest: +SKIP
+/// >>> portfolio = [{"cell": "0-3", "sector": "GOVT", "weight": 1.0, "total_return": 0.02}]
+/// >>> benchmark = [{"cell": "0-3", "sector": "GOVT", "weight": 1.0, "total_return": 0.01}]
+/// >>> result = json.loads(grid_attribution(json.dumps(portfolio), json.dumps(benchmark)))
+/// >>> result["total_selection"]
+/// 0.01
 #[pyfunction]
 #[pyo3(text_signature = "(portfolio_json, benchmark_json)")]
 fn grid_attribution(
@@ -125,9 +130,12 @@ fn grid_attribution(
 /// --------
 /// >>> import json
 /// >>> from finstack_quant.portfolio import grid_attribution, grid_carino_link
-/// >>> jan = grid_attribution(jan_portfolio_json, jan_benchmark_json)  # doctest: +SKIP
-/// >>> feb = grid_attribution(feb_portfolio_json, feb_benchmark_json)  # doctest: +SKIP
-/// >>> linked_json = grid_carino_link(json.dumps([json.loads(jan), json.loads(feb)]))  # doctest: +SKIP
+/// >>> portfolio = [{"cell": "0-3", "sector": "GOVT", "weight": 1.0, "total_return": 0.02}]
+/// >>> benchmark = [{"cell": "0-3", "sector": "GOVT", "weight": 1.0, "total_return": 0.01}]
+/// >>> period = json.loads(grid_attribution(json.dumps(portfolio), json.dumps(benchmark)))
+/// >>> result = json.loads(grid_carino_link(json.dumps([period, period])))
+/// >>> round(result["linked_selection"], 4)
+/// 0.0203
 #[pyfunction]
 #[pyo3(text_signature = "(periods_json)")]
 fn grid_carino_link(py: Python<'_>, periods_json: &str) -> PyResult<String> {
