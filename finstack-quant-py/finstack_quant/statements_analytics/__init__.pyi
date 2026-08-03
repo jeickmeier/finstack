@@ -127,16 +127,18 @@ class SensitivityConfig:
         target_metrics: list[str] = ...,
     ) -> None:
         """
-        Compute   init for `SensitivityConfig`.
+        Define parameter shocks and statement outputs for a sensitivity run.
 
         Parameters
         ----------
-        mode : object
-            Supported selector string or enum value controlling the documented behavior.
-        parameters : object
-            Value supplied for `parameters` to the documented binding operation.
-        target_metrics : object
-            Value supplied for `target_metrics` to the documented binding operation.
+        mode : str
+            Scenario-construction mode accepted by the Rust sensitivity engine,
+            such as ``"Diagonal"``.
+        parameters : list[tuple[str, str, float, list[float]]]
+            Tuples of node ID, model period, base value, and ordered shocked
+            values; an empty list produces no parameter shocks.
+        target_metrics : list[str]
+            Statement node IDs collected for every generated scenario.
 
         Raises
         ------
@@ -165,7 +167,7 @@ class SensitivityConfig:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
@@ -254,18 +256,18 @@ class VarianceConfig:
         periods: list[str],
     ) -> None:
         """
-        Compute   init for `VarianceConfig`.
+        Select the labels, metrics, and periods for a variance report.
 
         Parameters
         ----------
-        baseline_label : object
-            Value supplied for `baseline_label` to the documented binding operation.
-        comparison_label : object
-            Value supplied for `comparison_label` to the documented binding operation.
-        metrics : object
-            Value supplied for `metrics` to the documented binding operation.
-        periods : object
-            Value supplied for `periods` to the documented binding operation.
+        baseline_label : str
+            Reader-facing name for the baseline statement result.
+        comparison_label : str
+            Reader-facing name for the result compared with the baseline.
+        metrics : list[str]
+            Statement node IDs whose absolute and percentage variances are reported.
+        periods : list[str]
+            Parseable model-period labels included in report order.
 
         Raises
         ------
@@ -294,7 +296,7 @@ class VarianceConfig:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
@@ -393,16 +395,16 @@ class ScenarioSet:
         model_ids: dict[str, str] | None = ...,
     ) -> None:
         """
-        Compute   init for `ScenarioSet`.
+        Define named overrides and optional scenario inheritance relationships.
 
         Parameters
         ----------
-        scenarios : object
-            Value supplied for `scenarios` to the documented binding operation.
-        parents : object
-            Value supplied for `parents` to the documented binding operation.
-        model_ids : object
-            Value supplied for `model_ids` to the documented binding operation.
+        scenarios : dict[str, dict[str, float]]
+            Mapping from scenario names to statement node IDs and numeric overrides.
+        parents : dict[str, str] or None, default None
+            Optional mapping from each child scenario to its inherited parent.
+        model_ids : dict[str, str] or None, default None
+            Optional mapping from scenario names to target financial-model IDs.
 
         """
         ...
@@ -425,7 +427,7 @@ class ScenarioSet:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
@@ -492,18 +494,19 @@ class MonteCarloConfig:
         include_path_data: bool = ...,
     ) -> None:
         """
-        Compute   init for `MonteCarloConfig`.
+        Configure reproducible path sampling and retained Monte Carlo outputs.
 
         Parameters
         ----------
-        n_paths : object
-            Value supplied for `n_paths` to the documented binding operation.
-        seed : object
-            Value supplied for `seed` to the documented binding operation.
-        percentiles : object
-            Value supplied for `percentiles` to the documented binding operation.
-        include_path_data : object
-            Value supplied for `include_path_data` to the documented binding operation.
+        n_paths : int
+            Number of stochastic paths evaluated by the statement engine.
+        seed : int
+            Deterministic random-number seed used to reproduce the run.
+        percentiles : list[float] or None, default None
+            Requested decimal quantiles, such as ``0.95``; ``None`` uses the
+            engine defaults.
+        include_path_data : bool, default False
+            Whether to retain individual path values in addition to summaries.
 
         """
         ...
@@ -527,7 +530,7 @@ class MonteCarloConfig:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
@@ -629,7 +632,7 @@ class SensitivityResult:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
@@ -837,7 +840,7 @@ class VarianceReport:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
@@ -925,7 +928,7 @@ class ScenarioResultSet:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
@@ -1008,7 +1011,7 @@ class MonteCarloResults:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
@@ -2416,26 +2419,26 @@ class Exposure:
         dpd: int | None = None,
     ) -> None:
         """
-        Compute   init for `Exposure`.
+        Create one exposure with IFRS 9/CECL credit and maturity assumptions.
 
         Parameters
         ----------
-        id : object
-            Stable identifier used to select the required object or result entry.
-        ead : object
-            Value supplied for `ead` to the documented binding operation.
-        lgd : object
-            Value supplied for `lgd` to the documented binding operation.
-        eir : object
-            Value supplied for `eir` to the documented binding operation.
-        remaining_maturity : object
-            Value supplied for `remaining_maturity` to the documented binding operation.
-        current_pd : object
-            Value supplied for `current_pd` to the documented binding operation.
-        origination_pd : object
-            Value supplied for `origination_pd` to the documented binding operation.
-        dpd : object
-            Value supplied for `dpd` to the documented binding operation.
+        id : str
+            Stable exposure identifier used in ECL results.
+        ead : float
+            Exposure at default in the exposure's base-currency units.
+        lgd : float
+            Loss given default as a decimal fraction.
+        eir : float
+            Effective interest rate as a decimal annual rate.
+        remaining_maturity : float
+            Remaining contractual maturity in years.
+        current_pd : float
+            Current probability of default as a decimal fraction.
+        origination_pd : float
+            Origination probability of default as a decimal fraction.
+        dpd : int or None, default None
+            Days past due used by staging backstops; ``None`` means unavailable.
 
         """
         ...
@@ -2833,20 +2836,20 @@ class ScorecardMetric:
         description: str | None = None,
     ) -> None:
         """
-        Compute   init for `ScorecardMetric`.
+        Define one weighted formula and its rating thresholds.
 
         Parameters
         ----------
-        name : object
-            Value supplied for `name` to the documented binding operation.
-        formula : object
-            Value supplied for `formula` to the documented binding operation.
-        weight : object
-            Portfolio weight expressed as a decimal fraction unless the API states otherwise.
-        thresholds_json : object
-            Canonical JSON payload parsed and validated by the underlying Rust API.
-        description : object
-            Value supplied for `description` to the documented binding operation.
+        name : str
+            Stable metric label used in reports and validation diagnostics.
+        formula : str
+            Statement formula or node expression evaluated for the metric.
+        weight : float, default 1.0
+            Non-negative contribution weight before normalization across usable metrics.
+        thresholds_json : str, default "{}"
+            JSON object mapping rating labels to lower and upper threshold pairs.
+        description : str or None, default None
+            Optional reader-facing explanation of the metric's credit meaning.
 
         Raises
         ------
@@ -2939,7 +2942,7 @@ class ScorecardMetric:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
@@ -2989,18 +2992,19 @@ class ScorecardConfig:
         period: str | None = None,
     ) -> None:
         """
-        Compute   init for `ScorecardConfig`.
+        Configure rating scale, weighted metrics, and rated period selection.
 
         Parameters
         ----------
-        rating_scale : object
-            Value supplied for `rating_scale` to the documented binding operation.
-        metrics : object
-            Value supplied for `metrics` to the documented binding operation.
-        min_rating : object
-            Value supplied for `min_rating` to the documented binding operation.
-        period : object
-            Value supplied for `period` to the documented binding operation.
+        rating_scale : str, default "S&P"
+            Registered rating-scale identifier used to interpret thresholds.
+        metrics : list[ScorecardMetric]
+            Weighted metric definitions included in the composite rating.
+        min_rating : str or None, default None
+            Optional minimum acceptable rating for downstream validation.
+        period : str or None, default None
+            Model period to rate; ``None`` selects the latest actual period,
+            falling back to the last model period.
 
         """
         ...
@@ -3086,7 +3090,7 @@ class ScorecardConfig:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
@@ -3197,7 +3201,7 @@ class ScorecardReport:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
@@ -3412,18 +3416,19 @@ class CorkscrewAccount:
         beginning_balance_node: str | None = None,
     ) -> None:
         """
-        Compute   init for `CorkscrewAccount`.
+        Map a balance-sheet account to its roll-forward input nodes.
 
         Parameters
         ----------
-        node_id : object
-            Stable identifier used to select the required object or result entry.
-        account_type : object
-            Value supplied for `account_type` to the documented binding operation.
-        changes : object
-            Value supplied for `changes` to the documented binding operation.
-        beginning_balance_node : object
-            Value supplied for `beginning_balance_node` to the documented binding operation.
+        node_id : str
+            Statement node receiving the period-end account balance.
+        account_type : AccountType
+            Asset, liability, or equity classification controlling change signs.
+        changes : list[str]
+            Statement node IDs added to or subtracted from the opening balance.
+        beginning_balance_node : str or None, default None
+            Optional explicit opening-balance node; ``None`` uses the account's
+            prior-period balance.
 
         """
         ...
@@ -3500,7 +3505,7 @@ class CorkscrewAccount:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
@@ -3542,16 +3547,16 @@ class CorkscrewConfig:
         fail_on_error: bool = False,
     ) -> None:
         """
-        Compute   init for `CorkscrewConfig`.
+        Configure account roll-forwards and reconciliation failure policy.
 
         Parameters
         ----------
-        accounts : object
-            Value supplied for `accounts` to the documented binding operation.
-        tolerance : object
-            Value supplied for `tolerance` to the documented binding operation.
-        fail_on_error : object
-            Value supplied for `fail_on_error` to the documented binding operation.
+        accounts : list[CorkscrewAccount]
+            Balance-sheet accounts and their change-node mappings.
+        tolerance : float, default 0.01
+            Maximum absolute reconciliation difference in model currency units.
+        fail_on_error : bool, default False
+            Whether any failed account reconciliation makes execution fail.
 
         """
         ...
@@ -3616,7 +3621,7 @@ class CorkscrewConfig:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
@@ -3724,7 +3729,7 @@ class CorkscrewReport:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
@@ -4033,24 +4038,26 @@ class SimpleLeaseSpec:
         occupancy: float = 1.0,
     ) -> None:
         """
-        Compute   init for `SimpleLeaseSpec`.
+        Define a basic lease term, rent, growth, concessions, and occupancy.
 
         Parameters
         ----------
-        node_id : object
-            Stable identifier used to select the required object or result entry.
-        start : object
-            Date used in the documented calculation or scheduling role.
-        base_rent : object
-            Value supplied for `base_rent` to the documented binding operation.
-        end : object
-            Date used in the documented calculation or scheduling role.
-        growth_rate : object
-            Rate or spread expressed in the convention documented for this API.
-        free_rent_periods : object
-            Value supplied for `free_rent_periods` to the documented binding operation.
-        occupancy : object
-            Value supplied for `occupancy` to the documented binding operation.
+        node_id : str
+            Statement node receiving the lease's rental-revenue series.
+        start : str
+            First included model-period label for the lease term.
+        base_rent : float
+            Contractual periodic rent before growth, concessions, and occupancy
+            scaling, in the model's currency units.
+        end : str or None, default None
+            Optional final included model period; ``None`` extends through the
+            model horizon.
+        growth_rate : float, default 0.0
+            Periodic decimal rent-growth rate, such as ``0.03`` for 3%.
+        free_rent_periods : int, default 0
+            Number of initial included periods with rent set to zero.
+        occupancy : float, default 1.0
+            Decimal occupancy multiplier applied to scheduled rent.
 
         Raises
         ------
@@ -4174,7 +4181,7 @@ class SimpleLeaseSpec:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
@@ -4208,14 +4215,14 @@ class RentStepSpec:
 
     def __init__(self, start: str, rent: float) -> None:
         """
-        Compute   init for `RentStepSpec`.
+        Reset a lease's periodic rent from a specified model period onward.
 
         Parameters
         ----------
-        start : object
-            Date used in the documented calculation or scheduling role.
-        rent : object
-            Value supplied for `rent` to the documented binding operation.
+        start : str
+            First model-period label at which the replacement rent applies.
+        rent : float
+            Replacement periodic rent in the model's currency units.
 
         Raises
         ------
@@ -4275,7 +4282,7 @@ class RentStepSpec:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
@@ -4309,14 +4316,14 @@ class FreeRentWindowSpec:
 
     def __init__(self, start: str, periods: int) -> None:
         """
-        Compute   init for `FreeRentWindowSpec`.
+        Define a dated window of consecutive rent-free model periods.
 
         Parameters
         ----------
-        start : object
-            Date used in the documented calculation or scheduling role.
-        periods : object
-            Value supplied for `periods` to the documented binding operation.
+        start : str
+            First model-period label affected by the concession.
+        periods : int
+            Number of consecutive modeled periods with rent set to zero.
 
         Raises
         ------
@@ -4376,7 +4383,7 @@ class FreeRentWindowSpec:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
@@ -4424,20 +4431,20 @@ class RenewalSpec:
         free_rent_periods: int = 0,
     ) -> None:
         """
-        Compute   init for `RenewalSpec`.
+        Define expected-value assumptions for a lease renewal term.
 
         Parameters
         ----------
-        term_periods : object
-            Value supplied for `term_periods` to the documented binding operation.
-        probability : object
-            Value supplied for `probability` to the documented binding operation.
-        downtime_periods : object
-            Value supplied for `downtime_periods` to the documented binding operation.
-        rent_factor : object
-            Value supplied for `rent_factor` to the documented binding operation.
-        free_rent_periods : object
-            Value supplied for `free_rent_periods` to the documented binding operation.
+        term_periods : int
+            Number of modeled periods in the renewal term when renewal occurs.
+        probability : float
+            Decimal renewal probability from zero through one.
+        downtime_periods : int, default 0
+            Vacancy periods between the original lease and renewal.
+        rent_factor : float, default 1.0
+            Multiplier applied to ending scheduled rent for the renewal term.
+        free_rent_periods : int, default 0
+            Initial renewal periods with rent set to zero.
 
         """
         ...
@@ -4535,7 +4542,7 @@ class RenewalSpec:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
@@ -4656,32 +4663,33 @@ class LeaseSpec:
         renewal: RenewalSpec | None = None,
     ) -> None:
         """
-        Compute   init for `LeaseSpec`.
+        Define a lease schedule with escalators, concessions, and renewal terms.
 
         Parameters
         ----------
-        node_id : object
-            Stable identifier used to select the required object or result entry.
-        start : object
-            Date used in the documented calculation or scheduling role.
-        base_rent : object
-            Value supplied for `base_rent` to the documented binding operation.
-        end : object
-            Date used in the documented calculation or scheduling role.
-        growth_rate : object
-            Rate or spread expressed in the convention documented for this API.
-        growth_convention : object
-            Value supplied for `growth_convention` to the documented binding operation.
-        rent_steps : object
-            Value supplied for `rent_steps` to the documented binding operation.
-        free_rent_periods : object
-            Value supplied for `free_rent_periods` to the documented binding operation.
-        free_rent_windows : object
-            Value supplied for `free_rent_windows` to the documented binding operation.
-        occupancy : object
-            Value supplied for `occupancy` to the documented binding operation.
-        renewal : object
-            Value supplied for `renewal` to the documented binding operation.
+        node_id : str
+            Statement node receiving the lease's rental-revenue series.
+        start : str
+            First included model-period label for the lease term.
+        base_rent : float
+            Contractual periodic rent before escalators, concessions, and
+            occupancy scaling, in the model's currency units.
+        end : str or None, default None
+            Optional final included model period; ``None`` extends through horizon.
+        growth_rate : float, default 0.0
+            Decimal rent-growth rate interpreted by ``growth_convention``.
+        growth_convention : LeaseGrowthConvention
+            Whether growth compounds every model period or as an annual step.
+        rent_steps : list[RentStepSpec]
+            Explicit rent resets applied from each step's start period onward.
+        free_rent_periods : int, default 0
+            Number of initial included periods with rent set to zero.
+        free_rent_windows : list[FreeRentWindowSpec]
+            Additional dated rent-free windows within the base lease term.
+        occupancy : float, default 1.0
+            Decimal occupancy multiplier applied to scheduled rent.
+        renewal : RenewalSpec or None, default None
+            Optional expected-value renewal assumptions applied after the base term.
 
         Raises
         ------
@@ -4826,7 +4834,7 @@ class LeaseSpec:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
@@ -4870,18 +4878,18 @@ class RentRollOutputNodes:
         rent_effective_node: str = "rent_effective",
     ) -> None:
         """
-        Compute   init for `RentRollOutputNodes`.
+        Name the four aggregate statement nodes produced by a rent roll.
 
         Parameters
         ----------
-        rent_pgi_node : object
-            Value supplied for `rent_pgi_node` to the documented binding operation.
-        free_rent_node : object
-            Value supplied for `free_rent_node` to the documented binding operation.
-        vacancy_loss_node : object
-            Value supplied for `vacancy_loss_node` to the documented binding operation.
-        rent_effective_node : object
-            Value supplied for `rent_effective_node` to the documented binding operation.
+        rent_pgi_node : str, default "rent_pgi"
+            Node ID for potential gross rent before concessions and vacancy.
+        free_rent_node : str, default "free_rent"
+            Node ID for rent waived through free-rent concessions.
+        vacancy_loss_node : str, default "vacancy_loss"
+            Node ID for the revenue reduction caused by vacancy or occupancy.
+        rent_effective_node : str, default "rent_effective"
+            Node ID for effective rent after concessions and vacancy adjustments.
 
         """
         ...
@@ -4959,7 +4967,7 @@ class RentRollOutputNodes:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
@@ -5048,14 +5056,14 @@ class ManagementFeeSpec:
 
     def __init__(self, rate: float, base: ManagementFeeBase = ...) -> None:
         """
-        Compute   init for `ManagementFeeSpec`.
+        Define a percentage management fee and its revenue base.
 
         Parameters
         ----------
-        rate : object
-            Rate or spread expressed in the convention documented for this API.
-        base : object
-            Value supplied for `base` to the documented binding operation.
+        rate : float
+            Decimal fee rate, such as ``0.03`` for a 3% management fee.
+        base : ManagementFeeBase
+            Effective-rent or EGI base used to calculate the fee.
 
         """
         ...
@@ -5109,7 +5117,7 @@ class ManagementFeeSpec:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
@@ -5165,26 +5173,26 @@ class PropertyTemplateNodes:
         ncf_node: str = "ncf",
     ) -> None:
         """
-        Compute   init for `PropertyTemplateNodes`.
+        Name the generated statement nodes for a property operating template.
 
         Parameters
         ----------
-        rent_roll : object
-            Value supplied for `rent_roll` to the documented binding operation.
-        other_income_total_node : object
-            Value supplied for `other_income_total_node` to the documented binding operation.
-        egi_node : object
-            Value supplied for `egi_node` to the documented binding operation.
-        management_fee_node : object
-            Value supplied for `management_fee_node` to the documented binding operation.
-        opex_total_node : object
-            Value supplied for `opex_total_node` to the documented binding operation.
-        noi_node : object
-            Value supplied for `noi_node` to the documented binding operation.
-        capex_total_node : object
-            Value supplied for `capex_total_node` to the documented binding operation.
-        ncf_node : object
-            Value supplied for `ncf_node` to the documented binding operation.
+        rent_roll : RentRollOutputNodes or None, default None
+            Optional rent-roll output names; ``None`` uses the template defaults.
+        other_income_total_node : str, default "other_income_total"
+            Node ID aggregating other-income components.
+        egi_node : str, default "egi"
+            Node ID for effective gross income after rent and other income.
+        management_fee_node : str, default "management_fee"
+            Node ID for the management-fee expense series.
+        opex_total_node : str, default "opex_total"
+            Node ID aggregating operating-expense components.
+        noi_node : str, default "noi"
+            Node ID for net operating income before capital expenditures.
+        capex_total_node : str, default "capex_total"
+            Node ID aggregating capital-expenditure components.
+        ncf_node : str, default "ncf"
+            Node ID for net cash flow after operating items and capital expenditure.
 
         """
         ...
@@ -5305,7 +5313,7 @@ class PropertyTemplateNodes:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or violates this type's serialized schema.
 
         Examples
         --------
