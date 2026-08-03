@@ -425,13 +425,6 @@
           "format": "double",
           "type": "number"
         },
-        "convexity_id": {
-          "description": "Optional convexity identifier for risk calculations.\n\n**Note**: Currently unused in pricing. Convexity adjustment to the forward\nprice is not yet implemented. This field is reserved for future enhancement\n(e.g., second-order yield sensitivity for long-dated TRS).",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "duration_id": {
           "description": "Optional duration identifier for risk calculations",
           "type": [
@@ -741,7 +734,6 @@
           "underlying": {
             "base_currency": "USD",
             "contract_size": 1.0,
-            "convexity_id": "US-CORP-CONVEXITY",
             "duration_id": "US-CORP-DURATION",
             "index_id": "US-CORP-INDEX",
             "yield_id": "US-CORP-YIELD"

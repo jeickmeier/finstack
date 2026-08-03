@@ -256,12 +256,6 @@ pub struct IndexUnderlyingParams {
     pub yield_id: Option<String>,
     /// Optional duration identifier for risk calculations
     pub duration_id: Option<String>,
-    /// Optional convexity identifier for risk calculations.
-    ///
-    /// **Note**: Currently unused in pricing. Convexity adjustment to the forward
-    /// price is not yet implemented. This field is reserved for future enhancement
-    /// (e.g., second-order yield sensitivity for long-dated TRS).
-    pub convexity_id: Option<String>,
     /// Contract size (index units per contract, defaults to 1.0)
     pub contract_size: f64,
 }
@@ -274,7 +268,6 @@ impl IndexUnderlyingParams {
             base_currency,
             yield_id: None,
             duration_id: None,
-            convexity_id: None,
             contract_size: 1.0,
         }
     }
@@ -288,12 +281,6 @@ impl IndexUnderlyingParams {
     /// Set duration identifier for risk calculations
     pub fn with_duration(mut self, duration_id: impl Into<String>) -> Self {
         self.duration_id = Some(duration_id.into());
-        self
-    }
-
-    /// Set convexity identifier for risk calculations
-    pub fn with_convexity(mut self, convexity_id: impl Into<String>) -> Self {
-        self.convexity_id = Some(convexity_id.into());
         self
     }
 
@@ -317,7 +304,6 @@ impl IndexUnderlyingParams {
         for (field, id) in [
             ("yield_id", self.yield_id.as_deref()),
             ("duration_id", self.duration_id.as_deref()),
-            ("convexity_id", self.convexity_id.as_deref()),
         ] {
             if id.is_some_and(|value| value.trim().is_empty()) {
                 return Err(finstack_quant_core::Error::Validation(format!(
@@ -371,5 +357,19 @@ mod tests {
     fn equity_underlying_primary_curve_id_propagates_unsupported_currency() {
         let params = EquityUnderlyingParams::new("X.AB", PriceId::new("X.AB.SPOT"), Currency::SEK);
         assert!(params.primary_curve_id().is_err());
+    }
+
+    #[test]
+    fn index_underlying_rejects_removed_convexity_id() {
+        let legacy = serde_json::json!({
+            "index_id": "US-CORP-INDEX",
+            "base_currency": "USD",
+            "yield_id": "US-CORP-YIELD",
+            "duration_id": "US-CORP-DURATION",
+            "convexity_id": "US-CORP-CONVEXITY",
+            "contract_size": 1.0,
+        });
+
+        assert!(serde_json::from_value::<IndexUnderlyingParams>(legacy).is_err());
     }
 }

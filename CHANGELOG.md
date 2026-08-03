@@ -4,6 +4,9 @@
 
 ### Changed
 
+- **Breaking (Rust, JSON):** Removed the unused
+  `IndexUnderlyingParams.convexity_id` field and its `with_convexity` builder;
+  fixed-income index TRS pricing never consumed the identifier.
 - **Breaking (Rust, JSON, WASM):** Removed the unwired
   `RateQuote::Futures.vol_surface_id` field and its persisted
   `RateCalibrationQuote` copy. Futures calibration continues to use the

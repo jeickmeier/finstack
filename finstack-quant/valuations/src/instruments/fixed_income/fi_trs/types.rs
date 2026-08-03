@@ -172,7 +172,6 @@ impl FIIndexTotalReturnSwap {
         let underlying = IndexUnderlyingParams::new("US-CORP-INDEX", Currency::USD)
             .with_yield("US-CORP-YIELD")
             .with_duration("US-CORP-DURATION")
-            .with_convexity("US-CORP-CONVEXITY")
             .with_contract_size(1.0);
         let financing = FinancingLegSpec::new(
             "USD-OIS",
