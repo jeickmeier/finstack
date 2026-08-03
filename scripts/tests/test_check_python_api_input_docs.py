@@ -260,3 +260,42 @@ class Widget:
     )
 
     assert [error.message for error in _MODULE.public_callable_errors(fixture)] == ["placeholder class usage example"]
+
+
+def test_generator_boilerplate_patterns_are_rejected() -> None:
+    """Every known false generator template receives a stable diagnostic."""
+    docstring = """Compute   init for `Widget`.
+
+    Value supplied for ``value`` to the documented binding operation.
+    Result of create for this Widget in the annotated representation.
+    If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+    If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+    Stable identifier used to select the required object or result entry.
+    Date used in the documented calculation or scheduling role.
+    Ordered input values consumed by the calculation in the documented representation.
+    Supported selector string or enum value controlling the documented behavior.
+    """
+
+    assert _MODULE.fabricated_doc_messages(docstring) == [
+        "annotated-representation boilerplate",
+        "binding-operation parameter boilerplate",
+        "constructor-summary boilerplate",
+        "ValueError-schema boilerplate",
+        "unspecified-constraint boilerplate",
+        "generic-identifier boilerplate",
+        "generic-date boilerplate",
+        "generic-sequence boilerplate",
+        "generic-selector boilerplate",
+    ]
+
+
+def test_specific_documentation_is_not_rejected_as_boilerplate() -> None:
+    """Concrete identifiers, dates, conventions, and constraints remain valid."""
+    docstring = """Build a dated curve for one exact identifier.
+
+    ``id`` is the exact market-context lookup key. ``base_date`` is the curve
+    valuation date. Values are expiry-major decimal rates. Invalid calendar
+    dates raise ``ValueError`` and an unsupported convention raises ``KeyError``.
+    """
+
+    assert _MODULE.fabricated_doc_messages(docstring) == []

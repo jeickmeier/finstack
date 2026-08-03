@@ -28,6 +28,46 @@ LEGACY_EXAMPLE_PROMPT_RE = re.compile(
 )
 EXAMPLE_SETUP_PROMPT_RE = re.compile(r"^(?:from\s+\S+\s+import\s+.+|import\s+.+)$")
 SECTION_NAMES = frozenset({"Parameters", "Args", "Returns", "Raises", "Examples", "Notes", "Warnings"})
+FABRICATED_DOC_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    (
+        "annotated-representation boilerplate",
+        re.compile(r"\bannotated representation\b", re.IGNORECASE),
+    ),
+    (
+        "binding-operation parameter boilerplate",
+        re.compile(r"Value supplied for `+[^`]+`+ to the documented binding operation\."),
+    ),
+    (
+        "constructor-summary boilerplate",
+        re.compile(r"Compute\s+init for `+[^`]+`+\."),
+    ),
+    (
+        "ValueError-schema boilerplate",
+        re.compile(
+            r"If the JSON payload cannot be parsed or does not satisfy the `+ValueError`+ schema and invariants\."
+        ),
+    ),
+    (
+        "unspecified-constraint boilerplate",
+        re.compile(r"If (?:constructor|supplied) inputs violate the documented .*?constraints\."),
+    ),
+    (
+        "generic-identifier boilerplate",
+        re.compile(r"Stable identifier used to select the required object or result entry\."),
+    ),
+    (
+        "generic-date boilerplate",
+        re.compile(r"Date used in the documented calculation or scheduling role\."),
+    ),
+    (
+        "generic-sequence boilerplate",
+        re.compile(r"Ordered input values consumed by the calculation in the documented representation\."),
+    ),
+    (
+        "generic-selector boilerplate",
+        re.compile(r"Supported selector string or enum value controlling the documented behavior\."),
+    ),
+)
 
 
 class DocumentationError:
@@ -192,6 +232,12 @@ def is_substantive(description: str) -> bool:
     return len(plain_text) >= 16 and GENERIC_DESCRIPTION_RE.fullmatch(plain_text) is None
 
 
+def fabricated_doc_messages(docstring: str) -> list[str]:
+    """Return diagnostics for known generator-emitted documentation boilerplate."""
+    normalized = " ".join(docstring.split())
+    return [message for message, pattern in FABRICATED_DOC_PATTERNS if pattern.search(normalized) is not None]
+
+
 class PublicCallableVisitor:
     """Collect complete API-documentation errors without visiting private helpers."""
 
@@ -200,6 +246,11 @@ class PublicCallableVisitor:
         self.path = path
         self.errors: list[DocumentationError] = []
         self.scope: list[str] = []
+
+    def inspect_fabricated_docs(self, docstring: str, line: int, symbol: str) -> None:
+        """Reject known false boilerplate in one public documentation owner."""
+        for message in fabricated_doc_messages(docstring):
+            self.errors.append(DocumentationError(self.path, line, symbol, message))
 
     def inspect_module(self, tree: ast.Module) -> None:
         """Inspect module-level docs and every public class or callable."""
@@ -212,6 +263,8 @@ class PublicCallableVisitor:
             self.errors.append(DocumentationError(self.path, 1, "module", "missing module usage example"))
         elif not has_substantive_example(docstring):
             self.errors.append(DocumentationError(self.path, 1, "module", "placeholder module usage example"))
+        if docstring is not None:
+            self.inspect_fabricated_docs(docstring, 1, "module")
         self.inspect_body(tree.body)
 
     def inspect_body(self, body: list[ast.stmt], class_docstring: str | None = None) -> None:
@@ -237,6 +290,8 @@ class PublicCallableVisitor:
             self.errors.append(DocumentationError(self.path, node.lineno, symbol, "missing class usage example"))
         elif not has_substantive_example(docstring):
             self.errors.append(DocumentationError(self.path, node.lineno, symbol, "placeholder class usage example"))
+        if docstring is not None:
+            self.inspect_fabricated_docs(docstring, node.lineno, symbol)
         self.inspect_body(node.body, docstring)
 
     def inspect_callable(
@@ -248,7 +303,8 @@ class PublicCallableVisitor:
         parameters = callable_arguments(node)
         symbol_name = "constructor" if node.name == "__init__" else node.name
         symbol = ".".join([*self.scope, symbol_name])
-        docstring = ast.get_docstring(node)
+        owner_docstring = ast.get_docstring(node)
+        docstring = owner_docstring
         if docstring is None and node.name == "__init__":
             docstring = class_docstring
         if docstring is None:
@@ -259,6 +315,8 @@ class PublicCallableVisitor:
             self.errors.append(
                 DocumentationError(self.path, node.lineno, symbol, "missing substantive callable summary")
             )
+        if owner_docstring is not None:
+            self.inspect_fabricated_docs(owner_docstring, node.lineno, symbol)
 
         for parameter in parameters:
             description = parameter_description(docstring, parameter)
