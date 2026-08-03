@@ -666,6 +666,10 @@ export interface DayCount extends WasmOwned {
   /**
    * Compute the year fraction between two dates given as epoch days.
    *
+   * Act/Act ISMA and Bus/252 require explicit frequency/calendar context.
+   * This method throws for those conventions; call
+   * `DayCount.yearFractionWithContext` with a configured `DayCountContext`.
+   *
    * @example
    * ```javascript
    * const dayCount = core.DayCount.act360();
