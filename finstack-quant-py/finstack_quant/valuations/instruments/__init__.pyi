@@ -845,11 +845,6 @@ class InterestRateSwapBuilder:
             If this builder was already consumed by a prior call to
             :meth:`InterestRateSwapBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import InterestRateSwap
-        >>> callable(InterestRateSwap.builder().id)
-        True
         """
         ...
 
@@ -873,11 +868,6 @@ class InterestRateSwapBuilder:
             If this builder was already consumed by a prior call to
             :meth:`InterestRateSwapBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import InterestRateSwap
-        >>> callable(InterestRateSwap.builder().notional)
-        True
         """
         ...
 
@@ -901,11 +891,6 @@ class InterestRateSwapBuilder:
         ValueError
             If ``value`` is not a recognized side.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import InterestRateSwap
-        >>> callable(InterestRateSwap.builder().side)
-        True
         """
         ...
 
@@ -929,11 +914,6 @@ class InterestRateSwapBuilder:
             If this builder was already consumed by a prior call to
             :meth:`InterestRateSwapBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import InterestRateSwap
-        >>> callable(InterestRateSwap.builder().fixed)
-        True
         """
         ...
 
@@ -957,11 +937,6 @@ class InterestRateSwapBuilder:
             If this builder was already consumed by a prior call to
             :meth:`InterestRateSwapBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import InterestRateSwap
-        >>> callable(InterestRateSwap.builder().float)
-        True
         """
         ...
 
@@ -979,11 +954,6 @@ class InterestRateSwapBuilder:
         ValueError
             If a required field is missing or Rust validation fails.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import InterestRateSwap
-        >>> callable(InterestRateSwap.builder().build)
-        True
         """
         ...
 
@@ -1155,11 +1125,6 @@ class SwaptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`SwaptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import Swaption
-        >>> callable(Swaption.builder().id)
-        True
         """
         ...
 
@@ -1182,11 +1147,6 @@ class SwaptionBuilder:
         ValueError
             If ``value`` is not a recognized option type.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import Swaption
-        >>> callable(Swaption.builder().option_type)
-        True
         """
         ...
 
@@ -1210,11 +1170,6 @@ class SwaptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`SwaptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import Swaption
-        >>> callable(Swaption.builder().notional)
-        True
         """
         ...
 
@@ -1238,11 +1193,6 @@ class SwaptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`SwaptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import Swaption
-        >>> callable(Swaption.builder().expiry)
-        True
         """
         ...
 
@@ -1265,11 +1215,6 @@ class SwaptionBuilder:
         ValueError
             If ``value`` is not a recognized exercise style.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import Swaption
-        >>> callable(Swaption.builder().exercise_style)
-        True
         """
         ...
 
@@ -1292,11 +1237,6 @@ class SwaptionBuilder:
         ValueError
             If ``value`` is not a recognized settlement method.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import Swaption
-        >>> callable(Swaption.builder().settlement)
-        True
         """
         ...
 
@@ -1321,11 +1261,6 @@ class SwaptionBuilder:
         ValueError
             If ``value`` is not a recognized cash settlement method.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import Swaption
-        >>> callable(Swaption.builder().cash_settlement_method)
-        True
         """
         ...
 
@@ -1348,11 +1283,6 @@ class SwaptionBuilder:
         ValueError
             If ``value`` is not a recognized volatility model.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import Swaption
-        >>> callable(Swaption.builder().vol_model)
-        True
         """
         ...
 
@@ -1376,11 +1306,6 @@ class SwaptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`SwaptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import Swaption
-        >>> callable(Swaption.builder().vol_surface_id)
-        True
         """
         ...
 
@@ -1404,11 +1329,6 @@ class SwaptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`SwaptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import Swaption
-        >>> callable(Swaption.builder().underlying_fixed_leg)
-        True
         """
         ...
 
@@ -1432,11 +1352,6 @@ class SwaptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`SwaptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import Swaption
-        >>> callable(Swaption.builder().underlying_float_leg)
-        True
         """
         ...
 
@@ -1460,11 +1375,6 @@ class SwaptionBuilder:
         ValueError
             If ``value`` is not valid JSON for the SABR parameters shape.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import Swaption
-        >>> callable(Swaption.builder().sabr_params_json)
-        True
         """
         ...
 
@@ -1482,11 +1392,6 @@ class SwaptionBuilder:
         ValueError
             If a required field is missing or Rust validation fails.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import Swaption
-        >>> callable(Swaption.builder().build)
-        True
         """
         ...
 
@@ -1635,11 +1540,6 @@ class CapFloorBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CapFloorBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CapFloor
-        >>> callable(CapFloor.builder().id)
-        True
         """
         ...
 
@@ -1664,11 +1564,6 @@ class CapFloorBuilder:
         ValueError
             If ``value`` is not a recognized option type.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CapFloor
-        >>> callable(CapFloor.builder().rate_option_type)
-        True
         """
         ...
 
@@ -1692,11 +1587,6 @@ class CapFloorBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CapFloorBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CapFloor
-        >>> callable(CapFloor.builder().notional)
-        True
         """
         ...
 
@@ -1719,11 +1609,6 @@ class CapFloorBuilder:
         ValueError
             If ``value`` is not finite.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CapFloor
-        >>> callable(CapFloor.builder().strike)
-        True
         """
         ...
 
@@ -1746,11 +1631,6 @@ class CapFloorBuilder:
         ValueError
             If ``value`` is not finite.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CapFloor
-        >>> callable(CapFloor.builder().spread)
-        True
         """
         ...
 
@@ -1774,11 +1654,6 @@ class CapFloorBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CapFloorBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CapFloor
-        >>> callable(CapFloor.builder().start_date)
-        True
         """
         ...
 
@@ -1802,11 +1677,6 @@ class CapFloorBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CapFloorBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CapFloor
-        >>> callable(CapFloor.builder().maturity)
-        True
         """
         ...
 
@@ -1830,11 +1700,6 @@ class CapFloorBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CapFloorBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CapFloor
-        >>> callable(CapFloor.builder().frequency)
-        True
         """
         ...
 
@@ -1858,11 +1723,6 @@ class CapFloorBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CapFloorBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CapFloor
-        >>> callable(CapFloor.builder().day_count)
-        True
         """
         ...
 
@@ -1886,11 +1746,6 @@ class CapFloorBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CapFloorBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CapFloor
-        >>> callable(CapFloor.builder().calendar_id)
-        True
         """
         ...
 
@@ -1914,11 +1769,6 @@ class CapFloorBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CapFloorBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CapFloor
-        >>> callable(CapFloor.builder().discount_curve_id)
-        True
         """
         ...
 
@@ -1942,11 +1792,6 @@ class CapFloorBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CapFloorBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CapFloor
-        >>> callable(CapFloor.builder().forward_curve_id)
-        True
         """
         ...
 
@@ -1970,11 +1815,6 @@ class CapFloorBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CapFloorBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CapFloor
-        >>> callable(CapFloor.builder().vol_surface_id)
-        True
         """
         ...
 
@@ -2002,11 +1842,6 @@ class CapFloorBuilder:
         ValueError
             If ``value`` is not a recognized volatility type.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CapFloor
-        >>> callable(CapFloor.builder().vol_type)
-        True
         """
         ...
 
@@ -2030,11 +1865,6 @@ class CapFloorBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CapFloorBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CapFloor
-        >>> callable(CapFloor.builder().vol_shift)
-        True
         """
         ...
 
@@ -2052,11 +1882,6 @@ class CapFloorBuilder:
         ValueError
             If a required field is missing or Rust validation fails.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CapFloor
-        >>> callable(CapFloor.builder().build)
-        True
         """
         ...
 
@@ -2212,11 +2037,6 @@ class CreditDefaultSwapBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CreditDefaultSwapBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
-        >>> callable(CreditDefaultSwap.builder().id)
-        True
         """
         ...
 
@@ -2240,11 +2060,6 @@ class CreditDefaultSwapBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CreditDefaultSwapBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
-        >>> callable(CreditDefaultSwap.builder().notional)
-        True
         """
         ...
 
@@ -2268,11 +2083,6 @@ class CreditDefaultSwapBuilder:
         ValueError
             If ``value`` is not a recognized side.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
-        >>> callable(CreditDefaultSwap.builder().side)
-        True
         """
         ...
 
@@ -2296,11 +2106,6 @@ class CreditDefaultSwapBuilder:
         ValueError
             If ``value`` is not a recognized convention.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
-        >>> callable(CreditDefaultSwap.builder().convention)
-        True
         """
         ...
 
@@ -2324,11 +2129,6 @@ class CreditDefaultSwapBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CreditDefaultSwapBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
-        >>> callable(CreditDefaultSwap.builder().premium)
-        True
         """
         ...
 
@@ -2352,11 +2152,6 @@ class CreditDefaultSwapBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CreditDefaultSwapBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
-        >>> callable(CreditDefaultSwap.builder().protection)
-        True
         """
         ...
 
@@ -2387,11 +2182,6 @@ class CreditDefaultSwapBuilder:
         ValueError
             If ``value`` is not a recognized documentation clause.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
-        >>> callable(CreditDefaultSwap.builder().doc_clause)
-        True
         """
         ...
 
@@ -2417,11 +2207,6 @@ class CreditDefaultSwapBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CreditDefaultSwapBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
-        >>> callable(CreditDefaultSwap.builder().protection_effective_date)
-        True
         """
         ...
 
@@ -2439,11 +2224,6 @@ class CreditDefaultSwapBuilder:
         ValueError
             If a required field is missing or Rust validation fails.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
-        >>> callable(CreditDefaultSwap.builder().build)
-        True
         """
         ...
 
@@ -2610,11 +2390,6 @@ class CDSIndexBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSIndexBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSIndex
-        >>> callable(CDSIndex.builder().id)
-        True
         """
         ...
 
@@ -2638,11 +2413,6 @@ class CDSIndexBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSIndexBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSIndex
-        >>> callable(CDSIndex.builder().index_name)
-        True
         """
         ...
 
@@ -2666,11 +2436,6 @@ class CDSIndexBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSIndexBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSIndex
-        >>> callable(CDSIndex.builder().series)
-        True
         """
         ...
 
@@ -2694,11 +2459,6 @@ class CDSIndexBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSIndexBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSIndex
-        >>> callable(CDSIndex.builder().version)
-        True
         """
         ...
 
@@ -2722,11 +2482,6 @@ class CDSIndexBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSIndexBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSIndex
-        >>> callable(CDSIndex.builder().notional)
-        True
         """
         ...
 
@@ -2751,11 +2506,6 @@ class CDSIndexBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSIndexBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSIndex
-        >>> callable(CDSIndex.builder().index_factor)
-        True
         """
         ...
 
@@ -2779,11 +2529,6 @@ class CDSIndexBuilder:
         ValueError
             If ``value`` is not a recognized side.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSIndex
-        >>> callable(CDSIndex.builder().side)
-        True
         """
         ...
 
@@ -2807,11 +2552,6 @@ class CDSIndexBuilder:
         ValueError
             If ``value`` is not a recognized convention.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSIndex
-        >>> callable(CDSIndex.builder().convention)
-        True
         """
         ...
 
@@ -2835,11 +2575,6 @@ class CDSIndexBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSIndexBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSIndex
-        >>> callable(CDSIndex.builder().premium)
-        True
         """
         ...
 
@@ -2863,11 +2598,6 @@ class CDSIndexBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSIndexBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSIndex
-        >>> callable(CDSIndex.builder().protection)
-        True
         """
         ...
 
@@ -2893,11 +2623,6 @@ class CDSIndexBuilder:
         ValueError
             If ``value`` is not a recognized pricing mode.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSIndex
-        >>> callable(CDSIndex.builder().pricing)
-        True
         """
         ...
 
@@ -2921,11 +2646,6 @@ class CDSIndexBuilder:
         ValueError
             If ``value`` is not valid JSON for the constituent-list shape.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSIndex
-        >>> callable(CDSIndex.builder().constituents_json)
-        True
         """
         ...
 
@@ -2951,11 +2671,6 @@ class CDSIndexBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSIndexBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSIndex
-        >>> callable(CDSIndex.builder().num_constituents)
-        True
         """
         ...
 
@@ -2973,11 +2688,6 @@ class CDSIndexBuilder:
         ValueError
             If a required field is missing or Rust validation fails.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSIndex
-        >>> callable(CDSIndex.builder().build)
-        True
         """
         ...
 
@@ -3132,11 +2842,6 @@ class CDSTrancheBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSTrancheBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSTranche
-        >>> callable(CDSTranche.builder().id)
-        True
         """
         ...
 
@@ -3160,11 +2865,6 @@ class CDSTrancheBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSTrancheBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSTranche
-        >>> callable(CDSTranche.builder().index_name)
-        True
         """
         ...
 
@@ -3188,11 +2888,6 @@ class CDSTrancheBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSTrancheBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSTranche
-        >>> callable(CDSTranche.builder().series)
-        True
         """
         ...
 
@@ -3217,11 +2912,6 @@ class CDSTrancheBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSTrancheBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSTranche
-        >>> callable(CDSTranche.builder().attach_pct)
-        True
         """
         ...
 
@@ -3246,11 +2936,6 @@ class CDSTrancheBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSTrancheBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSTranche
-        >>> callable(CDSTranche.builder().detach_pct)
-        True
         """
         ...
 
@@ -3274,11 +2959,6 @@ class CDSTrancheBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSTrancheBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSTranche
-        >>> callable(CDSTranche.builder().notional)
-        True
         """
         ...
 
@@ -3302,11 +2982,6 @@ class CDSTrancheBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSTrancheBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSTranche
-        >>> callable(CDSTranche.builder().maturity)
-        True
         """
         ...
 
@@ -3330,11 +3005,6 @@ class CDSTrancheBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSTrancheBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSTranche
-        >>> callable(CDSTranche.builder().running_coupon_bp)
-        True
         """
         ...
 
@@ -3358,11 +3028,6 @@ class CDSTrancheBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSTrancheBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSTranche
-        >>> callable(CDSTranche.builder().frequency)
-        True
         """
         ...
 
@@ -3386,11 +3051,6 @@ class CDSTrancheBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSTrancheBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSTranche
-        >>> callable(CDSTranche.builder().day_count)
-        True
         """
         ...
 
@@ -3414,11 +3074,6 @@ class CDSTrancheBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSTrancheBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSTranche
-        >>> callable(CDSTranche.builder().calendar_id)
-        True
         """
         ...
 
@@ -3442,11 +3097,6 @@ class CDSTrancheBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSTrancheBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSTranche
-        >>> callable(CDSTranche.builder().discount_curve_id)
-        True
         """
         ...
 
@@ -3470,11 +3120,6 @@ class CDSTrancheBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSTrancheBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSTranche
-        >>> callable(CDSTranche.builder().credit_index_id)
-        True
         """
         ...
 
@@ -3497,11 +3142,6 @@ class CDSTrancheBuilder:
         ValueError
             If ``value`` is not a recognized side.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSTranche
-        >>> callable(CDSTranche.builder().side)
-        True
         """
         ...
 
@@ -3526,11 +3166,6 @@ class CDSTrancheBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSTrancheBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSTranche
-        >>> callable(CDSTranche.builder().effective_date)
-        True
         """
         ...
 
@@ -3556,11 +3191,6 @@ class CDSTrancheBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSTrancheBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSTranche
-        >>> callable(CDSTranche.builder().accumulated_loss)
-        True
         """
         ...
 
@@ -3585,11 +3215,6 @@ class CDSTrancheBuilder:
             If this builder was already consumed by a prior call to
             :meth:`CDSTrancheBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSTranche
-        >>> callable(CDSTranche.builder().standard_imm_dates)
-        True
         """
         ...
 
@@ -3607,11 +3232,6 @@ class CDSTrancheBuilder:
         ValueError
             If a required field is missing or Rust validation fails.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import CDSTranche
-        >>> callable(CDSTranche.builder().build)
-        True
         """
         ...
 
@@ -3766,11 +3386,6 @@ class ConvertibleBondBuilder:
             If this builder was already consumed by a prior call to
             :meth:`ConvertibleBondBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import ConvertibleBond
-        >>> callable(ConvertibleBond.builder().id)
-        True
         """
         ...
 
@@ -3794,11 +3409,6 @@ class ConvertibleBondBuilder:
             If this builder was already consumed by a prior call to
             :meth:`ConvertibleBondBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import ConvertibleBond
-        >>> callable(ConvertibleBond.builder().notional)
-        True
         """
         ...
 
@@ -3822,11 +3432,6 @@ class ConvertibleBondBuilder:
             If this builder was already consumed by a prior call to
             :meth:`ConvertibleBondBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import ConvertibleBond
-        >>> callable(ConvertibleBond.builder().issue_date)
-        True
         """
         ...
 
@@ -3850,11 +3455,6 @@ class ConvertibleBondBuilder:
             If this builder was already consumed by a prior call to
             :meth:`ConvertibleBondBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import ConvertibleBond
-        >>> callable(ConvertibleBond.builder().maturity)
-        True
         """
         ...
 
@@ -3879,11 +3479,6 @@ class ConvertibleBondBuilder:
             If this builder was already consumed by a prior call to
             :meth:`ConvertibleBondBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import ConvertibleBond
-        >>> callable(ConvertibleBond.builder().discount_curve_id)
-        True
         """
         ...
 
@@ -3909,11 +3504,6 @@ class ConvertibleBondBuilder:
             If this builder was already consumed by a prior call to
             :meth:`ConvertibleBondBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import ConvertibleBond
-        >>> callable(ConvertibleBond.builder().credit_curve_id)
-        True
         """
         ...
 
@@ -3940,11 +3530,6 @@ class ConvertibleBondBuilder:
         ValueError
             If ``value`` is not valid JSON for the ``ConversionSpec`` shape.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import ConvertibleBond
-        >>> callable(ConvertibleBond.builder().conversion_json)
-        True
         """
         ...
 
@@ -3968,11 +3553,6 @@ class ConvertibleBondBuilder:
             If this builder was already consumed by a prior call to
             :meth:`ConvertibleBondBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import ConvertibleBond
-        >>> callable(ConvertibleBond.builder().underlying_equity_id)
-        True
         """
         ...
 
@@ -3996,11 +3576,6 @@ class ConvertibleBondBuilder:
         ValueError
             If ``value`` is not valid JSON for the ``CallPutSchedule`` shape.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import ConvertibleBond
-        >>> callable(ConvertibleBond.builder().call_put_json)
-        True
         """
         ...
 
@@ -4025,11 +3600,6 @@ class ConvertibleBondBuilder:
         ValueError
             If ``value`` is not valid JSON for the ``SoftCallTrigger`` shape.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import ConvertibleBond
-        >>> callable(ConvertibleBond.builder().soft_call_trigger_json)
-        True
         """
         ...
 
@@ -4055,11 +3625,6 @@ class ConvertibleBondBuilder:
             If this builder was already consumed by a prior call to
             :meth:`ConvertibleBondBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import ConvertibleBond
-        >>> callable(ConvertibleBond.builder().settlement_days)
-        True
         """
         ...
 
@@ -4085,11 +3650,6 @@ class ConvertibleBondBuilder:
             If this builder was already consumed by a prior call to
             :meth:`ConvertibleBondBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import ConvertibleBond
-        >>> callable(ConvertibleBond.builder().recovery_rate)
-        True
         """
         ...
 
@@ -4112,11 +3672,6 @@ class ConvertibleBondBuilder:
         ValueError
             If ``value`` is not valid JSON for the ``FixedCouponSpec`` shape.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import ConvertibleBond
-        >>> callable(ConvertibleBond.builder().fixed_coupon_json)
-        True
         """
         ...
 
@@ -4140,11 +3695,6 @@ class ConvertibleBondBuilder:
             If ``value`` is not valid JSON for the ``FloatingCouponSpec``
             shape.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import ConvertibleBond
-        >>> callable(ConvertibleBond.builder().floating_coupon_json)
-        True
         """
         ...
 
@@ -4163,11 +3713,6 @@ class ConvertibleBondBuilder:
             If a required field is missing or Rust validation fails (e.g.
             neither ``ratio`` nor ``price`` set on the conversion terms).
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import ConvertibleBond
-        >>> callable(ConvertibleBond.builder().build)
-        True
         """
         ...
 
@@ -4311,11 +3856,6 @@ class FxForwardBuilder:
             If this builder was already consumed by a prior call to
             :meth:`FxForwardBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxForward
-        >>> callable(FxForward.builder().id)
-        True
         """
         ...
 
@@ -4339,11 +3879,6 @@ class FxForwardBuilder:
             If this builder was already consumed by a prior call to
             :meth:`FxForwardBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxForward
-        >>> callable(FxForward.builder().base_currency)
-        True
         """
         ...
 
@@ -4367,11 +3902,6 @@ class FxForwardBuilder:
             If this builder was already consumed by a prior call to
             :meth:`FxForwardBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxForward
-        >>> callable(FxForward.builder().quote_currency)
-        True
         """
         ...
 
@@ -4395,11 +3925,6 @@ class FxForwardBuilder:
             If this builder was already consumed by a prior call to
             :meth:`FxForwardBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxForward
-        >>> callable(FxForward.builder().maturity)
-        True
         """
         ...
 
@@ -4423,11 +3948,6 @@ class FxForwardBuilder:
             If this builder was already consumed by a prior call to
             :meth:`FxForwardBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxForward
-        >>> callable(FxForward.builder().notional)
-        True
         """
         ...
 
@@ -4453,11 +3973,6 @@ class FxForwardBuilder:
             If this builder was already consumed by a prior call to
             :meth:`FxForwardBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxForward
-        >>> callable(FxForward.builder().contract_rate)
-        True
         """
         ...
 
@@ -4481,11 +3996,6 @@ class FxForwardBuilder:
             If this builder was already consumed by a prior call to
             :meth:`FxForwardBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxForward
-        >>> callable(FxForward.builder().domestic_discount_curve_id)
-        True
         """
         ...
 
@@ -4509,11 +4019,6 @@ class FxForwardBuilder:
             If this builder was already consumed by a prior call to
             :meth:`FxForwardBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxForward
-        >>> callable(FxForward.builder().foreign_discount_curve_id)
-        True
         """
         ...
 
@@ -4539,11 +4044,6 @@ class FxForwardBuilder:
             If this builder was already consumed by a prior call to
             :meth:`FxForwardBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxForward
-        >>> callable(FxForward.builder().spot_rate_override)
-        True
         """
         ...
 
@@ -4567,11 +4067,6 @@ class FxForwardBuilder:
             If this builder was already consumed by a prior call to
             :meth:`FxForwardBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxForward
-        >>> callable(FxForward.builder().base_calendar_id)
-        True
         """
         ...
 
@@ -4595,11 +4090,6 @@ class FxForwardBuilder:
             If this builder was already consumed by a prior call to
             :meth:`FxForwardBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxForward
-        >>> callable(FxForward.builder().quote_calendar_id)
-        True
         """
         ...
 
@@ -4618,11 +4108,6 @@ class FxForwardBuilder:
             If a required field is missing or Rust validation fails (e.g.
             ``base_currency`` equals ``quote_currency``).
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxForward
-        >>> callable(FxForward.builder().build)
-        True
         """
         ...
 
@@ -4768,11 +4253,6 @@ class FxOptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`FxOptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxOption
-        >>> callable(FxOption.builder().id)
-        True
         """
         ...
 
@@ -4796,11 +4276,6 @@ class FxOptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`FxOptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxOption
-        >>> callable(FxOption.builder().base_currency)
-        True
         """
         ...
 
@@ -4824,11 +4299,6 @@ class FxOptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`FxOptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxOption
-        >>> callable(FxOption.builder().quote_currency)
-        True
         """
         ...
 
@@ -4852,11 +4322,6 @@ class FxOptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`FxOptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxOption
-        >>> callable(FxOption.builder().strike)
-        True
         """
         ...
 
@@ -4879,11 +4344,6 @@ class FxOptionBuilder:
         ValueError
             If ``value`` is not a recognized option type.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxOption
-        >>> callable(FxOption.builder().option_type)
-        True
         """
         ...
 
@@ -4909,11 +4369,6 @@ class FxOptionBuilder:
         ValueError
             If ``value`` is not a recognized exercise style.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxOption
-        >>> callable(FxOption.builder().exercise_style)
-        True
         """
         ...
 
@@ -4937,11 +4392,6 @@ class FxOptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`FxOptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxOption
-        >>> callable(FxOption.builder().expiry)
-        True
         """
         ...
 
@@ -4965,11 +4415,6 @@ class FxOptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`FxOptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxOption
-        >>> callable(FxOption.builder().notional)
-        True
         """
         ...
 
@@ -4993,11 +4438,6 @@ class FxOptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`FxOptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxOption
-        >>> callable(FxOption.builder().domestic_discount_curve_id)
-        True
         """
         ...
 
@@ -5021,11 +4461,6 @@ class FxOptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`FxOptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxOption
-        >>> callable(FxOption.builder().foreign_discount_curve_id)
-        True
         """
         ...
 
@@ -5049,11 +4484,6 @@ class FxOptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`FxOptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxOption
-        >>> callable(FxOption.builder().vol_surface_id)
-        True
         """
         ...
 
@@ -5072,11 +4502,6 @@ class FxOptionBuilder:
             If a required field is missing or Rust validation fails (e.g.
             ``base_currency`` equals ``quote_currency``).
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import FxOption
-        >>> callable(FxOption.builder().build)
-        True
         """
         ...
 
@@ -5221,11 +4646,6 @@ class EquityOptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`EquityOptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import EquityOption
-        >>> callable(EquityOption.builder().id)
-        True
         """
         ...
 
@@ -5249,11 +4669,6 @@ class EquityOptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`EquityOptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import EquityOption
-        >>> callable(EquityOption.builder().underlying_ticker)
-        True
         """
         ...
 
@@ -5277,11 +4692,6 @@ class EquityOptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`EquityOptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import EquityOption
-        >>> callable(EquityOption.builder().strike)
-        True
         """
         ...
 
@@ -5304,11 +4714,6 @@ class EquityOptionBuilder:
         ValueError
             If ``value`` is not a recognized option type.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import EquityOption
-        >>> callable(EquityOption.builder().option_type)
-        True
         """
         ...
 
@@ -5332,11 +4737,6 @@ class EquityOptionBuilder:
         ValueError
             If ``value`` is not a recognized exercise style.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import EquityOption
-        >>> callable(EquityOption.builder().exercise_style)
-        True
         """
         ...
 
@@ -5360,11 +4760,6 @@ class EquityOptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`EquityOptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import EquityOption
-        >>> callable(EquityOption.builder().expiry)
-        True
         """
         ...
 
@@ -5388,11 +4783,6 @@ class EquityOptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`EquityOptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import EquityOption
-        >>> callable(EquityOption.builder().notional)
-        True
         """
         ...
 
@@ -5416,11 +4806,6 @@ class EquityOptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`EquityOptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import EquityOption
-        >>> callable(EquityOption.builder().discount_curve_id)
-        True
         """
         ...
 
@@ -5444,11 +4829,6 @@ class EquityOptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`EquityOptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import EquityOption
-        >>> callable(EquityOption.builder().spot_id)
-        True
         """
         ...
 
@@ -5472,11 +4852,6 @@ class EquityOptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`EquityOptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import EquityOption
-        >>> callable(EquityOption.builder().vol_surface_id)
-        True
         """
         ...
 
@@ -5501,11 +4876,6 @@ class EquityOptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`EquityOptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import EquityOption
-        >>> callable(EquityOption.builder().div_yield_id)
-        True
         """
         ...
 
@@ -5531,11 +4901,6 @@ class EquityOptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`EquityOptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import EquityOption
-        >>> callable(EquityOption.builder().discrete_dividends)
-        True
         """
         ...
 
@@ -5560,11 +4925,6 @@ class EquityOptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`EquityOptionBuilder.build`.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import EquityOption
-        >>> callable(EquityOption.builder().exercise_schedule)
-        True
         """
         ...
 
@@ -5582,11 +4942,6 @@ class EquityOptionBuilder:
         ValueError
             If a required field is missing or Rust validation fails.
 
-        Examples
-        --------
-        >>> from finstack_quant.valuations.instruments import EquityOption
-        >>> callable(EquityOption.builder().build)
-        True
         """
         ...
 
