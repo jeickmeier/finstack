@@ -241,8 +241,8 @@ fn almgren_chriss_impact<'py>(
     let out = PyDict::new(py);
     out.set_item("permanent_impact", est.permanent_impact)?;
     out.set_item("temporary_impact", est.temporary_impact)?;
-    out.set_item("total_impact", est.total_impact)?;
-    out.set_item("expected_cost_bp", est.expected_cost_bp)?;
+    out.set_item("total_impact", est.total_cost)?;
+    out.set_item("expected_cost_bp", est.cost_bp)?;
     Ok(out)
 }
 

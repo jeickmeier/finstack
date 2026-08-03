@@ -4,6 +4,10 @@
 
 ### Changed
 
+- **Breaking (Rust):** `almgren_chriss_uniform_impact` now returns the canonical
+  `ImpactEstimate`; the duplicate `AlmgrenChrissImpactView` was removed.
+  Python and WASM retain the established four-key host payload, mapping
+  `total_cost` to `total_impact` and `cost_bp` to `expected_cost_bp`.
 - **Breaking (Rust):** Removed the no-op `JumpEuler::with_max_jumps`
   constructor. Use `JumpEuler::new`; the aggregate jump sampler remains
   uncapped.

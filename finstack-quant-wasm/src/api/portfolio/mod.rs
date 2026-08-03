@@ -1259,7 +1259,13 @@ pub fn almgren_chriss_impact(
         reference_price,
     )
     .map_err(to_js_err)?;
-    serde_json::to_string(&out).map_err(to_js_err)
+    serde_json::to_string(&serde_json::json!({
+        "permanent_impact": out.permanent_impact,
+        "temporary_impact": out.temporary_impact,
+        "total_impact": out.total_cost,
+        "expected_cost_bp": out.cost_bp,
+    }))
+    .map_err(to_js_err)
 }
 
 /// Kyle (1985) linear price impact lambda estimated from observed volumes
@@ -1458,6 +1464,12 @@ mod tests {
 
         let default: serde_json::Value = serde_json::from_str(&default_json).expect("json");
         let priced: serde_json::Value = serde_json::from_str(&priced_json).expect("json");
+        let priced_object = priced.as_object().expect("impact object");
+        assert_eq!(priced_object.len(), 4);
+        assert!(priced_object.contains_key("permanent_impact"));
+        assert!(priced_object.contains_key("temporary_impact"));
+        assert!(priced_object.contains_key("total_impact"));
+        assert!(priced_object.contains_key("expected_cost_bp"));
         let default_bp = default["expected_cost_bp"].as_f64().expect("default bp");
         let priced_bp = priced["expected_cost_bp"].as_f64().expect("priced bp");
 

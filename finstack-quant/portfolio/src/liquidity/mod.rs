@@ -63,19 +63,6 @@ pub use kyle::KyleLambdaModel;
 // Re-export scoring
 pub use scoring::{score_portfolio_liquidity, PortfolioLiquidityReport, PositionLiquidityScore};
 
-/// Legacy binding view for Almgren-Chriss market impact output.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct AlmgrenChrissImpactView {
-    /// Permanent price impact.
-    pub permanent_impact: f64,
-    /// Temporary price impact.
-    pub temporary_impact: f64,
-    /// Total expected impact cost.
-    pub total_impact: f64,
-    /// Expected impact cost in basis points of notional.
-    pub expected_cost_bp: f64,
-}
-
 /// Build and evaluate a uniform Almgren-Chriss market-impact estimate.
 ///
 /// # Arguments
@@ -104,7 +91,7 @@ pub fn almgren_chriss_uniform_impact(
     permanent_impact_coef: f64,
     temporary_impact_coef: f64,
     reference_price: Option<f64>,
-) -> crate::error::Result<AlmgrenChrissImpactView> {
+) -> crate::error::Result<ImpactEstimate> {
     if !avg_daily_volume.is_finite() || avg_daily_volume <= 0.0 {
         return Err(crate::Error::validation(
             "avg_daily_volume must be finite and positive",
@@ -142,11 +129,5 @@ pub fn almgren_chriss_uniform_impact(
         risk_aversion: None,
         reference_price,
     };
-    let est = model.estimate_cost(&params)?;
-    Ok(AlmgrenChrissImpactView {
-        permanent_impact: est.permanent_impact,
-        temporary_impact: est.temporary_impact,
-        total_impact: est.total_cost,
-        expected_cost_bp: est.cost_bp,
-    })
+    model.estimate_cost(&params)
 }
