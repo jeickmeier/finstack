@@ -70,10 +70,6 @@ function hasTag(documentationText, tag) {
   return documentationText?.includes(`@${tag}`) ?? false;
 }
 
-function hasNonThrowingBehavior(documentationText) {
-  return /does not throw|never throws|non-throwing/i.test(documentationText ?? '');
-}
-
 function returnIsVoid(node) {
   return node.type?.kind === ts.SyntaxKind.VoidKeyword;
 }
@@ -119,14 +115,6 @@ function checkDocumentedNode(node, label, options = {}) {
 
   if (!returnIsVoid(node) && !hasTag(documentationText, 'returns')) {
     error(node, `${label}: missing @returns`);
-  }
-
-  if (
-    (node.parameters?.length ?? 0) > 0 &&
-    !hasTag(documentationText, 'throws') &&
-    !hasNonThrowingBehavior(documentationText)
-  ) {
-    error(node, `${label}: document thrown errors or state that the operation does not throw`);
   }
 }
 

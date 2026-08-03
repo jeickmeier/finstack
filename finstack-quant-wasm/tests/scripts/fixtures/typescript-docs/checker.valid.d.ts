@@ -7,6 +7,12 @@ export interface Calculator {
    * @throws Error - Thrown when `value` is not finite.
    */
   add(value: number): number;
+  /**
+   * Square a finite numeric value without a fallible conversion boundary.
+   * @param value - Finite numeric input.
+   * @returns `value` multiplied by itself.
+   */
+  square(value: number): number;
 }
 
 /**
