@@ -71,6 +71,13 @@ pub struct JsPortfolio {
 impl JsPortfolio {
     /// Build from a JSON-serialised `PortfolioSpec`.
     /// @param spec_json - Canonical portfolio specification JSON defining positions, quantities, and base currency.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if `specJson` is malformed or does not match
+    /// the portfolio schema, a position has an invalid quantity or instrument
+    /// specification, or portfolio validation finds duplicate identifiers or an
+    /// unknown entity reference.
     #[wasm_bindgen(js_name = fromSpec)]
     pub fn from_spec(spec_json: &str) -> Result<JsPortfolio, JsValue> {
         let spec: finstack_quant_portfolio::portfolio::PortfolioSpec =
@@ -106,6 +113,11 @@ impl JsPortfolio {
     }
 
     /// Serialise the canonical spec back to JSON.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if the canonical portfolio specification
+    /// cannot be serialized to JSON.
     #[wasm_bindgen(js_name = toSpecJson)]
     pub fn to_spec_json(&self) -> Result<String, JsValue> {
         let spec = self.inner.to_spec();
@@ -117,6 +129,11 @@ impl JsPortfolio {
 ///
 /// Returns the re-serialized canonical JSON form.
 /// @param json_str - Canonical JSON string to validate, parse, or normalize for this API.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `jsonStr` is malformed or does not match the
+/// `PortfolioSpec` schema, or if the canonical form cannot be serialized.
 #[wasm_bindgen(js_name = parsePortfolioSpec)]
 pub fn parse_portfolio_spec(json_str: &str) -> Result<String, JsValue> {
     let spec: finstack_quant_portfolio::portfolio::PortfolioSpec =
@@ -130,6 +147,12 @@ pub fn parse_portfolio_spec(json_str: &str) -> Result<String, JsValue> {
 /// Accepts a JSON array of `SectorPeriod` objects and returns a JSON
 /// `BrinsonPeriodResult`.
 /// @param sectors_json - Canonical JSON payload representing the sectors consumed by this API.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `sectorsJson` is malformed, contains no
+/// sectors or a non-finite weight or return, portfolio or benchmark weights do
+/// not sum to one, or the result cannot be serialized.
 #[wasm_bindgen(js_name = brinsonFachler)]
 pub fn brinson_fachler(sectors_json: &str) -> Result<String, JsValue> {
     let sectors: Vec<finstack_quant_portfolio::SectorPeriod> =
@@ -143,6 +166,13 @@ pub fn brinson_fachler(sectors_json: &str) -> Result<String, JsValue> {
 /// Accepts a JSON array of periods, where each period is an array of
 /// `SectorPeriod` objects, and returns a JSON `CarinoLinkedAttribution`.
 /// @param periods_json - Canonical JSON payload representing the periods consumed by this API.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `periodsJson` is malformed, any period fails
+/// Brinson validation, the sequence is empty or changes sector ordering, a
+/// period return is non-finite or at most `-1`, or the result cannot be
+/// serialized.
 #[wasm_bindgen(js_name = carinoLink)]
 pub fn carino_link(periods_json: &str) -> Result<String, JsValue> {
     let periods: Vec<Vec<finstack_quant_portfolio::SectorPeriod>> =
@@ -173,6 +203,13 @@ pub fn carino_link(periods_json: &str) -> Result<String, JsValue> {
 /// @param portfolio_json - Canonical JSON array of `FiPositionSnapshot` objects describing the portfolio side on the quote-reproducing Z-spread basis; weights must sum to 1.
 /// @param benchmark_json - Canonical JSON array of `FiPositionSnapshot` objects describing the benchmark side on the quote-reproducing Z-spread basis; weights must sum to 1.
 /// @param config_json - Canonical JSON `FiAttributionConfig`; `period_years` is its only field, is required (no default), and unknown keys are rejected.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if any JSON input is malformed; either side is
+/// empty; a value is non-finite; weights do not sum to one; `periodYears` is not
+/// finite and positive; a sector has a zero or near-zero net weight relative to
+/// gross weight; or the result cannot be serialized.
 #[wasm_bindgen(js_name = campisiAttribution)]
 pub fn campisi_attribution(
     portfolio_json: &str,
@@ -207,6 +244,13 @@ pub fn campisi_attribution(
 /// scaled-L1 tolerance, a reconciliation residual is non-finite, or a return
 /// is outside the Carino domain.
 /// @param periods_json - Canonical JSON array of `FiAttributionResult` objects in chronological order, as returned by `campisiAttribution`.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `periodsJson` is malformed, the sequence is
+/// empty or changes sector ordering, a consumed value or reconciliation is
+/// non-finite or inconsistent, a return is at most `-1`, or the linked result
+/// cannot be serialized.
 #[wasm_bindgen(js_name = campisiCarinoLink)]
 pub fn campisi_carino_link(periods_json: &str) -> Result<String, JsValue> {
     let periods: Vec<finstack_quant_portfolio::FiAttributionResult> =
@@ -223,6 +267,12 @@ pub fn campisi_carino_link(periods_json: &str) -> Result<String, JsValue> {
 /// unequal periods. Returns a JSON `FiCarinoLinkedResult`.
 /// @param periods_json - Canonical JSON array of `FiPeriodInput` objects, each holding `portfolio` and `benchmark` arrays of `FiPositionSnapshot`.
 /// @param config_json - Canonical JSON `FiAttributionConfig` applied to every period; `period_years` is its only field and is required (no default).
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if either JSON input is malformed, any period
+/// fails Campisi attribution validation, the computed periods fail Carino
+/// linking validation, or the result cannot be serialized.
 #[wasm_bindgen(js_name = campisiCarinoLinkFromSnapshots)]
 pub fn campisi_carino_link_from_snapshots(
     periods_json: &str,
@@ -247,6 +297,11 @@ pub fn campisi_carino_link_from_snapshots(
 /// `tolerance`.
 /// @param result_json - Canonical JSON `FiAttributionResult` as returned by `campisiAttribution`; unknown fields are rejected.
 /// @param tolerance - Absolute reconciliation tolerance in return units; `1e-10` suits return-space values.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `resultJson` is malformed or does not match
+/// `FiAttributionResult`, or if the reconciliation report cannot be serialized.
 #[wasm_bindgen(js_name = campisiReconciliationCheck)]
 pub fn campisi_reconciliation_check(result_json: &str, tolerance: f64) -> Result<String, JsValue> {
     let result: finstack_quant_portfolio::FiAttributionResult =
@@ -264,6 +319,13 @@ pub fn campisi_reconciliation_check(result_json: &str, tolerance: f64) -> Result
 /// @param referenceJson - Canonical JSON array of `ReferenceReturn` objects (`duration`, `total_return`, both decimals with duration in years); must be non-empty.
 /// @param baseLabel - Label identifying the resulting curve (e.g. `"UST"`), carried through to the output's `base_label` for policy visibility.
 /// @param configJson - Canonical JSON `CellConfig`; `width` is its only field (cell width in years, finite and positive) and is required, with no default.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if either JSON input is malformed, the
+/// reference universe is empty or contains an invalid duration or return, the
+/// cell width is not finite and positive, labels collide, the grid exceeds its
+/// safety bound, or the result cannot be serialized.
 #[wasm_bindgen(js_name = cellReturnsFromReference)]
 pub fn cell_returns_from_reference(
     reference_json: &str,
@@ -294,6 +356,13 @@ pub fn cell_returns_from_reference(
 /// @param maxDuration - Upper bound of the duration grid, in years; must be finite and strictly greater than `horizonYears`.
 /// @param baseLabel - Label identifying the base curve (e.g. `"UST"`, `"USD-SOFR"`), stamped into the result purely for policy visibility.
 /// @param configJson - Canonical JSON `CellConfig`; `width` is its only field and is required, with no default.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `configJson` is malformed; the width,
+/// horizon, or maximum duration is invalid; a cell matures within the holding
+/// period; the grid is too large or has duplicate labels; a required discount
+/// factor is not finite and positive; or the result cannot be serialized.
 #[wasm_bindgen(js_name = cellReturnsFromCurves)]
 pub fn cell_returns_from_curves(
     start: &JsDiscountCurve,
@@ -326,12 +395,14 @@ pub fn cell_returns_from_curves(
 /// from the general level/shape move of the base curve. Returns a JSON
 /// `ExcessReturnResult` with per-position and portfolio-level totals.
 ///
-/// Throws if the table is empty or has empty/duplicate cell labels,
-/// non-finite/negative/zero-width, non-ascending, or overlapping cells; any
-/// position is invalid or falls in no cell (including a valid gap); or
-/// position weights do not sum to one.
 /// @param positionsJson - Canonical JSON array of `ExcessReturnPosition` objects (`id`, `weight`, `duration`, `total_return`); weights must sum to 1.
 /// @param tableJson - Canonical JSON `DurationCellTable`, as returned by `cellReturnsFromReference` or `cellReturnsFromCurves`.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if either JSON input is malformed, the cell
+/// table is invalid, a position is invalid or falls in no cell, position
+/// weights do not sum to one, or the result cannot be serialized.
 #[wasm_bindgen(js_name = excessReturns)]
 pub fn excess_returns(positions_json: &str, table_json: &str) -> Result<String, JsValue> {
     let positions: Vec<finstack_quant_portfolio::ExcessReturnPosition> =
@@ -355,6 +426,13 @@ pub fn excess_returns(positions_json: &str, table_json: &str) -> Result<String, 
 /// (see the Rust module docs for measured magnitudes).
 /// @param portfolioJson - Canonical JSON array of `GridPosition` objects (`cell`, `sector`, `weight`, `total_return`) for the portfolio side; weights must sum to 1.
 /// @param benchmarkJson - Canonical JSON array of `GridPosition` objects for the benchmark side; same weight-sum requirement.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if either JSON input is malformed, a weight or
+/// return is non-finite, either side's weights do not sum to one, a cell or
+/// cell-sector bucket has a zero or near-zero net weight relative to gross
+/// weight, or the result cannot be serialized.
 #[wasm_bindgen(js_name = gridAttribution)]
 pub fn grid_attribution(portfolio_json: &str, benchmark_json: &str) -> Result<String, JsValue> {
     let portfolio: Vec<finstack_quant_portfolio::GridPosition> =
@@ -375,14 +453,13 @@ pub fn grid_attribution(portfolio_json: &str, benchmark_json: &str) -> Result<St
 /// return. Only the three top-level effects are linked; per-cell /
 /// per-(cell, sector) multi-period linking is out of scope. Returns a JSON
 /// `GridCarinoLinkedResult`.
-///
-/// Throws if no periods are supplied; a consumed return or top-level effect
-/// is non-finite; `active_return` disagrees with the portfolio-minus-
-/// benchmark return; the three effect totals do not reconcile to
-/// `active_return` within the overflow-safe scaled-L1 tolerance; a return-
-/// identity or reconciliation residual is non-finite; or a return is outside
-/// the Carino domain.
 /// @param periodsJson - Canonical JSON array of `GridAttributionResult` objects, in chronological order, each the parsed output of `gridAttribution`.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `periodsJson` is malformed, the sequence is
+/// empty, a consumed value is non-finite or inconsistent, a return is at most
+/// `-1`, or the linked result cannot be serialized.
 #[wasm_bindgen(js_name = gridCarinoLink)]
 pub fn grid_carino_link(periods_json: &str) -> Result<String, JsValue> {
     let periods: Vec<finstack_quant_portfolio::GridAttributionResult> =
@@ -401,6 +478,13 @@ pub fn grid_carino_link(periods_json: &str) -> Result<String, JsValue> {
 /// per-factor / per-asset breakdowns.
 /// @param inputJson - Canonical JSON `FactorBrinsonInput` with `asset_ids`, `asset_returns`, `exposures` (row-major n_assets x n_factors), `factor_names`, `portfolio_weights` and `benchmark_weights`; each weight vector must sum to 1.
 /// @param factorReturns - Caller-supplied benchmark factor returns `f_b` as a `number[]` or `Float64Array`, length `input.factor_names`; the `Float64Array` returned by `analytics.constrainedLeastSquares` can be passed directly.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `inputJson` is malformed; the asset or
+/// factor sets are empty; dimensions disagree; a value is non-finite; either
+/// weight vector does not sum to one; benchmark factor completeness is outside
+/// tolerance; or the result cannot be serialized.
 #[wasm_bindgen(js_name = factorBrinsonAttribution)]
 pub fn factor_brinson_attribution(
     input_json: &str,
@@ -415,6 +499,11 @@ pub fn factor_brinson_attribution(
 
 /// Compute a Modified-Dietz TWRR sub-period return from period JSON.
 /// @param period_json - Canonical JSON payload representing the period consumed by this API.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `periodJson` is malformed or does not match
+/// the expected period schema. Invalid financial inputs return `undefined`.
 #[wasm_bindgen(js_name = twrrModifiedDietz)]
 pub fn twrr_modified_dietz(period_json: &str) -> Result<Option<f64>, JsValue> {
     let period: finstack_quant_portfolio::TwrrPeriod =
@@ -425,6 +514,12 @@ pub fn twrr_modified_dietz(period_json: &str) -> Result<Option<f64>, JsValue> {
 /// Geometrically link TWRR sub-period returns from returns JSON.
 /// @param returns_json - Canonical JSON payload representing the returns consumed by this API.
 /// @param horizon_years - Return-linking horizon measured in years for annualization.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `returnsJson` is malformed or a defined
+/// linked result cannot be serialized. Invalid return series produce
+/// `undefined`.
 #[wasm_bindgen(js_name = twrrLinked)]
 pub fn twrr_linked(returns_json: &str, horizon_years: f64) -> Result<Option<String>, JsValue> {
     let returns: Vec<f64> = serde_json::from_str(returns_json).map_err(to_js_err)?;
@@ -435,6 +530,12 @@ pub fn twrr_linked(returns_json: &str, horizon_years: f64) -> Result<Option<Stri
 
 /// Compute money-weighted return via XIRR from dated cashflow JSON.
 /// @param cashflows_json - Canonical JSON payload representing the cashflows consumed by this API.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `cashflowsJson` is malformed, contains an
+/// invalid date or insufficient cash flows for XIRR, or the numerical root
+/// cannot be found.
 #[wasm_bindgen(js_name = mwrXirr)]
 pub fn mwr_xirr(cashflows_json: &str) -> Result<f64, JsValue> {
     let cashflows: Vec<finstack_quant_portfolio::DatedCashflow> =
@@ -447,6 +548,13 @@ pub fn mwr_xirr(cashflows_json: &str) -> Result<f64, JsValue> {
 /// Deserializes the spec, constructs the portfolio with live instruments,
 /// validates structural invariants, then re-serializes for confirmation.
 /// @param spec_json - Canonical portfolio specification JSON defining positions, quantities, and base currency.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `specJson` is malformed or violates the
+/// portfolio schema, a position has an invalid quantity or instrument
+/// specification, portfolio validation fails, or the round-trip form cannot be
+/// serialized.
 #[wasm_bindgen(js_name = buildPortfolioFromSpec)]
 pub fn build_portfolio_from_spec(spec_json: &str) -> Result<String, JsValue> {
     let spec: finstack_quant_portfolio::portfolio::PortfolioSpec =
@@ -460,6 +568,11 @@ pub fn build_portfolio_from_spec(spec_json: &str) -> Result<String, JsValue> {
 
 /// Extract the total portfolio value from a JSON result.
 /// @param result_json - Canonical JSON payload representing the result consumed by this API.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `resultJson` is malformed or does not match
+/// the `PortfolioResult` schema.
 #[wasm_bindgen(js_name = portfolioResultTotalValue)]
 pub fn portfolio_result_total_value(result_json: &str) -> Result<f64, JsValue> {
     let result: finstack_quant_portfolio::results::PortfolioResult =
@@ -473,6 +586,11 @@ pub fn portfolio_result_total_value(result_json: &str) -> Result<f64, JsValue> {
 /// Returns `undefined` (via `Option`) if the metric was not produced.
 /// @param result_json - Canonical JSON payload representing the result consumed by this API.
 /// @param metric_id - Stable metric identifier used to select the required domain object.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `resultJson` is malformed or does not match
+/// the `PortfolioResult` schema. An absent `metricId` returns `undefined`.
 #[wasm_bindgen(js_name = portfolioResultGetMetric)]
 pub fn portfolio_result_get_metric(result_json: &str, metric_id: &str) -> Result<JsValue, JsValue> {
     let result: finstack_quant_portfolio::results::PortfolioResult =
@@ -489,6 +607,13 @@ pub fn portfolio_result_get_metric(result_json: &str, metric_id: &str) -> Result
 /// @param base_currency - ISO-4217 base currency in which aggregate portfolio values are reported.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if either JSON input is malformed,
+/// `baseCurrency` or `asOf` is invalid, valuation currency or date metadata is
+/// inconsistent, a required FX conversion is unavailable or invalid, or the
+/// metrics cannot be serialized.
 #[wasm_bindgen(js_name = aggregateMetrics)]
 pub fn aggregate_metrics(
     valuation_json: &str,
@@ -513,6 +638,13 @@ pub fn aggregate_metrics(
 /// @param spec_json - Canonical portfolio specification JSON defining positions, quantities, and base currency.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param strict_risk - Whether unavailable risk metrics are treated as calculation errors.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the portfolio or market JSON is malformed,
+/// portfolio construction or valuation fails, strict risk calculation cannot
+/// produce a requested metric, a required FX conversion is unavailable, or the
+/// valuation cannot be serialized.
 #[wasm_bindgen(js_name = valuePortfolio)]
 pub fn value_portfolio(
     spec_json: &str,
@@ -526,6 +658,12 @@ pub fn value_portfolio(
 /// Aggregate the full classified cashflow ladder for a portfolio.
 /// @param spec_json - Canonical portfolio specification JSON defining positions, quantities, and base currency.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the portfolio or market JSON is malformed,
+/// portfolio construction fails, monetary cash-flow aggregation overflows, or
+/// the aggregate cannot be serialized.
 #[wasm_bindgen(js_name = aggregateFullCashflows)]
 pub fn aggregate_full_cashflows(spec_json: &str, market_json: &str) -> Result<String, JsValue> {
     let portfolio = JsPortfolio::from_spec(spec_json)?;
@@ -540,6 +678,11 @@ pub fn aggregate_full_cashflows(spec_json: &str, market_json: &str) -> Result<St
 /// scenarios on the same portfolio), this is the cheap path.
 /// @param portfolio - Built portfolio object whose positions and weights are used by the calculation.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `marketJson` is malformed, monetary
+/// cash-flow aggregation overflows, or the aggregate cannot be serialized.
 #[wasm_bindgen(js_name = aggregateFullCashflowsBuilt)]
 pub fn aggregate_full_cashflows_built(
     portfolio: &JsPortfolio,
@@ -560,6 +703,13 @@ pub fn aggregate_full_cashflows_built(
 /// @param portfolio - Built portfolio object whose positions and weights are used by the calculation.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param strict_risk - Whether unavailable risk metrics are treated as calculation errors.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `marketJson` is malformed, portfolio
+/// valuation fails, strict risk calculation cannot produce a requested metric,
+/// a required FX conversion is unavailable, or the valuation cannot be
+/// serialized.
 #[wasm_bindgen(js_name = valuePortfolioBuilt)]
 pub fn value_portfolio_built(
     portfolio: &JsPortfolio,
@@ -588,6 +738,12 @@ pub fn value_portfolio_built(
 /// @param portfolio - Built portfolio object whose positions and weights are used by the calculation.
 /// @param scenario_json - Canonical JSON payload representing the scenario consumed by this API.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the scenario or market JSON is malformed,
+/// scenario application or portfolio revaluation fails, or the structured
+/// result cannot be converted to a JavaScript value.
 #[wasm_bindgen(js_name = applyScenarioAndRevalueBuilt)]
 pub fn apply_scenario_and_revalue_built(
     portfolio: &JsPortfolio,
@@ -615,6 +771,12 @@ pub fn apply_scenario_and_revalue_built(
 /// @param spec_json - Canonical portfolio specification JSON defining positions, quantities, and base currency.
 /// @param scenario_json - Canonical JSON payload representing the scenario consumed by this API.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the portfolio, scenario, or market JSON is
+/// malformed; portfolio construction, scenario application, or revaluation
+/// fails; or the structured result cannot be converted to a JavaScript value.
 #[wasm_bindgen(js_name = applyScenarioAndRevalue)]
 pub fn apply_scenario_and_revalue(
     spec_json: &str,
@@ -636,6 +798,12 @@ pub fn apply_scenario_and_revalue(
 /// @param portfolio - Built portfolio object whose positions and weights are used by the calculation.
 /// @param scenario_json - Canonical JSON payload representing the scenario whose profit-and-loss impact is measured.
 /// @param market_json - Canonical market-context JSON supplying the unshocked curves, quotes, and FX data used for the base leg.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the scenario or market JSON is malformed,
+/// scenario application or either valuation fails, valuation currencies are
+/// inconsistent, or the structured result cannot be converted to JavaScript.
 #[wasm_bindgen(js_name = scenarioPnlBuilt)]
 pub fn scenario_pnl_built(
     portfolio: &JsPortfolio,
@@ -665,6 +833,13 @@ pub fn scenario_pnl_built(
 /// @param spec_json - Canonical portfolio specification JSON defining positions, quantities, and base currency.
 /// @param scenario_json - Canonical JSON payload representing the scenario whose profit-and-loss impact is measured.
 /// @param market_json - Canonical market-context JSON supplying the unshocked curves, quotes, and FX data used for the base leg.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the portfolio, scenario, or market JSON is
+/// malformed; portfolio construction, scenario application, or either
+/// valuation fails; valuation currencies are inconsistent; or the structured
+/// result cannot be converted to JavaScript.
 #[wasm_bindgen(js_name = scenarioPnl)]
 pub fn scenario_pnl(
     spec_json: &str,
@@ -681,6 +856,13 @@ pub fn scenario_pnl(
 /// constraints + options) and a `MarketContext` JSON.
 /// @param spec_json - Canonical portfolio specification JSON defining positions, quantities, and base currency.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if either JSON input is malformed, the
+/// portfolio, objective, constraints, weighting, or missing-metric policy is
+/// invalid, a required market-dependent valuation fails, the solver cannot
+/// produce a result, or the result cannot be serialized.
 #[wasm_bindgen(js_name = optimizePortfolio)]
 pub fn optimize_portfolio(spec_json: &str, market_json: &str) -> Result<String, JsValue> {
     let spec: finstack_quant_portfolio::optimization::PortfolioOptimizationSpec =
@@ -701,6 +883,13 @@ pub fn optimize_portfolio(spec_json: &str, market_json: &str) -> Result<String, 
 /// @param spec_json - Canonical portfolio specification JSON defining positions, quantities, and base currency.
 /// @param snapshots_json - Canonical JSON payload representing the snapshots consumed by this API.
 /// @param config_json - Canonical JSON payload representing the config consumed by this API.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if any JSON input is malformed; the portfolio,
+/// replay configuration, or snapshot dates and ordering are invalid; valuation,
+/// attribution, or currency conversion fails; best-effort replay retains no
+/// step; or the result cannot be serialized.
 #[wasm_bindgen(js_name = replayPortfolio)]
 pub fn replay_portfolio(
     spec_json: &str,
@@ -738,6 +927,13 @@ pub fn replay_portfolio(
 /// @param weights_json - Canonical JSON payload representing the weights consumed by this API.
 /// @param covariance_json - Canonical JSON payload representing the covariance consumed by this API.
 /// @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if any JSON input is malformed; identifier,
+/// weight, or covariance dimensions disagree; the covariance matrix is not
+/// finite, symmetric, and positive semidefinite; `confidence` is not finite and
+/// in `(0.5, 1)`; or the result cannot be serialized.
 #[wasm_bindgen(js_name = parametricVarDecomposition)]
 pub fn parametric_var_decomposition(
     position_ids_json: &str,
@@ -780,6 +976,13 @@ pub fn parametric_var_decomposition(
 /// @param weights_json - Canonical JSON payload representing the weights consumed by this API.
 /// @param covariance_json - Canonical JSON payload representing the covariance consumed by this API.
 /// @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if any JSON input is malformed; identifier,
+/// weight, or covariance dimensions disagree; the covariance matrix is not
+/// finite, symmetric, and positive semidefinite; `confidence` is not finite and
+/// in `(0.5, 1)`; or the result cannot be serialized.
 #[wasm_bindgen(js_name = parametricEsDecomposition)]
 pub fn parametric_es_decomposition(
     position_ids_json: &str,
@@ -817,6 +1020,13 @@ pub fn parametric_es_decomposition(
 /// @param position_ids_json - Canonical JSON payload representing the position ids consumed by this API.
 /// @param position_pnls_json - Canonical JSON payload representing the position pnls consumed by this API.
 /// @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if either JSON input is malformed, position or
+/// scenario dimensions disagree, `confidence` is not finite and in `(0.5, 1)`,
+/// too few scenarios resolve the requested tail, a P-and-L value is non-finite,
+/// or the result cannot be serialized.
 #[wasm_bindgen(js_name = historicalVarDecomposition)]
 pub fn historical_var_decomposition(
     position_ids_json: &str,
@@ -850,6 +1060,13 @@ pub fn historical_var_decomposition(
 /// @param target_var_pct_json - Canonical JSON payload representing the target var pct consumed by this API.
 /// @param portfolio_var - Total portfolio VaR used to convert risk-budget shares into absolute amounts.
 /// @param utilization_threshold - Actual-to-target risk ratio that flags a budget breach.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if any JSON input is malformed, actual or
+/// target arrays do not match the identifier count, non-empty target shares do
+/// not sum to one within tolerance, nonzero component risk is paired with zero
+/// `portfolioVar`, or the result cannot be serialized.
 #[wasm_bindgen(js_name = evaluateRiskBudget)]
 pub fn evaluate_risk_budget(
     position_ids_json: &str,
@@ -914,6 +1131,11 @@ fn flatten_square_matrix(
 /// Effective bid-ask spread via Roll (1984). Returns `undefined` when the
 /// serial covariance is non-negative (Roll assumption violated) or inputs too short.
 /// @param returns_json - Canonical JSON payload representing the returns consumed by this API.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `returnsJson` is malformed or does not
+/// contain a numeric array. Invalid estimator inputs return `undefined`.
 #[wasm_bindgen(js_name = rollEffectiveSpread)]
 pub fn roll_effective_spread(returns_json: &str) -> Result<Option<f64>, JsValue> {
     let returns: Vec<f64> = serde_json::from_str(returns_json).map_err(to_js_err)?;
@@ -925,6 +1147,11 @@ pub fn roll_effective_spread(returns_json: &str) -> Result<Option<f64>, JsValue>
 /// Amihud (2002) illiquidity ratio from returns and volumes.
 /// @param returns_json - Canonical JSON payload representing the returns consumed by this API.
 /// @param volumes_json - Canonical JSON payload representing the volumes consumed by this API.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if either JSON input is malformed or does not
+/// contain a numeric array. Invalid estimator inputs return `undefined`.
 #[wasm_bindgen(js_name = amihudIlliquidity)]
 pub fn amihud_illiquidity(returns_json: &str, volumes_json: &str) -> Result<Option<f64>, JsValue> {
     let returns: Vec<f64> = serde_json::from_str(returns_json).map_err(to_js_err)?;
@@ -972,6 +1199,12 @@ pub fn liquidity_tier(days_to_liquidate: f64) -> String {
 /// @param spread_vol - Volatility of the bid-ask spread in the liquidity model's units.
 /// @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
 /// @param position_value - Current position market value in the relevant currency units.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `var` is non-finite or positive; either
+/// spread input is non-finite or negative; `confidence` is outside `(0, 1)`;
+/// `positionValue` is non-finite; or the result cannot be serialized.
 #[wasm_bindgen(js_name = lvarBangia)]
 pub fn lvar_bangia(
     var: f64,
@@ -999,6 +1232,13 @@ pub fn lvar_bangia(
 /// @param permanent_impact_coef - Permanent market-impact coefficient in the execution-cost model.
 /// @param temporary_impact_coef - Temporary market-impact coefficient in the execution-cost model.
 /// @param reference_price - Optional reference price used to express execution impact in monetary units.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `positionSize` is non-finite; volume,
+/// volatility, or horizon is not finite and positive; an impact coefficient is
+/// outside its valid range; `referencePrice` is present but not finite and
+/// positive; impact calculation fails; or the result cannot be serialized.
 #[wasm_bindgen(js_name = almgrenChrissImpact)]
 pub fn almgren_chriss_impact(
     position_size: f64,
@@ -1026,6 +1266,11 @@ pub fn almgren_chriss_impact(
 /// and returns via the Amihud-ratio proxy. Returns `undefined` on invalid inputs.
 /// @param volumes_json - Canonical JSON payload representing the volumes consumed by this API.
 /// @param returns_json - Canonical JSON payload representing the returns consumed by this API.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if either JSON input is malformed or does not
+/// contain a numeric array. Invalid estimator inputs return `undefined`.
 #[wasm_bindgen(js_name = kyleLambda)]
 pub fn kyle_lambda(volumes_json: &str, returns_json: &str) -> Result<Option<f64>, JsValue> {
     let volumes: Vec<f64> = serde_json::from_str(volumes_json).map_err(to_js_err)?;

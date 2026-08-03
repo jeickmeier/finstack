@@ -16,6 +16,13 @@ use wasm_bindgen::prelude::*;
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 /// @param bump_config_json - Canonical bump-configuration JSON defining factor shock sizes and conventions.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `asOf` is not a valid ISO date; any JSON
+/// input is malformed; a factor definition or bump configuration is invalid or
+/// unsupported; bumping or repricing fails; or the sensitivity matrix cannot be
+/// serialized.
 #[wasm_bindgen(js_name = computeFactorSensitivities)]
 pub fn compute_factor_sensitivities(
     positions_json: &str,
@@ -43,6 +50,13 @@ pub fn compute_factor_sensitivities(
 /// @param market - Market context or JSON payload supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 /// @param bump_config_json - Canonical bump-configuration JSON defining factor shock sizes and conventions.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `asOf` is not a valid ISO date; a position,
+/// factor, or bump-config JSON input is malformed; a factor definition is
+/// invalid or unsupported; bumping or repricing fails; or the sensitivity
+/// matrix cannot be serialized.
 #[wasm_bindgen(js_name = computeFactorSensitivitiesWithMarket)]
 pub fn compute_factor_sensitivities_with_market(
     positions_json: &str,
@@ -74,6 +88,13 @@ pub fn compute_factor_sensitivities_with_market(
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 /// @param bump_config_json - Canonical bump-configuration JSON defining factor shock sizes and conventions.
 /// @param n_scenario_points - Positive number of evenly spaced bump levels in each P-and-L profile.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `asOf` is not a valid ISO date; any JSON
+/// input is malformed; a factor, bump configuration, or scenario-point count is
+/// invalid or unsupported; bumping or repricing fails; or the profiles cannot
+/// be serialized.
 #[wasm_bindgen(js_name = computePnlProfiles)]
 pub fn compute_pnl_profiles(
     positions_json: &str,
@@ -102,6 +123,13 @@ pub fn compute_pnl_profiles(
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 /// @param bump_config_json - Canonical bump-configuration JSON defining factor shock sizes and conventions.
 /// @param n_scenario_points - Positive number of evenly spaced bump levels in each P-and-L profile.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `asOf` is not a valid ISO date; a position,
+/// factor, or bump-config JSON input is malformed; a factor or scenario-point
+/// count is invalid or unsupported; bumping or repricing fails; or the profiles
+/// cannot be serialized.
 #[wasm_bindgen(js_name = computePnlProfilesWithMarket)]
 pub fn compute_pnl_profiles_with_market(
     positions_json: &str,
@@ -141,6 +169,13 @@ pub fn compute_pnl_profiles_with_market(
 /// @param sensitivities_json - Canonical factor-sensitivity result JSON to decompose.
 /// @param covariance_json - Factor covariance-matrix JSON aligned with the supplied sensitivities.
 /// @param risk_measure_json - Risk-measure configuration JSON selecting the decomposition metric.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if any JSON input is malformed; sensitivity
+/// dimensions or factor axes disagree; the covariance matrix or risk measure is
+/// invalid; decomposition produces invalid variance or another non-finite
+/// value; or the result cannot be converted to and serialized as JSON.
 #[wasm_bindgen(js_name = decomposeFactorRisk)]
 pub fn decompose_factor_risk(
     sensitivities_json: &str,
