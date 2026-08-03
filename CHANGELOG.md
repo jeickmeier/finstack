@@ -4,6 +4,9 @@
 
 ### Changed
 
+- **Breaking (Rust):** Removed the public `CagrBasis` and
+  `AnnualizationConvention` configuration types. `Performance::cagr()` keeps
+  its existing date-based Act/365.25 behavior.
 - **Breaking (Rust):** Factor-model configuration, covariance, envelope,
   primitive, and sensitivity types are now exposed only through their existing
   crate-root paths. The `matching`, `credit`, and `schema` modules remain public.

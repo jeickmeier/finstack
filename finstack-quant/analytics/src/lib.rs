@@ -27,9 +27,8 @@
 //!
 //! Result and config types ([`PeriodStats`], [`DrawdownEpisode`],
 //! [`BetaResult`], [`GreeksResult`], [`RollingGreeks`], [`MultiFactorResult`],
-//! [`CagrBasis`], [`AnnualizationConvention`], [`DatedSeries`],
-//! [`LookbackReturns`]) are re-exported here because `Performance` returns
-//! them.
+//! [`DatedSeries`], [`LookbackReturns`]) are re-exported here because
+//! `Performance` returns them.
 //!
 //! Freestanding public exceptions are intentionally narrow:
 //! - [`beta`] is kept public for cross-crate regression use.
@@ -71,4 +70,4 @@ pub use aggregation::PeriodStats;
 pub use benchmark::{beta, BetaResult, GreeksResult, MultiFactorResult, RollingGreeks};
 pub use drawdown::DrawdownEpisode;
 pub use performance::{LookbackReturns, Performance};
-pub use risk_metrics::{AnnualizationConvention, CagrBasis, DatedSeries};
+pub use risk_metrics::DatedSeries;

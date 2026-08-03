@@ -2,10 +2,9 @@
 
 Loads the shared `api_invariants_data.json` fixture and confirms that
 Python `Performance` methods reproduce the regression-style expected
-values for `rolling_greeks` and `multi_factor_greeks`. Methods whose
-expected values come from freestanding-function helpers with explicit
-`CagrBasis` / `ann_factor` are covered by the Rust parity test instead;
-this file focuses on the Performance-mediated path.
+values for `rolling_greeks` and `multi_factor_greeks`. Lower-level CAGR and
+annualization helpers are covered by Rust tests; this file focuses on the
+`Performance`-mediated path.
 """
 
 from __future__ import annotations

@@ -1,7 +1,7 @@
 //! Serde round-trip tests for analytics result types.
 use finstack_quant_analytics::{
-    AnnualizationConvention, BetaResult, DatedSeries, DrawdownEpisode, GreeksResult,
-    LookbackReturns, MultiFactorResult, Performance, PeriodStats, RollingGreeks,
+    BetaResult, DatedSeries, DrawdownEpisode, GreeksResult, LookbackReturns, MultiFactorResult,
+    Performance, PeriodStats, RollingGreeks,
 };
 use finstack_quant_core::dates::{Date, Month, PeriodKind};
 
@@ -130,6 +130,4 @@ fn test_analytics_results_and_configs_roundtrip() {
         values: vec![1.5, 1.6, 1.7],
         dates,
     });
-
-    assert_roundtrip_value(&AnnualizationConvention::Act365_25);
 }

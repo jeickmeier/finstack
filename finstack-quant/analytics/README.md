@@ -89,7 +89,6 @@ already simple returns instead of prices.
 | `PeriodStats` | `aggregation` | Returned by `Performance::period_stats` |
 | `DrawdownEpisode` | `drawdown` | Returned by `Performance::drawdown_details` |
 | `BetaResult`, `GreeksResult`, `RollingGreeks`, `MultiFactorResult` | `benchmark` | Returned by benchmark methods on `Performance` |
-| `CagrBasis`, `AnnualizationConvention` | `risk_metrics` | Configuration types |
 | `DatedSeries` | `risk_metrics` | Returned by `Performance::rolling_*` |
 | `beta` | `benchmark` | Freestanding OLS beta; also used by `finstack-quant-valuations` |
 | `correlation` | `correlation` | Shared row-major correlation validation / repair infrastructure used by valuations and factor-model crates |

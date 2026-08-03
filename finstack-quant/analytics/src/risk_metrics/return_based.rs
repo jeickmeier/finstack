@@ -1,8 +1,6 @@
 //! Return-based risk metrics: mean, volatility, Sharpe, Sortino, CAGR, and more.
 //!
-//! Crate-internal except for [`CagrBasis`] / [`AnnualizationConvention`]
-//! (re-exported at the crate root). `///` doc examples target crate
-//! developers and are marked `ignore`.
+//! This module contains crate-internal building blocks for [`crate::Performance`].
 //!
 //! Most functions operate on `&[f64]` return slices and return scalar `f64`.
 //! Annualization uses the caller-supplied factor (typically from
@@ -30,22 +28,19 @@ pub(crate) fn invalid_annualization_factor(annualize: bool, ann_factor: f64) -> 
 /// for callers that need 365-day year denominators. Add additional
 /// conventions (e.g. an Actual/Actual segment walk) only when an external
 /// caller demands one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum AnnualizationConvention {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum AnnualizationConvention {
     /// Actual calendar days divided by 365.0.
-    #[serde(rename = "act_365_fixed")]
+    #[cfg(test)]
     Act365Fixed,
     /// Actual calendar days divided by 365.25 (default).
     #[default]
-    #[serde(rename = "act_365_25")]
     Act365_25,
 }
 
 /// Basis used to annualize CAGR from either explicit dates or a periods-per-year factor.
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub enum CagrBasis {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum CagrBasis {
     /// Annualize across an explicit calendar range using the chosen convention.
     Dates {
         /// Inclusive start date of the return span.
@@ -56,13 +51,14 @@ pub enum CagrBasis {
         convention: AnnualizationConvention,
     },
     /// Annualize from a periods-per-year factor such as 252 (daily) or 12 (monthly).
+    #[cfg(test)]
     Factor(f64),
 }
 
 impl CagrBasis {
     /// Build a date-based CAGR basis using the default Act/365.25 convention.
     #[must_use]
-    pub fn dates(start: crate::dates::Date, end: crate::dates::Date) -> Self {
+    pub(crate) fn dates(start: crate::dates::Date, end: crate::dates::Date) -> Self {
         Self::Dates {
             start,
             end,
@@ -71,8 +67,9 @@ impl CagrBasis {
     }
 
     /// Build a factor-based CAGR basis from periods per year.
+    #[cfg(test)]
     #[must_use]
-    pub fn factor(ann_factor: f64) -> Self {
+    pub(crate) fn factor(ann_factor: f64) -> Self {
         Self::Factor(ann_factor)
     }
 }
@@ -103,19 +100,6 @@ impl CagrBasis {
 /// date basis has a non-positive span, or a factor basis uses a non-positive or
 /// non-finite annualization factor.
 ///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::risk_metrics::{cagr, CagrBasis};
-/// use finstack_quant_core::dates::{Date, Month};
-///
-/// let start = Date::from_calendar_date(2024, Month::January, 1).unwrap();
-/// let end   = Date::from_calendar_date(2025, Month::January, 1).unwrap();
-/// // Single 10% return over one year → CAGR ≈ 10%.
-/// let c = cagr(&[0.10], CagrBasis::dates(start, end))?;
-/// assert!((c - 0.10).abs() < 0.01);
-/// # Ok::<(), finstack_quant_core::Error>(())
-/// ```
 pub(crate) fn cagr(returns: &[f64], basis: CagrBasis) -> crate::Result<f64> {
     if returns.is_empty() {
         tracing::debug!(reason = "empty_returns", "invalid CAGR input");
@@ -128,6 +112,7 @@ pub(crate) fn cagr(returns: &[f64], basis: CagrBasis) -> crate::Result<f64> {
             end,
             convention,
         } => cagr_from_dates(returns, start, end, convention),
+        #[cfg(test)]
         CagrBasis::Factor(ann_factor) => cagr_from_factor(returns, ann_factor),
     }
 }
@@ -152,6 +137,7 @@ fn cagr_from_dates(
     Ok(total.powf(1.0 / years) - 1.0)
 }
 
+#[cfg(test)]
 fn cagr_from_factor(returns: &[f64], ann_factor: f64) -> crate::Result<f64> {
     if !ann_factor.is_finite() || ann_factor <= 0.0 {
         tracing::debug!(
@@ -181,6 +167,7 @@ fn annualized_years(
     }
 
     match convention {
+        #[cfg(test)]
         AnnualizationConvention::Act365Fixed => days / 365.0,
         AnnualizationConvention::Act365_25 => days / 365.25,
     }
