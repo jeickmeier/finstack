@@ -10,7 +10,9 @@
 
 use crate::dates::Date;
 use crate::math::stats::{correlation, mean, OnlineCovariance, OnlineStats};
+use crate::regression::normalized_svd_least_squares;
 use finstack_quant_core::math::neumaier_sum;
+use nalgebra::DMatrix;
 
 // Recompute the four sliding-window sums (sr, sb, srb, sb²) every 64 steps to
 // bound drift from incremental add/remove updates without turning the whole
@@ -862,70 +864,6 @@ pub struct MultiFactorResult {
     pub residual_vol: f64,
 }
 
-/// OLS via SVD of the design matrix `[1 | f₁ | … | f_k]` (leading intercept
-/// column), solving for `[α, β₁, …, β_k]`.
-///
-/// The design matrix is built directly from the borrowed factor slices: the
-/// intercept column is synthesized inline as `1.0` rather than materialized,
-/// avoiding the `k + 1` intermediate owned column vectors.
-fn svd_least_squares(factors: &[&[f64]], y: &[f64]) -> crate::Result<Vec<f64>> {
-    use nalgebra::{DMatrix, DVector};
-
-    let k = factors.len();
-    let p = k + 1; // intercept + k factors
-    let n = y.len();
-    if n == 0 || factors.iter().any(|column| column.len() != n) {
-        return Err(crate::error::InputError::Invalid.into());
-    }
-
-    // Normalize columns before the SVD so factor scale alone does not trigger
-    // false "singular" classifications in otherwise full-rank regressions.
-    // The intercept column of ones has Euclidean norm sqrt(n).
-    let mut scales = Vec::with_capacity(p);
-    scales.push((n as f64).sqrt());
-    for column in factors {
-        let norm = neumaier_sum(column.iter().map(|value| value * value)).sqrt();
-        if !norm.is_finite() || norm <= 0.0 {
-            return Err(crate::error::InputError::Invalid.into());
-        }
-        scales.push(norm);
-    }
-
-    let mut design = Vec::with_capacity(n * p);
-    for row in 0..n {
-        design.push(1.0 / scales[0]);
-        for (col_idx, column) in factors.iter().enumerate() {
-            design.push(column[row] / scales[col_idx + 1]);
-        }
-    }
-
-    let x_matrix = DMatrix::from_row_slice(n, p, &design);
-    let y_vector = DVector::from_column_slice(y);
-    let svd = x_matrix.svd(true, true);
-    let max_singular = svd.singular_values.iter().copied().fold(0.0_f64, f64::max);
-    let tolerance = 1.0e-10 * max_singular.max(1.0);
-    // A column-norm guard above already rejected zero / non-finite columns,
-    // so any remaining failure is rank-deficiency relative to `p`.
-    let rank = svd
-        .singular_values
-        .iter()
-        .filter(|&&value| value > tolerance)
-        .count();
-    if rank < p {
-        return Err(crate::error::InputError::Invalid.into());
-    }
-
-    let beta_scaled = svd
-        .solve(&y_vector, tolerance)
-        .map_err(|_| crate::error::InputError::Invalid)?;
-
-    Ok(beta_scaled
-        .iter()
-        .zip(scales.iter())
-        .map(|(beta, scale)| beta / scale)
-        .collect())
-}
-
 fn geometric_capture<F>(returns: &[f64], benchmark: &[f64], ann_factor: f64, include: F) -> f64
 where
     F: Fn(f64) -> bool,
@@ -1091,7 +1029,20 @@ pub(crate) fn multi_factor_greeks(
         );
         return Err(crate::error::InputError::DimensionMismatch.into());
     }
-    let beta = svd_least_squares(factors, returns)?;
+    let design = DMatrix::from_fn(
+        n,
+        p,
+        |row, col| {
+            if col == 0 {
+                1.0
+            } else {
+                factors[col - 1][row]
+            }
+        },
+    );
+    let targets = DMatrix::from_column_slice(n, 1, returns);
+    let solutions = normalized_svd_least_squares(design, &targets)?;
+    let beta = solutions.column(0).iter().copied().collect::<Vec<_>>();
 
     let alpha_per_period = beta[0];
     let factor_betas: Vec<f64> = beta[1..].to_vec();

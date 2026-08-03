@@ -31,6 +31,7 @@
 //! - Jeet & Partani (2023): see `docs/REFERENCES.md#jeet-partani-2023`
 
 use finstack_quant_core::error::{InputError, NonFiniteKind};
+use finstack_quant_core::math::neumaier_sum;
 use nalgebra::{DMatrix, DVector};
 
 /// Relative tolerance, on the Cauchy-Schwarz ratio `|w'Xg| / (‖w‖‖Xg‖)`,
@@ -177,7 +178,8 @@ pub fn constrained_least_squares(
     //   f̂ = argmin ‖r − Xf‖²
     //   g = argmin ‖w − Xg‖² = (X'X)⁻¹X'w
     let targets = DMatrix::from_columns(&[r_vector.clone(), w_vector.clone()]);
-    let solutions = no_intercept_least_squares(&x_matrix, &targets)?;
+    let solutions = normalized_svd_least_squares(x_matrix.clone(), &targets)?;
+    ensure_finite(solutions.as_slice())?;
     let f_hat = solutions.column(0).into_owned();
     let g = solutions.column(1).into_owned();
 
@@ -241,44 +243,37 @@ pub fn constrained_least_squares(
     Ok(f.iter().copied().collect())
 }
 
-/// Solve `argmin_B ‖Y − XB‖²` via SVD, with no intercept column.
+/// Solve `argmin_B ‖Y − XB‖²` after normalizing each design column.
 ///
-/// Columns of `x` are scale-normalized before the SVD so that differing
-/// factor magnitudes alone do not trigger false "singular" classifications,
-/// mirroring `benchmark::svd_least_squares`. The returned coefficients are
-/// rescaled back into the original (unscaled) units.
-fn no_intercept_least_squares(
-    x: &DMatrix<f64>,
+/// The caller controls whether the design includes an intercept. The returned
+/// coefficient matrix has one row per design column and one column per target.
+pub(crate) fn normalized_svd_least_squares(
+    mut design: DMatrix<f64>,
     targets: &DMatrix<f64>,
 ) -> crate::Result<DMatrix<f64>> {
-    let (n, p) = x.shape();
+    let (n, p) = design.shape();
     if n == 0 || p == 0 || targets.nrows() != n || targets.ncols() == 0 {
         return Err(InputError::DimensionMismatch.into());
     }
 
     let mut scales = Vec::with_capacity(p);
-    for column in x.column_iter() {
-        let norm = column.norm();
+    for column in design.column_iter() {
+        let norm = neumaier_sum(column.iter().map(|value| value * value)).sqrt();
         if !norm.is_finite() || norm <= 0.0 {
             return Err(InputError::Invalid.into());
         }
         scales.push(norm);
     }
 
-    let mut scaled = x.clone();
     for (col_idx, scale) in scales.iter().enumerate() {
         for row_idx in 0..n {
-            scaled[(row_idx, col_idx)] /= *scale;
+            design[(row_idx, col_idx)] /= *scale;
         }
     }
 
-    let svd = scaled.svd(true, true);
+    let svd = design.svd(true, true);
     let max_singular = svd.singular_values.iter().copied().fold(0.0_f64, f64::max);
-    // No `.max(1.0)` floor needed: every column of `scaled` was normalized
-    // to unit norm above, so `max_singular >= ||scaled * e_i|| = 1` for any
-    // standard basis vector `e_i` — the largest singular value is always at
-    // least 1 by construction, making such a floor a no-op.
-    let tolerance = RANK_TOLERANCE_FACTOR * max_singular;
+    let tolerance = RANK_TOLERANCE_FACTOR * max_singular.max(1.0);
     // The column-norm guard above already rejected zero / non-finite
     // columns, so any remaining shortfall is rank-deficiency relative to `p`.
     let rank = svd
@@ -300,7 +295,6 @@ fn no_intercept_least_squares(
             beta[(row_idx, col_idx)] /= *scale;
         }
     }
-    ensure_finite(beta.as_slice())?;
     Ok(beta)
 }
 
@@ -327,9 +321,7 @@ fn ensure_finite(values: &[f64]) -> crate::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use nalgebra::DMatrix;
-
-    use super::{constrained_least_squares, no_intercept_least_squares};
+    use super::constrained_least_squares;
 
     #[test]
     fn binary_factor_case_matches_hand_closed_form() {
@@ -393,11 +385,9 @@ mod tests {
 
     #[test]
     fn coefficient_rescaling_overflow_fails_closed() {
-        let x = DMatrix::from_row_slice(2, 1, &[1.0e-154, 2.0e-154]);
-        let targets = DMatrix::from_row_slice(2, 1, &[1.0e308, 1.0e308]);
-
-        let err = no_intercept_least_squares(&x, &targets)
-            .expect_err("finite inputs must not produce an infinite rescaled coefficient");
+        let err =
+            constrained_least_squares(&[1.0e-154, 2.0e-154], 1, &[1.0e308, 1.0e308], &[1.0, 1.0])
+                .expect_err("finite inputs must not produce an infinite rescaled coefficient");
         assert!(err.to_string().to_lowercase().contains("finite"), "{err}");
     }
 
@@ -479,7 +469,7 @@ mod tests {
     /// Two factor columns in an exact `2x` proportion (perfectly collinear)
     /// make the 3-asset x 2-factor design matrix rank-deficient: after
     /// column normalization both columns are numerically identical, so the
-    /// underlying `no_intercept_least_squares` SVD solve sees only one
+    /// underlying normalized SVD solve sees only one
     /// non-negligible singular value for two factor columns and must fail
     /// closed rather than silently returning an arbitrary least-norm split
     /// between the two collinear factors.
