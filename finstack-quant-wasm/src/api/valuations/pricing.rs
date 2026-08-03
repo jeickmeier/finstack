@@ -120,6 +120,11 @@ pub(super) fn standard_option_greeks_with_context(
 ///
 /// Validates the input conforms to the `ValuationResult` schema.
 /// @param json - Canonical valuation-result JSON to validate and reserialize.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `json` is malformed or does not match the
+/// `ValuationResult` schema, or the canonical result cannot be serialized.
 #[wasm_bindgen(js_name = validateValuationResultJson)]
 pub fn validate_valuation_result_json(json: &str) -> Result<String, JsValue> {
     let result: ValuationResult = serde_json::from_str(json).map_err(to_js_err)?;
@@ -131,6 +136,12 @@ pub fn validate_valuation_result_json(json: &str) -> Result<String, JsValue> {
 /// Deserializes the input against the known instrument schema and
 /// returns the canonical (re-serialized) JSON.
 /// @param json - Required `finstack_quant.instrument/1` envelope.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `json` is malformed, is not a canonical v1
+/// instrument envelope, fails instrument validation, or cannot be canonically
+/// serialized.
 #[wasm_bindgen(js_name = validateInstrumentJson)]
 pub fn validate_instrument_json(json: &str) -> Result<String, JsValue> {
     finstack_quant_valuations::pricer::validate_instrument_json(json).map_err(|e| to_js_error(&e))
@@ -141,6 +152,12 @@ pub fn validate_instrument_json(json: &str) -> Result<String, JsValue> {
 /// @param schedule_json - Canonical cashflow-schedule JSON used to construct the fixed-income instrument.
 /// @param discount_curve_id - Market-context discount-curve identifier for the instrument currency.
 /// @param quoted_clean - Optional observed clean bond price in the schedule's documented price quotation convention.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `scheduleJson` is malformed or violates
+/// cash-flow invariants, bond construction fails, or the canonical bond
+/// envelope cannot be serialized.
 #[wasm_bindgen(js_name = bondFromCashflowsJson)]
 pub fn bond_from_cashflows_json(
     instrument_id: &str,
@@ -165,6 +182,12 @@ pub fn bond_from_cashflows_json(
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 /// @param model - Optional pricing-model identifier; omit for the instrument-native model.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the instrument or market JSON, `asOf`, or
+/// `model` is invalid; required market data is missing; the selected pricer
+/// fails; or the valuation cannot be serialized.
 #[wasm_bindgen(js_name = priceInstrument)]
 pub fn price_instrument(
     instrument_json: &str,
@@ -194,6 +217,14 @@ pub fn price_instrument(
 /// @param metrics - Optional array of canonical metric identifiers to calculate with the instrument price.
 /// @param pricing_options - Optional JSON pricing overrides accepted by the canonical instrument validator.
 /// @param market_history - Optional serialized historical market snapshots required by historical pricing models.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if an instrument, market, pricing-option, or
+/// market-history payload is invalid; `metrics` is not a string array; `asOf`,
+/// `model`, or a metric identifier is invalid; required market data is missing;
+/// pricing or a metric calculation fails; or the valuation cannot be
+/// serialized.
 #[wasm_bindgen(js_name = priceInstrumentWithMetrics)]
 pub fn price_instrument_with_metrics(
     instrument_json: &str,
@@ -232,6 +263,13 @@ pub fn price_instrument_with_metrics(
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 /// @param model - Pricing-model identifier; use `"default"` for the instrument-native model when supported.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the instrument or market JSON or `asOf` is
+/// invalid, `model` is unsupported or incompatible with the instrument,
+/// required curves are missing, the schedule mixes currencies, canonical
+/// pricing fails, or the cash-flow envelope cannot be serialized.
 #[wasm_bindgen(js_name = instrumentCashflowsJson)]
 pub fn instrument_cashflows_json(
     instrument_json: &str,
@@ -251,6 +289,11 @@ pub fn instrument_cashflows_json(
 }
 
 /// List all metric IDs in the standard metric registry.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the metric identifier list cannot be
+/// converted to a JavaScript value.
 #[wasm_bindgen(js_name = listStandardMetrics)]
 pub fn list_standard_metrics() -> Result<JsValue, JsValue> {
     let ids = finstack_quant_valuations::pricer::list_standard_metrics();
@@ -262,6 +305,11 @@ pub fn list_standard_metrics() -> Result<JsValue, JsValue> {
 /// Returns a JSON object `{ group_name: [metric_id, ...], ... }` where
 /// each key is a human-readable group name (e.g. "Pricing", "Greeks",
 /// "Sensitivity") and the value is a sorted array of metric ID strings.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the grouped metric registry cannot be
+/// converted to a JavaScript value.
 #[wasm_bindgen(js_name = listStandardMetricsGrouped)]
 pub fn list_standard_metrics_grouped() -> Result<JsValue, JsValue> {
     let map = finstack_quant_valuations::pricer::list_standard_metrics_grouped();
@@ -274,6 +322,11 @@ pub fn list_standard_metrics_grouped() -> Result<JsValue, JsValue> {
 /// dispatch coverage: a model with no registered pricer is omitted. Returns a
 /// sorted array of canonical keys (`"discounting"`, `"black76"`, …) accepted by
 /// the `model` argument of `priceInstrument`.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the model key list cannot be converted to
+/// a JavaScript value.
 #[wasm_bindgen(js_name = listModels)]
 pub fn list_models() -> Result<JsValue, JsValue> {
     let models = finstack_quant_valuations::pricer::list_models();
@@ -285,6 +338,11 @@ pub fn list_models() -> Result<JsValue, JsValue> {
 /// Returns a JSON object `{ instrument_type: [model_key, ...], ... }`. Only
 /// instrument types with at least one registered pricer appear, and each entry
 /// lists only the models that can actually price that instrument.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the grouped model registry cannot be
+/// converted to a JavaScript value.
 #[wasm_bindgen(js_name = listModelsGrouped)]
 pub fn list_models_grouped() -> Result<JsValue, JsValue> {
     let grouped = finstack_quant_valuations::pricer::list_models_grouped();
@@ -302,6 +360,12 @@ pub fn list_models_grouped() -> Result<JsValue, JsValue> {
 /// @param market - Market context or JSON payload supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 /// @param model - Pricing-model identifier; use `"default"` for the instrument-native model when supported.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `instrumentJson`, `asOf`, or `model` is
+/// invalid; required market data is missing; the selected pricer fails; or the
+/// valuation cannot be serialized.
 #[wasm_bindgen(js_name = priceInstrumentWithMarket)]
 pub fn price_instrument_with_market(
     instrument_json: &str,
@@ -321,6 +385,13 @@ pub fn price_instrument_with_market(
 /// @param metrics - Array of canonical metric identifiers to calculate with the instrument price.
 /// @param pricing_options - Optional JSON pricing overrides accepted by the canonical instrument validator.
 /// @param market_history - Optional serialized historical market snapshots required by historical pricing models.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if an instrument, pricing-option, or market-
+/// history payload is invalid; `metrics` is not a string array; `asOf`, `model`,
+/// or a metric identifier is invalid; required market data is missing; pricing
+/// or a metric calculation fails; or the valuation cannot be serialized.
 #[wasm_bindgen(js_name = priceInstrumentWithMetricsAndMarket)]
 pub fn price_instrument_with_metrics_and_market(
     instrument_json: &str,
@@ -349,6 +420,13 @@ pub fn price_instrument_with_metrics_and_market(
 /// @param market - Market context or JSON payload supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 /// @param model - Pricing-model identifier; use `"default"` for the instrument-native model when supported.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `instrumentJson` or `asOf` is invalid,
+/// `model` is unsupported or incompatible with the instrument, required curves
+/// are missing, the schedule mixes currencies, canonical pricing fails, or the
+/// cash-flow envelope cannot be serialized.
 #[wasm_bindgen(js_name = instrumentCashflowsWithMarket)]
 pub fn instrument_cashflows_with_market(
     instrument_json: &str,
