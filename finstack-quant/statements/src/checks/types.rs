@@ -6,9 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::types::NodeId;
 
-// ---------------------------------------------------------------------------
 // SignConventionPolicy
-// ---------------------------------------------------------------------------
 
 /// Declared sign convention for a flow / magnitude input to a reconciliation
 /// check.
@@ -97,9 +95,7 @@ impl SignConventionPolicy {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Severity
-// ---------------------------------------------------------------------------
 
 /// Severity level for a check finding, ordered from least to most severe.
 #[derive(
@@ -127,9 +123,7 @@ pub enum Severity {
     Error,
 }
 
-// ---------------------------------------------------------------------------
 // CheckCategory
-// ---------------------------------------------------------------------------
 
 /// Category that groups related checks together.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
@@ -147,9 +141,7 @@ pub enum CheckCategory {
     DataQuality,
 }
 
-// ---------------------------------------------------------------------------
 // PeriodScope
-// ---------------------------------------------------------------------------
 
 /// Scope that determines which periods a check applies to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -163,9 +155,7 @@ pub enum PeriodScope {
     ForecastOnly,
 }
 
-// ---------------------------------------------------------------------------
 // Materiality
-// ---------------------------------------------------------------------------
 
 /// Materiality context attached to a finding, describing its quantitative
 /// significance.
@@ -181,9 +171,7 @@ pub struct Materiality {
     pub reference_label: String,
 }
 
-// ---------------------------------------------------------------------------
 // CheckFinding
-// ---------------------------------------------------------------------------
 
 /// A single finding produced by a check for a specific period or node.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -206,9 +194,7 @@ pub struct CheckFinding {
     pub nodes: Vec<NodeId>,
 }
 
-// ---------------------------------------------------------------------------
 // CheckResult
-// ---------------------------------------------------------------------------
 
 /// Outcome of a single check execution.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -225,9 +211,7 @@ pub struct CheckResult {
     pub findings: Vec<CheckFinding>,
 }
 
-// ---------------------------------------------------------------------------
 // CheckConfig
-// ---------------------------------------------------------------------------
 
 fn default_check_tolerance() -> f64 {
     0.01
@@ -324,9 +308,7 @@ pub(crate) fn effective_tolerance(
     }
 }
 
-// ---------------------------------------------------------------------------
 // CheckSummary
-// ---------------------------------------------------------------------------
 
 /// Aggregate counts for a completed check run.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -345,9 +327,7 @@ pub struct CheckSummary {
     pub infos: usize,
 }
 
-// ---------------------------------------------------------------------------
 // CheckReport
-// ---------------------------------------------------------------------------
 
 /// Full report aggregating all [`CheckResult`]s from a check run.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

@@ -15,9 +15,7 @@ fn q(quarter: u8) -> PeriodId {
     PeriodId::quarter(2025, quarter)
 }
 
-// ---------------------------------------------------------------------------
 // MissingValueCheck
-// ---------------------------------------------------------------------------
 
 #[test]
 fn missing_value_actual_is_error() {
@@ -156,9 +154,7 @@ fn missing_value_forecast_only_scope() {
     assert!(result.passed); // warnings only → passed
 }
 
-// ---------------------------------------------------------------------------
 // SignConventionCheck
-// ---------------------------------------------------------------------------
 
 #[test]
 fn sign_convention_positive_violation() {
@@ -261,9 +257,7 @@ fn sign_convention_clean() {
     assert!(result.findings.is_empty());
 }
 
-// ---------------------------------------------------------------------------
 // NonFiniteCheck
-// ---------------------------------------------------------------------------
 
 #[test]
 fn non_finite_nan_detected() {

@@ -9,9 +9,7 @@ use finstack_quant_statements::checks::{
 };
 use finstack_quant_statements::types::NodeId;
 
-// ---------------------------------------------------------------------------
 // Severity ordering
-// ---------------------------------------------------------------------------
 
 #[test]
 fn severity_ordering_info_lt_warning_lt_error() {
@@ -20,9 +18,7 @@ fn severity_ordering_info_lt_warning_lt_error() {
     assert!(Severity::Info < Severity::Error);
 }
 
-// ---------------------------------------------------------------------------
 // Serde round-trips
-// ---------------------------------------------------------------------------
 
 #[test]
 fn severity_serde_roundtrip() {
@@ -112,9 +108,7 @@ fn materiality_serde_roundtrip() {
     assert_eq!(m, back);
 }
 
-// ---------------------------------------------------------------------------
 // CheckConfig defaults
-// ---------------------------------------------------------------------------
 
 #[test]
 fn check_config_defaults() {
@@ -132,9 +126,7 @@ fn test_check_config_partial_json() {
     assert_eq!(config.min_severity, Severity::Info);
 }
 
-// ---------------------------------------------------------------------------
 // CheckFinding serde
-// ---------------------------------------------------------------------------
 
 #[test]
 fn check_finding_serde_roundtrip() {
@@ -175,9 +167,7 @@ fn check_finding_optional_fields_omitted() {
     assert!(!json.contains("nodes"));
 }
 
-// ---------------------------------------------------------------------------
 // CheckResult.passed logic
-// ---------------------------------------------------------------------------
 
 #[test]
 fn check_result_passed_true_when_no_findings() {
@@ -210,9 +200,7 @@ fn check_result_passed_false_with_error_findings() {
     assert!(!result.passed);
 }
 
-// ---------------------------------------------------------------------------
 // CheckSummary
-// ---------------------------------------------------------------------------
 
 #[test]
 fn check_summary_fields() {
@@ -232,9 +220,7 @@ fn check_summary_fields() {
     assert_eq!(summary.infos, 4);
 }
 
-// ---------------------------------------------------------------------------
 // CheckReport query methods
-// ---------------------------------------------------------------------------
 
 fn sample_report() -> CheckReport {
     let error_finding = CheckFinding {

@@ -3,9 +3,7 @@
 use finstack_quant_statements::prelude::*;
 use indexmap::indexmap;
 
-// ============================================================================
 // Evaluation Context Tests
-// ============================================================================
 
 #[test]
 fn test_context_set_and_get_value() {
@@ -45,9 +43,7 @@ fn test_context_unknown_node_error() {
     assert!(result.is_err());
 }
 
-// ============================================================================
 // Basic Evaluator Tests
-// ============================================================================
 
 #[test]
 fn test_evaluate_value_nodes() {
@@ -276,9 +272,7 @@ fn test_evaluate_complex_expression() {
     assert!((margin - 0.4).abs() < 0.001); // 40% margin
 }
 
-// ============================================================================
 // DAG Construction Tests
-// ============================================================================
 
 #[test]
 fn test_dag_simple_chain() {
@@ -370,9 +364,7 @@ fn test_self_reference_cycle() {
     assert!(result.is_err());
 }
 
-// ============================================================================
 // Integration Tests
-// ============================================================================
 
 #[test]
 fn test_complete_pl_model() {
@@ -538,9 +530,7 @@ fn test_results_metadata() {
     assert!(results.meta.eval_time_ms.unwrap() < 1000); // Should be fast
 }
 
-// ============================================================================
 // evaluate_with_market Tests
-// ============================================================================
 
 #[test]
 fn test_evaluate_with_market_basic() {
@@ -611,9 +601,7 @@ fn test_evaluate_with_market_no_capital_structure() {
     );
 }
 
-// ============================================================================
 // Formula Edge Cases
-// ============================================================================
 
 #[test]
 fn test_shift_function() {
@@ -1040,9 +1028,7 @@ fn test_cumulative_functions() {
     assert_eq!(results.get("cummax_result", &q4).unwrap(), 18.0);
 }
 
-// ============================================================================
 // Forecast Evaluation Error Paths
-// ============================================================================
 
 #[test]
 fn test_forecast_error_no_actual_periods() {
@@ -1110,9 +1096,7 @@ fn test_forecast_error_all_actual_periods() {
     );
 }
 
-// ============================================================================
 // Division by Zero and NaN Handling
-// ============================================================================
 
 #[test]
 fn test_division_by_zero_produces_nan() {
@@ -1209,9 +1193,7 @@ fn test_rolling_functions_edge_cases() {
     assert_eq!(results.get("rolling_count_result", &q4).unwrap(), 3.0);
 }
 
-// ============================================================================
 // Error Handling Tests
-// ============================================================================
 
 #[test]
 fn test_lag_negative_periods_error() {
@@ -1350,9 +1332,7 @@ fn test_ewm_var_insufficient_data() {
         .is_nan());
 }
 
-// ============================================================================
 // Regression tests
-// ============================================================================
 
 /// Nested aggregates under lagged evaluation must not look ahead: the
 /// rolling window evaluated at the lagged period may only see data up to

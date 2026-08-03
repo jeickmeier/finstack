@@ -195,9 +195,7 @@ impl CheckSuiteBuilder {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Serializable suite spec
-// ---------------------------------------------------------------------------
 
 /// Serializable descriptor for a [`CheckSuite`] that can be saved/loaded as
 /// JSON for team-wide check policies.

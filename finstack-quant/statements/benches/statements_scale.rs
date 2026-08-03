@@ -23,9 +23,7 @@ use finstack_quant_statements::prelude::*;
 use indexmap::IndexMap;
 use std::hint::black_box;
 
-// ============================================================================
 // Monte Carlo scaling
-// ============================================================================
 
 /// Build a small forecast model that exercises the Monte Carlo path loop.
 fn build_mc_model() -> FinancialModelSpec {
@@ -81,9 +79,7 @@ fn bench_monte_carlo_scaling(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Rolling-window scaling
-// ============================================================================
 
 /// Build a model with a single value series plus N rolling-aggregate formulas
 /// that all reference it. Catches regressions in shared-history caching.
@@ -140,9 +136,7 @@ fn bench_rolling_window_scaling(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Large LBO-shaped model
-// ============================================================================
 
 /// Build a realistic-shaped LBO/operating model: monthly periods over five
 /// years, ~100 derived nodes referencing a small shared driver set.
@@ -211,9 +205,7 @@ fn bench_large_lbo_model(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Criterion configuration
-// ============================================================================
 
 criterion_group!(
     benches,

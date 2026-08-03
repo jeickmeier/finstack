@@ -21,9 +21,7 @@ fn s(v: f64) -> AmountOrScalar {
     AmountOrScalar::scalar(v)
 }
 
-// ============================================================================
 // Basic passing formula
-// ============================================================================
 
 #[test]
 fn revenue_positive_passes() {
@@ -54,9 +52,7 @@ fn revenue_positive_passes() {
     assert!(result.findings.is_empty());
 }
 
-// ============================================================================
 // Failing formula produces finding
-// ============================================================================
 
 #[test]
 fn failing_formula_produces_finding() {
@@ -90,9 +86,7 @@ fn failing_formula_produces_finding() {
     assert_eq!(result.findings[0].period, Some(q(1)));
 }
 
-// ============================================================================
 // Warning severity does not fail
-// ============================================================================
 
 #[test]
 fn warning_severity_does_not_fail() {
@@ -124,9 +118,7 @@ fn warning_severity_does_not_fail() {
     assert_eq!(result.findings[0].severity, Severity::Warning);
 }
 
-// ============================================================================
 // Arithmetic formula
-// ============================================================================
 
 #[test]
 fn arithmetic_formula_evaluates() {
@@ -159,9 +151,7 @@ fn arithmetic_formula_evaluates() {
     assert!(result.findings.is_empty());
 }
 
-// ============================================================================
 // JSON deserialization
-// ============================================================================
 
 #[test]
 fn json_deserialization_works() {
@@ -183,9 +173,7 @@ fn json_deserialization_works() {
     assert_eq!(check.tolerance, Some(0.01));
 }
 
-// ============================================================================
 // Missing nodes are explicit evaluation errors
-// ============================================================================
 
 #[test]
 fn missing_node_returns_error() {
@@ -214,9 +202,7 @@ fn missing_node_returns_error() {
     assert!(error.to_string().contains("nonexistent"));
 }
 
-// ============================================================================
 // Complex nested expression with parentheses
-// ============================================================================
 
 #[test]
 fn nested_expression_gross_margin() {
@@ -280,9 +266,7 @@ fn nested_expression_gross_margin_fails() {
     assert_eq!(result.findings.len(), 1);
 }
 
-// ============================================================================
 // abs() function
-// ============================================================================
 
 #[test]
 fn abs_function_in_formula() {
@@ -347,9 +331,7 @@ fn abs_function_detects_imbalance() {
     assert_eq!(result.findings.len(), 1);
 }
 
-// ============================================================================
 // Multi-operator expressions
-// ============================================================================
 
 #[test]
 fn multi_operator_addition() {
@@ -383,9 +365,7 @@ fn multi_operator_addition() {
     assert!(result.passed);
 }
 
-// ============================================================================
 // max() / min() functions
-// ============================================================================
 
 #[test]
 fn max_min_functions() {
@@ -430,9 +410,7 @@ fn max_min_functions() {
     assert!(result_min.passed);
 }
 
-// ============================================================================
 // if() conditional
-// ============================================================================
 
 #[test]
 fn if_conditional_formula() {

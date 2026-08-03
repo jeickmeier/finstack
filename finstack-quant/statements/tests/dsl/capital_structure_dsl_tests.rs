@@ -385,9 +385,7 @@ fn test_compile_multiple_instruments() {
     }
 }
 
-// ============================================================================
 // Capital Structure Integration Tests
-// ============================================================================
 
 #[test]
 fn test_aggregate_instrument_cashflows() {

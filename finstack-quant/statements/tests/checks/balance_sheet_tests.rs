@@ -163,10 +163,8 @@ fn within_tolerance_passes() {
     assert!(result.findings.is_empty());
 }
 
-// ============================================================================
 // Fail-open guards: the identity must never pass because its operands are
 // absent (missing nodes sum to zero on both sides → imbalance 0 → "pass").
-// ============================================================================
 
 #[test]
 fn empty_node_group_is_rejected() {

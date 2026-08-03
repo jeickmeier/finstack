@@ -11,9 +11,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
 use finstack_quant_statements::prelude::*;
 
-// ============================================================================
 // Money Currency Preservation Tests
-// ============================================================================
 
 #[test]
 fn test_money_preserves_currency_usd() {
@@ -122,9 +120,7 @@ fn test_money_multi_currency_tracking() {
     assert_eq!(eur_money.currency(), Currency::EUR);
 }
 
-// ============================================================================
 // Scalar Operations Tests
-// ============================================================================
 
 #[test]
 fn test_scalar_values_work_correctly() {
@@ -202,9 +198,7 @@ fn test_mixed_monetary_and_scalar_nodes() {
     );
 }
 
-// ============================================================================
 // Forecast Determinism Tests
-// ============================================================================
 
 #[test]
 fn test_forecast_determinism_with_seed() {
@@ -297,9 +291,7 @@ fn test_lognormal_forecast_determinism() {
     }
 }
 
-// ============================================================================
 // Results Metadata Tests
-// ============================================================================
 
 #[test]
 fn test_results_metadata_includes_numeric_mode() {
@@ -344,9 +336,7 @@ fn test_results_metadata_timing() {
     assert!(results.meta.eval_time_ms.is_some());
 }
 
-// ============================================================================
 // Builder Method Tests
-// ============================================================================
 
 #[test]
 fn test_value_method_with_amount_or_scalar() {
@@ -392,9 +382,7 @@ fn test_compute_method_with_formula() {
     );
 }
 
-// ============================================================================
 // Formula Operations with Money Tests
-// ============================================================================
 
 #[test]
 fn test_formula_with_monetary_nodes() {
@@ -431,9 +419,7 @@ fn test_formula_with_monetary_nodes() {
     ));
 }
 
-// ============================================================================
 // Results Accessor Tests
-// ============================================================================
 
 #[test]
 fn test_get_scalar_returns_none_for_monetary() {
@@ -490,9 +476,7 @@ fn test_get_money_returns_none_for_scalar() {
     );
 }
 
-// ============================================================================
 // AmountOrScalar Tests
-// ============================================================================
 
 #[test]
 fn test_amount_or_scalar_as_money() {
@@ -516,9 +500,7 @@ fn test_amount_or_scalar_from_money() {
     assert_eq!(aos.currency(), Some(Currency::EUR));
 }
 
-// ============================================================================
 // NodeValueType Serialization Tests
-// ============================================================================
 
 #[test]
 fn test_node_value_type_serialization() {
@@ -535,9 +517,7 @@ fn test_node_value_type_serialization() {
     assert_eq!(scalar, deserialized);
 }
 
-// ============================================================================
 // NumericMode Tests
-// ============================================================================
 
 #[test]
 fn test_numeric_mode_serialization() {
@@ -550,9 +530,7 @@ fn test_numeric_mode_serialization() {
     assert_eq!(json2, r#""decimal""#);
 }
 
-// ============================================================================
 // Builder API Tests
-// ============================================================================
 
 #[test]
 fn test_value_money_builder_api() {

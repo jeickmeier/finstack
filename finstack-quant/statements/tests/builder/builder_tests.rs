@@ -2,9 +2,7 @@
 
 use finstack_quant_statements::prelude::*;
 
-// ============================================================================
 // Period Integration Tests
-// ============================================================================
 
 #[test]
 fn test_periods_parsing() {
@@ -72,9 +70,7 @@ fn test_model_serialization() {
     assert_eq!(model.periods.len(), deserialized.periods.len());
 }
 
-// ============================================================================
 // Value Node Tests
-// ============================================================================
 
 #[test]
 fn test_value_node_single_period() {
@@ -284,9 +280,7 @@ fn test_schema_version() {
     assert_eq!(u32::from(model.schema_version), 1);
 }
 
-// ============================================================================
 // Complex Integration Tests
-// ============================================================================
 
 #[test]
 fn test_basic_pl_model() {
@@ -397,9 +391,7 @@ fn test_model_with_multiple_currencies() {
     );
 }
 
-// ============================================================================
 // NodeSpec Builder Method Tests
-// ============================================================================
 
 #[test]
 fn test_node_spec_with_tags() {
@@ -507,9 +499,7 @@ fn test_forecast_spec_helpers() {
     assert_eq!(lognormal.method, ForecastMethod::LogNormal);
 }
 
-// ============================================================================
 // AmountOrScalar Tests
-// ============================================================================
 
 #[test]
 fn test_amount_or_scalar_from_conversions() {
@@ -528,9 +518,7 @@ fn test_amount_or_scalar_from_conversions() {
     assert_eq!(amount.currency(), Some(Currency::USD));
 }
 
-// ============================================================================
 // Node ID Validation Tests
-// ============================================================================
 
 /// Test that node IDs containing the reserved __cs__ prefix are rejected.
 /// This prefix is used internally for capital structure references.

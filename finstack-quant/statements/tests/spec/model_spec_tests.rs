@@ -84,9 +84,7 @@ fn test_model_spec_get_node_none() {
     assert!(model.get_node_mut("nonexistent").is_none());
 }
 
-// ============================================================================
 // Results Method Tests
-// ============================================================================
 
 #[test]
 fn test_results_get_node() {
@@ -162,9 +160,7 @@ fn test_results_get_or() {
     assert_eq!(results.get_or("nonexistent", &q1, -1.0), -1.0);
 }
 
-// ============================================================================
 // FinancialModelSpec Metadata Tests
-// ============================================================================
 
 #[test]
 fn test_model_spec_with_metadata() {
@@ -183,9 +179,7 @@ fn test_model_spec_with_metadata() {
     assert_eq!(model.meta.get("created_at").unwrap(), "2025-01-01");
 }
 
-// ============================================================================
 // Where Clause Tests
-// ============================================================================
 
 #[test]
 fn test_where_clause_masking() {
@@ -298,9 +292,7 @@ fn test_where_clause_with_complex_condition() {
     );
 }
 
-// ============================================================================
 // Error Constructor Tests
-// ============================================================================
 
 #[test]
 fn test_error_constructors() {
@@ -344,9 +336,7 @@ fn test_error_constructors() {
     assert!(cs_err.to_string().contains("cs error"));
 }
 
-// ============================================================================
 // NodeId Tests
-// ============================================================================
 
 #[test]
 fn test_node_id_from_str() {

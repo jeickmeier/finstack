@@ -105,13 +105,11 @@ fn test_ecf_sweep_basic() {
     );
 }
 
-// ============================================================================
 // calculate_period_flows + execute_waterfall integration
 //
 // The in-module waterfall tests use synthetic flows that bypass
 // `calculate_period_flows`; the tests below exercise the full per-period
 // pipeline (contractual flow extraction → waterfall → state advance).
-// ============================================================================
 
 mod period_flow_waterfall_integration {
     use finstack_quant_cashflows::builder::{CashFlowMeta, CashFlowSchedule, Notional};

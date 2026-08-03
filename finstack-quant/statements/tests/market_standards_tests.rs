@@ -38,9 +38,7 @@ fn assert_pandas_stat(actual: f64, expected: f64, message: &str) {
     );
 }
 
-// ============================================================================
 // Variance and Standard Deviation Tests (Market Standards)
-// ============================================================================
 
 #[test]
 fn test_rolling_mean_matches_pandas_full_window() {
@@ -175,9 +173,7 @@ fn test_variance_single_value_returns_nan() {
     );
 }
 
-// ============================================================================
 // TTM Tests (Period Frequency Awareness)
-// ============================================================================
 
 #[test]
 fn test_ttm_quarterly_data() {
@@ -427,9 +423,7 @@ fn test_ttm_annual_data() {
     assert_eq!(y2025_ttm, 1200.0, "Annual TTM = the value itself");
 }
 
-// ============================================================================
 // Forecast Parameters Required (No Silent Defaults)
-// ============================================================================
 
 #[test]
 fn test_exponential_smoothing_requires_alpha() {
@@ -593,9 +587,7 @@ fn test_seasonal_decomposition_requires_season_length() {
     assert!(result.unwrap_err().to_string().contains("season_length"));
 }
 
-// ============================================================================
 // Period Stepping Tests (Core API Usage)
-// ============================================================================
 
 #[test]
 fn test_lag_quarterly_periods() {
@@ -662,9 +654,7 @@ fn test_lag_monthly_periods() {
     );
 }
 
-// ============================================================================
 // Type Safety Tests (SeasonalMode Enum)
-// ============================================================================
 
 #[test]
 fn test_seasonal_mode_enum_additive() {
@@ -773,9 +763,7 @@ fn test_seasonal_mode_typo_errors() {
     assert!(err_msg.contains("mode") || err_msg.contains("Invalid"));
 }
 
-// ============================================================================
 // Edge Case Tests
-// ============================================================================
 
 #[test]
 fn test_rolling_window_with_limited_history() {
@@ -871,9 +859,7 @@ fn test_seasonal_allows_negative_values() {
     );
 }
 
-// ============================================================================
 // EWM Tests (pandas parity)
-// ============================================================================
 
 #[test]
 fn test_ewm_statistics_match_pandas_adjust_false() {
@@ -933,9 +919,7 @@ fn test_ewm_statistics_match_pandas_adjust_false() {
     );
 }
 
-// ============================================================================
 // Core API Tests
-// ============================================================================
 
 #[test]
 fn test_period_kind_accessor() {

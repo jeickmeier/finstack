@@ -6,9 +6,7 @@
 use finstack_quant_statements::types::{DebtInstrumentSpec, FinancialStatementInstrument};
 use finstack_quant_valuations::instruments::fixed_income::term_loan::TermLoan;
 
-// ============================================================================
 // TermLoan Variant Tests
-// ============================================================================
 
 #[test]
 fn test_term_loan_variant_serialization() {
@@ -24,9 +22,7 @@ fn test_term_loan_variant_serialization() {
     assert_eq!(deserialized.id, "TL-001");
 }
 
-// ============================================================================
 // Capital Structure with TermLoan
-// ============================================================================
 
 #[test]
 fn term_loan_capital_structure_evaluates_with_market() {

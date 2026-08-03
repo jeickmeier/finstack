@@ -18,9 +18,7 @@ fn s(v: f64) -> AmountOrScalar {
     AmountOrScalar::scalar(v)
 }
 
-// ============================================================================
 // JSON roundtrip: serialize → deserialize → resolve → check count
-// ============================================================================
 
 #[test]
 fn suite_spec_json_roundtrip_and_resolve() {
@@ -71,9 +69,7 @@ fn suite_spec_json_roundtrip_and_resolve() {
     assert_eq!(suite.description(), Some("Testing JSON roundtrip"));
 }
 
-// ============================================================================
 // Tagged serde: verify JSON tag format
-// ============================================================================
 
 #[test]
 fn builtin_check_spec_tagged_serde() {
@@ -196,9 +192,7 @@ fn formula_check_spec_serde() {
     assert_eq!(spec.tolerance, Some(0.001));
 }
 
-// ============================================================================
 // Resolved suite runs against a model
-// ============================================================================
 
 #[test]
 fn resolved_suite_runs_against_model() {
@@ -234,10 +228,8 @@ fn resolved_suite_runs_against_model() {
     assert_eq!(report.summary.passed, 1);
 }
 
-// ============================================================================
 // Materiality is a reporting filter, not a verdict knob: an Error finding
 // must never be suppressed in a way that flips a failing check to passed.
-// ============================================================================
 
 #[test]
 fn materiality_threshold_does_not_flip_error_verdict() {

@@ -17,9 +17,7 @@ use finstack_quant_statements::prelude::*;
 use indexmap::IndexMap;
 use std::hint::black_box;
 
-// ============================================================================
 // Model Building Benchmarks
-// ============================================================================
 
 fn bench_model_building(c: &mut Criterion) {
     let mut group = c.benchmark_group("model_building");
@@ -141,9 +139,7 @@ fn bench_model_building(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Model Evaluation Benchmarks
-// ============================================================================
 
 fn bench_model_evaluation(c: &mut Criterion) {
     let mut group = c.benchmark_group("model_evaluation");
@@ -352,9 +348,7 @@ fn bench_model_evaluation(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // DSL Parsing and Compilation Benchmarks
-// ============================================================================
 
 fn bench_dsl_operations(c: &mut Criterion) {
     let mut group = c.benchmark_group("dsl_operations");
@@ -410,9 +404,7 @@ fn bench_dsl_operations(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Forecast Method Benchmarks
-// ============================================================================
 
 fn bench_forecast_methods(c: &mut Criterion) {
     let mut group = c.benchmark_group("forecast_methods");
@@ -524,9 +516,7 @@ fn bench_forecast_methods(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Registry Benchmarks
-// ============================================================================
 
 fn bench_registry_operations(c: &mut Criterion) {
     let mut group = c.benchmark_group("registry_operations");
@@ -560,9 +550,7 @@ fn bench_registry_operations(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Results Export Benchmarks
-// ============================================================================
 
 fn bench_results_export(c: &mut Criterion) {
     let mut group = c.benchmark_group("results_export");
@@ -649,9 +637,7 @@ fn bench_results_export(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Serialization Benchmarks
-// ============================================================================
 
 fn bench_serialization(c: &mut Criterion) {
     let mut group = c.benchmark_group("serialization");
@@ -704,9 +690,7 @@ fn bench_serialization(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Full End-to-End Benchmarks
-// ============================================================================
 
 fn bench_end_to_end(c: &mut Criterion) {
     let mut group = c.benchmark_group("end_to_end");
@@ -823,9 +807,7 @@ fn bench_end_to_end(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Criterion Configuration
-// ============================================================================
 
 criterion_group!(
     benches,

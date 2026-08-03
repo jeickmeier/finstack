@@ -214,11 +214,9 @@ fn with_other_adjustments() {
     assert!(result.findings.is_empty());
 }
 
-// ============================================================================
 // Configured-but-missing optional inputs must warn and skip, not silently
 // coerce to zero (a misspelled dividends node otherwise reconciles against
 // the wrong identity or misattributes the error).
-// ============================================================================
 
 #[test]
 fn missing_configured_dividends_node_warns_and_skips() {
