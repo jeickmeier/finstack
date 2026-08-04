@@ -257,11 +257,6 @@ NON_MAINTAINED_SERDE_EXCEPTIONS = (
         "src/analysis/comps/stats.rs",
         ("RegressionResult",),
     ),
-    *_in_process_spec(
-        "statements-analytics",
-        "src/analysis/credit/adjusted_net_debt.rs",
-        ("AdjustedNetDebtSpec",),
-    ),
     *_computed_output("statements-analytics", "src/analysis/ecl/cecl.rs", ("CeclResult",)),
     *_computed_output(
         "statements-analytics",
