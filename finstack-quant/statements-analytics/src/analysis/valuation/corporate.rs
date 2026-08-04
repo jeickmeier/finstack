@@ -7,7 +7,6 @@
 use crate::analysis::scenarios::sensitivity::descending_f64;
 use crate::analysis::scenarios::TornadoEntry;
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::explain::{ExplanationTrace, TraceEntry};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
@@ -18,7 +17,6 @@ use finstack_quant_valuations::instruments::equity::dcf_equity::{
     DiscountedCashFlow, EquityBridge, TerminalValueSpec, ValuationDiscounts,
 };
 use finstack_quant_valuations::instruments::{Attributes, Instrument};
-use serde_json::json;
 
 /// Corporate valuation result containing DCF outputs.
 ///
@@ -220,7 +218,7 @@ pub fn evaluate_dcf_with_market(
     options: &DcfOptions,
     market: Option<&MarketContext>,
 ) -> Result<CorporateValuationResult> {
-    let (result, _trace) = evaluate_dcf_impl(
+    let result = evaluate_dcf_impl(
         model,
         wacc,
         terminal_value,
@@ -390,7 +388,7 @@ pub fn dcf_sensitivity(
     };
 
     let enterprise_value = |terminal: TerminalValueSpec, discount_rate: f64| -> Result<f64> {
-        let (result, _trace) = evaluate_dcf_from_results_impl(
+        let result = evaluate_dcf_from_results_impl(
             model,
             &results,
             discount_rate,
@@ -655,7 +653,7 @@ fn evaluate_dcf_impl(
     terminal_value: TerminalValueSpec,
     ufcf_node: &str,
     context: DcfEvalContext<'_>,
-) -> Result<(CorporateValuationResult, ExplanationTrace)> {
+) -> Result<CorporateValuationResult> {
     // Create evaluator and evaluate the model. Market context is applied later
     // during DCF discounting; passing market here with `as_of = None` is a no-op
     // in the evaluator, so we use plain `evaluate` for clarity.
@@ -672,12 +670,9 @@ pub(crate) fn evaluate_dcf_from_results_impl(
     terminal_value: TerminalValueSpec,
     ufcf_node: &str,
     context: DcfEvalContext<'_>,
-) -> Result<(CorporateValuationResult, ExplanationTrace)> {
+) -> Result<CorporateValuationResult> {
     let first_forecast_period = model.periods.iter().find(|period| !period.is_actual);
     let last_actual_period = model.periods.iter().rfind(|period| period.is_actual);
-
-    // Initialize explanation trace
-    let mut trace = ExplanationTrace::new("corporate_dcf");
 
     // Extract UFCF series from results
     let mut flows = Vec::new();
@@ -696,18 +691,6 @@ pub(crate) fn evaluate_dcf_from_results_impl(
             flows.push((date, ufcf_value));
 
             // Record UFCF contribution in the explanation trace
-            trace.push(
-                TraceEntry::ComputationStep {
-                    name: "ufcf_period".to_string(),
-                    description: "Unlevered free cash flow by period".to_string(),
-                    metadata: Some(json!({
-                        "period_id": period.id.to_string(),
-                        "ufcf": ufcf_value,
-                        "date": date.to_string(),
-                    })),
-                },
-                None,
-            );
         }
     }
 
@@ -786,21 +769,6 @@ pub(crate) fn evaluate_dcf_from_results_impl(
                     .map(|(_, amount)| amount)
                     .sum();
                 let annualized = trailing_sum * (periods_per_year as f64 / trailing as f64);
-                trace.push(
-                    TraceEntry::ComputationStep {
-                        name: "terminal_flow_annualization".to_string(),
-                        description: "Trailing-year annualization of the terminal flow for a \
-                                      growth-perpetuity terminal value on a sub-annual grid"
-                            .to_string(),
-                        metadata: Some(json!({
-                            "periods_per_year": periods_per_year,
-                            "trailing_periods_used": trailing,
-                            "trailing_sum": trailing_sum,
-                            "annualized_terminal_flow": annualized,
-                        })),
-                    },
-                    None,
-                );
                 Some(annualized)
             } else {
                 None
@@ -892,180 +860,20 @@ pub(crate) fn evaluate_dcf_from_results_impl(
     let enterprise_value = pv_explicit + pv_terminal;
 
     // Record base valuation in the explanation trace
-    trace.push(
-        TraceEntry::ComputationStep {
-            name: "dcf_base_valuation".to_string(),
-            description: "Base DCF valuation (enterprise and equity value)".to_string(),
-            metadata: Some(json!({
-                "wacc": wacc,
-                "pv_explicit_flows": pv_explicit,
-                "terminal_value": tv,
-                "pv_terminal_value": pv_terminal,
-                "enterprise_value": enterprise_value,
-                "net_debt": net_debt,
-                "equity_value": equity_value.amount(),
-            })),
-        },
-        None,
-    );
-
-    // Sensitivity of EV to WACC (configurable bump, default +/- 100 bp).
-    // Compute EV directly from PV components (not from equity + bridge) so that
-    // the result is independent of valuation discounts (DLOM/DLOC).
-    //
-    // The down-shock is clamped against the terminal-value growth rate
-    // so `1/(wacc - g)` does not explode (or go negative) when the bump
-    // lands at or below `g`. The effective down-shock is reported in
-    // the trace so the caller sees when the bump was shortened.
-    let wacc_bump = context.options.wacc_sensitivity_bump.abs();
-    let wacc_epsilon = context.options.wacc_denominator_epsilon.max(0.0);
-    let growth_floor: f64 = match dcf.terminal_value {
-        TerminalValueSpec::GordonGrowth { growth_rate } => growth_rate,
-        TerminalValueSpec::HModel {
-            stable_growth_rate, ..
-        } => stable_growth_rate,
-        TerminalValueSpec::ExitMultiple { .. } => f64::NEG_INFINITY,
-    };
-    let wacc_up = wacc + wacc_bump;
-    let wacc_down_raw = wacc - wacc_bump;
-    let wacc_down_floor = (growth_floor + wacc_epsilon).max(wacc_epsilon);
-    let wacc_down = wacc_down_raw.max(wacc_down_floor);
-    let wacc_down_clamped = (wacc_down - wacc_down_raw).abs() > 1e-12;
-
-    let ev_wacc_up = {
-        let mut dcf_up = Clone::clone(&dcf);
-        dcf_up.wacc = wacc_up;
-        let pv_exp = dcf_up.calculate_pv_explicit_flows();
-        let tv_up = dcf_up
-            .calculate_terminal_value()
-            .map_err(|e| finstack_quant_statements::error::Error::Eval(e.to_string()))?;
-        let pv_tv = dcf_up
-            .discount_terminal_value(tv_up)
-            .map_err(|e| finstack_quant_statements::error::Error::Eval(e.to_string()))?;
-        pv_exp + pv_tv
-    };
-
-    let ev_wacc_down = {
-        let mut dcf_down = Clone::clone(&dcf);
-        dcf_down.wacc = wacc_down;
-        let pv_exp = dcf_down.calculate_pv_explicit_flows();
-        let tv_down = dcf_down
-            .calculate_terminal_value()
-            .map_err(|e| finstack_quant_statements::error::Error::Eval(e.to_string()))?;
-        let pv_tv = dcf_down
-            .discount_terminal_value(tv_down)
-            .map_err(|e| finstack_quant_statements::error::Error::Eval(e.to_string()))?;
-        pv_exp + pv_tv
-    };
-
-    trace.push(
-        TraceEntry::ComputationStep {
-            name: "wacc_sensitivity".to_string(),
-            description: "Sensitivity of enterprise value to WACC".to_string(),
-            metadata: Some(json!({
-                "wacc": wacc,
-                "ev_base": enterprise_value,
-                "wacc_up_bp": wacc_bump * 10_000.0,
-                "wacc_up": wacc_up,
-                "ev_wacc_up": ev_wacc_up,
-                "wacc_down_bp": wacc_bump * 10_000.0,
-                "wacc_down": wacc_down,
-                "wacc_down_clamped": wacc_down_clamped,
-                "wacc_down_growth_floor": growth_floor,
-                "ev_wacc_down": ev_wacc_down,
-            })),
-        },
-        None,
-    );
-
-    // Sensitivity of EV to Exit Multiple (if applicable).
-    if let TerminalValueSpec::ExitMultiple {
-        terminal_metric,
-        multiple,
-    } = dcf.terminal_value
-    {
-        let (bump_up, bump_down) = match context.options.exit_multiple_bump {
-            ExitMultipleBump::Absolute(b) => (b.abs(), b.abs()),
-            ExitMultipleBump::Relative(r) => {
-                let shock = multiple.abs() * r.abs();
-                (shock, shock)
-            }
-        };
-        let multiple_up = multiple + bump_up;
-        let multiple_down = (multiple - bump_down).max(0.0);
-
-        let mut dcf_up = dcf.clone();
-        dcf_up.terminal_value = TerminalValueSpec::ExitMultiple {
-            terminal_metric,
-            multiple: multiple_up,
-        };
-        let ev_up = {
-            let pv_explicit_up = dcf_up.calculate_pv_explicit_flows();
-            let tv_up = dcf_up
-                .calculate_terminal_value()
-                .map_err(|e| finstack_quant_statements::error::Error::Eval(e.to_string()))?;
-            let pv_tv_up = dcf_up
-                .discount_terminal_value(tv_up)
-                .map_err(|e| finstack_quant_statements::error::Error::Eval(e.to_string()))?;
-            pv_explicit_up + pv_tv_up
-        };
-
-        let mut dcf_down = Clone::clone(&dcf);
-        dcf_down.terminal_value = TerminalValueSpec::ExitMultiple {
-            terminal_metric,
-            multiple: multiple_down,
-        };
-        let ev_down = {
-            let pv_explicit_down = dcf_down.calculate_pv_explicit_flows();
-            let tv_down = dcf_down
-                .calculate_terminal_value()
-                .map_err(|e| finstack_quant_statements::error::Error::Eval(e.to_string()))?;
-            let pv_tv_down = dcf_down
-                .discount_terminal_value(tv_down)
-                .map_err(|e| finstack_quant_statements::error::Error::Eval(e.to_string()))?;
-            pv_explicit_down + pv_tv_down
-        };
-
-        trace.push(
-            TraceEntry::ComputationStep {
-                name: "exit_multiple_sensitivity".to_string(),
-                description: "Sensitivity of enterprise value to terminal exit multiple"
-                    .to_string(),
-                metadata: Some(json!({
-                    "terminal_metric": terminal_metric,
-                    "multiple_base": multiple,
-                    "ev_base": enterprise_value,
-                    "multiple_up": multiple_up,
-                    "ev_multiple_up": ev_up,
-                    "multiple_down": multiple_down,
-                    "ev_multiple_down": ev_down,
-                    "bump_shape": match context.options.exit_multiple_bump {
-                        ExitMultipleBump::Absolute(b) => format!("absolute({:.4})", b),
-                        ExitMultipleBump::Relative(r) => format!("relative({:.4})", r),
-                    },
-                })),
-            },
-            None,
-        );
-    }
-
     // Compute per-share metrics if shares outstanding is set
     let equity_val = equity_value.amount();
     let equity_value_per_share = dcf.equity_value_per_share(equity_val);
     let diluted_shares = dcf.diluted_shares(equity_val);
 
-    Ok((
-        CorporateValuationResult {
-            equity_value,
-            enterprise_value: Money::new(enterprise_value, currency),
-            net_debt: Money::new(dcf.effective_net_debt(), currency),
-            terminal_value_pv: Money::new(pv_terminal, currency),
-            equity_value_per_share,
-            diluted_shares,
-            dcf_instrument: Some(dcf),
-        },
-        trace,
-    ))
+    Ok(CorporateValuationResult {
+        equity_value,
+        enterprise_value: Money::new(enterprise_value, currency),
+        net_debt: Money::new(dcf.effective_net_debt(), currency),
+        terminal_value_pv: Money::new(pv_terminal, currency),
+        equity_value_per_share,
+        diluted_shares,
+        dcf_instrument: Some(dcf),
+    })
 }
 
 /// Extract currency from the model (assumes uniform currency).

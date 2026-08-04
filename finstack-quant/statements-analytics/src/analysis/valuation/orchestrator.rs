@@ -346,24 +346,23 @@ impl CorporateAnalysisBuilder {
                 net_debt_override,
                 dcf_options,
             }) => {
-                let (result, _trace) =
-                    crate::analysis::valuation::corporate::evaluate_dcf_from_results_impl(
-                        &self.model,
-                        &statement,
-                        wacc,
-                        terminal_value,
-                        &ufcf_node,
-                        crate::analysis::valuation::corporate::DcfEvalContext {
-                            net_debt_override,
-                            options: &dcf_options,
-                            market: self.market.as_ref(),
-                        },
-                    )
-                    .map_err(|e| {
-                        finstack_quant_statements::error::Error::Eval(format!(
-                            "DCF equity valuation failed in corporate analysis pipeline: {e}"
-                        ))
-                    })?;
+                let result = crate::analysis::valuation::corporate::evaluate_dcf_from_results_impl(
+                    &self.model,
+                    &statement,
+                    wacc,
+                    terminal_value,
+                    &ufcf_node,
+                    crate::analysis::valuation::corporate::DcfEvalContext {
+                        net_debt_override,
+                        options: &dcf_options,
+                        market: self.market.as_ref(),
+                    },
+                )
+                .map_err(|e| {
+                    finstack_quant_statements::error::Error::Eval(format!(
+                        "DCF equity valuation failed in corporate analysis pipeline: {e}"
+                    ))
+                })?;
                 Some(result)
             }
             None => None,
