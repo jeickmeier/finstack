@@ -2,7 +2,7 @@
 //!
 //! Start with [`vanilla`] for European call / put, digital, and forward-style
 //! payoffs. This module also includes path-dependent payoffs such as Asian,
-//! barrier, basket, and lookback contracts.
+//! barrier, and lookback contracts.
 //!
 //! All payoffs return [`finstack_quant_core::money::Money`] for currency safety and
 //! are evaluated on a mutable [`crate::traits::PathState`], which lets them
@@ -10,7 +10,6 @@
 
 pub mod asian;
 pub mod barrier;
-pub mod basket;
 pub mod lookback;
 pub mod vanilla;
 
@@ -37,5 +36,4 @@ pub(crate) fn require_finite_state(value: Option<f64>, key: &str, step: usize) -
     v
 }
 
-pub use basket::{margrabe_exchange_option, BasketCall, BasketPut, BasketType, ExchangeOption};
 pub use vanilla::{Digital, EuropeanCall, EuropeanPut, Forward};

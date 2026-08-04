@@ -656,9 +656,9 @@ pub trait StochasticProcess: Send + Sync {
     /// Identifier of the dedicated discretization this process requires, if
     /// any.
     ///
-    /// Some processes carry dynamics a generic scheme cannot see — discrete
-    /// dividends ([`crate::process::gbm_dividends::GbmWithDividends`]) or
-    /// Poisson jumps ([`crate::process::bates::BatesProcess`]). Pairing them
+    /// Some processes carry dynamics a generic scheme cannot see, such as
+    /// discrete dividends ([`crate::process::gbm_dividends::GbmWithDividends`]).
+    /// Pairing them
     /// with generic Euler-style schemes type-checks but silently simulates
     /// only the diffusion, producing systematically wrong prices. Returning
     /// `Some(id)` here makes the engine reject any scheme whose
@@ -789,7 +789,7 @@ pub trait Discretization<P: StochasticProcess + ?Sized>: Send + Sync {
     /// [`StochasticProcess::dedicated_scheme`] requirement.
     ///
     /// Generic schemes keep the default `"generic"`. A scheme written for a
-    /// specific process (e.g. `ExactGbmWithDividends`, `QeBates`) overrides
+    /// specific process (e.g. `ExactGbmWithDividends`) overrides
     /// this with a stable name so the engine can verify the pairing.
     fn scheme_id(&self) -> &'static str {
         "generic"

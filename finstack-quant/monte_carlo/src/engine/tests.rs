@@ -420,15 +420,12 @@ fn test_default_chunking_bit_identical_across_thread_pool_sizes() {
 #[test]
 fn test_engine_rejects_generic_scheme_for_dedicated_process() {
     // Processes with dynamics a generic scheme cannot see (discrete
-    // dividends, Bates jumps) must be rejected when paired with Euler-style
+    // dividends) must be rejected when paired with Euler-style
     // schemes — that pairing type-checks but silently simulates only the
     // diffusion.
     use crate::discretization::euler::EulerMaruyama;
-    use crate::process::bates::{BatesParams, BatesProcess};
     use crate::process::gbm::GbmParams;
     use crate::process::gbm_dividends::{Dividend, GbmWithDividends};
-    use crate::process::heston::HestonParams;
-    use crate::process::jump_diffusion::MertonJumpParams;
 
     let engine = McEngine::builder()
         .num_paths(10)
@@ -455,22 +452,6 @@ fn test_engine_rejects_generic_scheme_for_dedicated_process() {
             1.0,
         )
         .expect_err("Euler + GbmWithDividends must be rejected");
-    assert!(err.to_string().contains("dedicated discretization"));
-
-    let heston = HestonParams::new(0.05, 0.01, 1.7, 0.04, 0.3, -0.4, 0.04).expect("valid");
-    let jump = MertonJumpParams::new(0.05, 0.01, 0.0, 1.0, -0.05, 0.1).expect("valid");
-    let bates = BatesProcess::new(BatesParams::new(heston, jump).expect("matching r/q"));
-    let err = engine
-        .price(
-            &rng,
-            &bates,
-            &EulerMaruyama::new(),
-            &[100.0, 0.04],
-            &payoff,
-            Currency::USD,
-            1.0,
-        )
-        .expect_err("Euler + BatesProcess must be rejected");
     assert!(err.to_string().contains("dedicated discretization"));
 }
 

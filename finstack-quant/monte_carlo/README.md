@@ -18,10 +18,9 @@ Available functionality:
 - Deterministic splittable pseudo-random generation via `rng::philox::PhiloxRng`
 - Sobol / quasi-random generators and Brownian-bridge utilities
 - GBM, Brownian, multi-GBM, OU, Heston, CIR, Hull-White, Vasicek,
-  jump-diffusion, Bates, Schwartz-Smith, rough-volatility, and LMM-style
-  process support
-- Exact, Euler, Milstein, QE, jump-Euler, and model-specific discretizations
-- Vanilla and path-dependent payoffs such as European, Asian, basket, barrier,
+  Schwartz-Smith, rough-volatility, and LMM-style process support
+- Exact, Euler, Milstein, QE, and model-specific discretizations
+- Vanilla and path-dependent payoffs such as European, Asian, barrier,
   and lookback options
 - European, path-dependent, and Longstaff-Schwartz LSMC pricers, including
   a two-pass unbiased variant (`LsmcPricer::price_unbiased`) that mitigates
@@ -257,8 +256,6 @@ All process modules are compiled by default:
 - `process::heston`
 - `process::cir`
 - `process::ou`
-- `process::jump_diffusion`
-- `process::bates`
 - `process::schwartz_smith`
 - `process::lmm`
 - `process::rough_bergomi`
@@ -275,7 +272,6 @@ All discretization modules are compiled by default:
 - `discretization::milstein`
 - `discretization::qe_heston`
 - `discretization::qe_cir`
-- `discretization::jump_euler`
 - `discretization::exact_hw1f`
 - `discretization::schwartz_smith`
 - `discretization::lmm_predictor_corrector`
@@ -290,7 +286,6 @@ All payoff and pricer modules are compiled by default:
 - `payoff::vanilla`
 - `payoff::asian`
 - `payoff::barrier`
-- `payoff::basket`
 - `payoff::lookback`
 - `pricer::european`
 - `pricer::path_dependent`

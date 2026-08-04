@@ -5,9 +5,8 @@
 #![allow(clippy::expect_used)]
 
 use crate::process::{
-    bates::BatesParams, brownian::BrownianParams, cir::CirParams, gbm::GbmParams,
-    heston::HestonParams, jump_diffusion::MertonJumpParams, multi_ou::MultiOuParams,
-    ou::HullWhite1FParams, schwartz_smith::SchwartzSmithParams,
+    brownian::BrownianParams, cir::CirParams, gbm::GbmParams, heston::HestonParams,
+    multi_ou::MultiOuParams, ou::HullWhite1FParams, schwartz_smith::SchwartzSmithParams,
 };
 
 /// Helper function to perform JSON roundtrip serialization test
@@ -91,35 +90,6 @@ fn test_cir_params_serialization() {
         restored.satisfies_feller(),
         "Feller condition should be preserved"
     );
-}
-
-#[test]
-fn test_bates_params_serialization() {
-    let heston = HestonParams::new(0.05, 0.02, 0.5, 0.04, 0.3, -0.7, 0.04).expect("valid");
-    let jump = MertonJumpParams::new(0.05, 0.02, 0.0, 1.0, -0.05, 0.1).expect("valid");
-    let params = BatesParams::new(heston, jump).expect("matching r/q");
-
-    let restored = roundtrip_json(&params);
-
-    // Compare Heston component fields
-    assert_eq!(params.heston.r, restored.heston.r);
-    assert_eq!(params.heston.q, restored.heston.q);
-    assert_eq!(params.heston.kappa, restored.heston.kappa);
-    assert_eq!(params.heston.theta, restored.heston.theta);
-    assert_eq!(params.heston.sigma_v, restored.heston.sigma_v);
-    assert_eq!(params.heston.rho, restored.heston.rho);
-    assert_eq!(params.heston.v0, restored.heston.v0);
-
-    // Compare jump component fields
-    assert_eq!(params.jump.gbm.r, restored.jump.gbm.r);
-    assert_eq!(params.jump.gbm.q, restored.jump.gbm.q);
-    assert_eq!(params.jump.gbm.sigma, restored.jump.gbm.sigma);
-    assert_eq!(params.jump.lambda, restored.jump.lambda);
-    assert_eq!(params.jump.mu_j, restored.jump.mu_j);
-    assert_eq!(params.jump.sigma_j, restored.jump.sigma_j);
-
-    // Verify derived quantities are preserved
-    assert!((params.compensated_drift() - restored.compensated_drift()).abs() < 1e-10);
 }
 
 #[test]
@@ -224,35 +194,6 @@ fn test_brownian_params_serialization() {
     // Compare fields
     assert_eq!(params.mu, restored.mu);
     assert_eq!(params.sigma, restored.sigma);
-}
-
-#[test]
-fn test_merton_jump_params_serialization() {
-    let params = MertonJumpParams::new(
-        0.05,  // r = risk-free rate
-        0.02,  // q = dividend yield
-        0.2,   // σ = continuous volatility
-        2.0,   // λ = jump intensity (2 jumps/year)
-        -0.05, // μ_J = mean of log-jump
-        0.1,   // σ_J = std dev of log-jump
-    )
-    .unwrap();
-
-    let restored = roundtrip_json(&params);
-
-    // Compare GBM component
-    assert_eq!(params.gbm.r, restored.gbm.r);
-    assert_eq!(params.gbm.q, restored.gbm.q);
-    assert_eq!(params.gbm.sigma, restored.gbm.sigma);
-
-    // Compare jump parameters
-    assert_eq!(params.lambda, restored.lambda);
-    assert_eq!(params.mu_j, restored.mu_j);
-    assert_eq!(params.sigma_j, restored.sigma_j);
-
-    // Verify derived quantities are preserved
-    assert!((params.jump_compensation() - restored.jump_compensation()).abs() < 1e-10);
-    assert!((params.compensated_drift() - restored.compensated_drift()).abs() < 1e-10);
 }
 
 #[test]
