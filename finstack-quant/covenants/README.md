@@ -6,7 +6,7 @@ Evaluate financial and non-financial covenants, track breaches and cure periods,
 
 ```
 covenants/
-├── engine.rs    # CovenantEngine, specs, consequences, breach tracking
+├── engine/      # CovenantEngine, specs, consequences, breach tracking
 ├── forward.rs   # Forward projection (deterministic or analytic stochastic)
 ├── schedule.rs  # Piecewise threshold schedules
 ├── metric.rs    # CovenantMetricId, metric-source traits

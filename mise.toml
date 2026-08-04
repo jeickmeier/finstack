@@ -483,7 +483,7 @@ run = "uv run maturin build --release --find-interpreter -o target/wheels"
 description = "Audit public Rust contract types for serde and JsonSchema coverage"
 run = [
   "uv run pytest scripts/tests/test_serde_audit.py -q",
-  "uv run python scripts/serde_audit.py --check",
+  "uv run python -m scripts.serde_audit --check",
 ]
 
 [tasks.rust-check-schemas]
@@ -584,7 +584,10 @@ osv-scanner \
 
 [tasks.check-loc]
 description = "List source files exceeding the LOC limit (default 1000); -- --ci to exit 1 on violations"
-run = "uv run python scripts/check_loc.py"
+run = [
+  "uv run pytest scripts/tests/test_check_loc.py -q",
+  "uv run python scripts/check_loc.py",
+]
 
 [tasks.rust-bench]
 description = "Run Rust benchmarks with reduced Criterion timing (override: FQ_BENCH_SAMPLE_SIZE, FQ_BENCH_WARM_UP_TIME, FQ_BENCH_MEASUREMENT_TIME, FQ_BENCH_NRESAMPLES)"

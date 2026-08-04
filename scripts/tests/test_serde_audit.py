@@ -3,20 +3,17 @@
 from __future__ import annotations
 
 from collections import Counter
-import importlib.util
 from pathlib import Path
 import re
 import sys
 
 import pytest
 
-_SCRIPT_PATH = Path(__file__).parents[1] / "serde_audit.py"
-_SPEC = importlib.util.spec_from_file_location("serde_audit", _SCRIPT_PATH)
-assert _SPEC is not None
-assert _SPEC.loader is not None
-_MODULE = importlib.util.module_from_spec(_SPEC)
-sys.modules[_SPEC.name] = _MODULE
-_SPEC.loader.exec_module(_MODULE)
+from scripts import serde_audit
+from scripts.serde_audit import registries
+
+_MODULE = serde_audit
+_REGISTRIES = registries
 
 _FIXTURES = Path(__file__).parent / "fixtures" / "serde_audit"
 _REPOSITORY_ROOT = Path(__file__).parents[2]
@@ -386,7 +383,7 @@ def test_invalid_root_fails_clearly(
     monkeypatch.setattr(
         sys,
         "argv",
-        ["serde_audit.py", "--check", "--root", str(tmp_path)],
+        ["python -m scripts.serde_audit", "--check", "--root", str(tmp_path)],
     )
     with pytest.raises(SystemExit, match="2"):
         _MODULE.main()
@@ -446,7 +443,7 @@ def test_missing_maintained_registry_type_fails_closed(
     """A parser/reachability miss cannot silently drop a maintained contract."""
     _write_crate(tmp_path, "pub struct Ordinary { pub value: String }\n")
     monkeypatch.setattr(
-        _MODULE,
+        _REGISTRIES,
         "MAINTAINED_CONTRACTS",
         frozenset({("sample", "src/lib.rs", "MissingEnvelope")}),
     )
@@ -465,7 +462,7 @@ def test_missing_required_binding_output_fails_closed(
     """A resolver miss cannot silently drop a required binding output."""
     _write_crate(tmp_path, "pub struct Ordinary { pub value: String }\n")
     monkeypatch.setattr(
-        _MODULE,
+        _REGISTRIES,
         "REQUIRED_PUBLIC_TYPES",
         {
             (
@@ -491,9 +488,9 @@ def test_missing_maintained_one_way_reports_policy_capabilities(
     """Missing maintained outputs report only their policy requirements."""
     _write_crate(tmp_path, "pub struct Ordinary { pub value: String }\n")
     identity = ("sample", "src/lib.rs", "MissingOneWayResult")
-    monkeypatch.setattr(_MODULE, "MAINTAINED_CONTRACTS", frozenset({identity}))
+    monkeypatch.setattr(_REGISTRIES, "MAINTAINED_CONTRACTS", frozenset({identity}))
     monkeypatch.setattr(
-        _MODULE,
+        _REGISTRIES,
         "MAINTAINED_REQUIRED_CAPABILITIES",
         {identity: frozenset({"Serialize", "JsonSchema"})},
     )
@@ -511,7 +508,7 @@ def test_ci_path_runs_audit_tests_and_check_mode() -> None:
     audit_task = mise.split("[tasks.rust-serde-audit]", 1)[1].split("[tasks.", 1)[0]
     gen_check = mise.split("[tasks.gen-check]", 1)[1].split("[tasks.", 1)[0]
     assert "pytest scripts/tests/test_serde_audit.py" in audit_task
-    assert "scripts/serde_audit.py --check" in audit_task
+    assert "python -m scripts.serde_audit --check" in audit_task
     assert "mise run rust-serde-audit" in gen_check
     assert "mise run gen-check" in build
 

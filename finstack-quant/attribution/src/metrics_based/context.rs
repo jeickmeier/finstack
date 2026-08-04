@@ -1,0 +1,196 @@
+use finstack_quant_core::currency::Currency;
+use finstack_quant_core::dates::Date;
+use finstack_quant_core::market_data::context::MarketContext;
+use finstack_quant_core::market_data::diff::{
+    measure_credit_curve_shift, measure_fx_shift, measure_scalar_shift, measure_vol_surface_shift,
+    TenorSamplingMethod,
+};
+use finstack_quant_core::types::CurveId;
+use finstack_quant_core::Result;
+use finstack_quant_valuations::instruments::{Instrument, MarketDependencies};
+use finstack_quant_valuations::results::ValuationResult;
+use std::sync::Arc;
+
+use super::shifts::measure_rate_curve_shift_bp;
+
+pub(super) struct MarketShifts {
+    pub(super) avg_rate_shift_bp: Option<f64>,
+    pub(super) rate_curves_measured: usize,
+    pub(super) avg_credit_shift_bp: Option<f64>,
+    pub(super) credit_curves_measured: usize,
+    pub(super) avg_vol_shift_abs: Option<f64>,
+    pub(super) fx_shift_pct: Option<f64>,
+    pub(super) avg_spot_shift_pct: Option<f64>,
+}
+
+pub(super) struct AttributionInputs<'a> {
+    pub(super) instrument: &'a Arc<dyn Instrument>,
+    pub(super) market_t0: &'a MarketContext,
+    pub(super) market_t1: &'a MarketContext,
+    pub(super) val_t0: &'a ValuationResult,
+    pub(super) val_t1: &'a ValuationResult,
+    pub(super) time_period_days: f64,
+    pub(super) ccy: Currency,
+    pub(super) market_deps: MarketDependencies,
+    pub(super) rates_curve_ids: Vec<CurveId>,
+    pub(super) shifts: MarketShifts,
+}
+
+impl<'a> AttributionInputs<'a> {
+    pub(super) fn new(
+        instrument: &'a Arc<dyn Instrument>,
+        market_t0: &'a MarketContext,
+        market_t1: &'a MarketContext,
+        val_t0: &'a ValuationResult,
+        val_t1: &'a ValuationResult,
+        as_of_t0: Date,
+        as_of_t1: Date,
+    ) -> Result<Self> {
+        let market_deps = instrument.market_dependencies()?;
+
+        // ─── Preamble: compute market-shift averages ONCE ──────────────────────
+        //
+        // Each `measure_*_shift` helper is pure: same inputs → same output, so
+        // computing the per-factor averages once up-front and threading them
+        // through the per-factor blocks keeps the computation deterministic and
+        // avoids the former pattern of redundant second loops over the same
+        // curves.
+        //
+        // Iteration order is identical to the previous per-block loops:
+        //   - discount_curves / credit_curves / market_scalar_ids in the order returned
+        //     by `market_deps.curves` / `market_deps.market_scalar_ids`
+        //     (preserve the existing HashMap/Vec iteration order — do NOT sort).
+        //   - FX exposure / vol surface: single-valued, no ordering concern.
+        //
+        // A failed (Err) shift measurement skips that curve from the average,
+        // matching the prior behavior.
+
+        // All rates curves the instrument depends on: discount AND
+        // forward/projection (multi-curve swaps carry a joint
+        // discount+forward DV01, and basis moves require measuring both
+        // families). Order: discount first, then forward — deterministic.
+        let rates_curve_ids: Vec<CurveId> = market_deps
+            .curves
+            .discount_curves
+            .iter()
+            .chain(market_deps.curves.forward_curves.iter())
+            .cloned()
+            .collect();
+        let (avg_rate_shift_bp, rate_curves_measured) =
+            average_rates(&rates_curve_ids, market_t0, market_t1);
+        let (avg_credit_shift_bp, credit_curves_measured) =
+            average_credit(&market_deps, market_t0, market_t1);
+        let avg_vol_shift_abs =
+            market_deps
+                .volatility_dependencies
+                .first()
+                .and_then(|dependency| {
+                    measure_vol_surface_shift(
+                        dependency.vol_surface_id.as_str(),
+                        market_t0,
+                        market_t1,
+                        None,
+                        None,
+                    )
+                    .ok()
+                });
+        let fx_shift_pct = instrument
+            .fx_exposure()
+            .and_then(|(base_currency, quote_currency)| {
+                measure_fx_shift(
+                    base_currency,
+                    quote_currency,
+                    market_t0,
+                    market_t1,
+                    as_of_t0,
+                    as_of_t1,
+                )
+                .ok()
+            });
+        let avg_spot_shift_pct = average_spot(&market_deps, market_t0, market_t1);
+        Ok(Self {
+            instrument,
+            market_t0,
+            market_t1,
+            val_t0,
+            val_t1,
+            time_period_days: (as_of_t1 - as_of_t0).whole_days() as f64,
+            ccy: val_t1.value.currency(),
+            market_deps,
+            rates_curve_ids,
+            shifts: MarketShifts {
+                avg_rate_shift_bp,
+                rate_curves_measured,
+                avg_credit_shift_bp,
+                credit_curves_measured,
+                avg_vol_shift_abs,
+                fx_shift_pct,
+                avg_spot_shift_pct,
+            },
+        })
+    }
+}
+
+fn average_rates(
+    curves: &[CurveId],
+    t0: &MarketContext,
+    t1: &MarketContext,
+) -> (Option<f64>, usize) {
+    let mut total = 0.0;
+    let mut count = 0;
+    for id in curves {
+        if let Some(shift) = measure_rate_curve_shift_bp(id.as_str(), t0, t1) {
+            total += shift;
+            count += 1;
+        }
+    }
+    (
+        if count > 0 {
+            Some(total / count as f64)
+        } else {
+            None
+        },
+        count,
+    )
+}
+
+fn average_credit(
+    deps: &MarketDependencies,
+    t0: &MarketContext,
+    t1: &MarketContext,
+) -> (Option<f64>, usize) {
+    let mut total = 0.0;
+    let mut count = 0;
+    for id in &deps.curves.credit_curves {
+        if let Ok(shift) =
+            measure_credit_curve_shift(id.as_str(), t0, t1, TenorSamplingMethod::Standard)
+        {
+            total += shift;
+            count += 1;
+        }
+    }
+    (
+        if count > 0 {
+            Some(total / count as f64)
+        } else {
+            None
+        },
+        count,
+    )
+}
+
+fn average_spot(deps: &MarketDependencies, t0: &MarketContext, t1: &MarketContext) -> Option<f64> {
+    let mut total = 0.0;
+    let mut count = 0;
+    for id in &deps.market_scalar_ids {
+        if let Ok(shift) = measure_scalar_shift(id, t0, t1) {
+            total += shift;
+            count += 1;
+        }
+    }
+    if count > 0 {
+        Some(total / count as f64)
+    } else {
+        None
+    }
+}

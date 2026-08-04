@@ -28,6 +28,8 @@ EXCLUDED_DIRS = {
     "vendor",
 }
 SOURCE_EXTENSIONS = {".js", ".jsx", ".py", ".rs", ".sh", ".ts", ".tsx"}
+# Hand-maintained WASM declaration/API facade; size tracks the exhaustive surface/docs.
+EXCLUDED_RELATIVE_PATHS: frozenset[str] = frozenset({"finstack-quant-wasm/index.d.ts"})
 TEST_ATTRIBUTE_RE = re.compile(r"^\s*#\[\s*(?:[A-Za-z_]\w*::)*test\b[^\]]*\]\s*$")
 CFG_TEST_RE = re.compile(r"^\s*#\[\s*cfg\s*\([^\]]*\btest\b[^\]]*\)\s*\]\s*$")
 
@@ -57,6 +59,11 @@ def parse_args() -> Args:
 def should_skip_dir(dirname: str) -> bool:
     """Return whether a directory should be excluded from the scan."""
     return dirname in EXCLUDED_DIRS or dirname.startswith(".")
+
+
+def is_excluded_relative_path(relative_path: str) -> bool:
+    """Return whether an exact repo-relative path is excluded from line counts."""
+    return relative_path in EXCLUDED_RELATIVE_PATHS
 
 
 def iter_source_files(root: Path) -> list[Path]:
@@ -134,9 +141,12 @@ def collect_violations(root: Path, limit: int) -> list[tuple[str, int]]:
     """Return files whose effective line count exceeds ``limit``."""
     violations: list[tuple[str, int]] = []
     for path in iter_source_files(root):
+        relative_path = path.relative_to(root).as_posix()
+        if is_excluded_relative_path(relative_path):
+            continue
         line_count = count_lines(path)
         if line_count > limit:
-            violations.append((path.relative_to(root).as_posix(), line_count))
+            violations.append((relative_path, line_count))
     violations.sort(key=lambda item: (-item[1], item[0]))
     return violations
 

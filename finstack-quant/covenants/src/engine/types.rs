@@ -1,0 +1,640 @@
+use crate::metric::{CovenantMetricId, CovenantMetricSource};
+use crate::schedule::ThresholdSchedule;
+use finstack_quant_core::dates::Date;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+
+// Covenant type definitions were previously under loan; re-introduce minimal versions locally
+/// Whether a covenant is tested periodically or only upon an action.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CovenantScope {
+    /// Tested on a schedule (e.g., quarterly leverage tests).
+    Maintenance,
+    /// Tested only upon specific actions (e.g., incurrence of debt).
+    Incurrence,
+}
+
+/// Optional activation condition for springing covenants.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SpringingCondition {
+    /// Metric that controls activation (e.g., revolver utilization).
+    pub metric_id: CovenantMetricId,
+    /// Threshold test applied to the metric.
+    pub test: ThresholdTest,
+}
+
+/// Financial covenant specification with test frequency and consequences.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Covenant {
+    /// Type of covenant (leverage, coverage, etc.)
+    pub covenant_type: CovenantType,
+    /// How frequently the covenant is tested.
+    ///
+    /// Descriptive metadata only: the engine does **not** enforce this
+    /// schedule. Callers control test dates by choosing when to invoke
+    /// [`super::CovenantEngine::evaluate`].
+    pub test_frequency: finstack_quant_core::dates::Tenor,
+    /// Optional cure period in days before default
+    pub cure_period_days: Option<i32>,
+    /// Actions taken if covenant is breached
+    pub consequences: Vec<CovenantConsequence>,
+    /// Whether the covenant is currently active
+    pub is_active: bool,
+    /// Whether the covenant is maintenance or incurrence.
+    pub scope: CovenantScope,
+    /// Optional activation condition for springing covenants.
+    pub springing_condition: Option<SpringingCondition>,
+    /// Optional instance label disambiguating covenants of the same type.
+    ///
+    /// [`CovenantType::covenant_id`] is discriminant-only, so two covenants of
+    /// the same type (e.g. a senior and a total leverage test, or two baskets)
+    /// would otherwise collide in compliance reports and breach tracking. Set a
+    /// distinct label here and waivers/breaches will key off it; when `None`,
+    /// the identity falls back to the type's `covenant_id` (legacy behavior).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+}
+
+impl Covenant {
+    /// Create a new covenant with default cure period
+    pub fn new(
+        covenant_type: CovenantType,
+        test_frequency: finstack_quant_core::dates::Tenor,
+    ) -> Self {
+        Self {
+            covenant_type,
+            test_frequency,
+            cure_period_days: Some(30),
+            consequences: Vec::new(),
+            is_active: true,
+            scope: CovenantScope::Maintenance,
+            springing_condition: None,
+            label: None,
+        }
+    }
+
+    /// Set cure period (days before breach becomes default)
+    #[must_use]
+    pub fn with_cure_period(mut self, days: Option<i32>) -> Self {
+        self.cure_period_days = days;
+        self
+    }
+
+    /// Add a consequence for covenant breach
+    #[must_use]
+    pub fn with_consequence(mut self, consequence: CovenantConsequence) -> Self {
+        self.consequences.push(consequence);
+        self
+    }
+
+    /// Set covenant scope (maintenance vs incurrence).
+    #[must_use]
+    pub fn with_scope(mut self, scope: CovenantScope) -> Self {
+        self.scope = scope;
+        self
+    }
+
+    /// Attach a springing condition that controls activation.
+    #[must_use]
+    pub fn with_springing_condition(mut self, condition: SpringingCondition) -> Self {
+        self.springing_condition = Some(condition);
+        self
+    }
+
+    /// Set an instance label disambiguating covenants that share a type.
+    #[must_use]
+    pub fn with_label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+    /// Get human-readable description of the covenant
+    pub fn description(&self) -> String {
+        self.covenant_type.to_string()
+    }
+
+    /// Stable identity key for reports, breaches, and waivers.
+    ///
+    /// Returns the instance [`label`](Self::label) if set, otherwise falls back
+    /// to the type's discriminant-only [`CovenantType::covenant_id`]. Using this
+    /// (rather than `covenant_id` alone) prevents two same-type covenants from
+    /// silently overwriting each other in reports/breach tracking.
+    pub fn instance_key(&self) -> String {
+        self.label
+            .clone()
+            .unwrap_or_else(|| self.covenant_type.covenant_id().to_string())
+    }
+
+    pub(crate) fn validate(&self) -> finstack_quant_core::Result<()> {
+        if self.cure_period_days.is_some_and(|days| days < 0) {
+            return Err(finstack_quant_core::Error::Validation(
+                "cure_period_days must be non-negative".to_string(),
+            ));
+        }
+        self.covenant_type.validate()
+    }
+}
+
+/// Type of financial or operational covenant
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum CovenantType {
+    /// Maximum debt-to-EBITDA ratio
+    MaxDebtToEbitda {
+        /// Maximum allowed ratio
+        threshold: f64,
+    },
+    /// Minimum interest coverage ratio (EBIT/Interest)
+    MinInterestCoverage {
+        /// Minimum required ratio
+        threshold: f64,
+    },
+    /// Minimum fixed charge coverage ratio
+    MinFixedChargeCoverage {
+        /// Minimum required coverage
+        threshold: f64,
+    },
+    /// Maximum total leverage ratio
+    MaxTotalLeverage {
+        /// Maximum allowed leverage
+        threshold: f64,
+    },
+    /// Maximum senior leverage ratio
+    MaxSeniorLeverage {
+        /// Maximum allowed senior leverage
+        threshold: f64,
+    },
+    /// Minimum asset coverage ratio
+    MinAssetCoverage {
+        /// Minimum required coverage
+        threshold: f64,
+    },
+    /// Negative covenant (prohibition)
+    Negative {
+        /// Description of restriction
+        restriction: String,
+    },
+    /// Affirmative covenant (requirement)
+    Affirmative {
+        /// Description of requirement
+        requirement: String,
+    },
+    /// Custom covenant with metric and threshold test
+    Custom {
+        /// Name of metric to test
+        metric: String,
+        /// Threshold test (min or max)
+        test: ThresholdTest,
+    },
+    /// Basket tracking covenant (e.g., available debt baskets)
+    Basket {
+        /// Basket identifier/metric name
+        name: String,
+        /// Maximum allowed utilization of the basket
+        limit: f64,
+    },
+    /// Minimum debt service coverage ratio (EBITDA / Debt Service)
+    MinDscr {
+        /// Minimum required coverage
+        threshold: f64,
+    },
+    /// Maximum net debt to EBITDA ratio (net of cash)
+    MaxNetDebtToEbitda {
+        /// Maximum allowed ratio
+        threshold: f64,
+    },
+    /// Maximum capital expenditure
+    MaxCapex {
+        /// Maximum allowed capex amount
+        threshold: f64,
+    },
+    /// Minimum liquidity (cash + available revolver)
+    MinLiquidity {
+        /// Minimum required liquidity
+        threshold: f64,
+    },
+}
+
+impl std::fmt::Display for CovenantType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CovenantType::MaxDebtToEbitda { threshold } => {
+                write!(f, "Debt/EBITDA <= {:.2}x", threshold)
+            }
+            CovenantType::MinInterestCoverage { threshold } => {
+                write!(f, "Interest Coverage >= {:.2}x", threshold)
+            }
+            CovenantType::MinFixedChargeCoverage { threshold } => {
+                write!(f, "Fixed Charge Coverage >= {:.2}x", threshold)
+            }
+            CovenantType::MaxTotalLeverage { threshold } => {
+                write!(f, "Total Leverage <= {:.2}x", threshold)
+            }
+            CovenantType::MaxSeniorLeverage { threshold } => {
+                write!(f, "Senior Leverage <= {:.2}x", threshold)
+            }
+            CovenantType::MinAssetCoverage { threshold } => {
+                write!(f, "Asset Coverage >= {:.2}x", threshold)
+            }
+            CovenantType::Negative { restriction } => write!(f, "Negative: {}", restriction),
+            CovenantType::Affirmative { requirement } => {
+                write!(f, "Affirmative: {}", requirement)
+            }
+            CovenantType::Custom { metric, test } => match test {
+                ThresholdTest::Maximum(v) => write!(f, "{} <= {:.2}", metric, v),
+                ThresholdTest::Minimum(v) => write!(f, "{} >= {:.2}", metric, v),
+            },
+            CovenantType::Basket { name, limit } => {
+                write!(f, "{} Utilization <= {:.2}", name, limit)
+            }
+            CovenantType::MinDscr { threshold } => {
+                write!(f, "DSCR >= {:.2}x", threshold)
+            }
+            CovenantType::MaxNetDebtToEbitda { threshold } => {
+                write!(f, "Net Debt/EBITDA <= {:.2}x", threshold)
+            }
+            CovenantType::MaxCapex { threshold } => {
+                write!(f, "Capex <= {:.2}", threshold)
+            }
+            CovenantType::MinLiquidity { threshold } => {
+                write!(f, "Liquidity >= {:.2}", threshold)
+            }
+        }
+    }
+}
+
+/// Threshold test type (maximum or minimum bound)
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum ThresholdTest {
+    /// Maximum allowed value
+    Maximum(f64),
+    /// Minimum required value
+    Minimum(f64),
+}
+
+/// Direction of inequality for numeric covenants.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BoundKind {
+    /// Covenant passes when the metric is less than or equal to the threshold.
+    AtMost,
+    /// Covenant passes when the metric is greater than or equal to the threshold.
+    AtLeast,
+}
+
+impl CovenantType {
+    fn validate(&self) -> finstack_quant_core::Result<()> {
+        let value = match self {
+            CovenantType::MaxDebtToEbitda { threshold }
+            | CovenantType::MinInterestCoverage { threshold }
+            | CovenantType::MinFixedChargeCoverage { threshold }
+            | CovenantType::MaxTotalLeverage { threshold }
+            | CovenantType::MaxSeniorLeverage { threshold }
+            | CovenantType::MinAssetCoverage { threshold }
+            | CovenantType::MinDscr { threshold }
+            | CovenantType::MaxNetDebtToEbitda { threshold }
+            | CovenantType::MaxCapex { threshold }
+            | CovenantType::MinLiquidity { threshold } => Some(*threshold),
+            CovenantType::Custom { test, .. } => match test {
+                ThresholdTest::Maximum(t) | ThresholdTest::Minimum(t) => Some(*t),
+            },
+            CovenantType::Basket { limit, .. } => Some(*limit),
+            CovenantType::Negative { .. } | CovenantType::Affirmative { .. } => None,
+        };
+        if value.is_some_and(|v| !v.is_finite()) {
+            return Err(finstack_quant_core::Error::Validation(
+                "covenant thresholds and limits must be finite".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Returns the inequality direction required for numeric covenants.
+    pub fn bound_kind(&self) -> Option<BoundKind> {
+        match self {
+            CovenantType::MaxDebtToEbitda { .. }
+            | CovenantType::MaxTotalLeverage { .. }
+            | CovenantType::MaxSeniorLeverage { .. }
+            | CovenantType::MaxNetDebtToEbitda { .. }
+            | CovenantType::MaxCapex { .. }
+            | CovenantType::Basket { .. }
+            | CovenantType::Custom {
+                test: ThresholdTest::Maximum(_),
+                ..
+            } => Some(BoundKind::AtMost),
+            CovenantType::MinInterestCoverage { .. }
+            | CovenantType::MinFixedChargeCoverage { .. }
+            | CovenantType::MinAssetCoverage { .. }
+            | CovenantType::MinDscr { .. }
+            | CovenantType::MinLiquidity { .. }
+            | CovenantType::Custom {
+                test: ThresholdTest::Minimum(_),
+                ..
+            } => Some(BoundKind::AtLeast),
+            CovenantType::Negative { .. } | CovenantType::Affirmative { .. } => None,
+        }
+    }
+
+    /// Returns the scalar threshold (if any) associated with the covenant type.
+    pub(crate) fn threshold_value(&self) -> Option<f64> {
+        match self {
+            CovenantType::MaxDebtToEbitda { threshold }
+            | CovenantType::MinInterestCoverage { threshold }
+            | CovenantType::MinFixedChargeCoverage { threshold }
+            | CovenantType::MaxTotalLeverage { threshold }
+            | CovenantType::MaxSeniorLeverage { threshold }
+            | CovenantType::MinAssetCoverage { threshold }
+            | CovenantType::MinDscr { threshold }
+            | CovenantType::MaxNetDebtToEbitda { threshold }
+            | CovenantType::MaxCapex { threshold }
+            | CovenantType::MinLiquidity { threshold } => Some(*threshold),
+            CovenantType::Custom { test, .. } => match test {
+                ThresholdTest::Maximum(t) | ThresholdTest::Minimum(t) => Some(*t),
+            },
+            CovenantType::Basket { limit, .. } => Some(*limit),
+            CovenantType::Negative { .. } | CovenantType::Affirmative { .. } => None,
+        }
+    }
+
+    /// Returns the canonical metric identifier for the covenant type when one exists.
+    pub(crate) fn default_metric_name(&self) -> Option<&'static str> {
+        match self {
+            CovenantType::MaxDebtToEbitda { .. } => Some("debt_to_ebitda"),
+            CovenantType::MinInterestCoverage { .. } => Some("interest_coverage"),
+            CovenantType::MinFixedChargeCoverage { .. } => Some("fixed_charge_coverage"),
+            CovenantType::MaxTotalLeverage { .. } => Some("total_leverage"),
+            CovenantType::MaxSeniorLeverage { .. } => Some("senior_leverage"),
+            CovenantType::MinAssetCoverage { .. } => Some("asset_coverage"),
+            CovenantType::MinDscr { .. } => Some("dscr"),
+            CovenantType::MaxNetDebtToEbitda { .. } => Some("net_debt_to_ebitda"),
+            CovenantType::MaxCapex { .. } => Some("capex"),
+            CovenantType::MinLiquidity { .. } => Some("liquidity"),
+            CovenantType::Custom { .. }
+            | CovenantType::Basket { .. }
+            | CovenantType::Negative { .. }
+            | CovenantType::Affirmative { .. } => None,
+        }
+    }
+
+    /// Returns true for built-in maximum covenants whose metric is a ratio
+    /// with an earnings-style denominator (leverage-type tests).
+    ///
+    /// For these covenants a *negative* metric value almost always means the
+    /// denominator (EBITDA) has gone negative, i.e. the ratio is not
+    /// meaningful ("NM" in rating-agency parlance) rather than extraordinarily
+    /// good. A naive `value <= threshold` test would let a distressed,
+    /// negative-EBITDA borrower pass a max-leverage covenant with huge
+    /// apparent headroom. The engine therefore treats negative values on
+    /// these covenants as breaches. `Custom` maximum covenants are *not*
+    /// included: their metric semantics are caller-defined and negative
+    /// values may be legitimate.
+    pub(crate) fn is_ratio_max(&self) -> bool {
+        matches!(
+            self,
+            CovenantType::MaxDebtToEbitda { .. }
+                | CovenantType::MaxTotalLeverage { .. }
+                | CovenantType::MaxSeniorLeverage { .. }
+                | CovenantType::MaxNetDebtToEbitda { .. }
+        )
+    }
+
+    /// Stable machine-readable identifier based on the variant discriminant only.
+    ///
+    /// Thresholds are **not** included because they can be amended by waivers or
+    /// overridden by threshold schedules. If multiple covenants of the same type
+    /// exist, callers should assign a disambiguating label externally.
+    pub fn covenant_id(&self) -> &'static str {
+        match self {
+            CovenantType::MaxDebtToEbitda { .. } => "max_debt_ebitda",
+            CovenantType::MinInterestCoverage { .. } => "min_interest_coverage",
+            CovenantType::MinFixedChargeCoverage { .. } => "min_fcc",
+            CovenantType::MaxTotalLeverage { .. } => "max_total_leverage",
+            CovenantType::MaxSeniorLeverage { .. } => "max_senior_leverage",
+            CovenantType::MinAssetCoverage { .. } => "min_asset_coverage",
+            CovenantType::MinDscr { .. } => "min_dscr",
+            CovenantType::MaxNetDebtToEbitda { .. } => "max_net_debt_ebitda",
+            CovenantType::MaxCapex { .. } => "max_capex",
+            CovenantType::MinLiquidity { .. } => "min_liquidity",
+            CovenantType::Negative { .. } => "negative",
+            CovenantType::Affirmative { .. } => "affirmative",
+            CovenantType::Custom { .. } => "custom",
+            CovenantType::Basket { .. } => "basket",
+        }
+    }
+}
+
+/// Consequence of covenant breach
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum CovenantConsequence {
+    /// Event of default
+    Default,
+    /// Interest rate margin increase
+    RateIncrease {
+        /// Increase in basis points
+        bp_increase: f64,
+    },
+    /// Mandatory cash sweep of excess cash flow
+    CashSweep {
+        /// Percentage of cash flow to sweep
+        sweep_percentage: f64,
+    },
+    /// Block distributions to equity holders
+    BlockDistributions,
+    /// Require additional collateral
+    RequireCollateral {
+        /// Description of collateral requirement
+        description: String,
+    },
+    /// Accelerate loan maturity date
+    AccelerateMaturity {
+        /// New accelerated maturity date
+        new_maturity: Date,
+    },
+}
+
+/// Whether the covenant test is triggered by a scheduled maintenance check or
+/// a specific incurrence action. The engine uses this to filter specs by scope.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum EvaluationTrigger {
+    /// Scheduled periodic test (e.g., quarterly compliance).
+    Maintenance,
+    /// Test triggered by a specific action (e.g., new debt issuance).
+    Incurrence {
+        /// Description of the triggering action.
+        action: String,
+    },
+}
+
+/// A covenant waiver or amendment granted by lenders.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CovenantWaiver {
+    /// Stable instance identifier of the waived covenant
+    /// (from [`Covenant::instance_key`]).
+    pub covenant_id: String,
+    /// Start date of the waiver period.
+    pub effective_date: Date,
+    /// End date of the waiver period (None = permanent amendment).
+    pub expiry_date: Option<Date>,
+    /// Amended threshold (if this is an amendment rather than a full waiver).
+    pub amended_threshold: Option<f64>,
+    /// Free-text description of the waiver terms.
+    pub description: String,
+}
+
+/// Covenant evaluation context passed to custom evaluators and metric calculators.
+pub struct CovenantEvalCtx<'a> {
+    /// Metric source for operating metrics such as EBITDA, leverage, or DSCR.
+    pub metrics: &'a mut (dyn CovenantMetricSource + 'a),
+    /// Covenant evaluation date.
+    pub as_of: Date,
+}
+
+/// Type alias for custom evaluator functions.
+pub(crate) type CustomEvaluator = Arc<
+    dyn for<'a> Fn(&mut CovenantEvalCtx<'a>) -> finstack_quant_core::Result<bool> + Send + Sync,
+>;
+
+/// Type alias for custom metric calculators.
+pub(crate) type CustomMetricCalculator =
+    Arc<dyn for<'a> Fn(&mut CovenantEvalCtx<'a>) -> finstack_quant_core::Result<f64> + Send + Sync>;
+
+/// Covenant evaluation specification.
+///
+/// Note: The `custom_evaluator` field is not serialized as it contains
+/// a function pointer. When deserializing, it will be set to `None`.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CovenantSpec {
+    /// The covenant to evaluate
+    pub covenant: Covenant,
+    /// Metric ID to use for evaluation (for financial covenants)
+    pub metric_id: Option<CovenantMetricId>,
+    /// Time-varying threshold schedule that overrides the static threshold in
+    /// [`CovenantType`] when present. Enables leverage step-down schedules.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threshold_schedule: Option<ThresholdSchedule>,
+    /// Custom evaluation function (for complex covenants).
+    /// Not serializable - will be `None` after deserialization.
+    #[serde(skip)]
+    pub custom_evaluator: Option<CustomEvaluator>,
+}
+
+// Derive-based Clone now works because custom_evaluator uses Arc
+
+impl std::fmt::Debug for CovenantSpec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CovenantSpec")
+            .field("covenant", &self.covenant)
+            .field("metric_id", &self.metric_id)
+            .field("custom_evaluator", &self.custom_evaluator.is_some())
+            .finish()
+    }
+}
+
+impl CovenantSpec {
+    /// Create a new covenant spec with a standard metric.
+    pub fn with_metric(covenant: Covenant, metric_id: impl Into<CovenantMetricId>) -> Self {
+        Self {
+            covenant,
+            metric_id: Some(metric_id.into()),
+            threshold_schedule: None,
+            custom_evaluator: None,
+        }
+    }
+
+    /// Create a new covenant spec with a custom evaluator.
+    pub fn with_evaluator<F>(covenant: Covenant, evaluator: F) -> Self
+    where
+        F: for<'a> Fn(&mut CovenantEvalCtx<'a>) -> finstack_quant_core::Result<bool>
+            + Send
+            + Sync
+            + 'static,
+    {
+        Self {
+            covenant,
+            metric_id: None,
+            threshold_schedule: None,
+            custom_evaluator: Some(Arc::new(evaluator)),
+        }
+    }
+
+    /// Attach a time-varying threshold schedule (e.g., leverage step-downs).
+    #[must_use]
+    pub fn with_threshold_schedule(mut self, schedule: ThresholdSchedule) -> Self {
+        self.threshold_schedule = Some(schedule);
+        self
+    }
+
+    pub(crate) fn validate(&self) -> finstack_quant_core::Result<()> {
+        self.covenant.validate()
+    }
+}
+
+/// Covenant test specification with timing windows.
+///
+/// This is a serialization-friendly envelope used by higher-level tooling.
+/// The `CovenantEngine` does not currently evaluate `CovenantTestSpec`
+/// instances directly.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CovenantTestSpec {
+    /// Covenant specifications to test
+    pub specs: Vec<CovenantSpec>,
+    /// Test date
+    pub test_date: Date,
+    /// Reference date for calculating cure periods
+    pub reference_date: Option<Date>,
+}
+
+/// Covenant window for scheduled testing.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CovenantWindow {
+    /// Start date of the window
+    pub start: Date,
+    /// End date of the window
+    pub end: Date,
+    /// Covenants active during this window
+    pub covenants: Vec<CovenantSpec>,
+}
+
+/// Covenant breach tracking.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CovenantBreach {
+    /// Stable identifier matching [`Covenant::instance_key`].
+    #[serde(default)]
+    pub covenant_id: String,
+    /// Human-readable description (from `Display`).
+    pub covenant_type: String,
+    /// Date of the breach
+    pub breach_date: Date,
+    /// Actual value that caused the breach
+    pub actual_value: Option<f64>,
+    /// Required threshold
+    pub threshold: Option<f64>,
+    /// Cure period end date (if applicable)
+    pub cure_deadline: Option<Date>,
+    /// Whether the breach has been cured
+    pub is_cured: bool,
+    /// Applied consequences
+    pub applied_consequences: Vec<CovenantConsequence>,
+}
+
+/// Result of applying a covenant consequence.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ConsequenceApplication {
+    /// Type of consequence applied
+    pub consequence_type: String,
+    /// Date when applied
+    pub applied_date: Date,
+    /// Details about the application
+    pub details: String,
+}

@@ -1,0 +1,449 @@
+use super::*;
+
+// POOL FLOW SOURCES
+
+/// Source of pool-level prepayment/default/recovery assumptions for each period.
+pub(crate) trait PoolFlowSource {
+    /// Calculate pool cashflows for the next legal payment period.
+    fn calculate_pool_flows(&mut self, request: PoolFlowRequest<'_, '_>) -> Result<PoolFlows>;
+}
+
+/// Inputs required to calculate pool flows for one legal payment period.
+pub(crate) struct PoolFlowRequest<'a, 's> {
+    pub(super) state: &'a mut SimulationState<'s>,
+    pub(super) instrument: &'a StructuredCredit,
+    pub(super) pay_date: Date,
+    pub(super) prev_date: Date,
+    pub(super) seasoning_months: u32,
+    pub(super) months_per_period: f64,
+    pub(super) context: &'a MarketContext,
+}
+
+/// Deterministic pool-flow source using the instrument's base credit model.
+pub(crate) struct DeterministicPoolFlowSource;
+
+impl PoolFlowSource for DeterministicPoolFlowSource {
+    fn calculate_pool_flows(&mut self, request: PoolFlowRequest<'_, '_>) -> Result<PoolFlows> {
+        let smm = request
+            .instrument
+            .calculate_prepayment_rate(request.pay_date, request.seasoning_months)?;
+        let mdr = request
+            .instrument
+            .calculate_default_rate(request.pay_date, request.seasoning_months)?;
+        calculate_pool_flows_with_rates(RatedPoolFlowRequest {
+            state: request.state,
+            pay_date: request.pay_date,
+            prev_date: request.prev_date,
+            months_per_period: request.months_per_period,
+            context: request.context,
+            rates: PoolFlowRates {
+                smm,
+                mdr,
+                recovery_rate: request.instrument.credit_model.recovery_spec.rate,
+            },
+            copula_outcome: None,
+        })
+    }
+}
+
+/// Pool-flow source for option-adjusted-spread (OAS) scenario pricing.
+///
+/// For one Monte-Carlo scenario this modulates the deal's base prepayment and
+/// default rates by an optional Hull-White short-rate path (rate-dependent
+/// prepayment) and/or an optional systematic credit factor `z` (correlated
+/// stress on default and prepayment), then defers to the deterministic
+/// pool-flow engine. Discounting — including the trial OAS spread — is applied
+/// by the caller to the resulting cashflows, not here.
+///
+/// Computing the shock per period (from the request's `pay_date`/seasoning)
+/// rather than from a pre-built vector keeps it automatically aligned to the
+/// engine's payment schedule.
+pub(crate) struct OasPathFlowSource {
+    as_of: Date,
+    /// Monthly short-rate path from `as_of` (`None` ⇒ rates not stochastic).
+    rate_path: Option<Vec<f64>>,
+    /// SC-M13: per-month departure of the simulated short rate from the
+    /// deterministic forward curve, `rate_path[m] − forwards[m]`. Applied to
+    /// FLOATING coupon projection so a floater's coupons follow the same path
+    /// its discount factors do.
+    rate_shift_path: Option<Vec<f64>>,
+    /// Systematic credit factor for the scenario (`None` ⇒ credit not stochastic).
+    credit_z: Option<f64>,
+    /// Rate-dependent prepayment sensitivity (β in `exp(-β·(r-r₀))`).
+    prepay_beta: f64,
+    /// Base (initial) short rate `r₀`.
+    base_rate: f64,
+    /// Credit factor loading for the lognormal default/prepayment shocks.
+    credit_loading: f64,
+}
+
+impl OasPathFlowSource {
+    pub(crate) fn new(
+        as_of: Date,
+        rate_path: Option<Vec<f64>>,
+        rate_shift_path: Option<Vec<f64>>,
+        credit_z: Option<f64>,
+        prepay_beta: f64,
+        base_rate: f64,
+        credit_loading: f64,
+    ) -> Self {
+        Self {
+            as_of,
+            rate_path,
+            rate_shift_path,
+            credit_z,
+            prepay_beta,
+            base_rate,
+            credit_loading,
+        }
+    }
+}
+
+impl PoolFlowSource for OasPathFlowSource {
+    fn calculate_pool_flows(&mut self, request: PoolFlowRequest<'_, '_>) -> Result<PoolFlows> {
+        const RATE_CLAMP: f64 = 0.9999;
+
+        // SC-M13: publish this period's rate shift so FLOATING coupons — both
+        // pool assets and tranches — follow the simulated path.
+        //
+        // Without it the OAS applied a stochastic discount factor to
+        // DETERMINISTIC coupons. For a floater that is the wrong instrument
+        // entirely: coupon/discount correlation is exactly what makes a floater
+        // rate-insensitive, and dropping it leaves only the discounting leg. The
+        // martingale correction keeps the mean PV unbiased so the OAS point
+        // estimate survived, but the per-path dispersion — and therefore
+        // `price_std_error` — measured a risk a CLO does not have.
+        {
+            let month = self.as_of.months_until(request.pay_date) as usize;
+            request.state.floating_rate_shift = self
+                .rate_shift_path
+                .as_ref()
+                .and_then(|p| p.get(month).copied())
+                .unwrap_or(0.0);
+        }
+        let base_smm = request
+            .instrument
+            .calculate_prepayment_rate(request.pay_date, request.seasoning_months)?;
+        let base_mdr = request
+            .instrument
+            .calculate_default_rate(request.pay_date, request.seasoning_months)?;
+
+        let mut smm = base_smm;
+        let mut mdr = base_mdr;
+
+        // Rate-dependent prepayment: higher rates slow prepayment.
+        if let Some(rate_path) = &self.rate_path {
+            let month = self.as_of.months_until(request.pay_date) as usize;
+            let r = rate_path.get(month).copied().unwrap_or(self.base_rate);
+            let mult = (-self.prepay_beta * (r - self.base_rate)).exp();
+            smm = (smm * mult).clamp(0.0, RATE_CLAMP);
+        }
+
+        // Systematic credit stress (canonical convention: low `z` is the stress
+        // state). Mean-corrected lognormal multipliers keep `E[shock] ≈ 1`, so
+        // the stochastic credit dimension adds dispersion without biasing the
+        // mean cashflows (and hence the OAS).
+        if let Some(z) = self.credit_z {
+            let l = self.credit_loading;
+            let mdr_mult = (-l * z - 0.5 * l * l).exp();
+            let smm_mult = (l * z - 0.5 * l * l).exp();
+            mdr = (mdr * mdr_mult).clamp(0.0, RATE_CLAMP);
+            smm = (smm * smm_mult).clamp(0.0, RATE_CLAMP);
+        }
+
+        calculate_pool_flows_with_rates(RatedPoolFlowRequest {
+            state: request.state,
+            pay_date: request.pay_date,
+            prev_date: request.prev_date,
+            months_per_period: request.months_per_period,
+            context: request.context,
+            rates: PoolFlowRates {
+                smm,
+                mdr,
+                recovery_rate: request.instrument.credit_model.recovery_spec.rate,
+            },
+            copula_outcome: None,
+        })
+    }
+}
+
+/// Per-period systematic inputs for finite-pool per-name copula default
+/// simulation.
+///
+/// When present on a [`PeriodPoolShock`], the engine realizes each pool
+/// asset's default individually (latent variable `Aᵢ = √ρ·Z + √(1−ρ)·εᵢ`)
+/// instead of applying the pool-wide MDR uniformly.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PerNamePeriodInput {
+    /// Systematic factor `Z` for the payment period, shared by every name.
+    pub(crate) systematic_z: f64,
+    /// Per-name *unconditional* marginal default probability for the period.
+    /// Homogeneous pools share one value; the threshold `Φ⁻¹(PDₜ)` is
+    /// recomputed per name to support heterogeneous pools.
+    pub(crate) marginal_pd: f64,
+}
+
+/// Aggregated scenario assumptions for a legal payment period.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PeriodPoolShock {
+    /// Equivalent monthly SMM for the payment period.
+    pub(crate) smm: f64,
+    /// Equivalent monthly MDR for the payment period.
+    ///
+    /// Used as the pool-wide default rate when `per_name` is `None` (the LHP
+    /// fast-path), and ignored for assets when per-name simulation is active.
+    pub(crate) mdr: f64,
+    /// Recovery rate applied to defaults in the payment period.
+    pub(crate) recovery_rate: f64,
+    /// Per-name copula inputs. `Some` ⇒ realize defaults name-by-name;
+    /// `None` ⇒ apply the pool-wide LHP MDR.
+    pub(crate) per_name: Option<PerNamePeriodInput>,
+}
+
+impl PeriodPoolShock {
+    /// Construct a pool-wide (LHP / non-copula) shock with no per-name plan.
+    pub(crate) fn pool_wide(smm: f64, mdr: f64, recovery_rate: f64) -> Self {
+        Self {
+            smm,
+            mdr,
+            recovery_rate,
+            per_name: None,
+        }
+    }
+}
+
+/// Per-path per-name copula default engine carried by a scenario flow source.
+///
+/// Owns the path's idiosyncratic-draw RNG substream so that per-name `εᵢ`
+/// draws are deterministic and order-stable (period → name index). The
+/// `simulator` is shared (cheap `Arc` clone of the copula kernel) across
+/// paths; only the RNG is per-path.
+///
+/// # Antithetic pairing
+///
+/// When `antithetic` is `true` this engine is the *second member* of an
+/// antithetic pair: it shares its RNG substream with the first member and
+/// **negates** every idiosyncratic `εᵢ` draw. Combined with the systematic
+/// factor `Z` being negated by `monte_carlo_factor_sets`, the copula latent
+/// variable `Aᵢ = √ρ·Z + √(1−ρ)·εᵢ` becomes `−Aᵢ` for the paired path — the
+/// genuine antithetic variate. Without this the per-name idiosyncratic
+/// channel of paired paths would be independent, defeating the variance
+/// reduction and making the reported confidence interval too narrow.
+///
+/// The Student-t mixing variable `W` is drawn from the same shared substream
+/// and is *not* negated: the χ²-based mixing is asymmetric, and standard
+/// antithetic treatment for the Student-t copula negates only the Gaussian
+/// components while keeping the mixing common to the pair.
+pub(crate) struct PerNameDefaultEngine {
+    simulator: Arc<PerNameCopulaDefault>,
+    granularity: PoolGranularity,
+    rng: PhiloxRng,
+    /// `true` ⇒ second member of an antithetic pair; negate idiosyncratic draws.
+    antithetic: bool,
+    /// Idiosyncratic (name-specific) recovery volatility. When `> 0`, each
+    /// defaulted name recovers at its own rate scattered around the period
+    /// systematic recovery; `0` ⇒ every default recovers at the period rate
+    /// (no per-name dispersion, e.g. constant recovery).
+    idiosyncratic_recovery_vol: f64,
+}
+
+impl PerNameDefaultEngine {
+    /// Create a per-name engine for one scenario path (independent draws).
+    pub(crate) fn new(
+        simulator: Arc<PerNameCopulaDefault>,
+        granularity: PoolGranularity,
+        rng: PhiloxRng,
+        idiosyncratic_recovery_vol: f64,
+    ) -> Self {
+        Self {
+            simulator,
+            granularity,
+            rng,
+            antithetic: false,
+            idiosyncratic_recovery_vol,
+        }
+    }
+
+    /// Create the *antithetic partner* per-name engine for a scenario path.
+    ///
+    /// `rng` must be the SAME substream the paired path uses; this engine
+    /// negates every idiosyncratic `εᵢ` draw so the copula latent variable is
+    /// the antithetic variate of its partner.
+    pub(crate) fn new_antithetic(
+        simulator: Arc<PerNameCopulaDefault>,
+        granularity: PoolGranularity,
+        rng: PhiloxRng,
+        idiosyncratic_recovery_vol: f64,
+    ) -> Self {
+        Self {
+            simulator,
+            granularity,
+            rng,
+            antithetic: true,
+            idiosyncratic_recovery_vol,
+        }
+    }
+}
+
+/// Stochastic path pool-flow source using pre-generated period shocks.
+pub(crate) struct StochasticPathFlowSource {
+    shocks: Vec<PeriodPoolShock>,
+    next_period: usize,
+    /// Per-name copula engine. `Some` when the scenario uses finite-pool
+    /// per-name default simulation.
+    per_name: Option<PerNameDefaultEngine>,
+    /// Scratch buffer for per-name default indicators, reused each period to
+    /// avoid per-period allocation.
+    default_scratch: Vec<bool>,
+    /// Scratch buffer for per-name recovery rates, index-aligned with
+    /// `default_scratch`. Entry `k` is the recovery the `k`-th performing
+    /// asset realizes if it defaults this period.
+    recovery_scratch: Vec<f64>,
+    /// Scratch buffer holding one marginal-PD entry per still-performing asset,
+    /// reused each period to avoid allocating a fresh vector for the per-name
+    /// copula simulation.
+    marginal_scratch: Vec<f64>,
+}
+
+impl StochasticPathFlowSource {
+    /// Create a flow source for one scenario path (pool-wide / LHP shocks).
+    pub(crate) fn new(shocks: Vec<PeriodPoolShock>) -> Self {
+        Self {
+            shocks,
+            next_period: 0,
+            per_name: None,
+            default_scratch: Vec::new(),
+            recovery_scratch: Vec::new(),
+            marginal_scratch: Vec::new(),
+        }
+    }
+
+    /// Create a flow source that realizes per-name copula defaults.
+    pub(crate) fn with_per_name(
+        shocks: Vec<PeriodPoolShock>,
+        per_name: PerNameDefaultEngine,
+    ) -> Self {
+        Self {
+            shocks,
+            next_period: 0,
+            per_name: Some(per_name),
+            default_scratch: Vec::new(),
+            recovery_scratch: Vec::new(),
+            marginal_scratch: Vec::new(),
+        }
+    }
+}
+
+impl PoolFlowSource for StochasticPathFlowSource {
+    fn calculate_pool_flows(&mut self, request: PoolFlowRequest<'_, '_>) -> Result<PoolFlows> {
+        let shock = self.shocks.get(self.next_period).copied().ok_or_else(|| {
+            finstack_quant_core::Error::Validation(format!(
+                "stochastic path has no pool shock for payment period {}",
+                self.next_period + 1
+            ))
+        })?;
+        self.next_period += 1;
+
+        // Copula default resolution: when the per-name engine and the
+        // period's per-name plan are both present, the copula owns the
+        // period's default rate. `PerName` granularity realizes each asset
+        // individually (latent variable `Aᵢ`); `LargeHomogeneous` applies the
+        // closed-form LHP conditional default probability uniformly — the
+        // `N → ∞` limit of the per-name model.
+        let copula_outcome = match (self.per_name.as_mut(), shock.per_name) {
+            (Some(engine), Some(plan)) => match engine.granularity {
+                PoolGranularity::PerName => {
+                    // One marginal-PD entry per still-performing asset, in
+                    // the pool's intrinsic asset order, so the per-name εᵢ
+                    // draws are order-stable.
+                    let alive = request
+                        .state
+                        .pool_state
+                        .is_defaulted
+                        .iter()
+                        .zip(request.state.pool_state.balances.iter())
+                        .filter(|(defaulted, balance)| !**defaulted && **balance > 0.0)
+                        .count();
+                    // Reuse a per-source scratch buffer for the marginal-PD
+                    // vector instead of allocating one per period.
+                    self.marginal_scratch.clear();
+                    self.marginal_scratch.resize(alive, plan.marginal_pd);
+                    // Antithetic partners negate their idiosyncratic εᵢ draws
+                    // so the copula latent variable is the antithetic variate
+                    // of the paired path (the systematic Z is already negated
+                    // by `monte_carlo_factor_sets`).
+                    if engine.antithetic {
+                        engine.simulator.simulate_period_antithetic(
+                            plan.systematic_z,
+                            &self.marginal_scratch,
+                            &mut engine.rng,
+                            &mut self.default_scratch,
+                        );
+                    } else {
+                        engine.simulator.simulate_period(
+                            plan.systematic_z,
+                            &self.marginal_scratch,
+                            &mut engine.rng,
+                            &mut self.default_scratch,
+                        );
+                    }
+
+                    // Per-name idiosyncratic recovery dispersion: each name
+                    // recovers at its own rate, scattered around the period
+                    // systematic recovery `shock.recovery_rate`. A draw is
+                    // taken for every name (not only defaulters) so the RNG
+                    // stream stays order-stable; the antithetic partner negates
+                    // the recovery shock, mirroring the default-shock negation.
+                    // When the recovery model has no idiosyncratic volatility
+                    // no draw is consumed, so a constant-recovery scenario is
+                    // bit-identical to the pre-dispersion engine.
+                    self.recovery_scratch.clear();
+                    self.recovery_scratch.reserve(self.default_scratch.len());
+                    let sigma = engine.idiosyncratic_recovery_vol;
+                    for _ in 0..self.default_scratch.len() {
+                        let recovery = if sigma > 0.0 {
+                            let raw = engine.rng.next_std_normal();
+                            let eps = if engine.antithetic { -raw } else { raw };
+                            (shock.recovery_rate + sigma * eps).clamp(0.0, 1.0)
+                        } else {
+                            shock.recovery_rate
+                        };
+                        self.recovery_scratch.push(recovery);
+                    }
+
+                    Some(PeriodDefaultOutcome::PerName {
+                        defaults: &self.default_scratch,
+                        recoveries: &self.recovery_scratch,
+                    })
+                }
+                PoolGranularity::LargeHomogeneous => {
+                    // Closed-form LHP limit: apply E[1{Aᵢ ≤ c} | Z, W] to the
+                    // whole pool as a period-level default rate. The simulator
+                    // draws the same shared mixing `W` per period as the
+                    // per-name path, so this is the genuine `N → ∞` limit.
+                    let rate = engine.simulator.conditional_default_prob(
+                        plan.systematic_z,
+                        plan.marginal_pd,
+                        &mut engine.rng,
+                    );
+                    Some(PeriodDefaultOutcome::PoolWidePeriodRate(rate))
+                }
+            },
+            _ => None,
+        };
+
+        calculate_pool_flows_with_rates(RatedPoolFlowRequest {
+            state: request.state,
+            pay_date: request.pay_date,
+            prev_date: request.prev_date,
+            months_per_period: request.months_per_period,
+            context: request.context,
+            rates: PoolFlowRates {
+                smm: shock.smm,
+                mdr: shock.mdr,
+                recovery_rate: shock.recovery_rate,
+            },
+            copula_outcome,
+        })
+    }
+}

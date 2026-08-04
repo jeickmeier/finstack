@@ -24,14 +24,14 @@ bond/
 │   │   ├── discount.rs      # BondEngine: PV = Σ CF_i × DF_i
 │   │   ├── hazard.rs        # HazardBondEngine: survival-weighted PV + FRP recovery
 │   │   ├── tree.rs          # TreePricer: binomial tree for callable/putable + OAS
-│   │   └── merton_mc.rs     # MertonMcEngine: structural credit MC for PIK bonds
+│   │   └── merton_mc/       # MertonMcEngine: structural credit MC for PIK bonds
 │   ├── pricer/              # Registry adapters (thin glue: downcast → engine → ValuationResult)
 │   │   ├── mod.rs
 │   │   ├── discount.rs      # SimpleBondDiscountingPricer
 │   │   ├── hazard.rs        # SimpleBondHazardPricer
 │   │   ├── oas.rs           # SimpleBondOasPricer
 │   │   └── merton_mc.rs     # SimpleBondMertonMcPricer (+ cash-equiv Z-spread/YTM)
-│   ├── quote_conversions.rs # Price ↔ yield ↔ spread conversion functions
+│   ├── quote_conversions/   # Price ↔ yield ↔ spread conversion functions
 │   ├── ytm_solver.rs        # Newton-Brent yield-to-maturity solver
 │   └── settlement.rs        # Settlement date and accrued interest utilities
 └── metrics/                 # Bond-specific metric calculators
@@ -57,7 +57,7 @@ bond/
 
 - **Engines** (`engine/*.rs`) contain the core pricing math. They take a `Bond` + `MarketContext` and return a PV. They know nothing about the registry.
 - **Pricers** (`pricer/*.rs`) are thin registry adapters. They downcast the instrument, call the appropriate engine, and wrap the result in a `ValuationResult`. Adding a new pricing model means one engine file + one pricer file.
-- **Utilities** (`quote_conversions.rs`, `ytm_solver.rs`, `settlement.rs`) are shared helpers used by both engines and metrics.
+- **Utilities** (`quote_conversions/`, `ytm_solver.rs`, `settlement.rs`) are shared helpers used by both engines and metrics.
 
 ## Feature Set
 

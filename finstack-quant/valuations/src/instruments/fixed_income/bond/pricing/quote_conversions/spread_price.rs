@@ -1,0 +1,324 @@
+use super::annuity::{
+    asset_swap_forward_components, fixed_leg_annuity, par_rate_and_annuity_from_discount,
+};
+use super::compute::clear_price_driving_overrides;
+use crate::instruments::common_impl::traits::Instrument;
+use crate::instruments::fixed_income::bond::metrics::price_yield_spread::z_spread::BondZSpreadPricingKernel;
+use crate::instruments::fixed_income::bond::pricing::engine::tree::{bond_tree_config, TreePricer};
+use crate::instruments::fixed_income::bond::{Bond, CashflowSpec};
+use finstack_quant_core::dates::calendar::calendar_by_id;
+use finstack_quant_core::dates::{Date, DayCount, ScheduleBuilder, StubKind, Tenor};
+use finstack_quant_core::market_data::context::MarketContext;
+use finstack_quant_core::types::CurveId;
+use finstack_quant_core::Result;
+use rust_decimal::prelude::ToPrimitive;
+
+fn resolved_asw_forward_curve_id(bond: &Bond) -> Option<CurveId> {
+    bond.instrument_pricing_overrides
+        .model_config
+        .asw_forward_curve_id
+        .clone()
+        .or_else(|| bond.forward_curve_id.clone())
+}
+
+/// Price from Z-spread added to zero rates in the bond's compounding convention.
+///
+/// # Settlement origin
+///
+/// `as_of` is the **valuation/trade date**. The Z-spread is, by market
+/// convention, a settlement-anchored quantity: [`ZSpreadCalculator`] solves it
+/// with discounting and year-fractions measured from the bond's settlement
+/// (`quote_date`), not from `as_of`. This inverter mirrors that exactly — it
+/// derives the same `quote_date` internally via `QuoteDateContext` and
+/// anchors all discounting there. As a result the documented round-trip
+///
+/// ```text
+/// price_from_z_spread(bond, market, as_of, ZSpreadCalculator.solve(...)) == dirty
+/// ```
+///
+/// holds for **any** bond, including callable/putable bonds whose quoted
+/// yield-to-worst selects an early workout path and bonds with a non-zero
+/// `settlement_days` lag (`quote_date != as_of`). Callers must pass the
+/// valuation date as `as_of`; workout selection and settlement are handled
+/// here.
+///
+/// [`ZSpreadCalculator`]: crate::instruments::fixed_income::bond::ZSpreadCalculator
+///
+/// # Arguments
+///
+/// * `bond` - Bond whose future pricing cashflows, settlement convention, and
+///   z-spread compounding frequency are used.
+/// * `curves` - Market context supplying the bond discount curve and schedule
+///   dependencies.
+/// * `as_of` - Valuation/trade date; the helper derives settlement internally.
+/// * `z` - Annual z-spread as a decimal zero-rate shift under the bond's
+///   contractual compounding convention.
+pub fn price_from_z_spread(
+    bond: &Bond,
+    curves: &MarketContext,
+    as_of: Date,
+    z: f64,
+) -> finstack_quant_core::Result<f64> {
+    BondZSpreadPricingKernel::new(bond, curves, as_of)?.price(z)
+}
+
+/// Price from Option-Adjusted Spread using the short-rate tree pricer.
+///
+/// The public API takes **decimal spread units** (`oas_decimal`), where
+/// `0.01` corresponds to **100 basis points**. Internally, the tree
+/// pricer continues to work in basis points for compatibility, so we
+/// convert:
+///
+/// - `oas_bp = oas_decimal * 10_000.0`
+///
+/// This keeps all bond spread-style metrics on a consistent decimal
+/// convention at the API surface while preserving existing internal
+/// tree semantics.
+///
+/// # Arguments
+///
+/// * `bond` - Bond whose embedded tree-pricing configuration and contractual
+///   cashflows are used for OAS valuation.
+/// * `curves` - Market context supplying the discount curve and tree inputs.
+/// * `as_of` - Valuation date supplied to the short-rate tree pricer.
+/// * `oas_decimal` - Option-adjusted spread as a decimal, such as `0.01` for
+///   100 basis points.
+pub fn price_from_oas(
+    bond: &Bond,
+    curves: &MarketContext,
+    as_of: Date,
+    oas_decimal: f64,
+) -> finstack_quant_core::Result<f64> {
+    // Convert decimal spread (0.01 = 100bp) to basis points for the tree.
+    let oas_bp = oas_decimal * 10_000.0;
+    let pricer = TreePricer::with_config(bond_tree_config(bond)?);
+    pricer.price_at_oas(bond, curves, as_of, oas_bp)
+}
+
+/// Price from Discount Margin for FRNs by adding DM (decimal) to the **discount rate**.
+///
+/// Cashflows are projected **unchanged** at the contractual quoted margin
+/// (forward index + `spread_bp` from `FloatingCouponSpec`); the discount
+/// margin is then applied as a constant spread on the discount side,
+/// following the standard definition (Fabozzi; Bloomberg YAS): PV is
+/// strictly **decreasing** in DM, and an FRN priced at par on a flat,
+/// consistent curve has DM equal to its quoted margin.
+///
+/// The discounting mechanics are identical to [`price_from_z_spread`]: the
+/// periodically-compounded zero rate is derived from the bond's discount
+/// curve and each flow is re-discounted at `rate + dm` (see
+/// `z_spread_discount_factor`). This is therefore a **curve DM** — a spread
+/// over the bond's *discount* curve. If the discount curve differs from the
+/// projection index curve, the solved DM includes that discount/projection
+/// basis.
+///
+/// This helper prices against the model PV, independent of any
+/// price-from-quote override on the bond. It is used by the DM metric solver
+/// that seeks a DM reproducing a quoted price, so it must not short-circuit
+/// via the quote.
+///
+/// # Arguments
+///
+/// * `bond` - Floating-rate bond whose contractual cashflows are projected at
+///   the quoted margin and re-discounted at the shifted rate.
+/// * `curves` - Market context supplying discounting and floating-rate reset
+///   data.
+/// * `as_of` - Valuation date used for schedule construction and discounting.
+/// * `dm` - Annual discount margin as a decimal added to the discount rate
+///   (`0.01` = 100 bp).
+pub fn price_from_dm(
+    bond: &Bond,
+    curves: &MarketContext,
+    as_of: Date,
+    dm: f64,
+) -> finstack_quant_core::Result<f64> {
+    let mut b = bond.clone();
+    clear_price_driving_overrides(&mut b);
+
+    // DM discounting semantics apply to floating-rate bonds only; other
+    // cashflow specs fall back to the plain model PV.
+    let is_floating = matches!(&b.cashflow_spec, CashflowSpec::Floating(_));
+    if !is_floating {
+        return Ok(b.value(curves, as_of)?.amount());
+    }
+    // Coupons stay at the contractual quoted margin; the DM shifts the
+    // discount rate via the shared Z-spread discounting mechanics.
+    price_from_z_spread(&b, curves, as_of, dm)
+}
+
+/// Compute the par swap fixed rate used in the I-Spread definition
+/// (`ISpread = YTM - par_swap_rate`) using the same convention as the
+/// `ISpreadCalculator` (annual Act/Act proxy fixed leg by default).
+pub(super) fn par_swap_rate_from_discount(
+    bond: &Bond,
+    curves: &MarketContext,
+    quote_date: Date,
+) -> Result<f64> {
+    let disc = curves.get_discount(&bond.discount_curve_id)?;
+    if let Some(par_swap_rate) =
+        crate::instruments::fixed_income::bond::metrics::price_yield_spread::i_spread::interpolated_swap_quote_rate(
+            disc.as_ref(),
+            quote_date,
+            bond.maturity,
+        )?
+    {
+        return Ok(par_swap_rate);
+    }
+    let ispread_cfg =
+        crate::instruments::fixed_income::bond::metrics::price_yield_spread::i_spread::ISpreadConfig::default();
+
+    // Mirror the fallback logic in `ISpreadCalculator`:
+    // when using the default (annual Act/Act) proxy-leg config, use the bond's
+    // fixed-coupon conventions for the proxy fixed leg.
+    let mut fixed_leg_day_count = ispread_cfg.fixed_leg_day_count;
+    let mut fixed_leg_frequency = ispread_cfg.fixed_leg_frequency;
+    if matches!(ispread_cfg.fixed_leg_day_count, DayCount::ActAct)
+        && ispread_cfg.fixed_leg_frequency == Tenor::annual()
+    {
+        if let CashflowSpec::Fixed(spec) = &bond.cashflow_spec {
+            fixed_leg_day_count = spec.schedule.day_count;
+            fixed_leg_frequency = spec.schedule.frequency;
+        }
+    }
+
+    // Mirror the schedule and fixed-leg conventions used in ISpreadCalculator defaults.
+    let dates: Vec<Date> = ScheduleBuilder::new(quote_date, bond.maturity)?
+        .frequency(fixed_leg_frequency)
+        .stub_rule(StubKind::ShortFront)
+        .build()?
+        .into_iter()
+        .collect();
+
+    if dates.len() < 2 {
+        return Err(finstack_quant_core::Error::Validation(
+            "I-spread proxy par-swap calculation requires at least two schedule dates".to_string(),
+        ));
+    }
+
+    let (par_rate, annuity) = par_rate_and_annuity_from_discount(
+        disc.as_ref(),
+        fixed_leg_day_count,
+        Some(fixed_leg_frequency),
+        &dates,
+    )?;
+    if annuity.abs() < 1e-12 {
+        return Err(finstack_quant_core::Error::Validation(
+            "I-spread proxy par-swap calculation is undefined for near-zero annuity".to_string(),
+        ));
+    }
+    Ok(par_rate)
+}
+
+/// Price from market asset swap spread (decimal) using the same
+/// approximation as `AssetSwapMarketCalculator` for non-custom,
+/// fixed-rate bonds:
+///
+/// `ASW_mkt = [(coupon - par_rate) * fixed_annuity + (1.0 - price_pct)] / float_annuity`
+///
+/// where `price_pct = dirty / notional` and both the fixed-annuity-weighted
+/// running term and the upfront are amortized over the floating-leg annuity
+/// (par-par derivation). Without a forward curve the floating leg is proxied
+/// on the fixed-leg schedule with the discount curve's day count. Inverting:
+///
+/// `price_pct = 1.0 + (coupon - par_rate) * fixed_annuity - ASW_mkt * float_annuity`.
+pub(super) fn price_from_asw_market(
+    bond: &Bond,
+    curves: &MarketContext,
+    as_of: Date,
+    asw_market: f64,
+) -> Result<f64> {
+    // Only well-defined for fixed-rate, non-custom bonds in this helper.
+    if bond.custom_cashflows.is_some() {
+        return Err(finstack_quant_core::InputError::Invalid.into());
+    }
+    let (coupon, frequency, stub, business_day_convention, calendar_id) = match &bond.cashflow_spec
+    {
+        CashflowSpec::Fixed(spec) => (
+            spec.rate.to_f64().unwrap_or(0.0),
+            spec.schedule.frequency,
+            spec.schedule.stub,
+            spec.schedule.business_day_convention,
+            Some(spec.schedule.calendar_id.as_str()),
+        ),
+        _ => return Err(finstack_quant_core::InputError::Invalid.into()),
+    };
+
+    let disc = curves.get_discount(&bond.discount_curve_id)?;
+
+    // Mirror the schedule and annuity definition used by AssetSwapMarketCalculator
+    // (discount-ratio approximation on the fixed-leg schedule).
+    if as_of >= bond.maturity {
+        return Err(finstack_quant_core::Error::Validation(
+            "ASW market price inversion requires at least two fixed-leg schedule dates".to_string(),
+        ));
+    }
+    let mut builder = ScheduleBuilder::new(as_of, bond.maturity)?
+        .frequency(frequency)
+        .stub_rule(stub);
+
+    if let Some(id) = calendar_id {
+        if let Some(cal) = calendar_by_id(id) {
+            builder = builder.adjust_with(business_day_convention, cal);
+        }
+    }
+
+    let sched: Vec<Date> = builder.build()?.into_iter().collect();
+    if sched.len() < 2 {
+        return Err(finstack_quant_core::Error::Validation(
+            "ASW market price inversion requires at least two fixed-leg schedule dates".to_string(),
+        ));
+    }
+
+    let day_count = bond.cashflow_spec.day_count();
+    let forward_components = if let Some(fwd_id) = resolved_asw_forward_curve_id(bond) {
+        let fwd = curves.get_forward(fwd_id.as_str())?;
+        Some(asset_swap_forward_components(
+            disc.as_ref(),
+            fwd.as_ref(),
+            day_count,
+            Some(frequency),
+            &sched,
+            0.0,
+        )?)
+    } else {
+        None
+    };
+    let (par_rate, ann) = if let Some((float_pv, fixed_ann, float_ann)) = forward_components {
+        if fixed_ann.abs() < 1e-12 {
+            (0.0, 0.0)
+        } else {
+            (float_pv / fixed_ann, float_ann)
+        }
+    } else {
+        par_rate_and_annuity_from_discount(disc.as_ref(), day_count, Some(frequency), &sched)?
+    };
+    if bond.notional.amount().abs() < 1e-12 {
+        return Err(finstack_quant_core::Error::Validation(
+            "ASW market price inversion is undefined for near-zero notional".to_string(),
+        ));
+    }
+    // Use epsilon check to avoid unstable inversion when annuity is degenerate.
+    if ann.abs() < 1e-12 {
+        return Err(finstack_quant_core::Error::Validation(
+            "ASW market price inversion is undefined for near-zero fixed-leg annuity".to_string(),
+        ));
+    }
+
+    let price_pct = if let Some((float_pv, fixed_ann, float_ann)) = forward_components {
+        1.0 + coupon * fixed_ann - float_pv - asw_market * float_ann
+    } else {
+        // Mirror the AssetSwapMarketCalculator fallback (exact par-par form
+        // with the floating leg proxied on the same schedule using the
+        // discount curve's day count): invert
+        // asw = [(C - par)·Ann_fixed + (1 - p)] / Ann_float for p.
+        let float_ann = fixed_leg_annuity(disc.as_ref(), disc.day_count(), None, &sched)?;
+        if float_ann.abs() < 1e-12 {
+            return Err(finstack_quant_core::Error::Validation(
+                "ASW market price inversion is undefined for near-zero floating-leg annuity"
+                    .to_string(),
+            ));
+        }
+        1.0 + (coupon - par_rate) * ann - asw_market * float_ann
+    };
+    Ok(price_pct * bond.notional.amount())
+}

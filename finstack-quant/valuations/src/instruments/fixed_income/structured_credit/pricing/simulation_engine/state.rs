@@ -1,0 +1,354 @@
+use super::*;
+
+// SIMULATION STATE
+
+/// De minimis threshold for write-down recording (avoids noise from fp rounding).
+pub(super) const WRITEDOWN_DE_MINIMIS: f64 = 0.01;
+
+/// Cleanup-call premium; currently zero because the deal has no premium term.
+pub(super) fn cleanup_call_premium(_instrument: &StructuredCredit, _tranche_balance: f64) -> f64 {
+    0.0
+}
+
+/// Internal state for period-by-period simulation.
+pub(super) struct SimulationState<'a> {
+    /// AssetPool state (SoA layout)
+    pub(super) pool_state: PoolState,
+    /// Total pool outstanding (sum of balances)
+    pub(super) pool_outstanding: Money,
+    pub(super) recovery_queue: RecoveryQueue,
+    pub(super) tranche_balances: HashMap<String, Money>,
+    /// Deferred (PIK) interest per tranche, carried forward to next period.
+    pub(super) deferred_interest: HashMap<String, Money>,
+    pub(super) results: HashMap<String, TrancheCashflows>,
+    pub(super) prev_date: Option<Date>,
+    pub(super) base_currency: Currency,
+    pub(super) recovery_lag_months: u32,
+    pub(super) pool: &'a AssetPool,
+    pub(super) tranches: &'a TrancheStructure,
+    pub(super) closing_date: Date,
+    pub(super) pool_balance_cleanup_threshold: f64,
+    pub(super) tranche_recipient_keys: Vec<RecipientType>,
+    /// Whether reinvestment was active in the previous period.
+    /// Used to detect the reinvestment-end transition and reconcile pool_outstanding.
+    pub(super) was_reinvestment_active: bool,
+    /// Cumulative net loss realized in this scenario
+    /// (`default_amount * (1 - recovery_rate)`), accumulated period by period.
+    ///
+    /// "Realized" here means realized *within the simulated path*: it uses the
+    /// expected recovery at the point of default rather than lagged cash
+    /// recoveries (the INTEX/Moody's Analytics convention — loss allocation
+    /// reflects economic loss at default, not the cash-timing of recovery
+    /// receipts). It is a running realized loss, not a forward-looking expected
+    /// loss; trap/early-amortization/step-down triggers key off it as a fraction
+    /// of the original pool.
+    pub(super) cumulative_realized_loss: f64,
+    /// Cumulative net loss that exceeds the structure's total absorbable
+    /// notional (every tranche fully written down). Surfaced rather than
+    /// silently dropped by the loss-allocation `min(...)` cap, so the
+    /// per-period cash-conservation check can account for it.
+    pub(super) cumulative_loss_unallocated: f64,
+    /// Total pool balance at simulation start (including defaulted assets).
+    /// Used for cleanup call pool factor calculation.
+    pub(super) total_pool_balance: Money,
+    /// Performing pool balance at simulation start (excluding pre-defaulted assets).
+    /// Used as denominator for loss allocation percentage.
+    pub(super) performing_pool_balance: Money,
+    /// Pre-computed tranche indices sorted by loss allocation order:
+    /// equity (first loss) → subordinated → mezzanine → senior.
+    /// Computed once, reused every period.
+    pub(super) loss_alloc_order: Vec<usize>,
+    /// Balance-weighted average collateral age (WALA) in months at closing,
+    /// derived from each asset's `acquisition_date`. PSA/SDA seasoning ramps
+    /// are keyed off LOAN age, not deal age, so seasoned collateral must
+    /// start partway up the ramp. Assets without an `acquisition_date`
+    /// contribute zero age (collateral assumed new at closing).
+    pub(super) pool_wala_months: u32,
+    /// Current reserve account balance.
+    pub(super) reserve_balance: Money,
+    /// Current excess-spread (spread-account) balance. Carries period to period:
+    /// funded from captured residual interest and drawn to cover debt interest
+    /// shortfalls. See `ExcessSpreadSpec`.
+    pub(super) spread_account: Money,
+    /// Current controlled-accumulation principal funding account balance. During
+    /// the accumulation period, collected pool principal is held here (investor
+    /// balances flat) and released as a bullet at the accumulation end. See
+    /// `ControlledAccumulationSpec`.
+    pub(super) principal_funding_account: Money,
+    /// SC-M13: additive shift applied to FLOATING rate projections this period,
+    /// so OAS-simulated coupons follow the same rate path as the discounting.
+    /// Zero for every non-OAS run, making this exact identity there.
+    pub(super) floating_rate_shift: f64,
+}
+
+/// Deal-health metrics for this period's step-down trigger evaluation.
+///
+/// Computes, on current balances: cumulative loss (fraction of the *original*
+/// pool), the overcollateralization ratio (pool ÷ rated non-equity notes), and
+/// senior credit enhancement (`(pool − senior note) ÷ pool`, the senior note
+/// being the lowest payment-priority tranche). See [`StepDownTrigger`].
+///
+/// [`StepDownTrigger`]: crate::instruments::fixed_income::structured_credit::StepDownTrigger
+pub(super) fn step_down_metrics(
+    state: &SimulationState,
+) -> crate::instruments::fixed_income::structured_credit::pricing::resolve::StepDownMetrics {
+    // N2: include the controlled-accumulation funding account. That principal
+    // has left the asset balances but is still collateral for the notes, so
+    // omitting it depresses both the OC ratio and credit enhancement during
+    // accumulation and can trip a step-down trigger that has not truly fired.
+    // Same reasoning as the coverage-test numerator in `simulate_period`.
+    let pool = state.pool_outstanding.amount() + state.principal_funding_account.amount();
+    let cumulative_loss_fraction = if state.total_pool_balance.amount() > 0.0 {
+        state.cumulative_realized_loss / state.total_pool_balance.amount()
+    } else {
+        0.0
+    };
+    let rated_note_balance: f64 = state
+        .tranches
+        .tranches
+        .iter()
+        .filter(|t| t.seniority != TrancheSeniority::Equity)
+        .map(|t| {
+            state
+                .tranche_balances
+                .get(t.id.as_str())
+                .map_or(0.0, |m| m.amount())
+        })
+        .sum();
+    let senior_note_balance = state
+        .tranches
+        .tranches
+        .iter()
+        .min_by_key(|t| t.payment_priority)
+        .and_then(|t| state.tranche_balances.get(t.id.as_str()))
+        .map_or(0.0, |m| m.amount());
+    crate::instruments::fixed_income::structured_credit::pricing::resolve::StepDownMetrics {
+        cumulative_loss_fraction,
+        oc_ratio: if rated_note_balance > 0.0 {
+            pool / rated_note_balance
+        } else {
+            f64::INFINITY
+        },
+        credit_enhancement: if pool > 0.0 {
+            (pool - senior_note_balance) / pool
+        } else {
+            0.0
+        },
+    }
+}
+
+impl<'a> SimulationState<'a> {
+    pub(super) fn new(
+        pool: &'a AssetPool,
+        tranches: &'a TrancheStructure,
+        closing_date: Date,
+        state_date: Date,
+        recovery_lag_months: u32,
+    ) -> Result<Self> {
+        let base_currency = pool.base_currency();
+        let pool_balance_cleanup_threshold = embedded_registry()?.pool_balance_cleanup_threshold();
+
+        // Initialize results map for each tranche
+        let results: HashMap<String, TrancheCashflows> = tranches
+            .tranches
+            .iter()
+            .map(|t| {
+                (
+                    t.id.to_string(),
+                    TrancheCashflows {
+                        tranche_id: t.id.to_string(),
+                        cashflows: Vec::new(),
+                        detailed_flows: Vec::new(),
+                        interest_flows: Vec::new(),
+                        principal_flows: Vec::new(),
+                        pik_flows: Vec::new(),
+                        deferred_flows: Vec::new(),
+                        writedown_flows: Vec::new(),
+                        final_balance: t.current_balance,
+                        total_interest: Money::new(0.0, base_currency),
+                        total_principal: Money::new(0.0, base_currency),
+                        total_pik: Money::new(0.0, base_currency),
+                        total_deferred: Money::new(0.0, base_currency),
+                        total_writedown: Money::new(0.0, base_currency),
+                    },
+                )
+            })
+            .collect();
+
+        let tranche_balances: HashMap<String, Money> = tranches
+            .tranches
+            .iter()
+            .map(|t| (t.id.to_string(), t.current_balance))
+            .collect();
+
+        // Map each tranche to its waterfall distribution key.
+        // Equity tranches receive residual via RecipientType::Equity in the
+        // standard waterfall, so their key must match that variant.
+        let tranche_recipient_keys: Vec<RecipientType> = tranches
+            .tranches
+            .iter()
+            .map(|t| {
+                if t.seniority == TrancheSeniority::Equity {
+                    RecipientType::Equity
+                } else {
+                    RecipientType::Tranche(t.id.to_string())
+                }
+            })
+            .collect();
+
+        let pool_state = PoolState::from_pool(pool);
+
+        let deferred_interest: HashMap<String, Money> = tranches
+            .tranches
+            .iter()
+            .map(|t| (t.id.to_string(), t.deferred_interest))
+            .collect();
+
+        // Determine if reinvestment is initially active
+        let initial_reinvestment_active = pool
+            .reinvestment_period
+            .as_ref()
+            .is_some_and(|period| closing_date <= period.end_date);
+
+        let total_pool_balance = pool
+            .total_balance()
+            .unwrap_or(Money::new(0.0, base_currency));
+
+        // Performing balance excludes pre-defaulted assets. Used as denominator
+        // for loss allocation — pre-defaulted assets are already priced into the
+        // deal structure and should not trigger additional write-downs.
+        let performing_pool_balance = pool.performing_balance().unwrap_or(total_pool_balance);
+
+        // Junior-first loss order by `payment_priority` (total order from
+        // `assign_priorities`), not the four-level seniority enum.
+        let mut loss_alloc_order: Vec<usize> = (0..tranches.tranches.len()).collect();
+        loss_alloc_order.sort_by(|&a, &b| {
+            tranches.tranches[b]
+                .payment_priority
+                .cmp(&tranches.tranches[a].payment_priority)
+        });
+
+        // Balance-weighted average collateral age (WALA) at closing. The
+        // `acquisition_date` carried by each pool asset (the origination /
+        // issue date for assets built from bonds) is the closest available
+        // proxy for loan origination; assets without one contribute zero age.
+        let mut weighted_age = 0.0_f64;
+        let mut total_weight = 0.0_f64;
+        for asset in &pool.assets {
+            let weight = asset.balance.amount().max(0.0);
+            if weight <= 0.0 {
+                continue;
+            }
+            total_weight += weight;
+            if let Some(acq_date) = asset.acquisition_date {
+                if closing_date > acq_date {
+                    weighted_age += f64::from(acq_date.months_until(closing_date)) * weight;
+                }
+            }
+        }
+        let pool_wala_months = if total_weight > 0.0 {
+            (weighted_age / total_weight).round() as u32
+        } else {
+            0
+        };
+
+        Ok(Self {
+            pool_state,
+            pool_outstanding: total_pool_balance,
+            recovery_queue: RecoveryQueue::new(),
+            tranche_balances,
+            deferred_interest,
+            results,
+            prev_date: Some(state_date),
+            base_currency,
+            recovery_lag_months,
+            pool,
+            tranches,
+            closing_date,
+            pool_balance_cleanup_threshold,
+            tranche_recipient_keys,
+            was_reinvestment_active: initial_reinvestment_active,
+            cumulative_realized_loss: 0.0,
+            cumulative_loss_unallocated: 0.0,
+            total_pool_balance,
+            performing_pool_balance,
+            loss_alloc_order,
+            pool_wala_months,
+            reserve_balance: pool.reserve_account,
+            spread_account: Money::new(0.0, base_currency),
+            principal_funding_account: Money::new(0.0, base_currency),
+            floating_rate_shift: 0.0,
+        })
+    }
+
+    pub(super) fn is_pool_exhausted(&self) -> bool {
+        self.pool_outstanding.amount() <= self.pool_balance_cleanup_threshold
+    }
+
+    pub(super) fn finalize(mut self) -> HashMap<String, TrancheCashflows> {
+        for (tranche_id, res) in self.results.iter_mut() {
+            let mut final_balance = self
+                .tranche_balances
+                .get(tranche_id)
+                .copied()
+                .unwrap_or(Money::new(0.0, self.base_currency));
+            if final_balance.amount() < 0.0 && final_balance.amount().abs() <= WRITEDOWN_DE_MINIMIS
+            {
+                final_balance = Money::new(0.0, self.base_currency);
+            }
+            res.final_balance = final_balance;
+
+            for (date, amount) in &res.interest_flows {
+                if amount.amount() > 0.0 {
+                    res.detailed_flows.push(CashFlow::new(
+                        *date,
+                        None,
+                        *amount,
+                        CFKind::Fixed,
+                        0.0,
+                        None,
+                    ));
+                }
+            }
+            for (date, amount) in &res.principal_flows {
+                if amount.amount() > 0.0 {
+                    res.detailed_flows.push(CashFlow::new(
+                        *date,
+                        None,
+                        *amount,
+                        CFKind::Amortization,
+                        0.0,
+                        None,
+                    ));
+                }
+            }
+            // Include write-down flows in detailed_flows so NPV and
+            // risk analytics capture the full economic picture.
+            // Write-downs represent permanent loss of notional and are
+            // classified as DefaultedNotional (negative = loss to holder).
+            for (date, amount) in &res.writedown_flows {
+                if amount.amount() > 0.0 {
+                    res.detailed_flows.push(CashFlow::new(
+                        *date,
+                        None,
+                        Money::new(-amount.amount(), amount.currency()),
+                        CFKind::DefaultedNotional,
+                        0.0,
+                        None,
+                    ));
+                }
+            }
+
+            // `detailed_flows` is assembled by category (interest, then
+            // principal, then write-downs); sort by date so downstream consumers
+            // see a single chronologically-ordered stream. Stable so flows that
+            // share a date keep their category order. NPV is unaffected (each
+            // flow carries its own date), but any consumer assuming date order —
+            // e.g. terminal residual sweeps dated at the last pay date — no
+            // longer sees them interleaved out of order.
+            res.detailed_flows.sort_by_key(|cf| cf.date);
+        }
+
+        self.results
+    }
+}

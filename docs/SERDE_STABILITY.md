@@ -137,8 +137,8 @@ request documents. The current public inventory contains 28 one-way types:
 - optimization output: `PortfolioOptimizationResult`.
 
 This list is based on effective trait support and is enforced by
-`scripts/serde_audit.py`. Adding or removing a one-way output requires updating
-the audit classification and this inventory together.
+`uv run python -m scripts.serde_audit`. Adding or removing a one-way output
+requires updating the audit classification and this inventory together.
 
 ## Schema ownership
 

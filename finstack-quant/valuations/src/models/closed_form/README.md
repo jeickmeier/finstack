@@ -24,7 +24,7 @@ closed_form/
 ├── barrier.rs      # Barrier options (continuous monitoring, all 8 types)
 ├── lookback.rs     # Lookback options (fixed and floating strike)
 ├── quanto.rs       # Quanto options (cross-currency drift adjustment)
-├── heston.rs       # Heston stochastic volatility via Fourier inversion
+├── heston/         # Heston stochastic volatility via Fourier inversion
 ├── implied_vol.rs  # Implied volatility solvers (BS and Black-76)
 └── README.md
 ```
@@ -206,7 +206,7 @@ C_quanto = e^(-r_dom·T) · [F_adj·N(d₁) - K·N(d₂)]
 
 ---
 
-### Heston Stochastic Volatility (`heston.rs`)
+### Heston Stochastic Volatility (`heston/`)
 
 European option pricing under the Heston (1993) model via Fourier inversion.
 
@@ -388,7 +388,7 @@ Every module includes inline `#[cfg(test)]` tests verifying:
 | `barrier.rs` | 22 |
 | `lookback.rs` | 15 |
 | `quanto.rs` | 5 |
-| `heston.rs` | 12 |
+| `heston/` | 12 |
 | **Total** | **83** |
 
 ---

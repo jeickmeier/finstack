@@ -4,7 +4,7 @@
 //! valuation date, recomputing time-dependent instrument metrics, and returning
 //! a structured report of the resulting P&L decomposition.
 
-use crate::engine::ExecutionContext;
+use crate::engine::{ExecutionContext, RollForwardReport};
 use crate::error::Result;
 use crate::TimeRollMode;
 use finstack_quant_core::currency::Currency;
@@ -12,49 +12,6 @@ use finstack_quant_core::dates::{BusinessDayConvention, HolidayCalendar, Tenor, 
 use finstack_quant_core::money::Money;
 use finstack_quant_valuations::instruments::Instrument;
 use indexmap::IndexMap;
-
-/// Report from time roll-forward operation.
-///
-/// # Examples
-/// ```rust
-/// use finstack_quant_scenarios::RollForwardReport;
-/// use indexmap::IndexMap;
-/// use time::macros::date;
-///
-/// let report = RollForwardReport {
-///     old_date: date!(2025 - 01 - 01),
-///     new_date: date!(2025 - 02 - 01),
-///     days: 31,
-///     instrument_carry: vec![],
-///     total_carry: IndexMap::new(),
-///     failed_instruments: vec![],
-/// };
-/// assert_eq!(report.days, 31);
-/// ```
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct RollForwardReport {
-    /// Original as-of date.
-    pub old_date: finstack_quant_core::dates::Date,
-
-    /// New as-of date after roll.
-    pub new_date: finstack_quant_core::dates::Date,
-
-    /// Calendar days between `old_date` and `new_date`.
-    ///
-    /// This is always a calendar-day span, in every [`TimeRollMode`] — including
-    /// [`TimeRollMode::BusinessDays`], where the *target date* is business-day
-    /// adjusted but the span back to `old_date` is still counted in calendar
-    /// days. Downstream ACT/365F annualization depends on this.
-    pub days: i64,
-
-    /// Per-instrument carry accrual (if instruments provided), grouped by currency.
-    pub instrument_carry: Vec<(String, IndexMap<Currency, Money>)>,
-
-    /// Total P&L from carry, grouped by currency.
-    pub total_carry: IndexMap<Currency, Money>,
-    /// Instruments whose carry calculation failed but did not abort the roll.
-    pub failed_instruments: Vec<(String, String)>,
-}
 
 /// Apply a time roll-forward operation.
 ///

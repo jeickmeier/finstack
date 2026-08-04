@@ -926,13 +926,13 @@
       "reason": "Credit-model formula, validation, or API text; mutable PD/recovery/LGD defaults live in credit registries."
     },
     {
-      "path": "finstack-quant/core/src/market_data/term_structures/discount_curve.rs",
+      "path": "finstack-quant/core/src/market_data/term_structures/discount_curve/transform.rs",
       "category": "market_convention",
       "contains": "\"DiscountCurve only supports Additive/{{RateBp,Percent,Fraction}} bumps, got {:?}/{:?}\",",
       "reason": "Market-convention plumbing, validation, or canonical constructor label; mutable convention tables live in registries."
     },
     {
-      "path": "finstack-quant/core/src/market_data/term_structures/discount_curve.rs",
+      "path": "finstack-quant/core/src/market_data/term_structures/discount_curve/transform.rs",
       "category": "market_convention",
       "contains": "reason: \"DiscountCurve does not support Multiplicative bumps\".to_string(),",
       "reason": "Market-convention plumbing, validation, or canonical constructor label; mutable convention tables live in registries."
@@ -2120,7 +2120,7 @@
       "reason": "Financial formula or unit conversion, not an external default to configure."
     },
     {
-      "path": "finstack-quant/valuations/src/instruments/fixed_income/bond/pricing/engine/merton_mc.rs",
+      "path": "finstack-quant/valuations/src/instruments/fixed_income/bond/pricing/engine/merton_mc/engine.rs",
       "category": "credit_assumption",
       "contains": "-(1.0 - pd).ln() / coupon_t",
       "reason": "Financial formula or unit conversion, not an external default to configure."
@@ -2228,7 +2228,7 @@
       "reason": "Financial formula or unit conversion, not an external default to configure."
     },
     {
-      "path": "finstack-quant/valuations/src/instruments/fixed_income/convertible/pricer.rs",
+      "path": "finstack-quant/valuations/src/instruments/fixed_income/convertible/pricer/valuator.rs",
       "category": "credit_assumption",
       "contains": "let risky_fwd = raw_risky_fwd * (1.0 - recovery) + rf_fwd * recovery;",
       "reason": "Financial formula or unit conversion, not an external default to configure."
@@ -2456,13 +2456,13 @@
       "reason": "Financial formula or unit conversion, not an external default to configure."
     },
     {
-      "path": "finstack-quant/valuations/src/instruments/fixed_income/structured_credit/pricing/simulation_engine.rs",
+      "path": "finstack-quant/valuations/src/instruments/fixed_income/structured_credit/pricing/simulation_engine/simulate_period.rs",
       "category": "credit_assumption",
-      "contains": "let period_expected_loss = pool_flows.default.amount() * (1.0 - pool_flows.recovery_rate);",
-      "reason": "Validation or diagnostic text; underlying defaults are supplied by typed inputs or registries."
+      "contains": "(pool_flows.default.amount() - pool_flows.recovery.amount()).max(0.0)",
+      "reason": "Financial formula or unit conversion, not an external default to configure."
     },
     {
-      "path": "finstack-quant/valuations/src/instruments/fixed_income/structured_credit/pricing/simulation_engine.rs",
+      "path": "finstack-quant/valuations/src/instruments/fixed_income/structured_credit/pricing/simulation_engine/orchestration.rs",
       "category": "market_convention",
       "contains": "schedule generation. Specify a valid calendar ID (e.g., 'nyse', 'target2') \\",
       "reason": "Market-convention plumbing, validation, or canonical constructor label; mutable convention tables live in registries."

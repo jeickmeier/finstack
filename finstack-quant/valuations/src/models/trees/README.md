@@ -21,7 +21,7 @@ This module provides a unified framework for tree-based (lattice) pricing of fin
 tree_framework.rs          ← Generic backward-induction engine + traits
 ├── binomial_tree.rs       ← Equity binomial trees (CRR, LR, JR, Tian)
 ├── trinomial_tree.rs      ← Equity trinomial trees (Standard, Boyle)
-├── short_rate_tree.rs     ← Calibrated short-rate trees (Ho-Lee, BDT)
+├── short_rate_tree/       ← Calibrated short-rate trees (Ho-Lee, BDT)
 ├── hull_white_tree.rs     ← Hull-White 1F trinomial for swaptions
 └── two_factor_rates_credit.rs ← Correlated rates + credit 2D lattice
 ```

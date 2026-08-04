@@ -15,7 +15,7 @@ repricing cost and operational moving parts.
 | Tier         | Entry point                                                | Behavior                                                                                       |
 |--------------|------------------------------------------------------------|------------------------------------------------------------------------------------------------|
 | Minimal      | [`simple_pnl_bridge`](src/lib.rs)                          | Scalar `value(T₁) − value(T₀)` in target currency. No decomposition.                          |
-| Linear       | [`attribute_pnl_metrics_based`](src/metrics_based.rs)      | Linear (and optional second-order) approximation from precomputed metrics. No extra repricing. |
+| Linear       | [`attribute_pnl_metrics_based`](src/metrics_based/)      | Linear (and optional second-order) approximation from precomputed metrics. No extra repricing. |
 | Parallel     | [`attribute_pnl_parallel`](src/parallel.rs)                | Isolate one factor at a time (T₀ for that factor, T₁ elsewhere). Residual carries cross-effects. |
 | Waterfall    | [`attribute_pnl_waterfall`](src/waterfall.rs)              | Apply factors in order; per-factor P&Ls sum to total P&L up to tolerance. Order matters.       |
 | Taylor       | [`attribute_pnl_taylor`](src/taylor.rs)                    | First- and optional second-order sensitivity expansion from bump-and-reprice Greeks.           |
@@ -59,7 +59,7 @@ attribution/
 ├── helpers.rs              # reprice_instrument, compute_pnl, compute_pnl_with_fx
 ├── parallel.rs             # attribute_pnl_parallel
 ├── waterfall.rs            # attribute_pnl_waterfall, default_waterfall_order
-├── metrics_based.rs        # attribute_pnl_metrics_based (linear from metrics)
+├── metrics_based/          # attribute_pnl_metrics_based (linear from metrics)
 ├── taylor.rs               # attribute_pnl_taylor, TaylorAttributionConfig
 ├── model_params.rs         # extract/replace model params, measure_*_shift
 ├── credit_factor.rs        # compute_credit_factor_attribution, model wiring
