@@ -18,7 +18,8 @@ repos:
       - id: trailing-whitespace
         exclude: ^(finstack-quant-wasm/pkg|finstack-quant-py/finstack_quant/.*\.pyi|.*/coverage/)
       - id: end-of-file-fixer
-        exclude: ^(finstack-quant-wasm/pkg|finstack-quant-py/finstack_quant/.*\.pyi|.*/coverage/)
+        # Canonical fixtures intentionally preserve exact serialized bytes.
+        exclude: ^(finstack-quant-wasm/pkg|finstack-quant-py/finstack_quant/.*\.pyi|finstack-quant/.*/tests/data/canonical/.*|.*/coverage/)
       - id: check-yaml
         args: [--allow-multiple-documents]
       - id: check-toml
