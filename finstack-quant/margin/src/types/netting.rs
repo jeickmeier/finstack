@@ -1,8 +1,4 @@
-//! Netting set identification and instrument margin results.
-
-use super::simm_types::SimmSensitivities;
-use finstack_quant_core::dates::Date;
-use finstack_quant_core::money::Money;
+//! Netting set identification.
 
 /// Identifies a margin netting set.
 ///
@@ -96,32 +92,6 @@ impl std::fmt::Display for NettingSetId {
             } => write!(f, "{counterparty_id}:{csa_id}"),
         }
     }
-}
-
-/// Result of calculating margin for an instrument.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct InstrumentMarginResult {
-    /// Instrument identifier
-    pub instrument_id: String,
-    /// Calculation date
-    #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
-    pub as_of: Date,
-    /// Initial margin requirement
-    pub initial_margin: Money,
-    /// Variation margin requirement (can be negative = return)
-    pub variation_margin: Money,
-    /// Total margin requirement (IM + VM if positive)
-    pub total_margin: Money,
-    /// IM calculation methodology used
-    pub im_methodology: crate::types::ImMethodology,
-    /// Whether instrument is cleared or bilateral
-    pub is_cleared: bool,
-    /// Netting set identifier
-    pub netting_set: Option<NettingSetId>,
-    /// SIMM sensitivities (if SIMM was used)
-    pub sensitivities: Option<SimmSensitivities>,
 }
 
 #[cfg(test)]

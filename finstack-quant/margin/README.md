@@ -10,11 +10,11 @@ pulling the full instrument stack.
 - **OTC and repo margin** — CSA terms, VM parameters, IM methodology, eligible
   collateral schedules, repo maintenance rules (`OtcMarginSpec`, `RepoMarginSpec`).
 - **Calculators** — variation margin, SIMM, BCBS-IOSCO schedule IM, repo haircut
-  IM, CCP proxy IM, and instrument-level margin metrics.
+  IM, and CCP proxy IM.
 - **Regulatory capital** — FRTB sensitivity-based approach and SA-CCR EAD
   (`regulatory::frtb`, `regulatory::sa_ccr`).
-- **XVA** — deterministic exposure roll-forward, ISDA-style netting/collateral
-  helpers, and CVA/DVA/FVA/MVA integration (`xva::{exposure,cva,mva,netting,types}`).
+- **XVA** — ISDA-style netting/collateral helpers and CVA/DVA/FVA/MVA
+  integration over caller-supplied exposure profiles (`xva::{cva,mva,netting,types}`).
 
 ## Public modules
 
@@ -23,10 +23,10 @@ pulling the full instrument stack.
 | `types` | CSA, collateral, repo, SIMM, netting identifiers |
 | `calculators` | VM and IM engines |
 | `traits` | `Marginable` for consumer-crate integration |
-| `metrics` | IM/VM metrics plus utilization, excess collateral, funding cost, Haircut01 |
+| `metrics` | Utilization, excess collateral, funding cost, Haircut01 |
 | `regulatory` | FRTB SBA and SA-CCR engines |
 | `constants` | Shared heuristics |
-| `xva` | Deterministic exposure, netting, CVA/DVA/FVA/MVA, and shared XVA types |
+| `xva` | Netting, CVA/DVA/FVA/MVA, and shared XVA types |
 
 Registry JSON is embedded at build time. Overlays use the Finstack config
 extension key `margin.registry.v1`;
@@ -93,15 +93,14 @@ assert!(result.delivery_amount.amount() >= 0.0 || result.return_amount.amount() 
 # }
 ```
 
-### `Marginable` metrics
+### `Marginable` integration
 
 ```rust,no_run
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
-use finstack_quant_margin::{Marginable, OtcMarginSpec, SimmSensitivities};
-use finstack_quant_margin::metrics::{InitialMarginMetric, VariationMarginMetric};
+use finstack_quant_margin::{Marginable, OtcMarginSpec, SimmSensitivities, SimmCalculator, SimmVersion};
 use time::Month;
 
 struct ExampleTrade {
@@ -142,9 +141,12 @@ let trade = ExampleTrade {
 let market = MarketContext::new();
 let as_of = Date::from_calendar_date(2025, Month::January, 15)?;
 
-let im = InitialMarginMetric::new().calculate(&trade, &market, as_of)?;
-let vm = VariationMarginMetric::new().calculate(&trade, &market, as_of)?;
-assert!(im.amount.amount() >= 0.0);
+let sens = trade.simm_sensitivities(&market, as_of)?;
+let (im, _breakdown) = SimmCalculator::new(SimmVersion::V2_6)?
+    .calculate_from_sensitivities(&sens, Currency::USD);
+let vm = trade.mtm_for_vm(&market, as_of)?;
+assert!(im.amount() >= 0.0);
+assert!(vm.amount() >= 0.0);
 # Ok(())
 # }
 ```
@@ -172,7 +174,7 @@ assert!(im.amount.amount() >= 0.0);
 | `data/margin/collateral_schedules.v1.json` | Eligible collateral and haircuts |
 | `data/margin/ccp_methodologies.v1.json` | CCP proxy rates and MPOR |
 | `data/margin/simm.v1.json` | SIMM weights, correlations, concentration |
-| `data/margin/xva_defaults.v1.json` | XVA horizons and stochastic exposure defaults |
+| `data/margin/xva_defaults.v1.json` | XVA exposure-grid and recovery defaults |
 | `schemas/margin/1/margin.schema.json` | External margin-spec JSON schema |
 
 Config overlay shape (extension key `margin.registry.v1`):
@@ -207,19 +209,14 @@ Config overlay shape (extension key `margin.registry.v1`):
 
 ## XVA scope
 
-Deterministic exposure rolls constant curves forward, revalues instruments,
-applies close-out netting, and models CSA collateral with MPOR lag against the
-interpolated portfolio value at `t - mpor_days / 365`. It produces EPE, ENE,
-effective EPE, and PFE-shaped series; under this deterministic engine, `PFE`
-matches `EPE`. Wrong-way risk and scenario carry remain out of scope.
-
-Stochastic exposure uses `finstack-quant-monte-carlo` through the public
-`compute_stochastic_exposure_profile` and
-`compute_stochastic_exposure_with_valuer` entry points. The latter reprices a
-caller-supplied `PathValuer`, applies close-out netting and MPOR-lagged CSA
-collateral per path, and can carry path-dependent initial margin through a
-`PathImModel`. Defaults for path count and PFE quantile live in
-`xva_defaults.v1.json`.
+`ExposureProfile` is a container: callers supply the EPE / ENE grid from their
+own simulation or valuation stack, and this crate turns it into CVA, DVA, FVA,
+and MVA. `apply_collateral_mpor` / `apply_variation_margin_mpor` model CSA
+collateral with MPOR lag against the portfolio value at `t - mpor_days / 365`
+when building a profile by hand. Exposure *generation* (rolling curves forward
+and repricing instruments) is out of scope: it needs the pricing stack, and
+`finstack-quant-margin` sits below `finstack-quant-valuations` in the
+dependency order. Wrong-way risk and scenario carry remain out of scope.
 
 ## Verification
 

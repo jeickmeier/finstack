@@ -33,7 +33,7 @@
 //! | [`metrics`] | IM/VM metrics, utilization, excess collateral, funding cost, Haircut01 |
 //! | [`regulatory`] | FRTB sensitivity-based approach and SA-CCR EAD |
 //! | [`constants`] | Shared heuristics |
-//! | [`xva`] | Deterministic exposure, netting, CVA/DVA/FVA, and shared XVA types |
+//! | [`xva`] | Netting, CVA/DVA/FVA/MVA, and shared XVA types |
 //!
 //! # Quick Start
 //!
@@ -56,8 +56,8 @@
 //! - Factory methods such as `CsaSpec::usd_regulatory()` and
 //!   `OtcMarginSpec::usd_bilateral()` resolve defaults from the embedded
 //!   registry.
-//! - XVA exposure engines are deterministic (roll-forward); Monte Carlo
-//!   exposure paths live in `finstack-quant-monte-carlo`.
+//! - XVA consumes caller-supplied exposure profiles; generating them requires
+//!   the pricing stack, which sits above this crate.
 //!
 //! See the [crate README](../README.md) for detailed workflows and embedded data.
 
@@ -75,7 +75,7 @@ pub mod schema;
 pub mod traits;
 /// Margin and collateral domain types.
 pub mod types;
-/// XVA configuration types (`types`); exposure and adjustment engines are crate-internal.
+/// XVA configuration types (`types`) and adjustment formulas.
 pub mod xva;
 
 /// Regulatory capital frameworks (FRTB SBA, SA-CCR).
@@ -93,8 +93,8 @@ pub use traits::Marginable;
 pub use types::{
     generate_margin_cashflows, generate_margin_interest_cashflows, margin_calls_to_cashflows,
     ClearingStatus, CollateralAssetClass, CollateralEligibility, ConcentrationBreach, CsaSpec,
-    EligibleCollateralSchedule, ImMethodology, ImParameters, InstrumentMarginResult, MarginCall,
-    MarginCallTiming, MarginCallType, MarginTenor, MaturityConstraints, NettingSetId,
-    OtcMarginSpec, RepoMarginSpec, RepoMarginType, SimmCreditSector, SimmRiskClass,
-    SimmSensitivities, SimmSensitivitiesJson, VmParameters,
+    EligibleCollateralSchedule, ImMethodology, ImParameters, MarginCall, MarginCallTiming,
+    MarginCallType, MarginTenor, MaturityConstraints, NettingSetId, OtcMarginSpec, RepoMarginSpec,
+    RepoMarginType, SimmCreditSector, SimmRiskClass, SimmSensitivities, SimmSensitivitiesJson,
+    VmParameters,
 };

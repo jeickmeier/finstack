@@ -6,14 +6,6 @@
 //! - Excess collateral
 //! - Margin funding cost
 //! - Haircut sensitivity (Haircut01)
-//! - Instrument-level IM and VM calculations
-
-/// Instrument-level IM, VM, and total-margin metrics.
-pub mod instrument;
-
-pub use instrument::{
-    calculate_instrument_margins, InitialMarginMetric, TotalMarginMetric, VariationMarginMetric,
-};
 
 use finstack_quant_core::money::Money;
 

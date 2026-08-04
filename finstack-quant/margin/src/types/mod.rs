@@ -32,7 +32,7 @@ pub use collateral::{
 };
 pub use csa::{CsaSpec, MarginCallTiming};
 pub use enums::{ClearingStatus, ImMethodology, MarginTenor};
-pub use netting::{InstrumentMarginResult, NettingSetId};
+pub use netting::NettingSetId;
 pub use otc::OtcMarginSpec;
 pub use repo_cashflows::{
     generate_margin_cashflows, generate_margin_interest_cashflows, margin_calls_to_cashflows,
