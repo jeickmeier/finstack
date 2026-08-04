@@ -1,21 +1,14 @@
 //! Deal-type specific metrics for structured credit.
 
 pub(crate) mod abs;
-pub(crate) mod clo_wal;
 pub(crate) mod cmbs;
 pub(crate) mod rmbs;
 
 // Re-export ABS metrics
-pub use abs::{
-    AbsChargeOffCalculator, AbsCreditEnhancementCalculator, AbsDelinquencyCalculator,
-    AbsExcessSpreadCalculator, AbsSpeedCalculator,
-};
-
-// Re-export CLO metrics
-pub use clo_wal::CloWalCalculator;
+pub use abs::{AbsChargeOffCalculator, AbsCreditEnhancementCalculator};
 
 // Re-export CMBS metrics
-pub use cmbs::{CmbsDscrCalculator, CmbsLtvCalculator};
+pub use cmbs::CmbsDscrCalculator;
 
 // Re-export RMBS metrics
-pub use rmbs::{RmbsFicoCalculator, RmbsLtvCalculator, RmbsWalCalculator};
+pub use rmbs::RmbsWalCalculator;

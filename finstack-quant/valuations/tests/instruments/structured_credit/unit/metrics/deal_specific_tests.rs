@@ -12,12 +12,11 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{Percentage, Rate};
+
 use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
-    AbsChargeOffCalculator, AbsCreditEnhancementCalculator, AbsDelinquencyCalculator,
-    AbsExcessSpreadCalculator, AbsSpeedCalculator, AssetPool, CmbsDscrCalculator, DealType,
-    PoolAsset, RmbsFicoCalculator, RmbsLtvCalculator, RmbsWalCalculator, StructuredCredit, Tranche,
-    TrancheCoupon, TrancheSeniority, TrancheStructure,
+    AbsChargeOffCalculator, AbsCreditEnhancementCalculator, AssetPool, CmbsDscrCalculator,
+    DealType, PoolAsset, RmbsWalCalculator, StructuredCredit, Tranche, TrancheCoupon,
+    TrancheSeniority, TrancheStructure,
 };
 use finstack_quant_valuations::metrics::{MetricCalculator, MetricContext};
 use std::sync::Arc;
@@ -148,55 +147,19 @@ fn metric_context(instrument: StructuredCredit, as_of: Date) -> MetricContext {
 }
 
 #[test]
-fn test_abs_speed_calculator_uses_override_or_default() {
-    let as_of = Date::from_calendar_date(2025, Month::January, 1).unwrap();
-    let calc = AbsSpeedCalculator::new_pct(Percentage::new(1.8));
-
-    let default_speed = calc
-        .calculate(&mut metric_context(abs_instrument(), as_of))
-        .unwrap();
-    assert_eq!(default_speed, 1.8);
-
-    let mut overridden = abs_instrument();
-    overridden.behavior_overrides.abs_speed = Some(0.0275);
-    let overridden_speed = calc
-        .calculate(&mut metric_context(overridden, as_of))
-        .unwrap();
-    assert_eq!(overridden_speed, 0.0275);
-}
-
-#[test]
-fn test_abs_speed_calculator_rejects_non_abs_deals() {
-    let as_of = Date::from_calendar_date(2025, Month::January, 1).unwrap();
-    let err = AbsSpeedCalculator::new(0.02)
-        .calculate(&mut metric_context(cmbs_instrument(), as_of))
-        .expect_err("non-ABS deals should be rejected");
-
-    assert!(matches!(err, finstack_quant_core::Error::Input(_)));
-}
-
-#[test]
 fn test_abs_deal_specific_calculators_return_expected_values() {
     let as_of = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let mut abs = abs_instrument();
     abs.pool.cumulative_defaults = Money::new(5_000_000.0, Currency::USD);
 
-    let delinquency = AbsDelinquencyCalculator::new_pct(Percentage::new(3.5))
-        .calculate(&mut metric_context(abs.clone(), as_of))
-        .unwrap();
     let charge_off = AbsChargeOffCalculator
-        .calculate(&mut metric_context(abs.clone(), as_of))
-        .unwrap();
-    let excess_spread = AbsExcessSpreadCalculator::new_rate(Rate::from_decimal(0.005))
         .calculate(&mut metric_context(abs.clone(), as_of))
         .unwrap();
     let credit_enhancement = AbsCreditEnhancementCalculator
         .calculate(&mut metric_context(abs, as_of))
         .unwrap();
 
-    assert!((delinquency - 3.5).abs() < 1e-12);
     assert_eq!(charge_off, 5.0);
-    assert!((excess_spread - 0.7).abs() < 1e-12);
     assert!((credit_enhancement - 20.0).abs() < 1e-12);
 }
 
@@ -297,26 +260,4 @@ fn test_rmbs_wal_adjusts_with_psa_speed() {
         .unwrap();
 
     assert!(wal_fast < wal_base, "Higher PSA speeds should shorten WAL");
-}
-
-#[test]
-fn test_rmbs_ltv_uses_credit_factors_when_present() {
-    let as_of = Date::from_calendar_date(2025, Month::January, 1).unwrap();
-    let rmbs = rmbs_instrument();
-    let ltv = RmbsLtvCalculator::new(75.0)
-        .calculate(&mut metric_context(rmbs, as_of))
-        .unwrap();
-
-    assert_eq!(ltv, 80.0, "RMBS default LTV should be 80% from deal config");
-}
-
-#[test]
-fn test_rmbs_fico_defaults_when_missing() {
-    let as_of = Date::from_calendar_date(2025, Month::January, 1).unwrap();
-    let rmbs = rmbs_instrument();
-    let fico = RmbsFicoCalculator::new(700.0)
-        .calculate(&mut metric_context(rmbs, as_of))
-        .unwrap();
-
-    assert_eq!(fico, 700.0, "RMBS FICO should use default when missing");
 }

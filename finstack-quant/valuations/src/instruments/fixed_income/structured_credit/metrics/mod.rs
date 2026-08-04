@@ -44,9 +44,7 @@ pub(crate) mod summary;
 
 // Re-export all calculators for convenience
 pub use deal_specific::{
-    AbsChargeOffCalculator, AbsCreditEnhancementCalculator, AbsDelinquencyCalculator,
-    AbsExcessSpreadCalculator, AbsSpeedCalculator, CloWalCalculator, CmbsDscrCalculator,
-    CmbsLtvCalculator, RmbsFicoCalculator, RmbsLtvCalculator, RmbsWalCalculator,
+    AbsChargeOffCalculator, AbsCreditEnhancementCalculator, CmbsDscrCalculator, RmbsWalCalculator,
 };
 pub use pool::{CdrCalculator, CloWarfCalculator, CloWasCalculator, CprCalculator, WamCalculator};
 pub use pricing::{
@@ -102,6 +100,21 @@ pub(crate) fn register_structured_credit_metrics(registry: &mut crate::metrics::
         Arc::new(deal_specific::CmbsDscrCalculator::new()),
         &[InstrumentType::StructuredCredit],
     );
+    registry.register_metric(
+        MetricId::CloWas,
+        Arc::new(pool::CloWasCalculator),
+        &[InstrumentType::StructuredCredit],
+    );
+    registry.register_metric(
+        MetricId::AbsChargeOff,
+        Arc::new(deal_specific::AbsChargeOffCalculator),
+        &[InstrumentType::StructuredCredit],
+    );
+    registry.register_metric(
+        MetricId::AbsCreditEnhancement,
+        Arc::new(deal_specific::AbsCreditEnhancementCalculator),
+        &[InstrumentType::StructuredCredit],
+    );
 
     crate::register_metrics! {
         registry: registry,
@@ -137,7 +150,28 @@ pub(crate) fn register_structured_credit_metrics(registry: &mut crate::metrics::
             // Theta is now registered universally in metrics::standard_registry()
         ]
     }
+}
 
-    // Other deal-specific metrics (WAS, ABS speed, delinquency, excess spread, LTV, FICO)
-    // are still used directly via their calculator structs when needed.
+#[cfg(test)]
+mod tests {
+    use crate::metrics::{standard_registry, MetricId};
+    use crate::pricer::InstrumentType;
+
+    /// Pool and deal-level metrics that compute purely from the deal model are
+    /// reachable through the registry, so `price_instrument_with_metrics` and
+    /// `list_standard_metrics` surface them by id without extra wiring.
+    #[test]
+    fn data_complete_deal_metrics_are_registered_for_structured_credit() {
+        let registry = standard_registry();
+        for id in [
+            MetricId::CloWas,
+            MetricId::AbsChargeOff,
+            MetricId::AbsCreditEnhancement,
+        ] {
+            assert!(
+                registry.is_applicable(&id, InstrumentType::StructuredCredit),
+                "metric {id} should be registered for StructuredCredit"
+            );
+        }
+    }
 }
