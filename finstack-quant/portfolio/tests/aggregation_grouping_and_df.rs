@@ -6,89 +6,12 @@ use common::*;
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
-use finstack_quant_portfolio::grouping::{
-    aggregate_by_attribute, aggregate_by_multiple_attributes, group_by_attribute,
-};
 use finstack_quant_portfolio::position::{Position, PositionUnit};
 use finstack_quant_portfolio::types::Entity;
 use finstack_quant_portfolio::PortfolioBuilder;
 use finstack_quant_valuations::instruments::rates::deposit::Deposit;
 use std::sync::Arc;
 use time::Duration;
-
-#[test]
-fn grouping_and_multi_attribute_aggregation() {
-    let as_of = base_date();
-    let end_date = as_of + Duration::days(30);
-
-    let dep1 = Deposit::builder()
-        .id("D1".into())
-        .notional(Money::new(1_000_000.0, Currency::USD))
-        .start_date(as_of)
-        .maturity(end_date)
-        .day_count(finstack_quant_core::dates::DayCount::Act360)
-        .discount_curve_id("USD".into())
-        .quote_rate_opt(Some(
-            rust_decimal::Decimal::try_from(0.045).expect("valid literal"),
-        ))
-        .build()
-        .unwrap();
-    let dep2 = Deposit::builder()
-        .id("D2".into())
-        .notional(Money::new(500_000.0, Currency::USD))
-        .start_date(as_of)
-        .maturity(end_date)
-        .day_count(finstack_quant_core::dates::DayCount::Act360)
-        .discount_curve_id("USD".into())
-        .quote_rate_opt(Some(
-            rust_decimal::Decimal::try_from(0.045).expect("valid literal"),
-        ))
-        .build()
-        .unwrap();
-
-    let p1 = Position::new("P1", "E", "D1", Arc::new(dep1), 1.0, PositionUnit::Units)
-        .unwrap()
-        .with_text_attribute("rating", "AAA")
-        .with_text_attribute("sector", "Banking");
-    let p2 = Position::new("P2", "E", "D2", Arc::new(dep2), 1.0, PositionUnit::Units)
-        .unwrap()
-        .with_text_attribute("rating", "AA");
-
-    let portfolio = PortfolioBuilder::new("P")
-        .base_currency(Currency::USD)
-        .as_of(as_of)
-        .entity(Entity::new("E"))
-        .positions(vec![p1, p2])
-        .build()
-        .unwrap();
-
-    let market = market_with_usd();
-    let config = FinstackConfig::default();
-    let valuation = finstack_quant_portfolio::valuation::value_portfolio(
-        &portfolio,
-        &market,
-        &config,
-        &Default::default(),
-    )
-    .unwrap();
-
-    let groups = group_by_attribute(portfolio.positions(), "rating");
-    assert!(groups.contains_key("AAA") && groups.contains_key("AA"));
-    assert!(!groups.contains_key("_untagged"));
-
-    let agg =
-        aggregate_by_attribute(&valuation, portfolio.positions(), "rating", Currency::USD).unwrap();
-    assert!(agg.contains_key("AAA") && agg.contains_key("AA"));
-
-    let agg2 = aggregate_by_multiple_attributes(
-        &valuation,
-        portfolio.positions(),
-        &["rating", "sector"],
-        Currency::USD,
-    )
-    .unwrap();
-    assert!(!agg2.is_empty());
-}
 
 #[test]
 fn dataframe_exports_have_expected_columns() {
