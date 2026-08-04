@@ -202,7 +202,7 @@ fn panel_to_dataframe<'py>(
     let ticker_names = perf.ticker_names();
     let dates = perf.active_dates();
     let data = PyDict::new(py);
-    for (ticker_idx, (name, series)) in ticker_names.iter().zip(panel.into_iter()).enumerate() {
+    for (ticker_idx, (name, series)) in ticker_names.iter().zip(panel).enumerate() {
         let ticker_dates = perf
             .active_dates_for_ticker(ticker_idx)
             .map_err(core_to_py)?;
@@ -238,7 +238,7 @@ fn periodic_panel_to_dataframe<'py>(
     let dates: Vec<time::Date> = all_dates.into_iter().collect();
 
     let data = PyDict::new(py);
-    for (name, series) in perf.ticker_names().iter().zip(panel.into_iter()) {
+    for (name, series) in perf.ticker_names().iter().zip(panel) {
         let mut padded = vec![f64::NAN; dates.len()];
         for (d, v) in series {
             if let Ok(pos) = dates.binary_search(&d) {

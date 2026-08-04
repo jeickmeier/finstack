@@ -81,25 +81,21 @@ impl CashFlowBuilder {
             return self;
         }
         match kind {
-            CFKind::Amortization => {
-                if delta.amount() > 0.0 || delta.amount().is_nan() {
-                    self.pending_error = Some(finstack_quant_core::Error::Validation(format!(
-                        "add_principal_event: CFKind::Amortization requires delta <= 0 \
-                         (repayments reduce outstanding), got {} on {date}",
-                        delta.amount()
-                    )));
-                    return self;
-                }
+            CFKind::Amortization if delta.amount() > 0.0 || delta.amount().is_nan() => {
+                self.pending_error = Some(finstack_quant_core::Error::Validation(format!(
+                    "add_principal_event: CFKind::Amortization requires delta <= 0 \
+                     (repayments reduce outstanding), got {} on {date}",
+                    delta.amount()
+                )));
+                return self;
             }
-            CFKind::Notional => {
-                if delta.amount() < 0.0 || delta.amount().is_nan() {
-                    self.pending_error = Some(finstack_quant_core::Error::Validation(format!(
-                        "add_principal_event: CFKind::Notional requires delta >= 0 \
-                         (draws increase outstanding), got {} on {date}",
-                        delta.amount()
-                    )));
-                    return self;
-                }
+            CFKind::Notional if delta.amount() < 0.0 || delta.amount().is_nan() => {
+                self.pending_error = Some(finstack_quant_core::Error::Validation(format!(
+                    "add_principal_event: CFKind::Notional requires delta >= 0 \
+                     (draws increase outstanding), got {} on {date}",
+                    delta.amount()
+                )));
+                return self;
             }
             _ => {}
         }

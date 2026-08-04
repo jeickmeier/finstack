@@ -84,11 +84,7 @@ impl PathMatrix {
     /// Number of stored paths.
     #[inline]
     fn num_paths(&self) -> usize {
-        if self.stride == 0 {
-            0
-        } else {
-            self.data.len() / self.stride
-        }
+        self.data.len().checked_div(self.stride).unwrap_or(0)
     }
 
     /// Borrow the full spot trajectory of path `path` (length `stride`).

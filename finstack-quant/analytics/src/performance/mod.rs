@@ -548,7 +548,7 @@ impl Performance {
 
         let mut all_returns: Vec<Vec<f64>> = Vec::with_capacity(returns.len());
         let mut return_spans: Vec<TickerSpan> = Vec::with_capacity(returns.len());
-        for (ticker, col) in ticker_names.iter().zip(returns.into_iter()) {
+        for (ticker, col) in ticker_names.iter().zip(returns) {
             let (clean, span) = return_column_to_span(col, ticker, dates.len())?;
             all_returns.push(clean);
             return_spans.push(span);
