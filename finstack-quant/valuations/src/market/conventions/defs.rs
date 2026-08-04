@@ -6,8 +6,6 @@
 //! and pricing.
 
 use crate::instruments::rates::irs::FloatingLegCompounding;
-use crate::instruments::{BondConvention, ExerciseStyle, SettlementType};
-use crate::market::conventions::ids::FxConventionId;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{BusinessDayConvention, DayCount, Tenor};
 use finstack_quant_core::types::IndexId;
@@ -114,62 +112,6 @@ pub struct CdsConventions {
     pub settlement_days: i32,
     /// The payment frequency of the premium leg.
     pub frequency: Tenor,
-}
-
-/// Conventions for Options (Equity/Commodity/FX).
-///
-/// Defines market-standard parameters for option instruments, including settlement calendars,
-/// business day conventions, and settlement lags. Used by option builders to construct
-/// instruments with correct market conventions.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct OptionConventions {
-    /// Calendar for exercise and settlement.
-    pub calendar_id: String,
-    /// Settlement lag in business days.
-    pub settlement_days: i32,
-    /// Business day convention.
-    pub business_day_convention: BusinessDayConvention,
-}
-
-/// Conventions for FX spot and forward settlement.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct FxConventions {
-    /// Base currency of the pair (numerator).
-    pub base_currency: Currency,
-    /// Quote currency of the pair (denominator / domestic currency).
-    pub quote_currency: Currency,
-    /// Standard spot settlement lag in business days.
-    pub spot_lag_days: i32,
-    /// Business day convention for spot and maturity adjustment.
-    pub business_day_convention: BusinessDayConvention,
-    /// Base currency calendar identifier used in the joint calendar.
-    pub base_calendar_id: String,
-    /// Quote currency calendar identifier used in the joint calendar.
-    pub quote_calendar_id: String,
-}
-
-/// Conventions for fixed-rate bullet bonds in the market layer.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct BondConventions {
-    /// Currency of the bond.
-    pub currency: Currency,
-    /// Canonical in-code bond convention used by the bond instrument.
-    pub market_convention: BondConvention,
-    /// Default discount curve identifier when the builder context does not override it.
-    pub default_discount_curve_id: String,
-}
-
-/// Conventions for vanilla FX options.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct FxOptionConventions {
-    /// Underlying FX pair convention.
-    pub fx_convention_id: FxConventionId,
-    /// Exercise style used by the market quote.
-    pub exercise_style: ExerciseStyle,
-    /// Settlement type used by the market quote.
-    pub settlement: SettlementType,
-    /// Day count convention used for option time to expiry.
-    pub day_count: DayCount,
 }
 
 /// Conventions for Swaptions (Volatility Surfaces).

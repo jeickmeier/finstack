@@ -40,8 +40,7 @@ pub(crate) mod registry;
 
 // Re-export convention types for external use
 pub use defs::{
-    BondConventions, CdsConventions, FxConventions, FxOptionConventions, InflationSwapConventions,
-    IrFutureConventions, OptionConventions, RateIndexConventions, RateIndexKind,
-    SwaptionConventions, XccyConventions,
+    CdsConventions, InflationSwapConventions, IrFutureConventions, RateIndexConventions,
+    RateIndexKind, SwaptionConventions, XccyConventions,
 };
 pub use registry::ConventionRegistry;
