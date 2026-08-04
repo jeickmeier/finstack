@@ -38,7 +38,6 @@ mod estimators;
 mod impact;
 mod kyle;
 mod lvar;
-mod scoring;
 mod types;
 
 // Re-export core types
@@ -51,17 +50,12 @@ pub use types::{
 pub use estimators::{amihud_illiquidity, roll_effective_spread};
 
 // Re-export LVaR
-pub use lvar::{
-    lvar_bangia_scalar, LvarBangiaScalar, LvarCalculator, LvarResult, PortfolioLvarReport,
-};
+pub use lvar::{lvar_bangia_scalar, LvarBangiaScalar};
 
 // Re-export impact models
 pub use almgren_chriss::AlmgrenChrissModel;
 pub use impact::{ExecutionTrajectory, ImpactEstimate, MarketImpactModel, TradeParams};
 pub use kyle::KyleLambdaModel;
-
-// Re-export scoring
-pub use scoring::{score_portfolio_liquidity, PortfolioLiquidityReport, PositionLiquidityScore};
 
 /// Build and evaluate a uniform Almgren-Chriss market-impact estimate.
 ///
