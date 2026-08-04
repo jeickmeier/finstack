@@ -249,7 +249,6 @@ pub(super) struct XvaDefaultsFile {
 #[serde(deny_unknown_fields)]
 pub(super) struct XvaDefaultsRecord {
     pub(super) deterministic_exposure: XvaDeterministicExposureRecord,
-    pub(super) stochastic_exposure: XvaStochasticExposureRecord,
 }
 
 #[allow(dead_code)] // Fields accessed via serde Deserialize
@@ -261,15 +260,6 @@ pub(super) struct XvaDeterministicExposureRecord {
     pub(super) recovery_rate: f64,
     #[serde(default)]
     pub(super) own_recovery_rate: Option<f64>,
-}
-
-#[allow(dead_code)] // Fields accessed via serde Deserialize
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct XvaStochasticExposureRecord {
-    pub(super) num_paths: usize,
-    pub(super) seed: u64,
-    pub(super) pfe_quantile: f64,
 }
 
 // -----------------------------------------------------------------------------//

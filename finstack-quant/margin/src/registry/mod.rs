@@ -207,8 +207,6 @@ struct ParsedCcpRegistry {
 pub struct XvaDefaults {
     /// Defaults for deterministic exposure profile generation and CVA inputs.
     pub deterministic_exposure: XvaDeterministicExposureDefaults,
-    /// Defaults for stochastic exposure profile generation.
-    pub stochastic_exposure: XvaStochasticExposureDefaults,
 }
 
 /// Registry-backed deterministic XVA exposure defaults.
@@ -222,17 +220,6 @@ pub struct XvaDeterministicExposureDefaults {
     pub recovery_rate: f64,
     /// Optional own recovery rate as a decimal probability.
     pub own_recovery_rate: Option<f64>,
-}
-
-/// Registry-backed stochastic XVA exposure defaults.
-#[derive(Debug, Clone)]
-pub struct XvaStochasticExposureDefaults {
-    /// Number of Monte Carlo paths to simulate.
-    pub num_paths: usize,
-    /// Deterministic RNG seed for reproducible exposure profiles.
-    pub seed: u64,
-    /// Tail quantile used for PFE.
-    pub pfe_quantile: f64,
 }
 
 /// Registry-backed SIMM parameter set.
@@ -662,7 +649,6 @@ fn parse_xva_defaults(value: Option<&Value>) -> Result<XvaDefaults> {
     };
     let file: wire::XvaDefaultsFile = serde_json::from_value(val.clone()).map_err(to_validation)?;
     let deterministic = file.defaults.deterministic_exposure;
-    let stochastic = file.defaults.stochastic_exposure;
 
     if deterministic.time_grid_points == 0 {
         return Err(Error::Validation(
@@ -688,31 +674,12 @@ fn parse_xva_defaults(value: Option<&Value>) -> Result<XvaDefaults> {
             own_recovery_rate,
         )?;
     }
-    if stochastic.num_paths == 0 {
-        return Err(Error::Validation(
-            "xva_defaults stochastic_exposure.num_paths must be positive".to_string(),
-        ));
-    }
-    if !stochastic.pfe_quantile.is_finite()
-        || stochastic.pfe_quantile <= 0.0
-        || stochastic.pfe_quantile >= 1.0
-    {
-        return Err(Error::Validation(
-            "xva_defaults stochastic_exposure.pfe_quantile must be in (0,1)".to_string(),
-        ));
-    }
-
     Ok(XvaDefaults {
         deterministic_exposure: XvaDeterministicExposureDefaults {
             time_grid_points: deterministic.time_grid_points,
             time_grid_step_years: deterministic.time_grid_step_years,
             recovery_rate: deterministic.recovery_rate,
             own_recovery_rate: deterministic.own_recovery_rate,
-        },
-        stochastic_exposure: XvaStochasticExposureDefaults {
-            num_paths: stochastic.num_paths,
-            seed: stochastic.seed,
-            pfe_quantile: stochastic.pfe_quantile,
         },
     })
 }
@@ -1554,11 +1521,6 @@ mod tests {
             registry.xva.deterministic_exposure.time_grid_points > 0,
             "xva time-grid points should be resolved"
         );
-        assert!(
-            registry.xva.stochastic_exposure.num_paths > 0,
-            "xva stochastic path count should be resolved"
-        );
-
         assert!(
             registry.defaults.im.simm.mpor_days > 0,
             "simm mpor_days should be positive"

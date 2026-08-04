@@ -187,14 +187,10 @@ pub fn apply_collateral_mpor(exposure_now: f64, exposure_at_lag: f64, csa: &CsaT
 /// MPOR-lagged variation-margin reduction without the counterparty-posted
 /// independent amount (the ENE/DVA mirror of [`apply_collateral_mpor`]).
 ///
-/// Wired into the deterministic XVA engine's ENE/DVA path in
-/// [`super::exposure::compute_exposure_profile`].
+/// Apply this to the ENE leg of an [`super::types::ExposureProfile`] when
+/// building one by hand, alongside [`apply_collateral_mpor`] on the EPE leg.
 #[inline]
-pub(crate) fn apply_variation_margin_mpor(
-    exposure_now: f64,
-    exposure_at_lag: f64,
-    csa: &CsaTerms,
-) -> f64 {
+pub fn apply_variation_margin_mpor(exposure_now: f64, exposure_at_lag: f64, csa: &CsaTerms) -> f64 {
     (exposure_now - collateral_held(exposure_at_lag, csa)).max(0.0)
 }
 

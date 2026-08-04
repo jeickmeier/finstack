@@ -10,7 +10,6 @@ description = "Margin, collateral, and XVA primitives for Finstack Quant"
 
 [dependencies]
 finstack-quant-core = { path = "../core", version = "0.7.0" }
-finstack-quant-monte-carlo = { path = "../monte_carlo", version = "0.7.0", default-features = false }
 schemars = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["raw_value"] }

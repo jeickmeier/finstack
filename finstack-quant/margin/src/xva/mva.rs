@@ -60,7 +60,6 @@
 
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCurve};
-use finstack_quant_monte_carlo::PathState;
 
 use crate::calculators::im::simm::SimmCalculator;
 use crate::types::SimmSensitivities;
@@ -444,65 +443,6 @@ fn validate_spread_curve(curve: &[(f64, f64)]) -> finstack_quant_core::Result<()
         }
     }
     Ok(())
-}
-
-/// Per-path initial-margin model for phase-2 (path-based) MVA.
-///
-/// Implementations map a simulated [`PathState`] at time `t` to the IM the
-/// netting set would post in that state. The default implementation,
-/// [`ScaledSimmDecayIm`], ignores the path state and applies a deterministic
-/// decay to today's SIMM number.
-///
-/// This trait is Rust-only (not exposed through Python/WASM bindings).
-///
-/// # References
-///
-/// - Green, A. (2015). *XVA*. Wiley. Chapter 10.
-pub trait PathImModel: Send + Sync {
-    /// IM posted in this path state at time `t` (years). Must be non-negative.
-    ///
-    /// # Errors
-    ///
-    /// Implementations return an error when the state lacks the variables they
-    /// need or produces a non-finite IM.
-    fn im_on_path(&self, path_state: &PathState, t: f64) -> finstack_quant_core::Result<f64>;
-}
-
-/// Default [`PathImModel`]: today's SIMM IM scaled by a deterministic decay,
-/// identical across paths (`IM_p(t) = IM(0) × decay(t)` for every path `p`).
-#[derive(Debug, Clone)]
-pub struct ScaledSimmDecayIm {
-    base_im: f64,
-    decay: ImDecayProfile,
-}
-
-impl ScaledSimmDecayIm {
-    /// Create a scaled-decay IM model.
-    ///
-    /// # Arguments
-    ///
-    /// * `base_im` - Today's IM (e.g. the SIMM total from
-    ///   [`SimmCalculator::calculate_from_sensitivities`]); non-negative, finite
-    /// * `decay` - Decay profile applied to `base_im`
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `base_im` is negative/non-finite or `decay` is invalid.
-    pub fn new(base_im: f64, decay: ImDecayProfile) -> finstack_quant_core::Result<Self> {
-        if !base_im.is_finite() || base_im < 0.0 {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "ScaledSimmDecayIm: base_im {base_im} must be non-negative and finite"
-            )));
-        }
-        decay.validate()?;
-        Ok(Self { base_im, decay })
-    }
-}
-
-impl PathImModel for ScaledSimmDecayIm {
-    fn im_on_path(&self, _path_state: &PathState, t: f64) -> finstack_quant_core::Result<f64> {
-        Ok(self.base_im * self.decay.factor(t))
-    }
 }
 
 #[cfg(test)]
