@@ -589,6 +589,13 @@ run = [
   "uv run python scripts/check_loc.py",
 ]
 
+[tasks.check-tiny-loc]
+description = "List tiny source files at or below the LOC threshold (default 25), grouped by directory"
+run = [
+  "uv run pytest scripts/tests/test_check_tiny_loc.py -q",
+  "uv run python scripts/check_tiny_loc.py",
+]
+
 [tasks.rust-bench]
 description = "Run Rust benchmarks with reduced Criterion timing (override: FQ_BENCH_SAMPLE_SIZE, FQ_BENCH_WARM_UP_TIME, FQ_BENCH_MEASUREMENT_TIME, FQ_BENCH_NRESAMPLES)"
 run = "cargo bench --profile bench --bench '*' -- --sample-size ${FQ_BENCH_SAMPLE_SIZE:-10} --warm-up-time ${FQ_BENCH_WARM_UP_TIME:-1} --measurement-time ${FQ_BENCH_MEASUREMENT_TIME:-1} --nresamples ${FQ_BENCH_NRESAMPLES:-1000} --noplot"
