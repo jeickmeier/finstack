@@ -64,7 +64,7 @@ pub mod stepper;
 
 pub use adi::CraigSneydStepper;
 pub use boundary::BoundaryCondition;
-pub use bridge::{BlackScholesPde, LocalVolPde};
+pub use bridge::BlackScholesPde;
 pub use bridge2d::HestonPde;
 pub use exercise::{ExerciseType, PenaltyExercise};
 pub use grid::{Grid1D, PdeGridError};

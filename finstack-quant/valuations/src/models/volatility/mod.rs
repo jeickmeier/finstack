@@ -60,21 +60,15 @@
 //! # See Also
 //!
 //! - [`SABRModel`] for SABR smile interpolation
-//! - [`HestonModel`] for stochastic volatility
-//! - [`LocalVolSurface`] for Dupire local vol
 //! - [`crate::models::closed_form`] for analytical formulas
 
 pub mod black;
-pub mod heston;
-pub mod local_vol;
 pub mod normal;
 pub mod sabr;
 pub mod sabr_derivatives;
 
 pub use black::{d1, d1_black76, d1_d2, d1_d2_black76, d2, d2_black76};
 pub use finstack_quant_core::math::{norm_cdf, norm_pdf};
-pub use heston::{HestonModel, HestonParameters};
-pub use local_vol::{DupireParams, LocalVolBuilder, LocalVolSurface};
 pub use normal::{bachelier_price, d_bachelier};
 pub(crate) use sabr::vega_weight;
 pub use sabr::{SABRCalibrator, SABRModel, SABRParameters, SABRSmile};

@@ -501,6 +501,37 @@ mod tests {
         assert_eq!(lv.grid_shape(), (4, 7));
     }
 
+    /// Pins the row-major (expiry = slow axis, strike = fast axis) storage
+    /// contract on an asymmetric grid, so a transposed index would be caught
+    /// rather than silently returning a neighbouring cell's volatility.
+    ///
+    /// Ported from the valuations-side BilinearInterp pin test when that
+    /// duplicate Dupire implementation was removed; this is now the only
+    /// axis-order guard for local-vol interpolation.
+    #[test]
+    fn local_vol_grid_is_row_major_expiry_slow_strike_fast() {
+        let surface = test_surface();
+        let lv =
+            LocalVolSurface::from_implied_vol(&surface, 100.0).expect("extraction should succeed");
+
+        // 4 expiries x 7 strikes: a transposition would report (7, 4).
+        assert_eq!(lv.grid_shape(), (4, 7));
+        assert_eq!(lv.expiries().len(), 4);
+        assert_eq!(lv.strikes().len(), 7);
+
+        // Query with the axes swapped: 0.5 is a valid expiry and 100.0 a valid
+        // strike, but 100.0 is far outside the expiry axis and 0.5 far below
+        // the strike axis, so both clamp to the (max expiry, min strike)
+        // corner. If the axes were transposed internally these would agree.
+        let in_order = lv.value(0.5, 100.0);
+        let swapped = lv.value(100.0, 0.5);
+        assert!(in_order.is_finite() && swapped.is_finite());
+        assert!(
+            (in_order - swapped).abs() > 1e-9,
+            "expiry/strike axes appear interchangeable: in_order={in_order}, swapped={swapped}"
+        );
+    }
+
     #[test]
     fn local_vol_smoothed_rejects_negative_sigma() {
         let surface = test_surface();

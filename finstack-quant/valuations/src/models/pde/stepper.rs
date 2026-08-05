@@ -243,7 +243,7 @@ impl TimeStepper for RannacherStepper {
 ///
 /// # Time dependence
 ///
-/// For a time-dependent diffusion (`LocalVolPde`) the coefficient at `t_to`
+/// For a time-dependent diffusion the coefficient at `t_to`
 /// or partway through the step can exceed its value at `t_from`; evaluating
 /// the bound only at `t_from` would understate `max|a|` and let an unstable
 /// step through. The diffusion is therefore sampled at `t_from`, `t_to`, and
@@ -677,7 +677,7 @@ mod tests {
     /// Heat equation with a *time-dependent* diffusion that peaks **inside**
     /// the step interval `[0, 0.5]`: a tent function `a(t)` with `a(0.5) =
     /// a(0.0) = 0.05` at the endpoints and `a(0.25) = 1.0` at the midpoint.
-    /// This mimics a `LocalVolPde` surface whose vol spikes part-way through a
+    /// This mimics a local-volatility surface whose vol spikes part-way through a
     /// time step — a peak that endpoint-only sampling cannot see.
     struct TentDiffusion;
 
