@@ -5,10 +5,9 @@
 //! directly, serialize them for Python/WASM consumers, or convert them into a
 //! host-language table type at the binding layer.
 //!
-//! For Apache Arrow / IPC conversion, use the supporting
-//! `finstack-quant-arrow` crate (`finstack_quant_arrow::{to_record_batch,
-//! from_record_batch, to_ipc_bytes, from_ipc_bytes}`). That crate is not
-//! re-exported by the umbrella package.
+//! To hand an envelope to Apache Arrow consumers, use the supporting
+//! `finstack-quant-arrow` crate (`finstack_quant_arrow::to_record_batch`).
+//! That crate is export-only and is not re-exported by the umbrella package.
 
 use crate::{Error, Result};
 use indexmap::IndexMap;
