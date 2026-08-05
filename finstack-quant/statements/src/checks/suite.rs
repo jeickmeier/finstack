@@ -146,6 +146,26 @@ impl CheckSuite {
         self.checks.is_empty()
     }
 
+    /// Identifiers of the checks in this suite, in execution order.
+    ///
+    /// Useful for reporting which checks a factory-built suite actually
+    /// assembled, since several are conditional on the supplied mapping.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use finstack_quant_statements::checks::builtins::NonFiniteCheck;
+    /// use finstack_quant_statements::checks::CheckSuite;
+    ///
+    /// let suite = CheckSuite::builder("demo")
+    ///     .add_check(NonFiniteCheck { nodes: vec![] })
+    ///     .build();
+    /// assert_eq!(suite.check_ids(), vec!["non_finite"]);
+    /// ```
+    pub fn check_ids(&self) -> Vec<&str> {
+        self.checks.iter().map(|c| c.id()).collect()
+    }
+
     /// Suite name.
     pub fn name(&self) -> &str {
         &self.name

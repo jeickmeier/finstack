@@ -39,6 +39,14 @@ fn ts_mapping() -> ThreeStatementMapping {
         total_cf_node: Some(NodeId::new("total_cf")),
         capex_node: None,
         dividends_node: None,
+        ppe_additions_node: None,
+        intangible_additions_node: None,
+        dividends_equity_node: None,
+        debt_balance_nodes: vec![],
+        cs_interest_node: None,
+        wc_change_cf_node: None,
+        current_assets_nodes: vec![],
+        current_liabilities_nodes: vec![],
     }
 }
 

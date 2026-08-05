@@ -40,6 +40,13 @@
       "findings": []
     },
     {
+      "check_id": "growth_rate_consistency",
+      "check_name": "Growth Rate Consistency",
+      "category": "internal_consistency",
+      "passed": true,
+      "findings": []
+    },
+    {
       "check_id": "non_finite",
       "check_name": "Non-Finite Value",
       "category": "data_quality",
@@ -117,8 +124,8 @@
     }
   ],
   "summary": {
-    "total_checks": 10,
-    "passed": 9,
+    "total_checks": 11,
+    "passed": 10,
     "failed": 1,
     "errors": 1,
     "warnings": 2,

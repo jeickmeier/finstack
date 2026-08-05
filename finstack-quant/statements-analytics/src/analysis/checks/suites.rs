@@ -10,9 +10,35 @@ use finstack_quant_statements::checks::builtins::{
 };
 use finstack_quant_statements::checks::{CheckSuite, PeriodScope, Severity, SignConventionPolicy};
 
-use super::credit::{CoverageFloorCheck, FcfSignCheck, LeverageRangeCheck, TrendCheck};
-use super::reconciliation::DepreciationReconciliation;
+use super::consistency::{EffectiveTaxRateCheck, GrowthRateConsistency, WorkingCapitalConsistency};
+use super::credit::{
+    CoverageFloorCheck, FcfSignCheck, LeverageRangeCheck, LiquidityRunwayCheck, TrendCheck,
+};
+use super::reconciliation::{
+    CapexReconciliation, DepreciationReconciliation, DividendReconciliation,
+    InterestExpenseReconciliation,
+};
 use super::{CreditMapping, ThreeStatementMapping, TrendDirection};
+
+/// Effective-tax-rate band outside which the suite raises an informational
+/// finding. Widened beyond any single jurisdiction's statutory rate so that it
+/// flags model errors — a negative provision on positive pre-tax income, or a
+/// rate no jurisdiction levies — rather than opining on tax planning.
+const ETR_PLAUSIBLE_RANGE: (f64, f64) = (0.0, 0.50);
+
+/// Period-over-period growth bounds for the plausibility sweep.
+///
+/// Deliberately wide: the purpose is catching mechanical model faults (unit
+/// errors, dropped links, sign flips), not judging whether a forecast is
+/// ambitious. A doubling or a halving in one period clears the bar for review.
+const MAX_PERIOD_GROWTH: f64 = 1.00;
+const MAX_PERIOD_DECLINE: f64 = -0.50;
+
+/// Liquidity-runway thresholds in months. The warning level matches the
+/// twelve-month horizon over which going-concern is conventionally assessed;
+/// the error level marks runway short enough to be an immediate credit event.
+const RUNWAY_WARN_MONTHS: f64 = 12.0;
+const RUNWAY_ERROR_MONTHS: f64 = 6.0;
 
 // Three-statement suite
 
@@ -24,6 +50,17 @@ use super::{CreditMapping, ThreeStatementMapping, TrendDirection};
 /// - **CashReconciliation** (if `total_cf_node` is provided)
 /// - **DepreciationReconciliation** (if `ppe_node`, `depreciation_node`, and
 ///   `capex_node` are all provided)
+/// - **CapexReconciliation** (if `capex_node` and at least one of
+///   `ppe_additions_node` / `intangible_additions_node` are provided)
+/// - **DividendReconciliation** (if `dividends_node` and
+///   `dividends_equity_node` are both provided)
+/// - **InterestExpenseReconciliation** (if `interest_expense_node` is provided
+///   along with either `cs_interest_node` or non-empty `debt_balance_nodes`)
+/// - **WorkingCapitalConsistency** (if `wc_change_cf_node` and at least one
+///   current-asset or current-liability node are provided)
+/// - **EffectiveTaxRateCheck** (if `tax_expense_node` and `pretax_income_node`
+///   are both provided; informational severity only)
+/// - **GrowthRateConsistency** over all mapping nodes (always)
 /// - **NonFiniteCheck** over all mapping nodes
 /// - **MissingValueCheck** for required nodes
 ///
@@ -81,6 +118,77 @@ pub fn three_statement_checks(mapping: ThreeStatementMapping) -> CheckSuite {
         });
     }
 
+    // Capex reconciliation (requires capex plus at least one addition node —
+    // the check is inert without a component to reconcile against).
+    if let Some(ref capex) = mapping.capex_node {
+        if mapping.ppe_additions_node.is_some() || mapping.intangible_additions_node.is_some() {
+            builder = builder.add_check(CapexReconciliation {
+                capex_cf_node: capex.clone(),
+                ppe_additions_node: mapping.ppe_additions_node.clone(),
+                intangible_additions_node: mapping.intangible_additions_node.clone(),
+                tolerance: None,
+                sign_convention: SignConventionPolicy::default(),
+            });
+        }
+    }
+
+    // Dividend reconciliation (cash-flow dividends vs the equity roll-forward).
+    if let (Some(ref div_cf), Some(ref div_eq)) =
+        (&mapping.dividends_node, &mapping.dividends_equity_node)
+    {
+        builder = builder.add_check(DividendReconciliation {
+            dividends_cf_node: div_cf.clone(),
+            dividends_equity_node: div_eq.clone(),
+            tolerance: None,
+            sign_convention: SignConventionPolicy::default(),
+        });
+    }
+
+    // Interest reconciliation (needs either a capital-structure interest node
+    // to compare against, or debt balances to imply a rate from).
+    if let Some(ref interest) = mapping.interest_expense_node {
+        if mapping.cs_interest_node.is_some() || !mapping.debt_balance_nodes.is_empty() {
+            builder = builder.add_check(InterestExpenseReconciliation {
+                interest_expense_node: interest.clone(),
+                debt_balance_nodes: mapping.debt_balance_nodes.clone(),
+                cs_interest_node: mapping.cs_interest_node.clone(),
+                tolerance_pct: None,
+            });
+        }
+    }
+
+    // Working-capital consistency (CFS movement vs the balance-sheet delta).
+    if let Some(ref wc_cf) = mapping.wc_change_cf_node {
+        if !mapping.current_assets_nodes.is_empty() || !mapping.current_liabilities_nodes.is_empty()
+        {
+            builder = builder.add_check(WorkingCapitalConsistency {
+                wc_change_cf_node: wc_cf.clone(),
+                current_assets_nodes: mapping.current_assets_nodes.clone(),
+                current_liabilities_nodes: mapping.current_liabilities_nodes.clone(),
+                tolerance: None,
+            });
+        }
+    }
+
+    // Effective tax rate plausibility (informational only).
+    if let (Some(ref tax), Some(ref pretax)) =
+        (&mapping.tax_expense_node, &mapping.pretax_income_node)
+    {
+        builder = builder.add_check(EffectiveTaxRateCheck {
+            tax_expense_node: tax.clone(),
+            pretax_income_node: pretax.clone(),
+            expected_range: ETR_PLAUSIBLE_RANGE,
+        });
+    }
+
+    // Growth-rate plausibility across every mapped node.
+    builder = builder.add_check(GrowthRateConsistency {
+        nodes: mapping.all_nodes(),
+        max_period_growth_pct: MAX_PERIOD_GROWTH,
+        max_decline_pct: MAX_PERIOD_DECLINE,
+        scope: PeriodScope::AllPeriods,
+    });
+
     // Data quality: NaN/Inf detection.
     builder = builder.add_check(NonFiniteCheck {
         nodes: mapping.all_nodes(),
@@ -109,6 +217,8 @@ pub fn three_statement_checks(mapping: ThreeStatementMapping) -> CheckSuite {
 /// - **LeverageRangeCheck** (always)
 /// - **CoverageFloorCheck** (always)
 /// - **FcfSignCheck** (if `fcf_node` is provided)
+/// - **LiquidityRunwayCheck** (if `cash_node` and `cash_burn_node` are both
+///   provided)
 /// - **TrendCheck** on leverage (decreasing is good) and coverage
 ///   (increasing is good), both with 3-period lookback
 ///
@@ -157,6 +267,16 @@ pub fn credit_underwriting_checks(mapping: CreditMapping) -> CheckSuite {
             fcf_node: fcf_node.clone(),
             consecutive_negative_warning: 2,
             consecutive_negative_error: 4,
+        });
+    }
+
+    // Liquidity runway (requires both a cash balance and a burn rate).
+    if let (Some(ref cash), Some(ref burn)) = (&mapping.cash_node, &mapping.cash_burn_node) {
+        builder = builder.add_check(LiquidityRunwayCheck {
+            cash_node: cash.clone(),
+            cash_burn_node: burn.clone(),
+            min_months_warning: RUNWAY_WARN_MONTHS,
+            min_months_error: RUNWAY_ERROR_MONTHS,
         });
     }
 

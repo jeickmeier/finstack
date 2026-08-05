@@ -38,6 +38,14 @@ fn minimal_ts_mapping() -> ThreeStatementMapping {
         total_cf_node: None,
         capex_node: None,
         dividends_node: None,
+        ppe_additions_node: None,
+        intangible_additions_node: None,
+        dividends_equity_node: None,
+        debt_balance_nodes: vec![],
+        cs_interest_node: None,
+        wc_change_cf_node: None,
+        current_assets_nodes: vec![],
+        current_liabilities_nodes: vec![],
     }
 }
 
@@ -60,6 +68,14 @@ fn full_ts_mapping() -> ThreeStatementMapping {
         total_cf_node: Some(NodeId::new("total_cf")),
         capex_node: Some(NodeId::new("capex")),
         dividends_node: Some(NodeId::new("dividends")),
+        ppe_additions_node: None,
+        intangible_additions_node: None,
+        dividends_equity_node: None,
+        debt_balance_nodes: vec![],
+        cs_interest_node: None,
+        wc_change_cf_node: None,
+        current_assets_nodes: vec![],
+        current_liabilities_nodes: vec![],
     }
 }
 
@@ -81,15 +97,19 @@ fn credit_mapping() -> CreditMapping {
 #[test]
 fn three_statement_minimal_has_expected_checks() {
     let suite = three_statement_checks(minimal_ts_mapping());
-    // BS articulation, RE reconciliation, NonFinite, MissingValue = 4
-    assert_eq!(suite.len(), 4, "minimal mapping should produce 4 checks");
+    // BS articulation, RE reconciliation, GrowthRate, NonFinite, MissingValue = 5
+    assert_eq!(suite.len(), 5, "minimal mapping should produce 5 checks");
 }
 
 #[test]
 fn three_statement_full_has_expected_checks() {
     let suite = three_statement_checks(full_ts_mapping());
-    // BS articulation, RE reconciliation, Cash recon, Depreciation recon, NonFinite, MissingValue = 6
-    assert_eq!(suite.len(), 6, "full mapping should produce 6 checks");
+    // BS articulation, RE reconciliation, Cash recon, Depreciation recon,
+    // EffectiveTaxRate, GrowthRate, NonFinite, MissingValue = 8.
+    // Capex / dividend / interest / working-capital reconciliations stay off:
+    // this fixture has no additions, equity-dividend, debt-balance or
+    // working-capital nodes to reconcile against.
+    assert_eq!(suite.len(), 8, "full mapping should produce 8 checks");
 }
 
 #[test]
@@ -99,10 +119,11 @@ fn partial_mapping_skips_optional_checks() {
     mapping.ppe_node = None; // disables depreciation recon
 
     let suite = three_statement_checks(mapping);
-    // BS articulation, RE reconciliation, NonFinite, MissingValue = 4
+    // BS articulation, RE reconciliation, EffectiveTaxRate, GrowthRate,
+    // NonFinite, MissingValue = 6
     assert_eq!(
         suite.len(),
-        4,
+        6,
         "removing optional nodes should skip their checks"
     );
 }
@@ -127,13 +148,77 @@ fn credit_suite_without_fcf_has_fewer() {
     );
 }
 
+// Newly-registered checks reach the suite when their inputs are supplied
+
+/// Extend the full mapping with the inputs the reconciliation checks need.
+fn reconciliation_ts_mapping() -> ThreeStatementMapping {
+    ThreeStatementMapping {
+        ppe_additions_node: Some(NodeId::new("ppe_additions")),
+        intangible_additions_node: Some(NodeId::new("intangible_additions")),
+        dividends_equity_node: Some(NodeId::new("dividends_equity")),
+        debt_balance_nodes: vec![(NodeId::new("total_debt"), Some(NodeId::new("debt_rate")))],
+        wc_change_cf_node: Some(NodeId::new("wc_change")),
+        current_assets_nodes: vec![NodeId::new("receivables")],
+        current_liabilities_nodes: vec![NodeId::new("payables")],
+        ..full_ts_mapping()
+    }
+}
+
+#[test]
+fn reconciliation_checks_are_registered_when_inputs_present() {
+    let suite = three_statement_checks(reconciliation_ts_mapping());
+    let ids = suite.check_ids();
+
+    for expected in [
+        "capex_reconciliation",
+        "dividend_reconciliation",
+        "interest_expense_reconciliation",
+        "working_capital_consistency",
+        "effective_tax_rate",
+        "growth_rate_consistency",
+    ] {
+        assert!(
+            ids.contains(&expected),
+            "{expected} should be registered in the three-statement suite; got {ids:?}"
+        );
+    }
+}
+
+#[test]
+fn liquidity_runway_is_registered_when_cash_and_burn_present() {
+    let mut cm = credit_mapping();
+    cm.cash_node = Some(NodeId::new("cash"));
+    cm.cash_burn_node = Some(NodeId::new("monthly_burn"));
+
+    let suite = credit_underwriting_checks(cm);
+    let ids = suite.check_ids();
+    assert!(
+        ids.contains(&"liquidity_runway"),
+        "liquidity_runway should be registered when cash and burn nodes are mapped; got {ids:?}"
+    );
+}
+
+#[test]
+fn liquidity_runway_stays_off_without_a_burn_node() {
+    let mut cm = credit_mapping();
+    cm.cash_node = Some(NodeId::new("cash"));
+    cm.cash_burn_node = None;
+
+    let suite = credit_underwriting_checks(cm);
+    let ids = suite.check_ids();
+    assert!(
+        !ids.contains(&"liquidity_runway"),
+        "liquidity_runway needs a burn node; got {ids:?}"
+    );
+}
+
 #[test]
 fn lbo_suite_merges_both() {
     let ts = full_ts_mapping();
     let cr = credit_mapping();
     let suite = lbo_model_checks(ts, cr);
-    // 6 (three-statement full) + 6 (credit) = 12
-    assert_eq!(suite.len(), 12, "LBO suite should merge both suites");
+    // 8 (three-statement full) + 6 (credit) = 14
+    assert_eq!(suite.len(), 14, "LBO suite should merge both suites");
 }
 
 // Suite runs correctly against a balanced model

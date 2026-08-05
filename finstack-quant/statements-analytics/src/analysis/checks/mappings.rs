@@ -49,6 +49,36 @@ pub struct ThreeStatementMapping {
     pub capex_node: Option<NodeId>,
     /// Dividends paid node (cash flow statement / financing).
     pub dividends_node: Option<NodeId>,
+    /// PP&E additions node; enables the capex reconciliation together with
+    /// `capex_node`.
+    #[serde(default)]
+    pub ppe_additions_node: Option<NodeId>,
+    /// Intangible-asset additions node; enables the capex reconciliation
+    /// together with `capex_node`.
+    #[serde(default)]
+    pub intangible_additions_node: Option<NodeId>,
+    /// Dividends charged against equity (balance sheet / equity roll-forward);
+    /// enables the dividend reconciliation together with `dividends_node`.
+    #[serde(default)]
+    pub dividends_equity_node: Option<NodeId>,
+    /// Debt-balance / optional-rate pairs used to test the implied interest
+    /// rate against `interest_expense_node`.
+    #[serde(default)]
+    pub debt_balance_nodes: Vec<(NodeId, Option<NodeId>)>,
+    /// Capital-structure interest node; when present the interest
+    /// reconciliation compares against it directly instead of testing an
+    /// implied rate.
+    #[serde(default)]
+    pub cs_interest_node: Option<NodeId>,
+    /// Change-in-working-capital node (cash flow statement, operating).
+    #[serde(default)]
+    pub wc_change_cf_node: Option<NodeId>,
+    /// Current-asset nodes summed into net working capital.
+    #[serde(default)]
+    pub current_assets_nodes: Vec<NodeId>,
+    /// Current-liability nodes summed into net working capital.
+    #[serde(default)]
+    pub current_liabilities_nodes: Vec<NodeId>,
 }
 
 impl ThreeStatementMapping {
@@ -73,11 +103,22 @@ impl ThreeStatementMapping {
             &self.total_cf_node,
             &self.capex_node,
             &self.dividends_node,
+            &self.ppe_additions_node,
+            &self.intangible_additions_node,
+            &self.dividends_equity_node,
+            &self.cs_interest_node,
+            &self.wc_change_cf_node,
         ]
         .into_iter()
         .flatten()
         {
             out.push(n.clone());
+        }
+        out.extend(self.current_assets_nodes.iter().cloned());
+        out.extend(self.current_liabilities_nodes.iter().cloned());
+        for (balance, rate) in &self.debt_balance_nodes {
+            out.push(balance.clone());
+            out.extend(rate.iter().cloned());
         }
         out
     }
