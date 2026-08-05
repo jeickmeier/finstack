@@ -263,15 +263,6 @@ impl DependencyTree {
     pub fn node_count(&self) -> usize {
         1 + self.children.iter().map(|c| c.node_count()).sum::<usize>()
     }
-
-    /// Convert tree to ASCII representation.
-    ///
-    /// # Returns
-    ///
-    /// ASCII tree string suitable for console output
-    pub fn to_string_ascii(&self) -> String {
-        render_tree_ascii(self)
-    }
 }
 
 // Tree visualization
@@ -616,25 +607,6 @@ impl Explanation {
         }
 
         output
-    }
-
-    /// Convert explanation to compact string format.
-    ///
-    /// # Returns
-    ///
-    /// Compact single-line summary
-    pub fn to_string_compact(&self) -> String {
-        if let Some(formula) = &self.formula_text {
-            format!(
-                "{} [{}] = {:.2} ({})",
-                self.node_id, self.period_id, self.final_value, formula
-            )
-        } else {
-            format!(
-                "{} [{}] = {:.2}",
-                self.node_id, self.period_id, self.final_value
-            )
-        }
     }
 }
 

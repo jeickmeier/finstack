@@ -84,8 +84,8 @@ pub use valuation::{
 // ---- Check-framework re-exports ----
 
 pub use checks::{
-    corkscrew_as_checks, credit_underwriting_checks, lbo_model_checks, three_statement_checks,
-    CheckReportRenderer, CreditMapping, FormulaCheck, ThreeStatementMapping, TrendDirection,
+    credit_underwriting_checks, lbo_model_checks, three_statement_checks, CheckReportRenderer,
+    CreditMapping, FormulaCheck, ThreeStatementMapping, TrendDirection,
 };
 
 // ---- ECL re-exports ----

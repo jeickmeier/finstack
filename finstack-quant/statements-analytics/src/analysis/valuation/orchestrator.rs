@@ -188,58 +188,6 @@ impl CorporateAnalysisBuilder {
         self
     }
 
-    /// Configure DCF equity valuation with custom options.
-    ///
-    /// `wacc` uses decimal form, so `0.10` means `10%`.
-    ///
-    /// # Arguments
-    ///
-    /// * `wacc` - Weighted-average cost of capital in decimal form.
-    /// * `terminal_value` - Terminal value methodology for the DCF bridge.
-    /// * `options` - DCF extraction and discounting options.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder with equity valuation enabled.
-    pub fn dcf_with_options(
-        mut self,
-        wacc: f64,
-        terminal_value: TerminalValueSpec,
-        options: DcfOptions,
-    ) -> Self {
-        self.equity_mode = Some(EquityMode::Dcf {
-            wacc,
-            terminal_value,
-            ufcf_node: "ufcf".to_string(),
-            net_debt_override: None,
-            dcf_options: options,
-        });
-        self
-    }
-
-    /// Override the UFCF node name (default: "ufcf").
-    ///
-    /// Must be called after [`Self::dcf`] or [`Self::dcf_with_options`]; has no
-    /// effect otherwise.
-    ///
-    /// # Arguments
-    ///
-    /// * `node` - Node id containing unlevered free cash flow.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder. If DCF has not been configured, the builder is
-    /// returned unchanged.
-    pub fn dcf_node(mut self, node: &str) -> Self {
-        if let Some(EquityMode::Dcf {
-            ref mut ufcf_node, ..
-        }) = self.equity_mode
-        {
-            *ufcf_node = node.to_string();
-        }
-        self
-    }
-
     /// Override net debt for equity bridge calculation.
     ///
     /// Must be called after [`Self::dcf`] or [`Self::dcf_with_options`]; has no

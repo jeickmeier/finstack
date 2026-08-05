@@ -9,12 +9,10 @@
 //! - [`FormulaCheck`] — user-defined expression checks evaluated per period
 //! - [`CreditMapping`] and [`ThreeStatementMapping`] — typed node-id mappings for common model patterns
 //! - [`three_statement_checks`], [`credit_underwriting_checks`], and [`lbo_model_checks`] — pre-built check suites
-//! - [`corkscrew_as_checks`] — convert corkscrew configs into structural checks
 //! - [`CheckReportRenderer`] — render [`finstack_quant_statements::checks::CheckReport`] as
 //!   text or HTML
 
 pub(crate) mod consistency;
-pub(crate) mod corkscrew_adapter;
 pub(crate) mod credit;
 pub(crate) mod mappings;
 pub(crate) mod reconciliation;
@@ -33,7 +31,6 @@ pub use reconciliation::{
     InterestExpenseReconciliation,
 };
 
-pub use corkscrew_adapter::corkscrew_as_checks;
 pub use finstack_quant_statements::checks::FormulaCheck;
 pub use mappings::{CreditMapping, ThreeStatementMapping};
 pub use renderer::CheckReportRenderer;
