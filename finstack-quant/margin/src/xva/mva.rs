@@ -378,7 +378,10 @@ pub(crate) fn compute_mva_internal(
         // used by the FVA leg in `xva::cva`.
         let sp_mid =
             0.5 * (prev_own_sp + own_sp_t) * 0.5 * (prev_counterparty_sp + counterparty_sp_t);
-        let spread_mid = spread_at(funding_spread_curve, 0.5 * (prev_t + t)) / 10_000.0;
+        let spread_mid = finstack_quant_core::math::interp::interp_knots_flat(
+            funding_spread_curve,
+            0.5 * (prev_t + t),
+        ) / 10_000.0;
 
         mva += spread_mid * im_mid * df_mid * sp_mid * dt;
         im_time_integral += im_mid * dt;
@@ -401,22 +404,6 @@ pub(crate) fn compute_mva_internal(
             .zip(im_profile.im_values.iter().copied())
             .collect(),
     })
-}
-
-/// Linear interpolation of the spread curve (bp) with flat extrapolation.
-fn spread_at(curve: &[(f64, f64)], t: f64) -> f64 {
-    let first = curve[0];
-    if t <= first.0 {
-        return first.1;
-    }
-    for w in curve.windows(2) {
-        let (t0, s0) = w[0];
-        let (t1, s1) = w[1];
-        if t <= t1 {
-            return s0 + (s1 - s0) * (t - t0) / (t1 - t0);
-        }
-    }
-    curve[curve.len() - 1].1
 }
 
 fn validate_spread_curve(curve: &[(f64, f64)]) -> finstack_quant_core::Result<()> {
