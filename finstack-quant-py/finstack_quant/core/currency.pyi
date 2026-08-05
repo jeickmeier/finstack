@@ -155,7 +155,6 @@ __all__ = [
     "SRD",
     "SSP",
     "STN",
-    "SVC",
     "SYP",
     "SZL",
     "THB",
@@ -482,7 +481,6 @@ SOS: Currency
 SRD: Currency
 SSP: Currency
 STN: Currency
-SVC: Currency
 SYP: Currency
 SZL: Currency
 THB: Currency

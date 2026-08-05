@@ -91,6 +91,37 @@ fn metric_value(
     )
 }
 
+/// Shared body for the `greeks` method emitted by both FX-option macros.
+///
+/// Prices the standard Greek set with market context and returns a JS object.
+/// Non-finite Greeks are rejected rather than serialized: `serde_json` maps
+/// them to `null`, which would silently look like "not computed".
+fn option_greeks_object(
+    instrument_json: &str,
+    market_json: &str,
+    as_of: &str,
+    model: Option<&str>,
+) -> Result<JsValue, JsValue> {
+    validate_pricing_instrument_json(instrument_json, None)?;
+    let market = parse_market_json(market_json)?;
+    let pairs = standard_option_greeks_with_context(
+        instrument_json,
+        &market,
+        as_of,
+        model.unwrap_or("default"),
+    )?;
+    let mut out = Map::new();
+    for (metric, value) in pairs {
+        if !value.is_finite() {
+            return Err(JsValue::from_str(&format!(
+                "greek '{metric}' evaluated to a non-finite value ({value})"
+            )));
+        }
+        out.insert(metric.to_string(), Value::from(value));
+    }
+    to_js_value(&Value::Object(out))
+}
+
 macro_rules! fx_class {
     ($rust_name:ident, $js_name:literal, $type_tag:literal) => {
         #[doc = concat!("FX instrument `", $js_name, "`: holds a validated JSON spec.")]
@@ -380,26 +411,7 @@ macro_rules! fx_option_class {
                 as_of: &str,
                 model: Option<String>,
             ) -> Result<JsValue, JsValue> {
-                validate_pricing_instrument_json(&self.json, None)?;
-                let market = parse_market_json(market_json)?;
-                let pairs = standard_option_greeks_with_context(
-                    &self.json,
-                    &market,
-                    as_of,
-                    model.as_deref().unwrap_or("default"),
-                )?;
-                let mut out = Map::new();
-                for (metric, value) in pairs {
-                    // serde_json maps non-finite f64 to `null`; fail loudly
-                    // instead so a NaN greek cannot silently become `null`.
-                    if !value.is_finite() {
-                        return Err(JsValue::from_str(&format!(
-                            "greek '{metric}' evaluated to a non-finite value ({value})"
-                        )));
-                    }
-                    out.insert(metric.to_string(), Value::from(value));
-                }
-                to_js_value(&Value::Object(out))
+                option_greeks_object(&self.json, market_json, as_of, model.as_deref())
             }
         }
     };
@@ -440,26 +452,7 @@ macro_rules! fx_option_subset_class {
                 as_of: &str,
                 model: Option<String>,
             ) -> Result<JsValue, JsValue> {
-                validate_pricing_instrument_json(&self.json, None)?;
-                let market = parse_market_json(market_json)?;
-                let pairs = standard_option_greeks_with_context(
-                    &self.json,
-                    &market,
-                    as_of,
-                    model.as_deref().unwrap_or("default"),
-                )?;
-                let mut out = Map::new();
-                for (metric, value) in pairs {
-                    // serde_json maps non-finite f64 to `null`; fail loudly
-                    // instead so a NaN greek cannot silently become `null`.
-                    if !value.is_finite() {
-                        return Err(JsValue::from_str(&format!(
-                            "greek '{metric}' evaluated to a non-finite value ({value})"
-                        )));
-                    }
-                    out.insert(metric.to_string(), Value::from(value));
-                }
-                to_js_value(&Value::Object(out))
+                option_greeks_object(&self.json, market_json, as_of, model.as_deref())
             }
         }
     };

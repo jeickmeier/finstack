@@ -6860,6 +6860,13 @@ export interface StatementsAnalyticsNamespace {
    */
   creditAssessmentReport(resultsJson: string, asOf: string): string;
   /**
+   * Compute a credit assessment from statement results (JSON in/out).
+   * @param resultsJson - Canonical JSON payload representing the results consumed by this API.
+   * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
+   * @throws Error - Rejects malformed `results_json`, an `as_of` value that is not a valid statement period identifier, or failure to serialize the assessment.
+   */
+  creditAssessment(resultsJson: string, asOf: string): string;
+  /**
    * Run checks from a suite spec against a model (JSON in/out).
    *
    * Evaluates the model, resolves the suite spec into runnable checks

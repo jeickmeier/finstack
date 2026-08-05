@@ -156,3 +156,36 @@ pub(crate) fn py_to_json_string<'py>(
     serde_json::to_string(&value)
         .map_err(|e| crate::errors::value_error(format!("failed to serialize {label}: {e}")))
 }
+
+/// Serialize a Python object to JSON via `json.dumps`, then deserialize into `T`.
+///
+/// Releases the GIL for the serde step. Prefer this over re-declaring a local
+/// copy per binding module: the conversion and its error shape are the same
+/// everywhere, and duplicates drift.
+pub(crate) fn py_to_serde<'py, T: serde::de::DeserializeOwned + Send>(
+    py: Python<'py>,
+    obj: &Bound<'py, PyAny>,
+    label: &str,
+) -> PyResult<T> {
+    let json_mod = py.import("json")?;
+    let json_str: String = json_mod.call_method1("dumps", (obj,))?.extract()?;
+    py.detach(move || serde_json::from_str(&json_str))
+        .map_err(|e| crate::errors::serde_json_to_py(e, &format!("invalid {label}")))
+}
+
+/// Parse an ISO-4217 code into a [`Currency`], mapping failures to `ValueError`.
+pub(crate) fn parse_currency(code: &str) -> PyResult<finstack_quant_core::currency::Currency> {
+    code.parse().map_err(crate::errors::display_to_py)
+}
+
+/// Build a [`Date`] from calendar parts, mapping both failures to `ValueError`.
+pub(crate) fn parse_date(
+    year: i32,
+    month: u8,
+    day: u8,
+) -> PyResult<finstack_quant_core::dates::Date> {
+    let month = time::Month::try_from(month)
+        .map_err(|e| crate::errors::value_error(format!("invalid month: {e}")))?;
+    finstack_quant_core::dates::Date::from_calendar_date(year, month, day)
+        .map_err(|e| crate::errors::value_error(format!("invalid date: {e}")))
+}

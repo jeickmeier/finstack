@@ -6,6 +6,7 @@
 //! Full typed access to every enum variant is intentionally omitted; where
 //! complex configuration is needed, JSON round-tripping is used.
 
+use crate::bindings::module_utils::{parse_currency, parse_date};
 use crate::errors::{core_to_py, display_to_py};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_margin::regulatory::{
@@ -17,10 +18,6 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 // Helpers
-
-fn parse_currency(code: &str) -> PyResult<Currency> {
-    code.parse::<Currency>().map_err(display_to_py)
-}
 
 fn parse_correlation_scenario(s: &str) -> PyResult<CorrelationScenario> {
     match s {
@@ -55,13 +52,6 @@ fn asset_class_label(ac: SaCcrAssetClass) -> &'static str {
         SaCcrAssetClass::Commodity => "commodity",
         _ => "unknown",
     }
-}
-
-fn parse_date(year: i32, month: u8, day: u8) -> PyResult<finstack_quant_core::dates::Date> {
-    let m = time::Month::try_from(month)
-        .map_err(|e| crate::errors::value_error(format!("invalid month: {e}")))?;
-    finstack_quant_core::dates::Date::from_calendar_date(year, m, day)
-        .map_err(|e| crate::errors::value_error(format!("invalid date: {e}")))
 }
 
 // FrtbSensitivities wrapper

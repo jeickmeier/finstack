@@ -1,3 +1,4 @@
+use crate::bindings::module_utils::py_to_serde;
 use indexmap::IndexMap;
 use pyo3::prelude::*;
 use pyo3::types::PyType;
@@ -11,22 +12,10 @@ use finstack_quant_portfolio::types::PositionId;
 
 use crate::bindings::date_utils::parse_iso_date_py;
 use crate::bindings::extract::{extract_market_ref, extract_portfolio_ref};
-use crate::errors::{portfolio_to_py, serde_json_to_py};
+use crate::errors::portfolio_to_py;
 
 use super::super::json_bridge::{deserialize_json, serialize_json};
 use super::contributions::PyRiskDecomposition;
-
-/// Serialize a Python object to JSON via `json.dumps`, then deserialize into `T`.
-fn py_to_serde<'py, T: serde::de::DeserializeOwned + Send>(
-    py: Python<'py>,
-    obj: &Bound<'py, PyAny>,
-    label: &str,
-) -> PyResult<T> {
-    let json_mod = py.import("json")?;
-    let json_str: String = json_mod.call_method1("dumps", (obj,))?.extract()?;
-    py.detach(move || serde_json::from_str(&json_str))
-        .map_err(|e| serde_json_to_py(e, &format!("invalid {label}")))
-}
 
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]

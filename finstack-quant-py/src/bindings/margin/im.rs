@@ -5,22 +5,10 @@
 
 use super::calculators::{money_from_amount, PyImResult};
 use super::types::{PyCollateralAssetClass, PyEligibleCollateralSchedule};
-use crate::errors::{core_to_py, display_to_py};
-use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::Date;
+use crate::bindings::module_utils::{parse_currency, parse_date};
+use crate::errors::core_to_py;
 use finstack_quant_margin as fm;
 use pyo3::prelude::*;
-
-fn parse_currency(code: &str) -> PyResult<Currency> {
-    code.parse::<Currency>().map_err(display_to_py)
-}
-
-fn parse_date(year: i32, month: u8, day: u8) -> PyResult<Date> {
-    let month = time::Month::try_from(month)
-        .map_err(|e| crate::errors::value_error(format!("invalid month: {e}")))?;
-    Date::from_calendar_date(year, month, day)
-        .map_err(|e| crate::errors::value_error(format!("invalid date: {e}")))
-}
 
 fn parse_simm_version(version: &str) -> PyResult<fm::SimmVersion> {
     version

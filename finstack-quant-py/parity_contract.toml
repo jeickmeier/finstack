@@ -127,28 +127,6 @@ public = [
 python_package = "finstack_quant.core.credit"
 public = ["scoring", "pd", "lgd", "migration", "recovery_waterfall", "liability_management"]
 
-[crates.core.credit_recovery_waterfall]
-python_package = "finstack_quant.core.credit.recovery_waterfall"
-public = [
-    "RecoveryAllocation",
-    "RecoveryClaim",
-    "RecoveryWaterfallResult",
-    "allocate_recovery",
-]
-
-[crates.core.credit_liability_management]
-python_package = "finstack_quant.core.credit.liability_management"
-public = [
-    "ExchangeOfferAnalysis",
-    "LeverageImpact",
-    "LmeAnalysis",
-    "analyze_exchange_offer",
-    "analyze_lme",
-]
-
-# Member-level pinning for Python credit-migration diagnostics. Keys follow
-# the established "ClassName.canonical_member" member-contract shape; values
-# are the Python runtime names (identical snake_case for Rust/Python parity).
 [crates.core.credit_migration_members]
 "GeneratorMatrix.regularization_l1" = "regularization_l1"
 "GeneratorMatrix.round_trip_error" = "round_trip_error"
@@ -543,20 +521,6 @@ public = [
     "nearest_correlation",
     "simulate_portfolio_loss",
     "validate_correlation_matrix",
-]
-
-# Symbol-level pinning for finstack_quant.valuations.credit_derivatives —
-# CDS-family example-payload factories. Python names are the snake_case
-# canonical Rust function names; the WASM facade exposes the same four under
-# `valuations.creditDerivatives` (camelCase), pinned in
-# [wasm_valuations_subset].creditDerivatives.
-[crates.valuations.credit_derivatives]
-python_package = "finstack_quant.valuations.credit_derivatives"
-public = [
-    "cds_index_example_json",
-    "cds_option_example_json",
-    "cds_tranche_example_json",
-    "credit_default_swap_example_json",
 ]
 
 [crates.valuations.instruments]
