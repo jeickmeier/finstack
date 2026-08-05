@@ -43,8 +43,10 @@ define_convention_id!(
 define_convention_id!(
     /// Identifier for Option market conventions (Equity/FX/Commodity).
     ///
-    /// Used to look up [`OptionConventions`](crate::market::conventions::defs::OptionConventions)
-    /// from the convention registry.
+    /// Tags an option implied-volatility quote
+    /// ([`VolQuote::OptionVol`](crate::market::quotes::vol::VolQuote)) with the
+    /// market convention it was quoted under, so quotes from different venues
+    /// are not blended during surface construction.
     OptionConventionId
 );
 

@@ -6864,6 +6864,7 @@ export interface StatementsAnalyticsNamespace {
    * @param resultsJson - Canonical JSON payload representing the results consumed by this API.
    * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
    * @throws Error - Rejects malformed `results_json`, an `as_of` value that is not a valid statement period identifier, or failure to serialize the assessment.
+   * @returns Returns the requested string representation or JSON payload.
    */
   creditAssessment(resultsJson: string, asOf: string): string;
   /**

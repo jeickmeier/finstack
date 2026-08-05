@@ -91,10 +91,9 @@
 //!
 //! ## Black-Scholes Greeks
 //!
-//! ```ignore
-//! use finstack_quant_valuations::models::closed_form::greeks::{
-//!     bs_call_delta, bs_gamma, bs_vega
-//! };
+//! ```rust
+//! use finstack_quant_valuations::instruments::OptionType;
+//! use finstack_quant_valuations::models::closed_form::{bs_greeks, bs_vega};
 //!
 //! let spot = 100.0;
 //! let strike = 100.0;
@@ -103,11 +102,13 @@
 //! let div_yield = 0.02;
 //! let vol = 0.20;
 //!
-//! let delta = bs_call_delta(spot, strike, time, rate, div_yield, vol);
-//! let gamma = bs_gamma(spot, strike, time, rate, div_yield, vol);
-//! let vega = bs_vega(spot, strike, time, rate, div_yield, vol);
+//! let greeks = bs_greeks(
+//!     spot, strike, rate, div_yield, vol, time, OptionType::Call, 365.0,
+//! );
 //!
-//! assert!((delta - 0.5).abs() < 0.1);
+//! assert!((greeks.delta - 0.5).abs() < 0.1);
+//! assert!(greeks.gamma > 0.0);
+//! assert!((greeks.vega - bs_vega(spot, strike, time, rate, div_yield, vol)).abs() < 1e-12);
 //! ```
 //!
 //! ## Barrier Option

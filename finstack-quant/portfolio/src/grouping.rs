@@ -1,7 +1,7 @@
 //! Book-hierarchy aggregation.
 //!
 //! Rolls portfolio valuations up the parent/child book tree defined by
-//! [`Book::child_book_ids`], summing each book's own positions together with
+//! [`Book::child_book_ids`](crate::book::Book::child_book_ids), summing each book's own positions together with
 //! every descendant book's total.
 //!
 //! Flat, single-attribute slicing (by rating, sector, currency, …) is left to

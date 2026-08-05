@@ -52,11 +52,12 @@ use arrow::record_batch::{RecordBatch, RecordBatchOptions};
 use finstack_quant_core::table::{TableColumn, TableColumnData, TableEnvelope};
 use finstack_quant_core::{Error, Result};
 
-/// Arrow field-metadata key for a column's [`TableColumnRole`] wire name.
+/// Arrow field-metadata key for a column's
+/// [`TableColumnRole`](finstack_quant_core::table::TableColumnRole) wire name.
 ///
 /// Value is one of `dimension`, `index`, `measure`, or `attribute` — the same
 /// snake_case spelling used by `TableColumnRole` serde and
-/// [`TableColumnRole::as_str`].
+/// [`TableColumnRole::as_str`](finstack_quant_core::table::TableColumnRole::as_str).
 pub const ROLE_METADATA_KEY: &str = "finstack:role";
 
 /// Arrow metadata key for serialized JSON metadata maps.

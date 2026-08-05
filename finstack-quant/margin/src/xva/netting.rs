@@ -189,6 +189,23 @@ pub fn apply_collateral_mpor(exposure_now: f64, exposure_at_lag: f64, csa: &CsaT
 ///
 /// Apply this to the ENE leg of an [`super::types::ExposureProfile`] when
 /// building one by hand, alongside [`apply_collateral_mpor`] on the EPE leg.
+///
+/// # Arguments
+///
+/// * `exposure_now` - Own-default (negative-side) portfolio exposure at time
+///   `t`, expressed as a non-negative magnitude in the netting set's
+///   reporting currency
+/// * `exposure_at_lag` - The same exposure measured at `t − MPOR`, which sets
+///   the variation margin the desk is deemed to hold across the margin period
+///   of risk (non-negative)
+/// * `csa` - CSA terms supplying `threshold` and `mta`; unlike
+///   [`apply_collateral_mpor`], `csa.independent_amount` is deliberately not
+///   applied, since the counterparty-posted IA does not reduce own-default
+///   exposure
+///
+/// # Returns
+///
+/// Net exposure after MPOR-lagged variation margin, always non-negative.
 #[inline]
 pub fn apply_variation_margin_mpor(exposure_now: f64, exposure_at_lag: f64, csa: &CsaTerms) -> f64 {
     (exposure_now - collateral_held(exposure_at_lag, csa)).max(0.0)

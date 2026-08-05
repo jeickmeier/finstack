@@ -1,0 +1,103 @@
+name: Documentation
+
+# Documentation checks are kept out of the Build workflow so a slow rustdoc
+# build and doctest run never blocks a PR. This workflow runs on merges to
+# master, on a weekly schedule, and on demand.
+on:
+  push:
+    branches:
+      - master
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  UV_PYTHON_DOWNLOADS: never
+
+jobs:
+  # ============================================
+  # Rust docs — strict rustdoc build, public input-doc contract, doctests
+  # ============================================
+  rust-docs:
+    name: Rust Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    env:
+      CARGO_BUILD_JOBS: 2
+      CARGO_INCREMENTAL: 1
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS: "-C debuginfo=0 -C strip=symbols -C linker=cc -C link-arg=-fuse-ld=bfd"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up swap space
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 10
+
+      - name: Provision toolchain (mise)
+        uses: jdx/mise-action@v2
+        with:
+          cache: true
+          cache_save: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python environment
+        run: |
+          uv venv --python 3.12
+          echo "${{ github.workspace }}/.venv/bin" >> $GITHUB_PATH
+          uv sync --no-install-project
+
+      - name: Build docs and run doctests
+        run: mise run rust-doc
+
+  # ============================================
+  # Host docs — Python stubs, WASM/TypeScript facade, benchmark documents
+  # ============================================
+  host-docs:
+    name: Python and WASM Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Provision toolchain (mise)
+        uses: jdx/mise-action@v2
+        with:
+          cache: true
+          cache_save: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python environment
+        run: |
+          uv venv --python 3.12
+          echo "${{ github.workspace }}/.venv/bin" >> $GITHUB_PATH
+          uv sync --no-install-project
+
+      - name: Install WASM dependencies
+        run: npm ci --ignore-scripts
+        working-directory: finstack-quant-wasm
+
+      - name: Check Python documentation
+        run: mise run python-doc
+
+      - name: Check WASM and TypeScript documentation
+        run: mise run wasm-doc
+
+      - name: Check benchmark documents
+        run: mise run materialization-benchmark-doc-check

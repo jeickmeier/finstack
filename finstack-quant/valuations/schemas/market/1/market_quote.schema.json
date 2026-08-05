@@ -98,7 +98,7 @@
       "type": "string"
     },
     "OptionConventionId": {
-      "description": "Identifier for Option market conventions (Equity/FX/Commodity).\n\nUsed to look up [`OptionConventions`](crate::market::conventions::defs::OptionConventions)\nfrom the convention registry.",
+      "description": "Identifier for Option market conventions (Equity/FX/Commodity).\n\nTags an option implied-volatility quote\n([`VolQuote::OptionVol`](crate::market::quotes::vol::VolQuote)) with the\nmarket convention it was quoted under, so quotes from different venues\nare not blended during surface construction.",
       "type": "string"
     },
     "OptionType": {

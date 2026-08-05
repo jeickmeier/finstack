@@ -18,7 +18,7 @@
 //!
 //! # Exposure profiles
 //!
-//! [`types::ExposureProfile`] is a container: callers supply the EPE / ENE grid
+//! [`crate::xva::types::ExposureProfile`] is a container: callers supply the EPE / ENE grid
 //! from their own simulation or valuation stack, and the formulas here turn it
 //! into CVA / DVA / FVA / MVA. Defaults are in
 //! `data/margin/xva_defaults.v1.json`.

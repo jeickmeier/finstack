@@ -9,13 +9,10 @@
 //! - **`bs_greeks`**: Computes all first-order Greeks (delta, gamma, vega, theta, rho_r, rho_q)
 //! - **`BsGreeks`**: Struct holding per-unit Greeks with both domestic and foreign rho
 //!
-//! # Relationship to [`super::greeks`]
-//!
-//! [`super::greeks`] exposes the same Greeks as individual functions
-//! (`bs_call_delta`, `bs_gamma`, `bs_vega`, etc.) with identical scaling
-//! conventions (vega per 1%, rho per 1%). Those are useful when only a subset
-//! of Greeks is needed; [`bs_greeks`] in this module computes all of them in
-//! one pass and takes an explicit `theta_days_per_year` for day-count control.
+//! [`bs_greeks`] computes every Greek in one pass and takes an explicit
+//! `theta_days_per_year` for day-count control. [`bs_vega`] is available on its
+//! own for callers that need only vega (for example implied-vol solvers).
+//! Both use the same scaling conventions: vega per 1% vol, rho per 1% rate.
 //!
 //! # Model
 //!

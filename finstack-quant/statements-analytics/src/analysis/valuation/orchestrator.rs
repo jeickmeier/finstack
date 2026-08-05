@@ -190,8 +190,7 @@ impl CorporateAnalysisBuilder {
 
     /// Override net debt for equity bridge calculation.
     ///
-    /// Must be called after [`Self::dcf`] or [`Self::dcf_with_options`]; has no
-    /// effect otherwise.
+    /// Must be called after [`Self::dcf`]; has no effect otherwise.
     ///
     /// # Arguments
     ///

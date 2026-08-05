@@ -61,9 +61,8 @@ pub struct FundingConfig {
     /// [`XvaResult::mva`] is `None`.
     ///
     /// Build the profile with
-    /// [`crate::xva::mva::im_profile_from_simm`] (deterministic SIMM decay) or
-    /// [`crate::xva::types::StochasticExposureProfile::to_im_profile`]
-    /// (path-consistent mean IM).
+    /// [`crate::xva::mva::im_profile_from_simm`] (deterministic SIMM decay), or
+    /// supply the path-consistent mean IM from your own simulation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub im_profile: Option<ImProfile>,
 
@@ -364,9 +363,9 @@ pub struct XvaResult {
     /// `max(V(t), 0)`. In that degenerate case every quantile (and the
     /// mean) equals `EPE(t)`, and this field holds the EPE path, not a
     /// tail quantile. The name is retained so downstream systems keep
-    /// their column bindings; use the Monte Carlo engine
-    /// ([`StochasticExposureProfile`]) when a true 97.5%-quantile PFE
-    /// is required for limit monitoring.
+    /// their column bindings; supply a profile from a Monte Carlo exposure
+    /// simulation when a true 97.5%-quantile PFE is required for limit
+    /// monitoring.
     pub pfe_profile: Vec<(f64, f64)>,
 
     /// Maximum PFE across the profile (`max_t PFE(t)`).

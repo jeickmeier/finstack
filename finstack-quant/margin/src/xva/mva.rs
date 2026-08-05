@@ -16,11 +16,11 @@
 //! (first-to-default) survival `S_B(t)·S_C(t)`, since a counterparty default
 //! terminates the netting set and returns the posted margin.
 //!
-//! Phase 1 builds `E[IM(t)]` deterministically from the current ISDA SIMM
-//! number and a decay profile ([`im_profile_from_simm`](crate::xva::mva::im_profile_from_simm))
-//! — the standard practitioner approximation. Phase 2 carries per-path IM
-//! through the stochastic exposure engine via
-//! [`PathImModel`](crate::xva::mva::PathImModel).
+//! `E[IM(t)]` is built deterministically from the current ISDA SIMM number and
+//! a decay profile ([`im_profile_from_simm`](crate::xva::mva::im_profile_from_simm))
+//! — the standard practitioner approximation. Per-path IM from a stochastic
+//! exposure engine is not modeled here; callers holding a simulated IM
+//! distribution supply its path mean as the profile.
 //!
 //! # Integration convention
 //!
@@ -43,9 +43,7 @@
 //! **Counterparty-posted dynamic IM** is not currently represented: only the
 //! static counterparty-posted
 //!   `independent_amount` on `CsaTerms` reduces EPE. Dynamic
-//!   counterparty-posted SIMM IM — which
-//!   [`PathImModel`](crate::xva::mva::PathImModel) could represent on
-//!   the counterparty side — does not currently reduce EPE gap risk, so gap
+//!   counterparty-posted SIMM IM does not reduce EPE gap risk, so gap
 //!   risk is overstated for UMR counterparties that carry only a static IA
 //!   rather than dynamic SIMM-based IM.
 //!
@@ -276,7 +274,7 @@ pub struct MvaResult {
 /// # Arguments
 ///
 /// * `im_profile` - Expected IM profile `E[IM(t)]` (from
-///   [`im_profile_from_simm`] or the stochastic engine's mean per-path IM)
+///   [`im_profile_from_simm`], or a caller-supplied mean per-path IM)
 /// * `funding_spread_curve` - `(time_years, spread_bp)` pairs, linearly
 ///   interpolated with flat extrapolation; a single pair means a flat spread
 /// * `discount_curve` - Risk-free discount curve

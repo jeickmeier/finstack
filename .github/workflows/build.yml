@@ -202,54 +202,6 @@ jobs:
         run: mise run rust-build-prod
 
   # ============================================
-  # Documentation — strict rustdoc and public input-doc contract
-  # ============================================
-  docs:
-    name: Documentation
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    needs: prime-cache
-
-    env:
-      CARGO_BUILD_JOBS: 2
-      CARGO_INCREMENTAL: 1
-      CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS: "-C debuginfo=0 -C strip=symbols -C linker=cc -C link-arg=-fuse-ld=bfd"
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-
-      - name: Set up swap space
-        uses: pierotofy/set-swap-space@master
-        with:
-          swap-size-gb: 10
-
-      - name: Provision toolchain (mise)
-        uses: jdx/mise-action@v2
-        with:
-          cache: true
-          cache_save: false
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-
-      - name: Set up Python environment
-        run: |
-          uv venv --python 3.12
-          echo "${{ github.workspace }}/.venv/bin" >> $GITHUB_PATH
-          uv sync --no-install-project
-
-      - name: Install nightly Rust for public API docs
-        run: rustup toolchain install nightly --profile minimal
-
-      - name: Install WASM dependencies
-        run: npm ci --ignore-scripts
-        working-directory: finstack-quant-wasm
-
-      - name: Build and verify documentation
-        run: mise run all-doc
-
-  # ============================================
   # Test Python — maturin build + pytest
   # ============================================
   test-python:
