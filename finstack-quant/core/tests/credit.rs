@@ -6,7 +6,7 @@ use finstack_quant_core::credit::lgd::{
 use finstack_quant_core::credit::migration::{
     projection, GeneratorMatrix, MigrationSimulator, RatingScale, TransitionMatrix,
 };
-use finstack_quant_core::credit::pd::{MasterScale, PdTermStructureBuilder};
+use finstack_quant_core::credit::pd::MasterScale;
 use finstack_quant_core::credit::scoring::{
     altman_z_score_with_pd, AltmanPdCalibration, AltmanZScoreInput,
 };
@@ -39,15 +39,13 @@ fn credit_workflow_maps_scoring_migration_and_loss_modules_together() {
     let annual = reference_transition_matrix();
     let generator = GeneratorMatrix::from_transition_matrix(&annual).unwrap();
     let half_year = projection::project(&generator, 0.5).unwrap();
-    let term_structure = PdTermStructureBuilder::new()
-        .from_transition_matrix(&half_year, "BBB", &[0.5, 1.0, 2.0])
-        .unwrap()
-        .build()
-        .unwrap();
 
-    let pd_1y = term_structure.cumulative_pd(1.0);
+    // Cumulative default probability over one year, built from two projected
+    // half-year steps: P(default by 1y) = 1 - P(survive both half-years).
+    let pd_half = half_year.probability("BBB", "D").unwrap();
+    let pd_1y = 1.0 - (1.0 - pd_half).powi(2);
     assert!(pd_1y > 0.0);
-    assert!(pd_1y < term_structure.cumulative_pd(2.0));
+    assert!(pd_1y > pd_half, "one-year PD must exceed the half-year PD");
 
     let score = altman_z_score_with_pd(
         &AltmanZScoreInput {

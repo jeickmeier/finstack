@@ -4,8 +4,6 @@
 //!
 //! - [`calibration`]: PiT/TtC conversion using the Merton-Vasicek single-factor
 //!   model and central tendency estimation from historical default rates.
-//! - [`term_structure`]: Build monotonic cumulative PD curves from transition
-//!   matrices, hazard curves, or explicit data points.
 //! - [`master_scale`]: Map continuous PDs to discrete rating grades with
 //!   configurable boundaries. Includes versioned library assumptions using
 //!   S&P-style and Moody's-style labels; these are not agency calibrations.
@@ -28,7 +26,6 @@
 pub mod calibration;
 pub mod error;
 pub mod master_scale;
-pub mod term_structure;
 #[cfg(test)]
 mod tests;
 
@@ -39,4 +36,3 @@ pub use calibration::{
 };
 pub use error::PdCalibrationError;
 pub use master_scale::{MasterScale, MasterScaleGrade, MasterScaleResult};
-pub use term_structure::{PdTermStructure, PdTermStructureBuilder};
