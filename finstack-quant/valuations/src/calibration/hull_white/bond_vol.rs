@@ -55,7 +55,7 @@ pub fn hw1f_convexity_adjustment(kappa: f64, sigma: f64, t_settle: f64, t_end: f
 // Internal helpers
 
 /// B(t₁, t₂) = (1 − e^{−κ(t₂−t₁)}) / κ
-pub(super) fn hw_b(kappa: f64, t1: f64, t2: f64) -> f64 {
+pub(crate) fn hw_b(kappa: f64, t1: f64, t2: f64) -> f64 {
     let tau = t2 - t1;
     if kappa.abs() < 1e-10 {
         tau

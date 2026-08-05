@@ -167,11 +167,12 @@ impl BermudanSwaptionCheyetteRoughPricer {
     ///
     /// `tau = T - t`. As `kappa -> 0` the limit is `B = tau`.
     fn b_factor(kappa: f64, tau: f64) -> f64 {
-        if kappa.abs() < 1e-12 {
-            tau
-        } else {
-            (1.0 - (-kappa * tau).exp()) / kappa
-        }
+        // Canonical HW1F B factor; `hw_b` takes (t1, t2) so a bare tenor is
+        // `hw_b(kappa, 0.0, tau)`. Its kappa->0 cutoff is 1e-10 rather than the
+        // 1e-12 used here previously; the two agree to floating-point noise
+        // across that band (at kappa = 1e-11 the series and the limit differ
+        // by ~1e-11 relative).
+        crate::calibration::hull_white::hw_b(kappa, 0.0, tau)
     }
 
     /// Reconstruct the time-`t` zero-coupon bond `P(t, T; x, y)` from the

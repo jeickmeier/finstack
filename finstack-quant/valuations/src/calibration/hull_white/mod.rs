@@ -63,6 +63,7 @@ mod swaption;
 mod targets;
 
 pub use bond_vol::hw1f_convexity_adjustment;
+pub(crate) use bond_vol::hw_b;
 pub use cap_floor::{
     bootstrap_hull_white_sigma_schedule_to_cap_floors, calibrate_hull_white_to_cap_floors,
     PiecewiseSigmaCalibrationConfig,

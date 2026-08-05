@@ -35,7 +35,7 @@
 //! Brigo & Mercurio (2006) *Interest Rate Models — Theory and Practice*
 //! §3.3.1 (HW1F affine bond price, eqs. 3.39–3.40); Hull & White (1990).
 
-use crate::calibration::hull_white::{HullWhiteModelParams, HullWhiteParams};
+use crate::calibration::hull_white::{hw_b, HullWhiteModelParams, HullWhiteParams};
 use finstack_quant_core::dates::{Date, DayCountContext};
 use finstack_quant_core::market_data::traits::Discounting;
 use finstack_quant_core::Result;
@@ -357,15 +357,6 @@ impl<'a> Hw1fTermForward<'a> {
 /// Mirrors `calibration::hull_white::hw_b`; duplicated (a few lines) to keep
 /// that calibration helper private to its module.
 #[inline]
-fn hw_b(kappa: f64, t1: f64, t2: f64) -> f64 {
-    let tau = t2 - t1;
-    if kappa.abs() < 1e-10 {
-        tau
-    } else {
-        (1.0 - (-kappa * tau).exp()) / kappa
-    }
-}
-
 /// `ln A(t, T)` for the HW1F affine zero-coupon bond price.
 ///
 /// ```text
