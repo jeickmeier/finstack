@@ -9,6 +9,7 @@
 //! - [`PdTermStructure`] -- trait abstracting PD curve sources
 //! - [`RawPdCurve`] -- user-supplied PD term structure with linear interpolation
 
+use finstack_quant_core::math::interp::interp_knots_flat;
 use finstack_quant_core::{Error, InputError, Result};
 use serde::{Deserialize, Serialize};
 
@@ -311,7 +312,7 @@ impl Exposure {
     /// returns the constant [`Exposure::ead`].
     pub(crate) fn ead_at(&self, t: f64) -> f64 {
         match &self.ead_schedule {
-            Some(schedule) if !schedule.is_empty() => interp_linear(schedule, t),
+            Some(schedule) if !schedule.is_empty() => interp_knots_flat(schedule, t),
             _ => self.ead,
         }
     }
@@ -481,38 +482,8 @@ impl PdTermStructure for RawPdCurve {
                 self.rating, rating
             )));
         }
-        Ok(interp_linear(&self.knots, t))
+        Ok(interp_knots_flat(&self.knots, t))
     }
-}
-
-/// Linear interpolation with flat extrapolation on a sorted knot vector.
-pub(crate) fn interp_linear(knots: &[(f64, f64)], t: f64) -> f64 {
-    if knots.is_empty() {
-        return 0.0;
-    }
-    if t <= knots[0].0 {
-        return knots[0].1;
-    }
-    if t >= knots[knots.len() - 1].0 {
-        return knots[knots.len() - 1].1;
-    }
-    // Binary search for the right interval
-    let idx = knots.partition_point(|k| k.0 < t);
-    if idx == 0 {
-        return knots[0].1;
-    }
-    let (t0, y0) = knots[idx - 1];
-    let (t1, y1) = knots[idx];
-    // Guard against a zero-width interval. `RawPdCurve::new` (and the
-    // validating deserializer) reject duplicate knot times, but the struct
-    // has public fields, so a curve built by struct literal can still
-    // carry `t1 == t0`. Without this guard the interpolation weight
-    // would be `0.0 / 0.0 = NaN` and poison every downstream ECL figure.
-    if t1 <= t0 {
-        return y1;
-    }
-    let w = (t - t0) / (t1 - t0);
-    y0 + w * (y1 - y0)
 }
 
 #[cfg(test)]
@@ -648,18 +619,18 @@ mod tests {
     }
 
     #[test]
-    fn test_interp_linear() {
+    fn test_interp_knots_flat_matches_expected_curve() {
         let knots = vec![(1.0, 0.02), (2.0, 0.05), (5.0, 0.12)];
         // Before first knot -> first value
-        assert!((interp_linear(&knots, 0.5) - 0.02).abs() < 1e-10);
+        assert!((interp_knots_flat(&knots, 0.5) - 0.02).abs() < 1e-10);
         // At first knot
-        assert!((interp_linear(&knots, 1.0) - 0.02).abs() < 1e-10);
+        assert!((interp_knots_flat(&knots, 1.0) - 0.02).abs() < 1e-10);
         // Midpoint of first segment
-        assert!((interp_linear(&knots, 1.5) - 0.035).abs() < 1e-10);
+        assert!((interp_knots_flat(&knots, 1.5) - 0.035).abs() < 1e-10);
         // At second knot
-        assert!((interp_linear(&knots, 2.0) - 0.05).abs() < 1e-10);
+        assert!((interp_knots_flat(&knots, 2.0) - 0.05).abs() < 1e-10);
         // After last knot -> flat extrapolation
-        assert!((interp_linear(&knots, 10.0) - 0.12).abs() < 1e-10);
+        assert!((interp_knots_flat(&knots, 10.0) - 0.12).abs() < 1e-10);
     }
 
     #[test]

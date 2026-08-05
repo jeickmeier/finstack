@@ -463,7 +463,9 @@ mod tests {
         fn cumulative_pd(&self, rating: &str, t: f64) -> finstack_quant_core::Result<f64> {
             for (r, knots) in &self.curves {
                 if r == rating {
-                    return Ok(super::super::types::interp_linear(knots, t));
+                    return Ok(finstack_quant_core::math::interp::interp_knots_flat(
+                        knots, t,
+                    ));
                 }
             }
             Err(finstack_quant_core::Error::Validation(format!(
