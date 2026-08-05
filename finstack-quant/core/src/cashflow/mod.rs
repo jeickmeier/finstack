@@ -6,12 +6,12 @@
 //!
 //! # When to use which API
 //!
-//! - Use [`crate::cashflow::npv`] / [`crate::cashflow::npv_with_ctx`] when discounting dated cashflows from a
+//! - Use [`crate::cashflow::npv`] when discounting dated cashflows from a
 //!   market curve. This is the pricing-oriented path used by most instruments.
 //!   **Note:** these exclude flows dated on or before the valuation date
 //!   (market-standard pricing semantics); use [`crate::cashflow::npv_with_options`]
 //!   with [`crate::cashflow::NpvOptions::include_past_flows`] to include them.
-//! - Use [`crate::cashflow::npv_amounts`] / [`crate::cashflow::npv_amounts_with_ctx`] for scalar cashflow studies
+//! - Use [`crate::cashflow::npv_amounts`] for scalar cashflow studies
 //!   driven by a single continuously compounded annual rate.
 //! - Use [`crate::cashflow::irr`] for periodic cashflows and
 //!   [`crate::cashflow::xirr`] / [`crate::cashflow::xirr_with_daycount`] /
@@ -119,8 +119,7 @@ mod primitives;
 mod xirr;
 
 pub use discounting::{
-    npv, npv_amounts, npv_amounts_with_ctx, npv_amounts_with_curve, npv_with_ctx, npv_with_options,
-    sum_prediscounted_money, Discountable, NpvOptions,
+    npv, npv_amounts, npv_amounts_with_curve, npv_with_options, Discountable, NpvOptions,
 };
 pub use primitives::{CFKind, CashFlow, CashFlowAccrual};
 pub use xirr::{irr, xirr, xirr_with_daycount, xirr_with_daycount_ctx};

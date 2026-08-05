@@ -73,7 +73,7 @@ pub use time::{Date, Duration, Month, OffsetDateTime, PrimitiveDateTime};
 mod date_extensions;
 
 // Publicly re-export the extension traits so downstream crates can `use finstack_quant_core::dates::DateExt`.
-pub use date_extensions::{DateExt, OffsetDateTimeExt};
+pub use date_extensions::DateExt;
 
 mod daycount;
 

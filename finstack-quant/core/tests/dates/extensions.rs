@@ -1,7 +1,7 @@
 //! Tests for date extension traits
 
 use finstack_quant_core::dates::calendar::TARGET2;
-use finstack_quant_core::dates::{Date, DateExt, FiscalConfig, OffsetDateTimeExt};
+use finstack_quant_core::dates::{Date, DateExt, FiscalConfig};
 use time::Month;
 
 fn make_date(y: i32, m: u8, d: u8) -> Date {
@@ -149,75 +149,4 @@ fn date_ext_next_imm() {
     let before_march = make_date(2025, 3, 10);
     let next = before_march.next_imm();
     assert_eq!(next, make_date(2025, 3, 19));
-}
-
-#[test]
-fn offset_datetime_ext_is_weekend() {
-    let dt = make_date(2025, 1, 4)
-        .with_hms(10, 30, 0)
-        .unwrap()
-        .assume_utc();
-
-    assert!(dt.is_weekend()); // Saturday
-}
-
-#[test]
-fn offset_datetime_ext_quarter() {
-    let dt = make_date(2025, 5, 15)
-        .with_hms(14, 0, 0)
-        .unwrap()
-        .assume_utc();
-
-    assert_eq!(dt.quarter(), 2);
-}
-
-#[test]
-fn offset_datetime_ext_fiscal_year() {
-    let config = FiscalConfig::us_federal();
-    let dt = make_date(2024, 10, 1)
-        .with_hms(9, 0, 0)
-        .unwrap()
-        .assume_utc();
-
-    assert_eq!(dt.fiscal_year(config), 2025);
-}
-
-#[test]
-fn offset_datetime_ext_add_weekdays() {
-    let dt = make_date(2025, 1, 3) // Friday
-        .with_hms(10, 30, 0)
-        .unwrap()
-        .assume_utc();
-
-    let result = dt.add_weekdays(1);
-
-    assert_eq!(result.date(), make_date(2025, 1, 6)); // Monday
-    assert_eq!(result.time(), dt.time()); // Time preserved
-}
-
-#[test]
-fn offset_datetime_ext_add_business_days() {
-    let cal = TARGET2;
-    let dt = make_date(2025, 6, 27) // Friday
-        .with_hms(15, 45, 30)
-        .unwrap()
-        .assume_utc();
-
-    let result = dt.add_business_days(3, &cal).unwrap();
-
-    assert_eq!(result.date(), make_date(2025, 7, 2)); // Wednesday
-    assert_eq!(result.time(), dt.time()); // Time preserved
-}
-
-#[test]
-fn offset_datetime_ext_next_imm() {
-    let dt = make_date(2025, 3, 10)
-        .with_hms(9, 30, 0)
-        .unwrap()
-        .assume_utc();
-
-    let next = dt.next_imm();
-
-    assert_eq!(next.date(), make_date(2025, 3, 19)); // March IMM
-    assert_eq!(next.time(), dt.time()); // Time preserved
 }

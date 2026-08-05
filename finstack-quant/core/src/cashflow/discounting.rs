@@ -300,7 +300,7 @@ impl NpvOptions {
 /// # Errors
 ///
 /// Same error conditions as [`npv`].
-pub fn npv_with_ctx<D: Discounting + ?Sized>(
+pub(crate) fn npv_with_ctx<D: Discounting + ?Sized>(
     disc: &D,
     base: Date,
     ctx: DayCountContext<'_>,
@@ -459,42 +459,6 @@ where
     Ok(())
 }
 
-/// Sum pre-discounted `Money` cashflows for bit-exact accumulation.
-///
-/// Callers that need maximum precision should discount each flow
-/// using `Decimal` arithmetic and then pass the results here. This
-/// avoids the `f64` rounding that occurs in [`npv_with_ctx`] when
-/// multiplying `Money` by `f64` discount factors.
-///
-/// # Arguments
-///
-/// * `flows` - Already discounted monetary amounts to sum. Every amount must
-///   use the same currency, and an empty slice returns an error.
-///
-/// # Errors
-///
-/// - [`InputError::TooFewPoints`](crate::error::InputError::TooFewPoints): Empty flow slice
-/// - [`Error::CurrencyMismatch`](crate::Error::CurrencyMismatch): Mixed currencies
-pub fn sum_prediscounted_money(flows: &[Money]) -> crate::Result<Money> {
-    if flows.is_empty() {
-        return Err(crate::error::InputError::TooFewPoints.into());
-    }
-    let ccy = flows[0].currency();
-    for amt in flows.iter().skip(1) {
-        if amt.currency() != ccy {
-            return Err(crate::Error::CurrencyMismatch {
-                expected: ccy,
-                actual: amt.currency(),
-            });
-        }
-    }
-    let mut total = Money::new(0.0, ccy);
-    for amt in flows {
-        total = total.checked_add(*amt)?;
-    }
-    Ok(total)
-}
-
 /// Compute NPV of dated scalar cashflows using a flat annual discount rate.
 ///
 /// This is a convenience helper for performance analytics and bindings that work in
@@ -576,7 +540,7 @@ pub fn npv_amounts(
 /// less than or equal to `-1.0` (so annual-to-continuous conversion is
 /// undefined), or a signed year-fraction calculation fails for the chosen
 /// day-count context.
-pub fn npv_amounts_with_ctx(
+pub(crate) fn npv_amounts_with_ctx(
     cash_flows: &[(Date, f64)],
     discount_rate: f64,
     base_date: Option<Date>,
@@ -1148,53 +1112,6 @@ mod tests {
             flows.len(),
             pv.amount(),
             (pv.amount() - 12000.0).abs()
-        );
-    }
-
-    #[test]
-    fn sum_prediscounted_money_exact_summation() {
-        let flows: Vec<Money> = (1..=120)
-            .map(|_| Money::new(100.0, Currency::USD))
-            .collect();
-
-        let pv = sum_prediscounted_money(&flows).expect("summation should succeed");
-        assert!(
-            (pv.amount() - 12000.0).abs() < 1e-12,
-            "expected exact 12000.0, got {} (error: {:.2e})",
-            pv.amount(),
-            (pv.amount() - 12000.0).abs()
-        );
-    }
-
-    #[test]
-    fn sum_prediscounted_money_accepts_money_without_dates() {
-        let flows: Vec<Money> = (1..=120)
-            .map(|_| Money::new(100.0, Currency::USD))
-            .collect();
-
-        let pv = sum_prediscounted_money(&flows).expect("summation should succeed");
-        assert_eq!(pv.currency(), Currency::USD);
-        assert!((pv.amount() - 12000.0).abs() < 1e-12);
-    }
-
-    #[test]
-    fn sum_prediscounted_money_empty_errors() {
-        let flows: Vec<Money> = vec![];
-        assert!(
-            sum_prediscounted_money(&flows).is_err(),
-            "empty flows should error"
-        );
-    }
-
-    #[test]
-    fn sum_prediscounted_money_currency_mismatch_errors() {
-        let flows = vec![
-            Money::new(100.0, Currency::USD),
-            Money::new(100.0, Currency::EUR),
-        ];
-        assert!(
-            sum_prediscounted_money(&flows).is_err(),
-            "mixed currencies should error"
         );
     }
 
