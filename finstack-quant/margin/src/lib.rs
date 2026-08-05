@@ -85,8 +85,7 @@ pub use calculators::im::schedule::{ScheduleAssetClass, BCBS_IOSCO_SCHEDULE_ID};
 pub use calculators::im::simm::SimmVersion;
 pub use calculators::{
     CcpMethodology, ClearingHouseImCalculator, ExternalImSource, HaircutImCalculator, ImCalculator,
-    ImResult, InternalModelImCalculator, ScheduleImCalculator, SimmCalculator, VmCalculator,
-    VmResult,
+    ImResult, ScheduleImCalculator, SimmCalculator, VmCalculator, VmResult,
 };
 pub use schema::{MarginEnvelope, MarginSchema};
 pub use traits::Marginable;

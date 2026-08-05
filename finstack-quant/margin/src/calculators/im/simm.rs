@@ -802,19 +802,6 @@ impl SimmCalculator {
         (equity_delta * self.params.equity_delta_weight).abs()
     }
 
-    /// Calculate FX delta margin.
-    ///
-    /// # Arguments
-    ///
-    /// * `fx_delta` - Signed currency FX delta sensitivity
-    ///
-    /// # Returns
-    ///
-    /// The weighted FX delta margin contribution.
-    pub fn calculate_fx_delta(&self, fx_delta: f64) -> f64 {
-        (fx_delta * self.params.fx_delta_weight).abs()
-    }
-
     /// Calculate FX delta margin across currency risk factors.
     ///
     /// Each currency sensitivity is weighted and concentration-scaled
@@ -916,19 +903,6 @@ impl SimmCalculator {
         sum.max(0.0).sqrt()
     }
 
-    /// Calculate credit vega margin.
-    ///
-    /// `total_vega` is expected to be a signed currency vega amount already
-    /// aggregated across the caller's chosen credit buckets.
-    pub fn calculate_credit_vega(&self, total_vega: f64, qualifying: bool) -> f64 {
-        let weight = if qualifying {
-            self.params.cq_vega_weight
-        } else {
-            self.params.cnq_vega_weight
-        };
-        (total_vega * weight).abs()
-    }
-
     /// Calculate equity vega margin from a signed currency vega amount.
     pub fn calculate_equity_vega(&self, total_vega: f64) -> f64 {
         (total_vega * self.params.equity_vega_weight).abs()
@@ -937,11 +911,6 @@ impl SimmCalculator {
     /// Calculate FX vega margin from a signed currency vega amount.
     pub fn calculate_fx_vega(&self, total_vega: f64) -> f64 {
         (total_vega * self.params.fx_vega_weight).abs()
-    }
-
-    /// Calculate commodity vega margin from a signed currency vega amount.
-    pub fn calculate_commodity_vega(&self, total_vega: f64) -> f64 {
-        (total_vega * self.params.commodity_vega_weight).abs()
     }
 
     /// Calculate the curvature margin add-on across risk classes per the ISDA

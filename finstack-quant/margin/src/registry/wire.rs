@@ -7,23 +7,12 @@ use serde_json::Value;
 #[allow(dead_code)] // Fields accessed via serde Deserialize
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct RegistryFile<R> {
-    pub(super) schema: Option<String>,
-    pub(super) version: Option<u32>,
-    pub(super) entries: Vec<RegistryEntry<R>>,
-}
-
-#[allow(dead_code)] // Fields accessed via serde Deserialize
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(super) struct RegistryEntry<R> {
     pub(super) ids: Vec<String>,
     pub(super) record: R,
 }
 
-// -----------------------------------------------------------------------------//
 // Schedule IM (BCBS-IOSCO grid)
-// -----------------------------------------------------------------------------//
 
 #[allow(dead_code)] // Fields accessed via serde Deserialize
 #[derive(Debug, Deserialize)]
@@ -63,9 +52,7 @@ pub(super) struct ScheduleImRate {
     pub(super) rate: f64,
 }
 
-// -----------------------------------------------------------------------------//
 // Collateral schedules and defaults
-// -----------------------------------------------------------------------------//
 
 #[allow(dead_code)] // Fields accessed via serde Deserialize
 #[derive(Debug, Deserialize)]
@@ -122,9 +109,7 @@ pub(super) struct MaturityConstraintsRecord {
     pub(super) max_remaining_years: Option<f64>,
 }
 
-// -----------------------------------------------------------------------------//
 // Defaults (VM/IM thresholds, timing, settlement)
-// -----------------------------------------------------------------------------//
 
 #[allow(dead_code)] // Fields accessed via serde Deserialize
 #[derive(Debug, Deserialize)]
@@ -204,9 +189,7 @@ pub(super) struct ClearedSettlementRecord {
     pub(super) settlement_lag: u32,
 }
 
-// -----------------------------------------------------------------------------//
 // CCP methodologies
-// -----------------------------------------------------------------------------//
 
 #[allow(dead_code)] // Fields accessed via serde Deserialize
 #[derive(Debug, Deserialize)]
@@ -231,9 +214,7 @@ pub(super) struct CcpRecord {
     pub(super) is_default: bool,
 }
 
-// -----------------------------------------------------------------------------//
 // XVA defaults
-// -----------------------------------------------------------------------------//
 
 #[allow(dead_code)] // Fields accessed via serde Deserialize
 #[derive(Debug, Deserialize)]
@@ -262,9 +243,7 @@ pub(super) struct XvaDeterministicExposureRecord {
     pub(super) own_recovery_rate: Option<f64>,
 }
 
-// -----------------------------------------------------------------------------//
 // SIMM parameters
-// -----------------------------------------------------------------------------//
 
 #[allow(dead_code)] // Fields accessed via serde Deserialize
 #[derive(Debug, Deserialize)]

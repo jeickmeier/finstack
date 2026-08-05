@@ -6,11 +6,9 @@
 //! - [`SimmCalculator`]: ISDA SIMM for OTC derivatives
 //! - [`ScheduleImCalculator`]: BCBS-IOSCO regulatory schedule fallback
 //! - [`ClearingHouseImCalculator`]: CCP-specific methodologies
-//! - [`InternalModelImCalculator`]: Internal model (VaR/ES-based) stub
 
 mod clearing;
 mod haircut;
-mod internal;
 /// BCBS-IOSCO schedule-based IM fallback calculator.
 pub mod schedule;
 /// ISDA SIMM calculator and supporting types.
@@ -18,7 +16,6 @@ pub mod simm;
 
 pub use clearing::{CcpMethodology, ClearingHouseImCalculator};
 pub use haircut::HaircutImCalculator;
-pub use internal::InternalModelImCalculator;
 pub use schedule::ScheduleImCalculator;
 pub use simm::SimmCalculator;
 
@@ -29,7 +26,7 @@ use finstack_quant_core::money::Money;
 
 /// Conservative fallback IM: `|exposure_base| × conservative_rate`.
 ///
-/// Shared by [`ClearingHouseImCalculator`] and [`InternalModelImCalculator`]
+/// Shared by [`ClearingHouseImCalculator`]
 /// — any IM calculator that falls back to a pure percentage-of-exposure
 /// heuristic should route through this helper to keep the formula in one
 /// place.
