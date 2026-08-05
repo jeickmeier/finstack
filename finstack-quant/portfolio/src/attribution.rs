@@ -897,77 +897,6 @@ pub fn attribute_portfolio_pnl(
 }
 
 impl PortfolioAttribution {
-    /// Export portfolio attribution as CSV string.
-    ///
-    /// Returns summary row with total attribution by factor.
-    pub fn to_csv(&self) -> String {
-        let mut lines = Vec::new();
-
-        // Header
-        lines.push(
-            "total,carry,rates_curves,credit_curves,inflation_curves,\
-             correlations,fx,fx_translation,cross_factor,vol,model_params,market_scalars,residual"
-                .to_string(),
-        );
-
-        // Data row
-        lines.push(format!(
-            "{},{},{},{},{},{},{},{},{},{},{},{},{}",
-            self.total_pnl.amount(),
-            self.carry.amount(),
-            self.rates_curves_pnl.amount(),
-            self.credit_curves_pnl.amount(),
-            self.inflation_curves_pnl.amount(),
-            self.correlations_pnl.amount(),
-            self.fx_pnl.amount(),
-            self.fx_translation_pnl.amount(),
-            self.cross_factor_pnl.amount(),
-            self.vol_pnl.amount(),
-            self.model_params_pnl.amount(),
-            self.market_scalars_pnl.amount(),
-            self.residual.amount(),
-        ));
-
-        lines.join("\n")
-    }
-
-    /// Export position-by-position detail as CSV string.
-    ///
-    /// Returns one row per position with full factor breakdown.
-    pub fn position_detail_to_csv(&self) -> String {
-        let mut lines = Vec::new();
-
-        // Header
-        lines.push(
-            "position_id,total,carry,rates_curves,credit_curves,\
-             inflation_curves,correlations,fx,cross_factor,vol,model_params,\
-             market_scalars,residual"
-                .to_string(),
-        );
-
-        // Data rows (one per position)
-        for (position_id, pos_attr) in &self.by_position {
-            lines.push(format!(
-                "{},{},{},{},{},{},{},{},{},{},{},{},{}",
-                position_id,
-                pos_attr.total_pnl.amount(),
-                pos_attr.carry.amount(),
-                pos_attr.rates_curves_pnl.amount(),
-                pos_attr.credit_curves_pnl.amount(),
-                pos_attr.inflation_curves_pnl.amount(),
-                pos_attr.correlations_pnl.amount(),
-                pos_attr.fx_pnl.amount(),
-                pos_attr.cross_factor_pnl.amount(),
-                pos_attr.vol_pnl.amount(),
-                pos_attr.model_params_pnl.amount(),
-                pos_attr.market_scalars_pnl.amount(),
-                pos_attr.residual.amount(),
-            ));
-        }
-
-        lines.join("\n")
-    }
-
     /// Generate explanation tree for portfolio attribution.
     pub fn explain(&self) -> String {
         let mut lines = Vec::new();
@@ -1280,41 +1209,6 @@ mod tests {
     }
 
     #[test]
-    fn test_portfolio_attribution_structure() {
-        let base_currency = Currency::USD;
-        let zero = Money::new(0.0, base_currency);
-
-        let portfolio_attr = PortfolioAttribution {
-            total_pnl: Money::new(1000.0, base_currency),
-            carry: Money::new(100.0, base_currency),
-            rates_curves_pnl: Money::new(500.0, base_currency),
-            credit_curves_pnl: zero,
-            inflation_curves_pnl: zero,
-            correlations_pnl: zero,
-            fx_pnl: zero,
-            fx_translation_pnl: zero,
-            cross_factor_pnl: zero,
-            vol_pnl: zero,
-            model_params_pnl: zero,
-            market_scalars_pnl: zero,
-            residual: Money::new(400.0, base_currency),
-            by_position: IndexMap::new(),
-            rates_detail: None,
-            credit_detail: None,
-            inflation_detail: None,
-            correlations_detail: None,
-            fx_detail: None,
-            vol_detail: None,
-            scalars_detail: None,
-            result_invalid: false,
-        };
-
-        let csv = portfolio_attr.to_csv();
-        assert!(csv.contains("total"));
-        assert!(csv.contains("1000"));
-    }
-
-    #[test]
     fn test_default_metrics_nonempty() {
         assert!(!default_attribution_metrics().is_empty());
     }
@@ -1549,55 +1443,6 @@ mod tests {
             !message.contains("P_SECOND"),
             "later position error must not win: {message}"
         );
-    }
-
-    #[test]
-    fn test_position_detail_to_csv_includes_each_position_breakdown() {
-        let mut by_position = IndexMap::new();
-        by_position.insert(PositionId::from("POS_A"), {
-            let mut attr = sample_position_attr("POS_A", 120.0, 10.0, 5.0);
-            attr.cross_factor_pnl = Money::new(3.0, Currency::USD);
-            attr
-        });
-        by_position.insert(
-            PositionId::from("POS_B"),
-            sample_position_attr("POS_B", -20.0, -2.0, 1.0),
-        );
-
-        let zero = Money::new(0.0, Currency::USD);
-        let portfolio_attr = PortfolioAttribution {
-            total_pnl: Money::new(100.0, Currency::USD),
-            carry: Money::new(8.0, Currency::USD),
-            rates_curves_pnl: Money::new(87.0, Currency::USD),
-            credit_curves_pnl: zero,
-            inflation_curves_pnl: zero,
-            correlations_pnl: zero,
-            fx_pnl: zero,
-            fx_translation_pnl: zero,
-            cross_factor_pnl: zero,
-            vol_pnl: zero,
-            model_params_pnl: zero,
-            market_scalars_pnl: zero,
-            residual: Money::new(5.0, Currency::USD),
-            by_position,
-            rates_detail: None,
-            credit_detail: None,
-            inflation_detail: None,
-            correlations_detail: None,
-            fx_detail: None,
-            vol_detail: None,
-            scalars_detail: None,
-            result_invalid: false,
-        };
-
-        let csv = portfolio_attr.position_detail_to_csv();
-        assert!(csv.contains("position_id,total,carry"));
-        assert!(
-            csv.contains("cross_factor"),
-            "MO-5: position CSV must expose cross-factor P&L"
-        );
-        assert!(csv.contains("POS_A,120,10,105,0,0,0,0,3,0,0,0,5"));
-        assert!(csv.contains("POS_B,-20"));
     }
 
     #[test]

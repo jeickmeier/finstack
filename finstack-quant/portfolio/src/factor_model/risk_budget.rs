@@ -233,69 +233,6 @@ impl RiskBudget {
             has_breach,
         })
     }
-
-    /// Suggest weight adjustments to bring utilization closer to targets.
-    ///
-    /// Uses the marginal VaR gradient to compute first-order weight changes:
-    /// ```text
-    /// delta_w_i proportional to (target_i - actual_i) / marginal_var_i
-    /// ```
-    ///
-    /// Returns suggested weight deltas (positive = increase, negative = decrease).
-    /// Does not enforce constraints (long-only, max weight, etc.) -- that is the
-    /// optimizer's job.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the decomposition does not carry analytical
-    /// marginals (e.g. was produced in historical mode). In that case the
-    /// caller must either re-run decomposition in parametric mode or
-    /// supply marginals via an external finite-difference pass.
-    pub fn suggest_rebalance(
-        &self,
-        decomposition: &PositionRiskDecomposition,
-    ) -> finstack_quant_core::Result<IndexMap<PositionId, f64>> {
-        let portfolio_var = decomposition.portfolio_var;
-
-        // Build maps by position ID, carrying marginals as Option so we can
-        // cleanly surface "not analytically available" instead of silently
-        // substituting zero.
-        let actual_by_id: IndexMap<&PositionId, (f64, Option<f64>)> = decomposition
-            .var_contributions
-            .iter()
-            .map(|c| (&c.position_id, (c.relative_var, c.marginal_var)))
-            .collect();
-
-        let mut deltas = IndexMap::new();
-
-        for (position_id, &target_frac) in &self.targets {
-            let (actual_frac, marginal_opt) = actual_by_id
-                .get(position_id)
-                .copied()
-                .unwrap_or((0.0, None));
-
-            let marginal = marginal_opt.ok_or_else(|| {
-                finstack_quant_core::Error::Validation(format!(
-                    "risk-budget rebalance requires marginal VaR for position {position_id}, \
-                     but the decomposition does not provide it (e.g. historical method). \
-                     Re-run decomposition in parametric mode or supply marginals externally."
-                ))
-            })?;
-
-            let gap = target_frac - actual_frac;
-
-            // delta_w proportional to gap / marginal_var.
-            let delta = if marginal.abs() > 1e-15 && portfolio_var.abs() > 1e-15 {
-                gap / marginal * portfolio_var
-            } else {
-                0.0
-            };
-
-            deltas.insert(position_id.clone(), delta);
-        }
-
-        Ok(deltas)
-    }
 }
 
 // Tests
@@ -466,66 +403,6 @@ mod tests {
         assert!(unbudgeted.utilization.is_infinite());
         assert!(unbudgeted.excess > 0.0);
         Ok(())
-    }
-
-    #[test]
-    fn risk_budget_rebalance_suggestion() -> TestResult {
-        let decomp = sample_decomposition();
-
-        let mut targets = IndexMap::new();
-        targets.insert(PositionId::new("A"), 0.33);
-        targets.insert(PositionId::new("B"), 0.34);
-        targets.insert(PositionId::new("C"), 0.33);
-
-        let budget = RiskBudget::new(targets);
-        let deltas = budget.suggest_rebalance(&decomp)?;
-
-        // Position A is over-budget => should suggest decreasing weight (negative delta).
-        let delta_a = deltas.get(&PositionId::new("A")).copied().unwrap_or(0.0);
-        assert!(
-            delta_a < 0.0,
-            "delta for A should be negative (over-budget), got {delta_a}"
-        );
-
-        // Position C is under-budget => should suggest increasing weight (positive delta).
-        let delta_c = deltas.get(&PositionId::new("C")).copied().unwrap_or(0.0);
-        assert!(
-            delta_c > 0.0,
-            "delta for C should be positive (under-budget), got {delta_c}"
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn risk_budget_rebalance_errors_on_missing_marginals() {
-        // Build a historical-style decomposition (marginals = None).
-        let decomp = PositionRiskDecomposition {
-            portfolio_var: 100.0,
-            portfolio_es: 120.0,
-            confidence: 0.95,
-            method: DecompositionMethod::Historical,
-            var_contributions: vec![PositionVarContribution {
-                position_id: PositionId::new("A"),
-                component_var: 100.0,
-                relative_var: 1.0,
-                marginal_var: None,
-                incremental_var: None,
-            }],
-            es_contributions: Vec::new(),
-            n_positions: 1,
-            euler_residual: None,
-        };
-
-        let mut targets = IndexMap::new();
-        targets.insert(PositionId::new("A"), 1.0);
-        let budget = RiskBudget::new(targets);
-
-        let result = budget.suggest_rebalance(&decomp);
-        assert!(
-            result.is_err(),
-            "suggest_rebalance must error when marginals are unavailable"
-        );
     }
 
     #[test]

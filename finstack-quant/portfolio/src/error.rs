@@ -140,32 +140,6 @@ impl Error {
         Self::FxConversionFailed { from, to }
     }
 
-    /// Create a missing market data error.
-    ///
-    /// # Arguments
-    ///
-    /// * `msg` - Description of the missing market input.
-    ///
-    /// # Returns
-    ///
-    /// [`Error::MissingMarketData`] carrying the supplied message.
-    pub fn missing_market_data(msg: impl Into<String>) -> Self {
-        Self::MissingMarketData(msg.into())
-    }
-
-    /// Create an optimization error with context.
-    ///
-    /// # Arguments
-    ///
-    /// * `msg` - Description of the optimization failure.
-    ///
-    /// # Returns
-    ///
-    /// [`Error::OptimizationError`] carrying the supplied message.
-    pub fn optimization_error(msg: impl Into<String>) -> Self {
-        Self::OptimizationError(msg.into())
-    }
-
     /// Create a liquidity error with context.
     ///
     /// # Arguments
@@ -210,19 +184,6 @@ impl Error {
             found,
             limit,
         }
-    }
-
-    /// Create a scenario error.
-    ///
-    /// # Arguments
-    ///
-    /// * `msg` - Description of the scenario-engine failure.
-    ///
-    /// # Returns
-    ///
-    /// [`Error::ScenarioError`] carrying the supplied message.
-    pub fn scenario_error(msg: impl Into<String>) -> Self {
-        Self::ScenarioError(msg.into())
     }
 }
 
