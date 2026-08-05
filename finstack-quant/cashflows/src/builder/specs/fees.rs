@@ -2,7 +2,6 @@
 
 use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, StubKind, Tenor};
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::Bps;
 use rust_decimal::Decimal;
 
 /// Fee specification for fixed-fee and periodic-basis-point programs.
@@ -103,36 +102,7 @@ pub struct FeeTier {
     pub bp: Decimal,
 }
 
-impl FeeTier {
-    /// Create a fee tier using typed basis points.
-    ///
-    /// # Arguments
-    ///
-    /// * `threshold` - Utilization threshold (0.0 to 1.0); must be finite and
-    ///   representable as a `Decimal`.
-    /// * `bp` - Fee rate in basis points for this tier.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`finstack_quant_core::Error::Validation`] when `threshold` is NaN,
-    /// infinite, or outside the `Decimal` representable range.
-    pub fn from_bp(threshold: f64, bp: Bps) -> finstack_quant_core::Result<Self> {
-        if !threshold.is_finite() {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "FeeTier::from_bp: threshold must be finite, got {threshold}"
-            )));
-        }
-        let threshold = Decimal::try_from(threshold).map_err(|e| {
-            finstack_quant_core::Error::Validation(format!(
-                "FeeTier::from_bp: threshold {threshold} is not representable as Decimal: {e}"
-            ))
-        })?;
-        Ok(Self {
-            threshold,
-            bp: Decimal::from(bp.as_bp()),
-        })
-    }
-}
+impl FeeTier {}
 
 /// Evaluate fee tiers to find the applicable rate for a given utilization.
 ///
@@ -241,17 +211,6 @@ mod tests {
             .insert("extra".to_string(), serde_json::json!(1));
         let result: Result<FeeTier, _> = serde_json::from_value(value);
         assert!(result.is_err(), "FeeTier must reject unknown fields");
-    }
-
-    #[test]
-    fn from_bps_rejects_non_finite_threshold() {
-        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-            let result = FeeTier::from_bp(bad, Bps::new(25));
-            assert!(result.is_err(), "threshold {bad} must be rejected");
-        }
-        let tier = FeeTier::from_bp(0.5, Bps::new(25)).expect("finite threshold");
-        assert_eq!(tier.threshold, dec!(0.5));
-        assert_eq!(tier.bp, dec!(25));
     }
 
     #[test]

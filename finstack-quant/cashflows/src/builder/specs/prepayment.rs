@@ -1,7 +1,5 @@
 //! Prepayment model specifications for credit instruments.
 
-use finstack_quant_core::types::Percentage;
-
 /// Prepayment curve shape.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(tag = "curve", rename_all = "snake_case")]
@@ -142,32 +140,6 @@ impl PrepaymentModelSpec {
     /// ```
     pub fn constant_cpr(cpr: f64) -> Self {
         Self { cpr, curve: None }
-    }
-
-    /// Constant CPR (no curve) using a typed percentage.
-    ///
-    /// # Arguments
-    ///
-    /// * `cpr` - Annual constant prepayment rate as a typed percentage.
-    ///
-    /// # Returns
-    ///
-    /// Prepayment model with no seasoning curve.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use finstack_quant_cashflows::builder::PrepaymentModelSpec;
-    /// use finstack_quant_core::types::Percentage;
-    ///
-    /// let spec = PrepaymentModelSpec::constant_cpr_pct(Percentage::new(6.0));
-    /// assert_eq!(spec.cpr, 0.06);
-    /// ```
-    pub fn constant_cpr_pct(cpr: Percentage) -> Self {
-        Self {
-            cpr: cpr.as_decimal(),
-            curve: None,
-        }
     }
 
     /// PSA curve with multiplier (1.0 = 100% PSA).
