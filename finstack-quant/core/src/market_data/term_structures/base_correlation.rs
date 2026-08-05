@@ -120,12 +120,6 @@ impl ArbitrageCheckResult {
         }
     }
 
-    /// Add a warning to the result.
-    pub fn with_warning(mut self, warning: String) -> Self {
-        self.warnings.push(warning);
-        self
-    }
-
     /// Add multiple warnings.
     pub fn with_warnings(mut self, warnings: Vec<String>) -> Self {
         self.warnings.extend(warnings);
@@ -237,37 +231,6 @@ impl core::fmt::Display for ArbitrageViolation {
             }
         }
     }
-}
-
-// Smoothing Methods
-
-/// Smoothing method for enforcing arbitrage-free base correlation curves.
-///
-/// When calibration produces non-monotonic correlations, these methods
-/// can be used to create an arbitrage-free curve.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum SmoothingMethod {
-    /// No smoothing - use raw calibrated values.
-    #[default]
-    None,
-
-    /// Pool Adjacent Violators Algorithm (isotonic regression).
-    ///
-    /// Finds the closest monotonically increasing curve to the raw data
-    /// in a least-squares sense. Fast and theoretically optimal.
-    IsotonicRegression,
-
-    /// Enforce strict monotonicity by adjusting violations.
-    ///
-    /// Each point is set to max(current, previous + epsilon).
-    /// Simple but may accumulate adjustments.
-    StrictMonotonic,
-
-    /// Weighted moving average with monotonicity constraint.
-    ///
-    /// Smooths the curve while ensuring non-decreasing correlations.
-    WeightedSmoothing,
 }
 
 /// Base correlation curve for CDO/CDS index tranche pricing.
@@ -435,7 +398,8 @@ impl BaseCorrelationCurve {
             .collect();
         // Bucket bumps may legitimately break monotonicity (e.g., shocking
         // only a subset of detachment points in a stress test).  Allow
-        // non-monotonic construction here; callers can re-validate if needed.
+        // non-monotonic construction here; callers should check
+        // `validate_arbitrage_free` before pricing off a bumped curve.
         BaseCorrelationCurve::builder(self.id.clone())
             .knots(new_points)
             .allow_non_monotonic()
@@ -518,208 +482,6 @@ impl BaseCorrelationCurve {
             ArbitrageCheckResult::fail(violations).with_warnings(warnings)
         }
     }
-
-    /// Check if the curve is monotonically non-decreasing.
-    #[must_use]
-    pub fn is_monotonic(&self) -> bool {
-        self.correlations.windows(2).all(|w| w[1] >= w[0] - 1e-9)
-    }
-
-    // Smoothing Methods
-
-    /// Apply smoothing to create an arbitrage-free curve.
-    ///
-    /// If the curve is already arbitrage-free, returns a clone.
-    /// Otherwise, applies the specified smoothing method.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use finstack_quant_core::market_data::term_structures::{
-    ///     BaseCorrelationCurve, SmoothingMethod
-    /// };
-    ///
-    /// // Create a non-monotonic curve (opt in to allow non-monotonic data)
-    /// let raw = BaseCorrelationCurve::builder("TEST")
-    ///     .knots(vec![(3.0, 0.50), (7.0, 0.40), (10.0, 0.60)])
-    ///     .allow_non_monotonic()
-    ///     .build()
-    ///     .expect("Valid curve");
-    ///
-    /// let smoothed = raw.apply_smoothing(SmoothingMethod::IsotonicRegression)
-    ///     .expect("Smoothing should succeed");
-    ///
-    /// assert!(smoothed.is_monotonic());
-    /// ```
-    pub fn apply_smoothing(&self, method: SmoothingMethod) -> Result<Self> {
-        match method {
-            SmoothingMethod::None => Ok(self.clone()),
-            SmoothingMethod::IsotonicRegression => self.apply_isotonic_regression(),
-            SmoothingMethod::StrictMonotonic => self.apply_strict_monotonic(),
-            SmoothingMethod::WeightedSmoothing => self.apply_weighted_smoothing(),
-        }
-    }
-
-    /// Apply Pool Adjacent Violators Algorithm (PAVA) for isotonic regression.
-    ///
-    /// This finds the closest monotonically non-decreasing sequence to the
-    /// input correlations in the L2 sense.
-    fn apply_isotonic_regression(&self) -> Result<Self> {
-        if self.correlations.is_empty() {
-            return Ok(self.clone());
-        }
-
-        let n = self.correlations.len();
-        let mut smoothed = self.correlations.clone();
-
-        // PAVA: Pool Adjacent Violators Algorithm (single-pass pool-merge)
-        // Each pool is (start_index, element_count, value_sum).
-        let mut pools: Vec<(usize, usize, f64)> = Vec::with_capacity(n);
-        for (i, &val) in smoothed.iter().enumerate() {
-            pools.push((i, 1, val));
-            while pools.len() > 1 {
-                let tail = pools.len() - 1;
-                let avg_curr = pools[tail].2 / pools[tail].1 as f64;
-                let avg_prev = pools[tail - 1].2 / pools[tail - 1].1 as f64;
-                if avg_prev > avg_curr {
-                    if let Some(absorbed) = pools.pop() {
-                        if let Some(prev) = pools.last_mut() {
-                            prev.1 += absorbed.1;
-                            prev.2 += absorbed.2;
-                        }
-                    }
-                } else {
-                    break;
-                }
-            }
-        }
-        for &(start, count, sum) in &pools {
-            let avg = sum / count as f64;
-            for item in smoothed.iter_mut().skip(start).take(count) {
-                *item = avg;
-            }
-        }
-
-        // Clamp to valid range
-        for c in &mut smoothed {
-            *c = c.clamp(0.001, 0.999);
-        }
-
-        // Enforce final monotonicity (should already be satisfied, but ensure)
-        for i in 1..n {
-            if smoothed[i] < smoothed[i - 1] {
-                smoothed[i] = smoothed[i - 1];
-            }
-        }
-
-        let points: Vec<(f64, f64)> = self
-            .detachment_points
-            .iter()
-            .copied()
-            .zip(smoothed)
-            .collect();
-
-        BaseCorrelationCurve::builder(self.id.clone())
-            .knots(points)
-            .build()
-    }
-
-    /// Apply strict monotonicity enforcement.
-    ///
-    /// Each correlation is set to max(current, previous + epsilon).
-    fn apply_strict_monotonic(&self) -> Result<Self> {
-        const EPSILON: f64 = 1e-6;
-
-        if self.correlations.is_empty() {
-            return Ok(self.clone());
-        }
-
-        let mut smoothed = self.correlations.clone();
-
-        // Forward pass: ensure non-decreasing
-        for i in 1..smoothed.len() {
-            let min_val = smoothed[i - 1] + EPSILON;
-            if smoothed[i] < min_val {
-                smoothed[i] = min_val;
-            }
-        }
-
-        // Clamp to valid range
-        for c in &mut smoothed {
-            *c = c.clamp(0.001, 0.999);
-        }
-
-        let points: Vec<(f64, f64)> = self
-            .detachment_points
-            .iter()
-            .copied()
-            .zip(smoothed)
-            .collect();
-
-        BaseCorrelationCurve::builder(self.id.clone())
-            .knots(points)
-            .build()
-    }
-
-    /// Apply weighted smoothing with monotonicity constraint.
-    ///
-    /// Uses a weighted average that respects the monotonicity requirement.
-    fn apply_weighted_smoothing(&self) -> Result<Self> {
-        if self.correlations.len() < 3 {
-            return self.apply_strict_monotonic();
-        }
-
-        let n = self.correlations.len();
-        let mut smoothed = vec![0.0; n];
-
-        // First and last points: keep original (or apply light smoothing)
-        smoothed[0] = self.correlations[0];
-        smoothed[n - 1] = self.correlations[n - 1];
-
-        // Interior points: weighted average of neighbors
-        for (i, smoothed_val) in smoothed.iter_mut().enumerate().take(n - 1).skip(1) {
-            // Weights: 0.25 * prev + 0.5 * current + 0.25 * next
-            let avg = 0.25 * self.correlations[i - 1]
-                + 0.5 * self.correlations[i]
-                + 0.25 * self.correlations[i + 1];
-            *smoothed_val = avg;
-        }
-
-        // Enforce monotonicity
-        for i in 1..n {
-            if smoothed[i] < smoothed[i - 1] {
-                smoothed[i] = smoothed[i - 1] + 1e-6;
-            }
-        }
-
-        // Clamp to valid range
-        for c in &mut smoothed {
-            *c = c.clamp(0.001, 0.999);
-        }
-
-        let points: Vec<(f64, f64)> = self
-            .detachment_points
-            .iter()
-            .copied()
-            .zip(smoothed)
-            .collect();
-
-        BaseCorrelationCurve::builder(self.id.clone())
-            .knots(points)
-            .build()
-    }
-
-    /// Create an arbitrage-free version of this curve.
-    ///
-    /// Convenience method that validates and applies smoothing if needed.
-    pub fn make_arbitrage_free(&self, method: SmoothingMethod) -> Result<Self> {
-        let validation = self.validate_arbitrage_free();
-        if validation.is_arbitrage_free {
-            Ok(self.clone())
-        } else {
-            self.apply_smoothing(method)
-        }
-    }
 }
 
 /// Builder for creating base correlation curves.
@@ -756,7 +518,9 @@ impl BaseCorrelationCurveBuilder {
     ///
     /// By default, `build()` rejects curves that violate monotonicity or
     /// correlation bounds.  Call this method to bypass that check, for example
-    /// when constructing a curve that will subsequently be smoothed.
+    /// when a bucket bump shocks only a subset of detachment points.  Curves
+    /// built this way should be checked with
+    /// [`BaseCorrelationCurve::validate_arbitrage_free`] before pricing.
     pub fn allow_non_monotonic(mut self) -> Self {
         self.allow_non_monotonic = true;
         self

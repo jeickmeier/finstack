@@ -138,7 +138,7 @@ mod vol_index_curve;
 // Re-export for ergonomic access (curated list)
 pub use base_correlation::{
     ArbitrageCheckResult, ArbitrageViolation, BaseCorrelationCurve, BaseCorrelationCurveBuilder,
-    SmoothingMethod, BASE_CORR_DETACHMENT_MATCH_TOLERANCE,
+    BASE_CORR_DETACHMENT_MATCH_TOLERANCE,
 };
 pub use basis_spread_curve::{BasisSpreadCurve, BasisSpreadCurveBuilder};
 pub use credit_index::{CreditIndexData, CreditIndexDataBuilder};
