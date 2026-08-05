@@ -35,6 +35,27 @@ fn recompute_rolling_greeks_sums(returns: &[f64], benchmark: &[f64]) -> (f64, f6
     )
 }
 
+/// One Kahan compensated-summation step over split `(sum, compensation)`
+/// state.
+///
+/// This is deliberately Kahan and not Neumaier, because callers read `sum`
+/// directly as the running total. Neumaier keeps the correction in a separate
+/// accumulator, so switching the step alone — without also reading
+/// `sum + compensation` at every consumption site — would silently *discard*
+/// the compensation and make the result worse.
+///
+/// # Known limitation
+///
+/// Kahan loses the low-order bits whenever the incoming increment exceeds the
+/// running sum in magnitude, which this loop can hit: it accumulates
+/// *differences* (`new − old`), and the sums pass near zero when returns
+/// cancel. Drift is bounded only by the periodic full recompute
+/// (`ROLLING_GREEKS_RECOMPUTE_INTERVAL`).
+///
+/// [`finstack_quant_core::math::NeumaierAccumulator`] handles that case, but
+/// adopting it here is a numerical change to live rolling alpha/beta output
+/// and needs its own change with golden coverage — not a drive-by edit inside
+/// a deduplication pass.
 #[inline]
 fn compensated_add(sum: &mut f64, compensation: &mut f64, value: f64) {
     let y = value - *compensation;
