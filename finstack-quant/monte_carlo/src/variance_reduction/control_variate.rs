@@ -51,6 +51,16 @@ use finstack_quant_core::math::volatility::{black_scholes_spot_call, black_schol
 /// # Returns
 ///
 /// Call option price
+///
+/// # Argument order
+///
+/// This forwards to
+/// [`finstack_quant_core::math::volatility::black_scholes_spot_call`], which
+/// is the canonical implementation, but takes `(spot, strike, t, r, q, vol)`
+/// where core takes `(spot, strike, r, q, vol, t)`. The permutation is kept
+/// because this signature is what `finstack_quant.monte_carlo` exposes to
+/// Python; do not "simplify" a call site by swapping one for the other
+/// without reordering the arguments.
 pub fn black_scholes_call(
     spot: f64,
     strike: f64,
