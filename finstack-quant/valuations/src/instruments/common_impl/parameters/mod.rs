@@ -29,6 +29,5 @@ pub use option_market::OptionMarketParams;
 pub use quanto::QuantoSpec;
 pub use underlying::{
     CommodityUnderlyingParams, EquityUnderlyingParams, FxUnderlyingParams, IndexUnderlyingParams,
-    UnderlyingParams,
 };
 pub use volatility::{SABRParameters, VolatilityModel};

@@ -254,7 +254,7 @@ pub use common_impl::parameters::{
     EquityUnderlyingParams, ExerciseStyle, FinancingLegSpec, FinancingRateCompounding,
     FixedLegSpec, FloatLegSpec, FxUnderlyingParams, IRSConvention, IndexUnderlyingParams,
     OptionMarketParams, OptionType, ParRateMethod, PayReceive, PremiumLegSpec, ProtectionLegSpec,
-    ScheduleSpec, SettlementType, TotalReturnLegSpec, UnderlyingParams,
+    ScheduleSpec, SettlementType, TotalReturnLegSpec,
 };
 
 // Re-export TRS common types
