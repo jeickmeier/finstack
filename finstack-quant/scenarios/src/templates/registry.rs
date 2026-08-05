@@ -1,12 +1,11 @@
 //! Template registry for stress test metadata and scenario builders.
 
 use super::{
-    json::{parse_template_document, JsonTemplateDocument},
-    register_builtins, AssetClass, ScenarioSpecBuilder, Severity, TemplateMetadata,
+    json::JsonTemplateDocument, register_builtins, AssetClass, ScenarioSpecBuilder, Severity,
+    TemplateMetadata,
 };
 use crate::{Error, Result, ScenarioSpec};
 use indexmap::IndexMap;
-use std::{collections::HashSet, fs, path::Path};
 
 /// Registered template entry containing metadata and clonable builders.
 ///
@@ -160,109 +159,6 @@ impl TemplateRegistry {
         self.entries.insert(entry.metadata.id.clone(), entry);
         Ok(())
     }
-
-    /// Parse, validate, and register a template from a runtime JSON string.
-    ///
-    /// # Arguments
-    ///
-    /// - `name`: Logical source name used in error messages.
-    /// - `json`: JSON template document to parse and register.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::Validation`](crate::Error::Validation) if the JSON
-    /// cannot be parsed, fails template validation, or duplicates an existing
-    /// template identifier.
-    pub fn register_json_template_str(&mut self, name: &str, json: &str) -> Result<()> {
-        let document = parse_template_document(name, json)?;
-        let entry = self.registered_runtime_json_entry(document)?;
-        self.entries.insert(entry.metadata.id.clone(), entry);
-        Ok(())
-    }
-
-    /// Load and register all runtime JSON templates from a directory.
-    ///
-    /// Only files with a lowercase `.json` extension are loaded. Files are
-    /// processed in deterministic filename order.
-    ///
-    /// # Arguments
-    ///
-    /// - `path`: Directory containing runtime JSON template documents.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::Validation`](crate::Error::Validation) if the
-    /// directory cannot be read, any JSON file cannot be parsed or validated,
-    /// or duplicate template identifiers are found during the batch load.
-    pub fn load_json_dir<P>(&mut self, path: P) -> Result<()>
-    where
-        P: AsRef<Path>,
-    {
-        let path = path.as_ref();
-        let mut json_paths = fs::read_dir(path)
-            .map_err(|error| {
-                Error::validation(format!(
-                    "failed to read JSON template directory '{}': {error}",
-                    path.display()
-                ))
-            })?
-            .map(|entry| {
-                entry.map(|dir_entry| dir_entry.path()).map_err(|error| {
-                    Error::validation(format!(
-                        "failed to read JSON template directory '{}': {error}",
-                        path.display()
-                    ))
-                })
-            })
-            .collect::<Result<Vec<_>>>()?;
-        json_paths.retain(|json_path| {
-            json_path.is_file()
-                && json_path.extension().and_then(|ext| ext.to_str()) == Some("json")
-        });
-        json_paths.sort();
-
-        let mut staged_entries = Vec::with_capacity(json_paths.len());
-        let mut staged_ids = HashSet::with_capacity(json_paths.len());
-
-        for json_path in json_paths {
-            let json = fs::read_to_string(&json_path).map_err(|error| {
-                Error::validation(format!(
-                    "failed to read JSON template '{}': {error}",
-                    json_path.display()
-                ))
-            })?;
-            let name = json_path.display().to_string();
-            let document = parse_template_document(&name, &json)?;
-            let template_id = document.metadata.id.clone();
-            if !staged_ids.insert(template_id.clone()) {
-                return Err(Error::validation(format!(
-                    "duplicate template ID '{template_id}' found in JSON directory load"
-                )));
-            }
-            let entry = self.registered_runtime_json_entry(document)?;
-            staged_entries.push((template_id, entry));
-        }
-
-        for (template_id, entry) in staged_entries {
-            self.entries.insert(template_id, entry);
-        }
-
-        Ok(())
-    }
-
-    fn registered_runtime_json_entry(
-        &self,
-        document: JsonTemplateDocument,
-    ) -> Result<RegisteredTemplate> {
-        let template_id = document.metadata.id.clone();
-        if self.entries.contains_key(&template_id) {
-            return Err(Error::validation(format!(
-                "template '{template_id}' is already registered"
-            )));
-        }
-        RegisteredTemplate::from_json_document(document)
-    }
-
     /// Get a registered template entry by identifier.
     ///
     /// # Arguments
@@ -363,11 +259,6 @@ mod tests {
     use crate::templates::json::{JsonCompositeTemplate, JsonTemplateDocument};
     use crate::{AssetClass, CurveKind, OperationSpec, ScenarioSpec, Severity, TemplateMetadata};
     use indexmap::indexmap;
-    use std::{
-        fs,
-        path::{Path, PathBuf},
-        time::{SystemTime, UNIX_EPOCH},
-    };
     use time::macros::date;
 
     fn template_document(
@@ -585,74 +476,6 @@ mod tests {
         }
     }
 
-    fn runtime_json_document(
-        template_id: &str,
-        component_id: &str,
-        curve_id: &str,
-    ) -> JsonTemplateDocument {
-        JsonTemplateDocument {
-            schema: crate::templates::json::ScenarioTemplateSchema::ScenarioTemplate,
-            metadata: TemplateMetadata {
-                id: template_id.into(),
-                name: format!("Runtime Template {template_id}"),
-                description: format!("Runtime template loaded for {template_id}"),
-                event_date: date!(2021 - 01 - 01),
-                asset_classes: vec![AssetClass::Rates],
-                tags: vec!["runtime".into()],
-                severity: Severity::Moderate,
-                components: vec![component_id.into()],
-            },
-            components: indexmap! {
-                component_id.into() => json_component_spec(component_id, curve_id, 12.5),
-            },
-            composite: JsonCompositeTemplate::new(
-                template_id,
-                Some(&format!("Composite {template_id}")),
-                Some(&format!("Composite description for {template_id}")),
-                4,
-                vec![component_id.into()],
-            ),
-        }
-    }
-
-    fn json_string(document: &JsonTemplateDocument) -> String {
-        serde_json::to_string(document).expect("json document should serialize")
-    }
-
-    struct TestTempDir {
-        path: PathBuf,
-    }
-
-    impl TestTempDir {
-        fn new(prefix: &str) -> Self {
-            let unique = format!(
-                "finstack-quant-scenarios-{prefix}-{}-{}",
-                std::process::id(),
-                SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .expect("current time should be after UNIX_EPOCH")
-                    .as_nanos()
-            );
-            let path = std::env::temp_dir().join(unique);
-            fs::create_dir(&path).expect("test temp directory should be created");
-            Self { path }
-        }
-
-        fn path(&self) -> &Path {
-            &self.path
-        }
-
-        fn write(&self, file_name: &str, contents: &str) {
-            fs::write(self.path.join(file_name), contents).expect("test file should be written");
-        }
-    }
-
-    impl Drop for TestTempDir {
-        fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.path);
-        }
-    }
-
     #[test]
     fn get_registered_template() {
         let registry = registry_with_templates();
@@ -708,36 +531,6 @@ mod tests {
             collected_ids(registry.filter_by_severity(Severity::Severe)),
             vec!["rates_shock"]
         );
-    }
-
-    #[test]
-    fn build_produces_fresh_builders() {
-        let registry = registry_with_templates();
-        let entry = registry
-            .get("rates_shock")
-            .expect("template entry should exist");
-
-        let overridden = entry
-            .builder()
-            .override_curve("USD-SOFR", "CUSTOM-SOFR")
-            .build()
-            .expect("builder should build");
-
-        let original = entry.builder().build().expect("builder should build");
-
-        match &overridden.operations[0] {
-            OperationSpec::CurveParallelBp { curve_id, .. } => {
-                assert_eq!(curve_id, "CUSTOM-SOFR");
-            }
-            _ => panic!("unexpected operation"),
-        }
-
-        match &original.operations[0] {
-            OperationSpec::CurveParallelBp { curve_id, .. } => {
-                assert_eq!(curve_id, "USD-SOFR");
-            }
-            _ => panic!("unexpected operation"),
-        }
     }
 
     #[test]
@@ -810,43 +603,6 @@ mod tests {
 
         assert_eq!(entry.metadata().id, "json_template");
         assert_eq!(entry.metadata().name, "JSON Template");
-    }
-
-    #[test]
-    fn register_json_document_component_builders_are_fresh_on_each_request() {
-        let mut registry = TemplateRegistry::new();
-        registry
-            .register_json_document(json_document())
-            .expect("json document should register");
-        let entry = registry
-            .get("json_template")
-            .expect("json template should exist");
-
-        let overridden = entry
-            .component("component_b")
-            .expect("component should exist")
-            .override_curve("B-CURVE", "CUSTOM-CURVE")
-            .build()
-            .expect("component should build");
-        let original = entry
-            .component("component_b")
-            .expect("component should exist")
-            .build()
-            .expect("component should build");
-
-        match &overridden.operations[0] {
-            OperationSpec::CurveParallelBp { curve_id, .. } => {
-                assert_eq!(curve_id, "CUSTOM-CURVE");
-            }
-            _ => panic!("unexpected operation"),
-        }
-
-        match &original.operations[0] {
-            OperationSpec::CurveParallelBp { curve_id, .. } => {
-                assert_eq!(curve_id, "B-CURVE");
-            }
-            _ => panic!("unexpected operation"),
-        }
     }
 
     #[test]
@@ -978,207 +734,11 @@ mod tests {
     }
 
     #[test]
-    fn new_registry_is_empty_until_runtime_json_is_explicitly_loaded() {
+    fn new_registry_is_empty_until_templates_are_registered() {
         let registry = TemplateRegistry::new();
 
         assert!(registry.list().is_empty());
         assert!(registry.get("gfc_2008").is_none());
-    }
-
-    #[test]
-    fn register_json_template_str_registers_valid_runtime_json_document() {
-        let mut registry = TemplateRegistry::new();
-
-        registry
-            .register_json_template_str(
-                "inline-template.json",
-                &json_string(&runtime_json_document(
-                    "runtime_inline",
-                    "runtime_inline_component",
-                    "INLINE-CURVE",
-                )),
-            )
-            .expect("runtime json should register");
-
-        let entry = registry
-            .get("runtime_inline")
-            .expect("runtime template should exist");
-
-        assert_eq!(entry.metadata().id, "runtime_inline");
-        assert_eq!(entry.component_ids(), vec!["runtime_inline_component"]);
-    }
-
-    #[test]
-    fn register_json_template_str_rejects_invalid_json_with_clean_error() {
-        let mut registry = TemplateRegistry::new();
-
-        let error = registry
-            .register_json_template_str("broken-template.json", "{ not valid json")
-            .expect_err("invalid json should fail");
-
-        assert!(matches!(error, crate::Error::Validation(_)));
-        assert!(error
-            .to_string()
-            .contains("failed to parse JSON template 'broken-template.json'"));
-    }
-
-    #[test]
-    fn register_json_template_str_rejects_duplicate_template_ids() {
-        let mut registry = TemplateRegistry::new();
-        registry
-            .register_json_template_str(
-                "original-template.json",
-                &json_string(&runtime_json_document(
-                    "duplicate_runtime",
-                    "duplicate_runtime_component",
-                    "DUPLICATE-CURVE",
-                )),
-            )
-            .expect("initial runtime json should register");
-
-        let error = registry
-            .register_json_template_str(
-                "replacement-template.json",
-                &json_string(&runtime_json_document(
-                    "duplicate_runtime",
-                    "replacement_component",
-                    "REPLACEMENT-CURVE",
-                )),
-            )
-            .expect_err("duplicate template id should fail");
-
-        assert!(matches!(error, crate::Error::Validation(_)));
-        assert!(error
-            .to_string()
-            .contains("template 'duplicate_runtime' is already registered"));
-
-        let entry = registry
-            .get("duplicate_runtime")
-            .expect("original template should still exist");
-        assert_eq!(entry.component_ids(), vec!["duplicate_runtime_component"]);
-    }
-
-    #[test]
-    fn load_json_dir_loads_multiple_files_in_deterministic_filename_order() {
-        let mut registry = TemplateRegistry::new();
-        let temp_dir = TestTempDir::new("ordered-runtime-json");
-        temp_dir.write(
-            "b_second.json",
-            &json_string(&runtime_json_document(
-                "loaded_from_b",
-                "loaded_from_b_component",
-                "B-CURVE",
-            )),
-        );
-        temp_dir.write(
-            "a_first.json",
-            &json_string(&runtime_json_document(
-                "loaded_from_a",
-                "loaded_from_a_component",
-                "A-CURVE",
-            )),
-        );
-
-        registry
-            .load_json_dir(temp_dir.path())
-            .expect("json directory should load");
-
-        assert_eq!(
-            collected_ids(registry.list()),
-            vec!["loaded_from_a", "loaded_from_b"]
-        );
-    }
-
-    #[test]
-    fn load_json_dir_ignores_non_json_files() {
-        let mut registry = TemplateRegistry::new();
-        let temp_dir = TestTempDir::new("ignore-non-json");
-        temp_dir.write(
-            "runtime.json",
-            &json_string(&runtime_json_document(
-                "loaded_runtime",
-                "loaded_runtime_component",
-                "RUNTIME-CURVE",
-            )),
-        );
-        temp_dir.write("ignored.txt", "{ not valid json");
-
-        registry
-            .load_json_dir(temp_dir.path())
-            .expect("json directory should load");
-
-        assert_eq!(collected_ids(registry.list()), vec!["loaded_runtime"]);
-        assert!(registry.get("ignored").is_none());
-    }
-
-    #[test]
-    fn load_json_dir_rejects_duplicate_ids_within_directory_batch() {
-        let mut registry = TemplateRegistry::new();
-        let temp_dir = TestTempDir::new("duplicate-batch-json");
-        temp_dir.write(
-            "a_first.json",
-            &json_string(&runtime_json_document(
-                "duplicate_batch",
-                "first_component",
-                "FIRST-CURVE",
-            )),
-        );
-        temp_dir.write(
-            "b_second.json",
-            &json_string(&runtime_json_document(
-                "duplicate_batch",
-                "second_component",
-                "SECOND-CURVE",
-            )),
-        );
-
-        let error = registry
-            .load_json_dir(temp_dir.path())
-            .expect_err("duplicate batch ids should fail");
-
-        assert!(matches!(error, crate::Error::Validation(_)));
-        assert!(error
-            .to_string()
-            .contains("duplicate template ID 'duplicate_batch' found in JSON directory load"));
-        assert!(registry.list().is_empty());
-    }
-
-    #[test]
-    fn load_json_dir_leaves_registry_unchanged_when_a_later_file_fails() {
-        let mut registry = TemplateRegistry::new();
-        registry
-            .register_json_template_str(
-                "existing-template.json",
-                &json_string(&runtime_json_document(
-                    "existing_runtime",
-                    "existing_runtime_component",
-                    "EXISTING-CURVE",
-                )),
-            )
-            .expect("initial runtime json should register");
-        let temp_dir = TestTempDir::new("atomic-failure-json");
-        temp_dir.write(
-            "a_valid.json",
-            &json_string(&runtime_json_document(
-                "new_runtime",
-                "new_runtime_component",
-                "NEW-CURVE",
-            )),
-        );
-        temp_dir.write("b_invalid.json", "{ invalid json");
-
-        let error = registry
-            .load_json_dir(temp_dir.path())
-            .expect_err("directory load should fail");
-
-        assert!(matches!(error, crate::Error::Validation(_)));
-        assert!(error.to_string().contains("failed to parse JSON template"));
-        assert_eq!(collected_ids(registry.list()), vec!["existing_runtime"]);
-        let entry = registry
-            .get("existing_runtime")
-            .expect("existing template should remain");
-        assert_eq!(entry.component_ids(), vec!["existing_runtime_component"]);
-        assert!(registry.get("new_runtime").is_none());
     }
 
     #[test]

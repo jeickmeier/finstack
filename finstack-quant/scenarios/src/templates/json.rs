@@ -44,24 +44,6 @@ pub(crate) fn embedded_template_jsons() -> &'static [(&'static str, &'static str
     &EMBEDDED_TEMPLATE_JSONS
 }
 
-/// Parse and validate a JSON template document.
-///
-/// `name` is only used to produce readable error messages.
-pub(crate) fn parse_template_document(name: &str, json: &str) -> Result<JsonTemplateDocument> {
-    let document: JsonTemplateDocument = serde_json::from_str(json).map_err(|error| {
-        Error::validation(format!("failed to parse JSON template '{name}': {error}"))
-    })?;
-
-    document.validate().map_err(|error| match error {
-        Error::Validation(message) => Error::validation(format!(
-            "JSON template '{name}' failed validation: {message}"
-        )),
-        other => other,
-    })?;
-
-    Ok(document)
-}
-
 /// Load and validate all embedded built-in template documents.
 pub(crate) fn load_embedded_documents() -> Result<Vec<JsonTemplateDocument>> {
     embedded_template_jsons()
@@ -510,7 +492,7 @@ mod loader_tests {
 mod tests {
     #![allow(clippy::expect_used, clippy::panic)]
 
-    use super::{parse_template_document, JsonCompositeTemplate, JsonTemplateDocument};
+    use super::{JsonCompositeTemplate, JsonTemplateDocument};
     use crate::{CurveKind, OperationSpec, ScenarioSpec, TemplateMetadata};
     use indexmap::{indexmap, IndexMap};
     use time::macros::date;
@@ -571,35 +553,6 @@ mod tests {
         valid_document()
             .validate()
             .expect("document should validate");
-    }
-
-    #[test]
-    fn template_document_accepts_current_schema_and_rejects_invalid_versions() {
-        let mut value = serde_json::to_value(valid_document()).expect("serialize document");
-        value["schema"] = serde_json::json!("finstack_quant.scenario_template/1");
-        parse_template_document("current", &value.to_string())
-            .expect("current template schema must load");
-
-        value
-            .as_object_mut()
-            .expect("document object")
-            .remove("schema");
-        assert!(
-            parse_template_document("missing", &value.to_string()).is_err(),
-            "missing schema must fail"
-        );
-
-        for schema in [
-            "finstack_quant.scenario_template/0",
-            "finstack_quant.scenario_template/2",
-            "finstack_quant.scenario_template/not-a-version",
-        ] {
-            value["schema"] = serde_json::json!(schema);
-            assert!(
-                parse_template_document("invalid", &value.to_string()).is_err(),
-                "{schema} must fail"
-            );
-        }
     }
 
     #[test]

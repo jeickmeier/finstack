@@ -1,11 +1,9 @@
 //! Parameterized builder for constructing [`ScenarioSpec`](crate::ScenarioSpec) from templates.
 
 use crate::{OperationSpec, ScenarioEngine, ScenarioSpec};
-use finstack_quant_core::currency::Currency;
 use finstack_quant_core::market_data::hierarchy::ResolutionMode;
-use indexmap::IndexMap;
 
-/// A builder for constructing [`ScenarioSpec`] values with parameterized overrides.
+/// A builder for constructing [`ScenarioSpec`] values.
 ///
 /// Template factories return builders pre-populated with conventional curve, surface,
 /// equity, and FX identifiers. Consumers can override those identifiers to match their
@@ -18,9 +16,6 @@ pub struct ScenarioSpecBuilder {
     operations: Vec<OperationSpec>,
     priority: i32,
     resolution_mode: ResolutionMode,
-    curve_overrides: IndexMap<String, String>,
-    equity_overrides: IndexMap<String, String>,
-    fx_overrides: IndexMap<(Currency, Currency), (Currency, Currency)>,
 }
 
 impl ScenarioSpecBuilder {
@@ -47,9 +42,6 @@ impl ScenarioSpecBuilder {
             operations: Vec::new(),
             priority: 0,
             resolution_mode: ResolutionMode::default(),
-            curve_overrides: IndexMap::new(),
-            equity_overrides: IndexMap::new(),
-            fx_overrides: IndexMap::new(),
         }
     }
 
@@ -152,63 +144,6 @@ impl ScenarioSpecBuilder {
         self
     }
 
-    /// Override a conventional curve or surface identifier with a user-specific one.
-    ///
-    /// This applies to curve, volatility-surface, and base-correlation operations.
-    ///
-    /// # Arguments
-    ///
-    /// - `default_id`: Identifier encoded by the template.
-    /// - `user_id`: Replacement identifier to use in the built scenario.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder for fluent chaining.
-    pub fn override_curve(mut self, default_id: &str, user_id: &str) -> Self {
-        self.curve_overrides
-            .insert(default_id.to_string(), user_id.to_string());
-        self
-    }
-
-    /// Override a conventional equity identifier with a user-specific one.
-    ///
-    /// # Arguments
-    ///
-    /// - `default_id`: Equity identifier encoded by the template.
-    /// - `user_id`: Replacement identifier to use in the built scenario.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder for fluent chaining.
-    pub fn override_equity(mut self, default_id: &str, user_id: &str) -> Self {
-        self.equity_overrides
-            .insert(default_id.to_string(), user_id.to_string());
-        self
-    }
-
-    /// Override a conventional FX pair with a user-specific pair.
-    ///
-    /// If the replacement pair reverses the original base/quote orientation,
-    /// the builder converts the stored percentage shock into the reciprocal FX
-    /// move so that economic direction is preserved.
-    ///
-    /// # Arguments
-    ///
-    /// - `default`: Template FX pair.
-    /// - `user`: Replacement FX pair.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder for fluent chaining.
-    pub fn override_fx(
-        mut self,
-        default: (Currency, Currency),
-        user: (Currency, Currency),
-    ) -> Self {
-        self.fx_overrides.insert(default, user);
-        self
-    }
-
     /// Compose multiple builders into a single builder.
     ///
     /// The composed builder inherits the engine defaults, including the default `"composed"`
@@ -238,9 +173,6 @@ impl ScenarioSpecBuilder {
             operations: composed.operations,
             priority: composed.priority,
             resolution_mode: composed.resolution_mode,
-            curve_overrides: IndexMap::new(),
-            equity_overrides: IndexMap::new(),
-            fx_overrides: IndexMap::new(),
         }
     }
 
@@ -260,8 +192,7 @@ impl ScenarioSpecBuilder {
     /// # Examples
     ///
     /// ```rust
-    /// use finstack_quant_core::currency::Currency;
-    /// use finstack_quant_scenarios::{CurveKind, OperationSpec, ScenarioSpecBuilder};
+    ///     /// use finstack_quant_scenarios::{CurveKind, OperationSpec, ScenarioSpecBuilder};
     ///
     /// let spec = ScenarioSpecBuilder::new("rates")
     ///     .with_operation(OperationSpec::CurveParallelBp {
@@ -277,9 +208,7 @@ impl ScenarioSpecBuilder {
     /// assert_eq!(spec.operations.len(), 1);
     /// # Ok::<(), finstack_quant_scenarios::Error>(())
     /// ```
-    pub fn build(mut self) -> crate::Result<ScenarioSpec> {
-        self.resolve_overrides();
-
+    pub fn build(self) -> crate::Result<ScenarioSpec> {
         let spec = ScenarioSpec {
             id: self.id,
             name: self.name,
@@ -292,9 +221,7 @@ impl ScenarioSpecBuilder {
         Ok(spec)
     }
 
-    fn into_spec_without_validation(mut self) -> ScenarioSpec {
-        self.resolve_overrides();
-
+    fn into_spec_without_validation(self) -> ScenarioSpec {
         ScenarioSpec {
             id: self.id,
             name: self.name,
@@ -304,67 +231,13 @@ impl ScenarioSpecBuilder {
             resolution_mode: self.resolution_mode,
         }
     }
-
-    fn resolve_overrides(&mut self) {
-        for operation in &mut self.operations {
-            match operation {
-                OperationSpec::CurveParallelBp { curve_id, .. }
-                | OperationSpec::CurveNodeBp { curve_id, .. }
-                | OperationSpec::VolIndexParallelPts { curve_id, .. }
-                | OperationSpec::VolIndexNodePts { curve_id, .. } => {
-                    if let Some(replacement) = self.curve_overrides.get(curve_id.as_str()) {
-                        *curve_id = replacement.as_str().into();
-                    }
-                }
-                OperationSpec::VolSurfaceParallelPct { vol_surface_id, .. }
-                | OperationSpec::VolSurfaceBucketPct { vol_surface_id, .. } => {
-                    if let Some(replacement) = self.curve_overrides.get(vol_surface_id.as_str()) {
-                        *vol_surface_id = replacement.as_str().into();
-                    }
-                }
-                OperationSpec::BaseCorrParallelPts { surface_id, .. }
-                | OperationSpec::BaseCorrBucketPts { surface_id, .. } => {
-                    if let Some(replacement) = self.curve_overrides.get(surface_id.as_str()) {
-                        *surface_id = replacement.as_str().into();
-                    }
-                }
-                OperationSpec::EquityPricePct { ids, .. } => {
-                    for id in ids {
-                        if let Some(replacement) = self.equity_overrides.get(id.as_str()) {
-                            *id = replacement.clone();
-                        }
-                    }
-                }
-                OperationSpec::MarketFxPct { base, quote, pct } => {
-                    if let Some((new_base, new_quote)) = self.fx_overrides.get(&(*base, *quote)) {
-                        if (*new_base, *new_quote) == (*quote, *base) {
-                            *pct = reciprocal_fx_pct(*pct);
-                        }
-                        *base = *new_base;
-                        *quote = *new_quote;
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
 }
-
-fn reciprocal_fx_pct(pct: f64) -> f64 {
-    if pct <= -100.0 {
-        return f64::NAN;
-    }
-
-    ((1.0 / (1.0 + pct / 100.0)) - 1.0) * 100.0
-}
-
 #[cfg(test)]
 mod tests {
     #![allow(clippy::expect_used, clippy::panic)]
 
     use super::*;
     use crate::{CurveKind, OperationSpec};
-    use finstack_quant_core::currency::Currency;
     use finstack_quant_core::market_data::hierarchy::ResolutionMode;
 
     #[test]
@@ -426,151 +299,6 @@ mod tests {
     }
 
     #[test]
-    fn test_builder_curve_override() {
-        let spec = ScenarioSpecBuilder::new("test")
-            .with_operation(OperationSpec::CurveParallelBp {
-                curve_kind: CurveKind::Discount,
-                curve_id: "USD-SOFR".into(),
-                discount_curve_id: None,
-                bp: 100.0,
-            })
-            .with_operation(OperationSpec::CurveNodeBp {
-                curve_kind: CurveKind::Forward,
-                curve_id: "USD-SOFR".into(),
-                discount_curve_id: None,
-                nodes: vec![("5Y".into(), 25.0)],
-                match_mode: crate::TenorMatchMode::Interpolate,
-            })
-            .with_operation(OperationSpec::BaseCorrParallelPts {
-                surface_id: "USD-SOFR".into(),
-                points: 0.05,
-            })
-            .with_operation(OperationSpec::BaseCorrBucketPts {
-                surface_id: "USD-SOFR".into(),
-                detachment_bp: Some(vec![300]),
-                points: 0.03,
-            })
-            .override_curve("USD-SOFR", "MY_CUSTOM_SOFR")
-            .build()
-            .expect("should build");
-
-        match &spec.operations[0] {
-            OperationSpec::CurveParallelBp { curve_id, .. } => {
-                assert_eq!(curve_id, "MY_CUSTOM_SOFR");
-            }
-            _ => panic!("unexpected operation type"),
-        }
-
-        match &spec.operations[1] {
-            OperationSpec::CurveNodeBp { curve_id, .. } => {
-                assert_eq!(curve_id, "MY_CUSTOM_SOFR");
-            }
-            _ => panic!("unexpected operation type"),
-        }
-
-        match &spec.operations[2] {
-            OperationSpec::BaseCorrParallelPts { surface_id, .. } => {
-                assert_eq!(surface_id, "MY_CUSTOM_SOFR");
-            }
-            _ => panic!("unexpected operation type"),
-        }
-
-        match &spec.operations[3] {
-            OperationSpec::BaseCorrBucketPts { surface_id, .. } => {
-                assert_eq!(surface_id, "MY_CUSTOM_SOFR");
-            }
-            _ => panic!("unexpected operation type"),
-        }
-    }
-
-    #[test]
-    fn test_builder_equity_override() {
-        let spec = ScenarioSpecBuilder::new("test")
-            .with_operation(OperationSpec::EquityPricePct {
-                ids: vec!["SPX".into(), "NDX".into()],
-                pct: -20.0,
-            })
-            .override_equity("SPX", "MY_SPX_INDEX")
-            .build()
-            .expect("should build");
-
-        match &spec.operations[0] {
-            OperationSpec::EquityPricePct { ids, .. } => {
-                assert!(ids.contains(&"MY_SPX_INDEX".to_string()));
-                assert!(ids.contains(&"NDX".to_string()));
-                assert!(!ids.contains(&"SPX".to_string()));
-            }
-            _ => panic!("unexpected operation type"),
-        }
-    }
-
-    #[test]
-    fn test_builder_fx_override() {
-        let spec = ScenarioSpecBuilder::new("test")
-            .with_operation(OperationSpec::MarketFxPct {
-                base: Currency::EUR,
-                quote: Currency::USD,
-                pct: -10.0,
-            })
-            .override_fx(
-                (Currency::EUR, Currency::USD),
-                (Currency::GBP, Currency::USD),
-            )
-            .build()
-            .expect("should build");
-
-        match &spec.operations[0] {
-            OperationSpec::MarketFxPct { base, quote, .. } => {
-                assert_eq!(base, &Currency::GBP);
-                assert_eq!(quote, &Currency::USD);
-            }
-            _ => panic!("unexpected operation type"),
-        }
-    }
-
-    #[test]
-    fn test_builder_fx_override_inverts_pct_for_reversed_pair() {
-        let spec = ScenarioSpecBuilder::new("test")
-            .with_operation(OperationSpec::MarketFxPct {
-                base: Currency::EUR,
-                quote: Currency::USD,
-                pct: -10.0,
-            })
-            .override_fx(
-                (Currency::EUR, Currency::USD),
-                (Currency::USD, Currency::EUR),
-            )
-            .build()
-            .expect("should build");
-
-        match &spec.operations[0] {
-            OperationSpec::MarketFxPct { base, quote, pct } => {
-                assert_eq!(base, &Currency::USD);
-                assert_eq!(quote, &Currency::EUR);
-                assert!((*pct - 11.111_111_111_111_11).abs() < 1.0e-12);
-            }
-            _ => panic!("unexpected operation type"),
-        }
-    }
-
-    #[test]
-    fn test_builder_fx_override_rejects_reversed_pair_below_negative_100_percent() {
-        let result = ScenarioSpecBuilder::new("test")
-            .with_operation(OperationSpec::MarketFxPct {
-                base: Currency::EUR,
-                quote: Currency::USD,
-                pct: -150.0,
-            })
-            .override_fx(
-                (Currency::EUR, Currency::USD),
-                (Currency::USD, Currency::EUR),
-            )
-            .build();
-
-        assert!(result.is_err());
-    }
-
-    #[test]
     fn test_builder_compose() {
         let builder1 = ScenarioSpecBuilder::new("rates")
             .priority(0)
@@ -593,38 +321,6 @@ mod tests {
 
         assert_eq!(spec.id, "hybrid");
         assert_eq!(spec.operations.len(), 2);
-    }
-
-    #[test]
-    fn test_builder_vol_surface_override() {
-        let spec = ScenarioSpecBuilder::new("test")
-            .with_operation(OperationSpec::VolSurfaceParallelPct {
-                vol_surface_id: "SPX_VOL".into(),
-                pct: 50.0,
-            })
-            .with_operation(OperationSpec::VolSurfaceBucketPct {
-                vol_surface_id: "SPX_VOL".into(),
-                tenors: Some(vec!["1M".into()]),
-                strikes: Some(vec![100.0]),
-                pct: 25.0,
-            })
-            .override_curve("SPX_VOL", "MY_VOL_SURFACE")
-            .build()
-            .expect("should build");
-
-        match &spec.operations[0] {
-            OperationSpec::VolSurfaceParallelPct { vol_surface_id, .. } => {
-                assert_eq!(vol_surface_id, "MY_VOL_SURFACE");
-            }
-            _ => panic!("unexpected operation type"),
-        }
-
-        match &spec.operations[1] {
-            OperationSpec::VolSurfaceBucketPct { vol_surface_id, .. } => {
-                assert_eq!(vol_surface_id, "MY_VOL_SURFACE");
-            }
-            _ => panic!("unexpected operation type"),
-        }
     }
 
     #[test]
