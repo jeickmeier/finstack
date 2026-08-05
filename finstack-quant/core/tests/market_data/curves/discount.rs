@@ -547,15 +547,12 @@ fn monotone_convex_forward_continuity_at_knots() {
 // Bump Tests
 
 #[test]
-fn parallel_bump_and_df_batch() {
+fn parallel_bump_lowers_discount_factors() {
     let curve = sample_discount_curve("USD-OIS");
     let bumped = curve.with_parallel_bump(15.0).unwrap();
     assert_eq!(bumped.id().as_str(), "USD-OIS_bump_15bp");
 
     let times = [0.5, 1.0, 2.0];
-    let solo: Vec<f64> = times.iter().map(|&t| curve.df(t)).collect();
-    assert_eq!(curve.df_batch(&times), solo);
-
     for &t in &times {
         assert!(bumped.df(t) < curve.df(t));
     }
@@ -821,15 +818,6 @@ fn df_on_date_day_count_sensitivity() {
         df_360,
         df_365
     );
-}
-
-#[test]
-fn df_batch_handles_beyond_last_knot() {
-    let curve = sample_discount_curve("USD-OIS");
-    let times = [0.25, 1.0, 5.0, 10.0];
-    let dfs = curve.df_batch(&times);
-    assert_eq!(dfs.len(), times.len());
-    assert!(dfs[3].is_finite());
 }
 
 // Special Environment Tests

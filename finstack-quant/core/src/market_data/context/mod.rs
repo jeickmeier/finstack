@@ -297,18 +297,6 @@ impl MarketContext {
         self.surfaces.as_ref().clone()
     }
 
-    /// Snapshot (clone) all stored market scalars/prices.
-    #[inline]
-    pub fn prices_snapshot(&self) -> HashMap<CurveId, MarketScalar> {
-        self.prices.as_ref().clone()
-    }
-
-    /// Snapshot (clone) all stored scalar time series.
-    #[inline]
-    pub fn series_snapshot(&self) -> HashMap<CurveId, ScalarTimeSeries> {
-        self.series.as_ref().clone()
-    }
-
     pub(crate) fn rebind_credit_index_data(
         &self,
         data: &CreditIndexData,
