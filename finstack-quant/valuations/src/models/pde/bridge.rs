@@ -93,38 +93,23 @@ mod tests {
     use super::*;
 
     /// Black-Scholes analytical price for European call (for validation).
+    ///
+    /// Uses `core::math::norm_cdf` rather than a local Abramowitz-Stegun
+    /// approximation: this is the *reference* the PDE solver is graded
+    /// against, so its own error should not eat into the test's tolerance.
     fn bs_call(s: f64, k: f64, r: f64, q: f64, sigma: f64, t: f64) -> f64 {
-        use std::f64::consts::FRAC_1_SQRT_2;
+        use finstack_quant_core::math::norm_cdf;
         let d1 = ((s / k).ln() + (r - q + 0.5 * sigma * sigma) * t) / (sigma * t.sqrt());
         let d2 = d1 - sigma * t.sqrt();
-        let nd1 = 0.5 * (1.0 + erf(d1 * FRAC_1_SQRT_2));
-        let nd2 = 0.5 * (1.0 + erf(d2 * FRAC_1_SQRT_2));
-        s * (-q * t).exp() * nd1 - k * (-r * t).exp() * nd2
+        s * (-q * t).exp() * norm_cdf(d1) - k * (-r * t).exp() * norm_cdf(d2)
     }
 
     /// Black-Scholes analytical price for European put (for validation).
     fn bs_put(s: f64, k: f64, r: f64, q: f64, sigma: f64, t: f64) -> f64 {
-        use std::f64::consts::FRAC_1_SQRT_2;
+        use finstack_quant_core::math::norm_cdf;
         let d1 = ((s / k).ln() + (r - q + 0.5 * sigma * sigma) * t) / (sigma * t.sqrt());
         let d2 = d1 - sigma * t.sqrt();
-        let nd1 = 0.5 * (1.0 + erf(-d1 * FRAC_1_SQRT_2));
-        let nd2 = 0.5 * (1.0 + erf(-d2 * FRAC_1_SQRT_2));
-        k * (-r * t).exp() * nd2 - s * (-q * t).exp() * nd1
-    }
-
-    /// Error function (Abramowitz & Stegun approximation).
-    fn erf(x: f64) -> f64 {
-        let a1 = 0.254829592;
-        let a2 = -0.284496736;
-        let a3 = 1.421413741;
-        let a4 = -1.453152027;
-        let a5 = 1.061405429;
-        let p = 0.3275911;
-        let sign = if x >= 0.0 { 1.0 } else { -1.0 };
-        let x = x.abs();
-        let t = 1.0 / (1.0 + p * x);
-        let y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * (-x * x).exp();
-        sign * y
+        k * (-r * t).exp() * norm_cdf(-d2) - s * (-q * t).exp() * norm_cdf(-d1)
     }
 
     #[test]
