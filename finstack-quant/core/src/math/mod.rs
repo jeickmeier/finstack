@@ -112,8 +112,8 @@ pub mod volatility;
 
 // Re-exports for ergonomic access
 pub use distributions::{
-    binomial_pmf_all, binomial_pmf_all_into, binomial_probability, chi_squared_cdf,
-    chi_squared_quantile, log_binomial_coefficient, log_factorial,
+    binomial_pmf_all, binomial_pmf_all_into, binomial_probability, chi_squared_quantile,
+    log_factorial,
 };
 pub use integration::{
     gauss_legendre_integrate, gauss_legendre_integrate_adaptive,

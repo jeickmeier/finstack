@@ -53,8 +53,6 @@
 //! - [`volterra`]: Riemann-Liouville Volterra process increment generator for
 //!   the rough Bergomi model (Bennedsen-Lunde-Pakkanen hybrid scheme)
 //!
-//! For Sobol PCA utilities, see [`finstack_quant_core::math::random::sobol_pca`].
-//!
 //! # References
 //!
 //! - Salmon et al. (2011). "Parallel Random Numbers: As Easy as 1, 2, 3."

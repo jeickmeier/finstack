@@ -11,7 +11,6 @@
 //! - [`sobol::SobolRng`]: Sobol low-discrepancy sequence with Owen scrambling
 //! - [`brownian_bridge::BrownianBridge`]: Brownian bridge construction order
 //! - [`poisson::poisson_inverse_cdf`]: Poisson sampling utilities
-//! - [`sobol_pca::pca_ordering`]: PCA ordering for Sobol dimensions
 //!
 //! # Quick Start
 //!
@@ -58,11 +57,9 @@
 pub mod brownian_bridge;
 pub mod poisson;
 pub mod sobol;
-pub mod sobol_pca;
 
 pub use brownian_bridge::BrownianBridge;
 pub use poisson::{poisson_from_normal, poisson_inverse_cdf};
-pub use sobol_pca::{effective_dimension, pca_ordering, transform_pca_to_assets};
 
 /// Random number generator trait for statistical sampling.
 ///

@@ -173,7 +173,6 @@ NON_MAINTAINED_SERDE_EXCEPTIONS = (
         "src/market_data/term_structures/base_correlation.rs",
         ("ArbitrageCheckResult",),
     ),
-    *_computed_output("core", "src/math/volatility/heston.rs", ("HestonCalibrationResult",)),
     *_computed_output("core", "src/money/fx/types.rs", ("FxRateResult",)),
     *_classification(
         "core",
@@ -211,7 +210,6 @@ NON_MAINTAINED_SERDE_EXCEPTIONS = (
         "src/grid_attribution.rs",
         ("GridAttributionResult", "GridCarinoLinkedResult"),
     ),
-    *_computed_output("portfolio", "src/liquidity/lvar.rs", ("LvarResult",)),
     *_classification(
         "portfolio",
         "src/margin/results.rs",
