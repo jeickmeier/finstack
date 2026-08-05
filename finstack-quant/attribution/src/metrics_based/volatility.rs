@@ -3,9 +3,7 @@ use super::super::types::*;
 use super::context::AttributionInputs;
 use finstack_quant_valuations::metrics::MetricId;
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // Large Move Warning Thresholds
-// ═══════════════════════════════════════════════════════════════════════════════
 //
 // These thresholds define when market moves are large enough that second-order
 // Taylor expansion may produce significant approximation errors (>5% relative).

@@ -141,7 +141,7 @@ pub use special_functions::{
 };
 pub use stats::{
     correlation, covariance, finite_count, finite_max_or_nan, finite_min_or_nan, mean, mean_or_nan,
-    mean_var, median_or_nan, moment_match, population_variance, quantile, quantile_linear_or_nan,
+    mean_var, median_or_nan, population_variance, quantile, quantile_linear_or_nan,
     required_samples, sample_std_or_nan, sample_variance_or_nan, variance, OnlineCovariance,
     OnlineStats,
 };

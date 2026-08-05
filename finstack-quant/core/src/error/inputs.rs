@@ -61,9 +61,7 @@ impl core::fmt::Display for NonFiniteKind {
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum InputError {
-    // ─────────────────────────────────────────────────────────────────────────
     // Basic Validation
-    // ─────────────────────────────────────────────────────────────────────────
     /// Input must contain at least two distinct points (e.g. knots on a curve).
     #[error("At least two data points are required")]
     TooFewPoints,
@@ -103,9 +101,7 @@ pub enum InputError {
     #[error("Consecutive knots are too close together for stable interpolation")]
     KnotSpacingTooSmall,
 
-    // ─────────────────────────────────────────────────────────────────────────
     // Date and Calendar
-    // ─────────────────────────────────────────────────────────────────────────
     /// The provided date range is inverted – the start date is after the end date.
     #[error("Invalid date range: start must be before end")]
     InvalidDateRange,
@@ -185,9 +181,7 @@ pub enum InputError {
         frequency: String,
     },
 
-    // ─────────────────────────────────────────────────────────────────────────
     // Market Data and Lookups
-    // ─────────────────────────────────────────────────────────────────────────
     /// Requested item (curve, surface, etc.) not found in a collection.
     #[error("Requested item not found: {id}")]
     NotFound {
@@ -238,9 +232,7 @@ pub enum InputError {
         value: String,
     },
 
-    // ─────────────────────────────────────────────────────────────────────────
     // Numeric Conversion
-    // ─────────────────────────────────────────────────────────────────────────
     /// Decimal value cannot be represented as f64 (overflow or loss of precision).
     ///
     /// This error occurs when attempting to convert an internal `Decimal` amount
@@ -258,9 +250,7 @@ pub enum InputError {
         kind: NonFiniteKind,
     },
 
-    // ─────────────────────────────────────────────────────────────────────────
     // FX / Rates / Conversions
-    // ─────────────────────────────────────────────────────────────────────────
     /// Invalid FX rate encountered (non-finite, non-positive, or otherwise unusable).
     #[error("Invalid FX rate for {from}->{to}: {rate}")]
     InvalidFxRate {
@@ -279,9 +269,7 @@ pub enum InputError {
         basis: u16,
     },
 
-    // ─────────────────────────────────────────────────────────────────────────
     // Volatility
-    // ─────────────────────────────────────────────────────────────────────────
     /// Volatility conversion failed due to solver not converging.
     ///
     /// This error occurs when the numerical solver cannot find a volatility
@@ -334,9 +322,7 @@ pub enum InputError {
         value: f64,
     },
 
-    // ─────────────────────────────────────────────────────────────────────────
     // Bumps and Scenarios
-    // ─────────────────────────────────────────────────────────────────────────
     /// Unsupported bump operation on a market data type.
     ///
     /// This error occurs when attempting to apply a bump with an unsupported
@@ -347,9 +333,7 @@ pub enum InputError {
         reason: String,
     },
 
-    // ─────────────────────────────────────────────────────────────────────────
     // Joint calendar FX date logic
-    // ─────────────────────────────────────────────────────────────────────────
     /// Joint calendar business-day counting exceeded a safety iteration limit.
     #[error(
         "Joint calendar business-day roll exceeded iteration limit: requested {n_days} days, hit {max_iters} iterations"
@@ -363,9 +347,7 @@ pub enum InputError {
         max_iters: u32,
     },
 
-    // ─────────────────────────────────────────────────────────────────────────
     // Solver Failures
-    // ─────────────────────────────────────────────────────────────────────────
     /// Root-finding solver failed to converge within tolerance.
     ///
     /// This error provides diagnostic information about why the solver failed,
@@ -382,9 +364,7 @@ pub enum InputError {
         reason: String,
     },
 
-    // ─────────────────────────────────────────────────────────────────────────
     // Return Series / Analytics
-    // ─────────────────────────────────────────────────────────────────────────
     /// A row of a return panel violated the analytics input contract.
     ///
     /// Used by `finstack-quant-analytics::Performance` to flag the specific ticker,
@@ -415,9 +395,7 @@ pub enum InputError {
         missing_leg: String,
     },
 
-    // ─────────────────────────────────────────────────────────────────────────
     // Constrained Optimization
-    // ─────────────────────────────────────────────────────────────────────────
     /// An equality-constrained solve could not restore its constraint because
     /// the constraint-restoring direction is (numerically) degenerate.
     ///

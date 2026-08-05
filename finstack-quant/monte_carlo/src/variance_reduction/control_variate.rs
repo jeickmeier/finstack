@@ -179,33 +179,6 @@ pub fn apply_control_variate(
         .with_std_dev(adjusted_var.sqrt())
 }
 
-/// Compute covariance between two samples.
-///
-/// # Arguments
-///
-/// * `x` - First sample values, aligned one-for-one with `y`.
-/// * `y` - Second sample values, aligned one-for-one with `x`; unequal lengths
-///   trigger the function's assertion.
-#[must_use]
-pub fn covariance(x: &[f64], y: &[f64]) -> f64 {
-    assert_eq!(x.len(), y.len(), "Samples must have same length");
-    let n = x.len();
-    if n < 2 {
-        return 0.0;
-    }
-
-    let mean_x = x.iter().sum::<f64>() / n as f64;
-    let mean_y = y.iter().sum::<f64>() / n as f64;
-
-    let cov: f64 = x
-        .iter()
-        .zip(y.iter())
-        .map(|(xi, yi)| (xi - mean_x) * (yi - mean_y))
-        .sum();
-
-    cov / (n - 1) as f64
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -274,7 +247,7 @@ mod tests {
             .sum::<f64>()
             / (control_samples.len() - 1) as f64;
 
-        let cov = covariance(&mc_samples, &control_samples);
+        let cov = finstack_quant_core::math::stats::covariance(&mc_samples, &control_samples);
 
         let result = apply_control_variate(
             mc_mean,
@@ -294,11 +267,13 @@ mod tests {
     }
 
     #[test]
+    /// Pins the covariance convention this module's control-variate maths
+    /// depends on, now sourced from `core::math::stats` rather than a local copy.
     fn test_covariance() {
         let x = vec![1.0, 2.0, 3.0, 4.0, 5.0];
         let y = vec![2.0, 4.0, 6.0, 8.0, 10.0];
 
-        let cov = covariance(&x, &y);
+        let cov = finstack_quant_core::math::stats::covariance(&x, &y);
 
         // Perfect positive correlation: y = 2x
         // Var(x) = 2.5, Var(y) = 10, Cov(x,y) = 5
@@ -321,8 +296,13 @@ mod tests {
     }
 
     #[test]
+    /// A single sample must yield 0.0, not NaN -- `apply_control_variate`
+    /// relies on it (see `control_variate_handles_single_sample_without_nan`).
     fn covariance_returns_zero_for_single_sample() {
-        assert_eq!(covariance(&[1.0], &[2.0]), 0.0);
+        assert_eq!(
+            finstack_quant_core::math::stats::covariance(&[1.0], &[2.0]),
+            0.0
+        );
     }
 
     #[test]

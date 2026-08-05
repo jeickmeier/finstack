@@ -1593,9 +1593,7 @@ mod tests {
         assert_eq!(schedule.get_flows()[0].amount.currency(), Currency::USD);
     }
 
-    // ──────────────────────────────────────────────────────────────────
     //  Mid-year convention tests
-    // ──────────────────────────────────────────────────────────────────
 
     #[test]
     fn mid_year_convention_increases_pv() {
@@ -1678,9 +1676,7 @@ mod tests {
         );
     }
 
-    // ──────────────────────────────────────────────────────────────────
     //  Equity bridge tests
-    // ──────────────────────────────────────────────────────────────────
 
     #[test]
     fn equity_bridge_matches_flat_net_debt_when_simple() {
@@ -1738,9 +1734,7 @@ mod tests {
         );
     }
 
-    // ──────────────────────────────────────────────────────────────────
     //  H-Model terminal value tests
-    // ──────────────────────────────────────────────────────────────────
 
     #[test]
     fn h_model_terminal_value_matches_damodaran_formula() {
@@ -1790,9 +1784,7 @@ mod tests {
         );
     }
 
-    // ──────────────────────────────────────────────────────────────────
     //  Valuation discounts (DLOM / DLOC) tests
-    // ──────────────────────────────────────────────────────────────────
 
     #[test]
     fn valuation_discounts_reduce_equity_value() {
@@ -1824,9 +1816,7 @@ mod tests {
         );
     }
 
-    // ──────────────────────────────────────────────────────────────────
     //  Dilution / per-share tests
-    // ──────────────────────────────────────────────────────────────────
 
     #[test]
     fn diluted_shares_treasury_stock_method() {
@@ -1889,9 +1879,7 @@ mod tests {
         assert!(dcf.equity_value_per_share(1000.0).is_none());
     }
 
-    // ──────────────────────────────────────────────────────────────────
     //  Serde round-trip tests
-    // ──────────────────────────────────────────────────────────────────
 
     #[test]
     fn serde_roundtrip_basic_dcf() {
@@ -1994,9 +1982,7 @@ mod tests {
         }
     }
 
-    // ──────────────────────────────────────────────────────────────────
     //  Metric consistency: EV metric matches value() with curve
-    // ──────────────────────────────────────────────────────────────────
 
     #[test]
     fn ev_metric_consistent_with_value_when_curve_present() {
@@ -2072,9 +2058,7 @@ mod tests {
         );
     }
 
-    // ──────────────────────────────────────────────────────────────────
     //  Builder pattern tests
-    // ──────────────────────────────────────────────────────────────────
 
     #[test]
     fn builder_with_all_new_fields() {
@@ -2110,9 +2094,7 @@ mod tests {
         assert!(dcf.valuation_discounts.is_some());
     }
 
-    // ──────────────────────────────────────────────────────────────────
     //  calculate_terminal_value error cases
-    // ──────────────────────────────────────────────────────────────────
 
     #[test]
     fn calculate_terminal_value_errors_on_empty_flows() {

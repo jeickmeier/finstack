@@ -10,6 +10,4 @@
 
 pub mod control_variate;
 
-pub use control_variate::{
-    apply_control_variate, black_scholes_call, black_scholes_put, covariance,
-};
+pub use control_variate::{apply_control_variate, black_scholes_call, black_scholes_put};

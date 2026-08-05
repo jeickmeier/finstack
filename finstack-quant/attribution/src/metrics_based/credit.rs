@@ -8,9 +8,7 @@ use finstack_quant_core::market_data::diff::measure_per_tenor_credit_curve_shift
 use finstack_quant_core::math::NeumaierAccumulator;
 use finstack_quant_valuations::metrics::MetricId;
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // Large Move Warning Thresholds
-// ═══════════════════════════════════════════════════════════════════════════════
 //
 // These thresholds define when market moves are large enough that second-order
 // Taylor expansion may produce significant approximation errors (>5% relative).

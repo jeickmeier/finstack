@@ -70,9 +70,7 @@ fn build_floored_loan() -> Bond {
     .with_return_floor(ReturnFloorSpec::moic(1.25).window(ProtectionWindow::From(nc2_end)))
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Test: construction is valid and produces a positive PV
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[test]
 fn return_floor_loan_prices_successfully() {
@@ -99,9 +97,7 @@ fn return_floor_loan_prices_successfully() {
     assert_eq!(pv.currency(), Currency::USD);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Test: return metrics are sane and internally consistent
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[test]
 fn return_floor_metrics_are_sane() {
@@ -186,9 +182,7 @@ fn return_floor_metrics_are_sane() {
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Test: the min_moic shortcut produces an equivalent spec
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[test]
 fn min_moic_shortcut_equivalent_to_explicit_full_window_spec() {

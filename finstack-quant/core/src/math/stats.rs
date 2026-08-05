@@ -305,40 +305,6 @@ pub fn correlation(x: &[f64], y: &[f64]) -> f64 {
     oc.correlation()
 }
 
-/// Moment matching: adjust samples to have exact mean and variance.
-///
-/// This variance reduction technique forces the sample to have
-/// exactly the theoretical moments.
-///
-/// # Arguments
-///
-/// * `samples` - Mutable slice of samples to adjust
-/// * `target_mean` - Target mean (default 0.0 for standard normal)
-/// * `target_std` - Target standard deviation (default 1.0 for standard normal)
-pub fn moment_match(samples: &mut [f64], target_mean: f64, target_std: f64) {
-    if samples.is_empty() {
-        return;
-    }
-
-    let current_mean = mean(samples);
-    let current_var = population_variance(samples);
-    let current_std = current_var.sqrt();
-
-    // Degenerate-spread guard, relative to the sample scale: a flat 1e-10
-    // would wrongly treat genuinely dispersed dollar-scale samples (std 1e-9
-    // of a 1e6 mean is degenerate) and tiny-scale samples (std 1e-11 around
-    // a 1e-10 mean is meaningful spread) the same way.
-    let scale = samples.iter().fold(0.0_f64, |m, x| m.max(x.abs()));
-    let degenerate_threshold = 1e-10 * scale.max(1.0);
-
-    // Adjust samples
-    if current_std > degenerate_threshold {
-        for x in samples.iter_mut() {
-            *x = (*x - current_mean) * (target_std / current_std) + target_mean;
-        }
-    }
-}
-
 // ====== Realized Variance Calculations ======
 
 /// Methods for calculating realized variance from price series.
@@ -1154,18 +1120,6 @@ mod tests {
         assert!(lower < stats.mean());
         assert!(upper > stats.mean());
         assert!(lower < 50.5 && upper > 50.5);
-    }
-
-    #[test]
-    fn test_moment_match() {
-        let mut samples = vec![-1.5, -0.5, 0.0, 0.5, 1.5];
-        moment_match(&mut samples, 0.0, 1.0);
-
-        let mean = samples.iter().sum::<f64>() / samples.len() as f64;
-        let var = samples.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / samples.len() as f64;
-
-        assert!(mean.abs() < 1e-10);
-        assert!((var - 1.0).abs() < 1e-10);
     }
 
     #[test]
