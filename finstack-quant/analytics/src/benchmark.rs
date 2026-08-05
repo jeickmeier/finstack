@@ -70,7 +70,7 @@ fn compensated_add(sum: &mut f64, compensation: &mut f64, value: f64) {
 ///
 /// ```text
 /// TE = σ(r_portfolio − r_benchmark) × sqrt(ann_factor)   [if annualized]
-/// ```ignore
+/// ```
 ///
 /// A lower tracking error indicates tighter benchmark replication.
 ///
@@ -87,16 +87,6 @@ fn compensated_add(sum: &mut f64, compensation: &mut f64, value: f64) {
 /// Tracking error (non-negative). Returns `0.0` for empty or mismatched series.
 /// When `annualize` is `true`, returns [`f64::NAN`] if `ann_factor` is not finite
 /// or is `<= 0`.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::benchmark::tracking_error;
-///
-/// // Identical series → zero tracking error.
-/// let r = [0.01, 0.02, -0.01, 0.03];
-/// assert!(tracking_error(&r, &r, false, 252.0).abs() < 1e-12);
-/// ```
 ///
 /// # References
 ///
@@ -134,7 +124,7 @@ pub(crate) fn tracking_error(
 /// ```text
 /// IR = (mean active return × ann_factor) / (σ active return × sqrt(ann_factor))
 ///    = mean active return × sqrt(ann_factor) / σ active return
-/// ```ignore
+/// ```
 ///
 /// A higher IR indicates more reliable outperformance relative to the
 /// benchmark. The IR is related to the Sharpe ratio but uses active
@@ -155,17 +145,6 @@ pub(crate) fn tracking_error(
 /// `+∞` or `-∞` matching the sign of the excess (consistent with
 /// [`crate::risk_metrics::sharpe`]). When `annualize` is
 /// `true`, returns [`f64::NAN`] if `ann_factor` is not finite or is `<= 0`.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::benchmark::information_ratio;
-///
-/// let r = [0.02, 0.03, 0.01, 0.04];
-/// let b = [0.01, 0.01, 0.01, 0.01];
-/// let ir = information_ratio(&r, &b, false, 252.0);
-/// assert!(ir > 0.0);
-/// ```
 ///
 /// # References
 ///
@@ -212,7 +191,7 @@ pub(crate) fn information_ratio(
 ///
 /// ```text
 /// R² = corr(r_portfolio, r_benchmark)²
-/// ```ignore
+/// ```
 ///
 /// A value of 1.0 means the portfolio moves perfectly in line with the
 /// benchmark; 0.0 means the two are uncorrelated.
@@ -227,17 +206,6 @@ pub(crate) fn information_ratio(
 /// R-squared in `[0, 1]`. Returns `0.0` for empty or zero-variance series.
 /// Mismatched lengths are truncated to the shorter series, matching the
 /// convention of [`tracking_error`], [`beta`], and [`greeks`].
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::benchmark::r_squared;
-///
-/// // Perfect linear relationship → R² = 1.
-/// let r = [1.0, 2.0, 3.0, 4.0];
-/// let b = [2.0, 4.0, 6.0, 8.0];
-/// assert!((r_squared(&r, &b) - 1.0).abs() < 1e-10);
-/// ```
 #[must_use]
 pub(crate) fn r_squared(returns: &[f64], benchmark: &[f64]) -> f64 {
     let n = returns.len().min(benchmark.len());
@@ -507,18 +475,6 @@ pub struct GreeksResult {
 /// benchmark the regression cannot identify a slope, so `alpha` and `beta`
 /// are [`f64::NAN`] (matching the [`rolling_greeks`] degenerate-window
 /// sentinel) while `r_squared` / `adjusted_r_squared` remain `0.0`.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::benchmark::greeks;
-///
-/// let r = [0.01, 0.02, 0.03, 0.04, 0.05];
-/// let b = [0.005, 0.01, 0.015, 0.02, 0.025];
-/// let g = greeks(&r, &b, 252.0, 0.02);
-/// assert!((g.beta - 2.0).abs() < 1e-10);
-/// assert!((g.r_squared - 1.0).abs() < 1e-10);
-/// ```
 pub(crate) fn greeks(
     returns: &[f64],
     benchmark: &[f64],
@@ -595,21 +551,6 @@ pub struct RollingGreeks {
 /// running sums as soon as a non-finite value exits the window). Use
 /// [`multi_factor_greeks`] when strict regression input validation is
 /// required.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::benchmark::rolling_greeks;
-/// use finstack_quant_core::dates::{Date, Month};
-///
-/// let r: Vec<f64> = (0..20).map(|i| (i as f64 + 1.0) * 0.001).collect();
-/// let b: Vec<f64> = (0..20).map(|i| i as f64 * 0.0005).collect();
-/// let dates: Vec<Date> = (1..=20)
-///     .map(|d| Date::from_calendar_date(2025, Month::January, d).unwrap())
-///     .collect();
-/// let rg = rolling_greeks(&r, &b, &dates, 5, 252.0, 0.02);
-/// assert_eq!(rg.betas.len(), 16); // 20 − 5 + 1
-/// ```
 pub(crate) fn rolling_greeks(
     returns: &[f64],
     benchmark: &[f64],
@@ -729,18 +670,6 @@ pub(crate) fn rolling_greeks(
 ///
 /// Up capture ratio. Returns `0.0` if there are no up-benchmark periods
 /// or the benchmark's compounded up-period return is negligible.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::benchmark::up_capture;
-///
-/// // Portfolio doubles the benchmark in up periods.
-/// let r = [0.04, -0.01, 0.06];
-/// let b = [0.02, -0.03, 0.03];
-/// let uc = up_capture(&r, &b, 252.0);
-/// assert!(uc > 1.0);
-/// ```
 #[must_use]
 pub(crate) fn up_capture(returns: &[f64], benchmark: &[f64], ann_factor: f64) -> f64 {
     geometric_capture(returns, benchmark, ann_factor, |bench_return| {
@@ -766,18 +695,6 @@ pub(crate) fn up_capture(returns: &[f64], benchmark: &[f64], ann_factor: f64) ->
 ///
 /// Down capture ratio. Returns `0.0` if there are no down-benchmark periods
 /// or the benchmark's compounded down-period return is negligible.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::benchmark::down_capture;
-///
-/// // Portfolio loses less than benchmark in down periods (defensive).
-/// let r = [0.04, -0.01, 0.06];
-/// let b = [0.02, -0.03, 0.03];
-/// let day_count = down_capture(&r, &b, 252.0);
-/// assert!(day_count < 1.0);
-/// ```
 #[must_use]
 pub(crate) fn down_capture(returns: &[f64], benchmark: &[f64], ann_factor: f64) -> f64 {
     geometric_capture(returns, benchmark, ann_factor, |bench_return| {
@@ -799,17 +716,6 @@ pub(crate) fn down_capture(returns: &[f64], benchmark: &[f64], ann_factor: f64) 
 /// # Returns
 ///
 /// The capture ratio. Returns `0.0` if either capture component is zero.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::benchmark::capture_ratio;
-///
-/// let r = [0.04, -0.01, 0.06];
-/// let b = [0.02, -0.03, 0.03];
-/// let cr = capture_ratio(&r, &b, 252.0);
-/// assert!(cr > 1.0);
-/// ```
 #[must_use]
 pub(crate) fn capture_ratio(returns: &[f64], benchmark: &[f64], ann_factor: f64) -> f64 {
     let day_count = down_capture(returns, benchmark, ann_factor);
@@ -830,7 +736,7 @@ pub(crate) fn capture_ratio(returns: &[f64], benchmark: &[f64], ann_factor: f64)
 ///
 /// ```text
 /// BA = count(r_portfolio > r_benchmark) / n
-/// ```ignore
+/// ```
 ///
 /// A value above 0.5 indicates the portfolio beats the benchmark more often
 /// than not, though it says nothing about the magnitude of wins vs losses.
@@ -843,19 +749,6 @@ pub(crate) fn capture_ratio(returns: &[f64], benchmark: &[f64], ann_factor: f64)
 /// # Returns
 ///
 /// Fraction in `[0, 1]`. Returns `0.0` for empty series.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::benchmark::batting_average;
-///
-/// let r = [0.02, 0.01, 0.03, -0.01];
-/// let b = [0.01, 0.02, 0.01, 0.00];
-/// let ba = batting_average(&r, &b);
-/// // Beats benchmark in periods 0, 2 → 2/4 = 0.5
-/// // Period 3: -0.01 < 0.00 → loss
-/// assert!((ba - 0.5).abs() < 1e-12);
-/// ```
 #[must_use]
 pub(crate) fn batting_average(returns: &[f64], benchmark: &[f64]) -> f64 {
     let n = returns.len().min(benchmark.len());
@@ -935,7 +828,7 @@ where
 ///
 /// ```text
 /// r_portfolio = α + β₁f₁ + β₂f₂ + ... + βₖfₖ + ε
-/// ```ignore
+/// ```
 ///
 /// by solving the least-squares system with an SVD of the (column-normalized)
 /// design matrix. SVD avoids explicitly forming the normal equations and is
@@ -975,18 +868,6 @@ where
 /// - any portfolio or factor return is non-finite
 /// - any factor length differs from `returns.len()`
 /// - the factor matrix is singular or numerically rank deficient
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::benchmark::multi_factor_greeks;
-///
-/// // y ≈ 2*f1 (single effective factor).
-/// let y = [0.02, 0.04, 0.06, 0.08, 0.10];
-/// let f1 = [0.01, 0.02, 0.03, 0.04, 0.05];
-/// let result = multi_factor_greeks(&y, &[&f1], 252.0).unwrap();
-/// assert!(result.r_squared > 0.99);
-/// ```
 ///
 /// # References
 ///
@@ -1600,7 +1481,7 @@ mod tests {
 ///
 /// ```text
 /// Treynor = (R_p − R_f) / β
-/// ```ignore
+/// ```
 ///
 /// Complements the Sharpe ratio by using beta (systematic risk) rather
 /// than total volatility as the risk denominator.
@@ -1618,16 +1499,6 @@ mod tests {
 /// return is also zero (matching the [`sharpe`](crate::risk_metrics) /
 /// `information_ratio` zero-denominator convention). A `NaN` beta (e.g.
 /// from a zero-variance benchmark) propagates to a `NaN` ratio.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::benchmark::treynor;
-///
-/// // 10% return, 2% risk-free, beta = 1.2 → Treynor ≈ 0.0667.
-/// let t = treynor(0.10, 0.02, 1.2);
-/// assert!((t - 0.0667).abs() < 0.001);
-/// ```
 ///
 /// # References
 ///
@@ -1655,7 +1526,7 @@ pub(crate) fn treynor(ann_return: f64, risk_free_rate: f64, beta: f64) -> f64 {
 ///
 /// ```text
 /// M² = R_f + (R_p − R_f) × (σ_bench / σ_portfolio)
-/// ```ignore
+/// ```
 ///
 /// # Arguments
 ///
@@ -1667,17 +1538,6 @@ pub(crate) fn treynor(ann_return: f64, risk_free_rate: f64, beta: f64) -> f64 {
 /// # Returns
 ///
 /// The M-squared return. Returns the risk-free rate if portfolio volatility is zero.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::benchmark::m_squared;
-///
-/// // Portfolio: 12% return, 20% vol; Benchmark: 15% vol; Rf: 2%
-/// // M² = 0.02 + (0.12 − 0.02) × (0.15 / 0.20) = 0.02 + 0.075 = 0.095
-/// let m2 = m_squared(0.12, 0.20, 0.15, 0.02);
-/// assert!((m2 - 0.095).abs() < 1e-12);
-/// ```
 ///
 /// # References
 ///

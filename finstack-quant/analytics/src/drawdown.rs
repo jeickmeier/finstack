@@ -46,7 +46,7 @@ pub struct DrawdownEpisode {
 ///
 /// ```text
 /// dd[i] = wealth[i] / peak[i] - 1  (≤ 0)
-/// ```ignore
+/// ```
 ///
 /// where `wealth[i] = Π(1 + r[j]) for j ≤ i` and `peak[i]` is the running
 /// maximum of wealth up to and including `i`.
@@ -65,20 +65,6 @@ pub struct DrawdownEpisode {
 /// A `Vec<f64>` of the same length as `returns`. Each value is ≤ 0;
 /// a value of `0.0` means wealth is at or above its prior peak.
 /// Returns an empty vector if `returns` is empty.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::drawdown::to_drawdown_series;
-///
-/// // No drawdown while returns are positive.
-/// let dd = to_drawdown_series(&[0.10, 0.05]);
-/// assert!(dd.iter().all(|&v| v.abs() < 1e-12));
-///
-/// // 20% loss after a 10% gain: wealth = 1.10 * 0.80 = 0.88 → dd ≈ −0.2
-/// let dd = to_drawdown_series(&[0.10, -0.20]);
-/// assert!(dd[1] < -0.18);
-/// ```
 pub(crate) fn to_drawdown_series(returns: &[f64]) -> Vec<f64> {
     if returns.is_empty() {
         return vec![];
@@ -114,22 +100,6 @@ pub(crate) fn to_drawdown_series(returns: &[f64]) -> Vec<f64> {
 ///
 /// Up to `n` [`DrawdownEpisode`] structs sorted by `max_drawdown` ascending
 /// (most severe first). Returns an empty vector if `drawdown` or `dates` is empty.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::drawdown::{drawdown_details, to_drawdown_series};
-/// use finstack_quant_core::dates::{Date, Month};
-///
-/// let returns = [0.10, -0.20, 0.05, 0.10];
-/// let dd = to_drawdown_series(&returns);
-/// let dates: Vec<Date> = (1..=4)
-///     .map(|d| Date::from_calendar_date(2025, Month::January, d).unwrap())
-///     .collect();
-/// let episodes = drawdown_details(&dd, &dates, 5);
-/// assert!(!episodes.is_empty());
-/// assert!(episodes[0].max_drawdown < 0.0);
-/// ```
 pub(crate) fn drawdown_details(drawdown: &[f64], dates: &[Date], n: usize) -> Vec<DrawdownEpisode> {
     if drawdown.is_empty() || dates.is_empty() {
         return vec![];
@@ -256,17 +226,6 @@ fn make_episode(
 ///
 /// Mean of the `n` worst `max_drawdown` values (a negative number), or
 /// `0.0` if `drawdown` is empty or no episodes are found.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::drawdown::{mean_episode_drawdown, to_drawdown_series};
-///
-/// let returns = [0.05, -0.15, 0.10, -0.08, 0.03];
-/// let dd = to_drawdown_series(&returns);
-/// let avg = mean_episode_drawdown(&dd, 3);
-/// assert!(avg < 0.0);
-/// ```
 #[must_use]
 pub(crate) fn mean_episode_drawdown(drawdown: &[f64], n: usize) -> f64 {
     let episode_depths = worst_episode_depths(drawdown, n);
@@ -305,21 +264,6 @@ fn worst_episode_depths(drawdown: &[f64], n: usize) -> Vec<f64> {
 ///
 /// Duration in calendar days of the longest drawdown episode. Returns `0`
 /// if no episodes are found.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::drawdown::{max_drawdown_duration, to_drawdown_series};
-/// use finstack_quant_core::dates::{Date, Month};
-///
-/// let returns = [0.10, -0.20, 0.05, 0.10, -0.05, -0.03];
-/// let dd = to_drawdown_series(&returns);
-/// let dates: Vec<Date> = (1..=6)
-///     .map(|d| Date::from_calendar_date(2025, Month::January, d).unwrap())
-///     .collect();
-/// let max_dur = max_drawdown_duration(&dd, &dates);
-/// assert!(max_dur > 0);
-/// ```
 pub(crate) fn max_drawdown_duration(drawdown: &[f64], dates: &[Date]) -> i64 {
     if drawdown.is_empty() || dates.is_empty() {
         return 0;
@@ -347,7 +291,7 @@ pub(crate) fn max_drawdown_duration(drawdown: &[f64], dates: &[Date]) -> i64 {
 ///
 /// ```text
 /// CDaR_α = E[ |dd| | |dd| ≥ q_{1−α}(|dd|) ]
-/// ```ignore
+/// ```
 ///
 /// CDaR is the drawdown analogue of Expected Shortfall (CVaR).
 ///
@@ -364,16 +308,6 @@ pub(crate) fn max_drawdown_duration(drawdown: &[f64], dates: &[Date]) -> i64 {
 /// For example, a 95% CDaR of `-0.25` means the average drawdown depth in
 /// the worst 5% tail is 25%.
 /// Returns `0.0` for an empty slice.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::drawdown::cdar;
-///
-/// let dd = [-0.01, -0.05, -0.10, -0.15, -0.20, 0.0, -0.03, -0.08, -0.12, -0.18];
-/// let c = cdar(&dd, 0.80);
-/// assert!(c < -0.10);
-/// ```
 ///
 /// # References
 ///
@@ -529,7 +463,7 @@ mod tests {
 ///
 /// ```text
 /// UI = sqrt(mean(dd_i^2))
-/// ```ignore
+/// ```
 ///
 /// # Arguments
 ///
@@ -539,16 +473,6 @@ mod tests {
 /// # Returns
 ///
 /// The Ulcer Index (a non-negative scalar). Returns `0.0` for an empty slice.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::drawdown::ulcer_index;
-///
-/// // Flat drawdown of −10% throughout → UI = 0.10.
-/// let dd = [-0.10, -0.10, -0.10];
-/// assert!((ulcer_index(&dd) - 0.10).abs() < 1e-12);
-/// ```
 ///
 /// # References
 ///
@@ -566,7 +490,7 @@ pub(crate) fn ulcer_index(drawdown: &[f64]) -> f64 {
 ///
 /// ```text
 /// Pain = (1/n) Σ |dd_i|
-/// ```ignore
+/// ```
 ///
 /// Less sensitive to outlier drawdowns than max drawdown.
 ///
@@ -577,16 +501,6 @@ pub(crate) fn ulcer_index(drawdown: &[f64]) -> f64 {
 /// # Returns
 ///
 /// The pain index (non-negative). Returns `0.0` for an empty slice.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::drawdown::pain_index;
-///
-/// let dd = [-0.05, -0.10, 0.0, -0.03];
-/// let pi = pain_index(&dd);
-/// assert!((pi - 0.045).abs() < 1e-12);
-/// ```
 #[must_use]
 pub(crate) fn pain_index(drawdown: &[f64]) -> f64 {
     if drawdown.is_empty() {
@@ -662,16 +576,6 @@ fn ratio_or_sign_infinity(numerator: f64, denominator: f64) -> f64 {
 /// Returns `f64::INFINITY` if `max_dd` is zero and `cagr_val` is positive,
 /// `f64::NEG_INFINITY` if negative, or `0.0` if both are zero.
 ///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::drawdown::calmar;
-///
-/// // 15% CAGR with 30% max drawdown → Calmar ≈ 0.5
-/// assert!((calmar(0.15, -0.30) - 0.5).abs() < 1e-12);
-/// assert_eq!(calmar(0.15, 0.0), f64::INFINITY);
-/// ```
-///
 /// # References
 ///
 /// - Young (1991): see docs/REFERENCES.md#youngCalmar1991
@@ -695,16 +599,6 @@ pub(crate) fn calmar(cagr_val: f64, max_dd: f64) -> f64 {
 /// The recovery factor. Returns `f64::INFINITY` if `max_dd` is zero and
 /// `total_return` is positive, `f64::NEG_INFINITY` if negative, or `0.0`
 /// if both are zero.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::drawdown::recovery_factor;
-///
-/// // 50% total return with 25% max drawdown → 2.0.
-/// assert!((recovery_factor(0.50, -0.25) - 2.0).abs() < 1e-12);
-/// assert_eq!(recovery_factor(0.50, 0.0), f64::INFINITY);
-/// ```
 #[must_use]
 pub(crate) fn recovery_factor(total_return: f64, max_dd: f64) -> f64 {
     ratio_or_sign_infinity(total_return, max_dd.abs())
@@ -728,16 +622,6 @@ pub(crate) fn recovery_factor(total_return: f64, max_dd: f64) -> f64 {
 ///   negative → `−∞`)
 /// - `0.0` when both `cagr_val == 0.0` and `ulcer == 0.0`
 ///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::drawdown::martin_ratio;
-///
-/// assert!((martin_ratio(0.10, 0.05) - 2.0).abs() < 1e-12);
-/// assert_eq!(martin_ratio(0.10, 0.0), f64::INFINITY);
-/// assert_eq!(martin_ratio(0.0, 0.0), 0.0);
-/// ```
-///
 /// # References
 ///
 /// - Martin (1987): see docs/REFERENCES.md#martinUlcer1987
@@ -750,7 +634,7 @@ pub(crate) fn martin_ratio(cagr_val: f64, ulcer: f64) -> f64 {
 ///
 /// ```text
 /// Sterling = (CAGR − R_f) / |mean_episode_drawdown|
-/// ```ignore
+/// ```
 ///
 /// # Arguments
 ///
@@ -762,15 +646,6 @@ pub(crate) fn martin_ratio(cagr_val: f64, ulcer: f64) -> f64 {
 ///
 /// The Sterling ratio. Returns `±∞` if `avg_dd` is zero and the excess
 /// return is nonzero, or `0.0` if both are zero.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::drawdown::sterling_ratio;
-///
-/// // 12% CAGR, 2% risk-free, −10% avg drawdown → 1.0.
-/// assert!((sterling_ratio(0.12, -0.10, 0.02) - 1.0).abs() < 1e-12);
-/// ```
 ///
 /// # References
 ///
@@ -784,7 +659,7 @@ pub(crate) fn sterling_ratio(cagr_val: f64, avg_dd: f64, risk_free_rate: f64) ->
 ///
 /// ```text
 /// Burke = (CAGR − R_f) / sqrt( (1/n) Σ dd_i² )
-/// ```ignore
+/// ```
 ///
 /// where `dd_i` are the max-drawdown depths of the top-N episodes.
 ///
@@ -804,16 +679,6 @@ pub(crate) fn sterling_ratio(cagr_val: f64, avg_dd: f64, risk_free_rate: f64) ->
 /// The Burke ratio. Returns `0.0` if `dd_episodes` is empty, or `±∞`
 /// if the RMS of episodes is zero with nonzero excess return.
 ///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::drawdown::burke_ratio;
-///
-/// let dds = [-0.10, -0.05, -0.03];
-/// let b = burke_ratio(0.15, &dds, 0.02);
-/// assert!(b > 0.0);
-/// ```
-///
 /// # References
 ///
 /// - Burke (1994): see docs/REFERENCES.md#burke1994
@@ -832,7 +697,7 @@ pub(crate) fn burke_ratio(cagr_val: f64, dd_episodes: &[f64], risk_free_rate: f6
 ///
 /// ```text
 /// Pain Ratio = (CAGR − R_f) / Pain Index
-/// ```ignore
+/// ```
 ///
 /// # Arguments
 ///
@@ -844,14 +709,6 @@ pub(crate) fn burke_ratio(cagr_val: f64, dd_episodes: &[f64], risk_free_rate: f6
 ///
 /// The pain ratio. Returns `±∞` if the pain index is zero and the
 /// excess return is nonzero, or `0.0` if both are zero.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::drawdown::pain_ratio;
-///
-/// assert!((pain_ratio(0.10, 0.05, 0.02) - 1.6).abs() < 1e-12);
-/// ```
 #[must_use]
 pub(crate) fn pain_ratio(cagr_val: f64, pain: f64, risk_free_rate: f64) -> f64 {
     ratio_or_sign_infinity(cagr_val - risk_free_rate, pain)

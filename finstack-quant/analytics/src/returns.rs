@@ -26,16 +26,6 @@ use crate::math::summation::NeumaierAccumulator;
 ///
 /// A `Vec<f64>` of length `prices.len() - 1`. Returns an empty vector for
 /// fewer than two prices.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::returns::pairwise_returns;
-///
-/// let r = pairwise_returns(&[100.0, 110.0, 99.0]);
-/// assert!((r[0] - 0.1).abs() < 1e-12);   // +10%
-/// assert!((r[1] - (-0.1)).abs() < 1e-12); // −10%
-/// ```
 pub(crate) fn pairwise_returns(prices: &[f64]) -> Vec<f64> {
     if prices.len() < 2 {
         return Vec::new();
@@ -70,7 +60,7 @@ fn push_pairwise_returns(prices: &[f64], out: &mut Vec<f64>) {
 ///
 /// ```text
 /// rf_adj = (1 + rf)^(1/nperiods) - 1
-/// ```ignore
+/// ```
 ///
 /// For example, if `rf` is an annualized rate and observations are monthly,
 /// pass `nperiods = 12.0`.
@@ -89,20 +79,6 @@ fn push_pairwise_returns(prices: &[f64], out: &mut Vec<f64>) {
 ///
 /// A `Vec<f64>` of length `min(returns.len(), rf.len())` containing
 /// `returns[i] - rf_adj[i]` for each observation.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::returns::excess_returns;
-///
-/// // Monthly returns, annualized risk-free rate of 10%.
-/// let ret = [0.05, 0.03, -0.02];
-/// let rf  = [0.10, 0.10,  0.10];
-/// let ex  = excess_returns(&ret, &rf, Some(12.0));
-/// // rf_adj ≈ (1.10)^(1/12) − 1 ≈ 0.00797
-/// let rf_adj = 1.1_f64.powf(1.0 / 12.0) - 1.0;
-/// assert!((ex[0] - (0.05 - rf_adj)).abs() < 1e-10);
-/// ```
 pub(crate) fn excess_returns(returns: &[f64], rf: &[f64], nperiods: Option<f64>) -> Vec<f64> {
     let n = returns.len().min(rf.len());
     if let Some(np) = nperiods {
@@ -136,7 +112,7 @@ const MIN_GROWTH_FACTOR: f64 = 1e-18;
 ///
 /// ```text
 /// comp_sum[i] = Π_{j=0}^{i} (1 + r[j]) - 1
-/// ```ignore
+/// ```
 ///
 /// Uses a Neumaier accumulator in log-space for numerical stability on
 /// long series. Growth factors are clamped to `MIN_GROWTH_FACTOR` so
@@ -152,18 +128,6 @@ const MIN_GROWTH_FACTOR: f64 = 1e-18;
 ///
 /// A `Vec<f64>` of the same length as `returns`. Returns an empty vector
 /// if `returns` is empty.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::returns::comp_sum;
-///
-/// let r = [0.01, 0.02, -0.005];
-/// let cs = comp_sum(&r);
-/// // Final value ≈ (1.01 × 1.02 × 0.995) − 1
-/// let expected = 1.01 * 1.02 * 0.995 - 1.0;
-/// assert!((cs[2] - expected).abs() < 1e-12);
-/// ```
 pub(crate) fn comp_sum(returns: &[f64]) -> Vec<f64> {
     let mut acc = NeumaierAccumulator::new();
     let mut out = Vec::with_capacity(returns.len());
@@ -199,22 +163,6 @@ pub(crate) fn comp_sum(returns: &[f64]) -> Vec<f64> {
 /// # Returns
 ///
 /// The total compounded return as a scalar. Returns `0.0` for an empty slice.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::returns::comp_total;
-///
-/// let r = [0.01, 0.02, -0.005];
-/// let ct = comp_total(&r);
-/// let expected = 1.01 * 1.02 * 0.995 - 1.0;
-/// assert!((ct - expected).abs() < 1e-12);
-///
-/// // Handles total wipeout without producing NaN.
-/// let ct_wipeout = comp_total(&[0.05, -1.0, 0.10]);
-/// assert!(ct_wipeout.is_finite());
-/// assert!(ct_wipeout < -0.99);
-/// ```
 #[must_use]
 pub(crate) fn comp_total(returns: &[f64]) -> f64 {
     if returns.is_empty() {

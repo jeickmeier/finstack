@@ -69,16 +69,6 @@ fn finite_returns_copy(returns: &[f64]) -> Option<Vec<f64>> {
 ///
 /// The VaR as a non-positive scalar. Returns `0.0` for an empty slice.
 ///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::risk_metrics::value_at_risk;
-///
-/// let data: Vec<f64> = (-100..=100).map(|i| i as f64 / 100.0).collect();
-/// let var95 = value_at_risk(&data, 0.95);
-/// assert!(var95 < -0.8);
-/// ```
-///
 /// # References
 ///
 /// - J.P. Morgan RiskMetrics (1996): see docs/REFERENCES.md#jpmorgan1996RiskMetrics
@@ -107,7 +97,7 @@ pub(crate) fn value_at_risk(returns: &[f64], confidence: f64) -> f64 {
 ///
 /// ```text
 /// ES_α = E[r | r ≤ VaR_α]
-/// ```ignore
+/// ```
 ///
 /// ES is always at least as bad (negative) as VaR at the same confidence
 /// level, and satisfies the sub-additivity axiom of coherent risk measures.
@@ -132,18 +122,6 @@ pub(crate) fn value_at_risk(returns: &[f64], confidence: f64) -> f64 {
 ///
 /// The Expected Shortfall as a non-positive scalar. Returns `0.0` for
 /// an empty slice.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::risk_metrics::{value_at_risk, expected_shortfall};
-///
-/// let data: Vec<f64> = (-100..=100).map(|i| i as f64 / 100.0).collect();
-/// let var = value_at_risk(&data, 0.95);
-/// let es  = expected_shortfall(&data, 0.95);
-/// // ES must be at least as bad as VaR.
-/// assert!(es <= var);
-/// ```
 ///
 /// # References
 ///
@@ -216,7 +194,7 @@ pub(crate) fn value_at_risk_and_es(returns: &[f64], confidence: f64) -> (f64, f6
 ///
 /// ```text
 /// tail_ratio = |quantile(confidence)| / |quantile(1 - confidence)|
-/// ```ignore
+/// ```
 ///
 /// A value greater than 1.0 indicates that the right tail (gains) is larger
 /// than the left tail (losses) at the symmetric confidence level.
@@ -232,17 +210,6 @@ pub(crate) fn value_at_risk_and_es(returns: &[f64], confidence: f64) -> (f64, f6
 /// The tail ratio (non-negative). Returns `0.0` if `returns` is empty,
 /// [`f64::INFINITY`] when the lower tail quantile is zero but the upper tail
 /// is positive, and [`f64::NAN`] when both tails are zero.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::risk_metrics::tail_ratio;
-///
-/// // Symmetric distribution → tail ratio ≈ 1.
-/// let r: Vec<f64> = (-50..=50).map(|i| i as f64 * 0.01).collect();
-/// let tr = tail_ratio(&r, 0.95);
-/// assert!((tr - 1.0).abs() < 0.1);
-/// ```
 #[must_use]
 pub(crate) fn tail_ratio(returns: &[f64], confidence: f64) -> f64 {
     if returns.is_empty() {
@@ -270,7 +237,7 @@ pub(crate) fn tail_ratio(returns: &[f64], confidence: f64) -> f64 {
 ///
 /// ```text
 /// G₁ = [n / ((n-1)(n-2))] × Σ((r_i − x̄) / s)³
-/// ```ignore
+/// ```
 ///
 /// where `s` is the sample standard deviation (n-1 denominator).
 ///
@@ -282,16 +249,6 @@ pub(crate) fn tail_ratio(returns: &[f64], confidence: f64) -> f64 {
 ///
 /// The bias-corrected sample skewness. Returns `0.0` for fewer than 3
 /// observations or zero-variance series.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::risk_metrics::skewness;
-///
-/// // Symmetric distribution → skewness ≈ 0.
-/// let r: Vec<f64> = (-50..=50).map(|i| i as f64 * 0.01).collect();
-/// assert!(skewness(&r).abs() < 1e-10);
-/// ```
 ///
 /// # References
 ///
@@ -314,7 +271,7 @@ pub(crate) fn skewness(returns: &[f64]) -> f64 {
 /// ```text
 /// G₂ = [n(n+1) / ((n-1)(n-2)(n-3))] × Σ((r_i − x̄) / s)⁴
 ///      − 3(n-1)² / ((n-2)(n-3))
-/// ```ignore
+/// ```
 ///
 /// where `s` is the sample standard deviation (n-1 denominator).
 ///
@@ -326,16 +283,6 @@ pub(crate) fn skewness(returns: &[f64]) -> f64 {
 ///
 /// Bias-corrected excess kurtosis. Returns `0.0` for fewer than 4
 /// observations or zero-variance series.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::risk_metrics::kurtosis;
-///
-/// // Uniform distribution has negative excess kurtosis.
-/// let r: Vec<f64> = (0..1000).map(|i| i as f64 / 1000.0).collect();
-/// assert!(kurtosis(&r) < 0.0);
-/// ```
 ///
 /// # References
 ///
@@ -362,7 +309,7 @@ pub(crate) fn skew_kurt(returns: &[f64]) -> (f64, f64) {
 ///
 /// ```text
 /// VaR = μ + z_(1−α) × σ
-/// ```ignore
+/// ```
 ///
 /// where `z_(1−α)` is the standard normal quantile at `(1 - confidence)`.
 ///
@@ -376,16 +323,6 @@ pub(crate) fn skew_kurt(returns: &[f64]) -> (f64, f64) {
 /// # Returns
 ///
 /// The parametric VaR (typically negative). Returns `0.0` for an empty slice.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::risk_metrics::parametric_var;
-///
-/// let r: Vec<f64> = (-100..=100).map(|i| i as f64 / 100.0).collect();
-/// let pvar = parametric_var(&r, 0.95, None);
-/// assert!(pvar < 0.0);
-/// ```
 ///
 /// # References
 ///
@@ -417,7 +354,7 @@ pub(crate) fn parametric_var(returns: &[f64], confidence: f64, ann_factor: Optio
 /// ```text
 /// z_cf = z + (z² − 1)S/6 + (z³ − 3z)K/24 − (2z³ − 5z)S²/36
 /// VaR_CF = μ + z_cf × σ
-/// ```ignore
+/// ```
 ///
 /// where `S` is skewness and `K` is excess kurtosis.
 ///
@@ -453,18 +390,6 @@ pub(crate) fn parametric_var(returns: &[f64], confidence: f64, ann_factor: Optio
 /// the function falls back to the parametric (Gaussian) VaR and logs a
 /// `tracing::warn!` diagnostic with the offending `(skewness, kurtosis,
 /// confidence)` triple.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::risk_metrics::{parametric_var, cornish_fisher_var};
-///
-/// let r: Vec<f64> = (-100..=100).map(|i| i as f64 / 100.0).collect();
-/// let pvar = parametric_var(&r, 0.95, None);
-/// let cfvar = cornish_fisher_var(&r, 0.95, None);
-/// // For a uniform distribution, CF-VaR differs from parametric.
-/// assert!(cfvar < 0.0);
-/// ```
 ///
 /// # References
 ///

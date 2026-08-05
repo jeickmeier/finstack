@@ -119,23 +119,6 @@ fn date_to_period_id(
 ///
 /// A `Vec<(PeriodId, f64)>` in chronological order. Returns an empty
 /// vector if either `dates` or `returns` is empty.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::aggregation::group_by_period;
-/// use finstack_quant_core::dates::{Date, Month, PeriodId, PeriodKind};
-///
-/// let dates = vec![
-///     Date::from_calendar_date(2025, Month::January, 2).unwrap(),
-///     Date::from_calendar_date(2025, Month::January, 3).unwrap(),
-///     Date::from_calendar_date(2025, Month::February, 3).unwrap(),
-/// ];
-/// let returns = vec![0.01, 0.02, -0.01];
-/// let grouped = group_by_period(&dates, &returns, PeriodKind::Monthly, None);
-/// assert_eq!(grouped.len(), 2);
-/// assert_eq!(grouped[0].0, PeriodId::month(2025, 1));
-/// ```
 pub(crate) fn group_by_period(
     dates: &[Date],
     returns: &[f64],
@@ -215,24 +198,6 @@ pub(crate) fn group_by_period_dated(
 /// # Returns
 ///
 /// A [`PeriodStats`] struct. If `grouped` is empty, all fields are `0.0` / `0`.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::aggregation::period_stats_from_grouped;
-/// use finstack_quant_core::dates::PeriodId;
-///
-/// let grouped = vec![
-///     (PeriodId::month(2025, 1),  0.05),
-///     (PeriodId::month(2025, 2), -0.02),
-///     (PeriodId::month(2025, 3),  0.03),
-///     (PeriodId::month(2025, 4),  0.01),
-/// ];
-/// let stats = period_stats_from_grouped(&grouped);
-/// assert!((stats.best  - 0.05).abs() < 1e-12);
-/// assert!((stats.worst - (-0.02)).abs() < 1e-12);
-/// assert!((stats.win_rate - 0.75).abs() < 1e-12);
-/// ```
 pub(crate) fn period_stats_from_grouped(grouped: &[(PeriodId, f64)]) -> PeriodStats {
     // The period-id label is discarded; the stats depend only on the return
     // series. Feeding the kernel an iterator over the compounded returns keeps

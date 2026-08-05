@@ -97,21 +97,6 @@ fn nan_series(dates: &[Date], start: usize, len: usize) -> DatedSeries {
 ///
 /// A [`DatedSeries`] with `values` and `dates` of equal length. Returns
 /// empty vectors if `window` is zero or larger than the series length.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::risk_metrics::rolling_sharpe;
-/// use finstack_quant_core::dates::{Date, Duration, Month};
-///
-/// let returns: Vec<f64> = (0..20).map(|i| (i as f64 - 10.0) * 0.001).collect();
-/// let dates: Vec<Date> = (0..20)
-///     .map(|i| Date::from_calendar_date(2025, Month::January, 1).unwrap()
-///         + Duration::days(i))
-///     .collect();
-/// let rs = rolling_sharpe(&returns, &dates, 5, 252.0, 0.0);
-/// assert_eq!(rs.values.len(), 16); // 20 − 5 + 1
-/// ```
 pub(crate) fn rolling_sharpe(
     returns: &[f64],
     dates: &[Date],
@@ -160,21 +145,6 @@ pub(crate) fn rolling_sharpe(
 ///
 /// A [`DatedSeries`] with `n - window + 1` values. Returns empty
 /// vectors if `window` is zero or larger than the series length.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::risk_metrics::rolling_volatility;
-/// use finstack_quant_core::dates::{Date, Duration, Month};
-///
-/// let returns: Vec<f64> = (0..20).map(|i| (i as f64 - 10.0) * 0.001).collect();
-/// let dates: Vec<Date> = (0..20)
-///     .map(|i| Date::from_calendar_date(2025, Month::January, 1).unwrap()
-///         + Duration::days(i))
-///     .collect();
-/// let rv = rolling_volatility(&returns, &dates, 5, 252.0);
-/// assert_eq!(rv.values.len(), 16);
-/// ```
 pub(crate) fn rolling_volatility(
     returns: &[f64],
     dates: &[Date],
@@ -222,21 +192,6 @@ pub(crate) fn rolling_volatility(
 ///
 /// A [`DatedSeries`] with `n - window + 1` values. Returns empty
 /// vectors if `window` is zero or larger than the series length.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::risk_metrics::rolling_sortino;
-/// use finstack_quant_core::dates::{Date, Duration, Month};
-///
-/// let returns: Vec<f64> = (0..20).map(|i| (i as f64 - 10.0) * 0.001).collect();
-/// let dates: Vec<Date> = (0..20)
-///     .map(|i| Date::from_calendar_date(2025, Month::January, 1).unwrap()
-///         + Duration::days(i))
-///     .collect();
-/// let rs = rolling_sortino(&returns, &dates, 5, 252.0, 0.0);
-/// assert_eq!(rs.values.len(), 16);
-/// ```
 pub(crate) fn rolling_sortino(
     returns: &[f64],
     dates: &[Date],

@@ -37,20 +37,6 @@ fn select_range(dates: &[Date], period_start: Date, ref_date: Date) -> Range<usi
 ///
 /// A `Range<usize>` into `dates` covering the MTD window.
 /// The range may be empty if no dates fall within the window.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_core::dates::{Date, Month};
-/// use finstack_quant_analytics::lookback::mtd_select;
-///
-/// let dates: Vec<Date> = (1..=28)
-///     .map(|d| Date::from_calendar_date(2025, Month::January, d).unwrap())
-///     .collect();
-/// let range = mtd_select(&dates, Date::from_calendar_date(2025, Month::January, 15).unwrap());
-/// assert_eq!(range.start, 0);
-/// assert_eq!(range.end, 15);
-/// ```
 pub(crate) fn mtd_select(dates: &[Date], ref_date: Date) -> Range<usize> {
     let month_start = ref_date.replace_day(1).unwrap_or(ref_date);
     select_range(dates, month_start, ref_date)
@@ -70,21 +56,6 @@ pub(crate) fn mtd_select(dates: &[Date], ref_date: Date) -> Range<usize> {
 /// # Returns
 ///
 /// A `Range<usize>` into `dates` covering the QTD window.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_core::dates::{Date, Duration, Month};
-/// use finstack_quant_analytics::lookback::qtd_select;
-///
-/// let dates: Vec<Date> = (1..=60)
-///     .map(|d| Date::from_calendar_date(2025, Month::January, 1).unwrap()
-///         + Duration::days(d - 1))
-///     .collect();
-/// let range = qtd_select(&dates, Date::from_calendar_date(2025, Month::February, 15).unwrap());
-/// assert_eq!(range.start, 0);
-/// assert!(range.end > 30);
-/// ```
 pub(crate) fn qtd_select(dates: &[Date], ref_date: Date) -> Range<usize> {
     let q = ref_date.quarter();
     let quarter_start_month = (q - 1) * 3 + 1;
@@ -109,21 +80,6 @@ pub(crate) fn qtd_select(dates: &[Date], ref_date: Date) -> Range<usize> {
 /// # Returns
 ///
 /// A `Range<usize>` into `dates` covering the YTD window.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_core::dates::{Date, Duration, Month};
-/// use finstack_quant_analytics::lookback::ytd_select;
-///
-/// let dates: Vec<Date> = (0..60)
-///     .map(|d| Date::from_calendar_date(2025, Month::January, 1).unwrap()
-///         + Duration::days(d))
-///     .collect();
-/// let range = ytd_select(&dates, Date::from_calendar_date(2025, Month::February, 15).unwrap());
-/// assert_eq!(range.start, 0);
-/// assert!(range.end > 30);
-/// ```
 pub(crate) fn ytd_select(dates: &[Date], ref_date: Date) -> Range<usize> {
     let (year, _month, _day) = ref_date.to_calendar_date();
     let year_start = crate::dates::create_date(year, Month::January, 1).unwrap_or(ref_date);

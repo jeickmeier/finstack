@@ -80,7 +80,7 @@ impl CagrBasis {
 ///
 /// ```text
 /// CAGR = (Π(1 + r_i))^(1/years) - 1
-/// ```ignore
+/// ```
 ///
 /// where `years` comes either from an explicit date range or from a
 /// periods-per-year factor, depending on `basis`.
@@ -99,7 +99,6 @@ impl CagrBasis {
 /// Returns [`crate::error::InputError::Invalid`] when `returns` is empty, a
 /// date basis has a non-positive span, or a factor basis uses a non-positive or
 /// non-finite annualization factor.
-///
 pub(crate) fn cagr(returns: &[f64], basis: CagrBasis) -> crate::Result<f64> {
     if returns.is_empty() {
         tracing::debug!(reason = "empty_returns", "invalid CAGR input");
@@ -180,7 +179,7 @@ fn annualized_years(
 ///
 /// ```text
 /// μ_ann = μ_period × ann_factor
-/// ```ignore
+/// ```
 ///
 /// This is **simple** annualization of the average **per-period** return, not a
 /// compounded (geometric) annual return. For growth over time that compounds
@@ -199,19 +198,6 @@ fn annualized_years(
 /// Arithmetic mean return, annualized if requested. Returns `0.0` for an
 /// empty slice. When `annualize` is `true`, returns [`f64::NAN`] if `ann_factor`
 /// is not finite or is `<= 0`.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::risk_metrics::mean_return;
-///
-/// let r = [0.01, 0.02, 0.03];
-/// let m = mean_return(&r, false, 252.0);
-/// assert!((m - 0.02).abs() < 1e-12);
-///
-/// let m_ann = mean_return(&r, true, 252.0);
-/// assert!((m_ann - 0.02 * 252.0).abs() < 1e-10);
-/// ```
 #[must_use]
 pub(crate) fn mean_return(returns: &[f64], annualize: bool, ann_factor: f64) -> f64 {
     if invalid_annualization_factor(annualize, ann_factor) {
@@ -244,17 +230,6 @@ pub(crate) fn mean_return(returns: &[f64], annualize: bool, ann_factor: f64) -> 
 /// [`f64::NAN`] if `ann_factor` is not finite or is `<= 0`.
 ///
 /// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::risk_metrics::volatility;
-///
-/// let r = [0.01, -0.01, 0.02, -0.02];
-/// let vol = volatility(&r, false, 252.0);
-/// assert!(vol > 0.0);
-///
-/// let vol_ann = volatility(&r, true, 252.0);
-/// assert!((vol_ann - vol * 252.0_f64.sqrt()).abs() < 1e-12);
-/// ```
 /// Annualized mean and volatility from one Welford pass.
 ///
 /// Equivalent to `(mean_return(returns, true, ann_factor),
@@ -301,16 +276,6 @@ pub(crate) fn volatility(returns: &[f64], annualize: bool, ann_factor: f64) -> f
 /// excess return is positive, `f64::NEG_INFINITY` if negative, and `0.0`
 /// if both are zero (matching [`sortino`] convention).
 ///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::risk_metrics::sharpe;
-///
-/// assert!((sharpe(0.10, 0.15, 0.0) - 0.6667).abs() < 0.001);
-/// // Zero volatility with positive excess → +∞.
-/// assert_eq!(sharpe(0.10, 0.0, 0.0), f64::INFINITY);
-/// ```
-///
 /// # References
 ///
 /// - Sharpe (1966): see docs/REFERENCES.md#sharpe1966
@@ -337,7 +302,7 @@ pub(crate) fn sharpe(ann_return: f64, ann_vol: f64, risk_free_rate: f64) -> f64 
 ///
 /// ```text
 /// DD = sqrt( (1/n) × Σ min(r_i − MAR, 0)² )
-/// ```ignore
+/// ```
 ///
 /// # Arguments
 ///
@@ -352,20 +317,6 @@ pub(crate) fn sharpe(ann_return: f64, ann_vol: f64, risk_free_rate: f64) -> f64 
 /// The downside deviation (non-negative). Returns `0.0` for an empty
 /// slice or when no returns fall below `mar`. When `annualize` is `true`,
 /// returns [`f64::NAN`] if `ann_factor` is not finite or is `<= 0`.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::risk_metrics::downside_deviation;
-///
-/// let r = [0.01, -0.02, 0.03, -0.01, 0.005];
-/// let dd = downside_deviation(&r, 0.0, false, 252.0);
-/// assert!(dd > 0.0);
-///
-/// // All returns above MAR → zero downside deviation.
-/// let dd_pos = downside_deviation(&[0.01, 0.02, 0.03], 0.0, false, 252.0);
-/// assert_eq!(dd_pos, 0.0);
-/// ```
 ///
 /// # References
 ///
@@ -402,7 +353,7 @@ pub(crate) fn downside_deviation(
 ///
 /// ```text
 /// Sortino = (annualized mean return) / (annualized downside deviation)
-/// ```ignore
+/// ```
 ///
 /// Downside deviation is computed over the full return series (denominator
 /// is `n`, not the number of negative observations), consistent with the
@@ -421,16 +372,6 @@ pub(crate) fn downside_deviation(
 /// are no negative returns (zero downside risk), and `0.0` when the
 /// mean is zero or the downside deviation is zero. When `annualize` is
 /// `true`, returns [`f64::NAN`] if `ann_factor` is not finite or is `<= 0`.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::risk_metrics::sortino;
-///
-/// let r = [0.01, 0.02, 0.03, -0.005, 0.01];
-/// let s = sortino(&r, false, 252.0, 0.0);
-/// assert!(s > 0.0);
-/// ```
 ///
 /// # References
 ///
@@ -464,7 +405,7 @@ pub(crate) fn sortino(returns: &[f64], annualize: bool, ann_factor: f64, mar: f6
 ///
 /// ```text
 /// geo_mean = (Π(1 + r_i))^(1/n) − 1
-/// ```ignore
+/// ```
 ///
 /// Computed in log-space with Kahan summation for numerical stability.
 /// Returns [`f64::NEG_INFINITY`] if any return is `<= -1.0`, which
@@ -478,20 +419,6 @@ pub(crate) fn sortino(returns: &[f64], annualize: bool, ann_factor: f64, mar: f6
 /// # Returns
 ///
 /// The geometric mean return. Returns [`f64::NAN`] for an empty slice.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::risk_metrics::geometric_mean;
-///
-/// // +10% then −10%: geometric mean < 0 (volatility drag).
-/// let gm = geometric_mean(&[0.10, -0.10]);
-/// assert!(gm < 0.0);
-///
-/// // Constant 5% → geometric mean = 5%.
-/// let gm5 = geometric_mean(&[0.05, 0.05, 0.05]);
-/// assert!((gm5 - 0.05).abs() < 1e-12);
-/// ```
 #[must_use]
 pub(crate) fn geometric_mean(returns: &[f64]) -> f64 {
     if returns.is_empty() {
@@ -518,7 +445,7 @@ pub(crate) fn geometric_mean(returns: &[f64]) -> f64 {
 ///
 /// ```text
 /// Ω(L) = Σ max(r_i − L, 0) / Σ max(L − r_i, 0)
-/// ```ignore
+/// ```
 ///
 /// Unlike the Sharpe ratio (which uses only mean and variance), the Omega
 /// ratio incorporates the full return distribution.
@@ -533,16 +460,6 @@ pub(crate) fn geometric_mean(returns: &[f64]) -> f64 {
 /// The Omega ratio. Returns `f64::INFINITY` if gains exist but no losses,
 /// `1.0` if all returns equal the threshold (neutral outcome per
 /// Keating-Shadwick), and [`f64::NAN`] for an empty slice.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::risk_metrics::omega_ratio;
-///
-/// let r = [0.05, -0.02, 0.03, -0.01, 0.04];
-/// let omega = omega_ratio(&r, 0.0);
-/// assert!(omega > 1.0);
-/// ```
 ///
 /// # References
 ///
@@ -571,7 +488,7 @@ pub(crate) fn omega_ratio(returns: &[f64], threshold: f64) -> f64 {
 ///
 /// ```text
 /// GtP = Σ r_i / Σ |r_i|   for r_i < 0
-/// ```ignore
+/// ```
 ///
 /// Popular among CTA and systematic macro managers as a simple
 /// measure of return efficiency relative to the pain of drawdowns.
@@ -584,16 +501,6 @@ pub(crate) fn omega_ratio(returns: &[f64], threshold: f64) -> f64 {
 ///
 /// The gain-to-pain ratio. Returns `f64::INFINITY` when total return is
 /// positive but there are no losses, and [`f64::NAN`] for an empty slice.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::risk_metrics::gain_to_pain;
-///
-/// let r = [0.05, -0.02, 0.03, -0.01, 0.04];
-/// let gtp = gain_to_pain(&r);
-/// assert!(gtp > 0.0);
-/// ```
 ///
 /// # References
 ///
@@ -618,7 +525,7 @@ pub(crate) fn gain_to_pain(returns: &[f64]) -> f64 {
 ///
 /// ```text
 /// Modified Sharpe = (R_p − R_f) / |CF-VaR|
-/// ```ignore
+/// ```
 ///
 /// # Arguments
 ///
@@ -631,16 +538,6 @@ pub(crate) fn gain_to_pain(returns: &[f64]) -> f64 {
 ///
 /// The Modified Sharpe ratio. Returns `0.0` for empty slices and
 /// [`f64::NAN`] when the Cornish-Fisher VaR is unexpectedly non-negative.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_analytics::risk_metrics::modified_sharpe;
-///
-/// let r = [-0.06, -0.03, -0.02, 0.01, 0.02, 0.025, 0.03, 0.04];
-/// let ms = modified_sharpe(&r, 0.02, 0.95, 252.0);
-/// assert!(ms.is_finite());
-/// ```
 ///
 /// # References
 ///
