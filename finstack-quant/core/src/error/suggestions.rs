@@ -14,17 +14,6 @@
 ///
 /// Returns an empty string if no suggestions, otherwise formats them
 /// for inclusion in an error message.
-///
-/// # Examples
-///
-/// ```ignore
-/// assert_eq!(format_suggestions(&[]), "");
-/// assert_eq!(format_suggestions(&["foo".to_string()]), ". Did you mean 'foo'?");
-/// assert_eq!(
-///     format_suggestions(&["foo".to_string(), "bar".to_string()]),
-///     ". Did you mean one of: foo, bar?"
-/// );
-/// ```
 pub(crate) fn format_suggestions(suggestions: &[String]) -> String {
     if suggestions.is_empty() {
         String::new()
@@ -57,14 +46,6 @@ pub(crate) fn format_suggestions(suggestions: &[String]) -> String {
 ///   m = length of `requested`, n = average length of available identifiers.
 ///   Each edit distance computation is O(m × n).
 /// - **Space**: O(m + n) for edit distance computation plus O(k) for results.
-///
-/// # Examples
-///
-/// ```ignore
-/// let available = ["USD_OIS", "EUR_OIS", "GBP_OIS"];
-/// let suggestions = fuzzy_suggestions("USD_OS", available.iter().copied());
-/// assert!(suggestions.contains(&"USD_OIS".to_string()));
-/// ```
 pub(crate) fn fuzzy_suggestions<'a>(
     requested: &str,
     available: impl Iterator<Item = &'a str>,

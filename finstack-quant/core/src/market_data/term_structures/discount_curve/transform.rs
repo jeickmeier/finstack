@@ -153,7 +153,7 @@ impl DiscountCurve {
     /// Returns an error if the bumped curve violates validation constraints.
     ///
     /// # Examples
-    /// ```ignore
+    /// ```
     /// use finstack_quant_core::market_data::term_structures::DiscountCurve;
     /// use time::macros::date;
     /// # fn main() -> finstack_quant_core::Result<()> {
@@ -249,7 +249,7 @@ impl DiscountCurve {
     /// can only happen if extrapolation past the last knot misbehaves).
     ///
     /// # Examples
-    /// ```ignore
+    /// ```
     /// use finstack_quant_core::market_data::term_structures::DiscountCurve;
     /// use time::macros::date;
     /// # fn main() -> finstack_quant_core::Result<()> {

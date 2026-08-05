@@ -624,7 +624,7 @@ impl ForwardCurve {
     /// Returns an error if the bumped curve violates validation constraints.
     ///
     /// # Examples
-    /// ```ignore
+    /// ```
     /// use finstack_quant_core::market_data::term_structures::ForwardCurve;
     /// use time::macros::date;
     /// # fn main() -> finstack_quant_core::Result<()> {
@@ -805,7 +805,7 @@ impl ForwardCurve {
     /// Returns an error if fewer than 2 knot points remain after filtering expired points.
     ///
     /// # Examples
-    /// ```ignore
+    /// ```
     /// use finstack_quant_core::market_data::term_structures::ForwardCurve;
     /// use time::macros::date;
     /// # fn main() -> finstack_quant_core::Result<()> {
@@ -817,9 +817,14 @@ impl ForwardCurve {
     ///     .build()
     ///     ?;
     ///
-    /// // Roll 6 months forward - the 0.5Y point expires
+    /// // Roll 6 months forward.
     /// let rolled = curve.roll_forward(182)?;
-    /// assert!(rolled.knots().len() < curve.knots().len());
+    /// assert_eq!(rolled.base_date(), date!(2025 - 07 - 02));
+    ///
+    /// // The rolled curve is re-anchored at t = 0, and every surviving knot
+    /// // has moved half a year closer to the new base date.
+    /// assert!(rolled.knots()[0].abs() < 1e-12);
+    /// assert!(rolled.knots().last().is_some_and(|&t| t < 5.0));
     /// # Ok(())
     /// # }
     /// ```

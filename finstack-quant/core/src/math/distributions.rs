@@ -10,12 +10,9 @@
 //! - **Binomial**: Binary outcomes (coin flips, defaults)
 //!
 //! ## Continuous Distributions
-//! - **Exponential**: Inter-arrival times, default timing, hazard rates
 //! - **Gamma**: Shape-scale family, variance modeling
 //! - **Beta**: Bounded \[0,1\] values (recovery rates, correlations)
-//! - **Log-Normal**: Positive-valued quantities (asset prices, LGD)
 //! - **Chi-Squared**: Variance estimation, CIR model, hypothesis testing
-//! - **Student's t**: Fat-tailed returns, robust statistics
 //!
 //! # Numerical Stability
 //!
@@ -26,10 +23,8 @@
 //!
 //! # Use Cases
 //!
-//! - **Credit modeling**: Binomial for defaults, Exponential for default timing
-//! - **Recovery simulation**: Beta and Log-Normal for recovery rate uncertainty
-//! - **Asset pricing**: Log-Normal for GBM price simulation
-//! - **Risk metrics**: Student's t for fat-tailed VaR/ES
+//! - **Credit modeling**: Binomial for defaults in a homogeneous pool
+//! - **Recovery simulation**: Beta for recovery-rate uncertainty
 //! - **Interest rates**: Chi-Squared for CIR model variance process
 //! - **Bayesian inference**: Beta as conjugate prior for Bernoulli
 //!
@@ -45,48 +40,29 @@
 //! assert!((prob - 0.24609375).abs() < 1e-6);
 //! ```
 //!
-//! ## Exponential distribution for default timing
+//! ## Beta sampling for recovery-rate uncertainty
 //!
 //! ```
-//! use finstack_quant_core::math::distributions::sample_exponential;
+//! use finstack_quant_core::math::distributions::sample_beta;
 //! use finstack_quant_core::math::random::Pcg64Rng;
 //! use finstack_quant_core::math::RandomNumberGenerator;
 //!
 //! let mut rng = Pcg64Rng::new(42);
 //!
-//! // Sample default time with 5% annual hazard rate (expected: 20 years)
-//! let default_time = sample_exponential(&mut rng as &mut dyn RandomNumberGenerator, 0.05)?;
-//! assert!(default_time >= 0.0);
+//! // Recovery rate ~ Beta(4, 2), peaked around 65%
+//! let recovery = sample_beta(&mut rng as &mut dyn RandomNumberGenerator, 4.0, 2.0)?;
+//! assert!((0.0..=1.0).contains(&recovery));
 //! # Ok::<(), finstack_quant_core::Error>(())
 //! ```
 //!
-//! ## Log-Normal for asset price simulation
+//! ## Chi-squared quantile for CIR variance
 //!
 //! ```
-//! use finstack_quant_core::math::distributions::sample_lognormal;
-//! use finstack_quant_core::math::random::Pcg64Rng;
-//! use finstack_quant_core::math::RandomNumberGenerator;
+//! use finstack_quant_core::math::distributions::chi_squared_quantile;
 //!
-//! let mut rng = Pcg64Rng::new(42);
-//!
-//! // Sample price factor: S_T = S_0 * exp((μ-σ²/2)T + σ√T Z)
-//! let price_factor = sample_lognormal(&mut rng as &mut dyn RandomNumberGenerator, 0.0, 0.2)?;
-//! assert!(price_factor > 0.0);
-//! # Ok::<(), finstack_quant_core::Error>(())
-//! ```
-//!
-//! ## Student's t for heavy-tailed simulation
-//!
-//! ```
-//! use finstack_quant_core::math::distributions::sample_student_t;
-//! use finstack_quant_core::math::random::Pcg64Rng;
-//! use finstack_quant_core::math::RandomNumberGenerator;
-//!
-//! let mut rng = Pcg64Rng::new(42);
-//!
-//! // Sample from t(5) - heavier tails than Normal
-//! let t = sample_student_t(&mut rng as &mut dyn RandomNumberGenerator, 5.0)?;
-//! assert!(t.is_finite());
+//! // 95th percentile with one degree of freedom.
+//! let x_95 = chi_squared_quantile(0.95, 1.0)?;
+//! assert!((x_95 - 3.841).abs() < 0.01);
 //! # Ok::<(), finstack_quant_core::Error>(())
 //! ```
 //!

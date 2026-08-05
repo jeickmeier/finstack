@@ -917,7 +917,9 @@ pub enum HestonCfStatus {
 /// * `j` — probability index (1 for the stock numeraire, 2 for money market)
 /// * `phi` — Fourier variable
 /// * `log_spot` — natural log of the spot price
-/// * `r`, `q` — risk-free rate and dividend yield
+/// * `r` — continuously compounded risk-free rate as a decimal (0.05 = 5%)
+/// * `q` — continuously compounded dividend yield (or foreign rate for FX) as
+///   a decimal (0.02 = 2%)
 /// * `t` — time to maturity in years
 /// * `params` — Heston parameters (v0, κ, θ, σ, ρ)
 ///

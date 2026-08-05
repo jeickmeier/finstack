@@ -26,7 +26,7 @@
 //!
 //! For accurate day counting that respects holidays and business day conventions:
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_core::dates::{Tenor, DayCount, DayCountContext, BusinessDayConvention};
 //! use finstack_quant_core::dates::calendar::TARGET2;
 //! use time::macros::date;

@@ -125,7 +125,7 @@ impl DiscountCurveBuilder {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_core::market_data::term_structures::DiscountCurve;
     /// # use time::macros::date;
     /// # fn main() -> finstack_quant_core::Result<()> {

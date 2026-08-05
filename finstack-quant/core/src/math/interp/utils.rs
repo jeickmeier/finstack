@@ -186,7 +186,9 @@ pub(crate) fn find_monotone_violation(values: &[f64], base_tol: f64) -> Option<(
 /// # Arguments
 ///
 /// * `knots` - Ascending `(x, y)` pairs. An empty slice yields `0.0`.
-/// * `x` - Query point.
+/// * `x` - Abscissa to evaluate, in the same units as the knot `x` values
+///   (year fractions for the curve callers in this workspace). Values below
+///   the first knot or above the last clamp to that endpoint's `y`.
 ///
 /// # Returns
 ///

@@ -33,7 +33,7 @@
 //!
 //! Use `finstack_quant_core::dates` to convert calendar dates to year fractions:
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_core::dates::{DayCount, DayCountContext};
 //! use finstack_quant_core::math::time_grid::TimeGrid;
 //! use time::macros::date;
@@ -92,7 +92,7 @@ impl TimeGrid {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// // 1 year with 252 trading days
     /// use finstack_quant_core::math::time_grid::TimeGrid;
     /// # fn main() -> finstack_quant_core::Result<()> {
@@ -267,7 +267,7 @@ impl TimeGrid {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// // Custom grid with more steps near expiry
     /// use finstack_quant_core::math::time_grid::TimeGrid;
     /// # fn main() -> finstack_quant_core::Result<()> {
