@@ -54,12 +54,6 @@ use serde::{Deserialize, Serialize};
 /// and quoted.
 pub const STANDARD_TENORS: &[f64] = &[0.25, 0.5, 1.0, 2.0, 3.0, 5.0, 7.0, 10.0, 30.0];
 
-/// ATM reference strike multiplier (1.0 = 100% of spot).
-pub const ATM_MONEYNESS: f64 = 1.0;
-
-/// Default volatility surface expiry for sampling (1 year).
-pub const DEFAULT_VOL_EXPIRY: f64 = 1.0;
-
 // Tenor Sampling Method
 
 /// Method for selecting tenor points when measuring curve shifts.

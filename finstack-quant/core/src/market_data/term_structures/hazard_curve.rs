@@ -374,21 +374,6 @@ impl HazardCurve {
         Ok(self.hazard_rate(t))
     }
 
-    /// Default probability between two dates using the curve's day-count.
-    ///
-    /// This is the date-based equivalent of [`default_prob`](Self::default_prob).
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if year fraction calculation fails or if `d2 < d1`.
-    #[inline]
-    #[must_use = "computed default probability should not be discarded"]
-    pub fn default_prob_on_dates(&self, d1: Date, d2: Date) -> crate::Result<f64> {
-        let t1 = self.year_fraction_to(d1)?;
-        let t2 = self.year_fraction_to(d2)?;
-        self.default_prob(t1, t2)
-    }
-
     /// Evaluate survival probabilities at the provided calendar dates.
     ///
     /// Each date is converted to a year fraction from [`Self::base_date`] with
@@ -968,15 +953,6 @@ impl HazardCurveBuilder {
     /// round-trip path and by curve builders propagating metadata.
     pub fn fx_policy_opt(mut self, policy: Option<String>) -> Self {
         self.fx_policy = policy;
-        self
-    }
-
-    /// Remove the upper bound on hazard rates (sets the limit to infinity).
-    ///
-    /// Useful for stress-testing or distressed-credit scenarios where very high
-    /// hazard rates are intentional.
-    pub fn allow_high_hazard_rates(mut self) -> Self {
-        self.max_hazard_rate = f64::INFINITY;
         self
     }
 

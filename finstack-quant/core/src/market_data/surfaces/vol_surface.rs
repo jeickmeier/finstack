@@ -1229,74 +1229,7 @@ impl VolSurface {
     }
 }
 
-impl VolSurface {
-    /// Construct a volatility surface from SABR parameters evaluated on a grid.
-    ///
-    /// This is a convenience constructor that evaluates the Hagan (2002) SABR
-    /// approximation at each (expiry, strike) point to create a grid surface.
-    ///
-    /// # Arguments
-    ///
-    /// * `id` - Surface identifier
-    /// * `forward` - Forward rate (assumed constant across expiries for simplicity)
-    /// * `params` - SABR parameters (alpha, beta, rho, nu)
-    /// * `expiries` - Expiry times in years
-    /// * `strikes` - Strike rates
-    ///
-    /// # Returns
-    ///
-    /// A new `VolSurface` with implied vols from SABR at each grid point.
-    ///
-    /// # Errors
-    ///
-    /// Propagates SABR implied-volatility failures for an invalid forward,
-    /// strike, expiry, or parameter combination, and the grid-validation
-    /// failures from [`VolSurfaceBuilder::build`].
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use finstack_quant_core::market_data::surfaces::VolSurface;
-    /// use finstack_quant_core::math::volatility::sabr::SabrParams;
-    ///
-    /// let params = SabrParams::new(0.035, 0.5, -0.2, 0.4).unwrap();
-    /// let surface = VolSurface::from_sabr(
-    ///     "SABR-USD-5Y",
-    ///     0.05,
-    ///     &params,
-    ///     &[0.5, 1.0, 2.0, 5.0],
-    ///     &[0.03, 0.04, 0.05, 0.06, 0.07],
-    /// ).expect("SABR surface should build");
-    /// ```
-    pub fn from_sabr(
-        id: impl Into<CurveId>,
-        forward: f64,
-        params: &crate::math::volatility::sabr::SabrParams,
-        expiries: &[f64],
-        strikes: &[f64],
-    ) -> crate::Result<Self> {
-        let id: CurveId = id.into();
-        let mut builder = VolSurface::builder(id.clone())
-            .expiries(expiries)
-            .strikes(strikes);
-
-        let mut floored = 0usize;
-        for &t in expiries {
-            let row: Vec<f64> = strikes
-                .iter()
-                .map(|&k| {
-                    params
-                        .implied_vol_lognormal(forward, k, t)
-                        .map(|vol| super::floor_sabr_vol(vol, &mut floored))
-                })
-                .collect::<crate::Result<_>>()?;
-            builder = builder.row(&row);
-        }
-        super::warn_sabr_vol_floored("VolSurface::from_sabr", &id, floored);
-
-        builder.build()
-    }
-}
+impl VolSurface {}
 
 fn validate_axis(axis: &[f64]) -> crate::Result<()> {
     if axis.is_empty() {
@@ -1340,50 +1273,6 @@ mod tests {
         );
         // clamped path (below min strike/expiry uses flat extrapolation)
         assert!((vs.value_clamped(0.5, 80.0) - 0.2).abs() < 1e-12);
-    }
-
-    #[test]
-    fn from_sabr_constructs_valid_surface() {
-        use crate::math::volatility::sabr::SabrParams;
-
-        let params = SabrParams::new(0.035, 0.5, -0.2, 0.4).expect("valid SABR params");
-        let expiries = [0.5, 1.0, 2.0, 5.0];
-        let strikes = [0.03, 0.04, 0.05, 0.06, 0.07];
-
-        let surface = VolSurface::from_sabr("SABR-TEST", 0.05, &params, &expiries, &strikes)
-            .expect("from_sabr should build a valid surface");
-
-        // Grid shape should match inputs
-        assert_eq!(surface.grid_shape(), (4, 5));
-
-        // All vols should be positive and finite
-        for &t in &expiries {
-            for &k in &strikes {
-                let vol = surface
-                    .value_checked(t, k)
-                    .expect("grid point should be in bounds");
-                assert!(vol > 0.0, "vol({t}, {k}) = {vol} should be positive");
-                assert!(vol.is_finite(), "vol({t}, {k}) = {vol} should be finite");
-            }
-        }
-
-        // ATM vol should be reasonable (order of magnitude check)
-        let atm_vol = surface
-            .value_checked(1.0, 0.05)
-            .expect("ATM lookup should succeed");
-        assert!(
-            atm_vol > 0.01 && atm_vol < 2.0,
-            "ATM vol {atm_vol} should be in reasonable range"
-        );
-
-        // With negative rho, expect left skew: low-strike vol > ATM vol
-        let low_strike_vol = surface
-            .value_checked(1.0, 0.03)
-            .expect("low strike lookup should succeed");
-        assert!(
-            low_strike_vol > atm_vol,
-            "Expected left skew: vol(K=3%) = {low_strike_vol:.4} should be > vol(ATM) = {atm_vol:.4}"
-        );
     }
 
     fn smile_surface() -> VolSurface {
