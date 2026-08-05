@@ -20,9 +20,6 @@ pub mod heston_defaults {
     pub const V0: f64 = 0.04;
 }
 
-pub(super) const HESTON_G_DENOM_EPS: f64 = 1e-8;
-pub(super) const HESTON_EXPONENT_REAL_LIMIT: f64 = 700.0;
-
 /// Truncated-tail mass (on the probability scale) above which the Gil-Pelaez
 /// integral is considered mis-truncated and a diagnostic is surfaced.
 ///

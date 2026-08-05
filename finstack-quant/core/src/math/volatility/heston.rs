@@ -871,75 +871,147 @@ impl HestonParams {
     /// which places −d in the numerator of g, ensuring |g exp(−dT)| < 1
     /// and avoiding branch-cut discontinuities.
     fn char_func_j(&self, j: u8, phi: f64, x: f64, r: f64, q: f64, t: f64) -> Complex64 {
-        let kappa = self.kappa;
-        let theta = self.theta;
-        let sigma = self.sigma;
-        let rho = self.rho;
-        let v0 = self.v0;
-
-        let i = Complex64::i();
-        let one = Complex64::new(1.0, 0.0);
-        let zero = Complex64::new(0.0, 0.0);
-
-        // For P₁: u = 0.5, b = κ − ρσ  (stock numeraire)
-        // For P₂: u = −0.5, b = κ       (money market numeraire)
-        let (u_j, b_j) = if j == 1 {
-            (0.5, kappa - rho * sigma)
-        } else {
-            (-0.5, kappa)
-        };
-
-        let a = kappa * theta;
-        let sigma_sq = sigma * sigma;
-
-        // d = sqrt((ρσiφ − b)² − σ²(2u_j iφ − φ²))
-        let rsi_phi = Complex64::new(0.0, rho * sigma * phi);
-        let b = Complex64::new(b_j, 0.0);
-        let d_sq = (rsi_phi - b).powi(2) - sigma_sq * (Complex64::new(-phi * phi, 2.0 * u_j * phi));
-        let d = d_sq.sqrt();
-
-        // Little Heston Trap: g = (b − ρσiφ − d)/(b − ρσiφ + d)
-        let bm = b - rsi_phi;
-        let g_denom = bm + d;
-        let g_denom_limit = HESTON_G_DENOM_EPS * (1.0 + bm.norm() + d.norm());
-        if !g_denom.is_finite() || g_denom.norm() <= g_denom_limit {
-            return zero;
-        }
-        let g = (bm - d) / g_denom;
-        if !g.is_finite() {
-            return zero;
-        }
-
-        let exp_minus_dt = (-d * t).exp();
-        if !exp_minus_dt.is_finite() {
-            return zero;
-        }
-
-        // C = (r−q)iφT + (a/σ²)[(b−ρσiφ−d)T − 2 ln((1−g exp(−dT))/(1−g))]
-        let c_val = i * phi * (r - q) * t
-            + (a / sigma_sq)
-                * ((bm - d) * t
-                    - Complex64::new(2.0, 0.0) * ((one - g * exp_minus_dt) / (one - g)).ln());
-
-        // D = (b−ρσiφ−d)/σ² × (1−exp(−dT))/(1−g exp(−dT))
-        let d_val = ((bm - d) / sigma_sq) * (one - exp_minus_dt) / (one - g * exp_minus_dt);
-        if !c_val.is_finite() || !d_val.is_finite() {
-            return zero;
-        }
-
-        let exponent = c_val + d_val * v0 + i * phi * x;
-        if !exponent.is_finite() || exponent.re > HESTON_EXPONENT_REAL_LIMIT {
-            return zero;
-        }
-
-        // ψ_j(φ) = exp(C + D v₀ + iφx)
-        let psi = exponent.exp();
-        if psi.is_finite() {
-            psi
-        } else {
-            zero
-        }
+        // Delegates to the shared canonical CF; this driver treats a zeroed
+        // value the same whether it overflowed or underflowed.
+        heston_pj_characteristic_function(j, phi, x, r, q, t, self).0
     }
+}
+
+/// Outcome of a single Heston characteristic-function evaluation.
+///
+/// Distinguishes the two ways ψ_j(φ) can legitimately come back as zero:
+///
+/// - [`HestonCfStatus::Overflow`] — an intermediate was non-finite or the
+///   exponent guard tripped. The value is *corrupt*; callers that track
+///   integration health should count the node.
+/// - [`HestonCfStatus::Underflow`] — every intermediate was well-formed but
+///   |ψ| underflowed to exactly zero deep in the decayed tail. Contributing
+///   zero is the *correct* value there, so such nodes must not trip a
+///   corruption fallback.
+///
+/// Conflating the two makes long-dated / high-κθ surfaces fall back to a
+/// Black-Scholes price unnecessarily.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HestonCfStatus {
+    /// Finite, non-zero value.
+    Ok,
+    /// Well-formed inputs; |ψ| underflowed to exactly zero (legitimate).
+    Underflow,
+    /// Non-finite intermediate or exponent guard hit; value zeroed (corrupt).
+    Overflow,
+}
+
+/// Heston probability characteristic function ψ_j(φ) for j ∈ {1, 2}.
+///
+/// This is the single canonical implementation of the "Little Heston Trap"
+/// formulation (Albrecher et al. 2007) for the workspace. It places −d in the
+/// numerator of g and uses `exp(−dT)`, which avoids both the branch-cut
+/// discontinuity and the `exp(+dT)` overflow of the original Heston (1993)
+/// formulation.
+///
+/// Integration strategy is deliberately *not* part of this function: callers
+/// supply their own quadrature over φ and differ in how they truncate.
+///
+/// # Arguments
+///
+/// * `j` — probability index (1 for the stock numeraire, 2 for money market)
+/// * `phi` — Fourier variable
+/// * `log_spot` — natural log of the spot price
+/// * `r`, `q` — risk-free rate and dividend yield
+/// * `t` — time to maturity in years
+/// * `params` — Heston parameters (v0, κ, θ, σ, ρ)
+///
+/// # Returns
+///
+/// `(ψ_j(φ), status)` — the value (zeroed on overflow/underflow) plus a
+/// [`HestonCfStatus`] telling the caller whether a zero is legitimate.
+///
+/// # References
+///
+/// - Albrecher, H., Mayer, P., Schoutens, W., & Tistaert, J. (2007).
+///   "The Little Heston Trap." *Wilmott Magazine*, January 2007.
+/// - Heston, S. L. (1993). "A Closed-Form Solution for Options with
+///   Stochastic Volatility." *Review of Financial Studies*, 6(2), 327-343.
+#[must_use]
+pub fn heston_pj_characteristic_function(
+    j: u8,
+    phi: f64,
+    log_spot: f64,
+    r: f64,
+    q: f64,
+    t: f64,
+    params: &HestonParams,
+) -> (Complex64, HestonCfStatus) {
+    let kappa = params.kappa;
+    let theta = params.theta;
+    let sigma = params.sigma;
+    let rho = params.rho;
+    let v0 = params.v0;
+
+    let i = Complex64::i();
+    let one = Complex64::new(1.0, 0.0);
+    let zero = Complex64::new(0.0, 0.0);
+
+    // For P₁: u = 0.5, b = κ − ρσ  (stock numeraire)
+    // For P₂: u = −0.5, b = κ       (money market numeraire)
+    let (u_j, b_j) = if j == 1 {
+        (0.5, kappa - rho * sigma)
+    } else {
+        (-0.5, kappa)
+    };
+
+    let a = kappa * theta;
+    let sigma_sq = sigma * sigma;
+
+    // d = sqrt((ρσiφ − b)² − σ²(2u_j iφ − φ²))
+    let rsi_phi = Complex64::new(0.0, rho * sigma * phi);
+    let b = Complex64::new(b_j, 0.0);
+    let d_sq = (rsi_phi - b).powi(2) - sigma_sq * (Complex64::new(-phi * phi, 2.0 * u_j * phi));
+    let d = d_sq.sqrt();
+
+    // Little Heston Trap: g = (b − ρσiφ − d)/(b − ρσiφ + d)
+    let bm = b - rsi_phi;
+    let g_denom = bm + d;
+    let g_denom_limit = HESTON_G_DENOM_EPS * (1.0 + bm.norm() + d.norm());
+    if !g_denom.is_finite() || g_denom.norm() <= g_denom_limit {
+        return (zero, HestonCfStatus::Overflow);
+    }
+    let g = (bm - d) / g_denom;
+    if !g.is_finite() {
+        return (zero, HestonCfStatus::Overflow);
+    }
+
+    let exp_minus_dt = (-d * t).exp();
+    if !exp_minus_dt.is_finite() {
+        return (zero, HestonCfStatus::Overflow);
+    }
+
+    // C = (r−q)iφT + (a/σ²)[(b−ρσiφ−d)T − 2 ln((1−g exp(−dT))/(1−g))]
+    let c_val = i * phi * (r - q) * t
+        + (a / sigma_sq)
+            * ((bm - d) * t
+                - Complex64::new(2.0, 0.0) * ((one - g * exp_minus_dt) / (one - g)).ln());
+
+    // D = (b−ρσiφ−d)/σ² × (1−exp(−dT))/(1−g exp(−dT))
+    let d_val = ((bm - d) / sigma_sq) * (one - exp_minus_dt) / (one - g * exp_minus_dt);
+    if !c_val.is_finite() || !d_val.is_finite() {
+        return (zero, HestonCfStatus::Overflow);
+    }
+
+    let exponent = c_val + d_val * v0 + i * phi * log_spot;
+    if !exponent.is_finite() || exponent.re > HESTON_EXPONENT_REAL_LIMIT {
+        return (zero, HestonCfStatus::Overflow);
+    }
+
+    // ψ_j(φ) = exp(C + D v₀ + iφx)
+    let psi = exponent.exp();
+    if !psi.is_finite() {
+        return (zero, HestonCfStatus::Overflow);
+    }
+    if psi.norm_sqr() == 0.0 {
+        return (zero, HestonCfStatus::Underflow);
+    }
+    (psi, HestonCfStatus::Ok)
 }
 
 /// Black-Scholes fallback for degenerate Heston (σ_v ≈ 0).
