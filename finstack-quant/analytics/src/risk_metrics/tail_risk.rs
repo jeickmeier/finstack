@@ -15,6 +15,7 @@
 //! - empty inputs return `0.0` rather than panicking
 
 use crate::math::stats::mean_var;
+use finstack_quant_core::math::stats::quantile;
 
 fn has_strict_confidence(confidence: f64) -> bool {
     confidence.is_finite() && confidence > 0.0 && confidence < 1.0
@@ -38,33 +39,6 @@ fn finite_returns_copy(returns: &[f64]) -> Option<Vec<f64>> {
         data.push(value);
     }
     Some(data)
-}
-
-fn quantile_finite(data: &mut [f64], p: f64) -> f64 {
-    let n = data.len();
-    debug_assert!(n > 0);
-    debug_assert!((0.0..=1.0).contains(&p));
-
-    if n == 1 {
-        return data[0];
-    }
-
-    let h = (n - 1) as f64 * p;
-    let lo = h.floor() as usize;
-    let hi = lo + 1;
-    let frac = h - lo as f64;
-    data.select_nth_unstable_by(lo, |a, b| {
-        a.partial_cmp(b).unwrap_or(core::cmp::Ordering::Equal)
-    });
-    let v_lo = data[lo];
-    if hi >= n || frac == 0.0 {
-        return v_lo;
-    }
-    data[lo + 1..].select_nth_unstable_by(0, |a, b| {
-        a.partial_cmp(b).unwrap_or(core::cmp::Ordering::Equal)
-    });
-    let v_hi = data[lo + 1];
-    v_lo + frac * (v_hi - v_lo)
 }
 
 /// Historical Value-at-Risk at the given confidence level.
@@ -124,7 +98,7 @@ pub(crate) fn value_at_risk(returns: &[f64], confidence: f64) -> f64 {
     let Some(mut data) = finite_returns_copy(returns) else {
         return f64::NAN;
     };
-    quantile_finite(&mut data, 1.0 - confidence)
+    quantile(&mut data, 1.0 - confidence)
 }
 /// Expected Shortfall (CVaR / ES) at the given confidence level.
 ///
@@ -190,7 +164,7 @@ pub(crate) fn expected_shortfall(returns: &[f64], confidence: f64) -> f64 {
     let Some(mut data) = finite_returns_copy(returns) else {
         return f64::NAN;
     };
-    let var_threshold = quantile_finite(&mut data, 1.0 - confidence);
+    let var_threshold = quantile(&mut data, 1.0 - confidence);
     let (tail_sum, tail_count) = data
         .iter()
         .filter(|&&v| v <= var_threshold)
@@ -223,7 +197,7 @@ pub(crate) fn value_at_risk_and_es(returns: &[f64], confidence: f64) -> (f64, f6
     let Some(mut data) = finite_returns_copy(returns) else {
         return (f64::NAN, f64::NAN);
     };
-    let var_threshold = quantile_finite(&mut data, 1.0 - confidence);
+    let var_threshold = quantile(&mut data, 1.0 - confidence);
     let (tail_sum, tail_count) = data
         .iter()
         .filter(|&&v| v <= var_threshold)
@@ -280,8 +254,8 @@ pub(crate) fn tail_ratio(returns: &[f64], confidence: f64) -> f64 {
     let Some(mut data) = finite_returns_copy(returns) else {
         return f64::NAN;
     };
-    let upper = quantile_finite(&mut data, confidence).abs();
-    let lower = quantile_finite(&mut data, 1.0 - confidence).abs();
+    let upper = quantile(&mut data, confidence).abs();
+    let lower = quantile(&mut data, 1.0 - confidence).abs();
     if lower == 0.0 {
         return if upper > 0.0 { f64::INFINITY } else { f64::NAN };
     }
