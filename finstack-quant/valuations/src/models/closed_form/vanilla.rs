@@ -45,7 +45,7 @@
 //! - Garman, M. B., & Kohlhagen, S. W. (1983). "Foreign Currency Option Values."
 
 use crate::instruments::common_impl::parameters::OptionType;
-use crate::models::volatility::black::{d1, d1_d2, d1_d2_black76};
+use crate::models::volatility::black::{d1, d1_d2};
 use finstack_quant_core::math::special_functions::norm_pdf;
 use finstack_quant_core::{Error, Result};
 use std::fmt;
@@ -552,12 +552,7 @@ pub fn bs_greeks_checked(
 #[must_use]
 #[inline]
 pub fn black76_call(forward: f64, strike: f64, sigma: f64, t: f64) -> f64 {
-    if t <= 0.0 || sigma <= 0.0 || forward <= 0.0 || strike <= 0.0 {
-        return (forward - strike).max(0.0);
-    }
-    let (d1, d2) = d1_d2_black76(forward, strike, sigma, t);
-    forward * finstack_quant_core::math::norm_cdf(d1)
-        - strike * finstack_quant_core::math::norm_cdf(d2)
+    finstack_quant_core::math::volatility::black_call(forward, strike, sigma, t)
 }
 
 /// Black-76 undiscounted put price (option on a forward).
@@ -579,12 +574,7 @@ pub fn black76_call(forward: f64, strike: f64, sigma: f64, t: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn black76_put(forward: f64, strike: f64, sigma: f64, t: f64) -> f64 {
-    if t <= 0.0 || sigma <= 0.0 || forward <= 0.0 || strike <= 0.0 {
-        return (strike - forward).max(0.0);
-    }
-    let (d1, d2) = d1_d2_black76(forward, strike, sigma, t);
-    strike * finstack_quant_core::math::norm_cdf(-d2)
-        - forward * finstack_quant_core::math::norm_cdf(-d1)
+    finstack_quant_core::math::volatility::black_put(forward, strike, sigma, t)
 }
 
 /// Black-Scholes vega (same for both calls and puts).
