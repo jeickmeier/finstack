@@ -8,9 +8,6 @@
 use crate::error::Result;
 use crate::evaluator::context::EvaluationContext;
 use finstack_quant_core::dates::PeriodId;
-use finstack_quant_core::math::{
-    mean_or_nan, median_or_nan, sample_std_or_nan, sample_variance_or_nan,
-};
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
@@ -158,31 +155,6 @@ pub(crate) fn collect_period_range_values(
         .filter(|(period, _)| **period >= start && **period <= end)
         .map(|(_, value)| *value)
         .collect())
-}
-
-/// Calculate mean of values.
-pub(crate) fn calculate_mean(values: &[f64]) -> Result<f64> {
-    Ok(mean_or_nan(values))
-}
-
-/// Calculate standard deviation of values.
-///
-/// Uses sample standard deviation (sqrt of sample variance) per financial industry standards.
-pub(crate) fn calculate_std(values: &[f64]) -> Result<f64> {
-    Ok(sample_std_or_nan(values))
-}
-
-/// Calculate variance of values.
-///
-/// Uses sample variance (Bessel's correction with n-1 denominator) per financial industry standards.
-/// This is the unbiased estimator required by Bloomberg, Excel VAR.S(), pandas.var(ddof=1), etc.
-pub(crate) fn calculate_variance(values: &[f64]) -> Result<f64> {
-    Ok(sample_variance_or_nan(values))
-}
-
-/// Calculate median of values.
-pub(crate) fn calculate_median(values: &[f64]) -> Result<f64> {
-    Ok(median_or_nan(values))
 }
 
 #[cfg(test)]

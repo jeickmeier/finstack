@@ -1,7 +1,6 @@
 //! Formula-evaluation helpers for statement expressions.
 //!
 use super::formula::{
-    calculate_mean, calculate_median, calculate_std, calculate_variance,
     collect_all_historical_values, collect_expression_values_sorted,
     collect_expression_window_values, collect_period_range_values, collect_rolling_window_values,
     eval_error, evaluate_non_negative_integer_arg, require_args, require_min_args,
@@ -12,6 +11,9 @@ use crate::error::Result;
 use finstack_quant_core::dates::PeriodKind;
 use finstack_quant_core::expr::{Expr, ExprNode, Function};
 use finstack_quant_core::math::{finite_count, finite_max_or_nan, finite_min_or_nan, neumaier_sum};
+use finstack_quant_core::math::{
+    mean_or_nan, median_or_nan, sample_std_or_nan, sample_variance_or_nan,
+};
 
 /// NaN policy for aggregate helpers: **skip non-finite values** (pandas
 /// `skipna=True`).
@@ -152,11 +154,11 @@ fn evaluate_rolling_function(
     }
 
     match func {
-        Function::RollingMean => calculate_mean(&values),
+        Function::RollingMean => Ok(mean_or_nan(&values)),
         Function::RollingSum => Ok(neumaier_sum(values.iter().copied())),
-        Function::RollingStd => calculate_std(&values),
-        Function::RollingVar => calculate_variance(&values),
-        Function::RollingMedian => calculate_median(&values),
+        Function::RollingStd => Ok(sample_std_or_nan(&values)),
+        Function::RollingVar => Ok(sample_variance_or_nan(&values)),
+        Function::RollingMedian => Ok(median_or_nan(&values)),
         Function::RollingMin => Ok(finite_min_or_nan(&values)),
         Function::RollingMax => Ok(finite_max_or_nan(&values)),
         Function::RollingCount => Ok(finite_count(&values) as f64),
@@ -179,9 +181,9 @@ fn evaluate_statistical_function(
     let values = retain_finite(&raw_values);
 
     match func {
-        Function::Std => calculate_std(&values),
-        Function::Var => calculate_variance(&values),
-        Function::Median => calculate_median(&values),
+        Function::Std => Ok(sample_std_or_nan(&values)),
+        Function::Var => Ok(sample_variance_or_nan(&values)),
+        Function::Median => Ok(median_or_nan(&values)),
         _ => Err(eval_error(
             node_id,
             format!("Function {:?} is not a statistical function", func),

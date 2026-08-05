@@ -32,7 +32,6 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 
 pub(crate) use crate::evaluator::formula_helpers::{
-    calculate_mean, calculate_median, calculate_std, calculate_variance,
     collect_all_historical_values, collect_period_range_values, collect_rolling_window_values,
 };
 
@@ -607,7 +606,7 @@ mod tests {
         let mut values = vec![1e16];
         values.extend(std::iter::repeat_n(1.0, 256));
 
-        let precise = calculate_mean(&values).expect("mean should succeed");
+        let precise = finstack_quant_core::math::mean_or_nan(&values);
         let reference = kahan_sum(values.iter().copied()) / values.len() as f64;
         let naive = values.iter().sum::<f64>() / values.len() as f64;
 
