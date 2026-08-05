@@ -10,8 +10,8 @@
 use finstack_quant_core::Result;
 
 use crate::instruments::common_impl::parameters::OptionType;
-use crate::models::closed_form::greeks::bs_vega;
 use crate::models::closed_form::vanilla::bs_price;
+use crate::models::closed_form::vanilla::bs_vega;
 
 /// Error returned when implied volatility cannot be bracketed (target price may exceed arbitrage bounds).
 ///

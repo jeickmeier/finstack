@@ -45,7 +45,8 @@
 //! - Garman, M. B., & Kohlhagen, S. W. (1983). "Foreign Currency Option Values."
 
 use crate::instruments::common_impl::parameters::OptionType;
-use crate::models::volatility::black::{d1_d2, d1_d2_black76};
+use crate::models::volatility::black::{d1, d1_d2, d1_d2_black76};
+use finstack_quant_core::math::special_functions::norm_pdf;
 use finstack_quant_core::{Error, Result};
 use std::fmt;
 
@@ -586,6 +587,78 @@ pub fn black76_put(forward: f64, strike: f64, sigma: f64, t: f64) -> f64 {
         - forward * finstack_quant_core::math::norm_cdf(-d1)
 }
 
+/// Black-Scholes vega (same for both calls and puts).
+///
+/// Vega measures the sensitivity of the option price to changes in implied
+/// volatility. Not technically a "Greek" letter, but universally called vega.
+///
+/// # Formula
+///
+/// ```text
+/// ν = S · e^(-qT) · √T · φ(d₁)
+/// ```
+///
+/// # Interpretation
+///
+/// - **Volatility exposure**: Change in option value per 1% change in volatility
+/// - **Always positive**: Long options have positive vega (benefit from vol increases)
+/// - **Time decay**: Vega decreases as expiration approaches
+/// - **Peaks at ATM**: Maximum vega when spot ≈ strike
+///
+/// # Convention
+///
+/// Vega is typically quoted per 1% (0.01) change in volatility. Some systems
+/// quote per 1bp (0.0001) change, so verify conventions.
+///
+/// # Arguments
+///
+/// * `spot` - Current spot price S
+/// * `strike` - Exercise price K in the same units as the underlying spot.
+/// * `time` - Time to expiration T (in years)
+/// * `rate` - Risk-free rate r (continuously compounded)
+/// * `div_yield` - Dividend yield q (continuously compounded)
+/// * `vol` - Volatility σ (annualized)
+///
+/// # Returns
+///
+/// Vega value (per 1% change in volatility). Returns 0.0 at expiration.
+///
+/// # Examples
+///
+/// ```ignore
+/// use finstack_quant_valuations::models::closed_form::bs_vega;
+///
+/// let spot = 100.0;
+/// let strike = 100.0;
+/// let time = 1.0;
+/// let rate = 0.05;
+/// let div_yield = 0.0;
+/// let vol = 0.20;
+///
+/// let vega = bs_vega(spot, strike, time, rate, div_yield, vol);
+/// assert!(vega > 0.0); // Always positive for long options
+///
+/// // Vega decreases as expiration approaches
+/// let vega_short = bs_vega(spot, strike, 0.25, rate, div_yield, vol);
+/// assert!(vega > vega_short);
+/// ```
+#[must_use]
+pub fn bs_vega(spot: f64, strike: f64, time: f64, rate: f64, div_yield: f64, vol: f64) -> f64 {
+    // At expiry, or at zero/negative volatility, the option value is the
+    // deterministic intrinsic — it carries no volatility sensitivity, so vega
+    // is exactly 0. The `vol <= 0` guard is required because `d1_d2` returns a
+    // finite `d1 = 0` for an ATM option at `σ = 0`, and `norm_pdf(0) ≈ 0.399`
+    // would otherwise yield a spurious non-zero vega. This mirrors the
+    // `vol <= 0` guard already present in `bs_gamma`.
+    if time <= 0.0 || vol <= 0.0 {
+        return 0.0;
+    }
+
+    let d1_val = d1(spot, strike, rate, vol, time, div_yield);
+    // Scale by 0.01 to represent sensitivity per 1% vol change
+    0.01 * spot * (-div_yield * time).exp() * time.sqrt() * norm_pdf(d1_val)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -932,5 +1005,27 @@ mod tests {
                 assert!(greeks.delta <= 0.0);
             }
         }
+    }
+
+    #[test]
+    fn bs_vega_is_zero_for_zero_sigma() {
+        // Exactly-ATM, zero vol: the failure case from the audit.
+        let v_atm = bs_vega(100.0, 100.0, 1.0, 0.05, 0.02, 0.0);
+        assert_eq!(v_atm, 0.0, "σ=0 ATM vega must be 0, got {v_atm}");
+
+        // The guard must be consistent across moneyness, not just ATM.
+        assert_eq!(bs_vega(100.0, 90.0, 1.0, 0.05, 0.02, 0.0), 0.0);
+        assert_eq!(bs_vega(100.0, 110.0, 1.0, 0.05, 0.02, 0.0), 0.0);
+        // Negative vol is also non-physical and must be guarded.
+        assert_eq!(bs_vega(100.0, 100.0, 1.0, 0.05, 0.02, -0.1), 0.0);
+
+        // The aggregator must apply the same guard.
+        let call = bs_greeks(100.0, 100.0, 0.05, 0.02, 0.0, 1.0, OptionType::Call, 365.0);
+        let put = bs_greeks(100.0, 100.0, 0.05, 0.02, 0.0, 1.0, OptionType::Put, 365.0);
+        assert_eq!(call.vega, 0.0, "σ=0 call aggregator vega must be 0");
+        assert_eq!(put.vega, 0.0, "σ=0 put aggregator vega must be 0");
+
+        // Positive vol still yields a strictly positive vega (no over-zealous guard).
+        assert!(bs_vega(100.0, 100.0, 1.0, 0.05, 0.02, 0.2) > 0.0);
     }
 }

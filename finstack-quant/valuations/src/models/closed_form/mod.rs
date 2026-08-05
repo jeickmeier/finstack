@@ -129,7 +129,7 @@
 //!
 //! # See Also
 //!
-//! - [`greeks`] for Black-Scholes Greeks (delta, gamma, vega, theta, rho)
+//! - [`vanilla`] for Black-Scholes pricing and Greeks (delta, gamma, vega, theta, rho)
 //! - [`asian`] for Asian option pricing
 //! - [`barrier`] for barrier option pricing
 //! - [`lookback`] for lookback option pricing
@@ -138,7 +138,6 @@
 
 pub mod asian;
 pub mod barrier;
-pub mod greeks;
 pub mod heston;
 pub mod implied_vol;
 pub mod lookback;
@@ -154,10 +153,6 @@ pub use barrier::{
     barrier_call_continuous, barrier_put_continuous, barrier_rebate, down_in_call, down_out_call,
     up_in_call, up_out_call, BarrierType, RebateTiming,
 };
-pub use greeks::{
-    bs_call_delta, bs_call_greeks, bs_call_rho, bs_call_theta, bs_gamma, bs_put_delta,
-    bs_put_greeks, bs_put_rho, bs_put_theta, bs_vega,
-};
 pub use heston::{heston_call_price_fourier, heston_put_price_fourier, HestonParams};
 pub use implied_vol::{black76_implied_vol, bs_implied_vol};
 pub use lookback::{
@@ -166,6 +161,6 @@ pub use lookback::{
 };
 pub use quanto::{quanto_call, quanto_drift_adjustment, quanto_put};
 pub use vanilla::{
-    black76_call, black76_put, bs_greeks, bs_greeks_checked, bs_price, bs_price_checked,
+    black76_call, black76_put, bs_greeks, bs_greeks_checked, bs_price, bs_price_checked, bs_vega,
     checked_closed_form_value, option_type_from_bool, BsGreeks, ONE_PERCENT,
 };
