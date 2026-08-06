@@ -23,17 +23,15 @@ stay self-contained.
 from __future__ import annotations
 
 import datetime
+from datetime import date as dt_date, timedelta
 import json
 import math
-from datetime import date as dt_date
-from datetime import timedelta
 
 import pandas as pd
 import pytest
 
 from finstack_quant.analytics import MultiFactorResult, Performance
-from finstack_quant.core.credit import liability_management, recovery_waterfall
-from finstack_quant.core.credit import pd as credit_pd
+from finstack_quant.core.credit import liability_management, pd as credit_pd, recovery_waterfall
 from finstack_quant.core.market_data import FxMatrix, ScalarTimeSeries
 from finstack_quant.factor_model.credit import (
     CreditCalibrator,
