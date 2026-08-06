@@ -187,9 +187,32 @@ impl TreeGreeks {
     /// # Example
     ///
     /// ```
-    /// let coarse = tree_n.calculate_greeks(...)?;
-    /// let fine = tree_2n.calculate_greeks(...)?;
+    /// use finstack_quant_valuations::models::trees::TreeGreeks;
+    ///
+    /// // Greeks from an N-step tree and from a 2N-step tree.
+    /// let coarse = TreeGreeks {
+    ///     price: 10.00,
+    ///     delta: 0.50,
+    ///     gamma: 0.020,
+    ///     vega: 0.30,
+    ///     theta: -0.010,
+    ///     rho: 0.040,
+    /// };
+    /// let fine = TreeGreeks {
+    ///     price: 10.10,
+    ///     delta: 0.52,
+    ///     gamma: 0.021,
+    ///     vega: 0.31,
+    ///     theta: -0.011,
+    ///     rho: 0.041,
+    /// };
+    ///
     /// let improved = TreeGreeks::richardson_extrapolate(&coarse, &fine);
+    ///
+    /// // Richardson extrapolation is `(4 * fine - coarse) / 3`, so it steps past
+    /// // the fine estimate in the direction the refinement was already moving.
+    /// assert!((improved.price - (4.0 * 10.10 - 10.00) / 3.0).abs() < 1e-12);
+    /// assert!(improved.delta > fine.delta);
     /// ```
     ///
     /// # References

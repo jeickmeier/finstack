@@ -13,32 +13,9 @@ use std::sync::Arc;
 /// This struct consolidates optional parameters for `Instrument::price_with_metrics`,
 /// replacing the proliferation of `_with_config`, `_with_market_history` variants.
 ///
-/// # Examples
-///
-/// ## Basic usage (no options)
-///
-/// ```
-/// let result = instrument.price_with_metrics(
-///     &market,
-///     as_of,
-///     &metrics,
-///     PricingOptions::default(),
-/// )?;
-/// ```
-///
-/// ## With custom config
-///
-/// ```
-/// let opts = PricingOptions::default().with_config(&my_config);
-/// let result = instrument.price_with_metrics(&market, as_of, &metrics, opts)?;
-/// ```
-///
-/// ## With market history for VaR
-///
-/// ```
-/// let opts = PricingOptions::default().with_market_history(history);
-/// let result = instrument.price_with_metrics(&market, as_of, &metrics, opts)?;
-/// ```
+/// Pass [`PricingOptions::default`] when no overrides are needed, or chain
+/// [`PricingOptions::with_config`] and [`PricingOptions::with_market_history`]
+/// to supply a metric configuration or the history required by historical VaR.
 #[derive(Clone, Default)]
 pub struct PricingOptions {
     /// Optional configuration for metric computation (bump sizes, tolerances, etc.)

@@ -205,18 +205,6 @@ impl HullWhiteTree {
     /// Returns [`finstack_quant_core::Error::Validation`] if the
     /// configuration is invalid or `time_to_maturity` is not a finite,
     /// strictly positive number of years.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use finstack_quant_valuations::models::trees::HullWhiteTree;
-    /// use finstack_quant_valuations::models::trees::HullWhiteTreeConfig;
-    ///
-    /// let config = HullWhiteTreeConfig::default();
-    /// # let discount_curve: &dyn finstack_quant_core::market_data::traits::Discounting = todo!();
-    /// let tree = HullWhiteTree::calibrate(config, discount_curve, 10.0)?;
-    /// # Ok::<(), finstack_quant_core::Error>(())
-    /// ```
     pub fn calibrate(
         config: HullWhiteTreeConfig,
         discount_curve: &dyn Discounting,

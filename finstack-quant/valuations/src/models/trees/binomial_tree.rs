@@ -797,18 +797,6 @@ impl BinomialGreeks {
     /// ```
     ///
     /// This achieves O(h⁴) accuracy instead of O(h²).
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// let tree_n = BinomialTree::crr(100);
-    /// let tree_2n = BinomialTree::crr(200);
-    ///
-    /// let greeks_n = tree_n.calculate_greeks(&params, ExerciseStyle::American)?;
-    /// let greeks_2n = tree_2n.calculate_greeks(&params, ExerciseStyle::American)?;
-    ///
-    /// let improved = BinomialGreeks::richardson_extrapolate(&greeks_n, &greeks_2n);
-    /// ```
     #[must_use]
     pub fn richardson_extrapolate(coarse: &Self, fine: &Self) -> Self {
         Self {

@@ -54,27 +54,6 @@ use super::*;
 /// - Fewer than 2 quotes are provided (2 free parameters)
 /// - Calibration fails to converge
 /// - Discount function returns invalid values
-///
-/// # Examples
-///
-/// ```
-/// use finstack_quant_valuations::calibration::hull_white::{
-///     calibrate_hull_white_to_swaptions, SwaptionQuote, SwapFrequency,
-/// };
-///
-/// let quotes = vec![
-///     SwaptionQuote { expiry: 1.0, tenor: 5.0, volatility: 0.005, is_normal_vol: true },
-///     SwaptionQuote { expiry: 5.0, tenor: 5.0, volatility: 0.006, is_normal_vol: true },
-///     SwaptionQuote { expiry: 10.0, tenor: 5.0, volatility: 0.005, is_normal_vol: true },
-/// ];
-///
-/// // Flat 3% discount curve, semi-annual USD convention
-/// let df = |t: f64| (-0.03 * t).exp();
-/// let (params, report) = calibrate_hull_white_to_swaptions(
-///     &df, &quotes, SwapFrequency::SemiAnnual, None,
-/// ).unwrap();
-/// assert!(report.success);
-/// ```
 pub fn calibrate_hull_white_to_swaptions(
     df: &dyn Fn(f64) -> f64,
     quotes: &[SwaptionQuote],

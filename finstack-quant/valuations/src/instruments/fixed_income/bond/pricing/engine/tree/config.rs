@@ -269,8 +269,11 @@ impl Default for TreePricerConfig {
 /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
 /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::tree::bond_tree_config;
 ///
-/// let bond = Bond::example().unwrap();
+/// # fn main() -> finstack_quant_core::Result<()> {
+/// let bond = Bond::example()?;
 /// let config = bond_tree_config(&bond)?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn bond_tree_config(bond: &Bond) -> finstack_quant_core::Result<TreePricerConfig> {
     let implied_volatility = bond

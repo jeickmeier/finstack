@@ -47,12 +47,6 @@ where
     ///
     /// This is a convenience method equivalent to `new(instrument_type, ModelKey::Discounting)`.
     /// Use this when the instrument uses simple cashflow discounting without specialized models.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// let irs_pricer = GenericInstrumentPricer::<InterestRateSwap>::discounting(InstrumentType::Irs);
-    /// ```
     pub fn discounting(instrument_type: InstrumentType) -> Self {
         Self::new(instrument_type, ModelKey::Discounting)
     }

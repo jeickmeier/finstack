@@ -319,34 +319,6 @@ impl FxForward {
     /// * `notional` - Notional in base currency
     /// * `domestic_discount_curve_id` - Quote currency discount curve
     /// * `foreign_discount_curve_id` - Base currency discount curve
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// // USD/CAD forward (T+1 settlement)
-    /// let usdcad = FxForward::from_trade_date_auto(
-    ///     "USDCAD-1M",
-    ///     Currency::USD,
-    ///     Currency::CAD,
-    ///     trade_date,
-    ///     30,
-    ///     notional,
-    ///     "CAD-OIS",
-    ///     "USD-OIS",
-    /// )?;
-    ///
-    /// // EUR/USD forward (T+2 settlement)
-    /// let eurusd = FxForward::from_trade_date_auto(
-    ///     "EURUSD-1M",
-    ///     Currency::EUR,
-    ///     Currency::USD,
-    ///     trade_date,
-    ///     30,
-    ///     notional,
-    ///     "USD-OIS",
-    ///     "EUR-OIS",
-    /// )?;
-    /// ```
     #[allow(clippy::too_many_arguments)]
     pub fn from_trade_date_auto(
         id: impl Into<InstrumentId>,

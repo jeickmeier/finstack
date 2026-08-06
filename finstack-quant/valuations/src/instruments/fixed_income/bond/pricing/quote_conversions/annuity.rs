@@ -114,19 +114,6 @@ pub fn periods_per_year(
 /// # Errors
 ///
 /// Returns an error if any year_fraction calculation fails (e.g., invalid dates).
-///
-/// # Examples
-///
-/// ```
-/// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::quote_conversions::fixed_leg_annuity;
-/// use finstack_quant_core::market_data::term_structures::DiscountCurve;
-/// use finstack_quant_core::dates::{DayCount, Date};
-///
-/// # let disc = DiscountCurve::builder("USD-OIS").base_date(Date::from_calendar_date(2024, time::Month::January, 1).unwrap()).knots([(0.0, 1.0)]).build().unwrap();
-/// # let schedule = vec![Date::from_calendar_date(2024, time::Month::January, 1).unwrap(), Date::from_calendar_date(2025, time::Month::January, 1).unwrap()];
-/// let annuity = fixed_leg_annuity(&disc, DayCount::Act365F, None, &schedule)?;
-/// # Ok::<(), Box<dyn std::error::Error>>(())
-/// ```
 pub fn fixed_leg_annuity(
     disc: &DiscountCurve,
     day_count: finstack_quant_core::dates::DayCount,
@@ -181,19 +168,6 @@ pub fn fixed_leg_annuity(
 /// # Errors
 ///
 /// Returns an error if the annuity calculation fails (invalid dates/day-count).
-///
-/// # Examples
-///
-/// ```
-/// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::quote_conversions::par_rate_and_annuity_from_discount;
-/// use finstack_quant_core::market_data::term_structures::DiscountCurve;
-/// use finstack_quant_core::dates::{DayCount, Date};
-///
-/// # let disc = DiscountCurve::builder("USD-OIS").base_date(Date::from_calendar_date(2024, time::Month::January, 1).unwrap()).knots([(0.0, 1.0)]).build().unwrap();
-/// # let schedule = vec![Date::from_calendar_date(2024, time::Month::January, 1).unwrap(), Date::from_calendar_date(2025, time::Month::January, 1).unwrap()];
-/// let (par_rate, annuity) = par_rate_and_annuity_from_discount(&disc, DayCount::Act365F, None, &schedule)?;
-/// # Ok::<(), Box<dyn std::error::Error>>(())
-/// ```
 pub fn par_rate_and_annuity_from_discount(
     disc: &DiscountCurve,
     day_count: finstack_quant_core::dates::DayCount,

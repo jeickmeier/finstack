@@ -28,15 +28,24 @@
 //! ## Example: Explicit Convention Selection
 //!
 //! ```
-//! // Detect from currency (recommended for cross-regional portfolios)
-//! let convention = CDSConvention::detect_from_currency(Currency::EUR);
-//! assert_eq!(convention, CDSConvention::IsdaEu);
+//! use finstack_quant_core::currency::Currency;
+//! use finstack_quant_valuations::instruments::credit_derivatives::cds::CDSConvention;
 //!
-//! // Or specify explicitly
-//! let european_cds = CreditDefaultSwap::builder()
-//!     .convention(CDSConvention::IsdaEu)
-//!     // ...
-//!     .build()?;
+//! // Detect from currency (recommended for cross-regional portfolios).
+//! assert_eq!(
+//!     CDSConvention::detect_from_currency(Currency::EUR),
+//!     CDSConvention::IsdaEu
+//! );
+//! assert_eq!(
+//!     CDSConvention::detect_from_currency(Currency::JPY),
+//!     CDSConvention::IsdaAs
+//! );
+//!
+//! // Anything else falls back to the most liquid market, North America.
+//! assert_eq!(
+//!     CDSConvention::detect_from_currency(Currency::USD),
+//!     CDSConvention::IsdaNa
+//! );
 //! ```
 
 use crate::constants::isda::STANDARD_RECOVERY_SENIOR;
@@ -837,6 +846,19 @@ impl CreditDefaultSwap {
     /// # Example
     ///
     /// ```
+    /// use finstack_quant_core::currency::Currency;
+    /// use finstack_quant_core::money::Money;
+    /// use finstack_quant_core::types::CurveId;
+    /// use finstack_quant_valuations::constants::isda::STANDARD_RECOVERY_SENIOR;
+    /// use finstack_quant_valuations::instruments::credit_derivatives::cds::CDSConvention;
+    /// use finstack_quant_valuations::instruments::{
+    ///     Attributes, CreditDefaultSwap, InstrumentPricingOverrides, PayReceive, PremiumLegSpec,
+    ///     ProtectionLegSpec,
+    /// };
+    /// use rust_decimal::Decimal;
+    /// use time::macros::date;
+    ///
+    /// # fn main() -> finstack_quant_core::Result<()> {
     /// let cds = CreditDefaultSwap::builder()
     ///     .id("CDS-EXAMPLE".into())
     ///     .notional(Money::new(10_000_000.0, Currency::USD))
@@ -862,6 +884,8 @@ impl CreditDefaultSwap {
     ///     .attributes(Attributes::new())
     ///     .build()?;
     /// cds.validate()?; // Validates all parameters
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn validate(&self) -> finstack_quant_core::Result<()> {
         // Validate date ordering (start must not be after end)

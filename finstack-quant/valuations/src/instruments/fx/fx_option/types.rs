@@ -381,12 +381,16 @@ impl FxOption {
     /// # Example
     ///
     /// ```
+    /// use finstack_quant_valuations::instruments::fx::fx_option::FxOption;
+    ///
     /// let spot = 1.10; // EUR/USD
     /// let df_domestic = 0.97; // USD discount factor
     /// let df_foreign = 0.98; // EUR discount factor
     ///
     /// let k_atmf = FxOption::atm_forward_strike(spot, df_domestic, df_foreign);
-    /// // k_atmf ≈ 1.111 (forward premium for EUR vs USD)
+    ///
+    /// // Forward premium for EUR vs USD.
+    /// assert!((k_atmf - 1.111).abs() < 1e-3);
     /// ```
     pub fn atm_forward_strike(spot: f64, df_domestic: f64, df_foreign: f64) -> f64 {
         spot * df_foreign / df_domestic
@@ -417,6 +421,10 @@ impl FxOption {
     /// # Example
     ///
     /// ```
+    /// use finstack_quant_valuations::instruments::fx::fx_option::{
+    ///     FxAtmDeltaConvention, FxOption,
+    /// };
+    ///
     /// let forward = 1.111;
     /// let vol = 0.10; // 10% vol
     /// let t = 0.5; // 6 months
@@ -430,6 +438,10 @@ impl FxOption {
     /// let k_dns_fwd = FxOption::atm_dns_strike_for_convention(
     ///     forward, vol, t, FxAtmDeltaConvention::Forward,
     /// );
+    ///
+    /// // Both DNS strikes sit above the forward by half the variance.
+    /// assert!(k_dns_spot > forward);
+    /// assert!(k_dns_fwd > forward);
     /// ```
     ///
     /// # References

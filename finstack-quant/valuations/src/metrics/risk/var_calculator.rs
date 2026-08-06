@@ -384,29 +384,6 @@ fn tail_quantile_mean(sorted: &[f64], p: f64) -> f64 {
 ///
 /// This function revalues every supplied instrument under every scenario in
 /// [`MarketHistory`]. If the history is empty, the returned VaR/ES will be zero.
-///
-/// # Examples
-///
-/// ```
-/// use finstack_quant_valuations::instruments::{Bond, Instrument};
-/// use finstack_quant_valuations::metrics::risk::{calculate_var, MarketHistory, MarketScenario, VarConfig};
-/// use finstack_quant_core::market_data::context::MarketContext;
-/// use time::macros::date;
-///
-/// # fn main() -> finstack_quant_core::Result<()> {
-/// let bond = Bond::example().unwrap();
-/// let market = MarketContext::new();
-/// let as_of = date!(2025-01-01);
-/// let history = MarketHistory::new(as_of, 0, Vec::<MarketScenario>::new());
-/// let config = VarConfig::var_95();
-///
-/// let instruments = [&bond];
-/// let result = calculate_var(&instruments, &market, &history, as_of, &config)?;
-/// println!("95% VaR: ${:.2}", result.var);
-/// println!("95% ES: ${:.2}", result.expected_shortfall);
-/// # Ok(())
-/// # }
-/// ```
 pub fn calculate_var<I>(
     instruments: &[&I],
     base_market: &MarketContext,

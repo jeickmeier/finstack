@@ -25,15 +25,6 @@
 //!
 //! For DV01 calculations, use the [`MetricId::Dv01`] or [`MetricId::BucketedDv01`]
 //! metrics via the [`Instrument::price_with_metrics`] method:
-//!
-//! ```
-//! use finstack_quant_valuations::instruments::{Bond, Instrument, PricingOptions};
-//! use finstack_quant_valuations::metrics::MetricId;
-//!
-//! let bond = Bond::example().unwrap();
-//! let result = bond.price_with_metrics(&market, as_of, &[MetricId::Dv01], PricingOptions::default())?;
-//! // DV01 is in currency units per 1bp rate move
-//! ```
 
 use crate::instruments::common_impl::dependencies::RatesCurveKind;
 use crate::instruments::common_impl::traits::Instrument;

@@ -347,28 +347,6 @@ impl YtmSolver {
 /// # Returns
 ///
 /// Yield to maturity as decimal.
-///
-/// # Examples
-///
-/// ```
-/// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::ytm_solver::{solve_ytm, YtmPricingSpec};
-/// use finstack_quant_core::dates::{Date, DayCount, Tenor};
-/// use finstack_quant_core::money::Money;
-/// use finstack_quant_core::currency::Currency;
-///
-/// # let cashflows = vec![];
-/// # let as_of = Date::from_calendar_date(2024, time::Month::January, 1).unwrap();
-/// # let target_price = Money::new(1000.0, Currency::USD);
-/// let spec = YtmPricingSpec {
-///     day_count: DayCount::Act365F,
-///     notional: Money::new(1000.0, Currency::USD),
-///     coupon_rate: 0.05,
-///     compounding: finstack_quant_valuations::instruments::fixed_income::bond::pricing::quote_conversions::YieldCompounding::Street,
-///     frequency: Tenor::semi_annual(),
-/// };
-/// let ytm = solve_ytm(&cashflows, as_of, target_price, spec)?;
-/// # Ok::<(), Box<dyn std::error::Error>>(())
-/// ```
 pub fn solve_ytm(
     cashflows: &[(Date, Money)],
     as_of: Date,

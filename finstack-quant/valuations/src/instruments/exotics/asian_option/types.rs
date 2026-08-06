@@ -81,16 +81,6 @@ impl std::str::FromStr for AveragingMethod {
 /// | Geometric | Kemna-Vorst (1990) | Exact closed-form |
 /// | Arithmetic | Turnbull-Wakeman (1991) | ~1% vs Monte Carlo |
 /// | Either | Monte Carlo | Configurable accuracy |
-///
-/// # Example
-///
-/// ```
-/// // For production: pre-adjust fixing dates using business day logic
-/// let fixing_dates = generate_monthly_schedule(start, end)
-///     .into_iter()
-///     .map(|d| adjust_business_day(d, ModifiedFollowing, &nyse_calendar))
-///     .collect();
-/// ```
 #[derive(
     PartialEq,
     Clone,

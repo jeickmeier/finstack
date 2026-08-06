@@ -161,28 +161,6 @@ pub struct TotalReturnLegParams<'a> {
 ///   are unusual and may indicate a bug. Returns below -1.0 imply more than 100% loss.
 ///
 /// # Example Implementation
-///
-/// ```
-/// impl TrsReturnModel for EquityReturn {
-///     fn period_return(
-///         &self,
-///         inputs: &PeriodReturnInputs,
-///         context: &MarketContext,
-///     ) -> finstack_quant_core::Result<f64> {
-///         let start_price = context.get_equity_spot(self.ticker, inputs.t_start)?;
-///         let end_price = context.get_equity_spot(self.ticker, inputs.t_end)?;
-///
-///         // Return as decimal (e.g., 0.05 for 5% return)
-///         let ret = (end_price - start_price) / initial_level;
-///
-///         // Validate return is reasonable
-///         if !ret.is_finite() {
-///             return Err(Error::Validation("Non-finite return".into()));
-///         }
-///         Ok(ret)
-///     }
-/// }
-/// ```
 pub trait TrsReturnModel: Send + Sync {
     /// Computes total return over a period.
     ///

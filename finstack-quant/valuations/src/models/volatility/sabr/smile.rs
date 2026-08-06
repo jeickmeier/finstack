@@ -181,15 +181,6 @@ impl SABRSmile {
     ///
     /// # Returns
     /// `ArbitrageValidationResult` containing any violations found.
-    ///
-    /// # Example
-    /// ```
-    /// let result = smile.validate_no_arbitrage(&strikes, 0.05, 0.02)?;
-    /// if !result.is_arbitrage_free() {
-    ///     println!("Warning: {} butterfly violations found",
-    ///              result.butterfly_violations.len());
-    /// }
-    /// ```
     pub fn validate_no_arbitrage(
         &self,
         strikes: &[f64],
@@ -306,12 +297,6 @@ impl SABRSmile {
     /// # Returns
     ///
     /// Repaired volatility smile as `Vec<f64>`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// let repaired_vols = smile.repair_arbitrage(&strikes, 0.05, 0.02, 10)?;
-    /// ```
     ///
     /// # Algorithm Detail
     ///

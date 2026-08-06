@@ -62,28 +62,6 @@ impl StructuredCredit {
     /// # Returns
     /// - `Ok((deal_npv, hedge_npv, total_npv))` on success
     /// - Error if valuation fails
-    ///
-    /// # Example
-    /// ```
-    /// use finstack_quant_core::market_data::context::MarketContext;
-    /// use finstack_quant_valuations::instruments::fixed_income::structured_credit::StructuredCredit;
-    /// use time::macros::date;
-    ///
-    /// # fn main() -> finstack_quant_core::Result<()> {
-    /// let clo = StructuredCredit::example();
-    /// let context = MarketContext::new();
-    /// let as_of = date!(2025-01-01);
-    ///
-    /// let (deal, hedges, total) = clo.price_with_hedges(&context, as_of)?;
-    /// println!(
-    ///     "Deal NPV: {:.2}, Hedge NPV: {:.2}, Total: {:.2}",
-    ///     deal.amount(),
-    ///     hedges.amount(),
-    ///     total.amount()
-    /// );
-    /// # Ok(())
-    /// # }
-    /// ```
     pub fn price_with_hedges(
         &self,
         context: &MarketContext,

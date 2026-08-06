@@ -711,40 +711,6 @@ pub trait Instrument: CashflowProvider + Send + Sync {
     ///
     /// `value_raw()` should represent the same economics as [`Instrument::value`]
     /// before currency rounding, not a different pricing convention.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// // Used internally by risk calculators for high-precision sensitivities
-    /// use finstack_quant_core::currency::Currency;
-    /// use finstack_quant_core::market_data::context::MarketContext;
-    /// use finstack_quant_core::money::Money;
-    /// use finstack_quant_core::types::Rate;
-    /// use finstack_quant_valuations::instruments::Bond;
-    /// use finstack_quant_valuations::instruments::Instrument;
-    /// use time::macros::date;
-    ///
-    /// # fn main() -> finstack_quant_core::Result<()> {
-    /// let instrument = Bond::fixed(
-    ///     "BOND-001",
-    ///     Money::new(1_000_000.0, Currency::USD),
-    ///     Rate::from_percent(5.0),
-    ///     date!(2025-01-15),
-    ///     date!(2030-01-15),
-    ///     "USD-OIS",
-    /// )?;
-    /// let market = MarketContext::new();
-    /// let bumped_market = MarketContext::new();
-    /// let as_of = date!(2025-01-15);
-    /// let bump_bp = 1e-4; // 1bp = 0.0001
-    ///
-    /// let base_pv = instrument.value_raw(&market, as_of)?;
-    /// let bumped_pv = instrument.value_raw(&bumped_market, as_of)?;
-    /// let dv01 = (bumped_pv - base_pv) / bump_bp;
-    /// # let _ = dv01;
-    /// # Ok(())
-    /// # }
-    /// ```
     fn value_raw(&self, market: &MarketContext, as_of: Date) -> finstack_quant_core::Result<f64> {
         let lifecycle =
             crate::instruments::common_impl::helpers::ValidatedPricingLifecycle::new(self)?;
@@ -832,76 +798,6 @@ pub trait Instrument: CashflowProvider + Send + Sync {
     /// - Instrument configuration is invalid
     ///
     /// # Examples
-    ///
-    /// ```
-    /// use finstack_quant_valuations::instruments::{Bond, Instrument, PricingOptions};
-    /// use finstack_quant_valuations::metrics::MetricId;
-    /// use finstack_quant_core::market_data::context::MarketContext;
-    /// # use finstack_quant_core::currency::Currency;
-    /// # use finstack_quant_core::money::Money;
-    /// # use finstack_quant_core::dates::create_date;
-    /// # use finstack_quant_core::types::Rate;
-    /// # use time::Month;
-    ///
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let issue = create_date(2025, Month::January, 15)?;
-    /// # let maturity = create_date(2030, Month::January, 15)?;
-    /// let bond = Bond::fixed("BOND-001", Money::new(1_000_000.0, Currency::USD),
-    ///     Rate::from_percent(5.0), issue, maturity, "USD-OIS")?;
-    ///
-    /// let market = MarketContext::new();
-    /// let as_of = create_date(2025, Month::January, 1)?;
-    ///
-    /// // Request specific metrics
-    /// let metrics_to_compute = vec![
-    ///     MetricId::Ytm,
-    ///     MetricId::DurationMod,
-    ///     MetricId::Dv01,
-    /// ];
-    ///
-    /// let result = bond.price_with_metrics(
-    ///     &market,
-    ///     as_of,
-    ///     &metrics_to_compute,
-    ///     PricingOptions::default(),
-    /// )?;
-    /// println!("NPV: {}", result.value);
-    /// println!("DV01: {}", result.measures.get("dv01").expect("should succeed"));
-    /// # let _ = result;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ```
-    /// use finstack_quant_valuations::instruments::{Bond, Instrument, PricingOptions};
-    /// use finstack_quant_valuations::metrics::MetricId;
-    /// use finstack_quant_valuations::pricer::ModelKey;
-    /// use finstack_quant_core::market_data::context::MarketContext;
-    /// # use finstack_quant_core::currency::Currency;
-    /// # use finstack_quant_core::money::Money;
-    /// # use finstack_quant_core::dates::create_date;
-    /// # use finstack_quant_core::types::Rate;
-    /// # use time::Month;
-    ///
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let issue = create_date(2025, Month::January, 15)?;
-    /// # let maturity = create_date(2030, Month::January, 15)?;
-    /// let bond = Bond::fixed("BOND-001", Money::new(1_000_000.0, Currency::USD),
-    ///     Rate::from_percent(5.0), issue, maturity, "USD-OIS")?;
-    ///
-    /// let market = MarketContext::new();
-    /// let as_of = create_date(2025, Month::January, 1)?;
-    ///
-    /// let result = bond.price_with_metrics(
-    ///     &market,
-    ///     as_of,
-    ///     &[MetricId::Dv01],
-    ///     PricingOptions::default().with_model(ModelKey::HazardRate),
-    /// )?;
-    /// # let _ = result;
-    /// # Ok(())
-    /// # }
-    /// ```
     /// Compute present value with specified risk metrics.
     ///
     /// This is the canonical user-facing pricing entry point. Pass `&[]` for

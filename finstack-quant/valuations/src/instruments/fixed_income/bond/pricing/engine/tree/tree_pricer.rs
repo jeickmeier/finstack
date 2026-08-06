@@ -19,23 +19,6 @@ use finstack_quant_core::{Error, Result};
 /// Provides methods for calculating option-adjusted spread (OAS) for bonds with
 /// embedded call/put options. Automatically selects between short-rate and
 /// rates+credit tree models based on available market data.
-///
-/// # Examples
-///
-/// ```
-/// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
-/// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::tree::TreePricer;
-/// use finstack_quant_core::market_data::context::MarketContext;
-/// use finstack_quant_core::dates::Date;
-///
-/// # let bond = Bond::example().unwrap();
-/// # let market = MarketContext::new();
-/// # let as_of = Date::from_calendar_date(2024, time::Month::January, 15).unwrap();
-/// let pricer = TreePricer::new();
-/// // OAS in basis points
-/// let oas_bp = pricer.calculate_oas(&bond, &market, as_of, 98.5)?;
-/// # Ok::<(), Box<dyn std::error::Error>>(())
-/// ```
 pub struct TreePricer {
     /// Pricer configuration (tree steps, volatility, convergence settings)
     config: TreePricerConfig,
@@ -397,23 +380,6 @@ impl TreePricer {
     /// - Tree calibration fails
     /// - Root finding fails to converge
     /// - Bond is already matured
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
-    /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::tree::TreePricer;
-    /// use finstack_quant_core::market_data::context::MarketContext;
-    /// use finstack_quant_core::dates::Date;
-    ///
-    /// # let bond = Bond::example().unwrap();
-    /// # let market = MarketContext::new();
-    /// # let as_of = Date::from_calendar_date(2024, time::Month::January, 15).unwrap();
-    /// let pricer = TreePricer::new();
-    /// let oas_bp = pricer.calculate_oas(&bond, &market, as_of, 98.5)?;
-    /// // oas_bp is in basis points
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
     pub fn calculate_oas(
         &self,
         bond: &Bond,

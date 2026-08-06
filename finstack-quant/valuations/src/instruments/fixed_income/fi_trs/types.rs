@@ -219,19 +219,6 @@ impl FIIndexTotalReturnSwap {
     /// * `yield_id` — Optional index yield market data identifier
     /// * `duration_id` — Optional index duration market data identifier
     ///
-    /// # Example
-    ///
-    /// ```
-    /// let lqd_trs = FIIndexTotalReturnSwap::replicate_etf(
-    ///     "LQD",
-    ///     Money::new(10_000_000.0, Currency::USD),
-    ///     financing_spec,
-    ///     schedule_spec,
-    ///     Some("LQD-YIELD"),
-    ///     Some("LQD-DURATION"),
-    /// );
-    /// ```
-    ///
     /// # Errors
     ///
     /// Returns an error if the builder fails validation.

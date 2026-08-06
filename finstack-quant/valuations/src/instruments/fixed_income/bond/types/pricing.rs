@@ -157,8 +157,13 @@ impl Bond {
     /// # Example
     ///
     /// ```
-    /// let bond = Bond::fixed(...)?;
+    /// use finstack_quant_valuations::instruments::Bond;
+    ///
+    /// # fn main() -> finstack_quant_core::Result<()> {
+    /// let bond = Bond::example()?;
     /// bond.validate()?; // Validates all parameters
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn validate(&self) -> Result<()> {
         self.instrument_pricing_overrides.validate()?;

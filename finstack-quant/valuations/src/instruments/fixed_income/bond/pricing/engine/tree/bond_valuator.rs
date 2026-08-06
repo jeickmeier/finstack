@@ -30,21 +30,6 @@ use finstack_quant_core::Result;
 ///
 /// `BondValuator` is `Send + Sync` (all fields are owned data or primitives),
 /// making it safe to share across threads for parallel portfolio pricing.
-///
-/// # Examples
-///
-/// ```
-/// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
-/// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::tree::BondValuator;
-/// use finstack_quant_core::market_data::context::MarketContext;
-/// use finstack_quant_core::dates::Date;
-///
-/// # let bond = Bond::example().unwrap();
-/// # let market = MarketContext::new();
-/// # let as_of = Date::from_calendar_date(2024, time::Month::January, 15).unwrap();
-/// let valuator = BondValuator::new(bond, &market, as_of, 5.0, 100)?;
-/// # Ok::<(), Box<dyn std::error::Error>>(())
-/// ```
 pub struct BondValuator {
     bond: Bond,
     /// Holder-view cashflow amounts indexed by time step (dense vector for O(1) access).
@@ -261,21 +246,6 @@ impl BondValuator {
     /// The `as_of` date defines the time origin (t=0) for the tree. All cashflow
     /// times and option exercise times are measured from `as_of` using the discount
     /// curve's day-count convention to ensure consistency with tree calibration.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
-    /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::tree::BondValuator;
-    /// use finstack_quant_core::market_data::context::MarketContext;
-    /// use finstack_quant_core::dates::Date;
-    ///
-    /// # let bond = Bond::example().unwrap();
-    /// # let market = MarketContext::new();
-    /// # let as_of = Date::from_calendar_date(2024, time::Month::January, 15).unwrap();
-    /// let valuator = BondValuator::new(bond, &market, as_of, 5.0, 100)?;
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
     pub fn new(
         bond: Bond,
         market_context: &MarketContext,

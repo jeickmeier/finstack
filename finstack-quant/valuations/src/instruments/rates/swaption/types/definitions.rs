@@ -83,8 +83,17 @@ pub enum SwaptionSettlement {
 /// For production systems requiring ISDA compliance, use [`IsdaParPar`](Self::IsdaParPar):
 ///
 /// ```
-/// let swaption = Swaption::example()
-///     .with_cash_settlement_method(CashSettlementMethod::IsdaParPar);
+/// use finstack_quant_valuations::instruments::rates::swaption::{
+///     CashSettlementMethod, Swaption,
+/// };
+///
+/// let swaption =
+///     Swaption::example().with_cash_settlement_method(CashSettlementMethod::IsdaParPar);
+///
+/// assert_eq!(
+///     swaption.cash_settlement_method,
+///     CashSettlementMethod::IsdaParPar
+/// );
 /// ```
 ///
 /// The default `ParYield` method is a fast approximation suitable for:

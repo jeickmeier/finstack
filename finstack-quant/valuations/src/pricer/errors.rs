@@ -38,9 +38,20 @@ impl PricingErrorContext {
     /// # Example
     ///
     /// ```
-    /// let ctx = PricingErrorContext::from_instrument(bond)
+    /// use finstack_quant_valuations::instruments::Bond;
+    /// use finstack_quant_valuations::pricer::{InstrumentType, ModelKey, PricingErrorContext};
+    ///
+    /// # fn main() -> finstack_quant_core::Result<()> {
+    /// let bond = Bond::example()?;
+    /// let ctx = PricingErrorContext::from_instrument(&bond)
     ///     .model(ModelKey::Discounting)
     ///     .curve_id("USD-OIS");
+    ///
+    /// assert_eq!(ctx.instrument_type, Some(InstrumentType::Bond));
+    /// assert_eq!(ctx.model, Some(ModelKey::Discounting));
+    /// assert_eq!(ctx.curve_ids, vec!["USD-OIS".to_string()]);
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn from_instrument(instrument: &dyn Priceable) -> Self {
         Self {
@@ -306,12 +317,19 @@ impl PricingError {
     /// # Example
     ///
     /// ```
-    /// let core_err: finstack_quant_core::Error = /* ... */;
+    /// use finstack_quant_valuations::pricer::{
+    ///     InstrumentType, ModelKey, PricingError, PricingErrorContext,
+    /// };
+    ///
+    /// let core_err = finstack_quant_core::Error::Validation("negative notional".into());
     /// let ctx = PricingErrorContext::new()
     ///     .instrument_id("BOND-001")
     ///     .instrument_type(InstrumentType::Bond)
     ///     .model(ModelKey::Discounting);
     /// let pricing_err = PricingError::from_core(core_err, ctx);
+    ///
+    /// // `Validation` maps to `InvalidInput`.
+    /// assert!(matches!(pricing_err, PricingError::InvalidInput { .. }));
     /// ```
     ///
     /// # Arguments
@@ -371,14 +389,20 @@ impl PricingError {
     /// # Example
     ///
     /// ```
-    /// PricingError::model_failure_with_context(
+    /// use finstack_quant_valuations::pricer::{
+    ///     InstrumentType, ModelKey, PricingError, PricingErrorContext,
+    /// };
+    ///
+    /// let err = PricingError::model_failure_with_context(
     ///     "Discount factor calculation failed",
     ///     PricingErrorContext::new()
     ///         .instrument_id("BOND-001")
     ///         .instrument_type(InstrumentType::Bond)
     ///         .model(ModelKey::Discounting)
     ///         .curve_id("USD-OIS"),
-    /// )
+    /// );
+    ///
+    /// assert!(matches!(err, PricingError::ModelFailure { .. }));
     /// ```
     pub fn model_failure_with_context(
         msg: impl Into<String>,
@@ -406,12 +430,18 @@ impl PricingError {
     /// # Example
     ///
     /// ```
-    /// PricingError::missing_market_data_with_context(
+    /// use finstack_quant_valuations::pricer::{
+    ///     InstrumentType, PricingError, PricingErrorContext,
+    /// };
+    ///
+    /// let err = PricingError::missing_market_data_with_context(
     ///     "USD-OIS",
     ///     PricingErrorContext::new()
     ///         .instrument_id("BOND-001")
     ///         .instrument_type(InstrumentType::Bond),
-    /// )
+    /// );
+    ///
+    /// assert!(matches!(err, PricingError::MissingMarketData { .. }));
     /// ```
     pub fn missing_market_data_with_context(
         missing_id: impl Into<String>,

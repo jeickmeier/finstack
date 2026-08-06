@@ -58,21 +58,6 @@ use super::super::super::types::Bond;
 ///
 /// Use `SimpleBondHazardPricer` for public API access to hazard-rate pricing:
 ///
-/// ```
-/// use finstack_quant_valuations::instruments::Bond;
-/// use finstack_quant_valuations::pricer::{Pricer, PricerRegistry};
-/// use finstack_quant_core::market_data::context::MarketContext;
-/// use time::macros::date;
-///
-/// let bond = Bond::example().unwrap();
-/// let market = MarketContext::new();
-/// let as_of = date!(2024-01-15);
-///
-/// // Register and use hazard pricer via registry
-/// let registry = PricerRegistry::default();
-/// let result = registry.get_price(&bond, &market, as_of)?;
-/// ```
-///
 pub struct HazardBondEngine;
 
 impl HazardBondEngine {

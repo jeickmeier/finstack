@@ -12,15 +12,6 @@ use super::problem2d::PdeProblem2D;
 use super::stepper::StepperError;
 
 /// Builder for constructing a [`Solver2D`].
-///
-/// # Examples
-///
-/// ```
-/// let solver = Solver2DBuilder::new()
-///     .grid(Grid2D::new(x_grid, v_grid))
-///     .craig_sneyd(200)
-///     .build()?;
-/// ```
 pub struct Solver2DBuilder {
     /// Tensor-product grid.
     grid: Option<Grid2D>,

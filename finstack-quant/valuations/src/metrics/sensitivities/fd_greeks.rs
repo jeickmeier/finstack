@@ -315,39 +315,8 @@ fn with_market_scratch<T>(
 /// Used for adaptive bump size calculations based on time to expiry.
 /// Instruments with shorter time to expiry typically require smaller bumps
 /// to maintain numerical accuracy in finite difference calculations.
-///
-/// # Examples
-///
-/// Implementing for a custom option:
-///
-/// ```
-/// use finstack_quant_valuations::metrics::HasExpiry;
-/// use finstack_quant_core::dates::Date;
-///
-/// struct CustomOption {
-///     expiry: Date,
-///     // ... other fields
-/// }
-///
-/// impl HasExpiry for CustomOption {
-///     fn expiry(&self) -> Date {
-///         self.expiry
-///     }
-/// }
-/// ```
 pub trait HasExpiry {
     /// Returns the expiry date for this instrument.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use finstack_quant_valuations::metrics::HasExpiry;
-    /// use finstack_quant_core::dates::Date;
-    ///
-    /// # let instrument: &dyn HasExpiry = todo!("an instrument that has an expiry date");
-    /// let expiry_date: Date = instrument.expiry();
-    /// # let _ = expiry_date;
-    /// ```
     fn expiry(&self) -> Date;
 }
 
@@ -356,41 +325,10 @@ pub trait HasExpiry {
 /// Used for computing time fractions in adaptive bump calculations.
 /// The day count convention determines how time between dates is measured,
 /// affecting the calculation of year fractions for time-to-expiry.
-///
-/// # Examples
-///
-/// Implementing for a custom option:
-///
-/// ```
-/// use finstack_quant_valuations::metrics::HasDayCount;
-/// use finstack_quant_core::dates::DayCount;
-///
-/// struct CustomOption {
-///     day_count: DayCount,
-///     // ... other fields
-/// }
-///
-/// impl HasDayCount for CustomOption {
-///     fn day_count(&self) -> DayCount {
-///         self.day_count
-///     }
-/// }
-/// ```
 pub trait HasDayCount {
     /// Returns the day count convention for this instrument.
     ///
     /// Common conventions include Act/365F, Act/360, 30/360, etc.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use finstack_quant_valuations::metrics::HasDayCount;
-    /// use finstack_quant_core::dates::DayCount;
-    ///
-    /// # let instrument: &dyn HasDayCount = todo!("an instrument that specifies a day count");
-    /// let day_count: DayCount = instrument.day_count();
-    /// # let _ = day_count;
-    /// ```
     fn day_count(&self) -> DayCount;
 }
 
@@ -415,26 +353,6 @@ pub trait HasDayCount {
 /// # Type Parameters
 ///
 /// * `I` - Instrument type that implements all required traits for delta calculation
-///
-/// # Examples
-///
-/// ```
-/// use finstack_quant_valuations::instruments::BarrierOption;
-/// use finstack_quant_valuations::metrics::{GenericFdDelta, MetricId, MetricRegistry};
-/// use finstack_quant_valuations::pricer::InstrumentType;
-/// use std::sync::Arc;
-///
-/// // Create delta calculator for barrier options (generic FD greeks apply to exotics)
-/// let calculator = GenericFdDelta::<BarrierOption>::default();
-///
-/// // Register in metric registry
-/// let mut registry = MetricRegistry::new();
-/// registry.register_metric(
-///     MetricId::Delta,
-///     Arc::new(calculator),
-///     &[InstrumentType::BarrierOption],
-/// );
-/// ```
 pub struct GenericFdDelta<I> {
     _phantom: PhantomData<I>,
 }

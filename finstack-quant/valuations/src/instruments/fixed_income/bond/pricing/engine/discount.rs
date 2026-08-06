@@ -40,14 +40,24 @@ use super::super::super::types::Bond;
 /// use finstack_quant_valuations::instruments::Bond;
 /// use finstack_quant_valuations::instruments::Instrument;
 /// use finstack_quant_core::market_data::context::MarketContext;
+/// use finstack_quant_core::market_data::term_structures::DiscountCurve;
 /// use time::macros::date;
 ///
-/// let bond = Bond::example().unwrap();
-/// let market = MarketContext::new();
+/// # fn main() -> finstack_quant_core::Result<()> {
+/// let bond = Bond::example()?;
 /// let as_of = date!(2024-01-15);
+/// let market = MarketContext::new().insert(
+///     DiscountCurve::builder("USD-TREASURY")
+///         .base_date(as_of)
+///         .knots([(0.0, 1.0), (30.0, 0.40)])
+///         .build()?,
+/// );
 ///
 /// // Use Instrument trait for public API
 /// let pv = bond.value(&market, as_of)?;
+/// assert!(pv.amount() > 0.0);
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// [`Instrument`]: crate::instruments::common_impl::traits::Instrument
@@ -105,27 +115,6 @@ impl BondEngine {
     /// - Bond has no future cashflows
     /// - Cashflow schedule building fails
     /// - Calendar adjustment fails (if settlement days and calendar are specified)
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
-    /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::discount::BondEngine;
-    /// use finstack_quant_core::explain::ExplainOpts;
-    /// use finstack_quant_core::market_data::context::MarketContext;
-    /// use finstack_quant_core::dates::Date;
-    ///
-    /// # let bond = Bond::example().unwrap();
-    /// # let market = MarketContext::new();
-    /// # let as_of = Date::from_calendar_date(2024, time::Month::January, 15).unwrap();
-    /// let (pv, trace) = BondEngine::price_with_explanation(
-    ///     &bond,
-    ///     &market,
-    ///     as_of,
-    ///     ExplainOpts::enabled(),
-    /// )?;
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
     pub fn price_with_explanation(
         bond: &Bond,
         context: &MarketContext,

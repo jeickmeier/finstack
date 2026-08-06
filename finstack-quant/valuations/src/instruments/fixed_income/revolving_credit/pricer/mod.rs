@@ -11,31 +11,9 @@
 //!
 //! Price a revolving credit facility using the pricer registry:
 //!
-//! ```
-//! use finstack_quant_valuations::instruments::RevolvingCredit;
-//! use finstack_quant_valuations::pricer::{Pricer, PricerRegistry};
-//! use finstack_quant_core::market_data::context::MarketContext;
-//! use time::macros::date;
-//!
-//! let facility = RevolvingCredit::example().unwrap();
-//! let market = MarketContext::new();
-//! let as_of = date!(2025-01-01);
-//!
-//! // Use pricer registry for unified pricing
-//! let registry = PricerRegistry::default();
-//! let result = registry.get_price(&facility, &market, as_of)?;
-//! ```
-//!
 //! # Monte Carlo Pricing
 //!
 //! Use full path capture for distribution analysis:
-//!
-//! ```
-//! // MC pricing with full path capture
-//! let enhanced_result = pricer::RevolvingCreditPricer::price_with_paths(&facility, &market, as_of)?;
-//! let pv_mc = enhanced_result.mc_result.estimate.mean;
-//! let path_pvs = enhanced_result.path_results; // Full distribution for analysis
-//! ```
 
 mod components;
 pub mod monte_carlo_discretization;

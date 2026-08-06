@@ -15,10 +15,15 @@ use super::stepper::{RannacherStepper, StepperError, ThetaStepper, TimeStepper};
 /// # Examples
 ///
 /// ```
+/// use finstack_quant_valuations::models::pde::{Grid1D, Solver1DBuilder};
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let solver = Solver1DBuilder::new()
 ///     .grid(Grid1D::sinh_concentrated(-5.0, 5.0, 200, 0.0, 0.1)?)
 ///     .crank_nicolson(100)
-///     .build();
+///     .build()?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct Solver1DBuilder {
     /// Spatial grid.

@@ -24,6 +24,7 @@
 //! ```
 //! use finstack_quant_valuations::models::pde::*;
 //!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let pde = BlackScholesPde {
 //!     sigma: 0.2, rate: 0.05, dividend: 0.0,
 //!     strike: 100.0, maturity: 1.0, is_call: true,
@@ -35,8 +36,13 @@
 //!     .crank_nicolson(100)
 //!     .build()?;
 //!
-//! let solution = solver.solve(&pde, 1.0);
+//! let solution = solver.solve(&pde, 1.0)?;
 //! let price = solution.interpolate(100.0_f64.ln());
+//!
+//! // An at-the-money one-year call under these parameters is worth ~10.45.
+//! assert!((price - 10.45).abs() < 0.5);
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! For custom PDEs, implement [`PdeProblem1D`] directly.
