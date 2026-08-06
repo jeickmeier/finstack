@@ -11,8 +11,8 @@
 
 use crate::bindings::extract::{extract_market_opt, extract_model_ref, extract_results_ref};
 use crate::bindings::statements_analytics::typed::{
-    PyScenarioResultSet, PyScenarioSet, PySensitivityConfig, PySensitivityResult, PyVarianceConfig,
-    PyVarianceReport,
+    PyBridgeChart, PyScenarioDiff, PyScenarioResultSet, PyScenarioSet, PySensitivityConfig,
+    PySensitivityResult, PyVarianceConfig, PyVarianceReport,
 };
 use crate::errors::display_to_py;
 use finstack_quant_statements_analytics::analysis::CorporateValuationResult;
@@ -196,6 +196,134 @@ fn evaluate_scenario_set(
     py.detach(move || {
         let inner = scenario_set.evaluate_all(&model).map_err(display_to_py)?;
         Ok(PyScenarioResultSet { inner })
+    })
+}
+
+/// Compare two evaluated scenarios metric-by-metric.
+///
+/// Parameters
+/// ----------
+/// scenario_set : ScenarioSet | str
+///     A typed scenario set or its JSON serialization.
+/// results : ScenarioResultSet
+///     Output of :func:`evaluate_scenario_set` for the same scenario set.
+/// baseline : str
+///     Name of the scenario to treat as the baseline.
+/// comparison : str
+///     Name of the scenario to compare against the baseline.
+/// metrics : list[str]
+///     Node identifiers to compare. Must be non-empty.
+/// periods : list[str]
+///     Period identifiers (e.g. ``"2025Q1"``). Must be non-empty.
+///
+/// Returns
+/// -------
+/// ScenarioDiff
+///     Baseline and comparison names alongside the variance report.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If `metrics` or `periods` is empty, a scenario name is unknown, or a
+///     period fails to parse.
+#[pyfunction]
+#[pyo3(text_signature = "(scenario_set, results, baseline, comparison, metrics, periods)")]
+fn scenario_diff(
+    py: Python<'_>,
+    scenario_set: &Bound<'_, PyAny>,
+    results: PyRef<'_, PyScenarioResultSet>,
+    baseline: &str,
+    comparison: &str,
+    metrics: Vec<String>,
+    periods: Vec<String>,
+) -> PyResult<PyScenarioDiff> {
+    let scenario_set = extract_scenario_set(scenario_set)?;
+    let results = results.inner.clone();
+    let periods = periods
+        .iter()
+        .map(|period| period.parse().map_err(display_to_py))
+        .collect::<PyResult<Vec<_>>>()?;
+    let baseline = baseline.to_string();
+    let comparison = comparison.to_string();
+    py.detach(move || {
+        let inner = scenario_set
+            .diff(&results, &baseline, &comparison, &metrics, &periods)
+            .map_err(display_to_py)?;
+        Ok(PyScenarioDiff { inner })
+    })
+}
+
+/// Decompose a metric's scenario variance across named drivers.
+///
+/// Driver contributions are raw deltas in *driver* units rather than
+/// sensitivities of the target metric, so they generally do not sum to the
+/// target variance. The gap is reported in ``BridgeChart.unexplained`` rather
+/// than left implicit.
+///
+/// Parameters
+/// ----------
+/// base : StatementResult | str
+///     Baseline evaluated statement result, or its JSON serialization.
+/// comparison : StatementResult | str
+///     Comparison evaluated statement result, or its JSON serialization.
+/// target_metric : str
+///     Node identifier whose variance is being explained.
+/// period : str
+///     Period identifier (e.g. ``"2025Q4"``).
+/// drivers : list[str]
+///     Node identifiers treated as explanatory drivers.
+/// baseline_label : str
+///     Display label for the baseline column.
+/// comparison_label : str
+///     Display label for the comparison column.
+///
+/// Returns
+/// -------
+/// BridgeChart
+///     Ordered driver contributions plus the unexplained residual.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If the period fails to parse, or the target or any driver is missing
+///     from either result at `period`.
+#[pyfunction]
+#[pyo3(
+    text_signature = "(base, comparison, target_metric, period, drivers, baseline_label, comparison_label)"
+)]
+#[allow(clippy::too_many_arguments)]
+fn variance_bridge(
+    py: Python<'_>,
+    base: &Bound<'_, PyAny>,
+    comparison: &Bound<'_, PyAny>,
+    target_metric: &str,
+    period: &str,
+    drivers: Vec<String>,
+    baseline_label: &str,
+    comparison_label: &str,
+) -> PyResult<PyBridgeChart> {
+    let base = extract_results_ref(base)?.into_owned();
+    let comparison = extract_results_ref(comparison)?.into_owned();
+    let period = period.parse().map_err(display_to_py)?;
+    let target_metric = target_metric.to_string();
+    let baseline_label = baseline_label.to_string();
+    let comparison_label = comparison_label.to_string();
+    py.detach(move || {
+        let analyzer = finstack_quant_statements_analytics::analysis::VarianceAnalyzer::new(
+            &base,
+            &comparison,
+        );
+        let driver_refs: Vec<&str> = drivers.iter().map(String::as_str).collect();
+        let inner = analyzer
+            .bridge_decomposition(
+                &target_metric,
+                period,
+                &driver_refs,
+                &baseline_label,
+                &comparison_label,
+            )
+            .map_err(display_to_py)?;
+        Ok(PyBridgeChart { inner })
     })
 }
 
@@ -1358,6 +1486,8 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(generate_tornado_entries, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(run_variance, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(evaluate_scenario_set, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(scenario_diff, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(variance_bridge, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(backtest_forecast, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(goal_seek, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(evaluate_dcf, m)?)?;

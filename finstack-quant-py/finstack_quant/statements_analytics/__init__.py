@@ -27,10 +27,15 @@ SensitivityResult = _sa.SensitivityResult
 VarianceRow = _sa.VarianceRow
 VarianceReport = _sa.VarianceReport
 ScenarioResultSet = _sa.ScenarioResultSet
+ScenarioDiff = _sa.ScenarioDiff
+BridgeStep = _sa.BridgeStep
+BridgeChart = _sa.BridgeChart
 run_sensitivity = _sa.run_sensitivity
 generate_tornado_entries = _sa.generate_tornado_entries
 run_variance = _sa.run_variance
 evaluate_scenario_set = _sa.evaluate_scenario_set
+scenario_diff = _sa.scenario_diff
+variance_bridge = _sa.variance_bridge
 backtest_forecast = _sa.backtest_forecast
 goal_seek = _sa.goal_seek
 evaluate_dcf = _sa.evaluate_dcf
@@ -107,6 +112,8 @@ add_property_operating_statement = _sa.add_property_operating_statement
 
 __all__: list[str] = [
     "AccountType",
+    "BridgeChart",
+    "BridgeStep",
     "CorkscrewAccount",
     "CorkscrewConfig",
     "CorkscrewExtension",
@@ -123,6 +130,7 @@ __all__: list[str] = [
     "RenewalSpec",
     "RentRollOutputNodes",
     "RentStepSpec",
+    "ScenarioDiff",
     "ScenarioResultSet",
     "ScenarioSet",
     "ScorecardConfig",
@@ -172,8 +180,10 @@ __all__: list[str] = [
     "run_sensitivity",
     "run_three_statement_checks",
     "run_variance",
+    "scenario_diff",
     "score_relative_value",
     "validate_scorecard_config",
+    "variance_bridge",
     "wacc",
     "z_score",
 ]

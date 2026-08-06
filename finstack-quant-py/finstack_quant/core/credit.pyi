@@ -1160,7 +1160,8 @@ class scoring:
 
 class pd:
     """
-    Probability of default: PiT/TtC conversion and central-tendency calibration.
+    Probability of default: PiT/TtC conversion, central-tendency calibration,
+    and rating master scales.
 
     Examples
     --------
@@ -1169,6 +1170,306 @@ class pd:
     0.02
 
     """
+
+    class MasterScaleGrade:
+        """
+        One PD band in a rating master scale.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.credit import pd
+        >>> pd.MasterScaleGrade("BBB", 0.005, 0.002).label
+        'BBB'
+
+        """
+
+        def __init__(self, label: str, upper_pd: float, central_pd: float) -> None:
+            """
+            Construct one PD band.
+
+            Parameters
+            ----------
+            label:
+                Grade label, e.g. ``"BBB"``.
+            upper_pd:
+                Inclusive upper PD bound of the band.
+            central_pd:
+                Representative PD assigned to anything in the band. Must fall
+                inside the band.
+
+            """
+            ...
+
+        @property
+        def label(self) -> str:
+            """
+            Return the rating label this band is reported under.
+
+            Returns
+            -------
+            str
+                The grade's label, e.g. ``"BBB"``.
+
+            """
+            ...
+
+        @property
+        def upper_pd(self) -> float:
+            """
+            Inclusive upper PD bound of the band.
+
+            Returns
+            -------
+            float
+                Upper PD bound.
+
+            """
+            ...
+
+        @property
+        def central_pd(self) -> float:
+            """
+            Representative PD for the band.
+
+            Returns
+            -------
+            float
+                Central PD assigned to anything falling in this band.
+
+            """
+            ...
+
+    class MasterScaleResult:
+        """
+        Result of mapping a PD onto a master scale.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.credit import pd
+        >>> pd.MasterScale.sp_assumptions().map_pd(0.003).grade
+        'BBB'
+
+        """
+
+        @property
+        def grade(self) -> str:
+            """
+            Label of the assigned grade.
+
+            Returns
+            -------
+            str
+                Label of the grade the PD mapped into.
+
+            """
+            ...
+
+        @property
+        def central_pd(self) -> float:
+            """
+            Central PD of the assigned grade.
+
+            Returns
+            -------
+            float
+                The notched PD for the assigned grade.
+
+            """
+            ...
+
+        @property
+        def input_pd(self) -> float:
+            """
+            The PD that was mapped.
+
+            Returns
+            -------
+            float
+                The input PD, before notching.
+
+            """
+            ...
+
+        @property
+        def grade_index(self) -> int:
+            """
+            Position of the assigned grade in the scale.
+
+            Returns
+            -------
+            int
+                Zero-based index of the assigned grade.
+
+            """
+            ...
+
+    class MasterScale:
+        """
+        Ordered PD bands mapping a continuous PD onto discrete rating grades.
+
+        Bands must be strictly increasing in ``upper_pd``, and each grade's
+        ``central_pd`` must fall inside its own band.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.credit import pd
+        >>> pd.MasterScale.sp_assumptions().map_pd(0.003).grade
+        'BBB'
+
+        """
+
+        def __init__(self, grades: list[pd.MasterScaleGrade]) -> None:
+            """
+            Construct a master scale from ordered PD bands.
+
+            Parameters
+            ----------
+            grades:
+                Bands in ascending PD order. ``upper_pd`` must be strictly
+                increasing, and each ``central_pd`` must lie inside its band.
+
+            """
+            ...
+
+        @staticmethod
+        def sp_assumptions() -> pd.MasterScale:
+            """
+            Library PD-band assumptions using S&P-style labels.
+
+            The labels resemble S&P notation as a reporting convention only;
+            neither the boundaries nor the central PDs are agency-published
+            statistics.
+
+            Returns
+            -------
+            pd.MasterScale
+                The library's S&P-labelled master scale.
+
+            Raises
+            ------
+            RuntimeError
+                If the embedded credit registry cannot be loaded.
+
+            Examples
+            --------
+            >>> from finstack_quant.core.credit import pd
+            >>> pd.MasterScale.sp_assumptions().n_grades
+            8
+
+            """
+            ...
+
+        @staticmethod
+        def moodys_assumptions() -> pd.MasterScale:
+            """
+            Library PD-band assumptions using Moody's-style labels.
+
+            As with :meth:`sp_assumptions`, the labels are a reporting
+            convention rather than an agency calibration.
+
+            Returns
+            -------
+            pd.MasterScale
+                The library's Moody's-labelled master scale.
+
+            Raises
+            ------
+            RuntimeError
+                If the embedded credit registry cannot be loaded.
+
+            Examples
+            --------
+            >>> from finstack_quant.core.credit import pd
+            >>> pd.MasterScale.moodys_assumptions().n_grades > 0
+            True
+
+            """
+            ...
+
+        @staticmethod
+        def from_registry_id(scale_id: str) -> pd.MasterScale:
+            """
+            Load a master scale by ID from the embedded credit registry.
+
+            Parameters
+            ----------
+            scale_id:
+                Registry identifier of the master scale.
+
+            Returns
+            -------
+            pd.MasterScale
+                The requested master scale.
+
+            Raises
+            ------
+            KeyError
+                If no scale with that ID exists in the registry.
+
+            Examples
+            --------
+            >>> from finstack_quant.core.credit import pd
+            >>> isinstance(pd.MasterScale.sp_assumptions(), pd.MasterScale)
+            True
+
+            """
+            ...
+
+        def map_pd(self, pd_value: float) -> pd.MasterScaleResult:
+            """
+            Map a PD onto its rating grade.
+
+            Parameters
+            ----------
+            pd_value:
+                Probability of default in ``[0, 1]``.
+
+            Returns
+            -------
+            pd.MasterScaleResult
+                Assigned grade, its central PD, and the input PD.
+
+            Raises
+            ------
+            ValueError
+                If *pd_value* is non-finite or outside ``[0, 1]``.
+
+            Examples
+            --------
+            >>> from finstack_quant.core.credit import pd
+            >>> pd.MasterScale.sp_assumptions().map_pd(0.003).central_pd
+            0.002
+
+            """
+            ...
+
+        @property
+        def n_grades(self) -> int:
+            """
+            Number of grades in the scale.
+
+            Returns
+            -------
+            int
+                Count of PD bands.
+
+            """
+            ...
+
+        @property
+        def grades(self) -> list[pd.MasterScaleGrade]:
+            """
+            The scale's grades.
+
+            Returns
+            -------
+            list[pd.MasterScaleGrade]
+                Grades in ascending PD order.
+
+            """
+            ...
+
+        def __len__(self) -> int: ...
 
     @staticmethod
     def pit_to_ttc(pit_pd: float, asset_correlation: float, cycle_index: float) -> float:

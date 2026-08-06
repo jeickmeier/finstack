@@ -14,6 +14,8 @@ from finstack_quant.statements import (
     run_monte_carlo,
 )
 from finstack_quant.statements_analytics import (
+    BridgeChart,
+    ScenarioDiff,
     ScenarioResultSet,
     ScenarioSet,
     SensitivityConfig,
@@ -24,6 +26,8 @@ from finstack_quant.statements_analytics import (
     generate_tornado_entries,
     run_sensitivity,
     run_variance,
+    scenario_diff,
+    variance_bridge,
 )
 
 
@@ -169,3 +173,62 @@ def test_statement_monte_carlo_percentile_series_preserves_period_order() -> Non
 
     assert series is not None
     assert list(series) == periods[1:]
+
+
+def test_scenario_analyst_tools_are_reachable_and_decompose_variance() -> None:
+    """`trace`, `scenario_diff`, `to_comparison_table` and `variance_bridge` work end to end."""
+    model = _model()
+    scenarios = ScenarioSet({"base": {}, "downside": {"revenue": 90.0}}, {"downside": "base"})
+    results = evaluate_scenario_set(model, scenarios)
+
+    # Lineage resolution walks parent links root-first.
+    assert scenarios.trace("downside") == ["base", "downside"]
+    assert scenarios.trace("base") == ["base"]
+
+    # Diff carries the scenario names alongside a real variance report.
+    diff = scenario_diff(scenarios, results, "base", "downside", ["profit"], ["2025Q2"])
+    assert isinstance(diff, ScenarioDiff)
+    assert (diff.baseline, diff.comparison) == ("base", "downside")
+    row = diff.variance.rows[0]
+    assert row.metric == "profit"
+    assert row.baseline == pytest.approx(45.0)
+    assert row.comparison == pytest.approx(25.0)
+    assert row.abs_var == pytest.approx(-20.0)
+
+    # Comparison table has one column per scenario plus the index columns.
+    table = results.to_comparison_table(["profit"])
+    assert table.num_rows > 0
+    assert table.num_columns > 0
+
+    # The bridge attributes the whole profit move to revenue, leaving no residual.
+    chart = variance_bridge(
+        results.get("base"),
+        results.get("downside"),
+        "profit",
+        "2025Q2",
+        ["revenue", "cost"],
+        "base",
+        "downside",
+    )
+    assert isinstance(chart, BridgeChart)
+    assert chart.target_metric == "profit"
+    assert chart.period == "2025Q2"
+    assert chart.baseline_value == pytest.approx(45.0)
+    assert chart.comparison_value == pytest.approx(25.0)
+    contributions = {step.driver: step.contribution for step in chart.steps}
+    assert contributions["revenue"] == pytest.approx(-20.0)
+    assert contributions["cost"] == pytest.approx(0.0)
+    assert chart.unexplained == pytest.approx(0.0)
+    assert BridgeChart.from_json(chart.to_json()).comparison_value == pytest.approx(25.0)
+
+
+def test_scenario_diff_rejects_empty_metrics_and_periods() -> None:
+    """Empty metric or period lists are an error, not a silently empty report."""
+    model = _model()
+    scenarios = ScenarioSet({"base": {}, "downside": {"revenue": 90.0}})
+    results = evaluate_scenario_set(model, scenarios)
+
+    with pytest.raises(ValueError, match="metrics cannot be empty"):
+        scenario_diff(scenarios, results, "base", "downside", [], ["2025Q2"])
+    with pytest.raises(ValueError, match="periods cannot be empty"):
+        scenario_diff(scenarios, results, "base", "downside", ["profit"], [])

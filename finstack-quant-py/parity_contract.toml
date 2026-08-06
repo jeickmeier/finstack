@@ -110,6 +110,10 @@ public = [
     "StubKind", "ScheduleErrorPolicy", "Schedule", "ScheduleBuilder",
     "SifmaSettlementClass", "sifma_settlement_date", "sifma_settlement_date_for_class",
     "estimated_sifma_settlement_date_for_class", "next_sifma_settlement",
+    "third_wednesday", "third_friday", "next_imm", "is_imm_date", "is_cds_date",
+    "next_cds_date", "prev_cds_date", "prev_cds_semiannual_roll",
+    "next_semiannual_cds_maturity", "imm_option_expiry", "next_imm_option_expiry",
+    "next_equity_option_expiry",
     "create_date", "days_since_epoch", "date_from_epoch_days",
 ]
 
@@ -694,6 +698,8 @@ templates                   = { python = "finstack_quant.statements_analytics", 
 [crates.statements_analytics.symbols]
 public = [
     "AccountType",
+    "BridgeChart",
+    "BridgeStep",
     "CorkscrewAccount",
     "CorkscrewConfig",
     "CorkscrewExtension",
@@ -713,6 +719,7 @@ public = [
     "ScorecardConfig",
     "ScorecardMetric",
     "ScorecardReport",
+    "ScenarioDiff",
     "ScenarioResultSet",
     "ScenarioSet",
     "SensitivityConfig",
@@ -758,6 +765,8 @@ public = [
     "run_credit_underwriting_checks",
     "run_sensitivity",
     "run_three_statement_checks",
+    "scenario_diff",
+    "variance_bridge",
     "run_variance",
     "score_relative_value",
     "validate_scorecard_config",

@@ -15,6 +15,7 @@ from typing import Any
 
 from finstack_quant.statements import FinancialModelSpec, StatementResult
 from finstack_quant.core.market_data import MarketContext
+from finstack_quant.core.table import ArrowTable
 
 __all__ = [
     "SensitivityConfig",
@@ -24,10 +25,15 @@ __all__ = [
     "VarianceRow",
     "VarianceReport",
     "ScenarioResultSet",
+    "ScenarioDiff",
+    "BridgeStep",
+    "BridgeChart",
     "run_sensitivity",
     "generate_tornado_entries",
     "run_variance",
     "evaluate_scenario_set",
+    "scenario_diff",
+    "variance_bridge",
     "backtest_forecast",
     "goal_seek",
     "evaluate_dcf",
@@ -439,6 +445,28 @@ class ScenarioSet:
         """
         ...
 
+    def trace(self, scenario: str) -> list[str]:
+        """
+        Resolve a scenario's inheritance lineage, root-first.
+
+        Parameters
+        ----------
+        scenario : str
+            Name of the scenario to trace.
+
+        Returns
+        -------
+        list[str]
+            Scenario names from the root ancestor through to *scenario*.
+
+        Raises
+        ------
+        ValueError
+            If the scenario is unknown or its parent chain contains a cycle.
+
+        """
+        ...
+
     @property
     def names(self) -> list[str]:
         """
@@ -826,6 +854,28 @@ class ScenarioResultSet:
         StatementResult | None
             Evaluated statement result for ``name``, or ``None`` when the
             result set has no scenario with that name.
+
+        """
+        ...
+
+    def to_comparison_table(self, metrics: list[str]) -> ArrowTable:
+        """
+        Build a side-by-side comparison table across every evaluated scenario.
+
+        Parameters
+        ----------
+        metrics : list[str]
+            Node identifiers to include as rows.
+
+        Returns
+        -------
+        ArrowTable
+            One column per scenario, one row per (metric, period).
+
+        Raises
+        ------
+        ValueError
+            If the result set or *metrics* is empty.
 
         """
         ...
@@ -5250,6 +5300,460 @@ def add_property_operating_statement(
     >>> payload = add_property_operating_statement(model, [lease])
     >>> FinancialModelSpec.from_json(payload).has_node("ncf")
     True
+
+    """
+    ...
+
+class ScenarioDiff:
+    """
+    Variance between two named scenarios in an evaluated scenario set.
+
+    Examples
+    --------
+    >>> from finstack_quant.statements import ModelBuilder
+    >>> from finstack_quant.statements_analytics import (
+    ...     ScenarioSet,
+    ...     evaluate_scenario_set,
+    ... )
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> builder.value("cost", [("2025Q1", 60.0)])
+    >>> builder.compute("profit", "revenue - cost")
+    >>> scenarios = ScenarioSet({"base": {}, "down": {"revenue": 90.0}})
+    >>> results = evaluate_scenario_set(builder.build(), scenarios)
+    >>> from finstack_quant.statements_analytics import scenario_diff
+    >>> diff = scenario_diff(scenarios, results, "base", "down", ["profit"], ["2025Q1"])
+    >>> diff.comparison
+    'down'
+
+    """
+
+    @property
+    def baseline(self) -> str:
+        """
+        Name of the baseline scenario.
+
+        Returns
+        -------
+        str
+            Baseline scenario name.
+
+        """
+        ...
+
+    @property
+    def comparison(self) -> str:
+        """
+        Name of the comparison scenario.
+
+        Returns
+        -------
+        str
+            Comparison scenario name.
+
+        """
+        ...
+
+    @property
+    def variance(self) -> VarianceReport:
+        """
+        Per-metric, per-period variance between the two scenarios.
+
+        Returns
+        -------
+        VarianceReport
+            Variance rows for every requested metric and period.
+
+        """
+        ...
+
+class BridgeStep:
+    """
+    One driver step in a bridge decomposition.
+
+    Examples
+    --------
+    >>> from finstack_quant.statements import ModelBuilder
+    >>> from finstack_quant.statements_analytics import (
+    ...     ScenarioSet,
+    ...     evaluate_scenario_set,
+    ... )
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> builder.value("cost", [("2025Q1", 60.0)])
+    >>> builder.compute("profit", "revenue - cost")
+    >>> scenarios = ScenarioSet({"base": {}, "down": {"revenue": 90.0}})
+    >>> results = evaluate_scenario_set(builder.build(), scenarios)
+    >>> from finstack_quant.statements_analytics import variance_bridge
+    >>> chart = variance_bridge(
+    ...     results.get("base"),
+    ...     results.get("down"),
+    ...     "profit",
+    ...     "2025Q1",
+    ...     ["revenue"],
+    ...     "base",
+    ...     "down",
+    ... )
+    >>> chart.steps[0].driver
+    'revenue'
+
+    """
+
+    @property
+    def driver(self) -> str:
+        """
+        Node identifier of the driver.
+
+        Returns
+        -------
+        str
+            Driver node identifier.
+
+        """
+        ...
+
+    @property
+    def contribution(self) -> float:
+        """
+        Driver delta, in the driver's own units.
+
+        Returns
+        -------
+        float
+            Change in the driver between baseline and comparison.
+
+        """
+        ...
+
+class BridgeChart:
+    """
+    Bridge decomposition of a metric's variance across named drivers.
+
+    Examples
+    --------
+    >>> from finstack_quant.statements import ModelBuilder
+    >>> from finstack_quant.statements_analytics import (
+    ...     ScenarioSet,
+    ...     evaluate_scenario_set,
+    ... )
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> builder.value("cost", [("2025Q1", 60.0)])
+    >>> builder.compute("profit", "revenue - cost")
+    >>> scenarios = ScenarioSet({"base": {}, "down": {"revenue": 90.0}})
+    >>> results = evaluate_scenario_set(builder.build(), scenarios)
+    >>> from finstack_quant.statements_analytics import variance_bridge
+    >>> chart = variance_bridge(
+    ...     results.get("base"),
+    ...     results.get("down"),
+    ...     "profit",
+    ...     "2025Q1",
+    ...     ["revenue"],
+    ...     "base",
+    ...     "down",
+    ... )
+    >>> chart.comparison_value
+    30.0
+
+    """
+
+    @staticmethod
+    def from_json(json: str) -> BridgeChart:
+        """
+        Deserialize a bridge chart from JSON.
+
+        Parameters
+        ----------
+        json : str
+            Canonical JSON produced by :meth:`to_json`.
+
+        Returns
+        -------
+        BridgeChart
+            The deserialized bridge chart.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed or does not describe a bridge chart.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements_analytics import BridgeChart
+        >>> payload = (
+        ...     '{"target_metric":"profit","period":"2025Q1",'
+        ...     '"baseline_label":"base","comparison_label":"down",'
+        ...     '"baseline_value":40.0,"comparison_value":30.0,'
+        ...     '"steps":[{"driver":"revenue","contribution":-10.0}],'
+        ...     '"unexplained":0.0}'
+        ... )
+        >>> BridgeChart.from_json(payload).target_metric
+        'profit'
+
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize the bridge chart to canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON representation, suitable for :meth:`from_json`.
+
+        """
+        ...
+
+    @property
+    def target_metric(self) -> str:
+        """
+        Node identifier whose variance is being explained.
+
+        Returns
+        -------
+        str
+            Target metric node identifier.
+
+        """
+        ...
+
+    @property
+    def period(self) -> str:
+        """
+        Period the decomposition applies to.
+
+        Returns
+        -------
+        str
+            Period identifier, e.g. ``"2025Q4"``.
+
+        """
+        ...
+
+    @property
+    def baseline_label(self) -> str:
+        """
+        Display label for the baseline column.
+
+        Returns
+        -------
+        str
+            Baseline label.
+
+        """
+        ...
+
+    @property
+    def comparison_label(self) -> str:
+        """
+        Display label for the comparison column.
+
+        Returns
+        -------
+        str
+            Comparison label.
+
+        """
+        ...
+
+    @property
+    def baseline_value(self) -> float:
+        """
+        Baseline value of the target metric.
+
+        Returns
+        -------
+        float
+            Target metric value in the baseline.
+
+        """
+        ...
+
+    @property
+    def comparison_value(self) -> float:
+        """
+        Comparison value of the target metric.
+
+        Returns
+        -------
+        float
+            Target metric value in the comparison.
+
+        """
+        ...
+
+    @property
+    def steps(self) -> list[BridgeStep]:
+        """
+        Ordered driver contributions.
+
+        Returns
+        -------
+        list[BridgeStep]
+            One step per requested driver, in the order supplied.
+
+        """
+        ...
+
+    @property
+    def unexplained(self) -> float:
+        """
+        Residual not explained by the driver deltas.
+
+        Driver contributions are raw deltas in driver units rather than
+        sensitivities of the target metric, so they generally do not sum to
+        the target variance. This term makes that gap explicit.
+
+        Returns
+        -------
+        float
+            ``(comparison_value - baseline_value)`` minus the summed
+            contributions.
+
+        """
+        ...
+
+def scenario_diff(
+    scenario_set: ScenarioSet | str,
+    results: ScenarioResultSet,
+    baseline: str,
+    comparison: str,
+    metrics: list[str],
+    periods: list[str],
+) -> ScenarioDiff:
+    """
+    Compare two evaluated scenarios metric-by-metric.
+
+    Parameters
+    ----------
+    scenario_set : ScenarioSet or str
+        Typed scenario set or JSON string.
+    results : ScenarioResultSet
+        Output of :func:`evaluate_scenario_set` for the same scenario set.
+    baseline : str
+        Name of the scenario to treat as the baseline.
+    comparison : str
+        Name of the scenario to compare against the baseline.
+    metrics : list[str]
+        Node identifiers to compare. Must be non-empty.
+    periods : list[str]
+        Period identifiers, e.g. ``"2025Q1"``. Must be non-empty.
+
+    Returns
+    -------
+    ScenarioDiff
+        Baseline and comparison names alongside the variance report.
+
+    Raises
+    ------
+    ValueError
+        If *metrics* or *periods* is empty, a scenario name is unknown, or a
+        period fails to parse.
+
+    Examples
+    --------
+    >>> from finstack_quant.statements import ModelBuilder
+    >>> from finstack_quant.statements_analytics import (
+    ...     ScenarioSet,
+    ...     evaluate_scenario_set,
+    ...     scenario_diff,
+    ... )
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> model = builder.build()
+    >>> scenarios = ScenarioSet({"base": {}, "down": {"revenue": 90.0}})
+    >>> results = evaluate_scenario_set(model, scenarios)
+    >>> diff = scenario_diff(
+    ...     scenarios,
+    ...     results,
+    ...     "base",
+    ...     "down",
+    ...     ["revenue"],
+    ...     ["2025Q1"],
+    ... )
+    >>> diff.baseline
+    'base'
+
+    """
+    ...
+
+def variance_bridge(
+    base: StatementResult | str,
+    comparison: StatementResult | str,
+    target_metric: str,
+    period: str,
+    drivers: list[str],
+    baseline_label: str,
+    comparison_label: str,
+) -> BridgeChart:
+    """
+    Decompose a metric's scenario variance across named drivers.
+
+    Driver contributions are raw deltas in *driver* units rather than
+    sensitivities of the target metric, so they generally do not sum to the
+    target variance. The gap is reported in ``BridgeChart.unexplained``.
+
+    Parameters
+    ----------
+    base : StatementResult or str
+        Baseline evaluated statement result, or JSON string.
+    comparison : StatementResult or str
+        Comparison evaluated statement result, or JSON string.
+    target_metric : str
+        Node identifier whose variance is being explained.
+    period : str
+        Period identifier, e.g. ``"2025Q4"``.
+    drivers : list[str]
+        Node identifiers treated as explanatory drivers.
+    baseline_label : str
+        Display label for the baseline column.
+    comparison_label : str
+        Display label for the comparison column.
+
+    Returns
+    -------
+    BridgeChart
+        Ordered driver contributions plus the unexplained residual.
+
+    Raises
+    ------
+    ValueError
+        If the period fails to parse, or the target or any driver is missing
+        from either result at *period*.
+
+    Examples
+    --------
+    >>> from finstack_quant.statements import ModelBuilder
+    >>> from finstack_quant.statements_analytics import (
+    ...     ScenarioSet,
+    ...     evaluate_scenario_set,
+    ...     variance_bridge,
+    ... )
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> builder.value("cost", [("2025Q1", 60.0)])
+    >>> builder.compute("profit", "revenue - cost")
+    >>> results = evaluate_scenario_set(
+    ...     builder.build(),
+    ...     ScenarioSet({"base": {}, "down": {"revenue": 90.0}}),
+    ... )
+    >>> chart = variance_bridge(
+    ...     results.get("base"),
+    ...     results.get("down"),
+    ...     "profit",
+    ...     "2025Q1",
+    ...     ["revenue", "cost"],
+    ...     "base",
+    ...     "down",
+    ... )
+    >>> chart.target_metric
+    'profit'
 
     """
     ...

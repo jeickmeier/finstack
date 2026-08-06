@@ -2,6 +2,7 @@
 
 pub mod calendar;
 pub mod daycount;
+pub mod imm;
 pub mod periods;
 pub mod schedule;
 pub mod sifma;
@@ -25,6 +26,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     calendar::register(&m)?;
     schedule::register(&m)?;
     sifma::register(&m)?;
+    imm::register(&m)?;
 
     m.add_function(wrap_pyfunction!(py_create_date, &m)?)?;
     m.add_function(wrap_pyfunction!(py_days_since_epoch, &m)?)?;
@@ -37,6 +39,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     all_names.extend_from_slice(calendar::EXPORTS);
     all_names.extend_from_slice(schedule::EXPORTS);
     all_names.extend_from_slice(sifma::EXPORTS);
+    all_names.extend_from_slice(imm::EXPORTS);
     all_names.extend_from_slice(&["create_date", "days_since_epoch", "date_from_epoch_days"]);
 
     let all = PyList::new(py, &all_names)?;

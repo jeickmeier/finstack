@@ -59,6 +59,19 @@ __all__ = [
     "sifma_settlement_date_for_class",
     "estimated_sifma_settlement_date_for_class",
     "next_sifma_settlement",
+    # IMM, CDS rolls, and listed-option expiries
+    "third_wednesday",
+    "third_friday",
+    "next_imm",
+    "is_imm_date",
+    "is_cds_date",
+    "next_cds_date",
+    "prev_cds_date",
+    "prev_cds_semiannual_roll",
+    "next_semiannual_cds_maturity",
+    "imm_option_expiry",
+    "next_imm_option_expiry",
+    "next_equity_option_expiry",
     # free functions
     "create_date",
     "days_since_epoch",
@@ -2682,6 +2695,323 @@ def date_from_epoch_days(days: int) -> datetime.date:
     >>> from finstack_quant.core.dates import date_from_epoch_days
     >>> date_from_epoch_days(-1)
     datetime.date(1969, 12, 31)
+
+    """
+    ...
+
+# IMM, CDS rolls, and listed-option expiries
+
+def third_wednesday(month: int, year: int) -> datetime.date:
+    """
+    Return the third Wednesday of a month — the IMM date convention.
+
+    Parameters
+    ----------
+    month : int
+        Month number from ``1`` through ``12``.
+    year : int
+        Four-digit calendar year.
+
+    Returns
+    -------
+    datetime.date
+        The third Wednesday of the given month.
+
+    Raises
+    ------
+    ValueError
+        If *month* is outside ``1..12``.
+
+    Examples
+    --------
+    >>> from finstack_quant.core.dates import third_wednesday
+    >>> third_wednesday(3, 2025)
+    datetime.date(2025, 3, 19)
+
+    """
+    ...
+
+def third_friday(month: int, year: int) -> datetime.date:
+    """
+    Return the third Friday of a month — the listed-equity-option expiry.
+
+    Parameters
+    ----------
+    month : int
+        Month number from ``1`` through ``12``.
+    year : int
+        Four-digit calendar year.
+
+    Returns
+    -------
+    datetime.date
+        The third Friday of the given month.
+
+    Raises
+    ------
+    ValueError
+        If *month* is outside ``1..12``.
+
+    Examples
+    --------
+    >>> from finstack_quant.core.dates import third_friday
+    >>> third_friday(3, 2025)
+    datetime.date(2025, 3, 21)
+
+    """
+    ...
+
+def next_imm(date: datetime.date) -> datetime.date:
+    """
+    Return the next quarterly IMM date strictly after *date*.
+
+    Parameters
+    ----------
+    date : datetime.date
+        Reference date.
+
+    Returns
+    -------
+    datetime.date
+        Next March/June/September/December IMM date after *date*.
+
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.dates import next_imm
+    >>> next_imm(datetime.date(2025, 5, 1))
+    datetime.date(2025, 6, 18)
+
+    """
+    ...
+
+def is_imm_date(date: datetime.date) -> bool:
+    """
+    Return whether *date* is a quarterly IMM date.
+
+    Parameters
+    ----------
+    date : datetime.date
+        Candidate date.
+
+    Returns
+    -------
+    bool
+        ``True`` when *date* is the third Wednesday of a quarterly month.
+
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.dates import is_imm_date
+    >>> is_imm_date(datetime.date(2025, 3, 19))
+    True
+
+    """
+    ...
+
+def is_cds_date(date: datetime.date) -> bool:
+    """
+    Return whether *date* is a standard CDS roll date.
+
+    Parameters
+    ----------
+    date : datetime.date
+        Candidate date.
+
+    Returns
+    -------
+    bool
+        ``True`` when *date* is a standard CDS roll date.
+
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.dates import is_cds_date
+    >>> is_cds_date(datetime.date(2025, 6, 20))
+    True
+
+    """
+    ...
+
+def next_cds_date(date: datetime.date) -> datetime.date:
+    """
+    Return the next standard CDS roll date on or after *date*.
+
+    Parameters
+    ----------
+    date : datetime.date
+        Reference date.
+
+    Returns
+    -------
+    datetime.date
+        Next standard CDS roll date.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.dates import next_cds_date
+    >>> next_cds_date(datetime.date(2025, 5, 1))
+    datetime.date(2025, 6, 20)
+
+    """
+    ...
+
+def prev_cds_date(date: datetime.date) -> datetime.date:
+    """
+    Return the most recent standard CDS roll date on or before *date*.
+
+    Parameters
+    ----------
+    date : datetime.date
+        Reference date.
+
+    Returns
+    -------
+    datetime.date
+        Most recent standard CDS roll date.
+
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.dates import prev_cds_date
+    >>> prev_cds_date(datetime.date(2025, 5, 1))
+    datetime.date(2025, 3, 20)
+
+    """
+    ...
+
+def prev_cds_semiannual_roll(date: datetime.date) -> datetime.date:
+    """
+    Return the most recent semi-annual CDS roll on or before *date*.
+
+    Semi-annual rolls are the March and September dates only.
+
+    Parameters
+    ----------
+    date : datetime.date
+        Reference date.
+
+    Returns
+    -------
+    datetime.date
+        Most recent March or September CDS roll date.
+
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.dates import prev_cds_semiannual_roll
+    >>> prev_cds_semiannual_roll(datetime.date(2025, 5, 1))
+    datetime.date(2025, 3, 20)
+
+    """
+    ...
+
+def next_semiannual_cds_maturity(date: datetime.date) -> datetime.date:
+    """
+    Return the next semi-annual CDS maturity date after *date*.
+
+    Parameters
+    ----------
+    date : datetime.date
+        Reference date.
+
+    Returns
+    -------
+    datetime.date
+        Next semi-annual CDS maturity date.
+
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.dates import next_semiannual_cds_maturity
+    >>> next_semiannual_cds_maturity(datetime.date(2025, 5, 1))
+    datetime.date(2025, 6, 20)
+
+    """
+    ...
+
+def imm_option_expiry(month: int, year: int) -> datetime.date:
+    """
+    Return the expiry of the option on the IMM future for a month.
+
+    Parameters
+    ----------
+    month : int
+        Month number from ``1`` through ``12``.
+    year : int
+        Four-digit calendar year.
+
+    Returns
+    -------
+    datetime.date
+        Option expiry date for that IMM contract month.
+
+    Raises
+    ------
+    ValueError
+        If *month* is outside ``1..12``.
+
+    Examples
+    --------
+    >>> from finstack_quant.core.dates import imm_option_expiry
+    >>> imm_option_expiry(3, 2025)
+    datetime.date(2025, 3, 14)
+
+    """
+    ...
+
+def next_imm_option_expiry(date: datetime.date) -> datetime.date:
+    """
+    Return the next quarterly IMM option expiry strictly after *date*.
+
+    Parameters
+    ----------
+    date : datetime.date
+        Reference date.
+
+    Returns
+    -------
+    datetime.date
+        Next quarterly IMM option expiry.
+
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.dates import next_imm_option_expiry
+    >>> next_imm_option_expiry(datetime.date(2025, 5, 1))
+    datetime.date(2025, 6, 13)
+
+    """
+    ...
+
+def next_equity_option_expiry(date: datetime.date) -> datetime.date:
+    """
+    Return the next monthly listed-equity-option expiry after *date*.
+
+    Parameters
+    ----------
+    date : datetime.date
+        Reference date.
+
+    Returns
+    -------
+    datetime.date
+        Next third-Friday expiry strictly after *date*.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.dates import next_equity_option_expiry
+    >>> next_equity_option_expiry(datetime.date(2025, 5, 1))
+    datetime.date(2025, 5, 16)
 
     """
     ...
