@@ -506,10 +506,12 @@ def test_ci_path_runs_audit_tests_and_check_mode() -> None:
     build = (_REPOSITORY_ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
 
     audit_task = mise.split("[tasks.rust-serde-audit]", 1)[1].split("[tasks.", 1)[0]
+    check_schemas = mise.split("[tasks.rust-check-schemas]", 1)[1].split("[tasks.", 1)[0]
     gen_check = mise.split("[tasks.gen-check]", 1)[1].split("[tasks.", 1)[0]
     assert "pytest scripts/tests/test_serde_audit.py" in audit_task
     assert "python -m scripts.serde_audit --check" in audit_task
-    assert "mise run rust-serde-audit" in gen_check
+    assert "mise run rust-serde-audit" in check_schemas
+    assert "mise run rust-check-schemas" in gen_check
     assert "mise run gen-check" in build
 
 
