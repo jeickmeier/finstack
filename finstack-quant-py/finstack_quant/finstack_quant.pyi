@@ -32,4 +32,5 @@ statements: Any
 statements_analytics: Any
 valuations: Any
 
+__version__: str
 __all__: list[str]

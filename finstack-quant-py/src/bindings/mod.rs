@@ -28,6 +28,9 @@ pub mod valuations;
 /// Register all binding domains under the top-level `finstack_quant` module.
 pub fn register_root(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.setattr("__package__", "finstack_quant")?;
+    // Sourced from the workspace package version at compile time, so the
+    // extension can never disagree with the wheel it shipped in.
+    m.setattr("__version__", env!("CARGO_PKG_VERSION"))?;
 
     core::register(py, m)?;
     analytics::register(py, m)?;

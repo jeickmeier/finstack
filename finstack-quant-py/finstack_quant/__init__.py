@@ -9,6 +9,9 @@ Submodules are loaded lazily — importing ``finstack_quant`` does not pull in e
 domain, which reduces cold-start time in CLIs, notebooks, and serverless
 contexts.
 
+The installed version is available as ``finstack_quant.__version__`` — record it
+alongside results so a notebook stays reproducible.
+
 Examples:
 >>> from finstack_quant import core
 >>> core.dates.Tenor.parse("3M").months
@@ -22,7 +25,10 @@ import importlib as _importlib
 from types import ModuleType
 from typing import TYPE_CHECKING
 
+from finstack_quant.finstack_quant import __version__ as __version__
+
 __all__ = [
+    "__version__",
     "analytics",
     "attribution",
     "cashflows",
@@ -40,7 +46,9 @@ __all__ = [
     "valuations",
 ]
 
-_SUBMODULES: frozenset[str] = frozenset(__all__)
+# Lazily importable domains. `__all__` also carries `__version__`, which is a
+# plain attribute bound above and must never be routed through `__getattr__`.
+_SUBMODULES: frozenset[str] = frozenset(__all__) - {"__version__"}
 
 if TYPE_CHECKING:
     from . import (
