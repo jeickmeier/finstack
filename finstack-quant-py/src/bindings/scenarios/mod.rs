@@ -47,6 +47,27 @@ fn template_entry<'a>(
 
 // ScenarioSpec JSON round-trip
 
+/// Parse a scenario specification and re-emit it in canonical form.
+///
+/// Round-tripping through the Rust type normalizes field order and fills
+/// defaults, so the output is the exact spec the engine will execute. Use it to
+/// diff a hand-written spec against what actually runs.
+///
+/// Parameters
+/// ----------
+/// json_str : str
+///     JSON-serialized ``ScenarioSpec``.
+///
+/// Returns
+/// -------
+/// str
+///     Canonical JSON-serialized ``ScenarioSpec``.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If the JSON is malformed or does not match the ``ScenarioSpec`` schema.
+///     Unknown fields are rejected rather than ignored.
 #[pyfunction]
 fn parse_scenario_spec(json_str: &str) -> PyResult<String> {
     let spec = parse_spec(json_str)?;
@@ -128,6 +149,37 @@ fn build_scenario_spec(
     to_json(&spec, "Failed to serialize ScenarioSpec")
 }
 
+/// Compose several scenario specifications into one.
+///
+/// Later specs layer on top of earlier ones. Where two specs touch the same
+/// target, the composed spec resolves the conflict using each operation's
+/// ``resolution_mode`` (see :func:`build_scenario_spec`). Composition fails
+/// rather than silently dropping an operation when the modes disagree.
+///
+/// Parameters
+/// ----------
+/// specs_json : str
+///     JSON array of ``ScenarioSpec`` objects, in application order.
+///
+/// Returns
+/// -------
+/// str
+///     JSON-serialized composed ``ScenarioSpec``.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If the JSON is malformed or the specs cannot be composed.
+///
+/// Examples
+/// --------
+/// >>> import json
+/// >>> from finstack_quant.scenarios import build_scenario_spec, compose_scenarios
+/// >>> rates = build_scenario_spec("rates", json.dumps([]))
+/// >>> credit = build_scenario_spec("credit", json.dumps([]))
+/// >>> composed = compose_scenarios(json.dumps([json.loads(rates), json.loads(credit)]))
+/// >>> json.loads(composed)["id"] is not None
+/// True
 #[pyfunction]
 fn compose_scenarios(specs_json: &str) -> PyResult<String> {
     let specs: Vec<finstack_quant_scenarios::ScenarioSpec> =
@@ -139,6 +191,23 @@ fn compose_scenarios(specs_json: &str) -> PyResult<String> {
     to_json(&composed, "Failed to serialize composed spec")
 }
 
+/// Validate a scenario specification without applying it.
+///
+/// Parameters
+/// ----------
+/// json_str : str
+///     JSON-serialized ``ScenarioSpec``.
+///
+/// Returns
+/// -------
+/// bool
+///     ``True`` when the spec parses and validates. Never returns ``False`` —
+///     an invalid spec raises instead, so the message names the problem.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If the JSON is malformed or the spec fails validation.
 #[pyfunction]
 fn validate_scenario_spec(json_str: &str) -> PyResult<bool> {
     let spec = parse_spec(json_str)?;
@@ -148,12 +217,45 @@ fn validate_scenario_spec(json_str: &str) -> PyResult<bool> {
 
 // Template registry
 
+/// List the identifiers of every built-in scenario template.
+///
+/// Templates are the quickest way into the scenarios domain: pick an id here,
+/// pass it to :func:`build_from_template`, and apply the resulting spec — no
+/// hand-written operation JSON required.
+///
+/// Returns
+/// -------
+/// list[str]
+///     Template identifiers, e.g. ``"rates_parallel_up_100bp"``.
+///
+/// See Also
+/// --------
+/// list_builtin_template_metadata : Names and descriptions for these ids.
+/// build_from_template : Turn an id into a runnable spec.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.scenarios import list_builtin_templates
+/// >>> isinstance(list_builtin_templates(), list)
+/// True
 #[pyfunction]
 fn list_builtin_templates() -> PyResult<Vec<String>> {
     let registry = builtin_registry()?;
     Ok(registry.list().iter().map(|m| m.id.clone()).collect())
 }
 
+/// Describe every built-in scenario template.
+///
+/// Returns
+/// -------
+/// str
+///     JSON array of template metadata objects, each carrying at least ``id``,
+///     ``name`` and ``description``. Parse with ``json.loads`` — or load
+///     straight into pandas with ``pd.read_json(...)`` — to browse the catalog.
+///
+/// See Also
+/// --------
+/// list_builtin_templates : Just the identifiers.
 #[pyfunction]
 fn list_builtin_template_metadata() -> PyResult<String> {
     let registry = builtin_registry()?;
@@ -161,6 +263,30 @@ fn list_builtin_template_metadata() -> PyResult<String> {
     to_json(&metadata, "Failed to serialize template metadata")
 }
 
+/// Build a complete scenario specification from a built-in template.
+///
+/// This is the shortest path from nothing to a runnable scenario.
+///
+/// Parameters
+/// ----------
+/// template_id : str
+///     Identifier from :func:`list_builtin_templates`.
+///
+/// Returns
+/// -------
+/// str
+///     JSON-serialized ``ScenarioSpec``, ready for
+///     :func:`apply_scenario_to_market` or :func:`compute_horizon_return`.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If ``template_id`` is not a built-in template, or the template fails to
+///     build.
+///
+/// See Also
+/// --------
+/// list_template_components : Build only part of a template.
 #[pyfunction]
 fn build_from_template(template_id: &str) -> PyResult<String> {
     let registry = builtin_registry()?;
@@ -172,6 +298,25 @@ fn build_from_template(template_id: &str) -> PyResult<String> {
     to_json(&spec, "Failed to serialize spec")
 }
 
+/// List the component identifiers within a built-in template.
+///
+/// Multi-part templates (e.g. a stress that shocks rates, credit and vol) are
+/// decomposable, so a single leg can be applied on its own.
+///
+/// Parameters
+/// ----------
+/// template_id : str
+///     Identifier from :func:`list_builtin_templates`.
+///
+/// Returns
+/// -------
+/// list[str]
+///     Component identifiers accepted by :func:`build_template_component`.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If ``template_id`` is not a built-in template.
 #[pyfunction]
 fn list_template_components(template_id: &str) -> PyResult<Vec<String>> {
     let registry = builtin_registry()?;
@@ -183,6 +328,24 @@ fn list_template_components(template_id: &str) -> PyResult<Vec<String>> {
         .collect())
 }
 
+/// Build a scenario specification from one component of a built-in template.
+///
+/// Parameters
+/// ----------
+/// template_id : str
+///     Identifier from :func:`list_builtin_templates`.
+/// component_id : str
+///     Identifier from :func:`list_template_components`.
+///
+/// Returns
+/// -------
+/// str
+///     JSON-serialized ``ScenarioSpec`` covering only that component.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If either identifier is unknown, or the component fails to build.
 #[pyfunction]
 fn build_template_component(template_id: &str, component_id: &str) -> PyResult<String> {
     let registry = builtin_registry()?;

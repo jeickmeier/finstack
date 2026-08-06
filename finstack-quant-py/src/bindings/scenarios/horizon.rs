@@ -241,6 +241,46 @@ impl PyHorizonResult {
         serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
     }
 
+    /// Deserialize from JSON produced by :meth:`to_json`.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: finstack_quant_scenarios::horizon::HorizonResult =
+            serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Export the horizon summary as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``initial_value``, ``terminal_value``, ``currency``,
+    /// ``total_pnl``, ``total_return_pct``, ``annualized_return``,
+    /// ``horizon_days``, ``user_operations``, ``expanded_operations``,
+    /// ``operations_applied``, ``warning_count``.
+    ///
+    /// ``initial_value`` and ``terminal_value`` are bare amounts in
+    /// ``currency``. When the initial value and total P&L are denominated in
+    /// different currencies, ``total_return_pct`` is ``nan`` and
+    /// ``annualized_return`` is ``None`` — the same no-implicit-FX rule the
+    /// getters follow.
+    ///
+    /// For the factor-level breakdown use
+    /// ``result.attribution.to_dataframe()``.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let row = serde_json::json!({
+            "initial_value": self.inner.initial_value.amount(),
+            "terminal_value": self.inner.terminal_value.amount(),
+            "currency": self.inner.initial_value.currency().to_string(),
+            "total_pnl": self.inner.attribution.total_pnl.amount(),
+            "total_return_pct": self.inner.total_return_pct(),
+            "annualized_return": self.inner.annualized_return(),
+            "horizon_days": self.inner.horizon_days,
+            "user_operations": self.inner.scenario_report.user_operations,
+            "expanded_operations": self.inner.scenario_report.expanded_operations,
+            "operations_applied": self.inner.scenario_report.operations_applied,
+            "warning_count": self.inner.scenario_report.warnings.len(),
+        });
+        crate::bindings::pandas_utils::serde_object_to_single_row_dataframe(py, &row)
+    }
+
     /// Human-readable summary.
     fn explain(&self) -> String {
         let mut s = String::new();

@@ -325,6 +325,37 @@ impl PyMigrationSimulator {
     }
 }
 
+/// Project a generator matrix to a transition matrix over a horizon.
+///
+/// Computes ``P(t) = exp(Q * t)`` — the matrix exponential of the continuous-time
+/// generator ``Q``. This is the standard way to obtain rating-migration
+/// probabilities for a non-annual horizon (e.g. quarterly, or a 5-year
+/// cumulative view) from an annual generator.
+///
+/// Parameters
+/// ----------
+/// generator : GeneratorMatrix
+///     Continuous-time generator with non-negative off-diagonals and rows
+///     summing to zero.
+/// t : float
+///     Horizon in years. Must be non-negative.
+///
+/// Returns
+/// -------
+/// TransitionMatrix
+///     Row-stochastic migration probabilities over ``t`` years.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If ``t`` is negative or the projection fails to produce a valid
+///     row-stochastic matrix.
+///
+/// References
+/// ----------
+/// Israel, R. B., Rosenthal, J. S., & Wei, J. Z. (2001). "Finding Generators
+/// for Markov Chains via Empirical Transition Matrices, with Applications to
+/// Credit Ratings." *Mathematical Finance*, 11(2), 245-265.
 #[pyfunction]
 #[pyo3(text_signature = "(generator, t)")]
 fn project(generator: &PyGeneratorMatrix, t: f64) -> PyResult<PyTransitionMatrix> {
