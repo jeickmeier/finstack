@@ -1,8 +1,10 @@
 //! Result types for Monte Carlo simulations.
 
 use crate::bindings::core::money::PyMoney;
+use crate::bindings::pandas_utils::dict_to_dataframe;
 use finstack_quant_monte_carlo::results::MoneyEstimate;
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 
 /// Compact captured GBM paths for plotting and diagnostics.
 #[pyclass(name = "GbmPathSummary", module = "finstack_quant.monte_carlo", frozen)]
@@ -42,12 +44,57 @@ impl PyGbmPathSummary {
         self.inner.paths.clone()
     }
 
+    /// Export the captured paths as a pandas ``DataFrame`` indexed by time.
+    ///
+    /// Columns: ``path_0``, ``path_1``, ... — one column per captured path,
+    /// in the deterministic path-id order Rust produced. The index is the
+    /// shared time grid in year fractions, including time zero.
+    ///
+    /// Wide (time × path) rather than one row: it is the shape
+    /// ``df.plot()`` and ``df.quantile(axis=1)`` expect for a path bundle, and
+    /// every path already shares the one time grid. There is always at least
+    /// one column: the engine rejects a zero-path simulation.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If a captured path's length differs from the time grid's, which
+    ///     would silently misalign the index.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let n_times = self.inner.times.len();
+        let data = PyDict::new(py);
+        for (path_id, path) in self.inner.paths.iter().enumerate() {
+            if path.len() != n_times {
+                return Err(crate::errors::value_error(format!(
+                    "path {} has {} points but the time grid has {}",
+                    path_id,
+                    path.len(),
+                    n_times
+                )));
+            }
+            data.set_item(format!("path_{path_id}"), path.clone())?;
+        }
+        let index = self.inner.times.clone().into_pyobject(py)?.into_any();
+        dict_to_dataframe(py, &data, Some(index))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "GbmPathSummary(paths={}, points={})",
             self.inner.paths.len(),
             self.inner.times.len()
         )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 

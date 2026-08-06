@@ -10,6 +10,8 @@ Examples:
 
 """
 
+import sys as _sys
+
 from finstack_quant.finstack_quant import statements as _statements
 
 ForecastMethod = _statements.ForecastMethod
@@ -36,6 +38,11 @@ EcfSweepSpec = _statements.EcfSweepSpec
 PikToggleSpec = _statements.PikToggleSpec
 WaterfallSpec = _statements.WaterfallSpec
 
+# `schema` is a compiled submodule with no pure-Python shim package, so alias it
+# onto the public dotted path that `import finstack_quant.statements.schema` uses.
+schema = _statements.schema
+_sys.modules.setdefault("finstack_quant.statements.schema", schema)
+
 __all__: list[str] = [
     "CheckReport",
     "CheckSuiteSpec",
@@ -59,5 +66,6 @@ __all__: list[str] = [
     "normalize",
     "parse_formula",
     "run_monte_carlo",
+    "schema",
     "validate_formula",
 ]

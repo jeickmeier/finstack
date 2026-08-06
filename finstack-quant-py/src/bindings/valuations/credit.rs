@@ -71,6 +71,16 @@ impl PyMertonModel {
         })
     }
 
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        Ok((from_json, (self.to_json()?,)))
+    }
+
     /// Deserialize a structural credit model from JSON.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
@@ -125,6 +135,16 @@ impl PyDynamicRecoverySpec {
         })
     }
 
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        Ok((from_json, (self.to_json()?,)))
+    }
+
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         Ok(Self {
@@ -159,6 +179,16 @@ impl PyEndogenousHazardSpec {
             inner: EndogenousHazardSpec::power_law(base_hazard, base_leverage, exponent)
                 .map_err(display_to_py)?,
         })
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        Ok((from_json, (self.to_json()?,)))
     }
 
     #[staticmethod]
@@ -263,6 +293,16 @@ impl PyToggleExerciseModel {
                 horizon,
             }),
         }
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        Ok((from_json, (self.to_json()?,)))
     }
 
     #[staticmethod]

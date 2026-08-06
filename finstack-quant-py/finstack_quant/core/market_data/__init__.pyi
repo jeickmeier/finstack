@@ -32,6 +32,8 @@ import datetime
 from decimal import Decimal
 from typing import Optional, Union
 
+import pandas as pd
+
 from finstack_quant.core.currency import Currency
 from finstack_quant.core.money import Money
 from finstack_quant.core.market_data import arbitrage as arbitrage
@@ -2178,6 +2180,24 @@ class FxRateResult:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export as a single-row pandas DataFrame.
+
+        Columns: ``rate``, ``triangulated``.
+
+        One lookup is one flat record, so a one-row frame is the right shape:
+        ``pd.concat([matrix.rate(*pair, d).to_dataframe() for pair in pairs])``
+        builds a fixing table, and the ``triangulated`` flag travels with each
+        rate so a downstream check can refuse derived quotes.
+
+        Returns
+        -------
+        pd.DataFrame
+            Single-row frame with the rate and its triangulation flag.
+        """
+        ...
+
     def __repr__(self) -> str: ...
 
 class FxMatrix:
@@ -2426,6 +2446,30 @@ class ScalarTimeSeries:
 
         """
         ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export as a pandas DataFrame indexed by observation date.
+
+        Columns: ``value``.
+
+        The index is a ``DatetimeIndex`` built from the observation dates, so
+        the frame joins directly against other date-indexed market data and
+        resamples without a conversion step. Rows follow the chronologically
+        sorted order of :attr:`observations`; there is always at least one row,
+        because the constructor rejects an empty observation set.
+
+        Only the stored observations appear; nothing is interpolated. Use
+        :meth:`value_on` for values between observation dates — the
+        interpolation policy stays owned by Rust.
+
+        Returns
+        -------
+        pd.DataFrame
+            Date-indexed frame with a single ``value`` column.
+        """
+        ...
+
     def to_json(self) -> str:
         """
         Serialize `ScalarTimeSeries` to canonical JSON.

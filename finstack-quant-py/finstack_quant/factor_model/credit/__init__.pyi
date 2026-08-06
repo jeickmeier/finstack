@@ -18,6 +18,8 @@ True
 
 from __future__ import annotations
 
+import pandas as pd
+
 class CreditFactorModel:
     """
     Calibrated credit factor hierarchy artifact.
@@ -443,6 +445,51 @@ class PeriodDecomposition:
         -------
         dict[str, float]
             Per-issuer adder delta in bp.
+        """
+        ...
+
+    def to_level_dataframe(self) -> pd.DataFrame:
+        """
+        Export the per-level bucket deltas as a pandas DataFrame.
+
+        Columns: ``from_date``, ``to_date``, ``level_index``, ``dimension``,
+        ``bucket``, ``delta``.
+
+        One row per (level, bucket) pair — the long format the level deltas
+        naturally take, since each level has its own bucket set. The two dates
+        repeat on every row as ISO strings so a row survives ``pd.concat``
+        across periods. Rows are ordered by ``level_index``, then by
+        ``bucket`` — the deltas are a sorted map, so bucket order is the sorted
+        key order and repeated exports are identical.
+
+        A decomposition with no hierarchy levels yields a zero-row frame that
+        still carries the columns above.
+
+        Returns
+        -------
+        pd.DataFrame
+            Long-format frame of bucket deltas, one row per (level, bucket).
+        """
+        ...
+
+    def to_adder_dataframe(self) -> pd.DataFrame:
+        """
+        Export the per-issuer adder deltas as a pandas DataFrame.
+
+        Columns: ``from_date``, ``to_date``, ``issuer_id``, ``d_adder``.
+
+        One row per issuer. The two dates repeat on every row as ISO strings so
+        a row survives ``pd.concat`` across periods. Rows are ordered by
+        ``issuer_id`` — the adders are a sorted map, so this is the sorted key
+        order and repeated exports are identical.
+
+        A decomposition sharing no issuers between snapshots yields a zero-row
+        frame that still carries the columns above.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per issuer present in both snapshots.
         """
         ...
 

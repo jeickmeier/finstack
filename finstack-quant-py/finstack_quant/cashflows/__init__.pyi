@@ -21,6 +21,7 @@ from finstack_quant.cashflows import accrual as accrual
 from finstack_quant.cashflows import aggregation as aggregation
 from finstack_quant.cashflows import builder as builder
 from finstack_quant.cashflows import primitives as primitives
+from finstack_quant.cashflows import schema as schema
 
 __all__ = [
     "accrual",
@@ -30,6 +31,7 @@ __all__ = [
     "builder",
     "dated_flows_json",
     "primitives",
+    "schema",
     "validate_cashflow_schedule_json",
 ]
 

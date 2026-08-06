@@ -10,6 +10,7 @@ use pyo3::types::{PyList, PyModule};
 
 use crate::bindings::core::currency::extract_currency;
 use crate::bindings::core::dates::utils::py_to_date;
+use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe;
 use crate::errors::core_to_py;
 
 // Helpers
@@ -126,11 +127,38 @@ impl PyFxRateResult {
         self.inner.triangulated
     }
 
+    /// Export as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``rate``, ``triangulated``.
+    ///
+    /// One lookup is one flat record, so a one-row frame is the right shape:
+    /// ``pd.concat([matrix.rate(*pair, d).to_dataframe() for pair in pairs])``
+    /// builds a fixing table, and the ``triangulated`` flag travels with each
+    /// rate so a downstream check can refuse derived quotes.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let row = serde_json::json!({
+            "rate": self.inner.rate,
+            "triangulated": self.inner.triangulated,
+        });
+        serde_object_to_single_row_dataframe(py, &row)
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "FxRateResult(rate={}, triangulated={})",
             self.inner.rate, self.inner.triangulated,
         )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 

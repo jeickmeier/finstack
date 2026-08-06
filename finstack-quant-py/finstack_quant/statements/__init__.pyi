@@ -23,8 +23,10 @@ from finstack_quant.core.currency import Currency
 from finstack_quant.core.market_data import MarketContext
 from finstack_quant.core.money import Money
 from finstack_quant.core.table import ArrowTable
+from finstack_quant.statements import schema as schema
 
 __all__ = [
+    "schema",
     "ForecastMethod",
     "ForecastSpec",
     "NodeType",
@@ -83,19 +85,27 @@ class MonteCarloConfig:
         include_path_data: bool = ...,
     ) -> None:
         """
-        Configure reproducible path sampling and retained Monte Carlo outputs.
+        Configure a Monte Carlo run over a statement model's forecast periods.
 
         Parameters
         ----------
         n_paths : int
-            Number of stochastic paths evaluated by the statement engine.
+            Number of simulated paths. Percentile standard error scales as
+            ``1 / sqrt(n_paths)``, so tails need proportionally more paths:
+            roughly 1 000–2 000 for means/medians, 5 000–10 000 for the 5th
+            and 95th percentiles, and 10 000+ for 1st/99th percentiles, CVaR,
+            or breach probabilities. No minimum is imposed.
         seed : int
-            Deterministic random-number seed used to reproduce the run.
+            Base seed from which per-path and per-node seeds are derived. The
+            same seed reproduces the run exactly, in serial and in parallel.
         percentiles : list[float] or None, default None
-            Requested decimal quantiles, such as ``0.95``; ``None`` uses the
-            engine defaults.
+            Percentiles to compute, each a **decimal fraction in [0, 1]** —
+            ``0.05`` is the 5th percentile, not ``5``. Values are sorted and
+            deduplicated; out-of-range values raise. ``None`` uses the engine
+            default ``[0.05, 0.5, 0.95]``.
         include_path_data : bool, default False
-            Whether to retain individual path values in addition to summaries.
+            Whether to retain the full per-path long table. Off by default
+            because it grows as ``n_paths * metrics * forecast periods``.
 
         """
         ...
@@ -147,7 +157,7 @@ class MonteCarloConfig:
     @property
     def n_paths(self) -> int:
         """
-        Return the number of paths requested for evaluation.
+        Number of paths the simulation will draw.
 
         Returns
         -------
@@ -160,7 +170,10 @@ class MonteCarloConfig:
     @property
     def seed(self) -> int:
         """
-        Return the deterministic random-number seed.
+        Base seed from which per-path and per-node seeds are derived.
+
+        Reusing a seed reproduces the run bit-for-bit; serial and parallel
+        execution agree.
 
         Returns
         -------
@@ -173,12 +186,13 @@ class MonteCarloConfig:
     @property
     def percentiles(self) -> list[float]:
         """
-        Return the requested decimal percentile levels.
+        Percentiles to compute, as decimal fractions in [0, 1].
 
         Returns
         -------
         list[float]
-            Percentile probabilities reported by the evaluator.
+            Sorted, deduplicated quantile levels — ``0.05`` is the 5th
+            percentile, not ``5``.
 
         """
         ...
@@ -186,12 +200,13 @@ class MonteCarloConfig:
     @property
     def include_path_data(self) -> bool:
         """
-        Return whether individual path values are retained.
+        Whether the run retains the full per-path table alongside percentiles.
 
         Returns
         -------
         bool
-            ``True`` when the result includes path-level data.
+            ``True`` when the result includes path-level data, reachable via
+            :meth:`MonteCarloResults.to_paths_dataframe`.
 
         """
         ...
@@ -255,7 +270,10 @@ class MonteCarloResults:
     @property
     def n_paths(self) -> int:
         """
-        Return the number of simulated paths.
+        Number of paths actually simulated.
+
+        The aggregator fails the run unless this equals the configured
+        ``n_paths``, so a partial simulation never reaches a result.
 
         Returns
         -------
@@ -268,12 +286,13 @@ class MonteCarloResults:
     @property
     def percentiles(self) -> list[float]:
         """
-        Return the reported decimal percentile levels.
+        Percentiles computed for every metric and period.
 
         Returns
         -------
         list[float]
-            Percentile probabilities available in the result.
+            Sorted, deduplicated quantile levels as decimal fractions in
+            [0, 1] — ``0.5`` is the median.
 
         """
         ...
@@ -281,31 +300,91 @@ class MonteCarloResults:
     @property
     def forecast_periods(self) -> list[str]:
         """
-        Return forecast-period labels in model order.
+        Forecast periods covered by the simulation, in evaluation order.
+
+        Only non-actual periods are simulated, so historical periods are absent
+        from this list and from every percentile series.
 
         Returns
         -------
         list[str]
-            Period identifiers covered by the simulation.
+            Period identifier strings (e.g. ``"2025Q1"``).
 
         """
         ...
 
     def get_percentile_series(self, metric: str, percentile: float) -> dict[str, float] | None:
         """
-        Return one metric's values at a percentile level.
+        Look up one percentile of one metric as a period-keyed dict.
 
         Parameters
         ----------
         metric : str
-            Statement metric or node ID stored in the result.
+            Node identifier whose simulated distribution to read.
         percentile : float
-            Percentile as a decimal probability, such as ``0.95`` for P95.
+            Quantile as a decimal fraction in [0, 1] (``0.95`` for the 95th
+            percentile). It must match a configured percentile to within
+            1e-12; nothing is interpolated between configured levels.
 
         Returns
         -------
         dict[str, float] or None
-            Forecast-period values, or ``None`` when the series is absent.
+            Period identifier → percentile value, in forecast-period order.
+            ``None`` when the metric is unknown or the percentile was not
+            configured for this run.
+
+        """
+        ...
+
+    def to_dataframe(self, metric: str) -> pd.DataFrame:
+        """
+        Export one metric's percentile fan as a pandas ``DataFrame``.
+
+        Rows are the metric's forecast periods (index name ``period``, in
+        evaluation order); each column holds one configured percentile of the
+        simulated distribution, in the metric's own units (currency amounts for
+        monetary nodes, unitless otherwise).
+
+        Columns: one per configured percentile, named ``p<q>`` where ``q`` is
+        the quantile as a decimal fraction — ``p0.05``, ``p0.5``, ``p0.95`` for
+        the default levels. A cell is ``NaN`` when a period is missing that
+        percentile.
+
+        Parameters
+        ----------
+        metric : str
+            Node identifier whose fan chart to build.
+
+        Returns
+        -------
+        pd.DataFrame
+            Percentile-by-period frame indexed by period identifier.
+
+        Raises
+        ------
+        KeyError
+            If ``metric`` was not simulated.
+
+        """
+        ...
+
+    def to_paths_dataframe(self) -> pd.DataFrame:
+        """
+        Export the retained per-path values as a long-format ``DataFrame``.
+
+        Populated only when the run was configured with
+        ``include_path_data=True``; otherwise the frame is empty but still
+        carries the documented columns. Rows are ordered canonically by
+        ``(path_id, metric, period)`` so serial and parallel runs match.
+
+        Columns: ``path_id`` (0-based path index), ``period`` (period
+        identifier string), ``metric`` (node identifier), ``value`` (float64,
+        in the metric's own units).
+
+        Returns
+        -------
+        pd.DataFrame
+            Long-format per-path frame.
 
         """
         ...
@@ -364,7 +443,11 @@ class ForecastMethod:
     @staticmethod
     def forward_fill() -> ForecastMethod:
         """
-        Carry the last observed value forward into future periods.
+        Carry the last observed value forward unchanged: ``v[t] = v[t-1]``.
+
+        Takes no parameters and never changes the level, so it is the safe
+        default for stock-like nodes (balances) that should hold flat when no
+        explicit assumption is supplied.
 
         Returns
         -------
@@ -383,7 +466,12 @@ class ForecastMethod:
     @staticmethod
     def growth_pct() -> ForecastMethod:
         """
-        Apply compound percentage growth between periods.
+        Compound growth at a single rate: ``v[t] = v[t-1] * (1 + rate)``.
+
+        ``rate`` is a **decimal fraction per period**, not a percentage — 0.05
+        means 5% growth per period, and the period is whatever cadence the
+        model's period list uses (quarters, months, years). Rates above 100%
+        per period raise an evaluation warning.
 
         Returns
         -------
@@ -402,7 +490,10 @@ class ForecastMethod:
     @staticmethod
     def curve_pct() -> ForecastMethod:
         """
-        Apply period-specific percentage growth from a curve.
+        Period-specific compound growth: ``v[t] = v[t-1] * (1 + curve[t])``.
+
+        ``curve`` supplies one growth rate per forecast period, each a decimal
+        fraction per period (0.05 = 5%), consumed in forecast-period order.
 
         Returns
         -------
@@ -421,7 +512,13 @@ class ForecastMethod:
     @staticmethod
     def normal() -> ForecastMethod:
         """
-        Normal-distribution sampling (deterministic under a fixed seed).
+        Additive normal random walk: ``v[t] = v[t-1] + mean + std_dev * z[t]``.
+
+        ``mean`` and ``std_dev`` are per-period **level** quantities in the
+        node's own units (currency amounts for ``Money`` nodes, unitless for
+        scalar nodes), not rates. ``z[t]`` is a deterministic standard-normal
+        draw derived from the configured seed, so runs are reproducible.
+        ``std_dev`` must be non-negative.
 
         Returns
         -------
@@ -440,7 +537,15 @@ class ForecastMethod:
     @staticmethod
     def log_normal() -> ForecastMethod:
         """
-        Log-normal distribution sampling (deterministic under a fixed seed).
+        Multiplicative log-normal path:
+        ``v[t] = v[t-1] * exp(mean - 0.5 * std_dev**2 + std_dev * z[t])``.
+
+        ``mean`` and ``std_dev`` are the per-period log-return drift and
+        volatility as decimal fractions (0.02 = 2% log drift per period). The
+        ``-0.5 * std_dev**2`` term is the standard log-normal drift adjustment,
+        so ``mean`` is the expected *log*-return, not the expected simple
+        return. When the base value is zero the path falls back to independent
+        ``exp(mean + std_dev * z[t])`` draws.
 
         Returns
         -------
@@ -459,7 +564,12 @@ class ForecastMethod:
     @staticmethod
     def override_method() -> ForecastMethod:
         """
-        Use explicit period overrides instead of a statistical rule.
+        Explicit per-period overrides, forward-filling the periods in between.
+
+        The method reads an ``overrides`` parameter mapping period-identifier
+        strings (e.g. ``"2025Q2"``) to values; any forecast period without an
+        entry inherits the most recent value. Named ``override_method`` on the
+        Python side because the Rust variant is ``Override``.
 
         Returns
         -------
@@ -478,7 +588,11 @@ class ForecastMethod:
     @staticmethod
     def time_series() -> ForecastMethod:
         """
-        Reference an external time series as the forecast source.
+        Project an externally supplied historical series forward with trend
+        detection.
+
+        The history is passed through the spec's parameters rather than read
+        from the model graph, so the same series can drive several nodes.
 
         Returns
         -------
@@ -497,7 +611,13 @@ class ForecastMethod:
     @staticmethod
     def seasonal() -> ForecastMethod:
         """
-        Apply a seasonal pattern (additive or multiplicative).
+        Seasonal decomposition forecast (additive or multiplicative).
+
+        Requires a ``season_length`` parameter counted in **periods** (4 for a
+        quarterly model, 12 for monthly) and at least two full seasonal cycles
+        of history. Use additive mode when seasonal swings are constant in
+        absolute terms and multiplicative when they scale with the level;
+        prefer additive for series that cross zero.
 
         Returns
         -------
@@ -540,14 +660,18 @@ class ForecastSpec:
 
     def __init__(self, method: ForecastMethod, params_json: str | None = None) -> None:
         """
-        Create a forecast spec from a method and optional JSON params.
+        Build a forecast spec from a method plus its method-specific parameters.
 
         Parameters
         ----------
         method:
-            A :class:`ForecastMethod` describing the projection approach.
+            A :class:`ForecastMethod` describing the projection rule applied
+            to forecast periods.
         params_json:
-            Optional JSON string with method-specific parameters.
+            JSON object of method-specific parameters (``rate``, ``curve``,
+            ``mean``, ``std_dev``, ``seed``, ``overrides``, ``season_length``,
+            ...). Rates are decimal fractions per period. ``None`` means no
+            parameters, which is only valid for ``forward_fill``.
 
         Raises
         ------
@@ -560,7 +684,7 @@ class ForecastSpec:
     @staticmethod
     def forward_fill() -> ForecastSpec:
         """
-        Carry the last observed value forward.
+        Forward-fill spec: hold the last observed value flat, no parameters.
 
         Returns
         -------
@@ -580,12 +704,14 @@ class ForecastSpec:
     @staticmethod
     def growth(rate: float) -> ForecastSpec:
         """
-        Compound each future period by ``rate``.
+        Constant compound-growth spec: ``v[t] = v[t-1] * (1 + rate)``.
 
         Parameters
         ----------
         rate:
-            Period-over-period growth rate as a decimal (e.g. ``0.05`` for 5%).
+            Growth rate as a **decimal fraction per period** (0.05 = 5% per
+            period, on the model's own period cadence). Negative values decay
+            the series.
 
         Returns
         -------
@@ -605,12 +731,13 @@ class ForecastSpec:
     @staticmethod
     def curve(curve: list[float]) -> ForecastSpec:
         """
-        Use period-specific growth rates.
+        Period-by-period growth spec: ``v[t] = v[t-1] * (1 + curve[t])``.
 
         Parameters
         ----------
         curve:
-            Per-period growth rates as decimals, aligned to future periods.
+            One growth rate per forecast period, each a decimal fraction per
+            period (0.05 = 5%), consumed in forecast-period order.
 
         Returns
         -------
@@ -630,16 +757,21 @@ class ForecastSpec:
     @staticmethod
     def normal(mean: float, std_dev: float, seed: int) -> ForecastSpec:
         """
-        Use deterministic additive normal draws.
+        Additive normal random-walk spec:
+        ``v[t] = v[t-1] + mean + std_dev * z[t]``.
 
         Parameters
         ----------
         mean:
-            Mean of the normal distribution.
+            Per-period additive drift, in the node's own units (currency
+            amount for ``Money`` nodes, unitless for scalar nodes).
         std_dev:
-            Standard deviation of the normal distribution.
+            Per-period additive volatility in the same units; must be
+            non-negative. Zero gives a deterministic drift path.
         seed:
-            Random seed for deterministic reproducibility.
+            Seed for the deterministic standard-normal draws. The evaluator
+            mixes a stable hash of the node id into it, so two nodes sharing a
+            seed still receive independent shocks.
 
         Returns
         -------
@@ -659,16 +791,20 @@ class ForecastSpec:
     @staticmethod
     def lognormal(mean: float, std_dev: float, seed: int) -> ForecastSpec:
         """
-        Use deterministic multiplicative log-normal draws.
+        Multiplicative log-normal spec:
+        ``v[t] = v[t-1] * exp(mean - 0.5 * std_dev**2 + std_dev * z[t])``.
 
         Parameters
         ----------
         mean:
-            Mean of the underlying normal distribution.
+            Per-period **log-return** drift as a decimal fraction (0.02 = 2%
+            log drift per period). The ``-0.5 * std_dev**2`` convexity term is
+            applied by the engine, so this is not the expected simple return.
         std_dev:
-            Standard deviation of the underlying normal distribution.
+            Per-period log-return volatility as a decimal fraction; must be
+            non-negative.
         seed:
-            Random seed for deterministic reproducibility.
+            Seed for the deterministic standard-normal draws.
 
         Returns
         -------
@@ -750,7 +886,10 @@ class NodeType:
     @staticmethod
     def value() -> NodeType:
         """
-        Node holds only explicit values (actuals or assumptions).
+        Value node: explicit per-period values only (actuals, assumptions).
+
+        The node has no formula and no forecast, so periods without an
+        explicit value stay unset.
 
         Returns
         -------
@@ -769,7 +908,7 @@ class NodeType:
     @staticmethod
     def calculated() -> NodeType:
         """
-        Node is derived entirely from a formula.
+        Calculated node: derived from its formula in every period.
 
         Returns
         -------
@@ -788,7 +927,12 @@ class NodeType:
     @staticmethod
     def mixed() -> NodeType:
         """
-        Node may combine values, forecasts, and formulas with precedence rules.
+        Mixed node: explicit value, else forecast, else formula.
+
+        This is the crate's core precedence invariant — **Value > Forecast >
+        Formula** — resolved independently for each period, so a node can be
+        an actual in historical periods, a forecast in projected periods, and
+        a formula wherever neither is supplied.
 
         Returns
         -------
@@ -830,12 +974,14 @@ class NodeId:
 
     def __init__(self, id: str) -> None:
         """
-        Create a node identifier from a string.
+        Wrap a raw node identifier string.
 
         Parameters
         ----------
         id:
-            Raw node identifier (for example ``"revenue"``).
+            Node identifier as it appears in the model graph and in formulas
+            (for example ``"revenue"``). The value is stored verbatim — no
+            case folding or trimming — so identifiers are matched exactly.
 
         Examples
         --------
@@ -853,7 +999,7 @@ class NodeId:
         Returns
         -------
         str
-            Node id string.
+            The identifier exactly as supplied at construction.
 
         Examples
         --------
@@ -1956,7 +2102,10 @@ class StatementResult:
 
     def get(self, node_id: str, period: str) -> float | None:
         """
-        Return the scalar for ``node_id`` at ``period``, if present.
+        Get the value for a node at a specific period.
+
+        Returns the f64 view of whichever source won this period under the
+        crate's **Value > Forecast > Formula** precedence rule.
 
         Parameters
         ----------
@@ -1968,7 +2117,10 @@ class StatementResult:
         Returns
         -------
         float | None
-            Value when found, otherwise ``None``.
+            The value in the node's own units — a currency amount for
+            monetary nodes (currency not carried; use :meth:`get_money` for
+            that) and a unitless scalar otherwise. ``None`` when the node or
+            period is unknown.
 
         Raises
         ------
@@ -2032,7 +2184,7 @@ class StatementResult:
 
     def get_node(self, node_id: str) -> dict[str, float] | None:
         """
-        Return all period values for a node as a mapping.
+        Get every evaluated period for one node as a dict.
 
         Parameters
         ----------
@@ -2042,19 +2194,21 @@ class StatementResult:
         Returns
         -------
         dict[str, float] | None
-            Mapping from period string to float, or ``None`` if the node is missing.
+            Period identifier string → value, in evaluation order, in the
+            node's own units (currency amount for monetary nodes, unitless
+            otherwise). ``None`` when the node is not in the result.
 
         """
         ...
 
     def node_ids(self) -> list[str]:
         """
-        Return every node id present in this result set.
+        Return every node id present in this result set, in evaluation order.
 
         Returns
         -------
         list[str]
-            Node identifiers.
+            Node ids as declared in the model graph.
 
         """
         ...
@@ -2063,21 +2217,24 @@ class StatementResult:
     def node_count(self) -> int:
         """
         Number of nodes in the result.
+
         Returns
         -------
         int
-            The node count exposed by this `StatementResult`.
+            Count of evaluated nodes.
         """
         ...
 
     @property
     def num_periods(self) -> int:
         """
-        Number of periods covered by the evaluation metadata.
+        Number of periods evaluated.
+
         Returns
         -------
         int
-            The num periods exposed by this `StatementResult`.
+            Count in **periods** on the model's own cadence (quarters, months,
+            years), not months.
         """
         ...
 
@@ -2085,21 +2242,30 @@ class StatementResult:
     def eval_time_ms(self) -> int | None:
         """
         Wall-clock evaluation time in milliseconds, if recorded.
+
+        Diagnostic only — it is not part of the deterministic result, so two
+        identical runs may report different values.
+
         Returns
         -------
         int or None
-            The eval time ms exposed by this `StatementResult`.
+            Elapsed milliseconds, or ``None`` when the producing run did not
+            record it.
         """
         ...
 
     @property
     def warning_count(self) -> int:
         """
-        Count of evaluation warnings attached to metadata.
+        Number of evaluation warnings recorded.
+
+        Warnings never fail an evaluation; see :attr:`warnings` for what was
+        flagged.
+
         Returns
         -------
         int
-            The warning count exposed by this `StatementResult`.
+            Warning count.
         """
         ...
 
@@ -2108,10 +2274,15 @@ class StatementResult:
         """
         Evaluation warnings as human-readable strings.
 
+        Each entry is the debug form of an ``EvalWarning`` (division by zero,
+        non-finite value, skipped non-finite aggregate input, ignored
+        capital-structure cashflow, ...), so audit tooling can see *what* was
+        flagged rather than only a count.
+
         Returns
         -------
         list[str]
-            The warnings exposed by this `StatementResult`.
+            One string per recorded warning.
         """
         ...
 
@@ -2123,7 +2294,8 @@ class StatementResult:
         Returns
         -------
         NumericMode
-            The numeric mode exposed by this `StatementResult`.
+            Always ``NumericMode.float64()`` today; the reserved decimal mode
+            exists only so persisted payloads can evolve.
         """
         ...
 
@@ -2135,7 +2307,9 @@ class StatementResult:
         Returns
         -------
         bool
-            The parallel exposed by this `StatementResult`.
+            ``True`` when the DAG was traversed in parallel. Parallel and
+            serial runs produce identical values, so this is an audit stamp,
+            not a behavioural flag.
         """
         ...
 
@@ -2443,7 +2617,7 @@ class NormalizationConfig:
         Returns
         -------
         str
-            The target node exposed by this `NormalizationConfig`.
+            Node identifier of the metric being normalized (e.g. ``"ebitda"``).
         """
         ...
 
@@ -2454,7 +2628,7 @@ class NormalizationConfig:
         Returns
         -------
         int
-            The adjustment count exposed by this `NormalizationConfig`.
+            Number of add-back / deduction adjustments configured.
         """
         ...
 
@@ -2569,34 +2743,42 @@ class CheckSuiteSpec:
     @property
     def name(self) -> str:
         """
-        Return the name for `CheckSuiteSpec`.
-        Suite name.
+        Suite name, used for display and logging.
+
         Returns
         -------
         str
-            The name exposed by this `CheckSuiteSpec`.
+            The suite's name.
         """
         ...
 
     @property
     def builtin_check_count(self) -> int:
         """
-        Number of built-in checks in the suite spec.
+        Number of built-in checks the spec will materialize.
+
+        Built-ins are the crate-provided accounting-identity, reconciliation,
+        and data-quality checks, selected by name in the spec.
+
         Returns
         -------
         int
-            The builtin check count exposed by this `CheckSuiteSpec`.
+            Count of built-in check entries.
         """
         ...
 
     @property
     def formula_check_count(self) -> int:
         """
-        Number of formula checks in the suite spec.
+        Number of user-defined formula checks the spec will materialize.
+
+        Formula checks are DSL expressions evaluated per period; their syntax
+        is validated when the suite runs, not when the spec is loaded.
+
         Returns
         -------
         int
-            The formula check count exposed by this `CheckSuiteSpec`.
+            Count of formula check entries.
         """
         ...
 
@@ -2678,55 +2860,125 @@ class CheckReport:
     @property
     def passed(self) -> bool:
         """
-        Whether all checks passed (no error-severity findings).
+        Whether the whole report passed: no error-severity finding was retained
+        by any check.
+
+        Warnings and info findings do not fail a report. A suite's materiality
+        threshold never suppresses error findings, so it cannot flip this to
+        ``True``.
+
         Returns
         -------
         bool
-            The passed exposed by this `CheckReport`.
+            ``True`` when zero error-severity findings were retained.
         """
         ...
 
     @property
     def total_checks(self) -> int:
         """
-        Number of individual check results in the report.
+        Number of checks that ran, one per row of :meth:`to_dataframe`.
+
         Returns
         -------
         int
-            The total checks exposed by this `CheckReport`.
+            Count of check results in the report.
         """
         ...
 
     @property
     def total_findings(self) -> int:
         """
-        Total number of findings across all checks.
+        Number of retained findings across all checks.
+
+        Counts what survived the suite's ``min_severity`` and
+        ``materiality_threshold`` reporting filters, not every raw diagnostic
+        the checks produced — it matches the row count of
+        :meth:`to_findings_dataframe`.
+
         Returns
         -------
         int
-            The total findings exposed by this `CheckReport`.
+            Retained error, warning and info findings combined.
         """
         ...
 
     @property
     def total_errors(self) -> int:
         """
-        Number of error-severity findings.
+        Number of retained error-severity findings across all checks.
+
         Returns
         -------
         int
-            The total errors exposed by this `CheckReport`.
+            Retained error-severity finding count.
         """
         ...
 
     @property
     def total_warnings(self) -> int:
         """
-        Number of warning-severity findings.
+        Number of retained warning-severity findings across all checks.
+
         Returns
         -------
         int
-            The total warnings exposed by this `CheckReport`.
+            Retained warning-severity finding count.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export one row per executed check as a pandas ``DataFrame``.
+
+        Columns: ``check_id`` (stable identifier), ``check_name``
+        (human-readable name), ``category`` (snake_case group, one of
+        ``accounting_identity``, ``cross_statement_reconciliation``,
+        ``internal_consistency``, ``credit_reasonableness``, ``data_quality``),
+        ``passed`` (``True`` when the check retained no error-severity
+        finding), ``finding_count`` (retained findings for this check, after
+        the suite's reporting filters).
+
+        One row per check result, so the row count equals
+        :attr:`total_checks`. A report with no checks still yields the
+        documented columns with zero rows. Per-finding detail — severity,
+        message, and the observed-vs-reference materiality — lives in
+        :meth:`to_findings_dataframe`.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per check result.
+        """
+        ...
+
+    def to_findings_dataframe(self) -> pd.DataFrame:
+        """
+        Export one row per retained finding as a pandas ``DataFrame``.
+
+        Columns: ``check_id``, ``check_name``, ``category`` (as in
+        :meth:`to_dataframe`), ``severity`` (``info``, ``warning`` or
+        ``error``), ``message`` (human-readable description), ``period``
+        (period identifier string such as ``"2025Q1"``, ``None`` when the
+        finding is not period-specific), ``nodes`` (comma-joined node
+        identifiers involved, empty string when none), ``materiality_absolute``
+        (size of the discrepancy in the compared nodes' own units — currency
+        amounts for monetary nodes), ``materiality_relative_pct`` (that
+        discrepancy as a **percentage** of the reference value, i.e. already
+        multiplied by 100, unlike the decimal-fraction rates used elsewhere in
+        this module), ``materiality_reference_value`` (the denominator used)
+        and ``materiality_reference_label`` (what that denominator is, e.g.
+        ``total_assets``).
+
+        The four materiality columns are ``None`` for findings that carry no
+        materiality context. The row count equals :attr:`total_findings`; a
+        report with no findings still yields the documented columns with zero
+        rows.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per retained finding.
         """
         ...
 
@@ -2830,36 +3082,41 @@ class EcfSweepSpec:
     @property
     def ebitda_node(self) -> str:
         """
-        Return the ebitda node for `EcfSweepSpec`.
+        Node reference or DSL formula supplying EBITDA, the ECF starting point.
 
         Returns
         -------
         str
-            The ebitda node exposed by this `EcfSweepSpec`.
+            A node id (``"ebitda"``) or an expression over nodes
+            (``"revenue - cogs - opex"``), evaluated per period as a monetary
+            amount.
         """
         ...
 
     @property
     def sweep_percentage(self) -> float:
         """
-        Return the sweep percentage for `EcfSweepSpec`.
+        Fraction of excess cash flow swept to debt paydown.
 
         Returns
         -------
         float
-            The sweep percentage exposed by this `EcfSweepSpec`.
+            A **decimal fraction in [0, 1]**, not a percentage — 0.5 means a
+            50% sweep. Values outside the unit interval are rejected by
+            :meth:`WaterfallSpec.validate`.
         """
         ...
 
     @property
     def target_instrument_id(self) -> str | None:
         """
-        Return the target instrument id for `EcfSweepSpec`.
+        Debt instrument the sweep pays down, if the sweep is targeted.
 
         Returns
         -------
         str | None
-            The target instrument id exposed by this `EcfSweepSpec`.
+            Instrument id, or ``None`` when the sweep applies to all term
+            loans in the capital structure.
         """
         ...
 
@@ -2901,7 +3158,9 @@ class PikToggleSpec:
             Optional debt instruments subject to the toggle; ``None`` targets
             all eligible instruments in the waterfall.
         min_periods_in_pik : int, default 0
-            Minimum number of forecast periods to remain in PIK after activation.
+            Hysteresis floor counted in **periods** on the model's own cadence
+            (not months): once triggered, PIK stays on for at least this many
+            periods. Default 0 lets PIK toggle every period.
 
         """
         ...
@@ -2948,36 +3207,44 @@ class PikToggleSpec:
     @property
     def liquidity_metric(self) -> str:
         """
-        Return the liquidity metric for `PikToggleSpec`.
+        Node reference or DSL formula producing the liquidity signal.
 
         Returns
         -------
         str
-            The liquidity metric exposed by this `PikToggleSpec`.
+            A node id (``"cash_balance"``) or an expression
+            (``"ebitda / interest_expense"``). Whether the value is monetary
+            or a unitless ratio depends on the expression — the threshold must
+            use the same units.
         """
         ...
 
     @property
     def threshold(self) -> float:
         """
-        Return the threshold for `PikToggleSpec`.
+        Level below which interest accrues as PIK instead of cash.
 
         Returns
         -------
         float
-            The threshold exposed by this `PikToggleSpec`.
+            Threshold in the **same units as the liquidity metric** — a
+            currency amount when the metric is a balance, a unitless ratio
+            when it is a coverage ratio. PIK triggers when
+            ``metric < threshold``.
         """
         ...
 
     @property
     def min_periods_in_pik(self) -> int:
         """
-        Return the min periods in pik for `PikToggleSpec`.
+        Hysteresis floor: minimum time PIK stays on once triggered.
 
         Returns
         -------
         int
-            The min periods in pik exposed by this `PikToggleSpec`.
+            Count in **periods** on the model's own cadence (quarters for a
+            quarterly model), not months. ``0`` disables hysteresis, letting
+            PIK toggle every period.
         """
         ...
 
@@ -3071,55 +3338,73 @@ class WaterfallSpec:
 
     def validate(self) -> None:
         """
-        Compute validate for `WaterfallSpec`.
+        Validate the spec against internal consistency rules.
+
+        Rejects duplicate priorities, a non-terminal ``equity`` entry, a
+        sweep percentage outside [0, 1], an empty PIK target list, a positive
+        ECF sweep with no prepayment priority, and — when
+        ``available_cash_node`` is set — a stack missing ``fees``,
+        ``interest`` or ``amortization``. It does not confirm that referenced
+        nodes or instruments exist; that needs the enclosing model.
+
+        Raises
+        ------
+        ValueError
+            If the configuration is economically inconsistent.
         """
         ...
 
     @property
     def priority_of_payments(self) -> list[str]:
         """
-        Return the priority of payments for `WaterfallSpec`.
+        Payment priority order, highest priority first.
 
         Returns
         -------
         list[str]
-            The priority of payments exposed by this `WaterfallSpec`.
+            Snake-case priority names in allocation order — cash is applied to
+            the first entry before any of the next. Allocation *within* a
+            category is single-class pro-rata across instruments; there is no
+            tranche seniority, so a shortfall is shared proportionally.
         """
         ...
 
     @property
     def available_cash_node(self) -> str | None:
         """
-        Return the available cash node for `WaterfallSpec`.
+        Node reference or DSL formula for the cash pool the waterfall may spend.
 
         Returns
         -------
         str | None
-            The available cash node exposed by this `WaterfallSpec`.
+            A node id or expression evaluating to a monetary amount per
+            period. ``None`` keeps the fully-funded behaviour, in which
+            scheduled cashflows are paid in full without being capped against
+            available cash.
         """
         ...
 
     @property
     def has_ecf_sweep(self) -> bool:
         """
-        Return the has ecf sweep for `WaterfallSpec`.
+        Whether an excess-cash-flow sweep is configured.
 
         Returns
         -------
         bool
-            Whether this `WaterfallSpec` has ecf sweep.
+            ``True`` when an :class:`EcfSweepSpec` is attached.
         """
         ...
 
     @property
     def has_pik_toggle(self) -> bool:
         """
-        Return the has pik toggle for `WaterfallSpec`.
+        Whether a PIK toggle is configured.
 
         Returns
         -------
         bool
-            Whether this `WaterfallSpec` has pik toggle.
+            ``True`` when a :class:`PikToggleSpec` is attached.
         """
         ...
 

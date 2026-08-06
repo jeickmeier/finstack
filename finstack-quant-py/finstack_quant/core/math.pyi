@@ -14,6 +14,8 @@ Examples
 
 from __future__ import annotations
 
+from finstack_quant.core import FinstackError
+
 __all__ = ["count_consecutive", "linalg", "stats", "special_functions", "summation"]
 
 def count_consecutive(values: list[float]) -> int:
@@ -64,7 +66,7 @@ class linalg:
     SYMMETRY_TOLERANCE: float
     """Tolerance for symmetry checks in correlation matrices."""
 
-    class CholeskyError(ValueError):
+    class CholeskyError(FinstackError):
         """
         Cholesky decomposition failure.
 

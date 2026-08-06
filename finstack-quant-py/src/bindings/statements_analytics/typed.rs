@@ -104,6 +104,16 @@ impl PySensitivityConfig {
         })
     }
 
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        Ok((from_json, (self.to_json()?,)))
+    }
+
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner = serde_json::from_str(json).map_err(display_to_py)?;
@@ -160,6 +170,16 @@ impl PyVarianceConfig {
         Ok(Self {
             inner: RustVarianceConfig::new(baseline_label, comparison_label, metrics, periods),
         })
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        Ok((from_json, (self.to_json()?,)))
     }
 
     #[staticmethod]
@@ -231,6 +251,16 @@ impl PyScenarioSet {
         })
     }
 
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        Ok((from_json, (self.to_json()?,)))
+    }
+
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner = serde_json::from_str(json).map_err(display_to_py)?;
@@ -282,6 +312,16 @@ pub struct PySensitivityResult {
 
 #[pymethods]
 impl PySensitivityResult {
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        Ok((from_json, (self.to_json()?,)))
+    }
+
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner = serde_json::from_str(json).map_err(display_to_py)?;
@@ -352,6 +392,17 @@ impl PySensitivityResult {
             .ok_or_else(|| PyIndexError::new_err("scenario index out of range"))?;
         Ok(scenario.results.get(node_id, &parse_period(period)?))
     }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
+    }
 }
 
 /// One typed variance-report row.
@@ -421,6 +472,16 @@ pub struct PyVarianceReport {
 
 #[pymethods]
 impl PyVarianceReport {
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        Ok((from_json, (self.to_json()?,)))
+    }
+
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner = serde_json::from_str(json).map_err(display_to_py)?;
@@ -486,6 +547,17 @@ impl PyVarianceReport {
             .collect();
         serde_rows_to_dataframe_with_schema(py, &rows, &VARIANCE_ROW_COLUMNS)
     }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
+    }
 }
 
 /// Typed evaluated results for a set of named scenarios.
@@ -501,6 +573,16 @@ pub struct PyScenarioResultSet {
 
 #[pymethods]
 impl PyScenarioResultSet {
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        Ok((from_json, (self.to_json()?,)))
+    }
+
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         let scenarios: IndexMap<String, StatementResult> =
@@ -678,6 +760,16 @@ pub struct PyBridgeChart {
 
 #[pymethods]
 impl PyBridgeChart {
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        Ok((from_json, (self.to_json()?,)))
+    }
+
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner = serde_json::from_str(json).map_err(display_to_py)?;
@@ -771,6 +863,17 @@ impl PyBridgeChart {
     #[getter]
     fn unexplained(&self) -> f64 {
         self.inner.unexplained
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 

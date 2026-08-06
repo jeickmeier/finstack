@@ -1,5 +1,6 @@
 //! Python bindings for `finstack_quant_core::credit::liability_management`.
 
+use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe;
 use crate::errors::core_to_py;
 use finstack_quant_core::credit::liability_management::{
     self as lm, ExchangeOfferAnalysis, ExchangeType, LeverageImpact, LmeAnalysis, LmeType,
@@ -66,6 +67,33 @@ impl PyExchangeOfferAnalysis {
         self.inner.tender_recommended
     }
 
+    /// Export as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``exchange_type``, ``old_npv``, ``new_npv``, ``consent_fee``,
+    /// ``equity_sweetener_value``, ``tender_total``, ``delta_npv``,
+    /// ``breakeven_recovery``, ``tender_recommended``.
+    ///
+    /// One offer is one flat record, so a one-row frame is the right shape:
+    /// ``pd.concat`` over several candidate offers gives a hold-versus-tender
+    /// comparison table directly.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        // Built explicitly rather than serializing `inner` so `exchange_type`
+        // lands as its canonical string label instead of the serde enum
+        // representation.
+        let row = serde_json::json!({
+            "exchange_type": self.inner.exchange_type.as_str(),
+            "old_npv": self.inner.old_npv,
+            "new_npv": self.inner.new_npv,
+            "consent_fee": self.inner.consent_fee,
+            "equity_sweetener_value": self.inner.equity_sweetener_value,
+            "tender_total": self.inner.tender_total,
+            "delta_npv": self.inner.delta_npv,
+            "breakeven_recovery": self.inner.breakeven_recovery,
+            "tender_recommended": self.inner.tender_recommended,
+        });
+        serde_object_to_single_row_dataframe(py, &row)
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "ExchangeOfferAnalysis(exchange_type='{}', tender_total={}, delta_npv={}, \
@@ -75,6 +103,17 @@ impl PyExchangeOfferAnalysis {
             self.inner.delta_npv,
             self.inner.tender_recommended
         )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 
@@ -177,6 +216,43 @@ impl PyLmeAnalysis {
             .map(|inner| PyLeverageImpact { inner })
     }
 
+    /// Export as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``lme_type``, ``cost``, ``notional_reduction``,
+    /// ``discount_capture``, ``discount_capture_pct``,
+    /// ``remaining_holder_impact_pct``, ``pre_total_debt``,
+    /// ``post_total_debt``, ``pre_leverage``, ``post_leverage``,
+    /// ``leverage_reduction``.
+    ///
+    /// One exercise is one flat record, so a one-row frame is the right shape:
+    /// ``pd.concat`` over several structures gives a discount-capture
+    /// comparison table directly.
+    ///
+    /// The five leverage columns come from :attr:`leverage_impact` and are
+    /// flattened onto the same row rather than nested. They are ``None`` (and
+    /// therefore ``object`` dtype) when no positive EBITDA was supplied;
+    /// coerce with ``pd.to_numeric`` before aggregating a mixed set.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        // `LmeAnalysis` derives Serialize, but `leverage_impact` is a nested
+        // struct that blind serde would drop into a single object-dtype cell,
+        // so the row is flattened by hand.
+        let leverage = self.inner.leverage_impact.as_ref();
+        let row = serde_json::json!({
+            "lme_type": self.inner.lme_type.as_str(),
+            "cost": self.inner.cost,
+            "notional_reduction": self.inner.notional_reduction,
+            "discount_capture": self.inner.discount_capture,
+            "discount_capture_pct": self.inner.discount_capture_pct,
+            "remaining_holder_impact_pct": self.inner.remaining_holder_impact_pct,
+            "pre_total_debt": leverage.map(|l| l.pre_total_debt),
+            "post_total_debt": leverage.map(|l| l.post_total_debt),
+            "pre_leverage": leverage.map(|l| l.pre_leverage),
+            "post_leverage": leverage.map(|l| l.post_leverage),
+            "leverage_reduction": leverage.map(|l| l.leverage_reduction),
+        });
+        serde_object_to_single_row_dataframe(py, &row)
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "LmeAnalysis(lme_type='{}', cost={}, notional_reduction={}, discount_capture={})",
@@ -185,6 +261,17 @@ impl PyLmeAnalysis {
             self.inner.notional_reduction,
             self.inner.discount_capture
         )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 

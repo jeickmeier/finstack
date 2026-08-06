@@ -1,7 +1,32 @@
 //! Python wrappers for the financial statement checks framework.
 
+use crate::bindings::pandas_utils::serde_rows_to_dataframe_with_schema;
 use crate::errors::display_to_py;
 use pyo3::prelude::*;
+
+/// Columns emitted by [`PyCheckReport::to_dataframe`].
+const CHECK_RESULT_COLUMNS: [&str; 5] = [
+    "check_id",
+    "check_name",
+    "category",
+    "passed",
+    "finding_count",
+];
+
+/// Columns emitted by [`PyCheckReport::to_findings_dataframe`].
+const CHECK_FINDING_COLUMNS: [&str; 11] = [
+    "check_id",
+    "check_name",
+    "category",
+    "severity",
+    "message",
+    "period",
+    "nodes",
+    "materiality_absolute",
+    "materiality_relative_pct",
+    "materiality_reference_value",
+    "materiality_reference_label",
+];
 
 // CheckSuiteSpec
 
@@ -18,7 +43,22 @@ pub struct PyCheckSuiteSpec {
 
 #[pymethods]
 impl PyCheckSuiteSpec {
-    /// Deserialize from a JSON string.
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        Ok((from_json, (self.to_json()?,)))
+    }
+
+    /// Deserialize a suite spec from a JSON string.
+    ///
+    /// Unknown fields are rejected, so a team-wide check policy that drifts
+    /// from the schema fails at load rather than silently running fewer
+    /// checks than intended. Formula syntax and node references are validated
+    /// later, when the suite runs against a model.
     #[staticmethod]
     #[pyo3(text_signature = "(json, /)")]
     fn from_json(json: &str) -> PyResult<Self> {
@@ -27,30 +67,40 @@ impl PyCheckSuiteSpec {
         Ok(Self { inner })
     }
 
-    /// Serialize to a JSON string.
+    /// Serialize this suite spec to pretty-printed JSON.
+    ///
+    /// The output is the canonical policy format — check it into version
+    /// control to pin a team's validation rules and tolerances.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
     }
 
-    /// Suite name.
+    /// Suite name, used for display and logging.
     #[getter]
     fn name(&self) -> &str {
         &self.inner.name
     }
 
-    /// Number of built-in checks in the suite spec.
+    /// Number of built-in checks the spec will materialize.
+    ///
+    /// Built-ins are the crate-provided accounting-identity, reconciliation,
+    /// and data-quality checks, selected by name in the spec.
     #[getter]
     fn builtin_check_count(&self) -> usize {
         self.inner.builtin_checks.len()
     }
 
-    /// Number of formula checks in the suite spec.
+    /// Number of user-defined formula checks the spec will materialize.
+    ///
+    /// Formula checks are DSL expressions evaluated per period; their syntax
+    /// is validated when the suite runs, not when the spec is loaded.
     #[getter]
     fn formula_check_count(&self) -> usize {
         self.inner.formula_checks.len()
     }
 
+    /// Return the debug representation with the name and check counts.
     fn __repr__(&self) -> String {
         format!(
             "CheckSuiteSpec(name={:?}, builtins={}, formulas={})",
@@ -76,7 +126,17 @@ pub struct PyCheckReport {
 
 #[pymethods]
 impl PyCheckReport {
-    /// Deserialize from a JSON string.
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        Ok((from_json, (self.to_json()?,)))
+    }
+
+    /// Deserialize a check report from a JSON string.
     #[staticmethod]
     #[pyo3(text_signature = "(json, /)")]
     fn from_json(json: &str) -> PyResult<Self> {
@@ -85,42 +145,142 @@ impl PyCheckReport {
         Ok(Self { inner })
     }
 
-    /// Serialize to a JSON string.
+    /// Serialize this report to pretty-printed JSON.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
     }
 
-    /// Whether all checks passed (no error-severity findings).
+    /// Whether the whole report passed: no error-severity finding was
+    /// retained by any check.
+    ///
+    /// Warnings and info findings do not fail a report. A suite's
+    /// materiality threshold never suppresses error findings, so it cannot
+    /// flip this to ``True``.
     #[getter]
     fn passed(&self) -> bool {
         self.inner.summary.errors == 0
     }
 
-    /// Number of individual check results in the report.
+    /// Number of checks that ran, one per row of :meth:`to_dataframe`.
     #[getter]
     fn total_checks(&self) -> usize {
         self.inner.results.len()
     }
 
-    /// Total number of findings across all checks.
+    /// Number of retained findings across all checks.
+    ///
+    /// Counts what survived the suite's ``min_severity`` and
+    /// ``materiality_threshold`` reporting filters, not every raw diagnostic
+    /// the checks produced — it matches the row count of
+    /// :meth:`to_findings_dataframe`.
     #[getter]
     fn total_findings(&self) -> usize {
         self.inner.summary.errors + self.inner.summary.warnings + self.inner.summary.infos
     }
 
-    /// Number of error-severity findings.
+    /// Number of retained error-severity findings across all checks.
     #[getter]
     fn total_errors(&self) -> usize {
         self.inner.summary.errors
     }
 
-    /// Number of warning-severity findings.
+    /// Number of retained warning-severity findings across all checks.
     #[getter]
     fn total_warnings(&self) -> usize {
         self.inner.summary.warnings
     }
 
+    /// Export one row per executed check as a pandas ``DataFrame``.
+    ///
+    /// Columns: ``check_id`` (stable identifier), ``check_name``
+    /// (human-readable name), ``category`` (snake_case group, one of
+    /// ``accounting_identity``, ``cross_statement_reconciliation``,
+    /// ``internal_consistency``, ``credit_reasonableness``,
+    /// ``data_quality``), ``passed`` (``True`` when the check retained no
+    /// error-severity finding), ``finding_count`` (retained findings for this
+    /// check, after the suite's reporting filters).
+    ///
+    /// One row per check result, so the row count equals
+    /// :attr:`total_checks`. A report with no checks still yields the
+    /// documented columns with zero rows. Per-finding detail — severity,
+    /// message, and the observed-vs-reference materiality — lives in
+    /// :meth:`to_findings_dataframe`.
+    #[pyo3(text_signature = "($self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let rows: Vec<serde_json::Value> = self
+            .inner
+            .results
+            .iter()
+            .map(|result| {
+                serde_json::json!({
+                    "check_id": result.check_id,
+                    "check_name": result.check_name,
+                    "category": result.category,
+                    "passed": result.passed,
+                    "finding_count": result.findings.len(),
+                })
+            })
+            .collect();
+        serde_rows_to_dataframe_with_schema(py, &rows, &CHECK_RESULT_COLUMNS)
+    }
+
+    /// Export one row per retained finding as a pandas ``DataFrame``.
+    ///
+    /// Columns: ``check_id``, ``check_name``, ``category`` (as in
+    /// :meth:`to_dataframe`), ``severity`` (``info``, ``warning`` or
+    /// ``error``), ``message`` (human-readable description), ``period``
+    /// (period identifier string such as ``"2025Q1"``, ``None`` when the
+    /// finding is not period-specific), ``nodes`` (comma-joined node
+    /// identifiers involved, empty string when none),
+    /// ``materiality_absolute`` (size of the discrepancy in the compared
+    /// nodes' own units — currency amounts for monetary nodes),
+    /// ``materiality_relative_pct`` (that discrepancy as a **percentage** of
+    /// the reference value, i.e. already multiplied by 100, unlike the
+    /// decimal-fraction rates used elsewhere in this module),
+    /// ``materiality_reference_value`` (the denominator used) and
+    /// ``materiality_reference_label`` (what that denominator is, e.g.
+    /// ``total_assets``).
+    ///
+    /// The four materiality columns are ``None`` for findings that carry no
+    /// materiality context. The row count equals :attr:`total_findings`; a
+    /// report with no findings still yields the documented columns with zero
+    /// rows.
+    #[pyo3(text_signature = "($self)")]
+    fn to_findings_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let rows: Vec<serde_json::Value> = self
+            .inner
+            .results
+            .iter()
+            .flat_map(|result| {
+                result.findings.iter().map(move |finding| {
+                    let materiality = finding.materiality.as_ref();
+                    serde_json::json!({
+                        "check_id": finding.check_id,
+                        "check_name": result.check_name,
+                        "category": result.category,
+                        "severity": finding.severity,
+                        "message": finding.message,
+                        "period": finding.period.map(|p| p.to_string()),
+                        "nodes": finding
+                            .nodes
+                            .iter()
+                            .map(ToString::to_string)
+                            .collect::<Vec<_>>()
+                            .join(","),
+                        "materiality_absolute": materiality.map(|m| m.absolute),
+                        "materiality_relative_pct": materiality.map(|m| m.relative_pct),
+                        "materiality_reference_value": materiality.map(|m| m.reference_value),
+                        "materiality_reference_label": materiality
+                            .map(|m| m.reference_label.clone()),
+                    })
+                })
+            })
+            .collect();
+        serde_rows_to_dataframe_with_schema(py, &rows, &CHECK_FINDING_COLUMNS)
+    }
+
+    /// Return the debug representation with check, error and warning counts.
     fn __repr__(&self) -> String {
         format!(
             "CheckReport(checks={}, passed={}, errors={}, warnings={})",
@@ -129,6 +289,17 @@ impl PyCheckReport {
             self.inner.summary.errors,
             self.inner.summary.warnings,
         )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 

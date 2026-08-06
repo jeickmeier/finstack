@@ -25,7 +25,30 @@ from finstack_quant.core import rating_scales as rating_scales
 from finstack_quant.core import table as table
 from finstack_quant.core import types as types
 
+class FinstackError(ValueError):
+    """
+    Base class for every named exception this library defines.
+
+    ``except FinstackError`` catches ``AnalyticsError``, ``PortfolioError``
+    and its subclasses, and ``ContractValidationError`` and its subclasses.
+    It inherits ``ValueError`` so that code written before this base existed
+    keeps working unchanged.
+
+    Note
+    ----
+    Errors mapped from core failures are still raised as plain ``ValueError``
+    or ``KeyError``, so ``except FinstackError`` is narrower than "anything
+    this library can raise".
+
+    Examples
+    --------
+    >>> from finstack_quant.core import FinstackError
+    >>> issubclass(FinstackError, ValueError)
+    True
+    """
+
 __all__ = [
+    "FinstackError",
     "config",
     "credit",
     "currency",

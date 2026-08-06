@@ -17,6 +17,8 @@ Examples
 
 from __future__ import annotations
 
+import pandas
+
 __all__ = ["lgd", "liability_management", "migration", "pd", "recovery_waterfall", "scoring"]
 
 class liability_management:
@@ -150,6 +152,25 @@ class liability_management:
             -------
             bool
                 True when ``tender_total > old_npv * 1.02``.
+            """
+            ...
+
+        def to_dataframe(self) -> pandas.DataFrame:
+            """
+            Export as a single-row pandas DataFrame.
+
+            Columns: ``exchange_type``, ``old_npv``, ``new_npv``,
+            ``consent_fee``, ``equity_sweetener_value``, ``tender_total``,
+            ``delta_npv``, ``breakeven_recovery``, ``tender_recommended``.
+
+            One offer is one flat record, so a one-row frame is the right
+            shape: ``pd.concat`` over several candidate offers gives a
+            hold-versus-tender comparison table directly.
+
+            Returns
+            -------
+            pandas.DataFrame
+                Single-row frame of the offer's hold-versus-tender economics.
             """
             ...
 
@@ -321,6 +342,33 @@ class liability_management:
             -------
             LeverageImpact or None
                 None when no positive EBITDA was provided.
+            """
+            ...
+
+        def to_dataframe(self) -> pandas.DataFrame:
+            """
+            Export as a single-row pandas DataFrame.
+
+            Columns: ``lme_type``, ``cost``, ``notional_reduction``,
+            ``discount_capture``, ``discount_capture_pct``,
+            ``remaining_holder_impact_pct``, ``pre_total_debt``,
+            ``post_total_debt``, ``pre_leverage``, ``post_leverage``,
+            ``leverage_reduction``.
+
+            One exercise is one flat record, so a one-row frame is the right
+            shape: ``pd.concat`` over several structures gives a
+            discount-capture comparison table directly.
+
+            The five leverage columns come from :attr:`leverage_impact` and are
+            flattened onto the same row rather than nested. They are ``None``
+            (and therefore ``object`` dtype) when no positive EBITDA was
+            supplied; coerce with ``pd.to_numeric`` before aggregating a mixed
+            set.
+
+            Returns
+            -------
+            pandas.DataFrame
+                Single-row frame of the exercise's issuer-side economics.
             """
             ...
 
@@ -779,6 +827,32 @@ class recovery_waterfall:
             -------
             list[recovery_waterfall.RecoveryAllocation]
                 The allocations exposed by this `recovery_waterfall.RecoveryWaterfallResult`.
+            """
+            ...
+
+        def to_dataframe(self) -> pandas.DataFrame:
+            """
+            Export the per-claim allocations as a pandas DataFrame.
+
+            Columns: ``id``, ``seniority``, ``priority``, ``total_claim``,
+            ``collateral_recovery``, ``general_recovery``, ``total_recovery``,
+            ``recovery_rate``, ``deficiency``.
+
+            One row per claim — the natural grain of a waterfall. Rows keep the
+            Rust ordering (ascending ``priority``, then original claim order),
+            so repeated exports of the same result are byte-identical. The
+            estate-level fields (:attr:`total_distributed`,
+            :attr:`undistributed_estate`, :attr:`apr_satisfied`) are
+            deliberately not repeated on every row; read them from the result
+            object.
+
+            A waterfall with no claims yields a zero-row frame that still
+            carries the columns above.
+
+            Returns
+            -------
+            pandas.DataFrame
+                One row per claim, in absolute-priority order.
             """
             ...
 
@@ -1300,6 +1374,23 @@ class pd:
             int
                 Zero-based index of the assigned grade.
 
+            """
+            ...
+
+        def to_dataframe(self) -> pandas.DataFrame:
+            """
+            Export as a single-row pandas DataFrame.
+
+            Columns: ``grade``, ``grade_index``, ``input_pd``, ``central_pd``.
+
+            One mapping is one flat record, so a one-row frame is the right
+            shape: ``pd.concat([scale.map_pd(p).to_dataframe() for p in pds])``
+            builds a whole obligor-level grading table without reshaping.
+
+            Returns
+            -------
+            pandas.DataFrame
+                Single-row frame of the mapped grade and its central PD.
             """
             ...
 

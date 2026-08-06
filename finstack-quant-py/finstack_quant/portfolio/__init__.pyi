@@ -25,6 +25,7 @@ from finstack_quant.factor_model.credit import CreditFactorModel
 __all__ = [
     "ContractLimitExceededError",
     "ContractValidationError",
+    "FinstackError",
     "FinstackFxError",
     "FinstackOptimizationError",
     "FinstackValuationError",
@@ -135,7 +136,32 @@ __all__ = [
     "PortfolioOptimizationResult",
 ]
 
-class PortfolioError(ValueError):
+class FinstackError(ValueError):
+    """
+    Base class for the library's named exceptions.
+
+    Catch this in a single ``except FinstackError`` clause to handle any error
+    the library raises through one of its own exception classes, rather than
+    enumerating them.
+
+    It derives from ``ValueError``, so every subclass keeps ``ValueError`` in
+    its MRO and existing ``except ValueError`` clauses are unaffected. Bare
+    ``ValueError`` / ``KeyError`` raised by the lower-level mapping helpers are
+    deliberately not reparented and are *not* caught by this class.
+
+    Its canonical home is ``finstack_quant.core``; it is re-exported here
+    alongside the portfolio exception family.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import FinstackError, PortfolioError
+    >>> issubclass(PortfolioError, FinstackError)
+    True
+    >>> issubclass(FinstackError, ValueError)
+    True
+    """
+
+class PortfolioError(FinstackError):
     """
     Portfolio validation or calculation failure.
 
@@ -179,7 +205,7 @@ class FinstackOptimizationError(PortfolioError):
     'infeasible'
     """
 
-class ContractValidationError(ValueError):
+class ContractValidationError(FinstackError):
     """
     Persisted contract validation failure with structured diagnostics.
 

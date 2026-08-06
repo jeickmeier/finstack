@@ -19,12 +19,14 @@ accrual = _cashflows.accrual
 aggregation = _cashflows.aggregation
 builder = _cashflows.builder
 primitives = _cashflows.primitives
+schema = _cashflows.schema
 
 _submodules = {
     "accrual": accrual,
     "aggregation": aggregation,
     "builder": builder,
     "primitives": primitives,
+    "schema": schema,
 }
 
 for _name, _mod in _submodules.items():
@@ -53,5 +55,6 @@ __all__: list[str] = [
     "builder",
     "dated_flows_json",
     "primitives",
+    "schema",
     "validate_cashflow_schedule_json",
 ]

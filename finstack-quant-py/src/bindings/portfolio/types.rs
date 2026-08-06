@@ -131,6 +131,17 @@ impl PyPortfolioValuation {
 
 #[pymethods]
 impl PyPortfolioValuation {
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let payload = self.to_json(py)?;
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        Ok((from_json, (payload,)))
+    }
+
     /// Parse a valuation from a JSON string.
     #[staticmethod]
     #[pyo3(text_signature = "(valuation_json)")]
@@ -213,6 +224,17 @@ impl PyPortfolioValuation {
             self.inner.position_values.len()
         )
     }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
+    }
 }
 
 // PyPortfolioResult
@@ -239,6 +261,17 @@ impl PyPortfolioResult {
 
 #[pymethods]
 impl PyPortfolioResult {
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let payload = self.to_json(py)?;
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        Ok((from_json, (payload,)))
+    }
+
     /// Parse a result from a JSON string.
     #[staticmethod]
     #[pyo3(text_signature = "(result_json)")]
@@ -306,6 +339,17 @@ pub struct PyPortfolioMetrics {
 
 #[pymethods]
 impl PyPortfolioMetrics {
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let payload = self.to_json(py)?;
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        Ok((from_json, (payload,)))
+    }
+
     /// Parse aggregate portfolio metrics from canonical JSON.
     #[staticmethod]
     fn from_json(py: Python<'_>, metrics_json: &str) -> PyResult<Self> {
@@ -437,6 +481,17 @@ impl PyPortfolioCashflows {
 
 #[pymethods]
 impl PyPortfolioCashflows {
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let payload = self.to_json(py)?;
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        Ok((from_json, (payload,)))
+    }
+
     /// Parse a cashflow ladder from a JSON string.
     #[staticmethod]
     #[pyo3(text_signature = "(cashflows_json)")]
@@ -579,6 +634,17 @@ impl PyPortfolioCashflows {
             self.inner.by_position.len(),
             self.inner.issues.len(),
         )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 

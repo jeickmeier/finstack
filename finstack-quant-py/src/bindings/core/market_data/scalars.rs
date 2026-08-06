@@ -6,12 +6,13 @@ use finstack_quant_core::market_data::scalars::{
     InflationIndex, InflationInterpolation, ScalarTimeSeries, SeriesInterpolation,
 };
 use pyo3::prelude::*;
-use pyo3::types::{PyList, PyModule};
+use pyo3::types::{PyDict, PyList, PyModule};
 use rust_decimal::prelude::ToPrimitive;
 
 use crate::bindings::core::currency::{extract_currency, PyCurrency};
 use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
 use crate::bindings::core::money::{decimal_from_py, is_python_decimal};
+use crate::bindings::pandas_utils::{dates_to_datetime_index, dict_to_dataframe};
 use crate::errors::core_to_py;
 
 /// Extract a finite `f64`, rejecting `Decimal` values that cannot round-trip exactly.
@@ -140,11 +141,48 @@ impl PyScalarTimeSeries {
         self.inner.value_on(py_to_date(date)?).map_err(core_to_py)
     }
 
+    /// Export as a pandas ``DataFrame`` indexed by observation date.
+    ///
+    /// Columns: ``value``.
+    ///
+    /// The index is a ``DatetimeIndex`` built from the observation dates, so
+    /// the frame joins directly against other date-indexed market data and
+    /// resamples without a conversion step. Rows follow the chronologically
+    /// sorted order of :attr:`observations`; there is always at least one row,
+    /// because the constructor rejects an empty observation set.
+    ///
+    /// Only the stored observations appear; nothing is interpolated. Use
+    /// :meth:`value_on` for values between observation dates — the
+    /// interpolation policy stays owned by Rust.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        // `ScalarTimeSeries` derives Serialize, but the wire format nests the
+        // id/currency/interpolation metadata alongside the observations, so
+        // the columns are built explicitly to keep the frame purely the
+        // date-indexed series it represents.
+        let observations = self.inner.observations();
+        let dates: Vec<time::Date> = observations.iter().map(|(date, _)| *date).collect();
+        let values: Vec<f64> = observations.iter().map(|(_, value)| *value).collect();
+        let data = PyDict::new(py);
+        data.set_item("value", values)?;
+        let index = dates_to_datetime_index(py, &dates)?;
+        dict_to_dataframe(py, &data, Some(index))
+    }
+
     /// Serialize the canonical Rust series state to JSON.
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string_pretty(&self.inner).map_err(|err| {
             crate::errors::value_error(format!("failed to serialize ScalarTimeSeries: {err}"))
         })
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        Ok((from_json, (self.to_json()?,)))
     }
 
     /// Deserialize canonical Rust series state from JSON.
@@ -167,6 +205,17 @@ impl PyScalarTimeSeries {
             self.inner.id().as_str(),
             self.inner.len()
         )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 
@@ -264,6 +313,16 @@ impl PyInflationIndex {
         serde_json::to_string_pretty(&self.inner).map_err(|err| {
             crate::errors::value_error(format!("failed to serialize InflationIndex: {err}"))
         })
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        Ok((from_json, (self.to_json()?,)))
     }
 
     /// Deserialize canonical Rust inflation-index state from JSON.

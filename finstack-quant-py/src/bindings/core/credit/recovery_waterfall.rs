@@ -1,11 +1,26 @@
 //! Python bindings for `finstack_quant_core::credit::recovery_waterfall`.
 
+use crate::bindings::pandas_utils::serde_rows_to_dataframe_with_schema;
 use crate::errors::core_to_py;
 use finstack_quant_core::credit::recovery_waterfall::{
     self as waterfall, RecoveryAllocation, RecoveryClaim, RecoveryWaterfallResult,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
+
+/// Column schema of `PyRecoveryWaterfallResult::to_dataframe`, kept so a
+/// claim-free waterfall still exports a frame with the documented columns.
+const ALLOCATION_COLUMNS: &[&str] = &[
+    "id",
+    "seniority",
+    "priority",
+    "total_claim",
+    "collateral_recovery",
+    "general_recovery",
+    "total_recovery",
+    "recovery_rate",
+    "deficiency",
+];
 
 /// A claim participating in an absolute-priority recovery waterfall.
 #[pyclass(
@@ -204,6 +219,39 @@ impl PyRecoveryWaterfallResult {
             .cloned()
             .map(|inner| PyRecoveryAllocation { inner })
             .collect()
+    }
+
+    /// Export the per-claim allocations as a pandas ``DataFrame``.
+    ///
+    /// Columns: ``id``, ``seniority``, ``priority``, ``total_claim``,
+    /// ``collateral_recovery``, ``general_recovery``, ``total_recovery``,
+    /// ``recovery_rate``, ``deficiency``.
+    ///
+    /// One row per claim — the natural grain of a waterfall. Rows keep the
+    /// Rust ordering (ascending ``priority``, then original claim order), so
+    /// repeated exports of the same result are byte-identical. The
+    /// estate-level fields (:attr:`total_distributed`,
+    /// :attr:`undistributed_estate`, :attr:`apr_satisfied`) are deliberately
+    /// not repeated on every row; read them from the result object.
+    ///
+    /// A waterfall with no claims yields a zero-row frame that still carries
+    /// the columns above.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        // `RecoveryAllocation` derives Serialize and is already a flat record
+        // of `f64`/`String`/`u32` fields whose serde names match the columns
+        // above, so the rows go straight through the serde helper.
+        serde_rows_to_dataframe_with_schema(py, &self.inner.allocations, ALLOCATION_COLUMNS)
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 

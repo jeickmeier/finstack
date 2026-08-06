@@ -4,6 +4,7 @@ pub(crate) mod accrual;
 pub(crate) mod aggregation;
 pub(crate) mod builder;
 pub(crate) mod primitives;
+mod schema;
 
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
@@ -126,6 +127,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     builder::register(py, &m)?;
     accrual::register(py, &m)?;
     aggregation::register(py, &m)?;
+    schema::register(py, &m)?;
 
     m.add_function(wrap_pyfunction!(accrued_interest_json, &m)?)?;
     m.add_function(wrap_pyfunction!(build_cashflow_schedule_json, &m)?)?;
@@ -152,6 +154,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "builder",
             "dated_flows_json",
             "primitives",
+            "schema",
             "validate_cashflow_schedule_json",
         ],
     )?;

@@ -74,6 +74,7 @@ from finstack_quant.valuations import correlation as correlation
 from finstack_quant.valuations import credit_derivatives as credit_derivatives
 from finstack_quant.valuations import instruments as instruments
 from finstack_quant.valuations import models as models
+from finstack_quant.valuations import schema as schema
 from finstack_quant.valuations.envelope import CalibrationEnvelope as CalibrationEnvelope
 
 __all__ = [
@@ -81,6 +82,7 @@ __all__ = [
     "credit_derivatives",
     "instruments",
     "models",
+    "schema",
     "ValuationResult",
     "CalibrationEnvelope",
     "CalibrationEnvelopeError",

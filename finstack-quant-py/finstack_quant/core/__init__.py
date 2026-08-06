@@ -26,6 +26,10 @@ credit = _core.credit
 rating_scales = _core.rating_scales
 table = _core.table
 
+# Canonical home of the shared exception base (see `finstack_quant.errors`
+# rationale): every named exception in the library inherits from it.
+FinstackError = _core.FinstackError
+
 _submodules = {
     "currency": currency,
     "money": money,
@@ -51,6 +55,7 @@ for _name, _mod in _submodules.items():
         sys.modules[_key] = _mod
 
 __all__: list[str] = [
+    "FinstackError",
     "config",
     "credit",
     "currency",

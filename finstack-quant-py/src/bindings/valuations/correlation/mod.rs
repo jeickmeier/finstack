@@ -4,9 +4,10 @@
 //! probability utilities to Python under `finstack_quant.valuations.correlation`,
 //! mirroring the Rust module [`finstack_quant_valuations::correlation`].
 
+use crate::bindings::pandas_utils::{dict_to_dataframe, serde_object_to_single_row_dataframe};
 use crate::errors::{core_to_py, display_to_py, value_error};
 use pyo3::prelude::*;
-use pyo3::types::{PyList, PyModule, PyType};
+use pyo3::types::{PyDict, PyList, PyModule, PyType};
 
 use finstack_quant_valuations::correlation::CreditExposure;
 use finstack_quant_valuations::correlation::{
@@ -1002,6 +1003,45 @@ impl PyPortfolioLossResult {
         .map_err(display_to_py)
     }
 
+    /// Export the simulated loss distribution as a pandas ``DataFrame``.
+    ///
+    /// Columns: ``loss``.
+    ///
+    /// One row per simulated path, indexed by path id (a ``RangeIndex``), in
+    /// the ascending path order Rust produced — so repeated exports of the
+    /// same result are identical. Feed it straight to ``df["loss"].hist()`` or
+    /// ``df["loss"].quantile(...)``.
+    ///
+    /// The aggregate statistics are not repeated per row; see
+    /// :meth:`to_summary_dataframe`.
+    fn to_distribution_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let data = PyDict::new(py);
+        data.set_item("loss", self.inner.losses.clone())?;
+        dict_to_dataframe(py, &data, None)
+    }
+
+    /// Export the aggregate loss statistics as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``expected_loss``, ``var``, ``expected_shortfall``,
+    /// ``confidence``, ``num_paths``.
+    ///
+    /// One simulation is one flat record, so a one-row frame is the right
+    /// shape: ``pd.concat`` over several correlation or recovery assumptions
+    /// gives a comparison table directly.
+    ///
+    /// ``var`` and ``expected_shortfall`` are loss-positive, matching the Rust
+    /// convention: a larger number is a worse outcome.
+    fn to_summary_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let row = serde_json::json!({
+            "expected_loss": self.inner.expected_loss,
+            "var": self.inner.var,
+            "expected_shortfall": self.inner.expected_shortfall,
+            "confidence": self.inner.confidence,
+            "num_paths": self.inner.losses.len(),
+        });
+        serde_object_to_single_row_dataframe(py, &row)
+    }
+
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(|error| value_error(error.to_string()))
     }
@@ -1076,8 +1116,58 @@ impl PyTrancheLossStatistics {
         self.inner.prob_full_writedown
     }
 
+    /// Export as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``attachment``, ``detachment``, ``tranche_notional``,
+    /// ``expected_loss_fraction``, ``expected_loss_amount``, ``var_fraction``,
+    /// ``var_amount``, ``expected_shortfall_fraction``,
+    /// ``expected_shortfall_amount``, ``prob_attachment_breached``,
+    /// ``prob_full_writedown``.
+    ///
+    /// These statistics describe ONE tranche, so a one-row frame is the right
+    /// shape. Build the capital-structure table by stacking tranches::
+    ///
+    ///     pd.concat(
+    ///         [
+    ///             result.tranche_loss_statistics(a, d, pool).to_dataframe()
+    ///             for a, d in [(0.0, 0.03), (0.03, 0.07), (0.07, 1.0)]
+    ///         ],
+    ///         ignore_index=True,
+    ///     )
+    ///
+    /// ``*_fraction`` columns are shares of the tranche's own notional;
+    /// ``*_amount`` columns are in the pool-notional unit passed to
+    /// :meth:`PortfolioLossResult.tranche_loss_statistics`.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let row = serde_json::json!({
+            "attachment": self.inner.attachment,
+            "detachment": self.inner.detachment,
+            "tranche_notional": self.inner.tranche_notional,
+            "expected_loss_fraction": self.inner.expected_loss_fraction,
+            "expected_loss_amount": self.inner.expected_loss_amount,
+            "var_fraction": self.inner.var_fraction,
+            "var_amount": self.inner.var_amount,
+            "expected_shortfall_fraction": self.inner.expected_shortfall_fraction,
+            "expected_shortfall_amount": self.inner.expected_shortfall_amount,
+            "prob_attachment_breached": self.inner.prob_attachment_breached,
+            "prob_full_writedown": self.inner.prob_full_writedown,
+        });
+        serde_object_to_single_row_dataframe(py, &row)
+    }
+
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(|error| value_error(error.to_string()))
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 

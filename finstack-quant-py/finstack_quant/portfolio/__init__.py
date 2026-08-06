@@ -42,6 +42,15 @@ Bindings should be considered cross-version-compatible only within a single
 ``finstack-quant-portfolio`` minor release; pin the upstream version when
 exporting to downstream services.
 
+Exceptions
+----------
+
+``FinstackError`` is the common base for the library's named exceptions, so
+``except FinstackError`` catches ``PortfolioError``, ``ContractValidationError``
+and their subclasses in one clause. It derives from ``ValueError``, so every
+existing ``except ValueError`` keeps working unchanged. Its canonical home is
+``finstack_quant.core``; it is re-exported here for convenience.
+
 Examples:
 --------
 >>> from finstack_quant.portfolio import Portfolio
@@ -59,6 +68,7 @@ from finstack_quant.finstack_quant import portfolio as _portfolio
 with contextlib.suppress(NameError):
     del annotations
 
+FinstackError = _portfolio.FinstackError
 PortfolioError = _portfolio.PortfolioError
 FinstackValuationError = _portfolio.FinstackValuationError
 FinstackFxError = _portfolio.FinstackFxError
@@ -186,6 +196,7 @@ __all__: list[str] = [
     "FactorContributionDelta",
     "FactorPnlProfile",
     "FactorRiskDecomposition",
+    "FinstackError",
     "FinstackFxError",
     "FinstackOptimizationError",
     "FinstackValuationError",

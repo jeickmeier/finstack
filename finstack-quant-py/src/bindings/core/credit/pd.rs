@@ -7,6 +7,7 @@ use finstack_quant_core::credit::pd::{
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
 
+use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe;
 use crate::errors::{core_to_py, pd_calibration_to_py};
 
 // PiT / TtC conversion
@@ -159,11 +160,42 @@ impl PyMasterScaleResult {
         self.grade_index
     }
 
+    /// Export as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``grade``, ``grade_index``, ``input_pd``, ``central_pd``.
+    ///
+    /// One mapping is one flat record, so a one-row frame is the right shape:
+    /// ``pd.concat([scale.map_pd(p).to_dataframe() for p in pds])`` builds a
+    /// whole obligor-level grading table without reshaping.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        // This wrapper flattens the core `MasterScaleResult` into owned fields
+        // rather than holding an `inner`, so there is no Serialize impl to
+        // reuse — the row literal is built from the stored fields directly.
+        let row = serde_json::json!({
+            "grade": self.grade,
+            "grade_index": self.grade_index,
+            "input_pd": self.input_pd,
+            "central_pd": self.central_pd,
+        });
+        serde_object_to_single_row_dataframe(py, &row)
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "MasterScaleResult(grade='{}', central_pd={}, input_pd={})",
             self.grade, self.central_pd, self.input_pd
         )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 

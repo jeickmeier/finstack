@@ -277,6 +277,28 @@ class BetaResult:
             Upper bound of the 95% CI for beta.
         """
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export as a single-row pandas DataFrame.
+
+        Columns: ``beta``, ``std_err``, ``ci_lower``, ``ci_upper``.
+
+        One flat record describes one regression, so a one-row frame is the
+        right shape: ``pd.concat([r.to_dataframe() for r in results])`` stacks
+        every ticker's beta into one comparison table without reshaping.
+
+        A degenerate regression (fewer than three observations) yields
+        non-finite estimates, which arrive as ``None`` and make the affected
+        column ``object`` dtype; coerce with ``pd.to_numeric`` before
+        aggregating.
+
+        Returns
+        -------
+        pd.DataFrame
+            Single-row frame with the beta point estimate and its interval.
+        """
+        ...
+
     def __repr__(self) -> str: ...
 
 class GreeksResult:
@@ -344,6 +366,27 @@ class GreeksResult:
         float
             Degrees-of-freedom-adjusted R².
         """
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export as a single-row pandas DataFrame.
+
+        Columns: ``alpha``, ``beta``, ``r_squared``, ``adjusted_r_squared``.
+
+        One flat record describes one regression, so a one-row frame is the
+        right shape: ``pd.concat([r.to_dataframe() for r in results])`` stacks
+        every ticker's greeks into one comparison table without reshaping.
+
+        Non-finite estimates from a degenerate fit arrive as ``None`` and make
+        the affected column ``object`` dtype; coerce with ``pd.to_numeric``
+        before aggregating.
+
+        Returns
+        -------
+        pd.DataFrame
+            Single-row frame with alpha, beta, and goodness-of-fit.
+        """
+        ...
 
     def __repr__(self) -> str: ...
 
@@ -488,6 +531,42 @@ class MultiFactorResult:
         float
             Standard deviation of regression residuals.
         """
+
+    def to_dataframe(self, factor_names: list[str] | None = None) -> pd.DataFrame:
+        """
+        Export the factor loadings as a pandas DataFrame, one row per factor.
+
+        Columns: ``factor``, ``beta``, ``alpha``, ``r_squared``,
+        ``adjusted_r_squared``, ``residual_vol``.
+
+        The loadings are the per-row payload; the four regression-level
+        statistics repeat on every row so a single row carries its own fit
+        context after ``pd.concat`` across tickers or ``groupby("factor")``.
+
+        Rows follow the order of the ``factor_returns`` passed to
+        :meth:`Performance.multi_factor_greeks`, which is also the order of
+        :attr:`betas`. There is always at least one row: the regression rejects
+        an empty factor set.
+
+        Parameters
+        ----------
+        factor_names : list[str], optional
+            Labels for the ``factor`` column, positionally aligned with
+            :attr:`betas`. Defaults to ``factor_0``, ``factor_1``, ... because
+            the regression itself carries no names.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per fitted factor.
+
+        Raises
+        ------
+        ValueError
+            If ``factor_names`` is supplied and its length differs from the
+            number of fitted betas.
+        """
+        ...
 
     def __repr__(self) -> str: ...
 

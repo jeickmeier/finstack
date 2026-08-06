@@ -13,6 +13,7 @@ mod fourier;
 pub(crate) mod instruments;
 mod pricing;
 mod sabr;
+mod schema;
 mod structured_credit;
 pub(crate) mod typed_credit;
 pub(crate) mod typed_equity;
@@ -40,6 +41,16 @@ struct PyValuationResult {
 
 #[pymethods]
 impl PyValuationResult {
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        Ok((from_json, (self.to_json()?,)))
+    }
+
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner: finstack_quant_valuations::results::ValuationResult =
@@ -198,6 +209,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     exotic_rates::register(py, &m)?;
     correlation::register(py, &m)?;
     credit_derivatives::register(py, &m)?;
+    schema::register(py, &m)?;
     register_instruments(py, &m)?;
     register_models(py, &m)?;
 
@@ -235,6 +247,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "credit_derivatives",
             "instruments",
             "models",
+            "schema",
         ],
     )?;
     m.setattr("__all__", all)?;

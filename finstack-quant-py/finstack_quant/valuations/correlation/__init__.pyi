@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from typing import Sequence
 
+import pandas as pd
+
 __all__ = [
     "MAX_PORTFOLIO_LOSS_PATHS",
     "CopulaSpec",
@@ -694,6 +696,48 @@ class PortfolioLossResult:
         """
         ...
 
+    def to_distribution_dataframe(self) -> pd.DataFrame:
+        """
+        Export the simulated loss distribution as a pandas DataFrame.
+
+        Columns: ``loss``.
+
+        One row per simulated path, indexed by path id (a ``RangeIndex``), in
+        the ascending path order Rust produced — so repeated exports of the
+        same result are identical. Feed it straight to ``df["loss"].hist()`` or
+        ``df["loss"].quantile(...)``.
+
+        The aggregate statistics are not repeated per row; see
+        :meth:`to_summary_dataframe`.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per simulated path.
+        """
+        ...
+
+    def to_summary_dataframe(self) -> pd.DataFrame:
+        """
+        Export the aggregate loss statistics as a single-row pandas DataFrame.
+
+        Columns: ``expected_loss``, ``var``, ``expected_shortfall``,
+        ``confidence``, ``num_paths``.
+
+        One simulation is one flat record, so a one-row frame is the right
+        shape: ``pd.concat`` over several correlation or recovery assumptions
+        gives a comparison table directly.
+
+        ``var`` and ``expected_shortfall`` are loss-positive, matching the Rust
+        convention: a larger number is a worse outcome.
+
+        Returns
+        -------
+        pd.DataFrame
+            Single-row frame of the distribution's aggregate statistics.
+        """
+        ...
+
     def to_json(self) -> str:
         """
         Serialize `PortfolioLossResult` to canonical JSON.
@@ -859,6 +903,38 @@ class TrancheLossStatistics:
         -------
         float
             Share of paths whose pool loss fraction reaches or exceeds the detachment.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export as a single-row pandas DataFrame.
+
+        Columns: ``attachment``, ``detachment``, ``tranche_notional``,
+        ``expected_loss_fraction``, ``expected_loss_amount``, ``var_fraction``,
+        ``var_amount``, ``expected_shortfall_fraction``,
+        ``expected_shortfall_amount``, ``prob_attachment_breached``,
+        ``prob_full_writedown``.
+
+        These statistics describe ONE tranche, so a one-row frame is the right
+        shape. Build the capital-structure table by stacking tranches::
+
+            pd.concat(
+                [
+                    result.tranche_loss_statistics(a, d, pool).to_dataframe()
+                    for a, d in [(0.0, 0.03), (0.03, 0.07), (0.07, 1.0)]
+                ],
+                ignore_index=True,
+            )
+
+        ``*_fraction`` columns are shares of the tranche's own notional;
+        ``*_amount`` columns are in the pool-notional unit passed to
+        :meth:`PortfolioLossResult.tranche_loss_statistics`.
+
+        Returns
+        -------
+        pd.DataFrame
+            Single-row frame describing this tranche.
         """
         ...
 

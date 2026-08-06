@@ -162,6 +162,16 @@ note = "Generic factor-model types are exported at the Rust crate root and cross
 [crates.factor_model.modules]
 matching           = { python = "finstack_quant.factor_model.matching", status = "missing", note = "MatchingConfig typed host-language constructors deferred; JSON contracts remain Rust-owned." }
 credit             = { python = "finstack_quant.factor_model.credit", status = "exists", note = "CreditFactorModel, CreditCalibrator, LevelsAtDate, PeriodDecomposition, FactorCovarianceForecast, decompose_levels, decompose_period." }
+schema             = { python = "finstack_quant.factor_model.schema", status = "exists", note = "Compiled-in JSON Schema accessors; no WASM twin." }
+
+[crates.factor_model.module_symbols.schema]
+python_package = "finstack_quant.factor_model.schema"
+public = [
+    "credit_calibration_config_schema",
+    "credit_calibration_inputs_schema",
+    "credit_factor_model_schema",
+    "factor_model_config_schema",
+]
 
 # ---------------------------------------------------------------------------
 # finstack-quant-analytics  →  finstack_quant.analytics
@@ -234,6 +244,7 @@ accrual     = { python = "finstack_quant.cashflows.accrual",     status = "exist
 aggregation = { python = "finstack_quant.cashflows.aggregation", status = "exists", note = "Typed period rollups and currency-checked totals" }
 builder     = { python = "finstack_quant.cashflows.builder",     status = "exists", note = "Typed spec + builder + schedule surface; the JSON program bridge remains available on finstack_quant.cashflows" }
 primitives  = { python = "finstack_quant.cashflows.primitives",  status = "exists", note = "Typed CashFlow/CFKind primitives; CashFlow rows also travel inside schedule JSON" }
+schema      = { python = "finstack_quant.cashflows.schema",      status = "exists", note = "Compiled-in JSON Schema resources; package_cashflow_schema is doc(hidden) generator plumbing and stays Rust-only" }
 traits      = { python = "finstack_quant.cashflows.traits",      status = "missing", note = "Rust-side trait surface; not meaningful as a Python module" }
 
 [crates.cashflows.module_symbols.primitives]
@@ -260,6 +271,10 @@ public = ["AccrualConfig", "AccrualIndex", "AccrualMethod", "ExCouponRule", "acc
 python_package = "finstack_quant.cashflows.aggregation"
 public = ["aggregate_by_period", "aggregate_cashflows_checked"]
 
+[crates.cashflows.module_symbols.schema]
+python_package = "finstack_quant.cashflows.schema"
+public = ["resources"]
+
 # ---------------------------------------------------------------------------
 # WASM cashflows facade subset + symbol-level triplet pinning.
 # Python names are identical to the canonical Rust function names; the map
@@ -280,6 +295,7 @@ python_only = [
     "aggregation",
     "builder",
     "primitives",
+    "schema",
 ]
 
 [wasm_cashflows_subset.python_js_map]
@@ -457,6 +473,7 @@ models       = { python = "finstack_quant.valuations.models",       status = "ex
 calibration  = { python = "finstack_quant.valuations",              status = "flattened", note = "calibrate, dry_run, validate_calibration_json, dependency_graph_json exported from finstack_quant.valuations root" }
 correlation  = { python = "finstack_quant.valuations.correlation",  status = "exists", note = "Former standalone finstack-correlation crate; nested under valuations" }
 credit_derivatives = { python = "finstack_quant.valuations.credit_derivatives", status = "exists", note = "CDS-family example-payload factories; mirrors WASM valuations.creditDerivatives" }
+schema       = { python = "finstack_quant.valuations.schema",       status = "exists", note = "Compiled-in JSON Schema accessors and envelope/type validators; no WASM twin" }
 
 # Symbol-level pinning for the valuations domain. Names listed here MUST
 # resolve when imported from `finstack_quant.valuations`. Adding a public name to
@@ -494,6 +511,19 @@ public = [
     "tarn_coupon_profile",
     "validate_calibration_json",
     "vg_cos_price",
+]
+
+# Symbol-level pinning for finstack_quant.valuations.schema. Names mirror the
+# canonical Rust accessors in finstack_quant_valuations::schema exactly.
+[crates.valuations.module_symbols.schema]
+python_package = "finstack_quant.valuations.schema"
+public = [
+    "instrument_envelope_schema",
+    "instrument_schema",
+    "instrument_types",
+    "validate_instrument_envelope_json",
+    "validate_instrument_type_json",
+    "valuation_result_schema",
 ]
 
 # Symbol-level pinning for finstack_quant.valuations.correlation — every name in
@@ -671,8 +701,17 @@ extensions       = { python = "finstack_quant.statements.extensions",        sta
 forecast         = { python = "finstack_quant.statements.forecast",          status = "missing", note = "Bindings are currently exported from finstack_quant.statements root" }
 prelude          = { python = "finstack_quant.statements.prelude",           status = "missing" }
 registry         = { python = "finstack_quant.statements.registry",          status = "missing", note = "Bindings are currently exported from finstack_quant.statements root" }
+schema           = { python = "finstack_quant.statements.schema",            status = "exists", note = "Compiled-in JSON Schema accessors; no WASM twin" }
 types            = { python = "finstack_quant.statements.types",             status = "missing", note = "Bindings are currently exported from finstack_quant.statements root" }
 utils            = { python = "finstack_quant.statements.utils",             status = "missing" }
+
+[crates.statements.module_symbols.schema]
+python_package = "finstack_quant.statements.schema"
+public = [
+    "financial_model_spec_schema",
+    "normalization_config_schema",
+    "statement_result_schema",
+]
 
 [crates.statements.module_symbols.monte_carlo]
 python_package = "finstack_quant.statements"
@@ -1006,6 +1045,7 @@ public = [
   "FactorContributionDelta",
   "FactorPnlProfile",
   "FactorRiskDecomposition",
+  "FinstackError",
   "FinstackFxError",
   "FinstackOptimizationError",
   "FinstackValuationError",
@@ -1181,6 +1221,7 @@ python_only = [
   "FactorContributionDelta",
   "FactorPnlProfile",
   "FactorRiskDecomposition",
+  "FinstackError",
   "FinstackFxError",
   "FinstackOptimizationError",
   "FinstackValuationError",
