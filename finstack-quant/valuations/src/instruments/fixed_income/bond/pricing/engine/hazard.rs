@@ -58,7 +58,7 @@ use super::super::super::types::Bond;
 ///
 /// Use `SimpleBondHazardPricer` for public API access to hazard-rate pricing:
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::instruments::Bond;
 /// use finstack_quant_valuations::pricer::{Pricer, PricerRegistry};
 /// use finstack_quant_core::market_data::context::MarketContext;
@@ -131,21 +131,6 @@ impl HazardBondEngine {
     /// - Cashflow schedule building fails
     /// - Hazard curve cannot be resolved from market context
     /// - Survival probability calculation fails
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
-    /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::hazard::HazardBondEngine;
-    /// use finstack_quant_core::market_data::context::MarketContext;
-    /// use finstack_quant_core::dates::Date;
-    ///
-    /// # let bond = Bond::example().unwrap();
-    /// # let market = MarketContext::new();
-    /// # let as_of = Date::from_calendar_date(2024, time::Month::January, 15).unwrap();
-    /// let pv = HazardBondEngine::price(&bond, &market, as_of)?;
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
     pub(crate) fn price(bond: &Bond, market: &MarketContext, as_of: Date) -> Result<Money> {
         Ok(Money::new(
             Self::price_raw(bond, market, as_of)?,

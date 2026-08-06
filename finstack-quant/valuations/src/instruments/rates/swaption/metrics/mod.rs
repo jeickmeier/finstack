@@ -67,18 +67,6 @@ pub(crate) fn register_swaption_metrics(registry: &mut MetricRegistry) {
 /// so generic calculators like `UnifiedDv01Calculator` that rely on
 /// `Instrument::value()` cannot be used. Only bump-and-revalue calculators that use
 /// the explicit tree pricer are registered.
-///
-/// # Example
-///
-/// ```ignore
-/// use finstack_quant_valuations::instruments::rates::swaption::HullWhiteParams;
-///
-/// // Calibrate parameters to your vol surface first
-/// let calibrated_params = HullWhiteParams::new(0.05, 0.008);
-///
-/// let mut registry = MetricRegistry::new();
-/// register_bermudan_swaption_metrics(&mut registry, calibrated_params);
-/// ```
 pub(crate) fn register_bermudan_swaption_metrics(
     registry: &mut MetricRegistry,
     hw_params: crate::calibration::hull_white::HullWhiteParams,

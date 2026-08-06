@@ -193,7 +193,7 @@ pub fn checked_closed_form_value(value: f64, what: &str) -> Result<f64> {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::models::closed_form::vanilla::bs_price;
 /// use finstack_quant_valuations::instruments::OptionType;
 ///
@@ -328,7 +328,7 @@ pub fn bs_price_checked(
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::models::closed_form::vanilla::{bs_greeks, BsGreeks};
 /// use finstack_quant_valuations::instruments::OptionType;
 ///
@@ -612,7 +612,7 @@ pub fn black76_put(forward: f64, strike: f64, sigma: f64, t: f64) -> f64 {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::models::closed_form::bs_vega;
 ///
 /// let spot = 100.0;

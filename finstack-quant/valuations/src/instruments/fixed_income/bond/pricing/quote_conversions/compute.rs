@@ -63,7 +63,7 @@ pub(crate) fn clear_price_driving_overrides(bond: &mut Bond) {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
 /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::quote_conversions::{compute_quotes, BondQuoteInput};
 /// use finstack_quant_core::market_data::context::MarketContext;

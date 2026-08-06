@@ -50,7 +50,7 @@ where
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// let irs_pricer = GenericInstrumentPricer::<InterestRateSwap>::discounting(InstrumentType::Irs);
     /// ```
     pub fn discounting(instrument_type: InstrumentType) -> Self {

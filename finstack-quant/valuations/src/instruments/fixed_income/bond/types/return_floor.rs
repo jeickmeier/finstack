@@ -254,7 +254,7 @@ pub enum ProtectionWindow {
 ///
 /// Attach to a bond using the fluent builder:
 ///
-/// ```rust,ignore
+/// ```rust
 /// use finstack_quant_valuations::instruments::fixed_income::bond::{
 ///     Bond, ReturnFloorSpec, ProtectionWindow,
 /// };

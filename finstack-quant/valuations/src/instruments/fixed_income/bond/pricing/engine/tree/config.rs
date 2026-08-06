@@ -95,7 +95,7 @@ pub enum TreeModelChoice {
 ///
 /// Use `finstack_quant_core::math::volatility::convert_atm_volatility`:
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_core::math::volatility::{convert_atm_volatility, VolatilityConvention};
 ///
 /// // Normal vol (100 bp) at 5% rate → lognormal vol (20%)
@@ -265,7 +265,7 @@ impl Default for TreePricerConfig {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
 /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::tree::bond_tree_config;
 ///

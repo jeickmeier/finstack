@@ -36,7 +36,7 @@
 //! ## In This Implementation
 //!
 //! The `FxSpot` instrument stores:
-//! ```ignore
+//! ```
 //! use finstack_quant_core::currency::Currency;
 //! use finstack_quant_core::types::InstrumentId;
 //! use finstack_quant_valuations::instruments::FxSpot;
@@ -48,7 +48,7 @@
 //! ```
 //!
 //! Example:
-//! ```ignore
+//! ```
 //! use finstack_quant_core::currency::Currency;
 //! use finstack_quant_core::types::InstrumentId;
 //! use finstack_quant_valuations::instruments::FxSpot;

@@ -21,7 +21,7 @@
 //!
 //! For standard Black-Scholes pricing, use the [`BlackScholesPde`] bridge:
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_valuations::models::pde::*;
 //!
 //! let pde = BlackScholesPde {

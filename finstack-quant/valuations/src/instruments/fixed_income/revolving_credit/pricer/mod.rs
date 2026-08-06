@@ -11,7 +11,7 @@
 //!
 //! Price a revolving credit facility using the pricer registry:
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_valuations::instruments::RevolvingCredit;
 //! use finstack_quant_valuations::pricer::{Pricer, PricerRegistry};
 //! use finstack_quant_core::market_data::context::MarketContext;
@@ -30,7 +30,7 @@
 //!
 //! Use full path capture for distribution analysis:
 //!
-//! ```ignore
+//! ```
 //! // MC pricing with full path capture
 //! let enhanced_result = pricer::RevolvingCreditPricer::price_with_paths(&facility, &market, as_of)?;
 //! let pv_mc = enhanced_result.mc_result.estimate.mean;

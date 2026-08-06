@@ -26,7 +26,7 @@
 //! For DV01 calculations, use the [`MetricId::Dv01`] or [`MetricId::BucketedDv01`]
 //! metrics via the [`Instrument::price_with_metrics`] method:
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_valuations::instruments::{Bond, Instrument, PricingOptions};
 //! use finstack_quant_valuations::metrics::MetricId;
 //!

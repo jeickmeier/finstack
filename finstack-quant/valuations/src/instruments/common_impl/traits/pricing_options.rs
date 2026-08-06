@@ -17,7 +17,7 @@ use std::sync::Arc;
 ///
 /// ## Basic usage (no options)
 ///
-/// ```ignore
+/// ```
 /// let result = instrument.price_with_metrics(
 ///     &market,
 ///     as_of,
@@ -28,14 +28,14 @@ use std::sync::Arc;
 ///
 /// ## With custom config
 ///
-/// ```ignore
+/// ```
 /// let opts = PricingOptions::default().with_config(&my_config);
 /// let result = instrument.price_with_metrics(&market, as_of, &metrics, opts)?;
 /// ```
 ///
 /// ## With market history for VaR
 ///
-/// ```ignore
+/// ```
 /// let opts = PricingOptions::default().with_market_history(history);
 /// let result = instrument.price_with_metrics(&market, as_of, &metrics, opts)?;
 /// ```

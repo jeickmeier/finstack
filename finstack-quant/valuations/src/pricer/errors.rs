@@ -37,7 +37,7 @@ impl PricingErrorContext {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// let ctx = PricingErrorContext::from_instrument(bond)
     ///     .model(ModelKey::Discounting)
     ///     .curve_id("USD-OIS");
@@ -305,7 +305,7 @@ impl PricingError {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// let core_err: finstack_quant_core::Error = /* ... */;
     /// let ctx = PricingErrorContext::new()
     ///     .instrument_id("BOND-001")
@@ -370,7 +370,7 @@ impl PricingError {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// PricingError::model_failure_with_context(
     ///     "Discount factor calculation failed",
     ///     PricingErrorContext::new()
@@ -405,7 +405,7 @@ impl PricingError {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// PricingError::missing_market_data_with_context(
     ///     "USD-OIS",
     ///     PricingErrorContext::new()

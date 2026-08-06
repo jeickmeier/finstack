@@ -203,21 +203,6 @@ pub(crate) fn scaled_central_diff_by_width(
 /// Returns an error if:
 /// - The price ID is not found in the market context
 /// - The price data is invalid or corrupted
-///
-/// # Examples
-///
-/// ```ignore
-/// // This function is internal - use Delta metric calculators for public API
-/// use finstack_quant_valuations::metrics::core::finite_difference::bump_scalar_price;
-/// use finstack_quant_core::market_data::context::MarketContext;
-/// use finstack_quant_core::market_data::scalars::MarketScalar;
-///
-/// let context = MarketContext::new()
-///     .insert_price("AAPL", MarketScalar::Unitless(150.0));
-///
-/// // Bump the price up by 1%
-/// let bumped = bump_scalar_price(&context, "AAPL", 0.01)?;
-/// ```
 pub(crate) fn bump_scalar_price(
     context: &finstack_quant_core::market_data::context::MarketContext,
     price_id: &str,
@@ -308,21 +293,6 @@ where
 /// Returns an error if:
 /// - The curve ID is not found in the market context
 /// - The bump operation fails due to invalid curve data
-///
-/// # Examples
-///
-/// ```ignore
-/// // This function is internal - use DV01 metric calculators for public API
-/// use finstack_quant_valuations::metrics::core::finite_difference::bump_discount_curve_parallel;
-/// use finstack_quant_core::market_data::context::MarketContext;
-/// use finstack_quant_core::types::CurveId;
-///
-/// let context = MarketContext::new();
-/// let curve_id = CurveId::from("USD-OIS");
-///
-/// // Bump the curve by 1bp (1.0 in bp units)
-/// let bumped = bump_discount_curve_parallel(&context, &curve_id, 1.0)?;
-/// ```
 pub(crate) fn bump_discount_curve_parallel(
     context: &finstack_quant_core::market_data::context::MarketContext,
     curve_id: &finstack_quant_core::types::CurveId,

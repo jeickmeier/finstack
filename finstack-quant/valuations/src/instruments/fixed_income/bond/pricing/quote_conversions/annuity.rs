@@ -117,7 +117,7 @@ pub fn periods_per_year(
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::quote_conversions::fixed_leg_annuity;
 /// use finstack_quant_core::market_data::term_structures::DiscountCurve;
 /// use finstack_quant_core::dates::{DayCount, Date};
@@ -184,7 +184,7 @@ pub fn fixed_leg_annuity(
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::quote_conversions::par_rate_and_annuity_from_discount;
 /// use finstack_quant_core::market_data::term_structures::DiscountCurve;
 /// use finstack_quant_core::dates::{DayCount, Date};

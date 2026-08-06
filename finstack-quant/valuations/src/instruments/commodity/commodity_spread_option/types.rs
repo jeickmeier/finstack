@@ -50,7 +50,7 @@ use finstack_quant_core::Result;
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::instruments::commodity::CommoditySpreadOption;
 /// use finstack_quant_valuations::instruments::OptionType;
 /// use finstack_quant_core::types::{CurveId, InstrumentId};

@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::calibration::SolverConfig;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {

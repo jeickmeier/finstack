@@ -22,7 +22,7 @@
 //!
 //! # Quick Example
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_valuations::instruments::rates::InterestRateSwap;
 //! use finstack_quant_valuations::instruments::{FixedLegSpec, FloatLegSpec};
 //! use finstack_quant_valuations::instruments::rates::irs::{FloatingLegCompounding, PayReceive};

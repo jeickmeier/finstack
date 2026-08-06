@@ -119,7 +119,7 @@ impl RiskFactorType {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::instruments::Bond;
 /// use finstack_quant_valuations::metrics::risk::extract_risk_factors;
 /// use finstack_quant_core::market_data::context::MarketContext;

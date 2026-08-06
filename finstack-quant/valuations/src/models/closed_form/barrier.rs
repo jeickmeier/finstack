@@ -99,7 +99,7 @@
 //!
 //! ## Down-and-Out Call
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_valuations::models::closed_form::barrier::down_out_call;
 //!
 //! let spot = 100.0;
@@ -118,7 +118,7 @@
 //!
 //! ## Down-and-In Call
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_valuations::models::closed_form::barrier::down_in_call;
 //!
 //! let spot = 100.0;

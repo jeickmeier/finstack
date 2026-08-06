@@ -74,16 +74,6 @@ pub(crate) struct DiscountCurveTargetParams {
 /// supporting both sequential bootstrapping and simultaneous global optimization.
 /// It acts as a bridge between the numerical solvers and the financial instrument
 /// pricing logic.
-///
-/// # Examples
-///
-/// ```ignore
-/// // DiscountCurveTarget is internal - use the calibration API instead
-/// use finstack_quant_valuations::calibration::{calibrate_discount_curve, DiscountCurveParams};
-///
-/// let params = DiscountCurveParams { /* ... */ };
-/// let curve = calibrate_discount_curve(&params, &quotes)?;
-/// ```
 pub(crate) struct DiscountCurveTarget {
     /// Base date for the curve.
     pub(crate) base_date: Date,

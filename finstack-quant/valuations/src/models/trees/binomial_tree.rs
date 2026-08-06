@@ -152,7 +152,7 @@ impl BinomialTree {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::models::trees::BinomialTree;
     ///
     /// let tree = BinomialTree::leisen_reimer_odd(100);
@@ -800,7 +800,7 @@ impl BinomialGreeks {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// let tree_n = BinomialTree::crr(100);
     /// let tree_2n = BinomialTree::crr(200);
     ///

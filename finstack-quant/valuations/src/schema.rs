@@ -254,7 +254,7 @@ pub fn valuation_result_schema() -> finstack_quant_core::Result<&'static Value> 
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::schema::validate_instrument_envelope_json;
 ///
 /// let json: serde_json::Value = serde_json::json!({

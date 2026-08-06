@@ -57,7 +57,7 @@ use super::*;
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::calibration::hull_white::{
 ///     calibrate_hull_white_to_swaptions, SwaptionQuote, SwapFrequency,
 /// };

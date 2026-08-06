@@ -221,7 +221,7 @@ impl FIIndexTotalReturnSwap {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// let lqd_trs = FIIndexTotalReturnSwap::replicate_etf(
     ///     "LQD",
     ///     Money::new(10_000_000.0, Currency::USD),

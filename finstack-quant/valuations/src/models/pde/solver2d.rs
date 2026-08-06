@@ -15,7 +15,7 @@ use super::stepper::StepperError;
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// let solver = Solver2DBuilder::new()
 ///     .grid(Grid2D::new(x_grid, v_grid))
 ///     .craig_sneyd(200)

@@ -161,25 +161,6 @@ impl TermLoanDiscountingPricer {
     ///
     /// PIK capitalization affects the outstanding principal path and is reflected in the
     /// final redemption amount.
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// use finstack_quant_valuations::instruments::fixed_income::term_loan::TermLoan;
-    /// use finstack_quant_valuations::instruments::fixed_income::term_loan::pricing::TermLoanDiscountingPricer;
-    /// use finstack_quant_core::market_data::context::MarketContext;
-    /// use finstack_quant_core::dates::Date;
-    /// use time::Month;
-    ///
-    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let loan = TermLoan::example().expect("TermLoan example is valid");
-    /// let market = MarketContext::new();
-    /// let as_of = Date::from_calendar_date(2025, Month::January, 15)?;
-    ///
-    /// // let pv = TermLoanDiscountingPricer::price(&loan, &market, as_of)?;
-    /// # Ok(())
-    /// # }
-    /// ```
     pub(crate) fn price(
         loan: &TermLoan,
         market: &MarketContext,

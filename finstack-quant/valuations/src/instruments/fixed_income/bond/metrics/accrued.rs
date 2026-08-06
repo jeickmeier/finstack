@@ -18,21 +18,6 @@ use crate::metrics::{MetricCalculator, MetricContext};
 /// the seller retains the imminent coupon and compensates the buyer for the
 /// remaining stub.
 ///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
-/// use finstack_quant_valuations::metrics::{MetricRegistry, MetricId, MetricContext};
-/// use finstack_quant_core::market_data::context::MarketContext;
-/// use finstack_quant_core::dates::Date;
-///
-/// # let bond = Bond::example().unwrap();
-/// # let market = MarketContext::new();
-/// # let as_of = Date::from_calendar_date(2024, time::Month::January, 15).unwrap();
-/// // Accrued interest is computed automatically when requesting bond metrics
-/// # Ok::<(), Box<dyn std::error::Error>>(())
-/// ```
-///
 /// # See Also
 ///
 /// - [`Bond::accrual_config`] for accrual configuration

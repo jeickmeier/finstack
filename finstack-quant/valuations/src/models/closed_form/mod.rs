@@ -113,7 +113,7 @@
 //!
 //! ## Barrier Option
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_valuations::models::closed_form::barrier::down_out_call;
 //!
 //! let spot = 100.0;

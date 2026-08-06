@@ -27,7 +27,7 @@
 //!
 //! ## Example: Explicit Convention Selection
 //!
-//! ```ignore
+//! ```
 //! // Detect from currency (recommended for cross-regional portfolios)
 //! let convention = CDSConvention::detect_from_currency(Currency::EUR);
 //! assert_eq!(convention, CDSConvention::IsdaEu);
@@ -836,7 +836,7 @@ impl CreditDefaultSwap {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// let cds = CreditDefaultSwap::builder()
     ///     .id("CDS-EXAMPLE".into())
     ///     .notional(Money::new(10_000_000.0, Currency::USD))

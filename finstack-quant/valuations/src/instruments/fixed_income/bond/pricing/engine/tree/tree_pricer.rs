@@ -22,7 +22,7 @@ use finstack_quant_core::{Error, Result};
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
 /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::tree::TreePricer;
 /// use finstack_quant_core::market_data::context::MarketContext;
@@ -400,7 +400,7 @@ impl TreePricer {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
     /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::tree::TreePricer;
     /// use finstack_quant_core::market_data::context::MarketContext;

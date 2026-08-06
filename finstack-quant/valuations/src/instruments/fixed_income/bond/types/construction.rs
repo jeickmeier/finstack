@@ -97,7 +97,7 @@ impl Bond {
     /// - **Calendar:** Japan holidays
     ///
     /// # Example
-    /// ```ignore
+    /// ```
     /// use finstack_quant_cashflows::CashflowProvider;
     /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
     /// use finstack_quant_core::money::Money;
@@ -187,7 +187,7 @@ impl Bond {
     /// Panics if bond construction fails (should not occur with valid inputs).
     ///
     /// # Example
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
     /// use finstack_quant_valuations::instruments::BondConvention;
     /// use finstack_quant_core::money::Money;
@@ -280,7 +280,7 @@ impl Bond {
     /// Panics if bond construction fails (should not occur with valid inputs).
     ///
     /// # Example
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
     /// use finstack_quant_core::dates::{Tenor, DayCount};
     /// use finstack_quant_core::money::Money;
@@ -359,7 +359,7 @@ impl Bond {
     /// directly or `::with_convention()` for market-specific settlement rules.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
     /// use finstack_quant_core::money::Money;
     /// use finstack_quant_core::currency::Currency;
@@ -430,7 +430,7 @@ impl Bond {
     /// - Bond construction fails
     ///
     /// # Example
-    /// ```ignore
+    /// ```
     /// use finstack_quant_core::currency::Currency;
     /// use finstack_quant_core::dates::{BusinessDayConvention, DayCount, StubKind, Tenor};
     /// use finstack_quant_core::money::Money;
@@ -607,7 +607,7 @@ impl Bond {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
     /// use finstack_quant_cashflows::builder::CashFlowSchedule;
     /// use finstack_quant_core::money::Money;
@@ -653,7 +653,7 @@ impl Bond {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
     ///
     /// # let bond = Bond::example().unwrap();
@@ -700,18 +700,6 @@ impl Bond {
     /// Returns `Err` when:
     /// - Market curves are missing (for floating rate bonds)
     /// - Cashflow schedule building fails
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
-    /// use finstack_quant_core::market_data::context::MarketContext;
-    ///
-    /// let bond = Bond::example().unwrap();
-    /// let curves = MarketContext::new();
-    /// let schedule = bond.full_cashflow_schedule(&curves)?;
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
     pub(crate) fn full_cashflow_schedule(
         &self,
         curves: &finstack_quant_core::market_data::context::MarketContext,
@@ -957,7 +945,7 @@ impl Bond {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::instruments::fixed_income::bond::{Bond, ReturnFloorSpec};
     ///
     /// let bond = Bond::example().unwrap().with_return_floor(ReturnFloorSpec::moic(1.5));
@@ -983,7 +971,7 @@ impl Bond {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
     ///
     /// let bond = Bond::example().unwrap().min_moic(1.25);
@@ -1009,7 +997,7 @@ impl Bond {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
     /// use finstack_quant_core::types::Rate;
     ///

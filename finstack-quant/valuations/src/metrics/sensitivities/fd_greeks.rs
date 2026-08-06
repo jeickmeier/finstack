@@ -320,7 +320,7 @@ fn with_market_scratch<T>(
 ///
 /// Implementing for a custom option:
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::metrics::HasExpiry;
 /// use finstack_quant_core::dates::Date;
 ///
@@ -340,7 +340,7 @@ pub trait HasExpiry {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::metrics::HasExpiry;
     /// use finstack_quant_core::dates::Date;
     ///
@@ -361,7 +361,7 @@ pub trait HasExpiry {
 ///
 /// Implementing for a custom option:
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::metrics::HasDayCount;
 /// use finstack_quant_core::dates::DayCount;
 ///
@@ -383,7 +383,7 @@ pub trait HasDayCount {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::metrics::HasDayCount;
     /// use finstack_quant_core::dates::DayCount;
     ///
@@ -418,7 +418,7 @@ pub trait HasDayCount {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::instruments::BarrierOption;
 /// use finstack_quant_valuations::metrics::{GenericFdDelta, MetricId, MetricRegistry};
 /// use finstack_quant_valuations::pricer::InstrumentType;

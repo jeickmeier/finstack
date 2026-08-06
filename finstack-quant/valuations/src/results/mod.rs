@@ -31,24 +31,28 @@
 //!
 //! # Quick Example
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_valuations::instruments::{Bond, Instrument, PricingOptions};
 //! use finstack_quant_valuations::metrics::MetricId;
 //! use finstack_quant_core::market_data::context::MarketContext;
+//! use finstack_quant_core::market_data::term_structures::DiscountCurve;
 //! use time::macros::date;
 //!
 //! # fn main() -> finstack_quant_core::Result<()> {
 //! let bond = Bond::example().unwrap();
-//! let market = MarketContext::new();
 //! let as_of = date!(2025-01-15);
+//! let market = MarketContext::new().insert(
+//!     DiscountCurve::builder("USD-TREASURY")
+//!         .base_date(as_of)
+//!         .knots([(0.0, 1.0), (30.0, 0.40)])
+//!         .build()?,
+//! );
 //!
 //! let result = bond.price_with_metrics(&market, as_of, &[MetricId::Ytm, MetricId::Dv01], PricingOptions::default())?;
 //!
-//! // Access results
-//! println!("PV: {}", result.value);
-//! if let Some(dv01) = result.metric(MetricId::Dv01) {
-//!     println!("DV01: ${:.2}", dv01);
-//! }
+//! assert_eq!(result.value.currency().to_string(), "USD");
+//! assert!(result.metric(MetricId::Ytm).is_some());
+//! assert!(result.metric(MetricId::Dv01).is_some_and(|dv01| dv01 < 0.0));
 //! # Ok(())
 //! # }
 //! ```

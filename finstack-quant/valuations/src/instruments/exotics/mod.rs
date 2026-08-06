@@ -39,7 +39,7 @@
 //!
 //! Or build a custom option:
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_valuations::instruments::exotics::{AsianOption, AveragingMethod};
 //! use finstack_quant_valuations::instruments::OptionType;
 //! use finstack_quant_core::currency::Currency;

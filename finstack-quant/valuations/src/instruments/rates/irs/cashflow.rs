@@ -344,21 +344,6 @@ pub(crate) fn projected_compounded_float_leg_schedule(
 ///
 /// Returns an error if the cashflow schedule cannot be built (e.g., invalid
 /// date ranges or calendar lookups fail).
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_valuations::instruments::rates::irs::{InterestRateSwap, cashflow};
-///
-/// # fn example() -> finstack_quant_core::Result<()> {
-/// let irs = InterestRateSwap::example_standard()?;
-/// let schedule = cashflow::fixed_leg_schedule(&irs)?;
-///
-/// // Schedule contains fixed coupon flows
-/// assert!(!schedule.get_flows().is_empty());
-/// # Ok(())
-/// # }
-/// ```
 pub(crate) fn fixed_leg_schedule(irs: &InterestRateSwap) -> Result<CashFlowSchedule> {
     use finstack_quant_core::cashflow::{CFKind, CashFlow};
 

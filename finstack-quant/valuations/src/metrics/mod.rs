@@ -34,68 +34,104 @@
 //!
 //! ## Example 1: Computing Bucketed DV01 for a Bond
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_valuations::instruments::{Bond, Instrument, PricingOptions};
 //! use finstack_quant_valuations::metrics::MetricId;
 //! use finstack_quant_core::market_data::context::MarketContext;
+//! use finstack_quant_core::market_data::term_structures::DiscountCurve;
 //! use time::macros::date;
 //!
 //! # fn main() -> finstack_quant_core::Result<()> {
-//! // Setup: create an example bond and an (empty) market context.
-//! // Note: real runs require a populated market context with required curves.
 //! let as_of = date!(2025-01-01);
 //! let bond = Bond::example().unwrap();
-//! let market = MarketContext::new();
+//!
+//! // The bond discounts off USD-TREASURY, so that curve must be in the context.
+//! let market = MarketContext::new().insert(
+//!     DiscountCurve::builder("USD-TREASURY")
+//!         .base_date(as_of)
+//!         .knots([(0.0, 1.0), (30.0, 0.40)])
+//!         .build()?,
+//! );
 //! let metrics = vec![MetricId::BucketedDv01];
 //!
-//! // Price with metrics
 //! let result = bond.price_with_metrics(&market, as_of, &metrics, PricingOptions::default())?;
 //!
-//! // Access results
 //! let pv = result.value.amount();
-//! println!("Bond PV: ${:.2}", pv);
+//! assert!(pv > 0.0);
 //!
-//! // Get total DV01 (scalar)
-//! if let Some(total_dv01) = result.measures.get(MetricId::BucketedDv01.as_str()) {
-//!     println!("Total DV01: ${:.2} per bp", total_dv01);
-//! }
+//! // A fixed-rate bond loses value when rates rise, so DV01 is negative.
+//! let total_dv01 = result
+//!     .measures
+//!     .get(MetricId::BucketedDv01.as_str())
+//!     .copied()
+//!     .unwrap_or_default();
+//! assert!(total_dv01 < 0.0);
 //! # Ok(())
 //! # }
 //! ```
 //!
 //! ## Example 2: Computing Parallel DV01 for an Interest Rate Swap
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_valuations::instruments::{Instrument, InterestRateSwap, PricingOptions};
 //! use finstack_quant_valuations::metrics::MetricId;
 //! use finstack_quant_core::market_data::context::MarketContext;
+//! use finstack_quant_core::market_data::scalars::ScalarTimeSeries;
+//! use finstack_quant_core::market_data::term_structures::{DiscountCurve, ForwardCurve};
 //! use time::macros::date;
 //!
 //! # fn main() -> finstack_quant_core::Result<()> {
 //! let as_of = date!(2025-01-01);
 //! let swap = InterestRateSwap::example_standard()?;
-//! let market = MarketContext::new();
+//!
+//! // A seasoned swap needs a discount curve, a projection curve for the
+//! // floating leg, and the historical fixings its past resets already consumed.
+//! let market = MarketContext::new()
+//!     .insert(
+//!         DiscountCurve::builder("USD-OIS")
+//!             .base_date(as_of)
+//!             .knots([(0.0, 1.0), (30.0, 0.40)])
+//!             .build()?,
+//!     )
+//!     .insert(
+//!         ForwardCurve::builder("USD-SOFR-3M", 0.25)
+//!             .base_date(as_of)
+//!             .knots([(0.0, 0.04), (30.0, 0.04)])
+//!             .build()?,
+//!     )
+//!     .insert_series(ScalarTimeSeries::new(
+//!         "FIXING:USD-SOFR-3M",
+//!         (0..400)
+//!             .map(|i| (date!(2023-12-01) + time::Duration::days(i), 0.05))
+//!             .collect::<Vec<_>>(),
+//!         None,
+//!     )?);
 //! let metrics = vec![MetricId::Dv01]; // Parallel DV01
 //!
 //! let result = swap.price_with_metrics(&market, as_of, &metrics, PricingOptions::default())?;
 //!
-//! if let Some(dv01) = result.measures.get(MetricId::Dv01.as_str()) {
-//!     println!("Swap DV01: ${:.2} per bp", dv01);
-//!     // Negative DV01 means swap loses value when rates rise
-//!     // (typical for receiver swaps)
-//! }
+//! let dv01 = result
+//!     .measures
+//!     .get(MetricId::Dv01.as_str())
+//!     .copied()
+//!     .unwrap_or_default();
+//! // Sign follows the swap's direction: a receiver gains when rates fall.
+//! assert!(dv01.abs() > 0.0);
 //! # Ok(())
 //! # }
 //! ```
 //!
 //! ## Example 3: Computing Theta (Time Decay) for an Option
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_valuations::instruments::{EquityOption, Instrument, PricingOptions};
 //! use finstack_quant_valuations::metrics::MetricId;
 //! use finstack_quant_core::currency::Currency;
 //! use finstack_quant_core::dates::create_date;
 //! use finstack_quant_core::market_data::context::MarketContext;
+//! use finstack_quant_core::market_data::scalars::MarketScalar;
+//! use finstack_quant_core::market_data::surfaces::VolSurface;
+//! use finstack_quant_core::market_data::term_structures::DiscountCurve;
 //! use finstack_quant_core::money::Money;
 //! use time::Month;
 //!
@@ -110,27 +146,53 @@
 //!     expiry,
 //!     Money::new(100.0, Currency::USD),
 //! )?;
-//! let market = MarketContext::new();
+//!
+//! // `european_call` binds the standard ids: USD-OIS, EQUITY-SPOT,
+//! // EQUITY-VOL, and EQUITY-DIVYIELD.
+//! let market = MarketContext::new()
+//!     .insert(
+//!         DiscountCurve::builder("USD-OIS")
+//!             .base_date(as_of)
+//!             .knots([(0.0, 1.0), (5.0, 0.80)])
+//!             .build()?,
+//!     )
+//!     .insert_price("EQUITY-SPOT", MarketScalar::Unitless(4500.0))
+//!     .insert_price("EQUITY-DIVYIELD", MarketScalar::Unitless(0.015))
+//!     .insert_surface(
+//!         VolSurface::builder("EQUITY-VOL")
+//!             .expiries(&[0.25, 0.5, 1.0])
+//!             .strikes(&[4000.0, 4500.0, 5000.0])
+//!             .row(&[0.20, 0.20, 0.20])
+//!             .row(&[0.20, 0.20, 0.20])
+//!             .row(&[0.20, 0.20, 0.20])
+//!             .build()?,
+//!     );
 //! let metrics = vec![MetricId::Theta];
 //!
 //! let result = option.price_with_metrics(&market, as_of, &metrics, PricingOptions::default())?;
 //!
-//! if let Some(theta) = result.measures.get(MetricId::Theta.as_str()) {
-//!     println!("Option theta per day: ${:.2}", theta);
-//!     // Negative theta = option loses value over time (time decay)
-//! }
+//! // Negative theta: a long option loses value as time passes.
+//! let theta = result
+//!     .measures
+//!     .get(MetricId::Theta.as_str())
+//!     .copied()
+//!     .unwrap_or_default();
+//! assert!(theta < 0.0);
 //! # Ok(())
 //! # }
 //! ```
 //!
 //! ## Example 4: Computing Multiple Greeks for an Option
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_valuations::instruments::{EquityOption, Instrument, PricingOptions};
 //! use finstack_quant_valuations::metrics::MetricId;
 //! use finstack_quant_core::currency::Currency;
 //! use finstack_quant_core::dates::create_date;
 //! use finstack_quant_core::market_data::context::MarketContext;
+//! use finstack_quant_core::market_data::scalars::MarketScalar;
+//! use finstack_quant_core::market_data::surfaces::VolSurface;
+//! use finstack_quant_core::market_data::term_structures::DiscountCurve;
 //! use finstack_quant_core::money::Money;
 //! use time::Month;
 //!
@@ -143,7 +205,24 @@
 //!     create_date(2024, Month::July, 1)?,
 //!     Money::new(100.0, Currency::USD),
 //! )?;
-//! let market = MarketContext::new();
+//! let market = MarketContext::new()
+//!     .insert(
+//!         DiscountCurve::builder("USD-OIS")
+//!             .base_date(as_of)
+//!             .knots([(0.0, 1.0), (5.0, 0.80)])
+//!             .build()?,
+//!     )
+//!     .insert_price("EQUITY-SPOT", MarketScalar::Unitless(4500.0))
+//!     .insert_price("EQUITY-DIVYIELD", MarketScalar::Unitless(0.015))
+//!     .insert_surface(
+//!         VolSurface::builder("EQUITY-VOL")
+//!             .expiries(&[0.25, 0.5, 1.0])
+//!             .strikes(&[4000.0, 4500.0, 5000.0])
+//!             .row(&[0.20, 0.20, 0.20])
+//!             .row(&[0.20, 0.20, 0.20])
+//!             .row(&[0.20, 0.20, 0.20])
+//!             .build()?,
+//!     );
 //! let metrics = vec![
 //!     MetricId::Delta,
 //!     MetricId::Gamma,
@@ -154,28 +233,15 @@
 //!
 //! let result = option.price_with_metrics(&market, as_of, &metrics, PricingOptions::default())?;
 //!
-//! println!("Option Greeks:");
-//! println!("  PV:    ${:.2}", result.value.amount());
-//! println!(
-//!     "  Delta: {:.4}",
-//!     result.measures.get(MetricId::Delta.as_str()).unwrap_or(&0.0)
-//! );
-//! println!(
-//!     "  Gamma: {:.4}",
-//!     result.measures.get(MetricId::Gamma.as_str()).unwrap_or(&0.0)
-//! );
-//! println!(
-//!     "  Vega:  {:.4}",
-//!     result.measures.get(MetricId::Vega.as_str()).unwrap_or(&0.0)
-//! );
-//! println!(
-//!     "  Theta: {:.4}",
-//!     result.measures.get(MetricId::Theta.as_str()).unwrap_or(&0.0)
-//! );
-//! println!(
-//!     "  Rho:   {:.4}",
-//!     result.measures.get(MetricId::Rho.as_str()).unwrap_or(&0.0)
-//! );
+//! let greek = |id: MetricId| result.measures.get(id.as_str()).copied().unwrap_or_default();
+//!
+//! // Greeks are scaled by the 100-unit contract size, so an at-the-money
+//! // call has delta near 50 rather than 0.5. Gamma and vega are positive
+//! // and theta is negative for a long option.
+//! assert!(greek(MetricId::Delta) > 0.0 && greek(MetricId::Delta) < 100.0);
+//! assert!(greek(MetricId::Gamma) > 0.0);
+//! assert!(greek(MetricId::Vega) > 0.0);
+//! assert!(greek(MetricId::Theta) < 0.0);
 //! # Ok(())
 //! # }
 //! ```
@@ -289,7 +355,7 @@ macro_rules! define_metric_calculator {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::metrics::{metric_not_found, MetricId};
 /// use finstack_quant_core::Result;
 /// use finstack_quant_core::HashMap;
@@ -318,7 +384,7 @@ pub fn metric_not_found(metric: MetricId) -> finstack_quant_core::Error {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::metrics::context_not_found;
 /// use finstack_quant_core::types::CurveId;
 /// use finstack_quant_core::Result;

@@ -60,7 +60,7 @@ fn cache_var_diagnostics(context: &mut MetricContext, result: &VarResult) {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::metrics::{MetricId, MetricRegistry};
 /// use finstack_quant_valuations::metrics::risk::{GenericHVar, VarConfig};
 /// use std::sync::Arc;

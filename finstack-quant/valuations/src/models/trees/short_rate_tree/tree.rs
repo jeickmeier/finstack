@@ -91,7 +91,7 @@ impl ShortRateTree {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::models::trees::short_rate_tree::ShortRateTree;
     ///
     /// // Ho-Lee with 100 bp annual volatility
@@ -112,7 +112,7 @@ impl ShortRateTree {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::models::trees::short_rate_tree::ShortRateTree;
     ///
     /// // BDT with 20% lognormal volatility

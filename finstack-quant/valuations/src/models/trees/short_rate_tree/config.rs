@@ -198,7 +198,7 @@ pub enum ShortRateModel {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::models::trees::short_rate_tree::{
 ///     ShortRateTreeConfig, ShortRateModel, DEFAULT_NORMAL_VOL, DEFAULT_LOGNORMAL_VOL,
 /// };
@@ -288,7 +288,7 @@ impl ShortRateTreeConfig {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::models::trees::short_rate_tree::ShortRateTreeConfig;
     ///
     /// // 100 steps, 80 bp normal vol
@@ -319,7 +319,7 @@ impl ShortRateTreeConfig {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::models::trees::short_rate_tree::ShortRateTreeConfig;
     ///
     /// // 100 steps, 20% lognormal vol
@@ -394,7 +394,7 @@ impl ShortRateTreeConfig {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::models::trees::short_rate_tree::{
     ///     ShortRateTreeConfig, ShortRateModel,
     /// };

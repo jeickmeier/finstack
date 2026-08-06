@@ -40,21 +40,6 @@ use finstack_quant_core::money::Money;
 /// # Dependencies
 ///
 /// None (accrued is computed internally at quote_date).
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
-/// use finstack_quant_valuations::metrics::{MetricRegistry, MetricId, MetricContext};
-/// use finstack_quant_core::market_data::context::MarketContext;
-/// use finstack_quant_core::dates::Date;
-///
-/// # let bond = Bond::example().unwrap();
-/// # let market = MarketContext::new();
-/// # let as_of = Date::from_calendar_date(2024, time::Month::January, 15).unwrap();
-/// // YTW is computed automatically when requesting bond metrics for callable/putable bonds
-/// # Ok::<(), Box<dyn std::error::Error>>(())
-/// ```
 pub(crate) struct YtwCalculator;
 
 impl MetricCalculator for YtwCalculator {

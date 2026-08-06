@@ -341,17 +341,6 @@ pub(crate) fn collect_inputs_extended(
 /// Adjusted spot price. Always returns at least `1e-8` to avoid degenerate
 /// pricing when PV of dividends exceeds spot (deep ITM dividend scenario).
 ///
-/// # Example
-///
-/// ```ignore
-/// # fn main() {
-/// // Stock at $100, dividend of $2 in 0.25 years, r = 5%
-/// // s_adj ≈ 100 - 2 × e^{-0.05×0.25} ≈ 98.01
-/// let s_adj = 100.0 - 2.0 * (-0.05_f64 * 0.25).exp();
-/// assert!((s_adj - 98.01).abs() < 0.01);
-/// # }
-/// ```
-///
 /// # References
 ///
 /// - Hull, J. C. (2018). *Options, Futures, and Other Derivatives*, Chapter 15.

@@ -208,7 +208,7 @@ impl HullWhiteTree {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::models::trees::HullWhiteTree;
     /// use finstack_quant_valuations::models::trees::HullWhiteTreeConfig;
     ///

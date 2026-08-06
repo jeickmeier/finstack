@@ -36,7 +36,7 @@ use super::super::super::types::Bond;
 ///
 /// Bond pricing is performed via the [`Instrument`] trait or the pricer registry:
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::instruments::Bond;
 /// use finstack_quant_valuations::instruments::Instrument;
 /// use finstack_quant_core::market_data::context::MarketContext;
@@ -75,21 +75,6 @@ impl BondEngine {
     /// - Discount curve is not found in market context
     /// - Bond has no future cashflows
     /// - Cashflow schedule building fails
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
-    /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::discount::BondEngine;
-    /// use finstack_quant_core::market_data::context::MarketContext;
-    /// use finstack_quant_core::dates::Date;
-    ///
-    /// # let bond = Bond::example().unwrap();
-    /// # let market = MarketContext::new();
-    /// # let as_of = Date::from_calendar_date(2024, time::Month::January, 15).unwrap();
-    /// let pv = BondEngine::price(&bond, &market, as_of)?;
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
     pub(crate) fn price(bond: &Bond, context: &MarketContext, as_of: Date) -> Result<Money> {
         Self::price_with_explanation(bond, context, as_of, ExplainOpts::disabled())
             .map(|(pv, _)| pv)
@@ -123,7 +108,7 @@ impl BondEngine {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
     /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::discount::BondEngine;
     /// use finstack_quant_core::explain::ExplainOpts;

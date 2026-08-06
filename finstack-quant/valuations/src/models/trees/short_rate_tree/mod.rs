@@ -17,7 +17,7 @@
 //!
 //! Use `finstack_quant_core::math::volatility::convert_atm_volatility` to convert:
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_core::math::volatility::{convert_atm_volatility, VolatilityConvention};
 //!
 //! let normal_vol = 0.01;

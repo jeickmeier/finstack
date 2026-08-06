@@ -33,7 +33,7 @@ use finstack_quant_core::Result;
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
 /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::tree::BondValuator;
 /// use finstack_quant_core::market_data::context::MarketContext;
@@ -264,7 +264,7 @@ impl BondValuator {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
     /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::tree::BondValuator;
     /// use finstack_quant_core::market_data::context::MarketContext;

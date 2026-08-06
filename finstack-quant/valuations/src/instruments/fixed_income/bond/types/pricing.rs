@@ -156,7 +156,7 @@ impl Bond {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// let bond = Bond::fixed(...)?;
     /// bond.validate()?; // Validates all parameters
     /// ```

@@ -350,7 +350,7 @@ impl YtmSolver {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::ytm_solver::{solve_ytm, YtmPricingSpec};
 /// use finstack_quant_core::dates::{Date, DayCount, Tenor};
 /// use finstack_quant_core::money::Money;

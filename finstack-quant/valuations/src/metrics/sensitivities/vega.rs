@@ -93,21 +93,6 @@ fn scaled_bucketed_vega_matrix(
 /// # Type Parameters
 ///
 /// * `I` - Instrument type that implements [`Instrument`] and has a volatility surface
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_valuations::instruments::EquityOption;
-/// use finstack_quant_valuations::metrics::KeyRateVega;
-///
-/// // Standard equity buckets
-/// let calculator = KeyRateVega::<EquityOption>::standard();
-///
-/// // Or custom buckets
-/// let expiries = vec![0.25, 0.5, 1.0, 2.0];
-/// let strikes = vec![0.9, 1.0, 1.1];
-/// let calculator = KeyRateVega::<EquityOption>::new(expiries, strikes);
-/// ```
 pub(crate) struct KeyRateVega<I> {
     expiries: Vec<f64>,
     strikes: Vec<f64>,
@@ -121,18 +106,6 @@ impl<I> KeyRateVega<I> {
     ///
     /// * `expiries` - Expiry times in years for the vega grid
     /// * `strikes` - Strike ratios (relative to spot) for the vega grid
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// // KeyRateVega is internal - use MetricId::KeyRateVega via price_with_metrics
-    /// use finstack_quant_valuations::metrics::sensitivities::vega::KeyRateVega;
-    /// use finstack_quant_valuations::instruments::EquityOption;
-    ///
-    /// let expiries = vec![0.25, 0.5, 1.0, 2.0];
-    /// let strikes = vec![0.9, 1.0, 1.1];
-    /// let calculator = KeyRateVega::<EquityOption>::new(expiries, strikes);
-    /// ```
     pub(crate) fn new(expiries: Vec<f64>, strikes: Vec<f64>) -> Self {
         Self {
             expiries,
@@ -145,16 +118,6 @@ impl<I> KeyRateVega<I> {
     ///
     /// Uses standard expiry buckets (1m, 3m, 6m, 1y, 2y, 3y, 5y) and
     /// standard strike ratios (0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5).
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// // KeyRateVega is internal - use MetricId::KeyRateVega via price_with_metrics
-    /// use finstack_quant_valuations::metrics::sensitivities::vega::KeyRateVega;
-    /// use finstack_quant_valuations::instruments::EquityOption;
-    ///
-    /// let calculator = KeyRateVega::<EquityOption>::standard();
-    /// ```
     pub(crate) fn standard() -> Self {
         Self::new(standard_equity_expiry_buckets(), standard_strike_ratios())
     }

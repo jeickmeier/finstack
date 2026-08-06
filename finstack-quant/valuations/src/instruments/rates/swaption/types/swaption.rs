@@ -556,7 +556,7 @@ impl Swaption {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::instruments::rates::swaption::{Swaption, CashSettlementMethod};
     ///
     /// // Create a cash-settled swaption with ISDA Par-Par settlement

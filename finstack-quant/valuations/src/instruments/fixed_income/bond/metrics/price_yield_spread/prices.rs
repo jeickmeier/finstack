@@ -19,21 +19,6 @@ use crate::metrics::{MetricCalculator, MetricContext, MetricId};
 /// # Dependencies
 ///
 /// Requires `Accrued` metric to be computed first (used for the model-PV path).
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
-/// use finstack_quant_valuations::metrics::{MetricRegistry, MetricId, MetricContext};
-/// use finstack_quant_core::market_data::context::MarketContext;
-/// use finstack_quant_core::dates::Date;
-///
-/// # let bond = Bond::example().unwrap();
-/// # let market = MarketContext::new();
-/// # let as_of = Date::from_calendar_date(2024, time::Month::January, 15).unwrap();
-/// // Dirty price is computed automatically when requesting bond metrics
-/// # Ok::<(), Box<dyn std::error::Error>>(())
-/// ```
 pub(crate) struct DirtyPriceCalculator;
 
 impl MetricCalculator for DirtyPriceCalculator {
@@ -69,21 +54,6 @@ impl MetricCalculator for DirtyPriceCalculator {
 /// # Dependencies
 ///
 /// Requires `Accrued` metric to be computed first (used for the model-PV path).
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
-/// use finstack_quant_valuations::metrics::{MetricRegistry, MetricId, MetricContext};
-/// use finstack_quant_core::market_data::context::MarketContext;
-/// use finstack_quant_core::dates::Date;
-///
-/// # let bond = Bond::example().unwrap();
-/// # let market = MarketContext::new();
-/// # let as_of = Date::from_calendar_date(2024, time::Month::January, 15).unwrap();
-/// // Clean price is computed automatically when requesting bond metrics
-/// # Ok::<(), Box<dyn std::error::Error>>(())
-/// ```
 pub(crate) struct CleanPriceCalculator;
 
 impl MetricCalculator for CleanPriceCalculator {

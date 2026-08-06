@@ -714,7 +714,7 @@ pub trait Instrument: CashflowProvider + Send + Sync {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// // Used internally by risk calculators for high-precision sensitivities
     /// use finstack_quant_core::currency::Currency;
     /// use finstack_quant_core::market_data::context::MarketContext;
@@ -833,7 +833,7 @@ pub trait Instrument: CashflowProvider + Send + Sync {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::instruments::{Bond, Instrument, PricingOptions};
     /// use finstack_quant_valuations::metrics::MetricId;
     /// use finstack_quant_core::market_data::context::MarketContext;
@@ -872,7 +872,7 @@ pub trait Instrument: CashflowProvider + Send + Sync {
     /// # }
     /// ```
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::instruments::{Bond, Instrument, PricingOptions};
     /// use finstack_quant_valuations::metrics::MetricId;
     /// use finstack_quant_valuations::pricer::ModelKey;
@@ -1044,7 +1044,7 @@ pub trait Instrument: CashflowProvider + Send + Sync {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::instruments::Bond;
     /// use finstack_quant_valuations::instruments::Instrument;
     ///

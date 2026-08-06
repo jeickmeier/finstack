@@ -47,7 +47,7 @@ impl StructuredCredit {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::instruments::fixed_income::structured_credit::{DealType, StructuredCredit};
     ///
     /// # fn main() -> finstack_quant_core::Result<()> {

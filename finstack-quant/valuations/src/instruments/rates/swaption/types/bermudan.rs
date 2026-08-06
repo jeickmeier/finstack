@@ -40,7 +40,7 @@ use super::swaption::{vanilla_underlier, Swaption, VanillaSwaptionUnderlier};
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::instruments::rates::swaption::{
 ///     BermudanSwaption, BermudanSchedule, BermudanType, SwaptionSettlement,
 /// };

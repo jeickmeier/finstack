@@ -41,7 +41,7 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_valuations::error::{Error, PricingError, ValidationError};
 //! use finstack_quant_valuations::pricer::InstrumentType;
 //!

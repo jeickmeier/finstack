@@ -36,7 +36,7 @@
 //!
 //! # Quick Example
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_valuations::models::volatility::{d1_d2, norm_cdf};
 //!
 //! let spot = 100.0;

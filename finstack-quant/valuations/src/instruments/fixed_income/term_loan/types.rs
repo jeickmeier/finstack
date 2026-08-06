@@ -160,7 +160,7 @@ impl RateSpec {
 ///
 /// Create via [`TermLoanSpec`] conversion or use the builder pattern:
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::instruments::fixed_income::term_loan::spec::TermLoanSpec;
 /// use finstack_quant_valuations::instruments::fixed_income::term_loan::TermLoan;
 ///

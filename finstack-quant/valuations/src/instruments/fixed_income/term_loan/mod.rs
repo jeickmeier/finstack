@@ -24,7 +24,7 @@
 //!
 //! # Quick Example
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_valuations::instruments::fixed_income::term_loan::{TermLoan, TermLoanSpec, RateSpec};
 //! use finstack_quant_valuations::instruments::fixed_income::term_loan::spec::AmortizationSpec;
 //! use finstack_quant_cashflows::builder::specs::CouponType;

@@ -32,15 +32,6 @@ use finstack_quant_core::Result;
 ///
 /// # Errors
 /// Returns an error if validation fails, with a descriptive message.
-///
-/// # Examples
-/// ```ignore
-/// use finstack_quant_valuations::calibration::validation::preflight_step;
-///
-/// // Validate before execution
-/// preflight_step(&step, &quotes, &context, &config)?;
-/// // Safe to proceed with execution
-/// ```
 pub(crate) fn preflight_step(
     step: &CalibrationStep,
     quotes: &[MarketQuote],

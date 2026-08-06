@@ -244,7 +244,7 @@ impl MetricRegistry {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_valuations::metrics::{MetricContext, MetricId, MetricRegistry};
     /// # fn example(registry: &MetricRegistry, mut context: MetricContext) -> finstack_quant_core::Result<()> {
     /// // Strict mode (default): fails fast on any error

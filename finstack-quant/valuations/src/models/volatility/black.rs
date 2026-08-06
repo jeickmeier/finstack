@@ -109,7 +109,7 @@ pub fn d2(spot: f64, strike: f64, r: f64, sigma: f64, t: f64, q: f64) -> f64 {
 /// See module-level documentation for detailed explanation of ATM-at-expiry behavior.
 ///
 /// # Example
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::models::volatility::black::d1_d2;
 ///
 /// let (d1, d2) = d1_d2(100.0, 100.0, 0.05, 0.20, 1.0, 0.02);
@@ -202,7 +202,7 @@ pub fn d2_black76(forward: f64, strike: f64, sigma: f64, t: f64) -> f64 {
 /// Tuple of (d1, d2)
 ///
 /// # Example
-/// ```ignore
+/// ```
 /// use finstack_quant_valuations::models::volatility::black::d1_d2_black76;
 ///
 /// let (d1, d2) = d1_d2_black76(0.05, 0.05, 0.20, 1.0);
