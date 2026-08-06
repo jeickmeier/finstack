@@ -5,8 +5,37 @@ use super::types::{FactorContribution, RiskDecomposition};
 use crate::sensitivity::SensitivityMatrix;
 use finstack_quant_factor_model::{FactorCovarianceMatrix, RiskMeasure};
 
-const MATRIX_TOLERANCE: f64 = 1e-10;
+/// Relative tolerance for symmetry, semi-definiteness, and rank detection.
+///
+/// Applied against the matrix's own scale rather than as an absolute bound.
+/// A *covariance* matrix carries the units of its factors squared, so its
+/// entries span many orders of magnitude — daily equity-return variances sit
+/// around `1e-4`, while rate factors quoted in basis points reach `1e4`. A
+/// fixed absolute threshold is therefore wrong at both ends: on a small-scale
+/// matrix it declares genuinely positive directions rank-deficient (or rejects
+/// a valid matrix as indefinite), and on a large-scale one it sits below
+/// accumulated rounding and admits a matrix that is not positive
+/// semi-definite.
+///
+/// This mirrors [`finstack_quant_core::math::linalg::PIVOT_TOLERANCE_RELATIVE`],
+/// which core adopted for the same reason.
+const MATRIX_TOLERANCE_RELATIVE: f64 = 1e-10;
+
 const ZERO_TOLERANCE: f64 = 1e-15;
+
+/// Scale a covariance matrix is measured at: the largest absolute diagonal
+/// entry, i.e. the biggest factor variance present.
+///
+/// Floored at `f64::MIN_POSITIVE` only so an all-zero matrix yields a positive
+/// tolerance rather than zero; it is deliberately *not* floored at 1.0, since
+/// that would make the threshold absolute again for any matrix whose variances
+/// are below unity — which is the common case for return-space covariances.
+fn matrix_scale(data: &[f64], n: usize) -> f64 {
+    (0..n)
+        .map(|i| data[i * n + i].abs())
+        .fold(0.0_f64, f64::max)
+        .max(f64::MIN_POSITIVE)
+}
 
 /// Cholesky decomposition returning a lower-triangular matrix `L` such that `L * L' = A`.
 pub(crate) fn cholesky(data: &[f64], n: usize) -> finstack_quant_core::Result<Vec<f64>> {
@@ -23,10 +52,12 @@ pub(crate) fn cholesky(data: &[f64], n: usize) -> finstack_quant_core::Result<Ve
         ));
     }
 
+    let tolerance = MATRIX_TOLERANCE_RELATIVE * matrix_scale(data, n);
+
     // Verify symmetry so callers need not pre-validate.
     for i in 0..n {
         for j in (i + 1)..n {
-            if (data[i * n + j] - data[j * n + i]).abs() > MATRIX_TOLERANCE {
+            if (data[i * n + j] - data[j * n + i]).abs() > tolerance {
                 return Err(finstack_quant_core::Error::Validation(format!(
                     "Covariance matrix must be symmetric at ({i}, {j})"
                 )));
@@ -45,7 +76,7 @@ pub(crate) fn cholesky(data: &[f64], n: usize) -> finstack_quant_core::Result<Ve
 
             if i == j {
                 let diagonal = data[i * n + i] - sum;
-                if diagonal < -MATRIX_TOLERANCE {
+                if diagonal < -tolerance {
                     return Err(finstack_quant_core::Error::Validation(
                         "Covariance matrix is not positive semi-definite".to_string(),
                     ));
@@ -54,8 +85,12 @@ pub(crate) fn cholesky(data: &[f64], n: usize) -> finstack_quant_core::Result<Ve
             } else {
                 let denominator = lower[j * n + j];
                 let value = data[i * n + j] - sum;
-                if denominator.abs() <= MATRIX_TOLERANCE {
-                    if value.abs() > MATRIX_TOLERANCE {
+                // `lower` holds square roots of variances, so a rank-deficient
+                // pivot is small on the *standard-deviation* scale, not the
+                // variance scale — compare against sqrt(tolerance).
+                let pivot_tolerance = tolerance.sqrt();
+                if denominator.abs() <= pivot_tolerance {
+                    if value.abs() > pivot_tolerance {
                         return Err(finstack_quant_core::Error::Validation(
                             "Covariance matrix is not positive semi-definite".to_string(),
                         ));
@@ -231,11 +266,12 @@ impl SimulationDecomposer {
             ));
         }
 
+        let tolerance = MATRIX_TOLERANCE_RELATIVE * matrix_scale(data, n);
         for i in 0..n {
             for j in (i + 1)..n {
                 let lhs = data[i * n + j];
                 let rhs = data[j * n + i];
-                if (lhs - rhs).abs() > MATRIX_TOLERANCE {
+                if (lhs - rhs).abs() > tolerance {
                     return Err(finstack_quant_core::Error::Validation(format!(
                         "Covariance matrix must be symmetric at ({i}, {j})"
                     )));
@@ -639,6 +675,79 @@ mod tests {
     use finstack_quant_factor_model::{FactorCovarianceMatrix, FactorId, RiskMeasure};
 
     type TestResult = finstack_quant_core::Result<()>;
+
+    /// The decomposition must behave identically on a matrix and on the same
+    /// matrix rescaled — an absolute tolerance breaks exactly this property.
+    #[test]
+    fn cholesky_is_scale_invariant() -> TestResult {
+        // Rank-deficient by construction: row 2 = 2 x row 1.
+        let base = [1.0, 2.0, 2.0, 4.0];
+
+        for scale in [1e-8_f64, 1e-4, 1.0, 1e4, 1e8] {
+            let scaled: Vec<f64> = base.iter().map(|v| v * scale).collect();
+            let lower = cholesky(&scaled, 2)?;
+
+            // L * L' must reproduce the input at the input's own scale.
+            for i in 0..2 {
+                for j in 0..2 {
+                    let product: f64 = (0..2).map(|k| lower[i * 2 + k] * lower[j * 2 + k]).sum();
+                    let expected = scaled[i * 2 + j];
+                    assert!(
+                        (product - expected).abs() <= 1e-9 * scale,
+                        "scale {scale:e}: L*L'[{i}][{j}] = {product} != {expected}"
+                    );
+                }
+            }
+
+            // The dependent direction collapses to ~zero at every scale, not
+            // just where an absolute 1e-10 happened to land.
+            //
+            // The bound is `sqrt(eps)`-relative, not `eps`-relative: this
+            // pivot is the square root of a fully cancelled quantity
+            // (`4s − (2*sqrt(s))^2`), and taking a square root maps a relative
+            // error of `eps` in the radicand to `sqrt(eps)` ~ 1.5e-8 in the
+            // result. Asserting an `eps`-scale bound here would be asserting
+            // something floating point cannot deliver.
+            assert!(
+                lower[3].abs() <= 1e-7 * scale.sqrt(),
+                "scale {scale:e}: dependent direction should have ~zero pivot, got {}",
+                lower[3]
+            );
+        }
+        Ok(())
+    }
+
+    /// A genuinely indefinite matrix is rejected regardless of its scale.
+    #[test]
+    fn cholesky_rejects_indefinite_at_every_scale() {
+        for scale in [1e-8_f64, 1.0, 1e8] {
+            let indefinite: Vec<f64> = [1.0, 3.0, 3.0, 1.0].iter().map(|v| v * scale).collect();
+            assert!(
+                cholesky(&indefinite, 2).is_err(),
+                "scale {scale:e}: indefinite matrix should be rejected"
+            );
+        }
+    }
+
+    /// Asymmetry is judged against the matrix's own scale.
+    #[test]
+    fn cholesky_symmetry_check_is_relative() {
+        // At scale 1e8 an absolute 1e-10 rule would reject this valid matrix,
+        // whose asymmetry is 1e-4 of nothing in relative terms (1e-12).
+        let large = [1e8, 2e8, 2e8 + 1e-4, 4e8];
+        assert!(
+            cholesky(&large, 2).is_ok(),
+            "rounding-scale asymmetry on a large matrix should be tolerated"
+        );
+
+        // At scale 1e-8 a 1e-9 discrepancy is 10% of the matrix — a real defect
+        // that an absolute 1e-10 rule would also catch, but for the wrong reason.
+        let small = [1e-8, 2e-8, 2e-8 + 1e-9, 4e-8];
+        assert!(
+            cholesky(&small, 2).is_err(),
+            "material asymmetry on a small matrix should be rejected"
+        );
+    }
 
     #[test]
     fn test_cholesky_2x2_example() -> TestResult {

@@ -70,10 +70,30 @@ use thiserror::Error;
 pub const SINGULAR_THRESHOLD: f64 = 1e-10;
 
 /// Default tolerance for diagonal elements in correlation matrices.
-pub const DIAGONAL_TOLERANCE: f64 = 1e-6;
+///
+/// A correlation matrix has a diagonal of exactly 1 by construction, so any
+/// deviation is either floating-point noise from forming `rho = cov / (sd_i *
+/// sd_j)` — which is `O(eps * kappa)`, in practice below 1e-12 — or a genuine
+/// defect in the input. A diagonal of, say, 1.000001 signals a mis-normalized
+/// covariance matrix rather than rounding, so the tolerance is set at
+/// noise scale to reject it instead of passing it through to Cholesky.
+pub const DIAGONAL_TOLERANCE: f64 = 1e-10;
 
 /// Default tolerance for symmetry checks in correlation matrices.
-pub const SYMMETRY_TOLERANCE: f64 = 1e-6;
+///
+/// Symmetry, like the unit diagonal, holds exactly by construction; asymmetry
+/// above noise scale indicates a transposition or indexing bug in the caller.
+pub const SYMMETRY_TOLERANCE: f64 = 1e-10;
+
+/// Slack allowed on the `[-1, 1]` bound for off-diagonal correlations.
+///
+/// Unlike the diagonal and symmetry checks, this bound needs *some* give: two
+/// perfectly collinear series (a duplicated input, or genuinely identical
+/// instruments) produce a computed correlation of `1 +/- a few ulp`, which is a
+/// valid input that a strict bound would reject. The slack is therefore kept at
+/// rounding scale — wide enough for last-bit error, far too narrow to admit a
+/// value that is actually out of range.
+pub const CORRELATION_BOUND_SLACK: f64 = 1e-12;
 
 /// Relative pivot tolerance for [`cholesky_correlation`].
 ///
@@ -982,7 +1002,7 @@ pub fn validate_correlation_matrix(matrix: &[f64], n: usize) -> Result<()> {
             }
 
             let val = matrix[i * n + j];
-            if !(-1.0..=1.0).contains(&val) {
+            if !(-1.0 - CORRELATION_BOUND_SLACK..=1.0 + CORRELATION_BOUND_SLACK).contains(&val) {
                 return Err(crate::error::InputError::Invalid.into());
             }
 
@@ -1313,18 +1333,28 @@ mod tests {
     // These tests document the expected boundary behaviour.
     #[test]
     fn test_validate_correlation_matrix_symmetry_tolerance_boundary() {
-        // Asymmetry below SYMMETRY_TOLERANCE (1e-6) is accepted.
-        let almost_sym = vec![1.0, 0.5, 0.5 + 5.0e-7, 1.0];
+        // Asymmetry below SYMMETRY_TOLERANCE (1e-10) is accepted: at that
+        // scale it is rounding from forming the matrix, not a real defect.
+        let almost_sym = vec![1.0, 0.5, 0.5 + 5.0e-11, 1.0];
         assert!(
             validate_correlation_matrix(&almost_sym, 2).is_ok(),
             "Near-symmetric matrix below tolerance should be accepted"
         );
 
         // Asymmetry just above SYMMETRY_TOLERANCE is rejected.
-        let barely_asym = vec![1.0, 0.5, 0.5 + 2.0e-6, 1.0];
+        let barely_asym = vec![1.0, 0.5, 0.5 + 2.0e-10, 1.0];
         assert!(
             validate_correlation_matrix(&barely_asym, 2).is_err(),
             "Asymmetry above tolerance should be rejected"
+        );
+
+        // Asymmetry that the previous 1e-6 tolerance admitted is now caught:
+        // a 1e-7 discrepancy is orders of magnitude above rounding and
+        // indicates a transposition or indexing bug upstream.
+        let formerly_accepted = vec![1.0, 0.5, 0.5 + 1.0e-7, 1.0];
+        assert!(
+            validate_correlation_matrix(&formerly_accepted, 2).is_err(),
+            "Asymmetry at 1e-7 should be rejected under the tightened tolerance"
         );
 
         // Near-zero correlation: absolute tolerance still applies correctly.

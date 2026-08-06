@@ -11,7 +11,7 @@
 use crate::dates::Date;
 use crate::math::stats::{correlation, mean, OnlineCovariance, OnlineStats};
 use crate::regression::normalized_svd_least_squares;
-use finstack_quant_core::math::neumaier_sum;
+use finstack_quant_core::math::{neumaier_sum, NeumaierAccumulator};
 use nalgebra::DMatrix;
 
 // Recompute the four sliding-window sums (sr, sb, srb, sb²) every 64 steps to
@@ -25,43 +25,54 @@ use nalgebra::DMatrix;
 // which compares against full re-computation across a long synthetic series.
 const ROLLING_GREEKS_RECOMPUTE_INTERVAL: usize = 64;
 
+/// Recompute the four sliding-window power sums about the shift origins
+/// `(shift_r, shift_b)`.
+///
+/// # Why the shift
+///
+/// Beta is formed from `(w*srb - sb*sr) / (w*sb2 - sb*sb)` — the normal-equation
+/// form. Both numerator and denominator are differences of large, nearly equal
+/// products whenever the inputs carry a large constant level relative to their
+/// variation: for a series around `5e5` with moves of `1e-2`, `w*sb2` and
+/// `sb*sb` agree to roughly twelve significant digits, so the subtraction throws
+/// away most of the mantissa before the division ever happens.
+///
+/// Because covariance and variance are invariant to a constant shift, computing
+/// the sums about a fixed origin near the data leaves beta mathematically
+/// unchanged while making the cancelled quantities `O(variation)` instead of
+/// `O(level)`. This is the standard shifted-data formulation for one-pass
+/// variance (Chan, Golub & LeVeque 1983, "Algorithms for Computing the Sample
+/// Variance"); it costs one subtraction per element and preserves the O(n)
+/// sliding-window update, which centring per window would not.
+///
+/// The mean-dependent parts of alpha need the unshifted sums; the caller
+/// reconstructs them as `sr + w*shift_r`, which involves no cancellation.
 #[inline]
-fn recompute_rolling_greeks_sums(returns: &[f64], benchmark: &[f64]) -> (f64, f64, f64, f64) {
+fn recompute_rolling_greeks_sums(
+    returns: &[f64],
+    benchmark: &[f64],
+    shift_r: f64,
+    shift_b: f64,
+) -> (f64, f64, f64, f64) {
     (
-        neumaier_sum(returns.iter().copied()),
-        neumaier_sum(benchmark.iter().copied()),
-        neumaier_sum(returns.iter().zip(benchmark.iter()).map(|(&r, &b)| r * b)),
-        neumaier_sum(benchmark.iter().map(|&b| b * b)),
+        neumaier_sum(returns.iter().map(|&r| r - shift_r)),
+        neumaier_sum(benchmark.iter().map(|&b| b - shift_b)),
+        neumaier_sum(
+            returns
+                .iter()
+                .zip(benchmark.iter())
+                .map(|(&r, &b)| (r - shift_r) * (b - shift_b)),
+        ),
+        neumaier_sum(benchmark.iter().map(|&b| (b - shift_b) * (b - shift_b))),
     )
 }
 
-/// One Kahan compensated-summation step over split `(sum, compensation)`
-/// state.
-///
-/// This is deliberately Kahan and not Neumaier, because callers read `sum`
-/// directly as the running total. Neumaier keeps the correction in a separate
-/// accumulator, so switching the step alone — without also reading
-/// `sum + compensation` at every consumption site — would silently *discard*
-/// the compensation and make the result worse.
-///
-/// # Known limitation
-///
-/// Kahan loses the low-order bits whenever the incoming increment exceeds the
-/// running sum in magnitude, which this loop can hit: it accumulates
-/// *differences* (`new − old`), and the sums pass near zero when returns
-/// cancel. Drift is bounded only by the periodic full recompute
-/// (`ROLLING_GREEKS_RECOMPUTE_INTERVAL`).
-///
-/// [`finstack_quant_core::math::NeumaierAccumulator`] handles that case, but
-/// adopting it here is a numerical change to live rolling alpha/beta output
-/// and needs its own change with golden coverage — not a drive-by edit inside
-/// a deduplication pass.
+/// Seed a [`NeumaierAccumulator`] with a starting total.
 #[inline]
-fn compensated_add(sum: &mut f64, compensation: &mut f64, value: f64) {
-    let y = value - *compensation;
-    let t = *sum + y;
-    *compensation = (t - *sum) - y;
-    *sum = t;
+fn seeded_accumulator(value: f64) -> NeumaierAccumulator {
+    let mut acc = NeumaierAccumulator::new();
+    acc.add(value);
+    acc
 }
 
 /// Tracking error: annualized volatility of active (excess) returns.
@@ -589,13 +600,35 @@ pub(crate) fn rolling_greeks(
     let rf_period = periodic_risk_free_rate(risk_free_rate, ann_factor);
 
     // Incremental O(n) sliding-window OLS via running sums.
+    //
+    // The sums are kept about fixed origins near the data (see
+    // `recompute_rolling_greeks_sums`) so the normal-equation differences below
+    // cancel at the scale of the *variation* rather than the *level*.
+    //
+    // They accumulate differences (`new − old`) and pass near zero when returns
+    // cancel, so the increment can exceed the running total in magnitude — the
+    // case Kahan handles worse than Neumaier. Every read therefore goes through
+    // `current()`, which returns `sum + compensation`; reading the bare sum
+    // would discard the correction.
     let w = window as f64;
-    let (mut sr, mut sb, mut srb, mut sb2) =
-        recompute_rolling_greeks_sums(&returns[..window], &benchmark[..window]);
-    let (mut csr, mut csb, mut csrb, mut csb2) = (0.0, 0.0, 0.0, 0.0);
+    let shift_r = returns[0];
+    let shift_b = benchmark[0];
+    let (seed_sr, seed_sb, seed_srb, seed_sb2) =
+        recompute_rolling_greeks_sums(&returns[..window], &benchmark[..window], shift_r, shift_b);
+    let mut acc_sr = seeded_accumulator(seed_sr);
+    let mut acc_sb = seeded_accumulator(seed_sb);
+    let mut acc_srb = seeded_accumulator(seed_srb);
+    let mut acc_sb2 = seeded_accumulator(seed_sb2);
     let mut steps_since_recompute = 0usize;
 
     for i in window..=n {
+        // Shifted sums: correct for beta (shift-invariant) as they stand.
+        let (sr, sb, srb, sb2) = (
+            acc_sr.current(),
+            acc_sb.current(),
+            acc_srb.current(),
+            acc_sb2.current(),
+        );
         let denom = w * sb2 - sb * sb;
         // Degenerate window (e.g. constant benchmark or NaN inputs) cannot
         // identify a beta; emit a sentinel `NaN` for both greeks so callers
@@ -604,7 +637,12 @@ pub(crate) fn rolling_greeks(
             (f64::NAN, f64::NAN)
         } else {
             let beta = (w * srb - sb * sr) / denom;
-            let alpha = (sr / w - rf_period - beta * (sb / w - rf_period)) * ann_factor;
+            // Alpha needs the *unshifted* means; adding the origin back is a
+            // plain addition of same-signed magnitudes, so it introduces no
+            // cancellation of its own.
+            let mean_r = sr / w + shift_r;
+            let mean_b = sb / w + shift_b;
+            let alpha = (mean_r - rf_period - beta * (mean_b - rf_period)) * ann_factor;
             (alpha, beta)
         };
         out_dates.push(dates[i - 1]);
@@ -616,10 +654,14 @@ pub(crate) fn rolling_greeks(
             let old_b = benchmark[i - window];
             let new_r = returns[i];
             let new_b = benchmark[i];
-            compensated_add(&mut sr, &mut csr, new_r - old_r);
-            compensated_add(&mut sb, &mut csb, new_b - old_b);
-            compensated_add(&mut srb, &mut csrb, new_r * new_b - old_r * old_b);
-            compensated_add(&mut sb2, &mut csb2, new_b * new_b - old_b * old_b);
+            // Increments are formed from shifted values so they stay on the
+            // same footing as the seeded sums.
+            let (old_r, old_b) = (old_r - shift_r, old_b - shift_b);
+            let (new_r, new_b) = (new_r - shift_r, new_b - shift_b);
+            acc_sr.add(new_r - old_r);
+            acc_sb.add(new_b - old_b);
+            acc_srb.add(new_r * new_b - old_r * old_b);
+            acc_sb2.add(new_b * new_b - old_b * old_b);
             steps_since_recompute += 1;
             // A non-finite value entering or leaving the window poisons the
             // running sums permanently (`x − NaN = NaN`), so recompute
@@ -627,13 +669,24 @@ pub(crate) fn rolling_greeks(
             // contain the non-finite value recompute to NaN (and emit NaN);
             // the first all-finite window after it exits recovers exact sums
             // instead of staying NaN until the next scheduled recompute.
-            let sums_non_finite =
-                !(sr.is_finite() && sb.is_finite() && srb.is_finite() && sb2.is_finite());
+            // Checked on the compensated totals, since a non-finite value
+            // corrupts the compensation term as well as the raw sum.
+            let sums_non_finite = !(acc_sr.current().is_finite()
+                && acc_sb.current().is_finite()
+                && acc_srb.current().is_finite()
+                && acc_sb2.current().is_finite());
             if sums_non_finite || steps_since_recompute >= ROLLING_GREEKS_RECOMPUTE_INTERVAL {
                 let start = i + 1 - window;
-                (sr, sb, srb, sb2) =
-                    recompute_rolling_greeks_sums(&returns[start..=i], &benchmark[start..=i]);
-                (csr, csb, csrb, csb2) = (0.0, 0.0, 0.0, 0.0);
+                let (sr, sb, srb, sb2) = recompute_rolling_greeks_sums(
+                    &returns[start..=i],
+                    &benchmark[start..=i],
+                    shift_r,
+                    shift_b,
+                );
+                acc_sr = seeded_accumulator(sr);
+                acc_sb = seeded_accumulator(sb);
+                acc_srb = seeded_accumulator(srb);
+                acc_sb2 = seeded_accumulator(sb2);
                 steps_since_recompute = 0;
             }
         }
@@ -1230,6 +1283,14 @@ mod tests {
 
     #[test]
     fn rolling_greeks_stays_close_to_exact_recomputation_on_long_series() {
+        /// Reference implementation, computed per window about that window's
+        /// own means.
+        ///
+        /// Centring is what makes this a *reference*: the naive power-sum form
+        /// is itself accurate to only ~8e-5 on this data (verified against
+        /// exact rational arithmetic), so comparing the kernel against an
+        /// uncentred reference measures agreement between two ill-conditioned
+        /// computations rather than accuracy.
         fn exact_rolling_greeks(
             returns: &[f64],
             benchmark: &[f64],
@@ -1243,10 +1304,16 @@ mod tests {
             for end in window..=n {
                 let rs = &returns[end - window..end];
                 let bs = &benchmark[end - window..end];
-                let sr: f64 = rs.iter().sum();
-                let sb: f64 = bs.iter().sum();
-                let srb: f64 = rs.iter().zip(bs.iter()).map(|(&r, &b)| r * b).sum();
-                let sb2: f64 = bs.iter().map(|&b| b * b).sum();
+                let mean_r = neumaier_sum(rs.iter().copied()) / w;
+                let mean_b = neumaier_sum(bs.iter().copied()) / w;
+                let sr: f64 = neumaier_sum(rs.iter().map(|&r| r - mean_r));
+                let sb: f64 = neumaier_sum(bs.iter().map(|&b| b - mean_b));
+                let srb: f64 = neumaier_sum(
+                    rs.iter()
+                        .zip(bs.iter())
+                        .map(|(&r, &b)| (r - mean_r) * (b - mean_b)),
+                );
+                let sb2: f64 = neumaier_sum(bs.iter().map(|&b| (b - mean_b) * (b - mean_b)));
                 let denom = w * sb2 - sb * sb;
                 let (alpha, beta) = if denom.abs() < 1e-30 {
                     (f64::NAN, f64::NAN)
@@ -1288,7 +1355,14 @@ mod tests {
             .map(|(&actual, &expected)| (actual - expected).abs())
             .fold(0.0_f64, f64::max);
         assert!(
-            max_beta_diff < 4.5e-4,
+            // Measured 1.13e-13 with shifted-origin sums. The bound here used
+            // to be 4.5e-4, which reflected the *uncentred* reference this
+            // test compared against rather than any real error: kernel and
+            // reference were losing the same ~8e-5 to cancellation, so they
+            // agreed while both being wrong. Against exact rational
+            // arithmetic the uncentred form errs by 7.8e-5 on this series and
+            // the shifted form by 1.1e-13.
+            max_beta_diff < 1e-12,
             "max beta diff too large: {max_beta_diff}"
         );
         assert!(rolling.alphas.iter().all(|alpha| alpha.is_finite()));

@@ -20,9 +20,16 @@ mod nearest_correlation;
 pub use error::{Error, Result};
 pub use nearest_correlation::{nearest_correlation_matrix, NearestCorrelationOpts};
 
-/// Tolerance used by [`validate_correlation_matrix`] to classify diagonal /
-/// symmetry / boundedness violations.
-pub(crate) const CORRELATION_TOLERANCE: f64 = 1e-10;
+/// Tolerance used by [`validate_correlation_matrix`] to classify diagonal and
+/// symmetry violations.
+///
+/// Kept identical to [`finstack_quant_core::math::linalg::DIAGONAL_TOLERANCE`]
+/// so this validator and core's agree; see that constant for the reasoning.
+pub(crate) const CORRELATION_TOLERANCE: f64 = finstack_quant_core::math::linalg::DIAGONAL_TOLERANCE;
+
+/// Slack on the `[-1, 1]` bound, shared with core's validator.
+pub(crate) const CORRELATION_BOUND_SLACK: f64 =
+    finstack_quant_core::math::linalg::CORRELATION_BOUND_SLACK;
 
 /// Validate a flattened row-major correlation matrix.
 ///
@@ -79,7 +86,7 @@ pub fn validate_correlation_matrix(matrix: &[f64], n: usize) -> Result<()> {
     for i in 0..n {
         for j in 0..n {
             let v = matrix[i * n + j];
-            if !(-1.0 - CORRELATION_TOLERANCE..=1.0 + CORRELATION_TOLERANCE).contains(&v) {
+            if !(-1.0 - CORRELATION_BOUND_SLACK..=1.0 + CORRELATION_BOUND_SLACK).contains(&v) {
                 return Err(Error::OutOfBounds { i, j, value: v });
             }
             if i < j {
