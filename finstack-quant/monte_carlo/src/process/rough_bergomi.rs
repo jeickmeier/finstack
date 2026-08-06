@@ -59,7 +59,7 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_monte_carlo::process::rough_bergomi::{
 //!     RoughBergomiProcess, RoughBergomiParams,
 //! };

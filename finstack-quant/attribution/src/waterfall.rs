@@ -113,7 +113,7 @@ pub fn default_waterfall_order() -> Vec<AttributionFactor> {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// use finstack_quant_attribution::{
 ///     attribute_pnl_waterfall, default_waterfall_order
 /// };

@@ -25,7 +25,7 @@ use std::sync::Arc;
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_attribution::extract_model_params;
 /// use finstack_quant_valuations::instruments::fixed_income::structured_credit::StructuredCredit;
 /// use finstack_quant_valuations::instruments::model_params::ModelParamsSnapshot;
@@ -70,7 +70,7 @@ pub fn extract_model_params(instrument: &Arc<dyn Instrument>) -> ModelParamsSnap
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// // Extract T₀ parameters
 /// use finstack_quant_attribution::{extract_model_params, with_model_params};
 /// use finstack_quant_valuations::instruments::fixed_income::structured_credit::StructuredCredit;

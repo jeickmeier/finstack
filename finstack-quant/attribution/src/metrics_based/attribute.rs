@@ -49,7 +49,7 @@ use std::sync::Arc;
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// use finstack_quant_core::currency::Currency;
 /// use finstack_quant_core::market_data::context::MarketContext;
 /// use finstack_quant_core::money::Money;

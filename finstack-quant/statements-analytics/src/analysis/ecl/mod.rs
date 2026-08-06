@@ -13,7 +13,7 @@
 //!
 //! # Quick Start
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_statements_analytics::analysis::{
 //!     EclConfigBuilder, EclEngine, Exposure, QualitativeFlags, RawPdCurve, Stage,
 //! };

@@ -4,6 +4,7 @@ use super::results::{PyGbmPathSummary, PyMoneyEstimate};
 use super::time_grid::PyTimeGrid;
 use crate::bindings::core::currency::extract_currency;
 use crate::errors::core_to_py;
+use finstack_quant_core::cashflow::flat_discount_factor;
 use finstack_quant_monte_carlo::engine::{McEngine, McEngineConfig};
 use finstack_quant_monte_carlo::registry::{self, PythonBindingDefaults};
 use pyo3::prelude::*;
@@ -187,7 +188,10 @@ fn price_european_gbm(
     let process = GbmProcess::with_params(rate, div_yield, vol)?;
     let disc = ExactGbm::new();
     let initial_state = vec![spot];
-    let discount_factor = (-rate * t_max).exp();
+    // Horizon is the grid's own t_max, not a separately supplied expiry: this
+    // entry point takes a caller-built engine whose grid defines the payoff
+    // horizon.
+    let discount_factor = flat_discount_factor(rate, t_max)?;
 
     if is_call {
         let payoff = EuropeanCall::new(strike, 1.0, num_steps);
@@ -267,7 +271,7 @@ fn price_heston(
         .map_err(core_to_py)?;
     let disc = QeHeston::new();
     let initial_state = vec![spot, v0];
-    let discount_factor = (-rate * expiry).exp();
+    let discount_factor = flat_discount_factor(rate, expiry).map_err(core_to_py)?;
 
     py.detach(|| {
         if is_call {

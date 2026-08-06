@@ -39,7 +39,7 @@ pub const HAIRCUT_MPOR_DAYS: u32 = 2;
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use finstack_quant_margin::{EligibleCollateralSchedule, HaircutImCalculator, ImCalculator, Marginable};
 /// use finstack_quant_core::dates::Date;
 /// use finstack_quant_core::market_data::context::MarketContext;

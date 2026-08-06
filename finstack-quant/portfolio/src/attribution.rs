@@ -817,7 +817,7 @@ fn attribution_endpoint_error(error: Error, endpoint: &str) -> Error {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// use finstack_quant_portfolio::attribution::attribute_portfolio_pnl;
 /// use finstack_quant_attribution::AttributionMethod;
 /// use finstack_quant_core::config::FinstackConfig;

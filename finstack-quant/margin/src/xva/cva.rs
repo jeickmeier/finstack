@@ -419,18 +419,35 @@ fn compute_fva_internal(
 ///
 /// # Examples
 ///
-/// ```ignore
-/// use crate::xva::cva::compute_cva;
-/// use crate::xva::types::ExposureProfile;
+/// ```
+/// use finstack_quant_margin::xva::cva::compute_cva;
+/// use finstack_quant_margin::xva::types::ExposureProfile;
 /// use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCurve};
+/// use time::macros::date;
 ///
-/// # fn example() -> finstack_quant_core::Result<()> {
-/// // ... construct profile, hazard_curve, discount_curve ...
-/// # let profile = ExposureProfile { times: vec![], mtm_values: vec![], epe: vec![], ene: vec![], diagnostics: None };
-/// # let hazard_curve = todo!();
-/// # let discount_curve = todo!();
+/// # fn main() -> finstack_quant_core::Result<()> {
+/// let as_of = date!(2025 - 01 - 01);
+///
+/// // Flat 2% hazard and 4% discounting out to five years.
+/// let hazard_curve = HazardCurve::builder("ACME")
+///     .base_date(as_of)
+///     .knots([(1.0, 0.02), (5.0, 0.02)])
+///     .build()?;
+/// let discount_curve = DiscountCurve::builder("USD-OIS")
+///     .base_date(as_of)
+///     .knots([(0.0, 1.0), (5.0, (-0.04f64 * 5.0).exp())])
+///     .build()?;
+///
+/// let profile = ExposureProfile {
+///     times: vec![1.0, 2.0, 3.0],
+///     mtm_values: vec![1_000_000.0; 3],
+///     epe: vec![1_000_000.0; 3],
+///     ene: vec![0.0; 3],
+///     diagnostics: None,
+/// };
+///
 /// let result = compute_cva(&profile, &hazard_curve, &discount_curve, 0.40)?;
-/// println!("CVA = {:.2}", result.cva);
+/// assert!(result.cva > 0.0);
 /// # Ok(())
 /// # }
 /// ```

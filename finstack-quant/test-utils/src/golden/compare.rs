@@ -134,12 +134,18 @@ pub fn assert_abs(
 ///
 /// # Example
 ///
-/// ```ignore
-/// use finstack_quant_test_utils::golden::GoldenAssert;
+/// ```
+/// use finstack_quant_test_utils::golden::{GoldenAssert, SuiteMeta};
 ///
-/// let assert = GoldenAssert::new(&suite.meta, "case_123");
-/// assert.abs("price", actual_price, 100.0, 0.01)?;
-/// assert.expected("spread", actual_spread, &case.expected.spread)?;
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let meta: SuiteMeta =
+///     serde_json::from_str(r#"{"suite_id": "black_scholes", "schema_version": 1}"#)?;
+/// let check = GoldenAssert::new(&meta, "case_123");
+///
+/// check.abs("price", 10.4506, 10.4500, 0.01)?;
+/// assert!(check.abs("price", 10.4506, 10.4500, 1e-9).is_err());
+/// # Ok(())
+/// # }
 /// ```
 pub struct GoldenAssert<'a> {
     suite_id: &'a str,

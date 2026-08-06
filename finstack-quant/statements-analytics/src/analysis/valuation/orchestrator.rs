@@ -51,7 +51,7 @@ enum EquityMode {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_statements_analytics::analysis::CorporateAnalysisBuilder;
 /// use finstack_quant_statements::builder::ModelBuilder;
 /// use finstack_quant_core::dates::PeriodId;
@@ -63,6 +63,21 @@ enum EquityMode {
 ///     .periods("2025Q1..Q4", None)?
 ///     .value("ufcf", &[
 ///         (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(100_000.0)),
+///         (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(105_000.0)),
+///         (PeriodId::quarter(2025, 3), AmountOrScalar::scalar(110_000.0)),
+///         (PeriodId::quarter(2025, 4), AmountOrScalar::scalar(115_000.0)),
+///     ])
+///     .value("total_debt", &[
+///         (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(500_000.0)),
+///         (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(500_000.0)),
+///         (PeriodId::quarter(2025, 3), AmountOrScalar::scalar(500_000.0)),
+///         (PeriodId::quarter(2025, 4), AmountOrScalar::scalar(500_000.0)),
+///     ])
+///     .value("cash", &[
+///         (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(50_000.0)),
+///         (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(50_000.0)),
+///         (PeriodId::quarter(2025, 3), AmountOrScalar::scalar(50_000.0)),
+///         (PeriodId::quarter(2025, 4), AmountOrScalar::scalar(50_000.0)),
 ///     ])
 ///     .with_meta("currency", serde_json::json!("USD"))
 ///     .build()?;
@@ -165,7 +180,7 @@ impl CorporateAnalysisBuilder {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_statements::builder::ModelBuilder;
     /// use finstack_quant_statements_analytics::analysis::CorporateAnalysisBuilder;
     /// use finstack_quant_valuations::instruments::equity::dcf_equity::TerminalValueSpec;

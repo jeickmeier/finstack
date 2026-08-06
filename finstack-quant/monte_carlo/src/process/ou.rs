@@ -354,7 +354,7 @@ impl StochasticProcess for HullWhite1FProcess {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_monte_carlo::process::ou::calibrate_theta_from_curve;
 ///
 /// let discount_fn = |t: f64| (-0.03 * t).exp();  // Flat 3% curve

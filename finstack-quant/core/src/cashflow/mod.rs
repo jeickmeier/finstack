@@ -119,7 +119,8 @@ mod primitives;
 mod xirr;
 
 pub use discounting::{
-    npv, npv_amounts, npv_amounts_with_curve, npv_with_options, Discountable, NpvOptions,
+    flat_discount_factor, npv, npv_amounts, npv_amounts_with_curve, npv_with_options, Discountable,
+    NpvOptions,
 };
 pub use primitives::{CFKind, CashFlow, CashFlowAccrual};
 pub use xirr::{irr, xirr, xirr_with_daycount, xirr_with_daycount_ctx};

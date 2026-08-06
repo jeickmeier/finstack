@@ -197,7 +197,7 @@ pub struct LboResult {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_core::dates::PeriodId;
 /// use finstack_quant_statements_analytics::analysis::{evaluate_lbo, LboConfig, LboTranche};
 ///

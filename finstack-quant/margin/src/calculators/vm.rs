@@ -66,7 +66,7 @@ impl VmResult {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_margin::{VmCalculator, CsaSpec};
 /// use finstack_quant_core::money::Money;
 /// use finstack_quant_core::currency::Currency;

@@ -301,7 +301,7 @@ pub mod __private {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// use finstack_quant_attribution::simple_pnl_bridge;
 /// use finstack_quant_valuations::instruments::Instrument;
 /// use finstack_quant_core::currency::Currency;

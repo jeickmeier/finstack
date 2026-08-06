@@ -319,6 +319,10 @@ impl McEngine {
     /// * `payoff` - Payoff accumulator evaluated on each simulated path.
     /// * `currency` - Currency tag for the returned [`MoneyEstimate`].
     /// * `discount_factor` - Present-value multiplier for the payoff horizon.
+    ///   Supplied as a scalar rather than derived from a rate, so the engine
+    ///   imposes no compounding or day-count convention. Callers holding a
+    ///   flat continuously compounded rate and a year fraction should build it
+    ///   with [`finstack_quant_core::cashflow::flat_discount_factor`].
     ///
     /// # Returns
     ///
@@ -348,7 +352,7 @@ impl McEngine {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_core::currency::Currency;
     /// use finstack_quant_monte_carlo::prelude::*;
     ///
@@ -461,7 +465,7 @@ impl McEngine {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_core::currency::Currency;
     /// use finstack_quant_monte_carlo::prelude::*;
     ///

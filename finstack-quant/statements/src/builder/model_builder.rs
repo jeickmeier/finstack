@@ -664,7 +664,7 @@ impl ModelBuilder<Ready> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// # use finstack_quant_statements::builder::ModelBuilder;
     /// # fn main() -> finstack_quant_statements::Result<()> {
     /// let model = ModelBuilder::new("test")
@@ -706,7 +706,7 @@ impl ModelBuilder<Ready> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// # use finstack_quant_statements::builder::ModelBuilder;
     /// # use finstack_quant_statements::registry::Registry;
     /// # fn main() -> finstack_quant_statements::Result<()> {

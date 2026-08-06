@@ -27,13 +27,23 @@ use std::path::Path;
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use finstack_quant_test_utils::golden::load_suite_from_path;
+/// use serde::Deserialize;
 ///
+/// #[derive(Deserialize)]
+/// struct MyTestCase {
+///     id: String,
+///     expected: f64,
+/// }
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let suite = load_suite_from_path::<MyTestCase>("tests/golden/data/my_suite.json")?;
 /// for case in &suite.cases {
-///     // test each case
+///     println!("{}: {}", case.id, case.expected);
 /// }
+/// # Ok(())
+/// # }
 /// ```
 pub fn load_suite_from_path<T>(path: impl AsRef<Path>) -> Result<GoldenSuite<T>, Error>
 where
@@ -84,8 +94,11 @@ where
 ///
 /// This is typically used in test code:
 ///
-/// ```ignore
+/// ```
+/// use finstack_quant_test_utils::golden::golden_path;
+///
 /// let path = golden_path(env!("CARGO_MANIFEST_DIR"), "data/my_suite.json");
+/// assert!(path.ends_with("tests/golden/data/my_suite.json"));
 /// ```
 ///
 /// # Arguments
@@ -106,7 +119,7 @@ pub fn golden_path(manifest_dir: &str, relative_path: &str) -> std::path::PathBu
 ///
 /// # Usage
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_test_utils::golden_path;
 ///
 /// let path = golden_path!("data/my_suite.json");

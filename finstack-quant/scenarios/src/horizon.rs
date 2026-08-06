@@ -14,7 +14,7 @@
 //!
 //! # Quick Start
 //!
-//! ```ignore
+//! ```no_run
 //! use finstack_quant_scenarios::horizon::HorizonAnalysis;
 //! use finstack_quant_scenarios::{OperationSpec, ScenarioSpec, TimeRollMode};
 //! use finstack_quant_core::market_data::context::MarketContext;

@@ -85,7 +85,7 @@ impl ImResult {
 ///
 /// # Example Implementation
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_margin::{ImCalculator, ImMethodology, ImResult, Marginable};
 /// use finstack_quant_core::market_data::context::MarketContext;
 /// use finstack_quant_core::dates::Date;

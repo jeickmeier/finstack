@@ -192,19 +192,21 @@ impl ScenarioSpecBuilder {
     /// # Examples
     ///
     /// ```rust
-    ///     /// use finstack_quant_scenarios::{CurveKind, OperationSpec, ScenarioSpecBuilder};
+    /// use finstack_quant_scenarios::{CurveKind, OperationSpec, ScenarioSpecBuilder};
     ///
     /// let spec = ScenarioSpecBuilder::new("rates")
+    ///     .name("Parallel +25bp")
+    ///     .priority(10)
     ///     .with_operation(OperationSpec::CurveParallelBp {
     ///         curve_kind: CurveKind::Discount,
     ///         curve_id: "USD_SOFR".into(),
     ///         discount_curve_id: None,
     ///         bp: 25.0,
     ///     })
-    ///     .override_curve("USD_SOFR", "USD_OIS")
-    ///     .override_fx((Currency::USD, Currency::EUR), (Currency::USD, Currency::EUR))
     ///     .build()?;
     ///
+    /// assert_eq!(spec.id, "rates");
+    /// assert_eq!(spec.priority, 10);
     /// assert_eq!(spec.operations.len(), 1);
     /// # Ok::<(), finstack_quant_scenarios::Error>(())
     /// ```

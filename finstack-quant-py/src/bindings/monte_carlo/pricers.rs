@@ -3,6 +3,7 @@
 use super::engine::{py_mc_defaults, resolve_currency};
 use super::results::PyMoneyEstimate;
 use crate::errors::core_to_py;
+use finstack_quant_core::cashflow::flat_discount_factor;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_monte_carlo::pricer::basis::{build_lsmc_basis, BasisKind, LsmcBasis};
 use finstack_quant_monte_carlo::pricer::european::EuropeanPricer;
@@ -175,7 +176,7 @@ impl PyPathDependentPricer {
         let num_steps = num_steps.unwrap_or(py_mc_defaults()?.path_dependent_pricer.num_steps);
         let fixing_steps = default_fixing_steps(num_steps);
         let payoff = AsianCall::new(strike, 1.0, AveragingMethod::Arithmetic, fixing_steps);
-        let df = (-rate * expiry).exp();
+        let df = flat_discount_factor(rate, expiry).map_err(core_to_py)?;
         self.run_gbm(
             py, &payoff, spot, rate, div_yield, vol, expiry, num_steps, ccy, df,
         )
@@ -205,7 +206,7 @@ impl PyPathDependentPricer {
         let num_steps = num_steps.unwrap_or(py_mc_defaults()?.path_dependent_pricer.num_steps);
         let fixing_steps = default_fixing_steps(num_steps);
         let payoff = AsianPut::new(strike, 1.0, AveragingMethod::Arithmetic, fixing_steps);
-        let df = (-rate * expiry).exp();
+        let df = flat_discount_factor(rate, expiry).map_err(core_to_py)?;
         self.run_gbm(
             py, &payoff, spot, rate, div_yield, vol, expiry, num_steps, ccy, df,
         )

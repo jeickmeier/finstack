@@ -174,7 +174,7 @@ pub(crate) struct DcfEvalContext<'a> {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_statements_analytics::analysis::{evaluate_dcf_with_market, DcfOptions};
 /// use finstack_quant_statements::builder::ModelBuilder;
 /// use finstack_quant_statements::types::AmountOrScalar;
@@ -186,7 +186,30 @@ pub(crate) struct DcfEvalContext<'a> {
 ///     .periods("2025Q1..Q4", Some("2025Q1"))?
 ///     .value(
 ///         "ufcf",
-///         &[(PeriodId::quarter(2025, 1), AmountOrScalar::scalar(1_000_000.0))],
+///         &[
+///             (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(1_000_000.0)),
+///             (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(1_050_000.0)),
+///             (PeriodId::quarter(2025, 3), AmountOrScalar::scalar(1_100_000.0)),
+///             (PeriodId::quarter(2025, 4), AmountOrScalar::scalar(1_150_000.0)),
+///         ],
+///     )
+///     .value(
+///         "total_debt",
+///         &[
+///             (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(5_000_000.0)),
+///             (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(5_000_000.0)),
+///             (PeriodId::quarter(2025, 3), AmountOrScalar::scalar(5_000_000.0)),
+///             (PeriodId::quarter(2025, 4), AmountOrScalar::scalar(5_000_000.0)),
+///         ],
+///     )
+///     .value(
+///         "cash",
+///         &[
+///             (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(1_000_000.0)),
+///             (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(1_000_000.0)),
+///             (PeriodId::quarter(2025, 3), AmountOrScalar::scalar(1_000_000.0)),
+///             (PeriodId::quarter(2025, 4), AmountOrScalar::scalar(1_000_000.0)),
+///         ],
 ///     )
 ///     .with_meta("currency", serde_json::json!("USD"))
 ///     .build()?;
@@ -336,7 +359,7 @@ pub struct DcfSensitivityResult {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_statements_analytics::analysis::{dcf_sensitivity, DcfOptions};
 /// use finstack_quant_valuations::instruments::equity::dcf_equity::TerminalValueSpec;
 ///

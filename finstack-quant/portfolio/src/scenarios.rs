@@ -143,7 +143,7 @@ fn selective_invalidation(
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// use finstack_quant_core::market_data::context::MarketContext;
 /// use finstack_quant_portfolio::scenarios::apply_and_revalue;
 /// use finstack_quant_scenarios::spec::ScenarioSpec;
@@ -255,7 +255,7 @@ fn replace_portfolio_instruments(
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// use finstack_quant_core::config::FinstackConfig;
 /// use finstack_quant_core::market_data::context::MarketContext;
 /// use finstack_quant_portfolio::scenarios::apply_and_revalue;
@@ -478,7 +478,7 @@ fn diff_valuations(
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// use finstack_quant_core::config::FinstackConfig;
 /// use finstack_quant_core::market_data::context::MarketContext;
 /// use finstack_quant_portfolio::scenarios::scenario_pnl;

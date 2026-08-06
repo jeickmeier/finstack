@@ -402,7 +402,7 @@ impl EvaluationContext {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
     /// use finstack_quant_statements::evaluator::EvaluationContext;
     ///
     /// # fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {

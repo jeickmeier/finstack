@@ -228,7 +228,7 @@ pub struct PortfolioValuationOptions {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// use finstack_quant_core::config::FinstackConfig;
 /// use finstack_quant_core::market_data::context::MarketContext;
 /// use finstack_quant_portfolio::valuation::{value_portfolio, PortfolioValuationOptions};

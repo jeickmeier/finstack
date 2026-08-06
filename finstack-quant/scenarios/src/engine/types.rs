@@ -28,7 +28,7 @@ use indexmap::IndexMap;
 /// - `as_of`: Valuation date that operations reference.
 ///
 /// # Examples
-/// ```ignore
+/// ```
 /// use finstack_quant_scenarios::ExecutionContext;
 /// use finstack_quant_core::market_data::context::MarketContext;
 /// use finstack_quant_statements::FinancialModelSpec;

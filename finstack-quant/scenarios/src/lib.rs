@@ -42,16 +42,24 @@
 //!
 //! # Quick Start
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_scenarios::{ScenarioSpec, OperationSpec, CurveKind, ScenarioEngine, ExecutionContext};
 //! use finstack_quant_core::market_data::context::MarketContext;
+//! use finstack_quant_core::market_data::term_structures::DiscountCurve;
 //! use finstack_quant_statements::FinancialModelSpec;
 //! use time::macros::date;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let mut market = MarketContext::new();
-//! let mut model = FinancialModelSpec::new("test", vec![]);
 //! let as_of = date!(2025-01-01);
+//!
+//! // The scenario bumps USD_SOFR, so that curve has to be in the context.
+//! let mut market = MarketContext::new().insert(
+//!     DiscountCurve::builder("USD_SOFR")
+//!         .base_date(as_of)
+//!         .knots([(0.0, 1.0), (5.0, 0.80)])
+//!         .build()?,
+//! );
+//! let mut model = FinancialModelSpec::new("test", vec![]);
 //!
 //! let scenario = ScenarioSpec {
 //!     id: "stress_test".into(),

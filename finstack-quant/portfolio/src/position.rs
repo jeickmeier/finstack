@@ -157,7 +157,7 @@ impl Position {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_portfolio::position::{Position, PositionUnit};
     /// use finstack_quant_core::currency::Currency;
     /// use finstack_quant_core::money::Money;
@@ -315,7 +315,7 @@ impl Position {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_portfolio::position::{Position, PositionUnit};
     /// use finstack_quant_core::currency::Currency;
     /// use finstack_quant_core::money::Money;
@@ -416,7 +416,7 @@ impl Position {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_core::currency::Currency;
     /// use finstack_quant_core::money::Money;
     /// use finstack_quant_portfolio::position::{Position, PositionUnit};

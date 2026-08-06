@@ -13,14 +13,13 @@
 //!
 //! # Usage
 //!
-//! ```ignore
-//! use finstack_quant_monte_carlo::engine_fractional::simulate_path_fractional;
+//! Per path, the caller pre-generates the fractional increments and then hands
+//! them to [`simulate_path_fractional`], which injects them at `fbm_z_index`:
 //!
-//! // Pre-generate fBM increments for the full path…
+//! ```text
 //! rng.fill_std_normals(&mut fbm_normals);
 //! fbm_gen.generate(&fbm_normals, &mut fbm_increments);
 //!
-//! // …then simulate with injection into z[fbm_z_index].
 //! let pv = simulate_path_fractional(
 //!     &mut path_rng, time_grid, process, disc, initial_state,
 //!     &mut payoff, currency, &fbm_increments, fbm_z_index, None,

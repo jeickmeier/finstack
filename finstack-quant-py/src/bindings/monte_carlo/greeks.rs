@@ -7,6 +7,7 @@
 
 use super::engine::resolve_currency;
 use crate::errors::core_to_py;
+use finstack_quant_core::cashflow::flat_discount_factor;
 use finstack_quant_monte_carlo::discretization::exact::ExactGbm;
 use finstack_quant_monte_carlo::engine::{McEngine, McEngineConfig};
 use finstack_quant_monte_carlo::greeks::finite_diff;
@@ -115,7 +116,7 @@ fn build_greek_setup(
         num_steps,
         bump_size,
         option_type: parse_option(option_type)?,
-        discount_factor: (-rate * expiry).exp(),
+        discount_factor: flat_discount_factor(rate, expiry).map_err(core_to_py)?,
     })
 }
 

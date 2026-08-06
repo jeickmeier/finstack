@@ -156,6 +156,81 @@ pub trait Discountable: Send + Sync {
     fn npv(&self, disc: &dyn Discounting, base: Date) -> Self::PVOutput;
 }
 
+/// Discount factor for a flat, continuously compounded rate over `years`.
+///
+/// ```text
+/// DF(t) = exp(-r * t)
+/// ```
+///
+/// This is the single-horizon counterpart to the curve-based functions in this
+/// module: use it where the caller has a scalar rate and a year fraction rather
+/// than a term structure, such as translating a Monte Carlo pricing input into
+/// the `discount_factor` its engine expects.
+///
+/// # Convention
+///
+/// The rate is **continuously compounded** and `years` is an **already-computed
+/// year fraction** — no calendar or day-count convention is applied. Callers
+/// holding an annually compounded rate should pass `(1.0 + r).ln()`, and callers
+/// holding dates should compute the year fraction with the appropriate
+/// [`DayCount`](crate::dates::DayCount) first, or use a
+/// [`DiscountCurve`](crate::market_data::term_structures::DiscountCurve).
+///
+/// # Arguments
+///
+/// * `rate` - Continuously compounded annual rate as a decimal (0.05 = 5 %).
+///   May be negative.
+/// * `years` - Non-negative year fraction to the payoff horizon.
+///
+/// # Returns
+///
+/// The discount factor. Greater than 1 for a negative rate, exactly 1 when
+/// either argument is zero.
+///
+/// # Errors
+///
+/// Returns [`Error::Validation`](crate::Error::Validation) when `rate` is not
+/// finite, when `years` is not finite or is negative, or when the product
+/// overflows to a non-finite factor. Validating here means a bad rate is
+/// reported against the input that caused it, rather than surfacing later as a
+/// non-finite price.
+///
+/// # Examples
+///
+/// ```rust
+/// use finstack_quant_core::cashflow::flat_discount_factor;
+///
+/// // Zero rate leaves value unchanged.
+/// assert_eq!(flat_discount_factor(0.0, 5.0)?, 1.0);
+///
+/// // A positive rate discounts; a negative rate accretes.
+/// assert!(flat_discount_factor(0.05, 1.0)? < 1.0);
+/// assert!(flat_discount_factor(-0.01, 1.0)? > 1.0);
+///
+/// // Negative time is rejected rather than silently accreting.
+/// assert!(flat_discount_factor(0.05, -1.0).is_err());
+/// # Ok::<(), finstack_quant_core::Error>(())
+/// ```
+pub fn flat_discount_factor(rate: f64, years: f64) -> crate::Result<f64> {
+    if !rate.is_finite() {
+        return Err(crate::Error::Validation(format!(
+            "discount rate must be finite, got {rate}"
+        )));
+    }
+    if !years.is_finite() || years < 0.0 {
+        return Err(crate::Error::Validation(format!(
+            "discount horizon must be finite and non-negative, got {years}"
+        )));
+    }
+    let factor = (-rate * years).exp();
+    if !factor.is_finite() {
+        return Err(crate::Error::Validation(format!(
+            "discount factor overflowed for rate={rate}, years={years}"
+        )));
+    }
+    Ok(factor)
+}
+
 /// Compute NPV of dated `Money` flows using a discount curve with static dispatch.
 ///
 /// By default, uses the curve's own day count convention for year fraction calculations.
@@ -728,6 +803,60 @@ mod tests {
     use crate::market_data::traits::TermStructure;
     use crate::types::CurveId;
     use time::Month;
+
+    // flat_discount_factor
+
+    #[test]
+    fn flat_discount_factor_matches_the_closed_form() {
+        for (rate, years) in [(0.05_f64, 1.0_f64), (0.02, 7.5), (-0.01, 3.0), (0.10, 0.25)] {
+            let expected = (-rate * years).exp();
+            assert_eq!(
+                flat_discount_factor(rate, years).expect("valid inputs"),
+                expected,
+                "rate={rate}, years={years}"
+            );
+        }
+    }
+
+    #[test]
+    fn flat_discount_factor_is_one_at_the_identity_points() {
+        assert_eq!(flat_discount_factor(0.0, 5.0).expect("zero rate"), 1.0);
+        assert_eq!(flat_discount_factor(0.05, 0.0).expect("zero horizon"), 1.0);
+    }
+
+    #[test]
+    fn flat_discount_factor_accretes_under_a_negative_rate() {
+        // Negative rates are a real market state, not an input error.
+        assert!(flat_discount_factor(-0.005, 2.0).expect("negative rate") > 1.0);
+    }
+
+    #[test]
+    fn flat_discount_factor_composes_across_horizons() {
+        // DF(t1 + t2) == DF(t1) * DF(t2) for a flat rate.
+        let (rate, t1, t2) = (0.03, 1.5, 2.5);
+        let whole = flat_discount_factor(rate, t1 + t2).expect("valid");
+        let split = flat_discount_factor(rate, t1).expect("valid")
+            * flat_discount_factor(rate, t2).expect("valid");
+        assert!((whole - split).abs() < 1e-15, "{whole} vs {split}");
+    }
+
+    #[test]
+    fn flat_discount_factor_rejects_bad_inputs() {
+        // A non-finite rate must be reported here, not surface later as a
+        // non-finite price with no indication of which input caused it.
+        assert!(flat_discount_factor(f64::NAN, 1.0).is_err());
+        assert!(flat_discount_factor(f64::INFINITY, 1.0).is_err());
+        assert!(flat_discount_factor(0.05, f64::NAN).is_err());
+        // Negative time would silently accrete rather than discount.
+        assert!(flat_discount_factor(0.05, -1.0).is_err());
+    }
+
+    #[test]
+    fn flat_discount_factor_rejects_overflow_to_infinity() {
+        // A large negative rate over a long horizon overflows; that is an
+        // error rather than an infinite discount factor.
+        assert!(flat_discount_factor(-1000.0, 1e6).is_err());
+    }
 
     /// Test helper: creates a flat curve with DF=1.0 for all times (0% rate).
     struct ZeroRateCurve {

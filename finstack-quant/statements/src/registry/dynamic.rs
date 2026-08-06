@@ -55,7 +55,7 @@ impl Registry {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_statements::registry::Registry;
     ///
     /// # fn main() -> finstack_quant_statements::Result<()> {
@@ -83,7 +83,7 @@ impl Registry {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_statements::registry::Registry;
     ///
     /// # fn main() -> finstack_quant_statements::Result<()> {
@@ -119,7 +119,7 @@ impl Registry {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
     /// use finstack_quant_statements::registry::Registry;
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -239,7 +239,7 @@ impl Registry {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_statements::registry::Registry;
     ///
     /// # fn main() -> finstack_quant_statements::Result<()> {
@@ -280,7 +280,7 @@ impl Registry {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_statements::registry::Registry;
     ///
     /// # fn main() -> finstack_quant_statements::Result<()> {

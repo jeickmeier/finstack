@@ -22,15 +22,26 @@
 //! 2. **Estimators** (`estimators`): Pure functions on `&[f64]` slices
 //! 3. **LVaR** (`lvar`): Composes with existing VaR numbers
 //! 4. **Impact** (`impact`, `almgren_chriss`, `kyle`): Trade execution cost models
-//! 5. **Scoring** (`scoring`): Portfolio-level aggregation
 //!
 //! # Usage
 //!
-//! ```ignore
-//! use finstack_quant_portfolio::liquidity::{
-//!     LiquidityProfile, LiquidityConfig, LvarCalculator,
-//!     score_portfolio_liquidity, roll_effective_spread,
-//! };
+//! Estimate the effective spread from a return series, then charge that spread
+//! against an existing VaR number:
+//!
+//! ```
+//! use finstack_quant_portfolio::liquidity::{lvar_bangia_scalar, roll_effective_spread};
+//!
+//! # fn main() -> finstack_quant_core::Result<()> {
+//! let returns = [0.004, -0.005, 0.006, -0.004, 0.005, -0.006];
+//! let spread = roll_effective_spread(&returns).expect("at least two returns");
+//! assert!(spread > 0.0);
+//!
+//! // VaR uses the loss-sign convention, so it is non-positive.
+//! let result = lvar_bangia_scalar(-100_000.0, spread, 0.25 * spread, 0.99, 1_000_000.0)?;
+//! assert!(result.spread_cost >= 0.0);
+//! assert!(result.lvar <= result.var);
+//! # Ok(())
+//! # }
 //! ```
 
 mod almgren_chriss;

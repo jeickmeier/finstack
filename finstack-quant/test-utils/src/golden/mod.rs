@@ -49,15 +49,31 @@
 //!
 //! # Example
 //!
-//! ```ignore
-//! use finstack_quant_test_utils::golden::{load_suite_from_path, GoldenAssert};
+//! ```no_run
+//! use finstack_quant_test_utils::golden::{load_suite_from_path, Expectation, GoldenAssert};
 //! use finstack_quant_test_utils::golden_path;
+//! use serde::Deserialize;
 //!
+//! #[derive(Deserialize)]
+//! struct VarianceCase {
+//!     id: String,
+//!     inputs: Vec<f64>,
+//!     expected: Expectation,
+//! }
+//!
+//! fn variance(xs: &[f64]) -> f64 {
+//!     let mean = xs.iter().sum::<f64>() / xs.len() as f64;
+//!     xs.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / xs.len() as f64
+//! }
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let suite = load_suite_from_path::<VarianceCase>(golden_path!("data/variance.json"))?;
 //! for case in &suite.cases {
 //!     let check = GoldenAssert::new(&suite.meta, &case.id);
-//!     check.expected("variance", calculate(&case.inputs), &case.expected)?;
+//!     check.expected("variance", variance(&case.inputs), &case.expected)?;
 //! }
+//! # Ok(())
+//! # }
 //! ```
 
 mod compare;

@@ -40,7 +40,7 @@ use indexmap::IndexMap;
 /// - Period notation: `docs/REFERENCES.md#iso-8601`
 ///
 /// # Examples
-/// ```ignore
+/// ```
 /// use finstack_quant_scenarios::ExecutionContext;
 /// use finstack_quant_scenarios::apply_time_roll_forward;
 /// use finstack_quant_scenarios::TimeRollMode;

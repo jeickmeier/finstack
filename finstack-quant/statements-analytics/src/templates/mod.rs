@@ -36,7 +36,7 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_statements::prelude::*;
 //! use finstack_quant_statements_analytics::templates::TemplatesExtension;
 //!

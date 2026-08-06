@@ -81,7 +81,7 @@ impl MarginCallTiming {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_margin::{
 ///     CsaSpec, VmParameters, ImParameters, EligibleCollateralSchedule,
 ///     MarginCallTiming, ImMethodology, MarginTenor,

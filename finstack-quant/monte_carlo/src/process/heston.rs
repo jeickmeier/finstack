@@ -93,7 +93,7 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_monte_carlo::process::heston::{
 //!     HestonProcess, HestonParams
 //! };

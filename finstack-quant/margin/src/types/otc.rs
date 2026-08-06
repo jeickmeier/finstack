@@ -26,7 +26,7 @@ use finstack_quant_core::Result;
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_margin::{OtcMarginSpec, CsaSpec, ClearingStatus, ImMethodology, MarginTenor};
 ///
 /// # fn main() -> finstack_quant_core::Result<()> {

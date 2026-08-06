@@ -57,7 +57,7 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_monte_carlo::process::cheyette_rough::{
 //!     CheyetteRoughVolProcess, CheyetteRoughVolParams,
 //! };

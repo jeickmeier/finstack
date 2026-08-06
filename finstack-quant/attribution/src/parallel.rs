@@ -327,7 +327,7 @@ fn reprice_cross_factor(
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// use finstack_quant_attribution::{attribute_pnl_parallel, ExecutionPolicy};
 /// use finstack_quant_valuations::instruments::Instrument;
 /// use finstack_quant_valuations::instruments::rates::deposit::Deposit;

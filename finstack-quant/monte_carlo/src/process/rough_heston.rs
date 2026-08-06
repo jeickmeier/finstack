@@ -46,7 +46,7 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_monte_carlo::process::rough_heston::{
 //!     RoughHestonProcess, RoughHestonParams,
 //! };

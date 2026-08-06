@@ -6,7 +6,7 @@
 //!
 //! # Usage
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_core::types::InstrumentId;
 //! use finstack_quant_monte_carlo::seed;
 //!

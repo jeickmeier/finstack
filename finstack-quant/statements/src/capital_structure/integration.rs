@@ -71,7 +71,7 @@ pub fn build_instrument_from_spec(
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_statements::capital_structure::{aggregate_instrument_cashflows, CapitalStructureCashflows};
 /// use finstack_quant_statements::types::CapitalStructureSpec;
 /// use finstack_quant_core::dates::build_periods;

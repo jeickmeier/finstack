@@ -11,7 +11,7 @@
 //! Metrics are stored with fully-qualified IDs like `"fin.gross_profit"`.
 //! In formulas, reference them using the qualified form:
 //!
-//! ```ignore
+//! ```no_run
 //! use finstack_quant_statements::prelude::*;
 //! use finstack_quant_statements::builder::Ready;
 //!
@@ -49,7 +49,7 @@
 //!
 //! # Example: Safe Custom Metric Definition
 //!
-//! ```ignore
+//! ```no_run
 //! use finstack_quant_statements::prelude::*;
 //! use finstack_quant_statements::builder::Ready;
 //!

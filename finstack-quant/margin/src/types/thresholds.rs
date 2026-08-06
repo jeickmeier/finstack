@@ -27,7 +27,7 @@ use finstack_quant_core::config::FinstackConfig;
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_margin::{MarginTenor, VmParameters};
 /// use finstack_quant_core::currency::Currency;
 /// use finstack_quant_core::money::Money;
@@ -274,7 +274,7 @@ impl Default for VmParameters {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_margin::{ImMethodology, ImParameters};
 /// use finstack_quant_core::currency::Currency;
 /// use finstack_quant_core::money::Money;

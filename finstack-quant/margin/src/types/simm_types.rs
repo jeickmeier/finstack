@@ -388,7 +388,7 @@ impl From<SimmSensitivitiesJson> for SimmSensitivities {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_margin::SimmSensitivities;
 /// use finstack_quant_core::currency::Currency;
 ///

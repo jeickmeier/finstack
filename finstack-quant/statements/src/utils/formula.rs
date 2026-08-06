@@ -97,7 +97,7 @@ pub(crate) fn replace_standalone_identifier(
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// // Low-level helper; prefer higher-level APIs when possible.
 /// use finstack_quant_statements::formula::extract_all_identifiers;
 /// ```
@@ -230,13 +230,6 @@ fn collect_identifiers_from_ast(
 /// # Returns
 ///
 /// Returns a set of identifiers that appear in the formula as standalone references.
-///
-/// # Example
-///
-/// ```ignore
-/// // Low-level helper; prefer higher-level APIs when possible.
-/// use crate::utils::formula::extract_identifiers;
-/// ```
 pub(crate) fn extract_identifiers(
     formula: &str,
     known_identifiers: &IndexSet<String>,
@@ -265,13 +258,6 @@ pub(crate) fn extract_identifiers(
 /// # Returns
 ///
 /// Returns the modified formula string with qualified identifiers.
-///
-/// # Example
-///
-/// ```ignore
-/// // Low-level helper; prefer higher-level APIs when possible.
-/// use crate::utils::formula::qualify_identifiers;
-/// ```
 pub(crate) fn qualify_identifiers(
     formula: &str,
     identifiers: &IndexSet<String>,

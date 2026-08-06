@@ -29,7 +29,7 @@
 //!   are not modeled: prepayments apply at par and no OID accretion occurs.
 //!
 //! ## Example
-//! ```ignore
+//! ```
 //! use finstack_quant_core::market_data::{context::MarketContext, DiscountCurve};
 //! use finstack_quant_statements::prelude::*;
 //!
@@ -41,7 +41,12 @@
 //!
 //! let model = ModelBuilder::new("LBO Model")
 //!     .periods("2025Q1..2025Q4", Some("2025Q1"))?
-//!     .value("revenue", &[(PeriodId::quarter(2025, 1), AmountOrScalar::scalar(100.0))])
+//!     .value("revenue", &[
+//!         (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(100.0)),
+//!         (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(110.0)),
+//!         (PeriodId::quarter(2025, 3), AmountOrScalar::scalar(120.0)),
+//!         (PeriodId::quarter(2025, 4), AmountOrScalar::scalar(130.0)),
+//!     ])
 //!     // Add debt instruments
 //!     .add_bond(
 //!         "BOND-001",

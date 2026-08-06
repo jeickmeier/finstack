@@ -78,14 +78,14 @@ use std::cell::RefCell;
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_statements::prelude::*;
 /// use finstack_quant_statements_analytics::analysis::goal_seek;
 /// use finstack_quant_core::dates::PeriodId;
 ///
 /// # fn main() -> Result<()> {
 /// let mut model = ModelBuilder::new("example")
-///     .periods("2025Q1", None)?
+///     .periods("2025Q1..Q1", None)?
 ///     .value("revenue", &[(PeriodId::quarter(2025, 1), AmountOrScalar::scalar(100_000.0))])
 ///     .compute("profit_margin", "0.15")?
 ///     .compute("net_income", "revenue * profit_margin")?
@@ -97,9 +97,19 @@ use std::cell::RefCell;
 /// let initial_net_income = results.get("net_income", &PeriodId::quarter(2025, 1)).unwrap();
 /// assert!((initial_net_income - 15_000.0).abs() < 0.01);
 ///
-/// // Solve for revenue that achieves $18,000 net income (closer to initial value for better convergence)
+/// // Solve for the revenue that achieves $18,000 of net income. Explicit bounds
+/// // give the root-finder a bracket that is guaranteed to contain the solution.
 /// let period = PeriodId::quarter(2025, 1);
-/// let solved = goal_seek(&mut model, "net_income", period, 18_000.0, "revenue", period, false, None)?;
+/// let solved = goal_seek(
+///     &mut model,
+///     "net_income",
+///     period,
+///     18_000.0,
+///     "revenue",
+///     period,
+///     false,
+///     Some((50_000.0, 200_000.0)),
+/// )?;
 /// // Expected: 18_000 / 0.15 = 120_000
 /// assert!((solved - 120_000.0).abs() < 10.0);
 /// # Ok(())

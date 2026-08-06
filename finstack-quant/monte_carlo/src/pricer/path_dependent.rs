@@ -281,7 +281,7 @@ impl PathDependentPricerConfig {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_core::currency::Currency;
 /// use finstack_quant_monte_carlo::payoff::asian::{AsianCall, AveragingMethod};
 /// use finstack_quant_monte_carlo::pricer::path_dependent::{
@@ -579,6 +579,9 @@ impl PathDependentPricer {
     /// * `payoff` - Path-dependent payoff
     /// * `currency` - Currency for result
     /// * `discount_factor` - Discount factor to maturity
+    ///   Build it with
+    ///   [`finstack_quant_core::cashflow::flat_discount_factor`] when working
+    ///   from a flat continuously compounded rate and a year fraction.
     #[allow(clippy::too_many_arguments)]
     pub fn price<P>(
         &self,

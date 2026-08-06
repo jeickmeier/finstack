@@ -177,7 +177,7 @@ impl CcpMethodology {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use finstack_quant_margin::{ClearingHouseImCalculator, ImCalculator, Marginable};
 /// use finstack_quant_core::market_data::context::MarketContext;
 /// use finstack_quant_core::dates::Date;

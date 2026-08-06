@@ -7,7 +7,7 @@
 //!
 //! # Quick start
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_statements::checks::CheckSuite;
 //! ```
 

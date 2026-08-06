@@ -13,6 +13,7 @@
 use std::str::FromStr;
 
 use crate::utils::to_js_err;
+use finstack_quant_core::cashflow::flat_discount_factor;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_monte_carlo::pricer::basis::LsmcBasis;
 use finstack_quant_monte_carlo::pricer::european::EuropeanPricer;
@@ -455,7 +456,7 @@ fn price_asian(
         None => binding_defaults()?.path_dependent_pricer.num_steps,
     };
     let fixing_steps = default_fixing_steps(steps);
-    let df = (-rate * expiry).exp();
+    let df = flat_discount_factor(rate, expiry).map_err(to_js_err)?;
     let config = PathDependentPricerConfig::new(num_paths)
         .with_seed(seed)
         .with_parallel(false);
@@ -914,7 +915,7 @@ fn price_heston(
         .map_err(to_js_err)?;
     let disc = QeHeston::new();
     let initial_state = [spot, v0];
-    let discount_factor = (-rate * expiry).exp();
+    let discount_factor = flat_discount_factor(rate, expiry).map_err(to_js_err)?;
     let est = if is_call {
         let payoff = EuropeanCall::new(strike, 1.0, steps);
         engine.price(

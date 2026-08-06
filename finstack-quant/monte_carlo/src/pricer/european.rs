@@ -98,6 +98,9 @@ impl EuropeanPricer {
     /// * `payoff` - European-style payoff evaluated at `maturity_step = num_steps`.
     /// * `currency` - Currency for the returned estimate.
     /// * `discount_factor` - Present-value multiplier for the payoff horizon.
+    ///   Build it with
+    ///   [`finstack_quant_core::cashflow::flat_discount_factor`] when working
+    ///   from a flat continuously compounded rate and a year fraction.
     ///
     /// # Returns
     ///
@@ -110,7 +113,7 @@ impl EuropeanPricer {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_core::currency::Currency;
     /// use finstack_quant_monte_carlo::payoff::vanilla::EuropeanCall;
     /// use finstack_quant_monte_carlo::pricer::european::EuropeanPricer;

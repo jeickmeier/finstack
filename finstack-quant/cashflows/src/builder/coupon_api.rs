@@ -528,9 +528,11 @@ impl CashFlowBuilder {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// use finstack_quant_core::currency::Currency;
-    /// use finstack_quant_core::dates::{Date, Tenor, DayCount, BusinessDayConvention, StubKind};
+    /// use finstack_quant_core::dates::{Date, Tenor};
+    /// use finstack_quant_core::market_data::context::MarketContext;
+    /// use finstack_quant_core::market_data::term_structures::ForwardCurve;
     /// use finstack_quant_core::money::Money;
     /// use finstack_quant_core::types::CurveId;
     /// use finstack_quant_cashflows::builder::{
@@ -574,10 +576,18 @@ impl CashFlowBuilder {
     ///     schedule: ScheduleParams::quarterly_act360(),
     /// };
     ///
+    /// // Projecting the floating leg needs a forward curve for the index.
+    /// let market = MarketContext::new().insert(
+    ///     ForwardCurve::builder("USD-SOFR", 0.25)
+    ///         .base_date(issue)
+    ///         .knots([(0.0, 0.04), (10.0, 0.04)])
+    ///         .build()?,
+    /// );
+    ///
     /// let schedule = CashFlowSchedule::builder()
     ///     .principal(Money::new(10_000_000.0, Currency::USD), issue, maturity)
     ///     .fixed_to_float(switch, fixed_win, float_spec, CouponType::Cash)
-    ///     .build(None)?;
+    ///     .build(Some(&market))?;
     ///
     /// assert!(!schedule.get_flows().is_empty());
     /// # Ok(())

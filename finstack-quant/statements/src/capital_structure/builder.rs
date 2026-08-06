@@ -169,7 +169,7 @@ impl<State> ModelBuilder<State> {
     /// capital structure; model-level validation remains the final boundary.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
     /// use finstack_quant_statements::builder::ModelBuilder;
     /// use finstack_quant_core::currency::Currency;
     /// use finstack_quant_core::money::Money;
@@ -247,7 +247,7 @@ impl<State> ModelBuilder<State> {
     /// uniqueness of `id`.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
     /// use finstack_quant_statements::builder::ModelBuilder;
     /// use finstack_quant_valuations::instruments::BondConvention;
     /// use finstack_quant_core::currency::Currency;
@@ -323,7 +323,7 @@ impl<State> ModelBuilder<State> {
     /// * `forward_curve_id` - Market-context ID of the floating-leg forward curve
     ///
     /// # Example
-    /// ```ignore
+    /// ```
     /// use finstack_quant_statements::builder::ModelBuilder;
     /// use finstack_quant_core::currency::Currency;
     /// use finstack_quant_core::money::Money;
@@ -466,7 +466,7 @@ impl<State> ModelBuilder<State> {
     /// methods (`add_bond`, `add_swap`).
     ///
     /// # Example
-    /// ```ignore
+    /// ```no_run
     /// use finstack_quant_statements::builder::ModelBuilder;
     /// use finstack_quant_statements::types::FinancialStatementInstrument;
     ///
@@ -508,7 +508,7 @@ impl<State> ModelBuilder<State> {
     /// * `waterfall_spec` - Waterfall configuration with ECF sweep and PIK toggle settings
     ///
     /// # Example
-    /// ```ignore
+    /// ```
     /// use finstack_quant_statements::capital_structure::{WaterfallSpec, EcfSweepSpec};
     /// use finstack_quant_statements::builder::ModelBuilder;
     ///

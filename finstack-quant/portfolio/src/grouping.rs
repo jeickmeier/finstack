@@ -48,7 +48,7 @@ const MAX_BOOK_GROUPING_RECURSION_DEPTH: usize = 512;
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use finstack_quant_portfolio::grouping::aggregate_by_book;
 /// use finstack_quant_portfolio::valuation::value_portfolio;
 /// use finstack_quant_core::currency::Currency;

@@ -84,7 +84,7 @@
 //!
 //! Full pricing example:
 //!
-//! ```ignore
+//! ```
 //! use finstack_quant_core::currency::Currency;
 //! use finstack_quant_monte_carlo::prelude::*;
 //!
