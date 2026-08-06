@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pandas as pd
+
 from finstack_quant.statements import FinancialModelSpec, StatementResult
 from finstack_quant.core.market_data import MarketContext
 from finstack_quant.core.table import ArrowTable
@@ -195,36 +197,36 @@ class SensitivityConfig:
     @property
     def mode(self) -> str:
         """
-        Return the mode for `SensitivityConfig`.
+        Analysis mode: ``"Diagonal"``, ``"FullGrid"``, or ``"Tornado"``.
 
         Returns
         -------
         str
-            The mode exposed by this `SensitivityConfig`.
+            Analysis mode name.
         """
         ...
 
     @property
     def target_metrics(self) -> list[str]:
         """
-        Return the target metrics for `SensitivityConfig`.
+        Node identifiers of the statement metrics tracked across scenarios.
 
         Returns
         -------
         list[str]
-            The target metrics exposed by this `SensitivityConfig`.
+            Node identifiers of the tracked target metrics.
         """
         ...
 
     @property
     def parameter_count(self) -> int:
         """
-        Return the parameter count for `SensitivityConfig`.
+        Number of configured parameters (one ``ParameterSpec`` per entry).
 
         Returns
         -------
         int
-            The parameter count exposed by this `SensitivityConfig`.
+            Count of configured parameters.
         """
         ...
 
@@ -324,48 +326,48 @@ class VarianceConfig:
     @property
     def baseline_label(self) -> str:
         """
-        Return the baseline label for `VarianceConfig`.
+        Label for the baseline scenario (e.g. ``"management_case"``).
 
         Returns
         -------
         str
-            The baseline label exposed by this `VarianceConfig`.
+            Baseline scenario label.
         """
         ...
 
     @property
     def comparison_label(self) -> str:
         """
-        Return the comparison label for `VarianceConfig`.
+        Label for the comparison scenario (e.g. ``"bank_case"``).
 
         Returns
         -------
         str
-            The comparison label exposed by this `VarianceConfig`.
+            Comparison scenario label.
         """
         ...
 
     @property
     def metrics(self) -> list[str]:
         """
-        Return the metrics for `VarianceConfig`.
+        Node identifiers of the metrics compared between the two scenarios.
 
         Returns
         -------
         list[str]
-            The metrics exposed by this `VarianceConfig`.
+            Node identifiers of the compared metrics.
         """
         ...
 
     @property
     def periods(self) -> list[str]:
         """
-        Return the periods for `VarianceConfig`.
+        Periods to compare, as period-id strings (e.g. ``"2025Q1"``).
 
         Returns
         -------
         list[str]
-            The periods exposed by this `VarianceConfig`.
+            Period-id strings covered by the comparison.
         """
         ...
 
@@ -470,12 +472,12 @@ class ScenarioSet:
     @property
     def names(self) -> list[str]:
         """
-        Return the names for `ScenarioSet`.
+        Scenario names in definition (insertion) order.
 
         Returns
         -------
         list[str]
-            The names exposed by this `ScenarioSet`.
+            Scenario names in definition order.
         """
         ...
 
@@ -537,12 +539,12 @@ class SensitivityResult:
     @property
     def target_metrics(self) -> list[str]:
         """
-        Return the target metrics for `SensitivityResult`.
+        Node identifiers of the metrics tracked by the originating config.
 
         Returns
         -------
         list[str]
-            The target metrics exposed by this `SensitivityResult`.
+            Node identifiers of the tracked target metrics.
         """
         ...
 
@@ -599,6 +601,26 @@ class SensitivityResult:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the per-scenario parameter values as a pandas ``DataFrame``.
+
+        Columns: ``scenario`` (0-based scenario index), plus one column per
+        perturbed parameter, named exactly as the Rust result keys it
+        (``node_id@period``). One row per generated scenario; a parameter a
+        given scenario does not perturb is ``NaN``. An empty result still
+        carries the ``scenario`` column.
+
+        Scenario *outputs* are not included - read them per node and period
+        with ``get_value``.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per generated scenario.
+        """
+        ...
+
 class VarianceRow:
     """
     Compute VarianceRow.
@@ -619,72 +641,77 @@ class VarianceRow:
     @property
     def period(self) -> str:
         """
-        Return the period for `VarianceRow`.
+        Period this row covers, as a period-id string (e.g. ``"2025Q1"``).
 
         Returns
         -------
         str
-            The period exposed by this `VarianceRow`.
+            Period-id string for this row.
         """
         ...
 
     @property
     def metric(self) -> str:
         """
-        Return the metric for `VarianceRow`.
+        Node identifier of the compared metric.
 
         Returns
         -------
         str
-            The metric exposed by this `VarianceRow`.
+            Node identifier of the compared metric.
         """
         ...
 
     @property
     def baseline(self) -> float:
         """
-        Return the baseline for `VarianceRow`.
+        Metric value in the baseline scenario, in the metric's own units.
 
         Returns
         -------
         float
-            The baseline exposed by this `VarianceRow`.
+            Baseline value in the metric's own units.
         """
         ...
 
     @property
     def comparison(self) -> float:
         """
-        Return the comparison for `VarianceRow`.
+        Metric value in the comparison scenario, in the metric's own units.
 
         Returns
         -------
         float
-            The comparison exposed by this `VarianceRow`.
+            Comparison value in the metric's own units.
         """
         ...
 
     @property
     def abs_var(self) -> float:
         """
-        Return the abs var for `VarianceRow`.
+        Absolute variance ``comparison - baseline``, in the metric's units.
 
         Returns
         -------
         float
-            The abs var exposed by this `VarianceRow`.
+            Absolute variance in the metric's own units.
         """
         ...
 
     @property
     def pct_var(self) -> float | None:
         """
-        Return the pct var for `VarianceRow`.
+        Percentage variance ``abs_var / baseline`` as a decimal fraction (``0.1`` =
+        +10%).
+
+        ``None`` when the baseline is effectively zero, where a ratio would be undefined
+        rather than zero; fall back to ``abs_var`` in that case.
 
         Returns
         -------
         float | None
-            The pct var exposed by this `VarianceRow`.
+            Percentage variance as a decimal fraction, or ``None`` on a near-zero
+            baseline.
         """
         ...
 
@@ -744,36 +771,57 @@ class VarianceReport:
     @property
     def baseline_label(self) -> str:
         """
-        Return the baseline label for `VarianceReport`.
+        Label for the baseline scenario (e.g. ``"management_case"``).
 
         Returns
         -------
         str
-            The baseline label exposed by this `VarianceReport`.
+            Baseline scenario label.
         """
         ...
 
     @property
     def comparison_label(self) -> str:
         """
-        Return the comparison label for `VarianceReport`.
+        Label for the comparison scenario (e.g. ``"bank_case"``).
 
         Returns
         -------
         str
-            The comparison label exposed by this `VarianceReport`.
+            Comparison scenario label.
         """
         ...
 
     @property
     def rows(self) -> list[VarianceRow]:
         """
-        Return the rows for `VarianceReport`.
+        Per-metric, per-period variance rows, in report order.
 
         Returns
         -------
         list[VarianceRow]
-            The rows exposed by this `VarianceReport`.
+            Variance rows in report order.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the variance rows as a pandas ``DataFrame``.
+
+        Columns: ``period``, ``metric``, ``baseline``, ``comparison``,
+        ``abs_var``, ``pct_var``. One row per (metric, period) pair, in report
+        order; an empty report still carries the full column schema.
+
+        ``baseline``, ``comparison`` and ``abs_var`` are in the metric's own
+        units; ``pct_var`` is a decimal fraction (``0.1`` = +10%) and is
+        ``NaN`` where the baseline is effectively zero. The scenario labels
+        are report metadata (``baseline_label`` / ``comparison_label``) and
+        are not repeated per row.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per (metric, period) variance row.
         """
         ...
 
@@ -831,12 +879,12 @@ class ScenarioResultSet:
     @property
     def names(self) -> list[str]:
         """
-        Return the names for `ScenarioResultSet`.
+        Evaluated scenario names, in the order the scenario set defined them.
 
         Returns
         -------
         list[str]
-            The names exposed by this `ScenarioResultSet`.
+            Evaluated scenario names in definition order.
         """
         ...
 
@@ -877,6 +925,38 @@ class ScenarioResultSet:
         ValueError
             If the result set or *metrics* is empty.
 
+        """
+        ...
+
+    def to_dataframe(self, metrics: list[str]) -> pd.DataFrame:
+        """
+        Export the scenario comparison as a pandas ``DataFrame``.
+
+        Columns: ``period``, ``metric``, one column per scenario name holding
+        that scenario's metric value, and one ``{scenario}_vs_{baseline}_pct``
+        column per non-baseline scenario holding the relative change as a
+        decimal fraction (``0.1`` = +10%, ``NaN`` on a near-zero baseline).
+        One row per (metric, period) pair.
+
+        This is the same table as ``to_comparison_table`` - both call one Rust
+        implementation, so the two exports cannot drift apart. The baseline is
+        the scenario named ``"base"`` when present, otherwise the first
+        scenario.
+
+        Parameters
+        ----------
+        metrics : list[str]
+            Node identifiers to include as rows.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per (metric, period) pair.
+
+        Raises
+        ------
+        ValueError
+            If the result set or *metrics* is empty.
         """
         ...
 
@@ -2200,6 +2280,25 @@ class Exposure:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the exposure as a single-row pandas ``DataFrame``.
+
+        Columns: ``id``, ``ead``, ``lgd``, ``eir``, ``remaining_maturity``,
+        ``current_pd``, ``origination_pd``, ``dpd``.
+
+        ``ead`` is in the exposure's base currency; ``lgd``, ``current_pd``
+        and ``origination_pd`` are decimal fractions in ``[0, 1]``; ``eir`` is
+        a decimal annual rate; ``remaining_maturity`` is in years; ``dpd`` is
+        a whole number of days past due.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row describing the exposure.
+        """
+        ...
+
 def classify_stage(
     exposure: Exposure,
     pd_delta_stage2: float | None = None,
@@ -2615,45 +2714,48 @@ class ScorecardMetric:
     @property
     def name(self) -> str:
         """
-        Value of ``name``.
+        Metric name, used as the key in the report's metric scores.
 
         Returns
         -------
         str
-            The name exposed by this `ScorecardMetric`.
+            Metric name.
         """
         ...
     @property
     def formula(self) -> str:
         """
-        Value of ``formula``.
+        DSL formula evaluated to produce the metric value.
 
         Returns
         -------
         str
-            The formula exposed by this `ScorecardMetric`.
+            DSL formula for the metric.
         """
         ...
     @property
     def weight(self) -> float:
         """
-        Value of ``weight``.
+        Weight of this metric in the overall score.
+
+        Weights are relative and need not sum to 1; the report divides the included
+        weight by the configured weight to report ``weight_coverage``.
 
         Returns
         -------
         float
-            The weight exposed by this `ScorecardMetric`.
+            Relative weight of the metric in the overall score.
         """
         ...
     @property
     def description(self) -> str | None:
         """
-        Value of ``description``.
+        Optional human-readable description of the metric.
 
         Returns
         -------
         str or None
-            The description exposed by this `ScorecardMetric`.
+            Metric description, or ``None`` when unset.
         """
         ...
     def thresholds_json(self) -> str:
@@ -2765,44 +2867,49 @@ class ScorecardConfig:
     @property
     def rating_scale(self) -> str:
         """
-        Value of ``rating_scale``.
+        Rating scale identifier (e.g. ``"S&P"``, ``"Moody's"``, ``"Fitch"``).
 
         Returns
         -------
         str
-            The rating scale exposed by this `ScorecardConfig`.
+            Rating scale identifier.
         """
         ...
     @property
     def min_rating(self) -> str | None:
         """
-        Value of ``min_rating``.
+        Minimum acceptable rating on ``rating_scale``, or ``None`` when the scorecard
+        imposes no floor.
 
         Returns
         -------
         str or None
-            The min rating exposed by this `ScorecardConfig`.
+            Minimum acceptable rating, or ``None``.
         """
         ...
     @property
     def period(self) -> str | None:
         """
-        Value of ``period``.
+        Period to rate, as a period-id string (e.g. ``"2025Q4"``).
+
+        ``None`` means the last actual period in the model if any exists, otherwise the
+        last model period.
 
         Returns
         -------
         str or None
-            The period exposed by this `ScorecardConfig`.
+            Period-id string to rate, or ``None`` for the default period.
         """
         ...
     @property
     def metrics(self) -> list[ScorecardMetric]:
         """
-        Value of ``metrics``.
+        Metric definitions evaluated by the scorecard, in configured order.
 
         Returns
         -------
         list[ScorecardMetric]
+            Metric definitions in configured order.
         """
         ...
     def validate(self) -> None:
@@ -2885,34 +2992,34 @@ class ScorecardReport:
     @property
     def message(self) -> str:
         """
-        Value of ``message``.
+        Human-readable summary of the run.
 
         Returns
         -------
         str
-            The message exposed by this `ScorecardReport`.
+            Summary message for the run.
         """
         ...
     @property
     def warnings(self) -> list[str]:
         """
-        Value of ``warnings``.
+        Non-fatal warnings raised while scoring (e.g. an excluded metric).
 
         Returns
         -------
         list[str]
-            The warnings exposed by this `ScorecardReport`.
+            Non-fatal warnings raised while scoring.
         """
         ...
     @property
     def errors(self) -> list[str]:
         """
-        Value of ``errors``.
+        Per-metric failures. A non-empty list means ``status`` is ``"failed"``.
 
         Returns
         -------
         list[str]
-            The errors exposed by this `ScorecardReport`.
+            Per-metric failure messages.
         """
         ...
     def data_json(self) -> str:
@@ -2962,6 +3069,48 @@ class ScorecardReport:
         >>> ScorecardReport.from_json('{"status":"success","message":"Complete"}').status
         'success'
 
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the report header as a single-row pandas ``DataFrame``.
+
+        Columns: ``status``, ``message``, ``rating``, ``rating_scale``,
+        ``period``, ``total_score``, ``partial``, ``weight_coverage``,
+        ``warning_count``, ``error_count``.
+
+        ``period`` is the rated period-id string. ``weight_coverage`` is a
+        decimal fraction in ``[0, 1]``: the included metric weight over the
+        configured metric weight, so ``0.8`` means a fifth of the configured
+        weight was excluded. ``partial`` is ``True`` when any metric was
+        excluded or errored. Fields absent from the report payload are
+        ``None``. Per-metric detail lives in ``to_metric_scores_dataframe``.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row describing the scorecard run.
+        """
+        ...
+
+    def to_metric_scores_dataframe(self) -> pd.DataFrame:
+        """
+        Export the per-metric scores as a pandas ``DataFrame``.
+
+        Columns: ``metric``, ``value``, ``score``, ``weight``,
+        ``weighted_score``. One row per scored metric, in configured order; a
+        report with no scored metrics still carries the full column schema.
+
+        ``value`` is the metric's evaluated value in its own units, ``score``
+        its mapped rating score, ``weight`` the configured weight, and
+        ``weighted_score`` is ``score * weight``. Metrics that errored or were
+        excluded do not appear here - see ``errors`` and ``weight_coverage``.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per scored metric.
         """
         ...
 
@@ -3187,45 +3336,50 @@ class CorkscrewAccount:
     @property
     def node_id(self) -> str:
         """
-        Value of ``node_id``.
+        Node id of the balance account being rolled forward.
 
         Returns
         -------
         str
-            The node id exposed by this `CorkscrewAccount`.
+            Node id of the balance account.
         """
         ...
     @property
     def account_type(self) -> AccountType:
         """
-        Value of ``account_type``.
+        Balance-sheet classifier: asset, liability, or equity.
 
         Returns
         -------
         AccountType
-            The account type exposed by this `CorkscrewAccount`.
+            Balance-sheet classifier for the account.
         """
         ...
     @property
     def changes(self) -> list[str]:
         """
-        Value of ``changes``.
+        Node ids of the period changes applied to the balance.
+
+        Sign convention: every change node is **added** to the prior balance (``expected
+        = prev_balance + sum(changes)``), so reductions (repayments, outflows,
+        disposals) must already be negative in the model.
 
         Returns
         -------
         list[str]
-            The changes exposed by this `CorkscrewAccount`.
+            Node ids of the change series added to the balance.
         """
         ...
     @property
     def beginning_balance_node(self) -> str | None:
         """
-        Value of ``beginning_balance_node``.
+        Node id overriding the beginning balance, or ``None`` to use the account's own
+        prior-period closing balance.
 
         Returns
         -------
         str or None
-            The beginning balance node exposed by this `CorkscrewAccount`.
+            Beginning-balance override node id, or ``None``.
         """
         ...
     def to_json(self) -> str:
@@ -3315,33 +3469,38 @@ class CorkscrewConfig:
     @property
     def accounts(self) -> list[CorkscrewAccount]:
         """
-        Value of ``accounts``.
+        Balance accounts validated by this configuration, in configured order.
 
         Returns
         -------
         list[CorkscrewAccount]
+            Validated balance accounts in configured order.
         """
         ...
     @property
     def tolerance(self) -> float:
         """
-        Value of ``tolerance``.
+        Absolute roll-forward tolerance, in the balance node's own units.
+
+        A period is flagged when ``abs(closing - (opening + sum(changes))) >
+        tolerance``.
 
         Returns
         -------
         float
-            The tolerance exposed by this `CorkscrewConfig`.
+            Absolute roll-forward tolerance in the balance node's units.
         """
         ...
     @property
     def fail_on_error(self) -> bool:
         """
-        Value of ``fail_on_error``.
+        When ``True``, any roll-forward violation is fatal (reported as an error) rather
+        than a warning.
 
         Returns
         -------
         bool
-            The fail on error exposed by this `CorkscrewConfig`.
+            Whether roll-forward violations are treated as fatal.
         """
         ...
     def to_json(self) -> str:
@@ -3400,45 +3559,47 @@ class CorkscrewReport:
     @property
     def status(self) -> str:
         """
-        Value of ``status``.
+        ``"success"`` or ``"failed"``.
 
         Returns
         -------
         str
-            The status exposed by this `CorkscrewReport`.
+            Overall execution status.
         """
         ...
     @property
     def message(self) -> str:
         """
-        Value of ``message``.
+        Human-readable summary of the validation run.
 
         Returns
         -------
         str
-            The message exposed by this `CorkscrewReport`.
+            Summary message for the validation run.
         """
         ...
     @property
     def warnings(self) -> list[str]:
         """
-        Value of ``warnings``.
+        Non-fatal warnings, including roll-forward breaks reported when
+        ``fail_on_error`` is ``False``.
 
         Returns
         -------
         list[str]
-            The warnings exposed by this `CorkscrewReport`.
+            Non-fatal warnings raised during validation.
         """
         ...
     @property
     def errors(self) -> list[str]:
         """
-        Value of ``errors``.
+        Roll-forward violations treated as fatal (``fail_on_error=True``) plus any
+        structural failure. A non-empty list means ``status`` is ``"failed"``.
 
         Returns
         -------
         list[str]
-            The errors exposed by this `CorkscrewReport`.
+            Fatal validation failures.
         """
         ...
     def data_json(self) -> str:
@@ -3488,6 +3649,45 @@ class CorkscrewReport:
         >>> CorkscrewReport.from_json('{"status":"success","message":"Balanced"}').status
         'success'
 
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the report header as a single-row pandas ``DataFrame``.
+
+        Columns: ``status``, ``message``, ``account_count``,
+        ``warning_count``, ``error_count``.
+
+        ``account_count`` is the number of validated accounts. Per-account
+        detail lives in ``to_validations_dataframe``.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row describing the validation run.
+        """
+        ...
+
+    def to_validations_dataframe(self) -> pd.DataFrame:
+        """
+        Export the per-account roll-forward validations as a pandas
+        ``DataFrame``.
+
+        Columns: ``account``, ``type``, ``periods_validated``, ``max_error``,
+        ``is_valid``. One row per validated account, in configured order; a
+        report with no validations still carries the full column schema.
+
+        ``type`` is the account classifier (``"asset"``, ``"liability"``,
+        ``"equity"``), ``periods_validated`` is a count of model periods, and
+        ``max_error`` is the largest absolute roll-forward break across those
+        periods, in the balance node's own units. ``is_valid`` is ``False``
+        when ``max_error`` exceeded the configured tolerance.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per validated account.
         """
         ...
 
@@ -3815,78 +4015,83 @@ class SimpleLeaseSpec:
     @property
     def node_id(self) -> str:
         """
-        Value of ``node_id``.
+        Node id storing this lease's rent revenue series.
 
         Returns
         -------
         str
-            The node id exposed by this `SimpleLeaseSpec`.
+            Node id for the lease's rent revenue series.
         """
         ...
     @property
     def start(self) -> str:
         """
-        Value of ``start``.
+        First period (inclusive) the lease is active, as a period-id string (e.g.
+        ``"2025Q1"``).
 
         Returns
         -------
         str
-            The start exposed by this `SimpleLeaseSpec`.
+            First active period as a period-id string.
         """
         ...
     @property
     def end(self) -> str | None:
         """
-        Value of ``end``.
+        Last period (inclusive) the lease is active, or ``None`` to run through the
+        model end.
 
         Returns
         -------
         str or None
-            The end exposed by this `SimpleLeaseSpec`.
+            Last active period as a period-id string, or ``None``.
         """
         ...
     @property
     def base_rent(self) -> float:
         """
-        Value of ``base_rent``.
+        Base rent for one model period at ``start``, in model currency units.
+
+        A quarterly model means rent per quarter, not per year.
 
         Returns
         -------
         float
-            The base rent exposed by this `SimpleLeaseSpec`.
+            Base rent per model period at ``start``.
         """
         ...
     @property
     def growth_rate(self) -> float:
         """
-        Value of ``growth_rate``.
+        Growth rate compounded every model period after ``start``, as a decimal fraction
+        (``0.03`` = +3% per period).
 
         Returns
         -------
         float
-            The growth rate exposed by this `SimpleLeaseSpec`.
+            Per-period growth rate as a decimal fraction.
         """
         ...
     @property
     def free_rent_periods(self) -> int:
         """
-        Value of ``free_rent_periods``.
+        Number of model periods of free rent counted from ``start``.
 
         Returns
         -------
         int
-            The free rent periods exposed by this `SimpleLeaseSpec`.
+            Count of free-rent model periods from ``start``.
         """
         ...
     @property
     def occupancy(self) -> float:
         """
-        Value of ``occupancy``.
+        Occupancy factor in ``[0, 1]`` applied to rent.
 
         Returns
         -------
         float
-            The occupancy exposed by this `SimpleLeaseSpec`.
+            Occupancy factor in ``[0, 1]``.
         """
         ...
     def validate(self) -> None:
@@ -3938,6 +4143,25 @@ class SimpleLeaseSpec:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the lease spec as a single-row pandas ``DataFrame``.
+
+        Columns: ``node_id``, ``start``, ``end``, ``base_rent``,
+        ``growth_rate``, ``free_rent_periods``, ``occupancy``.
+
+        ``start`` and ``end`` are period-id strings (``end`` is ``None`` for a
+        lease running to the model end). ``base_rent`` is per model period,
+        ``growth_rate`` and ``occupancy`` are decimal fractions, and
+        ``free_rent_periods`` is a count of model periods.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row describing the lease.
+        """
+        ...
+
 class RentStepSpec:
     """
     Reset a lease's base rent from one model period onward.
@@ -3980,23 +4204,26 @@ class RentStepSpec:
     @property
     def start(self) -> str:
         """
-        Value of ``start``.
+        Period (inclusive) this rent level takes effect, as a period-id string.
 
         Returns
         -------
         str
-            The start exposed by this `RentStepSpec`.
+            Effective period as a period-id string.
         """
         ...
     @property
     def rent(self) -> float:
         """
-        Value of ``rent``.
+        Rent for one model period from ``start``, in model currency units.
+
+        This replaces the prevailing rent level rather than adding to it, and restarts
+        growth compounding from ``start``.
 
         Returns
         -------
         float
-            The rent exposed by this `RentStepSpec`.
+            Rent per model period from ``start``.
         """
         ...
     def to_json(self) -> str:
@@ -4081,23 +4308,23 @@ class FreeRentWindowSpec:
     @property
     def start(self) -> str:
         """
-        Value of ``start``.
+        Period (inclusive) free rent starts, as a period-id string.
 
         Returns
         -------
         str
-            The start exposed by this `FreeRentWindowSpec`.
+            First free-rent period as a period-id string.
         """
         ...
     @property
     def periods(self) -> int:
         """
-        Value of ``periods``.
+        Length of the concession as a count of model periods.
 
         Returns
         -------
         int
-            The periods exposed by this `FreeRentWindowSpec`.
+            Concession length in model periods.
         """
         ...
     def to_json(self) -> str:
@@ -4197,56 +4424,60 @@ class RenewalSpec:
     @property
     def term_periods(self) -> int:
         """
-        Value of ``term_periods``.
+        Renewal term length as a count of model periods.
 
         Returns
         -------
         int
-            The term periods exposed by this `RenewalSpec`.
+            Renewal term length in model periods.
         """
         ...
     @property
     def probability(self) -> float:
         """
-        Value of ``probability``.
+        Probability of renewal as a decimal fraction in ``[0, 1]``.
+
+        Renewal is modelled in expected-value terms, so this weights the renewal rent
+        rather than selecting a branch.
 
         Returns
         -------
         float
-            The probability exposed by this `RenewalSpec`.
+            Renewal probability in ``[0, 1]``.
         """
         ...
     @property
     def downtime_periods(self) -> int:
         """
-        Value of ``downtime_periods``.
+        Rent-free downtime after the initial term ends, as a count of model periods.
 
         Returns
         -------
         int
-            The downtime periods exposed by this `RenewalSpec`.
+            Downtime length in model periods.
         """
         ...
     @property
     def rent_factor(self) -> float:
         """
-        Value of ``rent_factor``.
+        Multiplier applied to the last contractual rent of the initial term (``1.05``
+        means renewal starts 5% above the prior rent level).
 
         Returns
         -------
         float
-            The rent factor exposed by this `RenewalSpec`.
+            Multiplier on the prior rent level at renewal.
         """
         ...
     @property
     def free_rent_periods(self) -> int:
         """
-        Value of ``free_rent_periods``.
+        Number of model periods of free rent at renewal start.
 
         Returns
         -------
         int
-            The free rent periods exposed by this `RenewalSpec`.
+            Count of free-rent model periods at renewal start.
         """
         ...
     def validate(self) -> None:
@@ -4296,6 +4527,24 @@ class RenewalSpec:
         >>> RenewalSpec.from_json(renewal.to_json()).probability
         0.75
 
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the renewal spec as a single-row pandas ``DataFrame``.
+
+        Columns: ``downtime_periods``, ``term_periods``, ``probability``,
+        ``rent_factor``, ``free_rent_periods``.
+
+        The three ``*_periods`` columns are counts of model periods;
+        ``probability`` is a decimal fraction in ``[0, 1]`` and
+        ``rent_factor`` is a multiplier on the prior rent level.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row describing the renewal terms.
         """
         ...
 
@@ -4447,98 +4696,108 @@ class LeaseSpec:
     @property
     def node_id(self) -> str:
         """
-        Value of ``node_id``.
+        Base node id; per-lease detail nodes are derived from it (``{node_id}.pgi``,
+        ``.free_rent``, ``.vacancy_loss``, ``.effective_rent``).
 
         Returns
         -------
         str
-            The node id exposed by this `LeaseSpec`.
+            Base node id for the lease's derived detail nodes.
         """
         ...
     @property
     def start(self) -> str:
         """
-        Value of ``start``.
+        First period (inclusive) the lease is active, as a period-id string (e.g.
+        ``"2025Q1"``).
 
         Returns
         -------
         str
-            The start exposed by this `LeaseSpec`.
+            First active period as a period-id string.
         """
         ...
     @property
     def end(self) -> str | None:
         """
-        Value of ``end``.
+        Last period (inclusive) of the initial term, or ``None`` to run through the
+        model end (which also disables renewal modelling).
 
         Returns
         -------
         str or None
-            The end exposed by this `LeaseSpec`.
+            Last period of the initial term, or ``None``.
         """
         ...
     @property
     def base_rent(self) -> float:
         """
-        Value of ``base_rent``.
+        Base rent for one model period at ``start``, in model currency units.
+
+        A quarterly model means rent per quarter, not per year.
 
         Returns
         -------
         float
-            The base rent exposed by this `LeaseSpec`.
+            Base rent per model period at ``start``.
         """
         ...
     @property
     def growth_rate(self) -> float:
         """
-        Value of ``growth_rate``.
+        Growth rate applied within a rent segment as a decimal fraction (``0.03`` =
+        +3%), compounded per ``growth_convention``.
 
         Returns
         -------
         float
-            The growth rate exposed by this `LeaseSpec`.
+            Segment growth rate as a decimal fraction.
         """
         ...
     @property
     def growth_convention(self) -> LeaseGrowthConvention:
         """
-        Value of ``growth_convention``.
+        Compounding convention for ``growth_rate``: every model period (``per_period``)
+        or once per lease-start anniversary (``annual_escalator``).
 
         Returns
         -------
         LeaseGrowthConvention
+            Compounding convention for ``growth_rate``.
         """
         ...
     @property
     def free_rent_periods(self) -> int:
         """
-        Value of ``free_rent_periods``.
+        Number of model periods of free rent counted from ``start``, before any
+        additional ``free_rent_windows``.
 
         Returns
         -------
         int
-            The free rent periods exposed by this `LeaseSpec`.
+            Count of free-rent model periods from ``start``.
         """
         ...
     @property
     def occupancy(self) -> float:
         """
-        Value of ``occupancy``.
+        Occupancy factor in ``[0, 1]`` applied to non-free contractual rent.
 
         Returns
         -------
         float
-            The occupancy exposed by this `LeaseSpec`.
+            Occupancy factor in ``[0, 1]``.
         """
         ...
     @property
     def renewal(self) -> RenewalSpec | None:
         """
-        Value of ``renewal``.
+        Renewal modelling applied after ``end``, or ``None`` for no renewal.
 
         Returns
         -------
         RenewalSpec or None
+            Renewal specification, or ``None``.
         """
         ...
     def validate(self) -> None:
@@ -4588,6 +4847,28 @@ class LeaseSpec:
         >>> LeaseSpec.from_json(lease.to_json()).start
         '2025Q1'
 
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the lease spec as a single-row pandas ``DataFrame``.
+
+        Columns: ``node_id``, ``start``, ``end``, ``base_rent``,
+        ``growth_rate``, ``growth_convention``, ``free_rent_periods``,
+        ``occupancy``, ``rent_step_count``, ``free_rent_window_count``,
+        ``has_renewal``.
+
+        ``start`` and ``end`` are period-id strings, ``base_rent`` is per
+        model period, ``growth_rate`` and ``occupancy`` are decimal fractions,
+        and ``free_rent_periods`` is a count of model periods. The nested
+        collections are summarised as counts here - read ``renewal`` (and its
+        own ``to_dataframe``) for the renewal terms.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row describing the lease.
         """
         ...
 
@@ -4642,45 +4923,48 @@ class RentRollOutputNodes:
     @property
     def rent_pgi_node(self) -> str:
         """
-        Value of ``rent_pgi_node``.
+        Node id holding total contractual rent (potential gross income) across all
+        leases.
 
         Returns
         -------
         str
-            The rent pgi node exposed by this `RentRollOutputNodes`.
+            Node id for total potential gross income.
         """
         ...
     @property
     def free_rent_node(self) -> str:
         """
-        Value of ``free_rent_node``.
+        Node id holding total free-rent concessions.
 
         Returns
         -------
         str
-            The free rent node exposed by this `RentRollOutputNodes`.
+            Node id for total free-rent concessions.
         """
         ...
     @property
     def vacancy_loss_node(self) -> str:
         """
-        Value of ``vacancy_loss_node``.
+        Node id holding total vacancy loss, including occupancy and renewal-probability
+        effects.
 
         Returns
         -------
         str
-            The vacancy loss node exposed by this `RentRollOutputNodes`.
+            Node id for total vacancy loss.
         """
         ...
     @property
     def rent_effective_node(self) -> str:
         """
-        Value of ``rent_effective_node``.
+        Node id holding total effective rent, the EGI rent component ``rent_pgi -
+        free_rent - vacancy_loss``.
 
         Returns
         -------
         str
-            The rent effective node exposed by this `RentRollOutputNodes`.
+            Node id for total effective rent.
         """
         ...
     def to_json(self) -> str:
@@ -4721,6 +5005,21 @@ class RentRollOutputNodes:
         >>> RentRollOutputNodes.from_json(nodes.to_json()).vacancy_loss_node
         'vacancy_loss'
 
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the node-id mapping as a single-row pandas ``DataFrame``.
+
+        Columns: ``rent_pgi_node``, ``free_rent_node``, ``vacancy_loss_node``,
+        ``rent_effective_node``. Every value is a statement node id, not a
+        numeric amount.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row of rent-roll output node ids.
         """
         ...
 
@@ -4816,22 +5115,24 @@ class ManagementFeeSpec:
     @property
     def rate(self) -> float:
         """
-        Value of ``rate``.
+        Management fee rate as a decimal fraction (``0.03`` = 3%).
 
         Returns
         -------
         float
-            The rate exposed by this `ManagementFeeSpec`.
+            Management fee rate as a decimal fraction.
         """
         ...
     @property
     def base(self) -> ManagementFeeBase:
         """
-        Value of ``base``.
+        Basis the fee applies to: ``egi`` (effective gross income) or ``effective_rent``
+        (rent only, excluding other income).
 
         Returns
         -------
         ManagementFeeBase
+            Basis the management fee applies to.
         """
         ...
     def to_json(self) -> str:
@@ -4945,88 +5246,90 @@ class PropertyTemplateNodes:
     @property
     def rent_roll(self) -> RentRollOutputNodes:
         """
-        Value of ``rent_roll``.
+        Rent-roll output node ids (PGI, free rent, vacancy loss, effective rent).
 
         Returns
         -------
         RentRollOutputNodes
+            Rent-roll output node ids.
         """
         ...
     @property
     def other_income_total_node(self) -> str:
         """
-        Value of ``other_income_total_node``.
+        Node id holding total other (non-rent) income.
 
         Returns
         -------
         str
-            The other income total node exposed by this `PropertyTemplateNodes`.
+            Node id for total other income.
         """
         ...
     @property
     def egi_node(self) -> str:
         """
-        Value of ``egi_node``.
+        Node id holding effective gross income (EGI).
 
         Returns
         -------
         str
-            The egi node exposed by this `PropertyTemplateNodes`.
+            Node id for effective gross income.
         """
         ...
     @property
     def management_fee_node(self) -> str:
         """
-        Value of ``management_fee_node``.
+        Node id holding the management fee, when one is configured.
 
         Returns
         -------
         str
-            The management fee node exposed by this `PropertyTemplateNodes`.
+            Node id for the management fee.
         """
         ...
     @property
     def opex_total_node(self) -> str:
         """
-        Value of ``opex_total_node``.
+        Node id holding total operating expenses, inclusive of the management fee when
+        one is configured.
 
         Returns
         -------
         str
-            The opex total node exposed by this `PropertyTemplateNodes`.
+            Node id for total operating expenses.
         """
         ...
     @property
     def noi_node(self) -> str:
         """
-        Value of ``noi_node``.
+        Node id holding net operating income (NOI).
 
         Returns
         -------
         str
-            The noi node exposed by this `PropertyTemplateNodes`.
+            Node id for net operating income.
         """
         ...
     @property
     def capex_total_node(self) -> str:
         """
-        Value of ``capex_total_node``.
+        Node id holding total capital expenditure.
 
         Returns
         -------
         str
-            The capex total node exposed by this `PropertyTemplateNodes`.
+            Node id for total capital expenditure.
         """
         ...
     @property
     def ncf_node(self) -> str:
         """
-        Value of ``ncf_node``.
+        Node id holding net cash flow, ``noi - capex_total``.
 
         Returns
         -------
         str
-            The ncf node exposed by this `PropertyTemplateNodes`.
+            Node id for net cash flow.
         """
         ...
     def to_json(self) -> str:
@@ -5067,6 +5370,25 @@ class PropertyTemplateNodes:
         >>> PropertyTemplateNodes.from_json(nodes.to_json()).egi_node
         'egi'
 
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the node-id mapping as a single-row pandas ``DataFrame``.
+
+        Columns: ``rent_pgi_node``, ``free_rent_node``, ``vacancy_loss_node``,
+        ``rent_effective_node``, ``other_income_total_node``, ``egi_node``,
+        ``management_fee_node``, ``opex_total_node``, ``noi_node``,
+        ``capex_total_node``, ``ncf_node``.
+
+        The four rent-roll node ids are flattened in rather than nested, so
+        every value is a plain statement node id, not a numeric amount.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row of property template node ids.
         """
         ...
 
@@ -5332,39 +5654,36 @@ class ScenarioDiff:
     @property
     def baseline(self) -> str:
         """
-        Name of the baseline scenario.
+        Name of the scenario used as the baseline of the diff.
 
         Returns
         -------
         str
             Baseline scenario name.
-
         """
         ...
 
     @property
     def comparison(self) -> str:
         """
-        Name of the comparison scenario.
+        Name of the scenario compared against the baseline.
 
         Returns
         -------
         str
             Comparison scenario name.
-
         """
         ...
 
     @property
     def variance(self) -> VarianceReport:
         """
-        Per-metric, per-period variance between the two scenarios.
+        Underlying variance report between the two named scenarios.
 
         Returns
         -------
         VarianceReport
-            Variance rows for every requested metric and period.
-
+            Variance report for the two named scenarios.
         """
         ...
 
@@ -5404,26 +5723,27 @@ class BridgeStep:
     @property
     def driver(self) -> str:
         """
-        Node identifier of the driver.
+        Driver node identifier (e.g. ``"revenue"``).
 
         Returns
         -------
         str
             Driver node identifier.
-
         """
         ...
 
     @property
     def contribution(self) -> float:
         """
-        Driver delta, in the driver's own units.
+        This driver's raw delta between the two scenarios, in the *driver's* own units.
+
+        Contributions are not sensitivities of the target metric, so they generally do
+        not sum to the target variance - see ``BridgeChart.unexplained``.
 
         Returns
         -------
         float
-            Change in the driver between baseline and comparison.
-
+            Raw driver delta in the driver's own units.
         """
         ...
 
@@ -5511,91 +5831,84 @@ class BridgeChart:
     @property
     def target_metric(self) -> str:
         """
-        Node identifier whose variance is being explained.
+        Node identifier of the metric this bridge decomposes (e.g. ``"ebitda"``).
 
         Returns
         -------
         str
-            Target metric node identifier.
-
+            Node identifier of the decomposed metric.
         """
         ...
 
     @property
     def period(self) -> str:
         """
-        Period the decomposition applies to.
+        Period the bridge covers, as a period-id string (e.g. ``"2025Q1"``).
 
         Returns
         -------
         str
-            Period identifier, e.g. ``"2025Q4"``.
-
+            Period-id string covered by the bridge.
         """
         ...
 
     @property
     def baseline_label(self) -> str:
         """
-        Display label for the baseline column.
+        Label for the baseline scenario (e.g. ``"management_case"``).
 
         Returns
         -------
         str
-            Baseline label.
-
+            Baseline scenario label.
         """
         ...
 
     @property
     def comparison_label(self) -> str:
         """
-        Display label for the comparison column.
+        Label for the comparison scenario (e.g. ``"bank_case"``).
 
         Returns
         -------
         str
-            Comparison label.
-
+            Comparison scenario label.
         """
         ...
 
     @property
     def baseline_value(self) -> float:
         """
-        Baseline value of the target metric.
+        Target-metric value in the baseline scenario, in the metric's units.
 
         Returns
         -------
         float
-            Target metric value in the baseline.
-
+            Baseline target-metric value in the metric's own units.
         """
         ...
 
     @property
     def comparison_value(self) -> float:
         """
-        Comparison value of the target metric.
+        Target-metric value in the comparison scenario, in the metric's units.
 
         Returns
         -------
         float
-            Target metric value in the comparison.
-
+            Comparison target-metric value in the metric's own units.
         """
         ...
 
     @property
     def steps(self) -> list[BridgeStep]:
         """
-        Ordered driver contributions.
+        Ordered driver contributions making up the bridge.
 
         Returns
         -------
         list[BridgeStep]
-            One step per requested driver, in the order supplied.
-
+            Driver contributions in decomposition order.
         """
         ...
 
@@ -5614,6 +5927,26 @@ class BridgeChart:
             ``(comparison_value - baseline_value)`` minus the summed
             contributions.
 
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the driver steps as a pandas ``DataFrame``.
+
+        Columns: ``driver``, ``contribution``. One row per bridge step, in
+        decomposition order; an empty bridge still carries both columns.
+        Contributions are raw deltas in each driver's own units.
+
+        The scalar header fields (``target_metric``, ``period``,
+        ``baseline_label``, ``comparison_label``, ``baseline_value``,
+        ``comparison_value``, ``unexplained``) are chart metadata and are not
+        repeated on every row.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per driver step.
         """
         ...
 

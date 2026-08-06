@@ -6,6 +6,7 @@ use finstack_quant_portfolio::factor_model::{
 };
 
 use crate::bindings::factor_model::credit::PyCreditFactorModel;
+use crate::bindings::pandas_utils::dict_to_dataframe;
 
 use super::super::json_bridge::serialize_json;
 use super::contributions::PyRiskDecomposition;
@@ -30,11 +31,14 @@ impl PyLevelVolContribution {
 
 #[pymethods]
 impl PyLevelVolContribution {
+    /// Human-readable hierarchy level name, e.g. ``"Rating"``.
     #[getter]
     fn level_name(&self) -> String {
         self.inner.level_name.clone()
     }
 
+    /// Total contribution of this level across all of its buckets, in the units
+    /// of the parent report's risk measure.
     #[getter]
     fn total(&self) -> f64 {
         self.inner.total
@@ -82,21 +86,27 @@ impl PyPositionVolContribution {
 
 #[pymethods]
 impl PyPositionVolContribution {
+    /// Portfolio position identifier.
     #[getter]
     fn position_id(&self) -> String {
         self.inner.position_id.as_str().to_owned()
     }
 
+    /// Factor-driven (systematic) risk for this position, in the units of the
+    /// parent report's risk measure.
     #[getter]
     fn factor_total(&self) -> f64 {
         self.inner.factor_total
     }
 
+    /// Issuer-specific (idiosyncratic) risk for this position, allocated from
+    /// the report total in proportion to residual variance.
     #[getter]
     fn idiosyncratic(&self) -> f64 {
         self.inner.idiosyncratic
     }
 
+    /// Additive total: :attr:`factor_total` plus :attr:`idiosyncratic`.
     #[getter]
     fn total(&self) -> f64 {
         self.inner.total
@@ -133,6 +143,8 @@ impl PyCreditVolReport {
 
 #[pymethods]
 impl PyCreditVolReport {
+    /// Total annualized risk under the chosen measure; matches the source
+    /// decomposition's ``total_risk``.
     #[getter]
     fn total(&self) -> f64 {
         self.inner.total
@@ -144,16 +156,28 @@ impl PyCreditVolReport {
         serialize_json(&self.inner.measure)
     }
 
+    /// Contribution from the generic (principal-component) ``credit::generic``
+    /// factor, in the units of :attr:`measure_json`.
     #[getter]
     fn generic(&self) -> f64 {
         self.inner.generic
     }
 
+    /// Portfolio idiosyncratic risk in the units of :attr:`measure_json`.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     An Euler-scaled residual contribution, **not** standalone
+    ///     residual-only risk, so ``generic + sum(by_level) +
+    ///     idiosyncratic_total`` reconciles to :attr:`total`.
     #[getter]
     fn idiosyncratic_total(&self) -> f64 {
         self.inner.idiosyncratic_total
     }
 
+    /// Per-hierarchy-level rollup, positionally aligned to the credit model's
+    /// hierarchy levels.
     #[getter]
     fn by_level(&self) -> Vec<PyLevelVolContribution> {
         self.inner
@@ -173,6 +197,57 @@ impl PyCreditVolReport {
                 .map(PyPositionVolContribution::from_inner)
                 .collect()
         })
+    }
+
+    /// Export the per-hierarchy-level rollup as a pandas ``DataFrame``.
+    ///
+    /// One row per entry of :attr:`by_level`. The per-bucket drill-down stays
+    /// on :attr:`LevelVolContribution.by_bucket`, which is already a plain dict.
+    ///
+    /// Columns: ``level_name``, ``total`` (level contribution in the units of
+    /// :attr:`measure_json`).
+    fn to_level_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        // `LevelVolContribution` derives only `Debug, Clone, PartialEq` — no
+        // `Serialize` — so the serde DataFrame helpers are unusable here and
+        // the columns are built explicitly.
+        let rows = &self.inner.by_level;
+        let level_names: Vec<&str> = rows.iter().map(|l| l.level_name.as_str()).collect();
+        let totals: Vec<f64> = rows.iter().map(|l| l.total).collect();
+        let data = PyDict::new(py);
+        data.set_item("level_name", level_names)?;
+        data.set_item("total", totals)?;
+        dict_to_dataframe(py, &data, None)
+    }
+
+    /// Export the optional per-position breakdown as a pandas ``DataFrame``.
+    ///
+    /// One row per entry of :attr:`by_position`. When the report was built
+    /// without ``by_position=True`` the result is a zero-row frame that still
+    /// carries the full column schema, so downstream ``df[...]`` selections
+    /// keep working instead of raising ``KeyError``.
+    ///
+    /// Columns: ``position_id``, ``factor_total`` (systematic),
+    /// ``idiosyncratic`` (issuer-specific), ``total`` (their sum) — all in the
+    /// units of :attr:`measure_json`.
+    fn to_position_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        // Same non-`Serialize` constraint as `to_level_dataframe`; the empty
+        // case is hand-rolled because `serde_rows_to_dataframe_with_schema`
+        // cannot be used.
+        let rows: &[PositionVolContribution] = self
+            .inner
+            .by_position_optional
+            .as_deref()
+            .unwrap_or_default();
+        let position_ids: Vec<&str> = rows.iter().map(|p| p.position_id.as_str()).collect();
+        let factor_totals: Vec<f64> = rows.iter().map(|p| p.factor_total).collect();
+        let idiosyncratic: Vec<f64> = rows.iter().map(|p| p.idiosyncratic).collect();
+        let totals: Vec<f64> = rows.iter().map(|p| p.total).collect();
+        let data = PyDict::new(py);
+        data.set_item("position_id", position_ids)?;
+        data.set_item("factor_total", factor_totals)?;
+        data.set_item("idiosyncratic", idiosyncratic)?;
+        data.set_item("total", totals)?;
+        dict_to_dataframe(py, &data, None)
     }
 
     fn __repr__(&self) -> String {

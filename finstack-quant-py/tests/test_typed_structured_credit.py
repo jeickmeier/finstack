@@ -159,7 +159,7 @@ class TestStructuredCreditTyped:
 
 class TestStructuredCreditTypedAnalytics:
     def test_typed_metrics_equal_json_metrics_on_fixture(self) -> None:
-        """Golden: typed deal in == JSON deal in, identical TrancheMetrics JSON."""
+        """Golden: typed deal in == JSON deal in, identical TrancheMetrics."""
         from finstack_quant.valuations.instruments import (
             StructuredCredit,
             TrancheMetrics,
@@ -173,10 +173,11 @@ class TestStructuredCreditTypedAnalytics:
         via_json = structured_credit_tranche_metrics(deal_json, tranche_id, market, "2024-01-01")
         typed_deal = StructuredCredit.from_json(deal_json)
         via_typed = structured_credit_tranche_metrics(typed_deal, tranche_id, market, "2024-01-01")
-        assert json.loads(via_typed) == json.loads(via_json)
+        # Both sides serialize the same Rust value directly (no parse cycle),
+        # so the wire payloads must match exactly.
+        assert json.loads(via_typed.to_json()) == json.loads(via_json.to_json())
 
-        metrics = TrancheMetrics.from_json(via_typed)
-        assert metrics.tranche_id == tranche_id
+        assert via_typed.tranche_id == tranche_id
 
         # Field-by-field with pytest.approx rather than exact string/dict
         # equality: serde_json's default (non-`float_roundtrip`) float parser
@@ -185,8 +186,8 @@ class TestStructuredCreditTypedAnalytics:
         # an unrelated, pre-existing serde_json characteristic (present for
         # every f64-bearing struct in this workspace) rather than anything
         # about typed-vs-JSON parity, which the assert above already proved.
-        decoded = json.loads(via_typed)
-        reencoded = json.loads(metrics.to_json())
+        decoded = json.loads(via_typed.to_json())
+        reencoded = json.loads(TrancheMetrics.from_json(via_typed.to_json()).to_json())
         assert reencoded.keys() == decoded.keys()
         for key, expected in decoded.items():
             if isinstance(expected, float):

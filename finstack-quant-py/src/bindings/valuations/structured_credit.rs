@@ -2,11 +2,11 @@
 //! scenario table.
 //!
 //! These take a tranche id, so they are not reachable through
-//! `price_instrument_with_metrics`. Signatures mirror the WASM facade;
-//! `OasResult`, `TrancheMetrics`, and `ScenarioTable` are returned as JSON
-//! strings by the five functions below, and can be decoded into the typed
-//! `OasResult` / `TrancheMetrics` / `ScenarioTable` wrapper classes in this
-//! module via `from_json`.
+//! `price_instrument_with_metrics`. Signatures mirror the WASM facade. The
+//! OAS, metrics, and scenario-table entry points return the typed
+//! `OasResult` / `TrancheMetrics` / `ScenarioTable` wrapper classes defined
+//! in this module; each wrapper's `to_json` still yields the wire payload,
+//! and `from_json` decodes it back.
 
 use crate::bindings::extract::{extract_instrument_json, extract_market};
 use crate::errors::display_to_py;
@@ -148,8 +148,8 @@ fn structured_credit_tranche_breakeven_cdr(
 ///
 /// Returns
 /// -------
-/// str
-///     JSON-serialized ``OasResult``. Decode with ``OasResult.from_json``.
+/// OasResult
+///     Typed OAS result. Call ``to_json`` on it for the wire payload.
 #[pyfunction]
 #[pyo3(
     name = "structured_credit_tranche_oas",
@@ -164,24 +164,25 @@ fn structured_credit_tranche_oas(
     market: &Bound<'_, PyAny>,
     as_of: &str,
     config_json: Option<&str>,
-) -> PyResult<String> {
+) -> PyResult<PyOasResult> {
     let instrument_json = extract_instrument_json(instrument_json)?;
     let market = extract_market(py, market)?;
     let tranche_id = tranche_id.to_owned();
     let as_of = as_of.to_owned();
     let config_json = config_json.map(str::to_owned);
-    py.detach(move || {
-        let result = finstack_quant_valuations::pricer::structured_credit_tranche_oas_json(
-            &instrument_json,
-            &tranche_id,
-            market_price_pct,
-            &market,
-            &as_of,
-            config_json.as_deref(),
-        )
+    let inner = py
+        .detach(move || {
+            finstack_quant_valuations::pricer::structured_credit_tranche_oas_json(
+                &instrument_json,
+                &tranche_id,
+                market_price_pct,
+                &market,
+                &as_of,
+                config_json.as_deref(),
+            )
+        })
         .map_err(display_to_py)?;
-        serde_json::to_string(&result).map_err(display_to_py)
-    })
+    Ok(PyOasResult { inner })
 }
 
 /// Compute the summary risk/pricing metrics for a tranche.
@@ -203,9 +204,8 @@ fn structured_credit_tranche_oas(
 ///
 /// Returns
 /// -------
-/// str
-///     JSON-serialized ``TrancheMetrics``. Decode with
-///     ``TrancheMetrics.from_json``.
+/// TrancheMetrics
+///     Typed metrics bundle. Call ``to_json`` on it for the wire payload.
 #[pyfunction]
 #[pyo3(
     name = "structured_credit_tranche_metrics",
@@ -219,22 +219,23 @@ fn structured_credit_tranche_metrics(
     market: &Bound<'_, PyAny>,
     as_of: &str,
     market_price_pct: Option<f64>,
-) -> PyResult<String> {
+) -> PyResult<PyTrancheMetrics> {
     let instrument_json = extract_instrument_json(instrument_json)?;
     let market = extract_market(py, market)?;
     let tranche_id = tranche_id.to_owned();
     let as_of = as_of.to_owned();
-    py.detach(move || {
-        let result = finstack_quant_valuations::pricer::structured_credit_tranche_metrics_json(
-            &instrument_json,
-            &tranche_id,
-            &market,
-            &as_of,
-            market_price_pct,
-        )
+    let inner = py
+        .detach(move || {
+            finstack_quant_valuations::pricer::structured_credit_tranche_metrics_json(
+                &instrument_json,
+                &tranche_id,
+                &market,
+                &as_of,
+                market_price_pct,
+            )
+        })
         .map_err(display_to_py)?;
-        serde_json::to_string(&result).map_err(display_to_py)
-    })
+    Ok(PyTrancheMetrics { inner })
 }
 
 /// Price a tranche across a CPR x CDR x severity scenario grid.
@@ -256,9 +257,8 @@ fn structured_credit_tranche_metrics(
 ///
 /// Returns
 /// -------
-/// str
-///     JSON-serialized ``ScenarioTable``. Decode with
-///     ``ScenarioTable.from_json``.
+/// ScenarioTable
+///     Typed scenario table. Call ``to_json`` on it for the wire payload.
 #[pyfunction]
 #[pyo3(
     name = "structured_credit_tranche_scenario_table",
@@ -271,14 +271,14 @@ fn structured_credit_tranche_scenario_table(
     market: &Bound<'_, PyAny>,
     as_of: &str,
     grid_json: &str,
-) -> PyResult<String> {
+) -> PyResult<PyScenarioTable> {
     let instrument_json = extract_instrument_json(instrument_json)?;
     let market = extract_market(py, market)?;
     let tranche_id = tranche_id.to_owned();
     let as_of = as_of.to_owned();
     let grid_json = grid_json.to_owned();
-    py.detach(move || {
-        let result =
+    let inner = py
+        .detach(move || {
             finstack_quant_valuations::pricer::structured_credit_tranche_scenario_table_json(
                 &instrument_json,
                 &tranche_id,
@@ -286,15 +286,15 @@ fn structured_credit_tranche_scenario_table(
                 &as_of,
                 &grid_json,
             )
-            .map_err(display_to_py)?;
-        serde_json::to_string(&result).map_err(display_to_py)
-    })
+        })
+        .map_err(display_to_py)?;
+    Ok(PyScenarioTable { inner })
 }
 
 // OasResult
 
 /// Result of an option-adjusted-spread calculation for a structured-credit
-/// tranche ([`structured_credit_tranche_oas`]'s decoded return value).
+/// tranche ([`structured_credit_tranche_oas`]'s return value).
 #[pyclass(
     module = "finstack_quant.valuations.instruments",
     name = "OasResult",
@@ -308,7 +308,7 @@ pub struct PyOasResult {
 
 #[pymethods]
 impl PyOasResult {
-    /// Deserialize from the JSON returned by ``structured_credit_tranche_oas``.
+    /// Deserialize from the JSON produced by ``to_json``.
     ///
     /// Parameters
     /// ----------
@@ -397,7 +397,7 @@ impl PyOasResult {
 // TrancheMetrics
 
 /// Summary risk/pricing metrics for a structured-credit tranche
-/// ([`structured_credit_tranche_metrics`]'s decoded return value).
+/// ([`structured_credit_tranche_metrics`]'s return value).
 #[pyclass(
     module = "finstack_quant.valuations.instruments",
     name = "TrancheMetrics",
@@ -411,8 +411,7 @@ pub struct PyTrancheMetrics {
 
 #[pymethods]
 impl PyTrancheMetrics {
-    /// Deserialize from the JSON returned by
-    /// ``structured_credit_tranche_metrics``.
+    /// Deserialize from the JSON produced by ``to_json``.
     ///
     /// Parameters
     /// ----------
@@ -540,7 +539,7 @@ impl PyTrancheMetrics {
 // ScenarioTable
 
 /// Scenario/yield table for a single structured-credit tranche
-/// ([`structured_credit_tranche_scenario_table`]'s decoded return value).
+/// ([`structured_credit_tranche_scenario_table`]'s return value).
 #[pyclass(
     module = "finstack_quant.valuations.instruments",
     name = "ScenarioTable",
@@ -554,8 +553,7 @@ pub struct PyScenarioTable {
 
 #[pymethods]
 impl PyScenarioTable {
-    /// Deserialize from the JSON returned by
-    /// ``structured_credit_tranche_scenario_table``.
+    /// Deserialize from the JSON produced by ``to_json``.
     ///
     /// Parameters
     /// ----------

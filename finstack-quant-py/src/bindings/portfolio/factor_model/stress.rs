@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use pyo3::types::PyType;
+use pyo3::types::{PyDict, PyList, PyType};
 
 use finstack_quant_portfolio::factor_model::{
     self as fm, StressAttribution, StressPositionEntry, StressResult, TailScenarioBreakdown,
@@ -7,7 +7,8 @@ use finstack_quant_portfolio::factor_model::{
 
 use crate::bindings::date_utils::parse_iso_date_py;
 use crate::bindings::extract::{extract_market_ref, extract_portfolio_ref};
-use crate::errors::{core_to_py, display_to_py, portfolio_to_py};
+use crate::bindings::pandas_utils::dict_to_dataframe;
+use crate::errors::{core_to_py, display_to_py, portfolio_to_py, value_error};
 
 use super::super::json_bridge::{deserialize_json, serialize_json};
 use super::super::matrix_input::extract_position_pnls;
@@ -34,6 +35,7 @@ impl PyStressResult {
 
 #[pymethods]
 impl PyStressResult {
+    /// Parse from a JSON string.
     #[classmethod]
     #[pyo3(text_signature = "(cls, json_str)")]
     fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
@@ -41,11 +43,18 @@ impl PyStressResult {
         Ok(Self::from_inner(inner))
     }
 
+    /// Serialize to JSON.
     #[pyo3(text_signature = "(self)")]
     fn to_json(&self) -> PyResult<String> {
         serialize_json(&self.inner)
     }
 
+    /// Total portfolio P&L under the stressed market.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Portfolio-currency amount; a loss is **negative**.
     #[getter]
     fn total_pnl(&self) -> f64 {
         self.inner.total_pnl
@@ -61,9 +70,28 @@ impl PyStressResult {
             .collect()
     }
 
+    /// Risk decomposition recomputed under the stressed market.
     #[getter]
     fn stressed_decomposition(&self) -> PyRiskDecomposition {
         PyRiskDecomposition::from_inner(self.inner.stressed_decomposition.clone())
+    }
+
+    /// Export the per-position stressed P&L as a pandas ``DataFrame``.
+    ///
+    /// One row per entry of :attr:`position_pnl`. The scenario totals stay on
+    /// :attr:`total_pnl` and :attr:`stressed_decomposition`.
+    ///
+    /// Columns: ``position_id``, ``pnl`` (portfolio-currency amount; a loss is
+    /// negative).
+    #[pyo3(text_signature = "(self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let rows = &self.inner.position_pnl;
+        let position_ids: Vec<&str> = rows.iter().map(|(id, _)| id.as_str()).collect();
+        let pnl: Vec<f64> = rows.iter().map(|(_, pnl)| *pnl).collect();
+        let data = PyDict::new(py);
+        data.set_item("position_id", position_ids)?;
+        data.set_item("pnl", pnl)?;
+        dict_to_dataframe(py, &data, None)
     }
 
     fn __repr__(&self) -> String {
@@ -96,6 +124,7 @@ impl PyStressPositionEntry {
 
 #[pymethods]
 impl PyStressPositionEntry {
+    /// Parse from a JSON string.
     #[classmethod]
     #[pyo3(text_signature = "(cls, json_str)")]
     fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
@@ -103,26 +132,32 @@ impl PyStressPositionEntry {
         Ok(Self::from_inner(inner))
     }
 
+    /// Serialize to JSON.
     #[pyo3(text_signature = "(self)")]
     fn to_json(&self) -> PyResult<String> {
         serialize_json(&self.inner)
     }
 
+    /// Portfolio position identifier.
     #[getter]
     fn position_id(&self) -> String {
         self.inner.position_id.as_str().to_owned()
     }
 
+    /// Average P&L contribution across the tail scenarios; a loss is negative.
     #[getter]
     fn avg_tail_pnl(&self) -> f64 {
         self.inner.avg_tail_pnl
     }
 
+    /// Share of total portfolio tail loss attributable to this position, as a
+    /// **fraction** (not a percentage) despite the ``pct_`` name.
     #[getter]
     fn pct_of_tail_loss(&self) -> f64 {
         self.inner.pct_of_tail_loss
     }
 
+    /// Worst single-scenario P&L for this position; a loss is negative.
     #[getter]
     fn worst_scenario_pnl(&self) -> f64 {
         self.inner.worst_scenario_pnl
@@ -159,6 +194,7 @@ impl PyTailScenarioBreakdown {
 
 #[pymethods]
 impl PyTailScenarioBreakdown {
+    /// Parse from a JSON string.
     #[classmethod]
     #[pyo3(text_signature = "(cls, json_str)")]
     fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
@@ -166,16 +202,19 @@ impl PyTailScenarioBreakdown {
         Ok(Self::from_inner(inner))
     }
 
+    /// Serialize to JSON.
     #[pyo3(text_signature = "(self)")]
     fn to_json(&self) -> PyResult<String> {
         serialize_json(&self.inner)
     }
 
+    /// Zero-based index of this scenario in the original P&L history.
     #[getter]
     fn scenario_index(&self) -> usize {
         self.inner.scenario_index
     }
 
+    /// Total portfolio P&L for this scenario; a loss is negative.
     #[getter]
     fn portfolio_pnl(&self) -> f64 {
         self.inner.portfolio_pnl
@@ -187,6 +226,44 @@ impl PyTailScenarioBreakdown {
     #[getter]
     fn position_pnls(&self) -> Vec<f64> {
         self.inner.position_pnls.clone()
+    }
+
+    /// Export this scenario's per-position P&L as a pandas ``DataFrame``.
+    ///
+    /// The breakdown carries no identifiers of its own — they live once on the
+    /// parent :attr:`StressAttribution.position_ids` — so they must be supplied
+    /// here, exactly as for :meth:`FactorPnlProfile.to_dataframe`.
+    ///
+    /// Columns: ``position_id``, ``pnl`` (portfolio-currency amount; a loss is
+    /// negative).
+    ///
+    /// Parameters
+    /// ----------
+    /// position_ids : list[str]
+    ///     Position identifiers, normally ``attribution.position_ids``. Must
+    ///     match the number of entries in :attr:`position_pnls`.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``len(position_ids)`` does not match ``len(position_pnls)``.
+    #[pyo3(text_signature = "(self, position_ids)")]
+    fn to_dataframe<'py>(
+        &self,
+        py: Python<'py>,
+        position_ids: Vec<String>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let expected = self.inner.position_pnls.len();
+        if position_ids.len() != expected {
+            return Err(value_error(format!(
+                "position_ids length ({}) does not match position_pnls length ({expected})",
+                position_ids.len(),
+            )));
+        }
+        let data = PyDict::new(py);
+        data.set_item("position_id", position_ids)?;
+        data.set_item("pnl", self.inner.position_pnls.clone())?;
+        dict_to_dataframe(py, &data, None)
     }
 
     fn __repr__(&self) -> String {
@@ -219,6 +296,7 @@ impl PyStressAttribution {
 
 #[pymethods]
 impl PyStressAttribution {
+    /// Parse from a JSON string.
     #[classmethod]
     #[pyo3(text_signature = "(cls, json_str)")]
     fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
@@ -226,16 +304,25 @@ impl PyStressAttribution {
         Ok(Self::from_inner(inner))
     }
 
+    /// Serialize to JSON.
     #[pyo3(text_signature = "(self)")]
     fn to_json(&self) -> PyResult<String> {
         serialize_json(&self.inner)
     }
 
+    /// Portfolio VaR threshold separating tail scenarios from the rest.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Loss convention: reported as a **negative** number. Scenarios whose
+    ///     portfolio P&L is at or below this value are tail events.
     #[getter]
     fn var_threshold(&self) -> f64 {
         self.inner.var_threshold
     }
 
+    /// Number of scenarios classified as tail events.
     #[getter]
     fn n_tail_scenarios(&self) -> usize {
         self.inner.n_tail_scenarios
@@ -253,6 +340,8 @@ impl PyStressAttribution {
             .collect()
     }
 
+    /// Per-position average tail-loss contributions, sorted by absolute
+    /// contribution (largest risk driver first).
     #[getter]
     fn position_contributions(&self) -> Vec<PyStressPositionEntry> {
         self.inner
@@ -263,6 +352,7 @@ impl PyStressAttribution {
             .collect()
     }
 
+    /// Per-scenario breakdowns for every tail event.
     #[getter]
     fn tail_scenarios(&self) -> Vec<PyTailScenarioBreakdown> {
         self.inner
@@ -271,6 +361,77 @@ impl PyStressAttribution {
             .cloned()
             .map(PyTailScenarioBreakdown::from_inner)
             .collect()
+    }
+
+    /// Export the per-position tail-loss contributions as a pandas ``DataFrame``.
+    ///
+    /// One row per entry of :attr:`position_contributions`, in the same
+    /// (largest-driver-first) order.
+    ///
+    /// Columns: ``position_id``, ``avg_tail_pnl`` (portfolio-currency average
+    /// across tail scenarios; a loss is negative), ``pct_of_tail_loss``
+    /// (**fraction**, not percentage, of total portfolio tail loss),
+    /// ``worst_scenario_pnl``.
+    #[pyo3(text_signature = "(self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let rows = &self.inner.position_contributions;
+        let position_ids: Vec<&str> = rows.iter().map(|e| e.position_id.as_str()).collect();
+        let avg_tail_pnl: Vec<f64> = rows.iter().map(|e| e.avg_tail_pnl).collect();
+        let pct_of_tail_loss: Vec<f64> = rows.iter().map(|e| e.pct_of_tail_loss).collect();
+        let worst_scenario_pnl: Vec<f64> = rows.iter().map(|e| e.worst_scenario_pnl).collect();
+        let data = PyDict::new(py);
+        data.set_item("position_id", position_ids)?;
+        data.set_item("avg_tail_pnl", avg_tail_pnl)?;
+        data.set_item("pct_of_tail_loss", pct_of_tail_loss)?;
+        data.set_item("worst_scenario_pnl", worst_scenario_pnl)?;
+        dict_to_dataframe(py, &data, None)
+    }
+
+    /// Export the tail scenario × position P&L matrix as a pandas ``DataFrame``.
+    ///
+    /// Rows are tail scenarios indexed by
+    /// :attr:`TailScenarioBreakdown.scenario_index`; columns are the position
+    /// identifiers from :attr:`position_ids`, in that order. Every cell is a
+    /// portfolio-currency P&L (a loss is negative).
+    ///
+    /// Columns: one per entry of :attr:`position_ids`.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If any tail scenario's ``position_pnls`` width disagrees with
+    ///     ``len(position_ids)`` (only reachable through a hand-built
+    ///     :meth:`from_json` payload).
+    #[pyo3(text_signature = "(self)")]
+    fn to_scenario_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let n_positions = self.inner.position_ids.len();
+        for scenario in &self.inner.tail_scenarios {
+            if scenario.position_pnls.len() != n_positions {
+                return Err(value_error(format!(
+                    "tail scenario {} has {} position P&Ls but {n_positions} position ids",
+                    scenario.scenario_index,
+                    scenario.position_pnls.len(),
+                )));
+            }
+        }
+        let data = PyDict::new(py);
+        for (i, position_id) in self.inner.position_ids.iter().enumerate() {
+            let column: Vec<f64> = self
+                .inner
+                .tail_scenarios
+                .iter()
+                .map(|scenario| scenario.position_pnls[i])
+                .collect();
+            data.set_item(position_id.as_str(), column)?;
+        }
+        let index: Vec<usize> = self
+            .inner
+            .tail_scenarios
+            .iter()
+            .map(|scenario| scenario.scenario_index)
+            .collect();
+        let index = PyList::new(py, index)?;
+        dict_to_dataframe(py, &data, Some(index.into_any()))
     }
 
     fn __repr__(&self) -> String {

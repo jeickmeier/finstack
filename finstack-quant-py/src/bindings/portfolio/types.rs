@@ -12,7 +12,8 @@ use pyo3::exceptions::PyKeyError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
 
-use crate::errors::{display_to_py, portfolio_to_py};
+use crate::bindings::pandas_utils::{dict_to_dataframe, table_to_dataframe};
+use crate::errors::{core_to_py, display_to_py, portfolio_to_py};
 
 // PyPortfolio
 
@@ -180,6 +181,24 @@ impl PyPortfolioValuation {
         crate::bindings::core::table::PyArrowTable::from_envelope(&table)
     }
 
+    /// Export per-position values as a pandas ``DataFrame``.
+    ///
+    /// One row per entry of ``position_values``. Built from the same
+    /// ``positions_to_table`` envelope that backs :meth:`to_arrow_positions`,
+    /// so the two exits cannot drift apart.
+    ///
+    /// Columns: ``position_id``, ``entity_id``, ``value_native``,
+    /// ``value_base``, ``currency_native``, ``currency_base``. Values are
+    /// floats and the currency codes are strings; use
+    /// :meth:`to_arrow_positions` when a zero-copy handoff matters more than
+    /// pandas ergonomics.
+    #[pyo3(text_signature = "($self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let table =
+            finstack_quant_portfolio::positions_to_table(&self.inner).map_err(core_to_py)?;
+        table_to_dataframe(py, &table)
+    }
+
     /// Number of position valuations in the result.
     fn __len__(&self) -> usize {
         self.inner.position_values.len()
@@ -320,6 +339,66 @@ impl PyPortfolioMetrics {
             .collect()
     }
 
+    /// Export the portfolio-wide aggregated metrics as a pandas ``DataFrame``.
+    ///
+    /// One row per entry of the ``aggregated`` map, in canonical Rust
+    /// ``IndexMap`` insertion order. The per-entity breakdown is not flattened
+    /// here — reach it through :meth:`metric_series`.
+    ///
+    /// Columns: ``metric_id``, ``total`` (sum across positions; only summable
+    /// metrics are aggregated).
+    #[pyo3(text_signature = "(self)")]
+    fn to_aggregated_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let metric_ids: Vec<&str> = self
+            .inner
+            .aggregated
+            .values()
+            .map(|metric| metric.metric_id.as_str())
+            .collect();
+        let totals: Vec<f64> = self
+            .inner
+            .aggregated
+            .values()
+            .map(|metric| metric.total)
+            .collect();
+        let data = PyDict::new(py);
+        data.set_item("metric_id", metric_ids)?;
+        data.set_item("total", totals)?;
+        dict_to_dataframe(py, &data, None)
+    }
+
+    /// Export the raw per-position metric values as a long-format pandas
+    /// ``DataFrame``.
+    ///
+    /// One row per ``(position, metric)`` pair — the row count is the total
+    /// number of metric values across positions, not the number of positions.
+    /// Pivot with ``df.pivot(index="position_id", columns="metric_id",
+    /// values="value")`` for a wide view.
+    ///
+    /// Columns: ``position_id``, ``currency`` (the position's native currency;
+    /// non-summable metrics are quoted in it), ``metric_id``, ``value``.
+    #[pyo3(text_signature = "(self)")]
+    fn to_position_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let mut position_ids: Vec<&str> = Vec::new();
+        let mut currencies: Vec<String> = Vec::new();
+        let mut metric_ids: Vec<&str> = Vec::new();
+        let mut values: Vec<f64> = Vec::new();
+        for (position_id, position_metrics) in &self.inner.by_position {
+            for (metric_id, value) in &position_metrics.metrics {
+                position_ids.push(position_id.as_str());
+                currencies.push(position_metrics.currency.to_string());
+                metric_ids.push(metric_id.as_str());
+                values.push(*value);
+            }
+        }
+        let data = PyDict::new(py);
+        data.set_item("position_id", position_ids)?;
+        data.set_item("currency", currencies)?;
+        data.set_item("metric_id", metric_ids)?;
+        data.set_item("value", values)?;
+        dict_to_dataframe(py, &data, None)
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "PortfolioMetrics(aggregated={}, positions={})",
@@ -407,6 +486,55 @@ impl PyPortfolioCashflows {
         let by_date = &self.inner.by_date;
         py.detach(|| serde_json::to_string(by_date))
             .map_err(display_to_py)
+    }
+
+    /// Export the flat ``events`` ladder as a pandas ``DataFrame``.
+    ///
+    /// One row per dated cashflow event, in the ladder's canonical
+    /// payment-date order. ``amount`` is flattened to a float column plus a
+    /// ``currency`` column rather than a nested dict, so a multi-currency
+    /// ladder stays currency-safe: group by ``currency`` before summing.
+    ///
+    /// Columns: ``position_id``, ``instrument_id``, ``instrument_type``,
+    /// ``date`` (ISO 8601 string), ``amount`` (position-scaled), ``currency``,
+    /// ``kind`` (``"fixed"``, ``"float_reset"``, ``"notional"``, ...),
+    /// ``reset_date`` (ISO 8601 string, ``None`` outside floating coupons),
+    /// ``accrual_factor``, ``rate`` (``None`` when the event carries no rate).
+    #[pyo3(text_signature = "(self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let events = &self.inner.events;
+        let position_ids: Vec<&str> = events.iter().map(|e| e.position_id.as_str()).collect();
+        let instrument_ids: Vec<&str> = events.iter().map(|e| e.instrument_id.as_str()).collect();
+        let instrument_types: Vec<String> = events
+            .iter()
+            .map(|e| e.instrument_type.to_string())
+            .collect();
+        let dates: Vec<String> = events.iter().map(|e| e.date.to_string()).collect();
+        let amounts: Vec<f64> = events.iter().map(|e| e.amount.amount()).collect();
+        let currencies: Vec<String> = events
+            .iter()
+            .map(|e| e.amount.currency().to_string())
+            .collect();
+        let kinds: Vec<String> = events.iter().map(|e| e.kind.to_string()).collect();
+        let reset_dates: Vec<Option<String>> = events
+            .iter()
+            .map(|e| e.reset_date.map(|d| d.to_string()))
+            .collect();
+        let accrual_factors: Vec<f64> = events.iter().map(|e| e.accrual_factor).collect();
+        let rates: Vec<Option<f64>> = events.iter().map(|e| e.rate).collect();
+
+        let data = PyDict::new(py);
+        data.set_item("position_id", position_ids)?;
+        data.set_item("instrument_id", instrument_ids)?;
+        data.set_item("instrument_type", instrument_types)?;
+        data.set_item("date", dates)?;
+        data.set_item("amount", amounts)?;
+        data.set_item("currency", currencies)?;
+        data.set_item("kind", kinds)?;
+        data.set_item("reset_date", reset_dates)?;
+        data.set_item("accrual_factor", accrual_factors)?;
+        data.set_item("rate", rates)?;
+        dict_to_dataframe(py, &data, None)
     }
 
     /// JSON for the ``issues`` vector only.

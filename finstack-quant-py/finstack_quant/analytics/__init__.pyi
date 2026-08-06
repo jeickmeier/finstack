@@ -746,6 +746,11 @@ class Performance:
     DataFrame of returns (``Performance.from_returns(df)``), or from raw
     arrays via :meth:`from_arrays` / :meth:`from_returns_arrays`.
 
+    Scalar-per-ticker metrics return a ``pandas.Series`` indexed by ticker name
+    and named after the metric, so results are selected by label rather than by
+    column position, and ``pd.concat([perf.sharpe(), perf.sortino()], axis=1)``
+    yields correctly-named columns.
+
     Examples
     --------
     >>> import pandas as pd
@@ -1047,14 +1052,14 @@ class Performance:
 
     # -- Scalar-per-ticker methods --
 
-    def cagr(self) -> list[float]:
+    def cagr(self) -> pd.Series:
         """
         CAGR for each ticker.
 
         Returns
         -------
-        list[float]
-            Compound annual growth rate per ticker.
+        pd.Series
+            Compound annual growth rate indexed by ticker name.
 
         Raises
         ------
@@ -1062,7 +1067,7 @@ class Performance:
             If the active date window cannot be annualized.
         """
 
-    def mean_return(self, annualize: bool = True) -> list[float]:
+    def mean_return(self, annualize: bool = True) -> pd.Series:
         """
         Mean return for each ticker.
 
@@ -1073,12 +1078,12 @@ class Performance:
 
         Returns
         -------
-        list[float]
-            Mean return per ticker.
+        pd.Series
+            Mean return indexed by ticker name.
 
         """
 
-    def volatility(self, annualize: bool = True) -> list[float]:
+    def volatility(self, annualize: bool = True) -> pd.Series:
         """
         Volatility for each ticker.
 
@@ -1089,12 +1094,12 @@ class Performance:
 
         Returns
         -------
-        list[float]
-            Standard deviation of returns per ticker.
+        pd.Series
+            Standard deviation of returns indexed by ticker name.
 
         """
 
-    def sharpe(self, risk_free_rate: float = 0.0) -> list[float]:
+    def sharpe(self, risk_free_rate: float = 0.0) -> pd.Series:
         """
         Sharpe ratio for each ticker.
 
@@ -1105,12 +1110,21 @@ class Performance:
 
         Returns
         -------
-        list[float]
-            Per-ticker Sharpe ratios over the active return window.
+        pd.Series
+            Sharpe ratios over the active return window, indexed by ticker name.
+
+        Examples
+        --------
+        >>> from datetime import date
+        >>> from finstack_quant.analytics import Performance
+        >>> perf = Performance.from_returns_arrays([date(2024, 1, 1), date(2024, 1, 2)], [[0.01, 0.02]], ["FUND"])
+        >>> sharpe = perf.sharpe()
+        >>> (sharpe.name, list(sharpe.index))
+        ('sharpe', ['FUND'])
 
         """
 
-    def sortino(self, mar: float = 0.0) -> list[float]:
+    def sortino(self, mar: float = 0.0) -> pd.Series:
         """
         Sortino ratio for each ticker.
 
@@ -1121,8 +1135,8 @@ class Performance:
 
         Returns
         -------
-        list[float]
-            Per-ticker Sortino ratios over the active return window.
+        pd.Series
+            Sortino ratios over the active return window, indexed by ticker name.
 
         Notes
         -----
@@ -1130,14 +1144,14 @@ class Performance:
 
         """
 
-    def calmar(self) -> list[float]:
+    def calmar(self) -> pd.Series:
         """
         Calmar ratio for each ticker.
 
         Returns
         -------
-        list[float]
-            CAGR divided by absolute max drawdown per ticker.
+        pd.Series
+            CAGR divided by absolute max drawdown indexed by ticker name.
 
         Raises
         ------
@@ -1145,27 +1159,27 @@ class Performance:
             If the active date window cannot be annualized.
         """
 
-    def max_drawdown(self) -> list[float]:
+    def max_drawdown(self) -> pd.Series:
         """
         Max drawdown for each ticker.
 
         Returns
         -------
-        list[float]
-            Peak-to-trough drawdown per ticker (negative).
+        pd.Series
+            Peak-to-trough drawdown (negative), indexed by ticker name.
         """
 
-    def mean_drawdown(self) -> list[float]:
+    def mean_drawdown(self) -> pd.Series:
         """
         Mean drawdown (path-weighted average) for each ticker.
 
         Returns
         -------
-        list[float]
-            Average drawdown per ticker (negative).
+        pd.Series
+            Average drawdown (negative), indexed by ticker name.
         """
 
-    def value_at_risk(self, confidence: float = 0.95) -> list[float]:
+    def value_at_risk(self, confidence: float = 0.95) -> pd.Series:
         """
         Historical VaR for each ticker.
 
@@ -1176,12 +1190,12 @@ class Performance:
 
         Returns
         -------
-        list[float]
-            Historical VaR per ticker (negative).
+        pd.Series
+            Historical VaR (negative), indexed by ticker name.
 
         """
 
-    def expected_shortfall(self, confidence: float = 0.95) -> list[float]:
+    def expected_shortfall(self, confidence: float = 0.95) -> pd.Series:
         """
         Expected Shortfall for each ticker.
 
@@ -1192,75 +1206,76 @@ class Performance:
 
         Returns
         -------
-        list[float]
-            Expected shortfall per ticker (negative).
+        pd.Series
+            Expected shortfall (negative), indexed by ticker name.
 
         """
 
-    def tracking_error(self) -> list[float]:
+    def tracking_error(self) -> pd.Series:
         """
         Tracking error for each ticker vs benchmark.
 
         Returns
         -------
-        list[float]
-            Annualized standard deviation of excess returns per ticker.
+        pd.Series
+            Annualized standard deviation of excess returns indexed by ticker name.
         """
 
-    def information_ratio(self) -> list[float]:
+    def information_ratio(self) -> pd.Series:
         """
         Information ratio for each ticker vs benchmark.
 
         Returns
         -------
-        list[float]
-            Annualized excess return divided by tracking error per ticker.
+        pd.Series
+            Annualized excess return divided by tracking error indexed by ticker name.
         """
 
-    def skewness(self) -> list[float]:
+    def skewness(self) -> pd.Series:
         """
         Skewness for each ticker.
 
         Returns
         -------
-        list[float]
-            Third moment of returns per ticker.
+        pd.Series
+            Third moment of returns indexed by ticker name.
         """
 
-    def kurtosis(self) -> list[float]:
+    def kurtosis(self) -> pd.Series:
         """
         Kurtosis for each ticker.
 
         Returns
         -------
-        list[float]
-            Fourth moment of returns per ticker.
+        pd.Series
+            Fourth moment of returns indexed by ticker name.
         """
 
-    def geometric_mean(self) -> list[float]:
+    def geometric_mean(self) -> pd.Series:
         """
         Geometric mean for each ticker.
 
         Returns
         -------
-        list[float]
-            Geometric mean return per ticker.
+        pd.Series
+            Geometric mean return indexed by ticker name.
         """
 
-    def skew_kurt(self) -> tuple[list[float], list[float]]:
+    def skew_kurt(self) -> tuple[pd.Series, pd.Series]:
         """
         Per-ticker ``(skewness, kurtosis)`` from one moments pass.
 
         Returns
         -------
-        tuple[list[float], list[float]]
-            ``(skewness_list, kurtosis_list)`` per ticker.
+        tuple[pd.Series, pd.Series]
+            ``(skewness, kurtosis)``, each indexed by ticker name and named
+            after its metric.
         """
 
     def value_at_risk_and_es(
         self,
         confidence: float = 0.95,
-    ) -> tuple[list[float], list[float]]:
+    ) -> tuple[pd.Series, pd.Series]:
         """
         Per-ticker ``(value_at_risk, expected_shortfall)`` from one tail pass.
 
@@ -1271,12 +1286,13 @@ class Performance:
 
         Returns
         -------
-        tuple[list[float], list[float]]
-            ``(var_list, es_list)`` per ticker.
+        tuple[pd.Series, pd.Series]
+            ``(value_at_risk, expected_shortfall)``, each indexed by ticker
+            name and named after its metric.
 
         """
 
-    def downside_deviation(self, mar: float = 0.0) -> list[float]:
+    def downside_deviation(self, mar: float = 0.0) -> pd.Series:
         """
         Downside deviation for each ticker.
 
@@ -1289,52 +1305,53 @@ class Performance:
 
         Returns
         -------
-        list[float]
-            Downside deviation per ticker.
+        pd.Series
+            Downside deviation indexed by ticker name.
 
         """
 
-    def max_drawdown_duration(self) -> list[int]:
+    def max_drawdown_duration(self) -> pd.Series:
         """
         Max drawdown duration (calendar days) for each ticker.
 
         Returns
         -------
-        list[int]
-            Longest drawdown duration in calendar days per ticker.
+        pd.Series
+            Longest drawdown duration in calendar days, indexed by ticker name
+            and kept at an integer dtype.
         """
 
-    def up_capture(self) -> list[float]:
+    def up_capture(self) -> pd.Series:
         """
         Empyrical-style annualized geometric up-capture vs benchmark.
 
         Returns
         -------
-        list[float]
-            Up-capture ratio per ticker.
+        pd.Series
+            Up-capture ratio indexed by ticker name.
         """
 
-    def down_capture(self) -> list[float]:
+    def down_capture(self) -> pd.Series:
         """
         Empyrical-style annualized geometric down-capture vs benchmark.
 
         Returns
         -------
-        list[float]
-            Down-capture ratio per ticker.
+        pd.Series
+            Down-capture ratio indexed by ticker name.
         """
 
-    def capture_ratio(self) -> list[float]:
+    def capture_ratio(self) -> pd.Series:
         """
         Empyrical-style annualized geometric capture ratio vs benchmark.
 
         Returns
         -------
-        list[float]
-            Up-capture divided by down-capture per ticker.
+        pd.Series
+            Up-capture divided by down-capture indexed by ticker name.
         """
 
-    def omega_ratio(self, threshold: float = 0.0) -> list[float]:
+    def omega_ratio(self, threshold: float = 0.0) -> pd.Series:
         """
         Omega ratio for each ticker.
 
@@ -1345,12 +1362,12 @@ class Performance:
 
         Returns
         -------
-        list[float]
-            Omega ratio per ticker.
+        pd.Series
+            Omega ratio indexed by ticker name.
 
         """
 
-    def treynor(self, risk_free_rate: float = 0.0) -> list[float]:
+    def treynor(self, risk_free_rate: float = 0.0) -> pd.Series:
         """
         Treynor ratio for each ticker.
 
@@ -1361,39 +1378,39 @@ class Performance:
 
         Returns
         -------
-        list[float]
-            Excess return per unit of beta per ticker.
+        pd.Series
+            Excess return per unit of beta indexed by ticker name.
 
         """
 
-    def gain_to_pain(self) -> list[float]:
+    def gain_to_pain(self) -> pd.Series:
         """
         Gain-to-pain ratio for each ticker.
 
         Returns
         -------
-        list[float]
-            Sum of gains divided by sum of absolute losses per ticker.
+        pd.Series
+            Sum of gains divided by sum of absolute losses indexed by ticker name.
         """
 
-    def ulcer_index(self) -> list[float]:
+    def ulcer_index(self) -> pd.Series:
         """
         Ulcer index for each ticker.
 
         Returns
         -------
-        list[float]
-            Root-mean-square of drawdown depths per ticker.
+        pd.Series
+            Root-mean-square of drawdown depths indexed by ticker name.
         """
 
-    def martin_ratio(self) -> list[float]:
+    def martin_ratio(self) -> pd.Series:
         """
         Martin ratio for each ticker.
 
         Returns
         -------
-        list[float]
-            Excess return per unit of ulcer index per ticker.
+        pd.Series
+            Excess return per unit of ulcer index indexed by ticker name.
 
         Raises
         ------
@@ -1401,27 +1418,27 @@ class Performance:
             If the active date window cannot be annualized.
         """
 
-    def recovery_factor(self) -> list[float]:
+    def recovery_factor(self) -> pd.Series:
         """
         Recovery factor for each ticker.
 
         Returns
         -------
-        list[float]
-            Total return divided by max drawdown per ticker.
+        pd.Series
+            Total return divided by max drawdown indexed by ticker name.
         """
 
-    def pain_index(self) -> list[float]:
+    def pain_index(self) -> pd.Series:
         """
         Pain index for each ticker.
 
         Returns
         -------
-        list[float]
-            Average drawdown depth per ticker.
+        pd.Series
+            Average drawdown depth indexed by ticker name.
         """
 
-    def pain_ratio(self, risk_free_rate: float = 0.0) -> list[float]:
+    def pain_ratio(self, risk_free_rate: float = 0.0) -> pd.Series:
         """
         Pain ratio for each ticker.
 
@@ -1432,8 +1449,8 @@ class Performance:
 
         Returns
         -------
-        list[float]
-            Excess return per unit of pain index per ticker.
+        pd.Series
+            Excess return per unit of pain index indexed by ticker name.
 
         Raises
         ------
@@ -1441,7 +1458,7 @@ class Performance:
             If the active date window cannot be annualized.
         """
 
-    def tail_ratio(self, confidence: float = 0.95) -> list[float]:
+    def tail_ratio(self, confidence: float = 0.95) -> pd.Series:
         """
         Tail ratio for each ticker.
 
@@ -1452,32 +1469,33 @@ class Performance:
 
         Returns
         -------
-        list[float]
-            Right-tail gain divided by left-tail loss per ticker.
+        pd.Series
+            Right-tail gain divided by left-tail loss indexed by ticker name.
 
         """
 
-    def r_squared(self) -> list[float]:
+    def r_squared(self) -> pd.Series:
         """
         R-squared for each ticker vs benchmark.
 
         Returns
         -------
-        list[float]
-            Coefficient of determination per ticker.
+        pd.Series
+            Coefficient of determination indexed by ticker name.
         """
 
-    def batting_average(self) -> list[float]:
+    def batting_average(self) -> pd.Series:
         """
         Batting average for each ticker vs benchmark.
 
         Returns
         -------
-        list[float]
-            Fraction of periods where the ticker outperformed the benchmark.
+        pd.Series
+            Fraction of periods where the ticker outperformed the benchmark,
+            indexed by ticker name.
         """
 
-    def parametric_var(self, confidence: float = 0.95) -> list[float]:
+    def parametric_var(self, confidence: float = 0.95) -> pd.Series:
         """
         Parametric VaR for each ticker.
 
@@ -1488,12 +1506,12 @@ class Performance:
 
         Returns
         -------
-        list[float]
-            Parametric VaR per ticker (negative).
+        pd.Series
+            Parametric VaR (negative), indexed by ticker name.
 
         """
 
-    def cornish_fisher_var(self, confidence: float = 0.95) -> list[float]:
+    def cornish_fisher_var(self, confidence: float = 0.95) -> pd.Series:
         """
         Cornish-Fisher VaR for each ticker.
 
@@ -1504,12 +1522,12 @@ class Performance:
 
         Returns
         -------
-        list[float]
-            Cornish-Fisher modified VaR per ticker (negative).
+        pd.Series
+            Cornish-Fisher modified VaR (negative), indexed by ticker name.
 
         """
 
-    def cdar(self, confidence: float = 0.95) -> list[float]:
+    def cdar(self, confidence: float = 0.95) -> pd.Series:
         """
         CDaR for each ticker.
 
@@ -1520,12 +1538,12 @@ class Performance:
 
         Returns
         -------
-        list[float]
-            Conditional drawdown-at-risk per ticker (negative).
+        pd.Series
+            Conditional drawdown-at-risk (negative), indexed by ticker name.
 
         """
 
-    def m_squared(self, risk_free_rate: float = 0.0) -> list[float]:
+    def m_squared(self, risk_free_rate: float = 0.0) -> pd.Series:
         """
         M-squared for each ticker.
 
@@ -1536,8 +1554,8 @@ class Performance:
 
         Returns
         -------
-        list[float]
-            M-squared measure per ticker.
+        pd.Series
+            M-squared measure indexed by ticker name.
 
         """
 
@@ -1545,7 +1563,7 @@ class Performance:
         self,
         risk_free_rate: float = 0.0,
         confidence: float = 0.95,
-    ) -> list[float]:
+    ) -> pd.Series:
         """
         Modified Sharpe ratio for each ticker.
 
@@ -1558,12 +1576,12 @@ class Performance:
 
         Returns
         -------
-        list[float]
-            Modified Sharpe ratio per ticker.
+        pd.Series
+            Modified Sharpe ratio indexed by ticker name.
 
         """
 
-    def sterling_ratio(self, risk_free_rate: float = 0.0, n: int = 5) -> list[float]:
+    def sterling_ratio(self, risk_free_rate: float = 0.0, n: int = 5) -> pd.Series:
         """
         Sterling ratio for each ticker.
 
@@ -1576,8 +1594,8 @@ class Performance:
 
         Returns
         -------
-        list[float]
-            Sterling ratio per ticker.
+        pd.Series
+            Sterling ratio indexed by ticker name.
 
         Raises
         ------
@@ -1585,7 +1603,7 @@ class Performance:
             If the active date window cannot be annualized.
         """
 
-    def burke_ratio(self, risk_free_rate: float = 0.0, n: int = 5) -> list[float]:
+    def burke_ratio(self, risk_free_rate: float = 0.0, n: int = 5) -> pd.Series:
         """
         Burke ratio for each ticker.
 
@@ -1598,8 +1616,8 @@ class Performance:
 
         Returns
         -------
-        list[float]
-            Burke ratio per ticker.
+        pd.Series
+            Burke ratio indexed by ticker name.
 
         Raises
         ------

@@ -24,6 +24,7 @@ from finstack_quant.core.dates import DayCount, Tenor
 from finstack_quant.core.market_data import MarketContext
 from finstack_quant.core.money import Money
 from finstack_quant.core.types import Bps, Rate
+from finstack_quant.valuations import ValuationResult
 
 __all__ = [
     "AssetPool",
@@ -6456,9 +6457,9 @@ def price_instrument(
     market: MarketContext | str,
     as_of: str,
     model: str = "default",
-) -> str:
+) -> ValuationResult:
     """
-    Price one instrument and return a ``ValuationResult`` JSON string.
+    Price one instrument and return a typed :class:`ValuationResult`.
 
     Parameters
     ----------
@@ -6481,15 +6482,21 @@ def price_instrument(
 
     Returns
     -------
-    str
-        JSON-serialized valuation result containing value, currency, metrics,
-        and covenant flags when applicable.
+    ValuationResult
+        Typed valuation envelope containing value, currency, metrics, and
+        covenant flags when applicable.
 
     Raises
     ------
     ValueError
         If any input JSON is malformed, required market data is
         missing, or the selected model is unsupported for the instrument.
+
+    Notes
+    -----
+    The wire payload is still one call away: ``result.to_json()`` returns the
+    JSON that :meth:`ValuationResult.from_json` accepts, for pipelines that
+    serialize results.
 
     Examples
     --------
@@ -6498,9 +6505,8 @@ def price_instrument(
     >>> from finstack_quant.valuations.instruments import TermLoan
     >>> loan = TermLoan.example()
     >>> market = MarketContext().insert(DiscountCurve.flat("USD-OIS", datetime.date(2024, 1, 1), 0.04))
-    >>> from finstack_quant.valuations import ValuationResult
     >>> from finstack_quant.valuations.instruments import price_instrument
-    >>> result = ValuationResult.from_json(price_instrument(loan, market, "2024-01-01"))
+    >>> result = price_instrument(loan, market, "2024-01-01")
     >>> (result.instrument_id, round(result.price, 2), result.currency)
     ('TERM-LOAN-USD-5Y', 10727162.26, 'USD')
 
@@ -6528,7 +6534,7 @@ def price_instrument_with_metrics(
     metrics: list[str] = [],
     pricing_options: str | None = None,
     market_history: str | None = None,
-) -> str:
+) -> ValuationResult:
     """
     Price one instrument and compute explicit risk metric requests.
 
@@ -6559,14 +6565,20 @@ def price_instrument_with_metrics(
 
     Returns
     -------
-    str
-        JSON-serialized valuation result including requested metric values.
+    ValuationResult
+        Typed valuation envelope including the requested metric values.
 
     Raises
     ------
     ValueError
         If a metric is unknown, not applicable, or cannot be
         calculated from the supplied market and history inputs.
+
+    Notes
+    -----
+    The wire payload is still one call away: ``result.to_json()`` returns the
+    JSON that :meth:`ValuationResult.from_json` accepts, for pipelines that
+    serialize results.
 
     Examples
     --------
@@ -6575,11 +6587,8 @@ def price_instrument_with_metrics(
     >>> from finstack_quant.valuations.instruments import TermLoan
     >>> loan = TermLoan.example()
     >>> market = MarketContext().insert(DiscountCurve.flat("USD-OIS", datetime.date(2024, 1, 1), 0.04))
-    >>> from finstack_quant.valuations import ValuationResult
     >>> from finstack_quant.valuations.instruments import price_instrument_with_metrics
-    >>> result = ValuationResult.from_json(
-    ...     price_instrument_with_metrics(loan, market, "2024-01-01", metrics=["all_in_rate"])
-    ... )
+    >>> result = price_instrument_with_metrics(loan, market, "2024-01-01", metrics=["all_in_rate"])
     >>> (result.metric_keys(), round(result.get_metric("all_in_rate"), 4))
     (['all_in_rate'], 0.06)
 
@@ -6743,7 +6752,7 @@ def list_standard_metrics_grouped() -> dict[str, list[str]]:
 class OasResult:
     """
     Result of an option-adjusted-spread calculation for a structured-credit
-    tranche (``structured_credit_tranche_oas``'s decoded return value).
+    tranche (``structured_credit_tranche_oas``'s return value).
 
     Examples
     --------
@@ -6764,7 +6773,7 @@ class OasResult:
     @staticmethod
     def from_json(json: str) -> OasResult:
         """
-        Deserialize from the JSON returned by ``structured_credit_tranche_oas``.
+        Deserialize from the JSON produced by ``to_json``.
 
         Parameters
         ----------
@@ -6875,7 +6884,7 @@ class OasResult:
 class TrancheMetrics:
     """
     Summary risk/pricing metrics for a structured-credit tranche
-    (``structured_credit_tranche_metrics``'s decoded return value).
+    (``structured_credit_tranche_metrics``'s return value).
 
     Examples
     --------
@@ -6902,8 +6911,7 @@ class TrancheMetrics:
     @staticmethod
     def from_json(json: str) -> TrancheMetrics:
         """
-        Deserialize from the JSON returned by
-        ``structured_credit_tranche_metrics``.
+        Deserialize from the JSON produced by ``to_json``.
 
         Parameters
         ----------
@@ -7093,7 +7101,7 @@ class TrancheMetrics:
 class ScenarioTable:
     """
     Scenario/yield table for a single structured-credit tranche
-    (``structured_credit_tranche_scenario_table``'s decoded return value).
+    (``structured_credit_tranche_scenario_table``'s return value).
 
     Examples
     --------
@@ -7111,8 +7119,7 @@ class ScenarioTable:
     @staticmethod
     def from_json(json: str) -> ScenarioTable:
         """
-        Deserialize from the JSON returned by
-        ``structured_credit_tranche_scenario_table``.
+        Deserialize from the JSON produced by ``to_json``.
 
         Parameters
         ----------
@@ -7293,8 +7300,8 @@ def structured_credit_tranche_oas(
     market: MarketContext | str,
     as_of: str,
     config_json: str | None = None,
-) -> str:
-    """Compute option-adjusted spread for a tranche. Returns JSON ``OasResult``.
+) -> OasResult:
+    """Compute option-adjusted spread for a tranche. Returns an ``OasResult``.
 
     Parameters
     ----------
@@ -7315,8 +7322,9 @@ def structured_credit_tranche_oas(
 
     Returns
     -------
-    str
-        JSON-serialized ``OasResult``.
+    OasResult
+        Typed OAS result. Call :meth:`OasResult.to_json` on it for the wire
+        payload.
 
     Raises
     ------
@@ -7342,8 +7350,8 @@ def structured_credit_tranche_metrics(
     market: MarketContext | str,
     as_of: str,
     market_price_pct: float | None = None,
-) -> str:
-    """Summary risk/pricing metrics for a tranche. Returns JSON ``TrancheMetrics``.
+) -> TrancheMetrics:
+    """Summary risk/pricing metrics for a tranche. Returns a ``TrancheMetrics``.
 
     Parameters
     ----------
@@ -7363,8 +7371,9 @@ def structured_credit_tranche_metrics(
 
     Returns
     -------
-    str
-        JSON-serialized ``TrancheMetrics``.
+    TrancheMetrics
+        Typed metrics bundle. Call :meth:`TrancheMetrics.to_json` on it for
+        the wire payload.
 
     Raises
     ------
@@ -7390,8 +7399,8 @@ def structured_credit_tranche_scenario_table(
     market: MarketContext | str,
     as_of: str,
     grid_json: str,
-) -> str:
-    """Price a tranche across a CPR x CDR x severity grid. Returns JSON ``ScenarioTable``.
+) -> ScenarioTable:
+    """Price a tranche across a CPR x CDR x severity grid. Returns a ``ScenarioTable``.
 
     Parameters
     ----------
@@ -7411,8 +7420,9 @@ def structured_credit_tranche_scenario_table(
 
     Returns
     -------
-    str
-        JSON-serialized ``ScenarioTable``.
+    ScenarioTable
+        Typed scenario table. Call :meth:`ScenarioTable.to_json` on it for the
+        wire payload.
 
     Raises
     ------

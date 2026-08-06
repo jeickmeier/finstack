@@ -534,85 +534,75 @@ def test_validate_instrument_json_accepts_focused_nested_overrides() -> None:
 
 
 def test_tarn_json_prices_with_hull_white_mc() -> None:
-    result = json.loads(
-        price_instrument(
-            _tarn_json(),
-            _tarn_market_json(),
-            "2025-01-01",
-            "monte_carlo_hull_white_1f",
-        )
+    result = price_instrument(
+        _tarn_json(),
+        _tarn_market_json(),
+        "2025-01-01",
+        "monte_carlo_hull_white_1f",
     )
 
-    assert float(result["value"]["amount"]) > 0
-    assert result["measures"]["mc_num_paths"] == 32
+    assert result.price > 0
+    assert result.get_metric("mc_num_paths") == 32
 
 
 def test_snowball_json_prices_with_hull_white_mc() -> None:
-    result = json.loads(
-        price_instrument(
-            _snowball_json(),
-            _tarn_market_json(),
-            "2025-01-01",
-            "monte_carlo_hull_white_1f",
-        )
+    result = price_instrument(
+        _snowball_json(),
+        _tarn_market_json(),
+        "2025-01-01",
+        "monte_carlo_hull_white_1f",
     )
 
-    assert float(result["value"]["amount"]) > 0
-    assert result["measures"]["mc_num_paths"] == 32
+    assert result.price > 0
+    assert result.get_metric("mc_num_paths") == 32
 
 
 def test_inverse_floater_json_prices_with_discounting() -> None:
-    result = json.loads(
-        price_instrument(
-            _inverse_floater_json(),
-            _tarn_market_json(),
-            "2025-01-01",
-            "discounting",
-        )
+    result = price_instrument(
+        _inverse_floater_json(),
+        _tarn_market_json(),
+        "2025-01-01",
+        "discounting",
     )
 
-    assert float(result["value"]["amount"]) > 0
+    assert result.price > 0
 
 
 def test_callable_range_accrual_json_prices_with_hull_white_mc() -> None:
-    result = json.loads(
-        price_instrument(
-            _callable_range_accrual_json(),
-            _tarn_market_json(),
-            "2025-01-01",
-            "monte_carlo_hull_white_1f",
-        )
+    result = price_instrument(
+        _callable_range_accrual_json(),
+        _tarn_market_json(),
+        "2025-01-01",
+        "monte_carlo_hull_white_1f",
     )
 
-    assert float(result["value"]["amount"]) > 0
-    assert result["measures"]["mc_num_paths"] == 8
+    assert result.price > 0
+    assert result.get_metric("mc_num_paths") == 8
 
 
 def test_cms_spread_option_json_prices_with_static_replication() -> None:
-    result = json.loads(
-        price_instrument(
-            _cms_spread_option_json(),
-            _cms_spread_market_json(),
-            "2025-01-01",
-            "static_replication",
-        )
+    result = price_instrument(
+        _cms_spread_option_json(),
+        _cms_spread_market_json(),
+        "2025-01-01",
+        "static_replication",
     )
 
-    assert float(result["value"]["amount"]) > 0
-    assert result["measures"]["cms_spread_forward"] > 0
+    assert result.price > 0
+    assert result.get_metric("cms_spread_forward") > 0
 
 
 def test_structured_credit_stochastic_json_details_include_all_tranches() -> None:
-    result = json.loads(
-        price_instrument(
-            _structured_credit_json(),
-            _market_json(),
-            "2024-01-01",
-            "structured_credit_stochastic",
-        )
+    result = price_instrument(
+        _structured_credit_json(),
+        _market_json(),
+        "2024-01-01",
+        "structured_credit_stochastic",
     )
 
-    details = result["details"]
+    # `details` is model-specific payload with no typed accessor, so this
+    # assertion still reads the wire envelope via ``to_json``.
+    details = json.loads(result.to_json())["details"]
     assert details["type"] == "structured_credit_stochastic"
     assert len(details["data"]["tranche_results"]) == 2
     assert {row["tranche_id"] for row in details["data"]["tranche_results"]} == {"SR", "EQ"}
@@ -660,12 +650,10 @@ def test_structured_credit_waterfall_rules_prices_through_json() -> None:
     # deny-unknown-fields deserialization rejected this payload.
     payload = json.loads(_structured_credit_json())
     payload["instrument"]["spec"]["waterfall_rules"] = {"afc": {"capped_tranches": ["SR"]}}
-    result = json.loads(
-        price_instrument(
-            json.dumps(payload),
-            _market_json(),
-            "2024-01-01",
-            "structured_credit_stochastic",
-        )
+    result = price_instrument(
+        json.dumps(payload),
+        _market_json(),
+        "2024-01-01",
+        "structured_credit_stochastic",
     )
-    assert float(result["value"]["amount"]) > 0
+    assert result.price > 0

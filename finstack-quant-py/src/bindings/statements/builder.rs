@@ -41,13 +41,26 @@ fn validate_periods_args(range: &str, actuals_until: Option<&str>) -> PyResult<(
 
 /// Builder for financial models (type-state collapsed for Python).
 ///
-/// Usage::
+/// Every configuration method returns the builder, so calls chain::
+///
+///     model = (
+///         ModelBuilder("Acme Corp")
+///         .periods("2025Q1..Q4", "2025Q2")
+///         .value("revenue", [("2025Q1", 10_000_000.0), ("2025Q2", 11_000_000.0)])
+///         .compute("cogs", "revenue * 0.6")
+///         .build()
+///     )
+///
+/// Statement-per-line style works identically, since each call also mutates in
+/// place::
 ///
 ///     builder = ModelBuilder("Acme Corp")
 ///     builder.periods("2025Q1..Q4", "2025Q2")
-///     builder.value("revenue", [("2025Q1", 10_000_000.0), ("2025Q2", 11_000_000.0)])
 ///     builder.compute("cogs", "revenue * 0.6")
 ///     model = builder.build()
+///
+/// ``build()`` and ``mixed()`` are terminal: they consume the builder, so no
+/// further configuration call may follow on the same object.
 #[pyclass(name = "ModelBuilder", module = "finstack_quant.statements")]
 pub struct PyModelBuilder {
     inner: Option<BuilderState>,
@@ -125,16 +138,32 @@ pub struct PyMixedNodeBuilder {
 #[pymethods]
 impl PyMixedNodeBuilder {
     /// Set scalar explicit values for the mixed node.
-    fn values(&mut self, values: Vec<(String, f64)>) -> PyResult<()> {
-        let builder = self.take()?;
+    ///
+    /// Returns
+    /// -------
+    /// MixedNodeBuilder
+    ///     This builder, for chaining.
+    fn values<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        values: Vec<(String, f64)>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let builder = slf.take()?;
         let parsed = parse_scalar_values(values)?;
-        self.inner = Some(builder.values(&parsed));
-        Ok(())
+        slf.inner = Some(builder.values(&parsed));
+        Ok(slf)
     }
 
     /// Set monetary explicit values for the mixed node.
-    fn values_money(&mut self, values: Vec<(String, PyMoney)>) -> PyResult<()> {
-        let builder = self.take()?;
+    ///
+    /// Returns
+    /// -------
+    /// MixedNodeBuilder
+    ///     This builder, for chaining.
+    fn values_money<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        values: Vec<(String, PyMoney)>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let builder = slf.take()?;
         let parsed: Vec<(PeriodId, AmountOrScalar)> = values
             .into_iter()
             .map(|(p, money)| {
@@ -142,19 +171,32 @@ impl PyMixedNodeBuilder {
                 Ok((pid, AmountOrScalar::Amount(money.inner)))
             })
             .collect::<PyResult<Vec<_>>>()?;
-        self.inner = Some(builder.values(&parsed));
-        Ok(())
+        slf.inner = Some(builder.values(&parsed));
+        Ok(slf)
     }
 
     /// Set the forecast specification.
-    fn forecast(&mut self, forecast_spec: PyRef<'_, PyForecastSpec>) -> PyResult<()> {
-        let builder = self.take()?;
-        self.inner = Some(builder.forecast(forecast_spec.inner.clone()));
-        Ok(())
+    ///
+    /// Returns
+    /// -------
+    /// MixedNodeBuilder
+    ///     This builder, for chaining.
+    fn forecast<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        forecast_spec: PyRef<'_, PyForecastSpec>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let builder = slf.take()?;
+        slf.inner = Some(builder.forecast(forecast_spec.inner.clone()));
+        Ok(slf)
     }
 
     /// Set the fallback formula.
-    fn formula(&mut self, formula: &str) -> PyResult<()> {
+    ///
+    /// Returns
+    /// -------
+    /// MixedNodeBuilder
+    ///     This builder, for chaining.
+    fn formula<'py>(mut slf: PyRefMut<'py, Self>, formula: &str) -> PyResult<PyRefMut<'py, Self>> {
         // Validate before `take()` so a bad formula does not consume the
         // mixed-node builder and brick the chain. `MixedNodeBuilder::formula`
         // validates via the same `parse_and_compile`.
@@ -162,16 +204,21 @@ impl PyMixedNodeBuilder {
             return Err(crate::errors::value_error("Formula cannot be empty"));
         }
         finstack_quant_statements::dsl::parse_and_compile(formula).map_err(statements_to_py)?;
-        let builder = self.take()?;
-        self.inner = Some(builder.formula(formula).map_err(statements_to_py)?);
-        Ok(())
+        let builder = slf.take()?;
+        slf.inner = Some(builder.formula(formula).map_err(statements_to_py)?);
+        Ok(slf)
     }
 
     /// Set the human-readable name.
-    fn name(&mut self, name: &str) -> PyResult<()> {
-        let builder = self.take()?;
-        self.inner = Some(builder.name(name));
-        Ok(())
+    ///
+    /// Returns
+    /// -------
+    /// MixedNodeBuilder
+    ///     This builder, for chaining.
+    fn name<'py>(mut slf: PyRefMut<'py, Self>, name: &str) -> PyResult<PyRefMut<'py, Self>> {
+        let builder = slf.take()?;
+        slf.inner = Some(builder.name(name));
+        Ok(slf)
     }
 
     /// Build the mixed node and return a ready model builder.
@@ -211,20 +258,29 @@ impl PyModelBuilder {
     ///     Period range expression.
     /// actuals_until : str | None
     ///     Optional cutoff for actual values.
+    ///
+    /// Returns
+    /// -------
+    /// ModelBuilder
+    ///     This builder, for chaining.
     #[pyo3(signature = (range, actuals_until=None), text_signature = "($self, range, actuals_until=None)")]
-    fn periods(&mut self, range: &str, actuals_until: Option<&str>) -> PyResult<()> {
+    fn periods<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        range: &str,
+        actuals_until: Option<&str>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
         // Validate before `take_any()` so a bad range does not brick the builder
         // (see `validate_periods_args`).
         validate_periods_args(range, actuals_until)?;
-        let state = self.take_any()?;
+        let state = slf.take_any()?;
         match state {
             BuilderState::NeedPeriods(b) => {
                 let ready = b.periods(range, actuals_until).map_err(statements_to_py)?;
-                self.inner = Some(BuilderState::Ready(ready));
-                Ok(())
+                slf.inner = Some(BuilderState::Ready(ready));
+                Ok(slf)
             }
             BuilderState::Ready(b) => {
-                self.inner = Some(BuilderState::Ready(b));
+                slf.inner = Some(BuilderState::Ready(b));
                 Err(crate::errors::value_error("Periods already set"))
             }
         }
@@ -238,22 +294,40 @@ impl PyModelBuilder {
     ///     Node identifier.
     /// values : list[tuple[str, float]]
     ///     List of (period_string, value) tuples.
+    ///
+    /// Returns
+    /// -------
+    /// ModelBuilder
+    ///     This builder, for chaining.
     #[pyo3(text_signature = "($self, node_id, values)")]
-    fn value(&mut self, node_id: &str, values: Vec<(String, f64)>) -> PyResult<()> {
+    fn value<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        node_id: &str,
+        values: Vec<(String, f64)>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
         // Parse arguments BEFORE `take_ready()` so a bad period string does not
         // permanently consume the in-progress builder (leaving a misleading
         // "consumed by build()" error on the next call).
         let parsed = parse_scalar_values(values)?;
-        let state = self.take_ready()?;
+        let state = slf.take_ready()?;
 
         let ready = state.value(node_id, &parsed);
-        self.inner = Some(BuilderState::Ready(ready));
-        Ok(())
+        slf.inner = Some(BuilderState::Ready(ready));
+        Ok(slf)
     }
 
     /// Add a scalar value node with explicit period values.
+    ///
+    /// Returns
+    /// -------
+    /// ModelBuilder
+    ///     This builder, for chaining.
     #[pyo3(text_signature = "($self, node_id, values)")]
-    fn value_scalar(&mut self, node_id: &str, values: Vec<(String, f64)>) -> PyResult<()> {
+    fn value_scalar<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        node_id: &str,
+        values: Vec<(String, f64)>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
         // Parse before `take_ready()` (see `value`).
         let parsed: Vec<(PeriodId, f64)> = values
             .into_iter()
@@ -262,16 +336,25 @@ impl PyModelBuilder {
                 Ok((pid, v))
             })
             .collect::<PyResult<Vec<_>>>()?;
-        let state = self.take_ready()?;
+        let state = slf.take_ready()?;
 
         let ready = state.value_scalar(node_id, &parsed);
-        self.inner = Some(BuilderState::Ready(ready));
-        Ok(())
+        slf.inner = Some(BuilderState::Ready(ready));
+        Ok(slf)
     }
 
     /// Add a monetary value node with explicit period values.
+    ///
+    /// Returns
+    /// -------
+    /// ModelBuilder
+    ///     This builder, for chaining.
     #[pyo3(text_signature = "($self, node_id, values)")]
-    fn value_money(&mut self, node_id: &str, values: Vec<(String, PyMoney)>) -> PyResult<()> {
+    fn value_money<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        node_id: &str,
+        values: Vec<(String, PyMoney)>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
         // Parse before `take_ready()` (see `value`).
         let parsed: Vec<(PeriodId, finstack_quant_core::money::Money)> = values
             .into_iter()
@@ -280,11 +363,11 @@ impl PyModelBuilder {
                 Ok((pid, money.inner))
             })
             .collect::<PyResult<Vec<_>>>()?;
-        let state = self.take_ready()?;
+        let state = slf.take_ready()?;
 
         let ready = state.value_money(node_id, &parsed);
-        self.inner = Some(BuilderState::Ready(ready));
-        Ok(())
+        slf.inner = Some(BuilderState::Ready(ready));
+        Ok(slf)
     }
 
     /// Add a computed node with a formula.
@@ -295,8 +378,17 @@ impl PyModelBuilder {
     ///     Node identifier.
     /// formula : str
     ///     DSL formula expression (e.g. ``"revenue - cogs"``).
+    ///
+    /// Returns
+    /// -------
+    /// ModelBuilder
+    ///     This builder, for chaining.
     #[pyo3(text_signature = "($self, node_id, formula)")]
-    fn compute(&mut self, node_id: &str, formula: &str) -> PyResult<()> {
+    fn compute<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        node_id: &str,
+        formula: &str,
+    ) -> PyResult<PyRefMut<'py, Self>> {
         // Validate BEFORE `take_ready()` so a bad formula does not permanently
         // consume the in-progress builder. `ModelBuilder::compute` consumes
         // `self` and returns `Err` on an invalid formula, which would otherwise
@@ -304,10 +396,10 @@ impl PyModelBuilder {
         // misleading "consumed by build()" error. These are the exact checks
         // `compute` runs internally, so behaviour is unchanged on success.
         validate_compute_args(node_id, formula)?;
-        let state = self.take_ready()?;
+        let state = slf.take_ready()?;
         let ready = state.compute(node_id, formula).map_err(statements_to_py)?;
-        self.inner = Some(BuilderState::Ready(ready));
-        Ok(())
+        slf.inner = Some(BuilderState::Ready(ready));
+        Ok(slf)
     }
 
     /// Start configuring a mixed node.
@@ -320,60 +412,92 @@ impl PyModelBuilder {
     }
 
     /// Attach a forecast specification to an existing or new node.
+    ///
+    /// Returns
+    /// -------
+    /// ModelBuilder
+    ///     This builder, for chaining.
     #[pyo3(text_signature = "($self, node_id, forecast_spec)")]
-    fn forecast(
-        &mut self,
+    fn forecast<'py>(
+        mut slf: PyRefMut<'py, Self>,
         node_id: &str,
         forecast_spec: PyRef<'_, PyForecastSpec>,
-    ) -> PyResult<()> {
-        let state = self.take_ready()?;
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let state = slf.take_ready()?;
         let ready = state.forecast(node_id, forecast_spec.inner.clone());
-        self.inner = Some(BuilderState::Ready(ready));
-        Ok(())
+        slf.inner = Some(BuilderState::Ready(ready));
+        Ok(slf)
     }
 
     /// Attach a where clause to the last added node.
+    ///
+    /// Returns
+    /// -------
+    /// ModelBuilder
+    ///     This builder, for chaining.
     #[pyo3(text_signature = "($self, where_clause)")]
-    fn where_clause(&mut self, where_clause: &str) -> PyResult<()> {
-        let state = self.take_ready()?;
+    fn where_clause<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        where_clause: &str,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let state = slf.take_ready()?;
         let ready = state.where_clause(where_clause);
-        self.inner = Some(BuilderState::Ready(ready));
-        Ok(())
+        slf.inner = Some(BuilderState::Ready(ready));
+        Ok(slf)
     }
 
     /// Add model-level metadata from a JSON payload.
+    ///
+    /// Returns
+    /// -------
+    /// ModelBuilder
+    ///     This builder, for chaining.
     #[pyo3(text_signature = "($self, key, value_json)")]
-    fn with_meta(&mut self, key: &str, value_json: &str) -> PyResult<()> {
+    fn with_meta<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        key: &str,
+        value_json: &str,
+    ) -> PyResult<PyRefMut<'py, Self>> {
         let value: serde_json::Value = serde_json::from_str(value_json)
             .map_err(|e| serde_json_to_py(e, "invalid meta value JSON"))?;
-        let state = self.take_ready()?;
+        let state = slf.take_ready()?;
         let ready = state.with_meta(key, value);
-        self.inner = Some(BuilderState::Ready(ready));
-        Ok(())
+        slf.inner = Some(BuilderState::Ready(ready));
+        Ok(slf)
     }
 
     /// Add all built-in statement metrics.
+    ///
+    /// Returns
+    /// -------
+    /// ModelBuilder
+    ///     This builder, for chaining.
     #[pyo3(text_signature = "($self)")]
-    fn with_builtin_metrics(&mut self) -> PyResult<()> {
-        let state = self.take_ready()?;
+    fn with_builtin_metrics(mut slf: PyRefMut<'_, Self>) -> PyResult<PyRefMut<'_, Self>> {
+        let state = slf.take_ready()?;
         let ready = state.with_builtin_metrics().map_err(statements_to_py)?;
-        self.inner = Some(BuilderState::Ready(ready));
-        Ok(())
+        slf.inner = Some(BuilderState::Ready(ready));
+        Ok(slf)
     }
 
     /// Add one metric and its dependencies from a registry.
+    ///
+    /// Returns
+    /// -------
+    /// ModelBuilder
+    ///     This builder, for chaining.
     #[pyo3(text_signature = "($self, qualified_id, registry)")]
-    fn add_metric_from_registry(
-        &mut self,
+    fn add_metric_from_registry<'py>(
+        mut slf: PyRefMut<'py, Self>,
         qualified_id: &str,
         registry: PyRef<'_, PyMetricRegistry>,
-    ) -> PyResult<()> {
-        let state = self.take_ready()?;
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let state = slf.take_ready()?;
         let ready = state
             .add_metric_from_registry(qualified_id, &registry.inner)
             .map_err(statements_to_py)?;
-        self.inner = Some(BuilderState::Ready(ready));
-        Ok(())
+        slf.inner = Some(BuilderState::Ready(ready));
+        Ok(slf)
     }
 
     /// Add a fixed-rate bond to the capital structure (US conventions: 30/360, semi-annual).
@@ -393,19 +517,19 @@ impl PyModelBuilder {
     #[pyo3(
         text_signature = "($self, id, notional, coupon_rate, issue_date, maturity_date, discount_curve_id)"
     )]
-    fn add_bond(
-        &mut self,
+    fn add_bond<'py>(
+        mut slf: PyRefMut<'py, Self>,
         id: &str,
         notional: PyRef<'_, PyMoney>,
         coupon_rate: f64,
         issue_date: &Bound<'_, PyAny>,
         maturity_date: &Bound<'_, PyAny>,
         discount_curve_id: &str,
-    ) -> PyResult<()> {
+    ) -> PyResult<PyRefMut<'py, Self>> {
         let notional = notional.inner;
         let issue = py_to_date(issue_date)?;
         let maturity = py_to_date(maturity_date)?;
-        let state = self.take_any()?;
+        let state = slf.take_any()?;
         let next = match state {
             BuilderState::NeedPeriods(b) => BuilderState::NeedPeriods(
                 b.add_bond(
@@ -430,8 +554,8 @@ impl PyModelBuilder {
                 .map_err(statements_to_py)?,
             ),
         };
-        self.inner = Some(next);
-        Ok(())
+        slf.inner = Some(next);
+        Ok(slf)
     }
 
     /// Add an interest rate swap to the capital structure (US conventions).
@@ -451,8 +575,8 @@ impl PyModelBuilder {
         text_signature = "($self, id, notional, fixed_rate, start_date, maturity_date, discount_curve_id, forward_curve_id)"
     )]
     #[allow(clippy::too_many_arguments)]
-    fn add_swap(
-        &mut self,
+    fn add_swap<'py>(
+        mut slf: PyRefMut<'py, Self>,
         id: &str,
         notional: PyRef<'_, PyMoney>,
         fixed_rate: f64,
@@ -460,11 +584,11 @@ impl PyModelBuilder {
         maturity_date: &Bound<'_, PyAny>,
         discount_curve_id: &str,
         forward_curve_id: &str,
-    ) -> PyResult<()> {
+    ) -> PyResult<PyRefMut<'py, Self>> {
         let notional = notional.inner;
         let start = py_to_date(start_date)?;
         let maturity = py_to_date(maturity_date)?;
-        let state = self.take_any()?;
+        let state = slf.take_any()?;
         let next = match state {
             BuilderState::NeedPeriods(b) => BuilderState::NeedPeriods(
                 b.add_swap(
@@ -491,8 +615,8 @@ impl PyModelBuilder {
                 .map_err(statements_to_py)?,
             ),
         };
-        self.inner = Some(next);
-        Ok(())
+        slf.inner = Some(next);
+        Ok(slf)
     }
 
     /// Add a debt instrument from its canonical v1 instrument envelope.
@@ -509,31 +633,48 @@ impl PyModelBuilder {
     /// spec_json : str
     ///     A ``finstack_quant.instrument/1`` envelope containing the target
     ///     instrument. Bare instrument payloads are rejected.
+    ///
+    /// Returns
+    /// -------
+    /// ModelBuilder
+    ///     This builder, for chaining.
     #[pyo3(text_signature = "($self, id, spec_json)")]
-    fn add_debt(&mut self, id: &str, spec_json: &str) -> PyResult<()> {
+    fn add_debt<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        id: &str,
+        spec_json: &str,
+    ) -> PyResult<PyRefMut<'py, Self>> {
         let spec = finstack_quant_valuations::pricer::json::parse_instrument_json(spec_json)
             .map_err(core_to_py)?;
         let spec = FinancialStatementInstrument::try_from(spec).map_err(statements_to_py)?;
-        let state = self.take_any()?;
+        let state = slf.take_any()?;
         let next = match state {
             BuilderState::NeedPeriods(b) => BuilderState::NeedPeriods(b.add_debt(id, spec)),
             BuilderState::Ready(b) => BuilderState::Ready(b.add_debt(id, spec)),
         };
-        self.inner = Some(next);
-        Ok(())
+        slf.inner = Some(next);
+        Ok(slf)
     }
 
     /// Set the reporting currency used for capital-structure totals.
+    ///
+    /// Returns
+    /// -------
+    /// ModelBuilder
+    ///     This builder, for chaining.
     #[pyo3(text_signature = "($self, currency)")]
-    fn reporting_currency(&mut self, currency: PyRef<'_, PyCurrency>) -> PyResult<()> {
+    fn reporting_currency<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        currency: PyRef<'_, PyCurrency>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
         let ccy = currency.inner;
-        let state = self.take_any()?;
+        let state = slf.take_any()?;
         let next = match state {
             BuilderState::NeedPeriods(b) => BuilderState::NeedPeriods(b.reporting_currency(ccy)),
             BuilderState::Ready(b) => BuilderState::Ready(b.reporting_currency(ccy)),
         };
-        self.inner = Some(next);
-        Ok(())
+        slf.inner = Some(next);
+        Ok(slf)
     }
 
     /// Set the FX conversion policy for capital-structure cashflows.
@@ -542,8 +683,13 @@ impl PyModelBuilder {
     /// ----------
     /// policy : str
     ///     One of ``"cashflow_date"``, ``"period_end"``, ``"period_average"``, ``"custom"``.
+    ///
+    /// Returns
+    /// -------
+    /// ModelBuilder
+    ///     This builder, for chaining.
     #[pyo3(text_signature = "($self, policy)")]
-    fn fx_policy(&mut self, policy: &str) -> PyResult<()> {
+    fn fx_policy<'py>(mut slf: PyRefMut<'py, Self>, policy: &str) -> PyResult<PyRefMut<'py, Self>> {
         let policy_value = serde_json::Value::String(policy.to_string());
         let parsed: FxConversionPolicy =
             serde_json::from_value(policy_value).map_err(|e| {
@@ -551,26 +697,34 @@ impl PyModelBuilder {
                     "invalid fx_policy {policy:?}: {e}; expected one of cashflow_date, period_end, period_average, custom"
                 ))
             })?;
-        let state = self.take_any()?;
+        let state = slf.take_any()?;
         let next = match state {
             BuilderState::NeedPeriods(b) => BuilderState::NeedPeriods(b.fx_policy(parsed)),
             BuilderState::Ready(b) => BuilderState::Ready(b.fx_policy(parsed)),
         };
-        self.inner = Some(next);
-        Ok(())
+        slf.inner = Some(next);
+        Ok(slf)
     }
 
     /// Attach a waterfall specification (PIK toggle + ECF sweep + priority-of-payments).
+    ///
+    /// Returns
+    /// -------
+    /// ModelBuilder
+    ///     This builder, for chaining.
     #[pyo3(text_signature = "($self, waterfall_spec)")]
-    fn waterfall(&mut self, waterfall_spec: PyRef<'_, PyWaterfallSpec>) -> PyResult<()> {
+    fn waterfall<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        waterfall_spec: PyRef<'_, PyWaterfallSpec>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
         let spec = waterfall_spec.inner.clone();
-        let state = self.take_any()?;
+        let state = slf.take_any()?;
         let next = match state {
             BuilderState::NeedPeriods(b) => BuilderState::NeedPeriods(b.waterfall(spec)),
             BuilderState::Ready(b) => BuilderState::Ready(b.waterfall(spec)),
         };
-        self.inner = Some(next);
-        Ok(())
+        slf.inner = Some(next);
+        Ok(slf)
     }
 
     /// Build the model specification.

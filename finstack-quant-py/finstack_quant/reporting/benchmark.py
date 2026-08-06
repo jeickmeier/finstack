@@ -53,18 +53,18 @@ def _section_summary(perf: Any, t: int, rf: float) -> Section:
     )
     active = tables.kv_table(
         [
-            ("Tracking Error", fmt.pct(perf.tracking_error()[t] * 100.0), ""),
-            ("Information Ratio", fmt.ratio(perf.information_ratio()[t]), ""),
-            ("Treynor", fmt.pct(perf.treynor(rf)[t] * 100.0, signed=True), ""),
-            ("M-Squared", fmt.pct(perf.m_squared(rf)[t] * 100.0, signed=True), ""),
+            ("Tracking Error", fmt.pct(perf.tracking_error().iloc[t] * 100.0), ""),
+            ("Information Ratio", fmt.ratio(perf.information_ratio().iloc[t]), ""),
+            ("Treynor", fmt.pct(perf.treynor(rf).iloc[t] * 100.0, signed=True), ""),
+            ("M-Squared", fmt.pct(perf.m_squared(rf).iloc[t] * 100.0, signed=True), ""),
         ],
     )
     capture = tables.kv_table(
         [
-            ("Up Capture", fmt.ratio(perf.up_capture()[t]), ""),
-            ("Down Capture", fmt.ratio(perf.down_capture()[t]), ""),
-            ("Capture Ratio", fmt.ratio(perf.capture_ratio()[t]), ""),
-            ("Batting Average", fmt.pct(perf.batting_average()[t] * 100.0), ""),
+            ("Up Capture", fmt.ratio(perf.up_capture().iloc[t]), ""),
+            ("Down Capture", fmt.ratio(perf.down_capture().iloc[t]), ""),
+            ("Capture Ratio", fmt.ratio(perf.capture_ratio().iloc[t]), ""),
+            ("Batting Average", fmt.pct(perf.batting_average().iloc[t] * 100.0), ""),
         ],
     )
     return Section("Benchmark-Relative Statistics", f'<div class="statgrid">{regression}{active}{capture}</div>')
@@ -231,8 +231,8 @@ def benchmark_tearsheet(
     kpis = [
         KPI("Alpha (ann.)", fmt.pct(g.alpha * 100.0, signed=True), fmt.sign_class(g.alpha)),
         KPI("Beta", fmt.ratio(g.beta), ""),
-        KPI("Information Ratio", fmt.ratio(perf.information_ratio()[t]), ""),
-        KPI("Capture Ratio", fmt.ratio(perf.capture_ratio()[t]), ""),
+        KPI("Information Ratio", fmt.ratio(perf.information_ratio().iloc[t]), ""),
+        KPI("Capture Ratio", fmt.ratio(perf.capture_ratio().iloc[t]), ""),
     ]
 
     fund_name = names[t] if t < len(names) else "Fund"

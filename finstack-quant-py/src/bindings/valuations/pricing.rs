@@ -1,7 +1,8 @@
 //! Instrument pricing pipeline: canonical instrument envelope + market → ValuationResult.
 
+use super::PyValuationResult;
 use crate::bindings::extract::{extract_instrument_json, extract_market};
-use crate::errors::{core_to_py, display_to_py};
+use crate::errors::core_to_py;
 use pyo3::prelude::*;
 
 fn validate_pricing_instrument_json(
@@ -21,7 +22,7 @@ fn validate_pricing_instrument_json(
     })
 }
 
-/// Price an instrument from its canonical envelope and return ``ValuationResult`` JSON.
+/// Price an instrument from its canonical envelope and return a ``ValuationResult``.
 ///
 /// Parameters
 /// ----------
@@ -35,8 +36,9 @@ fn validate_pricing_instrument_json(
 ///     ``StructuredCredit`` instance.
 /// market : MarketContext | str
 ///     A ``MarketContext`` object or a JSON string.
-/// as_of : str
-///     Valuation date in ISO 8601 format (``"YYYY-MM-DD"``).
+/// as_of : datetime.date | str
+///     Valuation date, either a date-like object (``datetime.date``,
+///     ``pandas.Timestamp``) or an ISO 8601 string.
 /// model : str
 ///     Model key: ``"default"`` (default), ``"discounting"``, ``"black76"``, ``"hazard_rate"``,
 ///     ``"hull_white_1f"``, ``"tree"``, ``"normal"``, ``"monte_carlo_gbm"``,
@@ -44,33 +46,41 @@ fn validate_pricing_instrument_json(
 ///
 /// Returns
 /// -------
-/// str
-///     JSON-serialized ``ValuationResult``.
+/// ValuationResult
+///     Typed valuation envelope carrying value, currency, metrics, and
+///     covenant flags.
+///
+/// Notes
+/// -----
+/// The wire payload is still one call away: ``result.to_json()`` returns the
+/// JSON that ``ValuationResult.from_json`` accepts, for pipelines that
+/// serialize results.
 #[pyfunction]
 #[pyo3(signature = (instrument_json, market, as_of, model="default"))]
 fn price_instrument(
     py: Python<'_>,
     instrument_json: &Bound<'_, PyAny>,
     market: &Bound<'_, PyAny>,
-    as_of: &str,
+    as_of: &Bound<'_, PyAny>,
     model: &str,
-) -> PyResult<String> {
+) -> PyResult<PyValuationResult> {
     let instrument_json = extract_instrument_json(instrument_json)?;
     validate_pricing_instrument_json(py, &instrument_json, None)?;
     let market = extract_market(py, market)?;
-    let as_of = as_of.to_owned();
+    let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     let model = model.to_owned();
 
-    py.detach(move || {
-        let result = finstack_quant_valuations::pricer::price_instrument_json(
-            &instrument_json,
-            &market,
-            &as_of,
-            &model,
-        )
+    let inner = py
+        .detach(move || {
+            finstack_quant_valuations::pricer::price_instrument_json(
+                &instrument_json,
+                &market,
+                &as_of,
+                &model,
+            )
+        })
         .map_err(core_to_py)?;
-        serde_json::to_string(&result).map_err(display_to_py)
-    })
+    Ok(PyValuationResult { inner })
 }
 
 /// Price an instrument with explicit metric requests.
@@ -87,8 +97,9 @@ fn price_instrument(
 ///     ``StructuredCredit`` instance.
 /// market : MarketContext | str
 ///     A ``MarketContext`` object or a JSON string.
-/// as_of : str
-///     Valuation date.
+/// as_of : datetime.date | str
+///     Valuation date, either a date-like object (``datetime.date``,
+///     ``pandas.Timestamp``) or an ISO 8601 string.
 /// model : str
 ///     Model key string.
 /// metrics : list[str]
@@ -105,8 +116,14 @@ fn price_instrument(
 ///
 /// Returns
 /// -------
-/// str
-///     JSON-serialized ``ValuationResult`` including requested metrics.
+/// ValuationResult
+///     Typed valuation envelope including the requested metrics.
+///
+/// Notes
+/// -----
+/// The wire payload is still one call away: ``result.to_json()`` returns the
+/// JSON that ``ValuationResult.from_json`` accepts, for pipelines that
+/// serialize results.
 #[pyfunction]
 #[pyo3(signature = (instrument_json, market, as_of, model="default", metrics=vec![], pricing_options=None, market_history=None))]
 // PyO3 binding: the argument list mirrors the Python keyword-argument API, so
@@ -116,22 +133,22 @@ fn price_instrument_with_metrics(
     py: Python<'_>,
     instrument_json: &Bound<'_, PyAny>,
     market: &Bound<'_, PyAny>,
-    as_of: &str,
+    as_of: &Bound<'_, PyAny>,
     model: &str,
     metrics: Vec<String>,
     pricing_options: Option<&str>,
     market_history: Option<&str>,
-) -> PyResult<String> {
+) -> PyResult<PyValuationResult> {
     let instrument_json = extract_instrument_json(instrument_json)?;
     validate_pricing_instrument_json(py, &instrument_json, pricing_options)?;
     let market = extract_market(py, market)?;
-    let as_of = as_of.to_owned();
+    let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     let model = model.to_owned();
     let pricing_options = pricing_options.map(str::to_owned);
     let market_history = market_history.map(str::to_owned);
 
-    py.detach(move || {
-        let result =
+    let inner = py
+        .detach(move || {
             finstack_quant_valuations::pricer::price_instrument_json_with_metrics_and_history(
                 &instrument_json,
                 &market,
@@ -141,9 +158,9 @@ fn price_instrument_with_metrics(
                 pricing_options.as_deref(),
                 market_history.as_deref(),
             )
-            .map_err(core_to_py)?;
-        serde_json::to_string(&result).map_err(display_to_py)
-    })
+        })
+        .map_err(core_to_py)?;
+    Ok(PyValuationResult { inner })
 }
 
 /// List all metric IDs in the standard metric registry.
@@ -224,8 +241,9 @@ fn list_models_grouped() -> std::collections::BTreeMap<String, Vec<String>> {
 ///     ``StructuredCredit`` instance.
 /// market : MarketContext | str
 ///     A ``MarketContext`` object or a JSON string.
-/// as_of : str
-///     Valuation date in ISO 8601 format.
+/// as_of : datetime.date | str
+///     Valuation date, either a date-like object (``datetime.date``,
+///     ``pandas.Timestamp``) or an ISO 8601 string.
 /// model : str
 ///     ``"discounting"`` or ``"hazard_rate"``.
 ///
@@ -239,13 +257,13 @@ fn instrument_cashflows_json(
     py: Python<'_>,
     instrument_json: &Bound<'_, PyAny>,
     market: &Bound<'_, PyAny>,
-    as_of: &str,
+    as_of: &Bound<'_, PyAny>,
     model: &str,
 ) -> PyResult<String> {
     let instrument_json = extract_instrument_json(instrument_json)?;
     validate_pricing_instrument_json(py, &instrument_json, None)?;
     let market = extract_market(py, market)?;
-    let as_of = as_of.to_owned();
+    let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     let model = model.to_owned();
 
     py.detach(move || {

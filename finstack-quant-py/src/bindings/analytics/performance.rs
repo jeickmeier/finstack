@@ -2,7 +2,9 @@
 
 use super::types::*;
 use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
-use crate::bindings::pandas_utils::{dates_to_datetime_index, dict_to_dataframe};
+use crate::bindings::pandas_utils::{
+    dates_to_datetime_index, dict_to_dataframe, int_values_to_series, values_to_series,
+};
 use crate::errors::analytics_to_py as core_to_py;
 use finstack_quant_analytics as fa;
 use finstack_quant_core::dates::{calendar_by_id, FiscalConfig, HolidayCalendar, PeriodKind};
@@ -255,6 +257,11 @@ fn periodic_panel_to_dataframe<'py>(
 ///
 /// Accepts a pandas ``DataFrame`` where the index contains dates and each
 /// column is a price series for one ticker.
+///
+/// Scalar-per-ticker metrics return a ``pandas.Series`` indexed by ticker name
+/// and named after the metric, so results are selected by label rather than by
+/// column position, and ``pd.concat([perf.sharpe(), perf.sortino()], axis=1)``
+/// yields correctly-named columns.
 #[pyclass(name = "Performance", module = "finstack_quant.analytics")]
 pub(super) struct PyPerformance {
     inner: fa::Performance,
@@ -456,239 +463,519 @@ impl PyPerformance {
     // -- Scalar-per-ticker methods --
 
     /// CAGR for each ticker.
-    fn cagr(&self) -> PyResult<Vec<f64>> {
-        self.inner.cagr().map_err(core_to_py)
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Compound annual growth rate indexed by ticker name.
+    fn cagr<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.cagr().map_err(core_to_py)?;
+        values_to_series(py, values, self.inner.ticker_names(), "cagr")
     }
 
     /// Mean return for each ticker.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Mean return indexed by ticker name.
     #[pyo3(signature = (annualize = true))]
-    fn mean_return(&self, annualize: bool) -> Vec<f64> {
-        self.inner.mean_return(annualize)
+    fn mean_return<'py>(&self, py: Python<'py>, annualize: bool) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.mean_return(annualize);
+        values_to_series(py, values, self.inner.ticker_names(), "mean_return")
     }
 
     /// Volatility for each ticker.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Standard deviation of returns indexed by ticker name.
     #[pyo3(signature = (annualize = true))]
-    fn volatility(&self, annualize: bool) -> Vec<f64> {
-        self.inner.volatility(annualize)
+    fn volatility<'py>(&self, py: Python<'py>, annualize: bool) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.volatility(annualize);
+        values_to_series(py, values, self.inner.ticker_names(), "volatility")
     }
 
     /// Sharpe ratio for each ticker.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Sharpe ratio indexed by ticker name.
     #[pyo3(signature = (risk_free_rate = 0.0))]
-    fn sharpe(&self, risk_free_rate: f64) -> Vec<f64> {
-        self.inner.sharpe(risk_free_rate)
+    fn sharpe<'py>(&self, py: Python<'py>, risk_free_rate: f64) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.sharpe(risk_free_rate);
+        values_to_series(py, values, self.inner.ticker_names(), "sharpe")
     }
 
     /// Sortino ratio for each ticker.
     ///
     /// ``mar`` is a per-period minimum acceptable return, unlike Sharpe
     /// ``risk_free_rate`` inputs, which are annualized.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Sortino ratio indexed by ticker name.
     #[pyo3(signature = (mar = 0.0))]
-    fn sortino(&self, mar: f64) -> Vec<f64> {
-        self.inner.sortino(mar)
+    fn sortino<'py>(&self, py: Python<'py>, mar: f64) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.sortino(mar);
+        values_to_series(py, values, self.inner.ticker_names(), "sortino")
     }
 
     /// Calmar ratio for each ticker.
-    fn calmar(&self) -> PyResult<Vec<f64>> {
-        self.inner.calmar().map_err(core_to_py)
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Calmar ratio indexed by ticker name.
+    fn calmar<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.calmar().map_err(core_to_py)?;
+        values_to_series(py, values, self.inner.ticker_names(), "calmar")
     }
 
     /// Max drawdown for each ticker.
-    fn max_drawdown(&self) -> Vec<f64> {
-        self.inner.max_drawdown()
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Peak-to-trough drawdown (negative) indexed by ticker name.
+    fn max_drawdown<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.max_drawdown();
+        values_to_series(py, values, self.inner.ticker_names(), "max_drawdown")
     }
 
     /// Mean drawdown (path-weighted average) for each ticker.
-    fn mean_drawdown(&self) -> Vec<f64> {
-        self.inner.mean_drawdown()
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Average drawdown (negative) indexed by ticker name.
+    fn mean_drawdown<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.mean_drawdown();
+        values_to_series(py, values, self.inner.ticker_names(), "mean_drawdown")
     }
 
     /// Historical VaR for each ticker.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Historical value at risk indexed by ticker name.
     #[pyo3(signature = (confidence = 0.95))]
-    fn value_at_risk(&self, confidence: f64) -> Vec<f64> {
-        self.inner.value_at_risk(confidence)
+    fn value_at_risk<'py>(&self, py: Python<'py>, confidence: f64) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.value_at_risk(confidence);
+        values_to_series(py, values, self.inner.ticker_names(), "value_at_risk")
     }
 
     /// Expected Shortfall for each ticker.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Expected shortfall indexed by ticker name.
     #[pyo3(signature = (confidence = 0.95))]
-    fn expected_shortfall(&self, confidence: f64) -> Vec<f64> {
-        self.inner.expected_shortfall(confidence)
+    fn expected_shortfall<'py>(
+        &self,
+        py: Python<'py>,
+        confidence: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.expected_shortfall(confidence);
+        values_to_series(py, values, self.inner.ticker_names(), "expected_shortfall")
     }
 
     /// Tracking error for each ticker vs benchmark.
-    fn tracking_error(&self) -> Vec<f64> {
-        self.inner.tracking_error()
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Tracking error indexed by ticker name.
+    fn tracking_error<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.tracking_error();
+        values_to_series(py, values, self.inner.ticker_names(), "tracking_error")
     }
 
     /// Information ratio for each ticker vs benchmark.
-    fn information_ratio(&self) -> Vec<f64> {
-        self.inner.information_ratio()
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Information ratio indexed by ticker name.
+    fn information_ratio<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.information_ratio();
+        values_to_series(py, values, self.inner.ticker_names(), "information_ratio")
     }
 
     /// Skewness for each ticker.
-    fn skewness(&self) -> Vec<f64> {
-        self.inner.skewness()
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Skewness indexed by ticker name.
+    fn skewness<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.skewness();
+        values_to_series(py, values, self.inner.ticker_names(), "skewness")
     }
 
     /// Kurtosis for each ticker.
-    fn kurtosis(&self) -> Vec<f64> {
-        self.inner.kurtosis()
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Kurtosis indexed by ticker name.
+    fn kurtosis<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.kurtosis();
+        values_to_series(py, values, self.inner.ticker_names(), "kurtosis")
     }
 
     /// Geometric mean for each ticker.
-    fn geometric_mean(&self) -> Vec<f64> {
-        self.inner.geometric_mean()
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Geometric mean return indexed by ticker name.
+    fn geometric_mean<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.geometric_mean();
+        values_to_series(py, values, self.inner.ticker_names(), "geometric_mean")
     }
 
     /// Per-ticker ``(skewness, kurtosis)`` from one moments pass per ticker.
     ///
-    /// Returns two parallel lists, equivalent to calling :meth:`skewness`
-    /// and :meth:`kurtosis` but walking each ticker once.
-    fn skew_kurt(&self) -> (Vec<f64>, Vec<f64>) {
-        self.inner.skew_kurt()
+    /// Equivalent to calling :meth:`skewness` and :meth:`kurtosis` but walking
+    /// each ticker once.
+    ///
+    /// Returns
+    /// -------
+    /// tuple of pandas.Series
+    ///     ``(skewness, kurtosis)``, each indexed by ticker name.
+    fn skew_kurt<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, Bound<'py, PyAny>)> {
+        let (skew, kurt) = self.inner.skew_kurt();
+        let names = self.inner.ticker_names();
+        let skew_series = values_to_series(py, skew, names, "skewness")?;
+        let kurt_series = values_to_series(py, kurt, names, "kurtosis")?;
+        Ok((skew_series, kurt_series))
     }
 
     /// Per-ticker ``(value_at_risk, expected_shortfall)`` from one tail pass.
     ///
-    /// Returns two parallel lists, equivalent to calling
-    /// :meth:`value_at_risk` and :meth:`expected_shortfall` but sharing the
-    /// tail partition.
+    /// Equivalent to calling :meth:`value_at_risk` and
+    /// :meth:`expected_shortfall` but sharing the tail partition.
+    ///
+    /// Returns
+    /// -------
+    /// tuple of pandas.Series
+    ///     ``(value_at_risk, expected_shortfall)``, each indexed by ticker name.
     #[pyo3(signature = (confidence = 0.95))]
-    fn value_at_risk_and_es(&self, confidence: f64) -> (Vec<f64>, Vec<f64>) {
-        self.inner.value_at_risk_and_es(confidence)
+    fn value_at_risk_and_es<'py>(
+        &self,
+        py: Python<'py>,
+        confidence: f64,
+    ) -> PyResult<(Bound<'py, PyAny>, Bound<'py, PyAny>)> {
+        let (var, es) = self.inner.value_at_risk_and_es(confidence);
+        let names = self.inner.ticker_names();
+        let var_series = values_to_series(py, var, names, "value_at_risk")?;
+        let es_series = values_to_series(py, es, names, "expected_shortfall")?;
+        Ok((var_series, es_series))
     }
 
     /// Downside deviation for each ticker.
     ///
     /// ``mar`` is a per-period threshold, unlike Sharpe ``risk_free_rate``
     /// inputs, which are annualized.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Downside deviation indexed by ticker name.
     #[pyo3(signature = (mar = 0.0))]
-    fn downside_deviation(&self, mar: f64) -> Vec<f64> {
-        self.inner.downside_deviation(mar)
+    fn downside_deviation<'py>(&self, py: Python<'py>, mar: f64) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.downside_deviation(mar);
+        values_to_series(py, values, self.inner.ticker_names(), "downside_deviation")
     }
 
     /// Max drawdown duration (calendar days) for each ticker.
-    fn max_drawdown_duration(&self) -> Vec<i64> {
-        self.inner.max_drawdown_duration()
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Integer-valued drawdown duration in calendar days, indexed by
+    ///     ticker name.
+    fn max_drawdown_duration<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.max_drawdown_duration();
+        int_values_to_series(
+            py,
+            values,
+            self.inner.ticker_names(),
+            "max_drawdown_duration",
+        )
     }
 
     /// Empyrical-style annualized geometric up-capture ratio vs benchmark.
-    fn up_capture(&self) -> Vec<f64> {
-        self.inner.up_capture()
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Up-capture ratio indexed by ticker name.
+    fn up_capture<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.up_capture();
+        values_to_series(py, values, self.inner.ticker_names(), "up_capture")
     }
 
     /// Empyrical-style annualized geometric down-capture ratio vs benchmark.
-    fn down_capture(&self) -> Vec<f64> {
-        self.inner.down_capture()
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Down-capture ratio indexed by ticker name.
+    fn down_capture<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.down_capture();
+        values_to_series(py, values, self.inner.ticker_names(), "down_capture")
     }
 
     /// Empyrical-style annualized geometric capture ratio vs benchmark.
-    fn capture_ratio(&self) -> Vec<f64> {
-        self.inner.capture_ratio()
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Capture ratio indexed by ticker name.
+    fn capture_ratio<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.capture_ratio();
+        values_to_series(py, values, self.inner.ticker_names(), "capture_ratio")
     }
 
     /// Omega ratio for each ticker.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Omega ratio indexed by ticker name.
     #[pyo3(signature = (threshold = 0.0))]
-    fn omega_ratio(&self, threshold: f64) -> Vec<f64> {
-        self.inner.omega_ratio(threshold)
+    fn omega_ratio<'py>(&self, py: Python<'py>, threshold: f64) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.omega_ratio(threshold);
+        values_to_series(py, values, self.inner.ticker_names(), "omega_ratio")
     }
 
     /// Treynor ratio for each ticker.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Treynor ratio indexed by ticker name.
     #[pyo3(signature = (risk_free_rate = 0.0))]
-    fn treynor(&self, risk_free_rate: f64) -> Vec<f64> {
-        self.inner.treynor(risk_free_rate)
+    fn treynor<'py>(&self, py: Python<'py>, risk_free_rate: f64) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.treynor(risk_free_rate);
+        values_to_series(py, values, self.inner.ticker_names(), "treynor")
     }
 
     /// Gain-to-pain ratio for each ticker.
-    fn gain_to_pain(&self) -> Vec<f64> {
-        self.inner.gain_to_pain()
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Gain-to-pain ratio indexed by ticker name.
+    fn gain_to_pain<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.gain_to_pain();
+        values_to_series(py, values, self.inner.ticker_names(), "gain_to_pain")
     }
 
     /// Ulcer index for each ticker.
-    fn ulcer_index(&self) -> Vec<f64> {
-        self.inner.ulcer_index()
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Ulcer index indexed by ticker name.
+    fn ulcer_index<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.ulcer_index();
+        values_to_series(py, values, self.inner.ticker_names(), "ulcer_index")
     }
 
     /// Martin ratio for each ticker.
-    fn martin_ratio(&self) -> PyResult<Vec<f64>> {
-        self.inner.martin_ratio().map_err(core_to_py)
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Martin ratio indexed by ticker name.
+    fn martin_ratio<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.martin_ratio().map_err(core_to_py)?;
+        values_to_series(py, values, self.inner.ticker_names(), "martin_ratio")
     }
 
     /// Recovery factor for each ticker.
-    fn recovery_factor(&self) -> Vec<f64> {
-        self.inner.recovery_factor()
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Recovery factor indexed by ticker name.
+    fn recovery_factor<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.recovery_factor();
+        values_to_series(py, values, self.inner.ticker_names(), "recovery_factor")
     }
 
     /// Pain index for each ticker.
-    fn pain_index(&self) -> Vec<f64> {
-        self.inner.pain_index()
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Pain index indexed by ticker name.
+    fn pain_index<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.pain_index();
+        values_to_series(py, values, self.inner.ticker_names(), "pain_index")
     }
 
     /// Pain ratio for each ticker.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Pain ratio indexed by ticker name.
     #[pyo3(signature = (risk_free_rate = 0.0))]
-    fn pain_ratio(&self, risk_free_rate: f64) -> PyResult<Vec<f64>> {
-        self.inner.pain_ratio(risk_free_rate).map_err(core_to_py)
+    fn pain_ratio<'py>(&self, py: Python<'py>, risk_free_rate: f64) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.pain_ratio(risk_free_rate).map_err(core_to_py)?;
+        values_to_series(py, values, self.inner.ticker_names(), "pain_ratio")
     }
 
     /// Tail ratio for each ticker.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Tail ratio indexed by ticker name.
     #[pyo3(signature = (confidence = 0.95))]
-    fn tail_ratio(&self, confidence: f64) -> Vec<f64> {
-        self.inner.tail_ratio(confidence)
+    fn tail_ratio<'py>(&self, py: Python<'py>, confidence: f64) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.tail_ratio(confidence);
+        values_to_series(py, values, self.inner.ticker_names(), "tail_ratio")
     }
 
     /// R-squared for each ticker vs benchmark.
-    fn r_squared(&self) -> Vec<f64> {
-        self.inner.r_squared()
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Coefficient of determination indexed by ticker name.
+    fn r_squared<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.r_squared();
+        values_to_series(py, values, self.inner.ticker_names(), "r_squared")
     }
 
     /// Batting average for each ticker vs benchmark.
-    fn batting_average(&self) -> Vec<f64> {
-        self.inner.batting_average()
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Batting average indexed by ticker name.
+    fn batting_average<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.batting_average();
+        values_to_series(py, values, self.inner.ticker_names(), "batting_average")
     }
 
     /// Parametric VaR for each ticker.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Parametric value at risk indexed by ticker name.
     #[pyo3(signature = (confidence = 0.95))]
-    fn parametric_var(&self, confidence: f64) -> Vec<f64> {
-        self.inner.parametric_var(confidence)
+    fn parametric_var<'py>(&self, py: Python<'py>, confidence: f64) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.parametric_var(confidence);
+        values_to_series(py, values, self.inner.ticker_names(), "parametric_var")
     }
 
     /// Cornish-Fisher VaR for each ticker.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Cornish-Fisher modified value at risk indexed by ticker name.
     #[pyo3(signature = (confidence = 0.95))]
-    fn cornish_fisher_var(&self, confidence: f64) -> Vec<f64> {
-        self.inner.cornish_fisher_var(confidence)
+    fn cornish_fisher_var<'py>(
+        &self,
+        py: Python<'py>,
+        confidence: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.cornish_fisher_var(confidence);
+        values_to_series(py, values, self.inner.ticker_names(), "cornish_fisher_var")
     }
 
     /// CDaR for each ticker.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Conditional drawdown at risk indexed by ticker name.
     #[pyo3(signature = (confidence = 0.95))]
-    fn cdar(&self, confidence: f64) -> Vec<f64> {
-        self.inner.cdar(confidence)
+    fn cdar<'py>(&self, py: Python<'py>, confidence: f64) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.cdar(confidence);
+        values_to_series(py, values, self.inner.ticker_names(), "cdar")
     }
 
     /// M-squared for each ticker.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     M-squared measure indexed by ticker name.
     #[pyo3(signature = (risk_free_rate = 0.0))]
-    fn m_squared(&self, risk_free_rate: f64) -> Vec<f64> {
-        self.inner.m_squared(risk_free_rate)
+    fn m_squared<'py>(&self, py: Python<'py>, risk_free_rate: f64) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.m_squared(risk_free_rate);
+        values_to_series(py, values, self.inner.ticker_names(), "m_squared")
     }
 
     /// Modified Sharpe ratio for each ticker.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Modified Sharpe ratio indexed by ticker name.
     #[pyo3(signature = (risk_free_rate = 0.0, confidence = 0.95))]
-    fn modified_sharpe(&self, risk_free_rate: f64, confidence: f64) -> Vec<f64> {
-        self.inner.modified_sharpe(risk_free_rate, confidence)
+    fn modified_sharpe<'py>(
+        &self,
+        py: Python<'py>,
+        risk_free_rate: f64,
+        confidence: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.modified_sharpe(risk_free_rate, confidence);
+        values_to_series(py, values, self.inner.ticker_names(), "modified_sharpe")
     }
 
     /// Sterling ratio for each ticker.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Sterling ratio indexed by ticker name.
     #[pyo3(signature = (risk_free_rate = 0.0, n = 5))]
-    fn sterling_ratio(&self, risk_free_rate: f64, n: usize) -> PyResult<Vec<f64>> {
-        self.inner
+    fn sterling_ratio<'py>(
+        &self,
+        py: Python<'py>,
+        risk_free_rate: f64,
+        n: usize,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let values = self
+            .inner
             .sterling_ratio(risk_free_rate, n)
-            .map_err(core_to_py)
+            .map_err(core_to_py)?;
+        values_to_series(py, values, self.inner.ticker_names(), "sterling_ratio")
     }
 
     /// Burke ratio for each ticker.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Burke ratio indexed by ticker name.
     #[pyo3(signature = (risk_free_rate = 0.0, n = 5))]
-    fn burke_ratio(&self, risk_free_rate: f64, n: usize) -> PyResult<Vec<f64>> {
-        self.inner
+    fn burke_ratio<'py>(
+        &self,
+        py: Python<'py>,
+        risk_free_rate: f64,
+        n: usize,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let values = self
+            .inner
             .burke_ratio(risk_free_rate, n)
-            .map_err(core_to_py)
+            .map_err(core_to_py)?;
+        values_to_series(py, values, self.inner.ticker_names(), "burke_ratio")
     }
 
     // -- Vector-per-ticker methods --

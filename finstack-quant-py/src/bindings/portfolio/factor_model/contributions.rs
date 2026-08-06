@@ -1,11 +1,15 @@
+use std::collections::HashMap;
+
 use pyo3::prelude::*;
-use pyo3::types::PyType;
+use pyo3::types::{PyDict, PyType};
 
 use finstack_quant_portfolio::factor_model::{
     FactorContribution, PositionEsContribution, PositionFactorContribution,
     PositionResidualContribution, PositionRiskDecomposition, PositionVarContribution,
     ResidualContributionSource, RiskDecomposition,
 };
+
+use crate::bindings::pandas_utils::{dict_to_dataframe, serde_object_to_single_row_dataframe};
 
 use super::super::json_bridge::{deserialize_json, serialize_json};
 use super::config::decomposition_method_label;
@@ -44,21 +48,28 @@ impl PyFactorContribution {
         serialize_json(&self.inner)
     }
 
+    /// Identifier of the factor being reported.
     #[getter]
     fn factor_id(&self) -> String {
         self.inner.factor_id.as_str().to_owned()
     }
 
+    /// Absolute contribution of the factor, in the units of the decomposition's
+    /// risk measure. Sign follows the measure's convention.
     #[getter]
     fn absolute_risk(&self) -> f64 {
         self.inner.absolute_risk
     }
 
+    /// Contribution as a dimensionless **fraction** (not a percentage) of total
+    /// portfolio risk; non-negative for a standard long-risk portfolio.
     #[getter]
     fn relative_risk(&self) -> f64 {
         self.inner.relative_risk
     }
 
+    /// Marginal sensitivity of portfolio risk to this factor, same sign
+    /// convention as :attr:`absolute_risk`.
     #[getter]
     fn marginal_risk(&self) -> f64 {
         self.inner.marginal_risk
@@ -95,6 +106,7 @@ impl PyPositionFactorContribution {
 
 #[pymethods]
 impl PyPositionFactorContribution {
+    /// Parse from a JSON string.
     #[classmethod]
     #[pyo3(text_signature = "(cls, json_str)")]
     fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
@@ -102,21 +114,26 @@ impl PyPositionFactorContribution {
         Ok(Self::from_inner(inner))
     }
 
+    /// Serialize to JSON.
     #[pyo3(text_signature = "(self)")]
     fn to_json(&self) -> PyResult<String> {
         serialize_json(&self.inner)
     }
 
+    /// Portfolio position identifier.
     #[getter]
     fn position_id(&self) -> String {
         self.inner.position_id.as_str().to_owned()
     }
 
+    /// Identifier of the contributing factor.
     #[getter]
     fn factor_id(&self) -> String {
         self.inner.factor_id.as_str().to_owned()
     }
 
+    /// Risk attributed to this position-factor pair, in the units of the
+    /// decomposition's risk measure.
     #[getter]
     fn risk_contribution(&self) -> f64 {
         self.inner.risk_contribution
@@ -152,6 +169,7 @@ impl PyPositionResidualContribution {
 
 #[pymethods]
 impl PyPositionResidualContribution {
+    /// Parse from a JSON string.
     #[classmethod]
     #[pyo3(text_signature = "(cls, json_str)")]
     fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
@@ -159,16 +177,21 @@ impl PyPositionResidualContribution {
         Ok(Self::from_inner(inner))
     }
 
+    /// Serialize to JSON.
     #[pyo3(text_signature = "(self)")]
     fn to_json(&self) -> PyResult<String> {
         serialize_json(&self.inner)
     }
 
+    /// Portfolio position identifier.
     #[getter]
     fn position_id(&self) -> String {
         self.inner.position_id.as_str().to_owned()
     }
 
+    /// Annualized **variance** (not volatility) contributed by this position's
+    /// idiosyncratic risk. Always non-negative; take the square root only after
+    /// summing the subset of interest.
     #[getter]
     fn residual_variance(&self) -> f64 {
         self.inner.residual_variance
@@ -224,6 +247,7 @@ impl PyRiskDecomposition {
 
 #[pymethods]
 impl PyRiskDecomposition {
+    /// Parse from a JSON string.
     #[classmethod]
     #[pyo3(text_signature = "(cls, json_str)")]
     fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
@@ -231,11 +255,20 @@ impl PyRiskDecomposition {
         Ok(Self::from_inner(inner))
     }
 
+    /// Serialize to JSON.
     #[pyo3(text_signature = "(self)")]
     fn to_json(&self) -> PyResult<String> {
         serialize_json(&self.inner)
     }
 
+    /// Total portfolio risk under the selected measure.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Value in the units of :attr:`measure_json` (variance units for
+    ///     ``"variance"``, return units for ``"volatility"``/VaR/ES). Sign
+    ///     follows the measure's convention.
     #[getter]
     fn total_risk(&self) -> f64 {
         self.inner.total_risk
@@ -247,11 +280,14 @@ impl PyRiskDecomposition {
         serialize_json(&self.inner.measure)
     }
 
+    /// Unattributed (idiosyncratic) risk left after factor aggregation, in the
+    /// same units and sign convention as :attr:`total_risk`.
     #[getter]
     fn residual_risk(&self) -> f64 {
         self.inner.residual_risk
     }
 
+    /// Aggregate factor-level contributions to portfolio risk.
     #[getter]
     fn factor_contributions(&self) -> Vec<PyFactorContribution> {
         self.inner
@@ -262,6 +298,7 @@ impl PyRiskDecomposition {
             .collect()
     }
 
+    /// Per-position, per-factor contributions that roll up into the portfolio view.
     #[getter]
     fn position_factor_contributions(&self) -> Vec<PyPositionFactorContribution> {
         self.inner
@@ -272,6 +309,13 @@ impl PyRiskDecomposition {
             .collect()
     }
 
+    /// Per-position residual (idiosyncratic) variance contributions.
+    ///
+    /// Returns
+    /// -------
+    /// list[PositionResidualContribution]
+    ///     Empty unless the decomposer had per-issuer idiosyncratic vol
+    ///     estimates (credit-aware position decomposers).
     #[getter]
     fn position_residual_contributions(&self) -> Vec<PyPositionResidualContribution> {
         self.inner
@@ -280,6 +324,82 @@ impl PyRiskDecomposition {
             .cloned()
             .map(PyPositionResidualContribution::from_inner)
             .collect()
+    }
+
+    /// Export factor contributions as a pandas ``DataFrame``.
+    ///
+    /// Columns: ``factor_id``, ``absolute_risk``, ``relative_risk``,
+    /// ``marginal_risk`` — identical to
+    /// :meth:`FactorRiskDecomposition.to_factor_dataframe`, which renders the
+    /// same Rust type reached through the sensitivity engine.
+    #[pyo3(text_signature = "(self)")]
+    fn to_factor_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let rows = &self.inner.factor_contributions;
+        let factor_ids: Vec<&str> = rows.iter().map(|c| c.factor_id.as_str()).collect();
+        let absolute_risks: Vec<f64> = rows.iter().map(|c| c.absolute_risk).collect();
+        let relative_risks: Vec<f64> = rows.iter().map(|c| c.relative_risk).collect();
+        let marginal_risks: Vec<f64> = rows.iter().map(|c| c.marginal_risk).collect();
+        let data = PyDict::new(py);
+        data.set_item("factor_id", factor_ids)?;
+        data.set_item("absolute_risk", absolute_risks)?;
+        data.set_item("relative_risk", relative_risks)?;
+        data.set_item("marginal_risk", marginal_risks)?;
+        dict_to_dataframe(py, &data, None)
+    }
+
+    /// Export position × factor contributions as a pandas ``DataFrame``.
+    ///
+    /// Columns: ``position_id``, ``factor_id``, ``risk_contribution`` —
+    /// identical to :meth:`FactorRiskDecomposition.to_position_factor_dataframe`.
+    #[pyo3(text_signature = "(self)")]
+    fn to_position_factor_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let rows = &self.inner.position_factor_contributions;
+        let position_ids: Vec<&str> = rows.iter().map(|c| c.position_id.as_str()).collect();
+        let factor_ids: Vec<&str> = rows.iter().map(|c| c.factor_id.as_str()).collect();
+        let risk_contributions: Vec<f64> = rows.iter().map(|c| c.risk_contribution).collect();
+        let data = PyDict::new(py);
+        data.set_item("position_id", position_ids)?;
+        data.set_item("factor_id", factor_ids)?;
+        data.set_item("risk_contribution", risk_contributions)?;
+        dict_to_dataframe(py, &data, None)
+    }
+
+    /// Export per-position residual variance contributions as a pandas ``DataFrame``.
+    ///
+    /// Columns: ``position_id``, ``residual_variance`` (annualized variance,
+    /// non-negative), ``source_kind`` (``"from_credit_model"`` or ``"other"``),
+    /// ``source_issuer_id`` (``None`` unless ``source_kind`` is
+    /// ``"from_credit_model"``).
+    ///
+    /// The frame has zero rows — with the columns still present — when the
+    /// decomposer produced no position-level residual allocation.
+    #[pyo3(text_signature = "(self)")]
+    fn to_position_residual_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let rows = &self.inner.position_residual_contributions;
+        let position_ids: Vec<&str> = rows.iter().map(|c| c.position_id.as_str()).collect();
+        let residual_variances: Vec<f64> = rows.iter().map(|c| c.residual_variance).collect();
+        let source_kinds: Vec<&str> = rows
+            .iter()
+            .map(|c| match &c.source {
+                ResidualContributionSource::FromCreditModel { .. } => "from_credit_model",
+                ResidualContributionSource::Other => "other",
+            })
+            .collect();
+        let source_issuer_ids: Vec<Option<&str>> = rows
+            .iter()
+            .map(|c| match &c.source {
+                ResidualContributionSource::FromCreditModel { issuer_id } => {
+                    Some(issuer_id.as_str())
+                }
+                ResidualContributionSource::Other => None,
+            })
+            .collect();
+        let data = PyDict::new(py);
+        data.set_item("position_id", position_ids)?;
+        data.set_item("residual_variance", residual_variances)?;
+        data.set_item("source_kind", source_kinds)?;
+        data.set_item("source_issuer_id", source_issuer_ids)?;
+        dict_to_dataframe(py, &data, None)
     }
 
     fn __repr__(&self) -> String {
@@ -314,6 +434,7 @@ impl PyPositionVarContribution {
 
 #[pymethods]
 impl PyPositionVarContribution {
+    /// Parse from a JSON string.
     #[classmethod]
     #[pyo3(text_signature = "(cls, json_str)")]
     fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
@@ -321,34 +442,72 @@ impl PyPositionVarContribution {
         Ok(Self::from_inner(inner))
     }
 
+    /// Serialize to JSON.
     #[pyo3(text_signature = "(self)")]
     fn to_json(&self) -> PyResult<String> {
         serialize_json(&self.inner)
     }
 
+    /// Portfolio position identifier.
     #[getter]
     fn position_id(&self) -> String {
         self.inner.position_id.as_str().to_owned()
     }
 
+    /// Euler-allocated share of portfolio VaR for this position.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Portfolio-currency amount following the workspace loss convention
+    ///     (losses are **negative**). Component VaRs sum to portfolio VaR.
     #[getter]
     fn component_var(&self) -> f64 {
         self.inner.component_var
     }
 
+    /// Component VaR as a **fraction** (not a percentage) of portfolio VaR.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Sums to 1.0 across positions. A negative value marks a diversifier.
     #[getter]
     fn relative_var(&self) -> f64 {
         self.inner.relative_var
     }
 
+    /// Per-unit sensitivity of portfolio VaR to this position.
+    ///
+    /// Returns
+    /// -------
+    /// float | None
+    ///     Same loss sign convention as :attr:`component_var`; ``None`` when
+    ///     the engine could not produce a true gradient.
     #[getter]
     fn marginal_var(&self) -> Option<f64> {
         self.inner.marginal_var
     }
 
+    /// Change in portfolio VaR from removing this position entirely.
+    ///
+    /// Returns
+    /// -------
+    /// float | None
+    ///     ``None`` unless incremental VaR was requested in the decomposition
+    ///     config (it costs one portfolio revaluation per position).
     #[getter]
     fn incremental_var(&self) -> Option<f64> {
         self.inner.incremental_var
+    }
+
+    /// Export this contribution as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``position_id``, ``component_var``, ``relative_var``,
+    /// ``marginal_var``, ``incremental_var``.
+    #[pyo3(text_signature = "(self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_object_to_single_row_dataframe(py, &self.inner)
     }
 
     fn __repr__(&self) -> String {
@@ -383,6 +542,7 @@ impl PyPositionEsContribution {
 
 #[pymethods]
 impl PyPositionEsContribution {
+    /// Parse from a JSON string.
     #[classmethod]
     #[pyo3(text_signature = "(cls, json_str)")]
     fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
@@ -390,26 +550,33 @@ impl PyPositionEsContribution {
         Ok(Self::from_inner(inner))
     }
 
+    /// Serialize to JSON.
     #[pyo3(text_signature = "(self)")]
     fn to_json(&self) -> PyResult<String> {
         serialize_json(&self.inner)
     }
 
+    /// Portfolio position identifier.
     #[getter]
     fn position_id(&self) -> String {
         self.inner.position_id.as_str().to_owned()
     }
 
+    /// This position's contribution to portfolio Expected Shortfall, in
+    /// portfolio currency and following the loss (negative) convention.
     #[getter]
     fn component_es(&self) -> f64 {
         self.inner.component_es
     }
 
+    /// Component ES as a **fraction** (not a percentage) of portfolio ES.
     #[getter]
     fn relative_es(&self) -> f64 {
         self.inner.relative_es
     }
 
+    /// Per-unit sensitivity of portfolio ES to this position; ``None`` when the
+    /// engine cannot produce a true gradient.
     #[getter]
     fn marginal_es(&self) -> Option<f64> {
         self.inner.marginal_es
@@ -446,6 +613,7 @@ impl PyPositionRiskDecomposition {
 
 #[pymethods]
 impl PyPositionRiskDecomposition {
+    /// Parse from a JSON string.
     #[classmethod]
     #[pyo3(text_signature = "(cls, json_str)")]
     fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
@@ -453,26 +621,48 @@ impl PyPositionRiskDecomposition {
         Ok(Self::from_inner(inner))
     }
 
+    /// Serialize to JSON.
     #[pyo3(text_signature = "(self)")]
     fn to_json(&self) -> PyResult<String> {
         serialize_json(&self.inner)
     }
 
+    /// Total portfolio Value-at-Risk.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Portfolio-currency amount under the workspace loss convention, so
+    ///     losses are reported as **negative** numbers.
     #[getter]
     fn portfolio_var(&self) -> f64 {
         self.inner.portfolio_var
     }
 
+    /// Total portfolio Expected Shortfall.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Same loss convention as :attr:`portfolio_var`; ES sits at or beyond
+    ///     VaR in the loss tail (``portfolio_es <= portfolio_var``).
     #[getter]
     fn portfolio_es(&self) -> f64 {
         self.inner.portfolio_es
     }
 
+    /// Confidence level used for both VaR and ES.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     A **fraction** in ``(0, 1)`` — ``0.99``, not ``99``.
     #[getter]
     fn confidence(&self) -> f64 {
         self.inner.confidence
     }
 
+    /// Number of positions included in the decomposition.
     #[getter]
     fn n_positions(&self) -> usize {
         self.inner.n_positions
@@ -490,6 +680,7 @@ impl PyPositionRiskDecomposition {
         self.inner.euler_residual
     }
 
+    /// Per-position VaR decomposition.
     #[getter]
     fn var_contributions(&self) -> Vec<PyPositionVarContribution> {
         self.inner
@@ -500,6 +691,7 @@ impl PyPositionRiskDecomposition {
             .collect()
     }
 
+    /// Per-position Expected Shortfall decomposition.
     #[getter]
     fn es_contributions(&self) -> Vec<PyPositionEsContribution> {
         self.inner
@@ -508,6 +700,59 @@ impl PyPositionRiskDecomposition {
             .cloned()
             .map(PyPositionEsContribution::from_inner)
             .collect()
+    }
+
+    /// Export the joined per-position VaR and ES decomposition as a pandas
+    /// ``DataFrame``.
+    ///
+    /// ``var_contributions`` and ``es_contributions`` are both keyed by
+    /// position, so they are joined on ``position_id`` into one frame. Rows
+    /// follow ``var_contributions`` order; an ES column is ``None`` for a
+    /// position that has no matching ES entry.
+    ///
+    /// The portfolio-level scalars (:attr:`portfolio_var`,
+    /// :attr:`portfolio_es`, :attr:`confidence`, :attr:`method`) are header
+    /// metadata and are deliberately **not** repeated on every row.
+    ///
+    /// Columns: ``position_id``, ``component_var``, ``relative_var``,
+    /// ``marginal_var``, ``incremental_var``, ``component_es``,
+    /// ``relative_es``, ``marginal_es``.
+    #[pyo3(text_signature = "(self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let es_rows = &self.inner.es_contributions;
+        let es_by_position: HashMap<&str, &PositionEsContribution> = es_rows
+            .iter()
+            .map(|c| (c.position_id.as_str(), c))
+            .collect();
+        let rows = &self.inner.var_contributions;
+        let position_ids: Vec<&str> = rows.iter().map(|c| c.position_id.as_str()).collect();
+        let component_var: Vec<f64> = rows.iter().map(|c| c.component_var).collect();
+        let relative_var: Vec<f64> = rows.iter().map(|c| c.relative_var).collect();
+        let marginal_var: Vec<Option<f64>> = rows.iter().map(|c| c.marginal_var).collect();
+        let incremental_var: Vec<Option<f64>> = rows.iter().map(|c| c.incremental_var).collect();
+        let matched: Vec<Option<&PositionEsContribution>> = position_ids
+            .iter()
+            .map(|pid| es_by_position.get(pid).copied())
+            .collect();
+        let component_es: Vec<Option<f64>> =
+            matched.iter().map(|e| e.map(|c| c.component_es)).collect();
+        let relative_es: Vec<Option<f64>> =
+            matched.iter().map(|e| e.map(|c| c.relative_es)).collect();
+        let marginal_es: Vec<Option<f64>> = matched
+            .iter()
+            .map(|e| e.and_then(|c| c.marginal_es))
+            .collect();
+
+        let data = PyDict::new(py);
+        data.set_item("position_id", position_ids)?;
+        data.set_item("component_var", component_var)?;
+        data.set_item("relative_var", relative_var)?;
+        data.set_item("marginal_var", marginal_var)?;
+        data.set_item("incremental_var", incremental_var)?;
+        data.set_item("component_es", component_es)?;
+        data.set_item("relative_es", relative_es)?;
+        data.set_item("marginal_es", marginal_es)?;
+        dict_to_dataframe(py, &data, None)
     }
 
     fn __repr__(&self) -> String {

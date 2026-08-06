@@ -58,8 +58,8 @@ fn apply_with_context(
 ///     A ``MarketContext`` object or a JSON string.
 /// model : FinancialModelSpec | str
 ///     A ``FinancialModelSpec`` object or a JSON string.
-/// as_of : str
-///     Valuation date in ISO 8601 format.
+/// as_of : datetime.date | str
+///     Valuation date, either a date-like object or an ISO 8601 string.
 ///
 /// Returns
 /// -------
@@ -86,13 +86,13 @@ fn apply_scenario<'py>(
     scenario_json: &str,
     market: &Bound<'py, PyAny>,
     model: &Bound<'py, PyAny>,
-    as_of: &str,
+    as_of: &Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyDict>> {
     let spec: finstack_quant_scenarios::ScenarioSpec =
         serde_json::from_str(scenario_json).map_err(display_to_py)?;
     let mut market = extract_market(py, market)?;
     let mut model = extract_model(model)?;
-    let date = super::parse_date(as_of)?;
+    let date = crate::bindings::date_utils::extract_date(as_of)?;
 
     // Release the GIL for scenario application: shifts + re-pricing can run for seconds.
     let (report, market, model) = py.detach(|| {
@@ -123,8 +123,8 @@ fn apply_scenario<'py>(
 ///     JSON-serialized ``ScenarioSpec``.
 /// market : MarketContext | str
 ///     A ``MarketContext`` object or a JSON string.
-/// as_of : str
-///     Valuation date in ISO 8601 format.
+/// as_of : datetime.date | str
+///     Valuation date, either a date-like object or an ISO 8601 string.
 ///
 /// Returns
 /// -------
@@ -144,12 +144,12 @@ fn apply_scenario_to_market<'py>(
     py: Python<'py>,
     scenario_json: &str,
     market: &Bound<'py, PyAny>,
-    as_of: &str,
+    as_of: &Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyDict>> {
     let spec: finstack_quant_scenarios::ScenarioSpec =
         serde_json::from_str(scenario_json).map_err(display_to_py)?;
     let mut market = extract_market(py, market)?;
-    let date = super::parse_date(as_of)?;
+    let date = crate::bindings::date_utils::extract_date(as_of)?;
 
     let (report, market) = py.detach(|| {
         let report = apply_with_context(&spec, &mut market, None, date);

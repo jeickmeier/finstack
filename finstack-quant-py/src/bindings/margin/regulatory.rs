@@ -6,6 +6,7 @@
 //! Full typed access to every enum variant is intentionally omitted; where
 //! complex configuration is needed, JSON round-tripping is used.
 
+use super::sensitivity_frame::SensitivityRows;
 use crate::bindings::module_utils::{parse_currency, parse_date};
 use crate::errors::{core_to_py, display_to_py};
 use finstack_quant_core::currency::Currency;
@@ -41,6 +42,17 @@ fn risk_class_label(rc: FrtbRiskClass) -> &'static str {
         FrtbRiskClass::Fx => "fx",
         _ => "unknown",
     }
+}
+
+/// Render an optional bucket index as the string form used by the long-format
+/// sensitivity frames.
+fn bucket_label(bucket: u8) -> Option<String> {
+    Some(bucket.to_string())
+}
+
+/// Render a currency pair as a single `issuer` value (e.g. `"EUR/USD"`).
+fn pair_label(ccy1: Currency, ccy2: Currency) -> Option<String> {
+    Some(format!("{ccy1}/{ccy2}"))
 }
 
 fn asset_class_label(ac: SaCcrAssetClass) -> &'static str {
@@ -219,6 +231,239 @@ impl PyFrtbSensitivities {
         self.inner.base_currency.to_string()
     }
 
+    /// Export every populated sensitivity bucket as one long-format pandas
+    /// ``DataFrame``.
+    ///
+    /// Columns: ``risk_class``, ``bucket``, ``tenor``, ``issuer``, ``kind``,
+    /// ``amount``. One row per populated bucket; an empty container still
+    /// carries all six columns. Long format is used deliberately — a column
+    /// per bucket would give a different schema for every portfolio.
+    ///
+    /// ``risk_class`` uses the same labels as the ``frtb_sba_charge``
+    /// breakdown (``girr``, ``csr_non_sec``, ``csr_sec_ctp``,
+    /// ``csr_sec_non_ctp``, ``equity``, ``commodity``, ``fx``), plus ``drc``
+    /// and ``rrao`` for the two position lists.
+    ///
+    /// ``kind`` is ``delta``, ``vega``, ``curvature_up``, ``curvature_down``,
+    /// ``inflation_delta``, ``xccy_basis_delta``, ``jtd`` (DRC notional), or
+    /// ``exotic_notional`` / ``other_notional`` (RRAO). A curvature pair is
+    /// split across two rows so ``amount`` stays scalar.
+    ///
+    /// ``issuer`` carries the name axis: a currency code for GIRR, a
+    /// ``"CCY1/CCY2"`` pair for FX, an issuer, tranche, underlier, commodity
+    /// name, or instrument id elsewhere. ``bucket`` is the FRTB bucket index
+    /// as a **string** (``pd.to_numeric`` if you need it numeric);
+    /// ``tenor`` is the tenor or option maturity, and for GIRR vega the
+    /// ``"{option_maturity}/{underlying_tenor}"`` pair. Both are ``None``
+    /// where the risk class has no such axis.
+    ///
+    /// ``amount`` keeps each bucket's own convention: GIRR deltas are
+    /// base-currency P&L per **1 percentage point** of curve shift (that is,
+    /// ``100 x DV01``), DRC rows are signed JTD notionals before LGD, and
+    /// RRAO rows are gross notionals.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let mut rows = SensitivityRows::default();
+        let sens = &self.inner;
+
+        // GIRR
+        for ((currency, tenor), amount) in &sens.girr_delta {
+            rows.push(
+                "girr",
+                "delta",
+                Some(currency.to_string()),
+                None,
+                Some(tenor.clone()),
+                *amount,
+            );
+        }
+        for (currency, amount) in &sens.girr_inflation_delta {
+            rows.push(
+                "girr",
+                "inflation_delta",
+                Some(currency.to_string()),
+                None,
+                None,
+                *amount,
+            );
+        }
+        for (currency, amount) in &sens.girr_xccy_basis_delta {
+            rows.push(
+                "girr",
+                "xccy_basis_delta",
+                Some(currency.to_string()),
+                None,
+                None,
+                *amount,
+            );
+        }
+        for ((currency, option_maturity, underlying_tenor), amount) in &sens.girr_vega {
+            rows.push(
+                "girr",
+                "vega",
+                Some(currency.to_string()),
+                None,
+                Some(format!("{option_maturity}/{underlying_tenor}")),
+                *amount,
+            );
+        }
+        for (currency, pair) in &sens.girr_curvature {
+            rows.push_curvature("girr", Some(currency.to_string()), None, *pair);
+        }
+
+        // CSR (non-securitization and both securitization sub-types)
+        for (label, delta, vega, curvature) in [
+            (
+                "csr_non_sec",
+                &sens.csr_nonsec_delta,
+                &sens.csr_nonsec_vega,
+                &sens.csr_nonsec_curvature,
+            ),
+            (
+                "csr_sec_ctp",
+                &sens.csr_sec_ctp_delta,
+                &sens.csr_sec_ctp_vega,
+                &sens.csr_sec_ctp_curvature,
+            ),
+            (
+                "csr_sec_non_ctp",
+                &sens.csr_sec_nonctp_delta,
+                &sens.csr_sec_nonctp_vega,
+                &sens.csr_sec_nonctp_curvature,
+            ),
+        ] {
+            for ((issuer, bucket, tenor), amount) in delta {
+                rows.push(
+                    label,
+                    "delta",
+                    Some(issuer.clone()),
+                    bucket_label(*bucket),
+                    Some(tenor.clone()),
+                    *amount,
+                );
+            }
+            for ((issuer, bucket, maturity), amount) in vega {
+                rows.push(
+                    label,
+                    "vega",
+                    Some(issuer.clone()),
+                    bucket_label(*bucket),
+                    Some(maturity.clone()),
+                    *amount,
+                );
+            }
+            for ((issuer, bucket), pair) in curvature {
+                rows.push_curvature(label, Some(issuer.clone()), bucket_label(*bucket), *pair);
+            }
+        }
+
+        // Equity
+        for ((underlier, bucket), amount) in &sens.equity_delta {
+            rows.push(
+                "equity",
+                "delta",
+                Some(underlier.clone()),
+                bucket_label(*bucket),
+                None,
+                *amount,
+            );
+        }
+        for ((underlier, bucket, maturity), amount) in &sens.equity_vega {
+            rows.push(
+                "equity",
+                "vega",
+                Some(underlier.clone()),
+                bucket_label(*bucket),
+                Some(maturity.clone()),
+                *amount,
+            );
+        }
+        for ((underlier, bucket), pair) in &sens.equity_curvature {
+            rows.push_curvature(
+                "equity",
+                Some(underlier.clone()),
+                bucket_label(*bucket),
+                *pair,
+            );
+        }
+
+        // Commodity
+        for ((name, bucket, tenor), amount) in &sens.commodity_delta {
+            rows.push(
+                "commodity",
+                "delta",
+                Some(name.clone()),
+                bucket_label(*bucket),
+                Some(tenor.clone()),
+                *amount,
+            );
+        }
+        for ((name, bucket, maturity), amount) in &sens.commodity_vega {
+            rows.push(
+                "commodity",
+                "vega",
+                Some(name.clone()),
+                bucket_label(*bucket),
+                Some(maturity.clone()),
+                *amount,
+            );
+        }
+        for ((name, bucket), pair) in &sens.commodity_curvature {
+            rows.push_curvature(
+                "commodity",
+                Some(name.clone()),
+                bucket_label(*bucket),
+                *pair,
+            );
+        }
+
+        // FX
+        for ((ccy1, ccy2), amount) in &sens.fx_delta {
+            rows.push("fx", "delta", pair_label(*ccy1, *ccy2), None, None, *amount);
+        }
+        for ((ccy1, ccy2, maturity), amount) in &sens.fx_vega {
+            rows.push(
+                "fx",
+                "vega",
+                pair_label(*ccy1, *ccy2),
+                None,
+                Some(maturity.clone()),
+                *amount,
+            );
+        }
+        for ((ccy1, ccy2), pair) in &sens.fx_curvature {
+            rows.push_curvature("fx", pair_label(*ccy1, *ccy2), None, *pair);
+        }
+
+        // DRC and RRAO position lists
+        for position in &sens.drc_positions {
+            rows.push(
+                "drc",
+                "jtd",
+                Some(position.issuer.clone()),
+                bucket_label(position.rating_bucket),
+                None,
+                position.jtd_amount,
+            );
+        }
+        for position in &sens.rrao_exotic_notionals {
+            let kind = if position.is_exotic {
+                "exotic_notional"
+            } else {
+                "other_notional"
+            };
+            rows.push(
+                "rrao",
+                kind,
+                Some(position.instrument_id.clone()),
+                None,
+                None,
+                position.notional,
+            );
+        }
+
+        rows.into_dataframe(py)
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "FrtbSensitivities(base={}, girr_delta={}, equity_delta={}, fx_delta={})",
@@ -309,21 +554,26 @@ impl PySaCcrTrade {
         serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
     }
 
+    /// Trade identifier.
     #[getter]
     fn trade_id(&self) -> &str {
         &self.inner.trade_id
     }
 
+    /// SA-CCR asset class label (``interest_rate``, ``foreign_exchange``,
+    /// ``credit``, ``equity``, or ``commodity``).
     #[getter]
     fn asset_class(&self) -> String {
         asset_class_label(self.inner.asset_class).to_string()
     }
 
+    /// Trade notional, in the netting set's reporting currency.
     #[getter]
     fn notional(&self) -> f64 {
         self.inner.notional
     }
 
+    /// Current mark-to-market value, in the netting set's reporting currency.
     #[getter]
     fn mtm(&self) -> f64 {
         self.inner.mtm
@@ -434,11 +684,13 @@ impl PySaCcrNettingSetConfig {
         serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
     }
 
+    /// Whether the netting set is margined (a CSA with an MPoR applies).
     #[getter]
     fn is_margined(&self) -> bool {
         self.inner.is_margined
     }
 
+    /// Net collateral held against the netting set, in its reporting currency.
     #[getter]
     fn collateral(&self) -> f64 {
         self.inner.collateral

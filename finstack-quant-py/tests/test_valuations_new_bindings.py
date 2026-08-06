@@ -194,11 +194,8 @@ def test_instrument_cashflows_deposit_reconciles_with_price() -> None:
         assert col in df.columns
 
     # total_pv reconciles with price_instrument within rounding.
-    # Note: price_instrument accepts MarketContext at runtime even though the
-    # .pyi stub types `market_json` as `str`; pass the JSON string to keep
-    # static type checkers happy.
-    pr = json.loads(price_instrument(inst_json, market.to_json(), "2025-01-15", model="discounting"))
-    price = float(pr["value"]["amount"])
+    pr = price_instrument(inst_json, market.to_json(), "2025-01-15", model="discounting")
+    price = float(pr.price)
     assert abs(envelope["total_pv"] - price) < 0.01
 
     # DataFrame pv sum matches the envelope total.
@@ -296,17 +293,15 @@ def test_revolving_credit_binding_validates_floating_rate_spec() -> None:
 
 
 def test_revolving_credit_custom_metrics_use_as_of_balance() -> None:
-    result = json.loads(
-        price_instrument_with_metrics(
-            _revolving_credit_json(),
-            _revolving_credit_market().to_json(),
-            "2024-07-01",
-            "discounting",
-            ["utilization_rate", "available_capacity"],
-        )
+    result = price_instrument_with_metrics(
+        _revolving_credit_json(),
+        _revolving_credit_market().to_json(),
+        "2024-07-01",
+        "discounting",
+        ["utilization_rate", "available_capacity"],
     )
-    assert result["measures"]["utilization_rate"] == pytest.approx(0.30)
-    assert result["measures"]["available_capacity"] == pytest.approx(35_000_000.0)
+    assert result.get_metric("utilization_rate") == pytest.approx(0.30)
+    assert result.get_metric("available_capacity") == pytest.approx(35_000_000.0)
 
 
 def test_revolving_credit_credit_cashflows_fail_closed() -> None:

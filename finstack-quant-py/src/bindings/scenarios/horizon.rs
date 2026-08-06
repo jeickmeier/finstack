@@ -19,8 +19,9 @@ use pyo3::prelude::*;
 ///     Canonical v1 instrument envelope.
 /// market : MarketContext | str
 ///     A ``MarketContext`` object or JSON string.
-/// as_of : str
-///     Valuation date in ISO 8601 format (e.g. ``"2025-01-15"``).
+/// as_of : datetime.date | str
+///     Valuation date, either a date-like object (``datetime.date``,
+///     ``pandas.Timestamp``) or an ISO 8601 string (e.g. ``"2025-01-15"``).
 /// scenario_json : str
 ///     JSON-serialized ``ScenarioSpec``.
 /// method : str, optional
@@ -56,7 +57,7 @@ pub(crate) fn compute_horizon_return<'py>(
     py: Python<'py>,
     instrument_json: &str,
     market: &Bound<'py, PyAny>,
-    as_of: &str,
+    as_of: &Bound<'py, PyAny>,
     scenario_json: &str,
     method: &str,
     config: Option<&str>,
@@ -74,7 +75,7 @@ pub(crate) fn compute_horizon_return<'py>(
     let market_ctx = extract_market(py, market)?;
 
     // Parse date
-    let date = super::parse_date(as_of)?;
+    let date = crate::bindings::date_utils::extract_date(as_of)?;
 
     // Parse scenario
     let scenario: finstack_quant_scenarios::ScenarioSpec =

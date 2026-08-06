@@ -145,9 +145,9 @@ def test_cashflows_namespace_build_validate_accrual_and_price_bond() -> None:
     instrument = json.loads(instrument_json)
     assert instrument["instrument"]["type"] == "bond"
 
-    result = json.loads(price_instrument(instrument_json, _market_json(), "2024-09-03", "discounting"))
-    assert result["instrument_id"] == "CUSTOM-CF"
-    assert result["value"]["currency"] == "USD"
+    result = price_instrument(instrument_json, _market_json(), "2024-09-03", "discounting")
+    assert result.instrument_id == "CUSTOM-CF"
+    assert result.currency == "USD"
 
 
 def test_cashflows_builds_floating_schedule_with_market_json() -> None:

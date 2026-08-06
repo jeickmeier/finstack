@@ -1,4 +1,4 @@
-//! Shared helpers for constructing pandas DataFrames from Rust data.
+//! Shared helpers for constructing pandas DataFrames and Series from Rust data.
 
 use crate::bindings::core::dates::utils::date_to_py;
 use finstack_quant_core::table::{TableColumn, TableColumnData, TableEnvelope};
@@ -18,6 +18,14 @@ fn pandas_dataframe<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
         .map(|ctor| ctor.bind(py))
 }
 
+static PANDAS_SERIES: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+
+fn pandas_series<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    PANDAS_SERIES
+        .get_or_try_init(py, || Ok(py.import("pandas")?.getattr("Series")?.unbind()))
+        .map(|ctor| ctor.bind(py))
+}
+
 /// Build a `pd.DataFrame` from a dict of column data with an optional index.
 ///
 /// `columns` is a pre-populated `PyDict` mapping column names to list-like values.
@@ -32,6 +40,53 @@ pub fn dict_to_dataframe<'py>(
         kwargs.set_item("index", idx)?;
     }
     pandas_dataframe(py)?.call((columns,), Some(&kwargs))
+}
+
+/// Build a `pd.Series` from already-converted data plus a label index.
+///
+/// Shared by [`values_to_series`] and [`int_values_to_series`] so both dtypes
+/// reach pandas through the same `pd.Series(data, index=..., name=...)` call.
+fn build_series<'py>(
+    py: Python<'py>,
+    data: Bound<'py, PyAny>,
+    index: &[String],
+    name: &str,
+) -> PyResult<Bound<'py, PyAny>> {
+    let labels: Vec<&str> = index.iter().map(String::as_str).collect();
+    let kwargs = PyDict::new(py);
+    kwargs.set_item("index", labels)?;
+    kwargs.set_item("name", name)?;
+    pandas_series(py)?.call((data,), Some(&kwargs))
+}
+
+/// Build a float64 `pd.Series` from per-entity values labelled by `index`.
+///
+/// Scalar-per-entity metrics return a labelled Series rather than a bare list
+/// so callers select by name (`s["FUND"]`) instead of having to remember the
+/// positional order, and so `name` survives as the column label under
+/// `pd.concat([...], axis=1)`. The data goes through `PyArray1::from_vec`, so
+/// there is no per-element `PyFloat` boxing.
+pub fn values_to_series<'py>(
+    py: Python<'py>,
+    values: Vec<f64>,
+    index: &[String],
+    name: &str,
+) -> PyResult<Bound<'py, PyAny>> {
+    build_series(py, PyArray1::from_vec(py, values).into_any(), index, name)
+}
+
+/// Build an int64 `pd.Series` from per-entity values labelled by `index`.
+///
+/// The integer counterpart of [`values_to_series`], so integer-valued metrics
+/// (drawdown durations in calendar days) keep an integer dtype instead of
+/// being silently widened to float64.
+pub fn int_values_to_series<'py>(
+    py: Python<'py>,
+    values: Vec<i64>,
+    index: &[String],
+    name: &str,
+) -> PyResult<Bound<'py, PyAny>> {
+    build_series(py, PyArray1::from_vec(py, values).into_any(), index, name)
 }
 
 /// Build a single-row pandas DataFrame from any serializable object.

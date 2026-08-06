@@ -382,10 +382,12 @@ BZD: Currency
 CAD: Currency
 CDF: Currency
 CHF: Currency
+CLF: Currency
 CLP: Currency
 CNY: Currency
 COP: Currency
 CRC: Currency
+CUC: Currency
 CUP: Currency
 CVE: Currency
 CZK: Currency
@@ -477,6 +479,7 @@ SEK: Currency
 SGD: Currency
 SHP: Currency
 SLE: Currency
+SLL: Currency
 SOS: Currency
 SRD: Currency
 SSP: Currency
@@ -497,6 +500,7 @@ UGX: Currency
 USD: Currency
 UYU: Currency
 UZS: Currency
+VED: Currency
 VES: Currency
 VND: Currency
 VUV: Currency

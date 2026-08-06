@@ -339,8 +339,8 @@ def run_monte_carlo(
     --------
     >>> from finstack_quant.statements import ModelBuilder, MonteCarloConfig, run_monte_carlo
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q2", "2025Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0), ("2025Q2", 110.0)])
+    >>> _ = builder.periods("2025Q1..Q2", "2025Q1")
+    >>> _ = builder.value("revenue", [("2025Q1", 100.0), ("2025Q2", 110.0)])
     >>> run_monte_carlo(builder.build(), MonteCarloConfig(2, 7, [0.5])).n_paths
     2
 
@@ -956,7 +956,7 @@ class FinancialModelSpec:
     --------
     >>> from finstack_quant.statements import ModelBuilder
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
+    >>> _ = builder.periods("2025Q1..Q1")
     >>> builder.build().id
     'demo'
 
@@ -1014,7 +1014,7 @@ class FinancialModelSpec:
         --------
         >>> from finstack_quant.statements import ModelBuilder
         >>> builder = ModelBuilder("demo")
-        >>> builder.periods("2025Q1..Q1")
+        >>> _ = builder.periods("2025Q1..Q1")
         >>> '"id":"demo"' in builder.build().to_json()
         True
 
@@ -1067,7 +1067,7 @@ class FinancialModelSpec:
         --------
         >>> from finstack_quant.statements import ModelBuilder
         >>> builder = ModelBuilder("demo")
-        >>> builder.periods("2025Q1..Q1")
+        >>> _ = builder.periods("2025Q1..Q1")
         >>> builder.build().node_ids()
         []
 
@@ -1092,7 +1092,7 @@ class FinancialModelSpec:
         --------
         >>> from finstack_quant.statements import ModelBuilder
         >>> builder = ModelBuilder("demo")
-        >>> builder.periods("2025Q1..Q1")
+        >>> _ = builder.periods("2025Q1..Q1")
         >>> builder.build().has_node("revenue")
         False
 
@@ -1127,15 +1127,26 @@ class ModelBuilder:
 
     Note
     ----
-    Methods on this class mutate the builder in place and return ``None``.
-    Call them sequentially rather than chaining.
+    Configuration methods mutate the builder in place *and* return it, so they
+    can be chained or called as separate statements. ``build`` and ``mixed``
+    are terminal: they consume the builder, and any later configuration call
+    raises ``ValueError``.
 
     Examples
     --------
+    Chained:
+
     >>> from finstack_quant.statements import ModelBuilder
+    >>> builder = ModelBuilder("demo").periods("2025Q1..Q1")
+    >>> model = builder.value("revenue", [("2025Q1", 100.0)]).build()
+    >>> model.node_ids()
+    ['revenue']
+
+    Statement per line:
+
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
     >>> builder.build().node_ids()
     ['revenue']
 
@@ -1154,14 +1165,14 @@ class ModelBuilder:
         --------
         >>> from finstack_quant.statements import ModelBuilder
         >>> builder = ModelBuilder("demo")
-        >>> builder.periods("2025Q1..Q1")
+        >>> _ = builder.periods("2025Q1..Q1")
         >>> builder.build().id
         'demo'
 
         """
         ...
 
-    def periods(self, range: str, actuals_until: str | None = None) -> None:
+    def periods(self, range: str, actuals_until: str | None = None) -> ModelBuilder:
         """
         Define the model's period lattice from a range expression.
 
@@ -1172,6 +1183,11 @@ class ModelBuilder:
         actuals_until:
             Optional last actual period label; ``None`` if not used.
 
+        Returns
+        -------
+        ModelBuilder
+            This builder, for chaining.
+
         Raises
         ------
         ValueError
@@ -1180,7 +1196,7 @@ class ModelBuilder:
         """
         ...
 
-    def value(self, node_id: str, values: list[tuple[str, float]]) -> None:
+    def value(self, node_id: str, values: list[tuple[str, float]]) -> ModelBuilder:
         """
         Add a value node with explicit per-period scalars.
 
@@ -1191,6 +1207,11 @@ class ModelBuilder:
         values:
             ``(period_id, value)`` pairs, for example ``[("2025Q1", 1.0)]``.
 
+        Returns
+        -------
+        ModelBuilder
+            This builder, for chaining.
+
         Raises
         ------
         ValueError
@@ -1199,7 +1220,7 @@ class ModelBuilder:
         """
         ...
 
-    def value_scalar(self, node_id: str, values: list[tuple[str, float]]) -> None:
+    def value_scalar(self, node_id: str, values: list[tuple[str, float]]) -> ModelBuilder:
         """
         Add a scalar value node with explicit per-period values.
 
@@ -1210,6 +1231,11 @@ class ModelBuilder:
         values:
             ``(period_id, value)`` pairs, for example ``[("2025Q1", 1.0)]``.
 
+        Returns
+        -------
+        ModelBuilder
+            This builder, for chaining.
+
         Raises
         ------
         ValueError
@@ -1218,7 +1244,7 @@ class ModelBuilder:
         """
         ...
 
-    def value_money(self, node_id: str, values: list[tuple[str, Money]]) -> None:
+    def value_money(self, node_id: str, values: list[tuple[str, Money]]) -> ModelBuilder:
         """
         Add a monetary value node with explicit per-period values.
 
@@ -1229,6 +1255,11 @@ class ModelBuilder:
         values:
             ``(period_id, Money)`` pairs, for example ``[("2025Q1", Money(100.0, "USD"))]``.
 
+        Returns
+        -------
+        ModelBuilder
+            This builder, for chaining.
+
         Raises
         ------
         ValueError
@@ -1237,7 +1268,7 @@ class ModelBuilder:
         """
         ...
 
-    def compute(self, node_id: str, formula: str) -> None:
+    def compute(self, node_id: str, formula: str) -> ModelBuilder:
         """
         Add a calculated node from a DSL formula.
 
@@ -1247,6 +1278,11 @@ class ModelBuilder:
             Identifier for the computed node.
         formula:
             Expression in the statements DSL (for example ``"revenue - cogs"``).
+
+        Returns
+        -------
+        ModelBuilder
+            This builder, for chaining.
 
         Raises
         ------
@@ -1279,7 +1315,7 @@ class ModelBuilder:
         """
         ...
 
-    def forecast(self, node_id: str, forecast_spec: ForecastSpec) -> None:
+    def forecast(self, node_id: str, forecast_spec: ForecastSpec) -> ModelBuilder:
         """
         Attach a forecast to an existing node or create a forecast-only mixed node.
 
@@ -1290,6 +1326,11 @@ class ModelBuilder:
         forecast_spec:
             A :class:`ForecastSpec` describing the projection method and parameters.
 
+        Returns
+        -------
+        ModelBuilder
+            This builder, for chaining.
+
         Raises
         ------
         ValueError
@@ -1298,7 +1339,7 @@ class ModelBuilder:
         """
         ...
 
-    def where_clause(self, where_clause: str) -> None:
+    def where_clause(self, where_clause: str) -> ModelBuilder:
         """
         Attach a conditional expression to the last added node.
 
@@ -1307,6 +1348,11 @@ class ModelBuilder:
         where_clause:
             DSL expression evaluated per period to gate the node's value.
 
+        Returns
+        -------
+        ModelBuilder
+            This builder, for chaining.
+
         Raises
         ------
         ValueError
@@ -1315,7 +1361,7 @@ class ModelBuilder:
         """
         ...
 
-    def with_meta(self, key: str, value_json: str) -> None:
+    def with_meta(self, key: str, value_json: str) -> ModelBuilder:
         """
         Add model-level metadata from a JSON payload.
 
@@ -1327,6 +1373,11 @@ class ModelBuilder:
         value_json:
             JSON-serialized metadata value.
 
+        Returns
+        -------
+        ModelBuilder
+            This builder, for chaining.
+
         Raises
         ------
         ValueError
@@ -1336,14 +1387,19 @@ class ModelBuilder:
         """
         ...
 
-    def with_builtin_metrics(self) -> None:
+    def with_builtin_metrics(self) -> ModelBuilder:
         """
         Add all built-in statement metrics to the model.
+
+        Returns
+        -------
+        ModelBuilder
+            This builder, for chaining.
 
         """
         ...
 
-    def add_metric_from_registry(self, qualified_id: str, registry: MetricRegistry) -> None:
+    def add_metric_from_registry(self, qualified_id: str, registry: MetricRegistry) -> ModelBuilder:
         """
         Add one metric and its dependencies from a metric registry.
 
@@ -1353,6 +1409,11 @@ class ModelBuilder:
             Fully qualified metric identifier.
         registry:
             A :class:`MetricRegistry` containing the metric definition.
+
+        Returns
+        -------
+        ModelBuilder
+            This builder, for chaining.
 
         Raises
         ------
@@ -1372,7 +1433,7 @@ class ModelBuilder:
         issue_date: date,
         maturity_date: date,
         discount_curve_id: str,
-    ) -> None:
+    ) -> ModelBuilder:
         """
         Add a fixed-rate bond to the capital structure (US 30/360 semi-annual).
 
@@ -1394,6 +1455,11 @@ class ModelBuilder:
         discount_curve_id:
             Curve ID for discounting (e.g. ``"USD-OIS"``).
 
+        Returns
+        -------
+        ModelBuilder
+            This builder, for chaining.
+
         Raises
         ------
         ValueError
@@ -1413,7 +1479,7 @@ class ModelBuilder:
         maturity_date: date,
         discount_curve_id: str,
         forward_curve_id: str,
-    ) -> None:
+    ) -> ModelBuilder:
         """
         Add an interest rate swap to the capital structure (US conventions).
 
@@ -1434,6 +1500,11 @@ class ModelBuilder:
         forward_curve_id:
             Curve ID for forward rates.
 
+        Returns
+        -------
+        ModelBuilder
+            This builder, for chaining.
+
         Raises
         ------
         ValueError
@@ -1444,7 +1515,7 @@ class ModelBuilder:
         """
         ...
 
-    def add_debt(self, id: str, spec_json: str) -> None:
+    def add_debt(self, id: str, spec_json: str) -> ModelBuilder:
         """
         Add a debt instrument via its canonical v1 instrument envelope.
 
@@ -1459,7 +1530,12 @@ class ModelBuilder:
                 spec_json:
                     ``finstack_quant.instrument/1`` envelope containing the debt instrument.
 
-                Raises
+                Returns
+        -------
+        ModelBuilder
+            This builder, for chaining.
+
+        Raises
                 ------
                 ValueError
                     If the envelope is invalid or its instrument type is not supported by
@@ -1468,7 +1544,7 @@ class ModelBuilder:
         """
         ...
 
-    def reporting_currency(self, currency: Currency) -> None:
+    def reporting_currency(self, currency: Currency) -> ModelBuilder:
         """
         Set the reporting currency used for capital-structure totals.
 
@@ -1478,6 +1554,11 @@ class ModelBuilder:
             A :class:`Currency` instance. A bare ISO-4217 string is not
             accepted; construct ``Currency("USD")`` first.
 
+        Returns
+        -------
+        ModelBuilder
+            This builder, for chaining.
+
         Raises
         ------
         ValueError
@@ -1486,7 +1567,7 @@ class ModelBuilder:
         """
         ...
 
-    def fx_policy(self, policy: str) -> None:
+    def fx_policy(self, policy: str) -> ModelBuilder:
         """
         Set the FX policy (``cashflow_date``/``period_end``/``period_average``/``custom``).
 
@@ -1494,6 +1575,11 @@ class ModelBuilder:
         ----------
         policy:
             FX conversion policy label.
+
+        Returns
+        -------
+        ModelBuilder
+            This builder, for chaining.
 
         Raises
         ------
@@ -1503,7 +1589,7 @@ class ModelBuilder:
         """
         ...
 
-    def waterfall(self, waterfall_spec: WaterfallSpec) -> None:
+    def waterfall(self, waterfall_spec: WaterfallSpec) -> ModelBuilder:
         """
         Attach a waterfall specification (PIK toggle + ECF sweep + priorities).
 
@@ -1511,6 +1597,11 @@ class ModelBuilder:
         ----------
         waterfall_spec:
             A :class:`WaterfallSpec` defining cash distribution priorities.
+
+        Returns
+        -------
+        ModelBuilder
+            This builder, for chaining.
 
         Raises
         ------
@@ -1553,16 +1644,16 @@ class MixedNodeBuilder:
     --------
     >>> from finstack_quant.statements import ModelBuilder
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
+    >>> _ = builder.periods("2025Q1..Q1")
     >>> mixed = builder.mixed("profit")
-    >>> mixed.values([("2025Q1", 40.0)])
-    >>> mixed.formula("revenue - cost")
+    >>> _ = mixed.values([("2025Q1", 40.0)])
+    >>> _ = mixed.formula("revenue - cost")
     >>> mixed.build().build().has_node("profit")
     True
 
     """
 
-    def values(self, values: list[tuple[str, float]]) -> None:
+    def values(self, values: list[tuple[str, float]]) -> MixedNodeBuilder:
         """
         Set scalar explicit values.
 
@@ -1572,6 +1663,11 @@ class MixedNodeBuilder:
             ``(period_id, value)`` pairs for periods where an explicit scalar
             overrides the formula or forecast.
 
+        Returns
+        -------
+        MixedNodeBuilder
+            This builder, for chaining.
+
         Raises
         ------
         ValueError
@@ -1580,7 +1676,7 @@ class MixedNodeBuilder:
         """
         ...
 
-    def values_money(self, values: list[tuple[str, Money]]) -> None:
+    def values_money(self, values: list[tuple[str, Money]]) -> MixedNodeBuilder:
         """
         Set monetary explicit values.
 
@@ -1590,6 +1686,11 @@ class MixedNodeBuilder:
             ``(period_id, Money)`` pairs for periods where an explicit monetary
             value overrides the formula or forecast.
 
+        Returns
+        -------
+        MixedNodeBuilder
+            This builder, for chaining.
+
         Raises
         ------
         ValueError
@@ -1598,7 +1699,7 @@ class MixedNodeBuilder:
         """
         ...
 
-    def forecast(self, forecast_spec: ForecastSpec) -> None:
+    def forecast(self, forecast_spec: ForecastSpec) -> MixedNodeBuilder:
         """
         Set the forecast spec.
 
@@ -1606,6 +1707,11 @@ class MixedNodeBuilder:
         ----------
         forecast_spec:
             A :class:`ForecastSpec` describing the projection method.
+
+        Returns
+        -------
+        MixedNodeBuilder
+            This builder, for chaining.
 
         Raises
         ------
@@ -1615,7 +1721,7 @@ class MixedNodeBuilder:
         """
         ...
 
-    def formula(self, formula: str) -> None:
+    def formula(self, formula: str) -> MixedNodeBuilder:
         """
         Set the fallback formula.
 
@@ -1623,6 +1729,11 @@ class MixedNodeBuilder:
         ----------
         formula:
             DSL expression used when no explicit value or forecast is available.
+
+        Returns
+        -------
+        MixedNodeBuilder
+            This builder, for chaining.
 
         Raises
         ------
@@ -1632,7 +1743,7 @@ class MixedNodeBuilder:
         """
         ...
 
-    def name(self, name: str) -> None:
+    def name(self, name: str) -> MixedNodeBuilder:
         """
         Set the display name.
 
@@ -1640,6 +1751,11 @@ class MixedNodeBuilder:
         ----------
         name:
             Human-readable node name.
+
+        Returns
+        -------
+        MixedNodeBuilder
+            This builder, for chaining.
 
         Raises
         ------
@@ -1780,8 +1896,8 @@ class StatementResult:
     --------
     >>> from finstack_quant.statements import Evaluator, ModelBuilder
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
     >>> Evaluator().evaluate(builder.build()).get("revenue", "2025Q1")
     100.0
 
@@ -1811,8 +1927,8 @@ class StatementResult:
         --------
         >>> from finstack_quant.statements import Evaluator, ModelBuilder, StatementResult
         >>> builder = ModelBuilder("demo")
-        >>> builder.periods("2025Q1..Q1")
-        >>> builder.value("revenue", [("2025Q1", 100.0)])
+        >>> _ = builder.periods("2025Q1..Q1")
+        >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
         >>> result = Evaluator().evaluate(builder.build())
         >>> StatementResult.from_json(result.to_json()).get("revenue", "2025Q1")
         100.0
@@ -2103,8 +2219,8 @@ class Evaluator:
     --------
     >>> from finstack_quant.statements import Evaluator, ModelBuilder
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
     >>> Evaluator().evaluate(builder.build()).node_count
     1
 
@@ -2375,8 +2491,8 @@ def normalize(results: StatementResult, config: NormalizationConfig) -> str:
     --------
     >>> from finstack_quant.statements import Evaluator, ModelBuilder, NormalizationConfig, normalize
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("ebitda", [("2025Q1", 25.0)])
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("ebitda", [("2025Q1", 25.0)])
     >>> result = Evaluator().evaluate(builder.build())
     >>> import json
     >>> json.loads(normalize(result, NormalizationConfig("ebitda")))[0]["final_value"]

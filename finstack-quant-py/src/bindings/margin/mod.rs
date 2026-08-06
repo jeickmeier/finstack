@@ -7,6 +7,7 @@ mod calculators;
 mod im;
 mod metrics;
 mod regulatory;
+mod sensitivity_frame;
 mod types;
 mod xva;
 
