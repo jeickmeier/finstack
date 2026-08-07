@@ -1519,7 +1519,7 @@
     },
     "DiscountCurveSolveConfig": {
       "additionalProperties": false,
-      "description": "Discount-curve specific numerical solver configuration.\n\nControls the search space and numerical stability of the discount curve\nbootstrapping or global solve process.\n\n# Invariants\n- `df_hard_min` > 0\n- `scan_grid_points` > 0\n\n# Examples\n```ignore\nuse finstack_quant_valuations::calibration::DiscountCurveSolveConfig;\n\nlet config = DiscountCurveSolveConfig {\n    scan_grid_points: 64,\n    df_hard_min: 1e-10,\n    ..Default::default()\n};\n```",
+      "description": "Discount-curve specific numerical solver configuration.\n\nControls the search space and numerical stability of the discount curve\nbootstrapping or global solve process.\n\n# Invariants\n- `df_hard_min` > 0\n- `scan_grid_points` > 0\n\n# Examples\n```\nuse finstack_quant_valuations::calibration::DiscountCurveSolveConfig;\n\nlet config = DiscountCurveSolveConfig {\n    scan_grid_points: 64,\n    df_hard_min: 1e-10,\n    ..Default::default()\n};\n```",
       "properties": {
         "allow_non_monotonic_final": {
           "default": null,
@@ -1864,7 +1864,7 @@
     },
     "HazardCurveSolveConfig": {
       "additionalProperties": false,
-      "description": "Hazard-curve specific numerical solver configuration.\n\nControls the search space and numerical stability of hazard curve\nbootstrapping or global solve for credit curve calibration.\n\n# Invariants\n- `hazard_hard_min` >= 0 (hazard rates must be non-negative)\n- `hazard_hard_max` > `hazard_hard_min`\n\n# Examples\n```ignore\nuse finstack_quant_valuations::calibration::HazardCurveSolveConfig;\n\n// For distressed debt scenarios, increase the max hazard rate\nlet config = HazardCurveSolveConfig {\n    hazard_hard_max: 100.0,  // Allow up to ~100% default probability per year\n    ..Default::default()\n};\n```",
+      "description": "Hazard-curve specific numerical solver configuration.\n\nControls the search space and numerical stability of hazard curve\nbootstrapping or global solve for credit curve calibration.\n\n# Invariants\n- `hazard_hard_min` >= 0 (hazard rates must be non-negative)\n- `hazard_hard_max` > `hazard_hard_min`\n\n# Examples\n```\nuse finstack_quant_valuations::calibration::HazardCurveSolveConfig;\n\n// For distressed debt scenarios, increase the max hazard rate\nlet config = HazardCurveSolveConfig {\n    hazard_hard_max: 100.0,  // Allow up to ~100% default probability per year\n    ..Default::default()\n};\n```",
       "properties": {
         "hazard_hard_max": {
           "default": 10.0,
@@ -1934,7 +1934,7 @@
     },
     "InflationCurveSolveConfig": {
       "additionalProperties": false,
-      "description": "Inflation-curve specific numerical solver configuration.\n\nControls the numerical stability and success criteria of inflation curve\nbootstrapping or global solve for CPI curve calibration.\n\n# Examples\n```ignore\nuse finstack_quant_valuations::calibration::InflationCurveSolveConfig;\n\nlet config = InflationCurveSolveConfig {\n    validation_tolerance: 1e-6,  // Relax for noisy inflation markets\n    ..Default::default()\n};\n```",
+      "description": "Inflation-curve specific numerical solver configuration.\n\nControls the numerical stability and success criteria of inflation curve\nbootstrapping or global solve for CPI curve calibration.\n\n# Examples\n```\nuse finstack_quant_valuations::calibration::InflationCurveSolveConfig;\n\nlet config = InflationCurveSolveConfig {\n    validation_tolerance: 1e-6,  // Relax for noisy inflation markets\n    ..Default::default()\n};\n```",
       "properties": {
         "cpi_hard_max": {
           "default": 10000.0,
@@ -5128,7 +5128,7 @@
     },
     "SolverConfig": {
       "$ref": "#/$defs/BrentSolver",
-      "description": "Serializable solver configuration for calibration.\n\nWraps the Brent 1D solver used by the bootstrap path. Serializes transparently\nas the underlying [`BrentSolver`] fields.\n\n# Examples\n\n```ignore\nuse finstack_quant_valuations::calibration::SolverConfig;\n\n# fn main() -> Result<(), Box<dyn std::error::Error>> {\nlet config = SolverConfig::brent_default().with_tolerance(1e-12).with_max_iterations(200);\nlet json = serde_json::to_string(&config)?;\n# let _ = json;\n# Ok(())\n# }\n```"
+      "description": "Serializable solver configuration for calibration.\n\nWraps the Brent 1D solver used by the bootstrap path. Serializes transparently\nas the underlying [`BrentSolver`] fields.\n\n# Examples\n\n```\nuse finstack_quant_valuations::calibration::SolverConfig;\n\n# fn main() -> Result<(), Box<dyn std::error::Error>> {\nlet config = SolverConfig::brent_default().with_tolerance(1e-12).with_max_iterations(200);\nlet json = serde_json::to_string(&config)?;\n# let _ = json;\n# Ok(())\n# }\n```"
     },
     "SurfaceExtrapolationPolicy": {
       "description": "Extrapolation policy for volatility surface construction.",
