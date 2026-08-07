@@ -36,3 +36,7 @@ mod test_metrics_registry;
 // CDSW screen values, plus CDSO quadrature and supplied-curve regressions.
 mod test_bloomberg_cdsw_parity;
 mod test_cdx_ig_46_cdso_regressions;
+
+// CDX HY clean-price-strike convention: curve-reprice risk metrics and
+// price-strike pricing behaviour.
+mod test_cdx_hy_price_strike;

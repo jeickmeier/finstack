@@ -638,10 +638,12 @@ impl CDSOption {
         })
     }
 
-    /// Bloomberg CDSO Δ — closed-form Black-76 N(d₁) on the displayed
-    /// ATM forward spread (DOCS 2055833 §2.5). Returned as a unit-less
-    /// ratio (multiply by 100 for the displayed percentage). Calls
-    /// Δ ≥ 0, puts Δ ≤ 0.
+    /// CDS option Δ, branched by strike kind: closed-form Black-76 N(d₁)
+    /// on the displayed ATM forward spread for spread strikes (DOCS
+    /// 2055833 §2.5), and the curve-reprice hedge ratio
+    /// `option_CS01 / underlying_spread_DV01` for clean-price strikes.
+    /// Returned as a unit-less ratio (multiply by 100 for the displayed
+    /// percentage). Calls Δ ≥ 0, puts Δ ≤ 0.
     pub fn delta(
         &self,
         curves: &finstack_quant_core::market_data::context::MarketContext,
@@ -651,9 +653,12 @@ impl CDSOption {
         super::metrics::delta::delta(self, curves, as_of)
     }
 
-    /// Bloomberg CDSO Γ — central difference of the Black-76 N(d₁)
-    /// delta across a ±5 bp move in the displayed ATM forward (DOCS
-    /// 2055833 §2.5). Returned as a unit-less number.
+    /// CDS option Γ, branched by strike kind: central difference of the
+    /// Black-76 N(d₁) delta across a ±5 bp move in the displayed ATM
+    /// forward for spread strikes (DOCS 2055833 §2.5), and the change in
+    /// the curve-reprice hedge-ratio delta under the same ±5 bp par-quote
+    /// spread bump for clean-price strikes. Returned as a unit-less
+    /// number.
     pub fn gamma(
         &self,
         curves: &finstack_quant_core::market_data::context::MarketContext,
