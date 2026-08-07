@@ -62,5 +62,5 @@ pub mod cds_tranche;
 // Re-export primary types
 pub use cds::CreditDefaultSwap;
 pub use cds_index::CDSIndex;
-pub use cds_option::CDSOption;
+pub use cds_option::{CDSOption, CDSOptionStrike, CDSOptionStrikeKind};
 pub use cds_tranche::CDSTranche;

@@ -5,6 +5,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::CDSOption;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::CDSOptionParams;
+use finstack_quant_valuations::instruments::credit_derivatives::cds_option::CDSOptionStrike;
 use finstack_quant_valuations::instruments::CreditParams;
 use finstack_quant_valuations::instruments::ExerciseStyle;
 use finstack_quant_valuations::instruments::Instrument;
@@ -21,7 +22,7 @@ fn test_cds_option_construction() {
     let maturity = date!(2031 - 01 - 01);
 
     let option_params = CDSOptionParams::call(
-        Decimal::new(1, 2), // 0.01 = 100bp
+        CDSOptionStrike::Spread(Decimal::new(1, 2)), // 0.01 = 100bp
         expiry,
         maturity,
         Money::new(10_000_000.0, Currency::USD),
@@ -39,7 +40,7 @@ fn test_cds_option_construction() {
     .expect("valid CDS option");
 
     assert_eq!(option.id(), "TEST-CDSOPT");
-    assert_eq!(option.strike, Decimal::new(1, 2));
+    assert_eq!(option.strike.spread_decimal(), Some(Decimal::new(1, 2)));
     assert!(matches!(option.option_type, OptionType::Call));
     assert_eq!(option.expiry, expiry);
     assert_eq!(option.cds_maturity, maturity);
@@ -118,7 +119,7 @@ fn test_various_strikes() {
     for strike_bp in [25.0, 50.0, 100.0, 200.0, 500.0] {
         let option = CDSOptionBuilder::new().strike(strike_bp).build(as_of);
         let expected = Decimal::try_from(strike_bp / 10000.0).unwrap();
-        assert_eq!(option.strike, expected);
+        assert_eq!(option.strike.spread_decimal(), Some(expected));
     }
 }
 
@@ -198,14 +199,31 @@ fn test_american_exercise_is_rejected_at_pricing_time() {
 }
 
 #[test]
-fn test_physical_settlement_is_rejected_at_pricing_time() {
+fn test_physical_settlement_prices_as_cash_equivalent_before_expiry() {
+    let as_of = date!(2025 - 01 - 01);
+    let market = standard_market(as_of);
+    let cash = CDSOptionBuilder::new().build(as_of);
+    let mut physical = cash.clone();
+    physical.settlement = SettlementType::Physical;
+
+    // Pre-expiry, cash- and physical-settled European options have the same
+    // cash-equivalent model NPV under the current assumptions.
+    let cash_npv = cash.value(&market, as_of).expect("cash npv");
+    let physical_npv = physical.value(&market, as_of).expect("physical npv");
+    assert_eq!(cash_npv.amount(), physical_npv.amount());
+}
+
+#[test]
+fn test_physical_settlement_is_rejected_at_exercise_boundary() {
     let as_of = date!(2025 - 01 - 01);
     let market = standard_market(as_of);
     let mut option = CDSOptionBuilder::new().build(as_of);
     option.settlement = SettlementType::Physical;
 
+    // At (or after) expiry the physical exercise lifecycle boundary is
+    // reached; delivery is not modelled, so valuation must fail closed.
     let err = option
-        .value(&market, as_of)
-        .expect_err("Physical CDS option settlement should be rejected");
+        .value(&market, option.expiry)
+        .expect_err("physical valuation at expiry must be rejected");
     assert!(matches!(err, finstack_quant_core::Error::Validation(_)));
 }

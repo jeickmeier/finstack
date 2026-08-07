@@ -10,7 +10,9 @@
 //! - **Payer option** (`Call`): right to buy protection (pay spread, receive on default)
 //! - **Receiver option** (`Put`): right to sell protection (receive spread, pay on default)
 //! - **Underlying**: single-name CDS or CDS index
-//! - **Strike**: CDS spread level (decimal rate, e.g. `0.01` = 100 bp)
+//! - **Strike** ([`CDSOptionStrike`]): a CDS spread level (decimal rate,
+//!   e.g. `0.01` = 100 bp) or a clean index price in percentage points
+//!   (e.g. `107.0`, the CDX HY convention)
 //!
 //! # Pricing model: Bloomberg CDSO numerical quadrature
 //!
@@ -60,7 +62,9 @@ pub(crate) mod metrics;
 pub(crate) mod parameters;
 #[doc(hidden)]
 pub mod pricer;
+mod strike;
 mod types;
 
 pub use parameters::CDSOptionParams;
+pub use strike::{CDSOptionStrike, CDSOptionStrikeKind};
 pub use types::{CDSOption, ProtectionStartConvention};

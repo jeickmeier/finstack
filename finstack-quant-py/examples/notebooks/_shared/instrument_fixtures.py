@@ -179,7 +179,7 @@ def cds_option(idx: int) -> tuple[str, dict]:
     strike = 0.008 + 0.002 * (idx % 4)
     opt_type = "call" if idx % 2 == 0 else "put"
     return iid, {"type": "cds_option", "spec": {
-        "id": iid, "strike": str(strike), "option_type": opt_type,
+        "id": iid, "strike": {"spread": str(strike)}, "option_type": opt_type,
         "exercise_style": "european", "expiry": "2025-06-20", "cds_maturity": "2030-06-20",
         "notional": {"amount": "10000000", "currency": "USD"},
         "settlement": "cash", "recovery_rate": 0.4,
@@ -481,8 +481,11 @@ def instrument_description(instrument_spec: dict) -> str:
         return f"CDX Tr {a:.0f}-{d:.0f}%"
 
     if itype == "cds_option":
-        strike_bp = float(s["strike"]) * 10000
+        strike = s["strike"]
         opt = s["option_type"].title()
+        if "clean_price_pct" in strike:
+            return f"CDS Opt {opt} K={float(strike['clean_price_pct']):.1f}"
+        strike_bp = float(strike["spread"]) * 10000
         return f"CDS Opt {opt} K={strike_bp:.0f}bp"
 
     if itype == "structured_credit":

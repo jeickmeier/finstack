@@ -15,7 +15,6 @@
 //!   DOCS 2057273 ⟨GO⟩, August 2024.
 
 use super::bloomberg_quadrature;
-use crate::instruments::common_impl::numeric::decimal_to_f64;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::credit_derivatives::cds::{
     CdsValuationConvention, CreditDefaultSwap, PayReceive,
@@ -88,6 +87,19 @@ fn ensure_valuation_not_after_expiry(
     if as_of > option.expiry {
         return Err(finstack_quant_core::Error::Validation(format!(
             "CDSOption '{}' expired on {}; post-expiry valuation requires explicit exercise and settlement state",
+            option.id, option.expiry
+        )));
+    }
+    // A physically-settled option at expiry is at its exercise lifecycle
+    // boundary: exercising delivers a CDS position this pricer does not
+    // model, so a cash-equivalent number here would be misleading. Fail
+    // explicitly instead. Cash-settled options remain valuable at expiry
+    // (t = 0 intrinsic).
+    if option.settlement == crate::instruments::SettlementType::Physical && as_of >= option.expiry {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "CDSOption '{}' is physically settled and its expiry {} is at or \
+             before the valuation date; exercise/delivery lifecycle is not \
+             modelled, so a cash-equivalent value would be misleading",
             option.id, option.expiry
         )));
     }
@@ -169,24 +181,54 @@ pub(crate) fn implied_vol(
 
 // Helpers
 
-/// Resolve the lognormal spread vol `σ` for the option, preferring the
-/// instrument-level `pricing_overrides.market_quotes.implied_volatility`
-/// override, falling back to the volatility surface lookup at
-/// `(t_expiry, strike)`. Enforces the `MAX_IMPLIED_VOL` ceiling.
+/// Resolve the lognormal forward-spread model vol `σ` for the option under
+/// the strict CDS-option volatility contract:
+///
+/// 1. The instrument-level
+///    `pricing_overrides.market_quotes.implied_volatility` override has
+///    highest precedence and needs no surface.
+/// 2. Otherwise the `VolSurface` under `vol_surface_id` is queried with
+///    `value_checked(t_expiry, native_strike_coordinate)` — the decimal
+///    spread for spread strikes, the percentage clean price (e.g. `107.0`)
+///    for clean-price strikes. No clamped fallback: expiry or strike
+///    extrapolation is an error.
+/// 3. The surface must carry `VolSurfaceAxis::Strike` and
+///    `VolQuoteType::BlackLognormal`. Stored values are lognormal
+///    forward-spread model vols even when the strike axis is a clean price;
+///    a price-point volatility is never interchangeable with a spread
+///    volatility, and provider premiums must be inverted to model vol
+///    before materializing a surface.
+///
+/// Enforces the `MAX_IMPLIED_VOL` ceiling on both paths.
 pub(crate) fn resolve_sigma(
     option: &CDSOption,
     curves: &MarketContext,
     as_of: finstack_quant_core::dates::Date,
 ) -> Result<f64> {
-    let t = option.time_to_expiry(as_of)?;
-    let strike = decimal_to_f64(option.strike, "strike")?;
-    let sigma = crate::instruments::common_impl::vol_resolution::resolve_sigma_at(
-        &option.instrument_pricing_overrides.market_quotes,
-        curves,
-        option.vol_surface_id.as_str(),
-        t,
-        strike,
-    )?;
+    use finstack_quant_core::market_data::surfaces::{VolQuoteType, VolSurfaceAxis};
+
+    let sigma = if let Some(iv) = option
+        .instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility
+    {
+        iv
+    } else {
+        let t = option.time_to_expiry(as_of)?;
+        let strike = option.strike.native_surface_coordinate()?;
+        let surface = curves.get_surface(option.vol_surface_id.as_str())?;
+        if surface.secondary_axis() != VolSurfaceAxis::Strike {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "CDS option '{}' volatility surface '{}' must use a strike \
+                 secondary axis, got {:?}",
+                option.id,
+                option.vol_surface_id,
+                surface.secondary_axis()
+            )));
+        }
+        surface.require_quote_type(VolQuoteType::BlackLognormal)?;
+        surface.value_checked(t, strike)?
+    };
     if sigma > super::types::MAX_IMPLIED_VOL {
         return Err(finstack_quant_core::Error::Validation(format!(
             "implied_volatility {} exceeds maximum {}",
@@ -208,8 +250,9 @@ pub fn synthetic_underlying_cds(
     as_of: finstack_quant_core::dates::Date,
 ) -> Result<CreditDefaultSwap> {
     // The contractual coupon `c` of the underlying CDS — for CDX it is
-    // 100 bp; for single-name SNAC it is the strike.
-    let coupon_decimal = option.effective_underlying_cds_coupon();
+    // 100 bp; for single-name SNAC it is the strike spread. Clean-price
+    // strikes require an explicit coupon.
+    let coupon_decimal = option.effective_underlying_cds_coupon()?;
     let spread_bp = coupon_decimal * Decimal::new(10_000, 0);
 
     let notional_scale = if option.underlying_is_index {
@@ -314,6 +357,7 @@ impl crate::pricer::Pricer for BloombergCdsoPricer {
 #[cfg(test)]
 mod lifecycle_tests {
     use super::*;
+    use crate::instruments::SettlementType;
     use time::Duration;
 
     #[test]
@@ -323,5 +367,253 @@ mod lifecycle_tests {
         let err = ensure_valuation_not_after_expiry(&option, as_of)
             .expect_err("post-expiry valuation must fail closed");
         assert!(err.to_string().contains("exercise and settlement state"));
+    }
+
+    #[test]
+    fn physical_settlement_fails_at_and_after_exercise_boundary() {
+        let mut option = CDSOption::example().expect("CDS option example");
+        option.settlement = SettlementType::Physical;
+
+        // Strictly before expiry: allowed.
+        ensure_valuation_not_after_expiry(&option, option.expiry - Duration::days(1))
+            .expect("pre-expiry physical valuation is supported");
+
+        // At the exercise boundary: rejected (delivery is not modelled).
+        let err = ensure_valuation_not_after_expiry(&option, option.expiry)
+            .expect_err("physical valuation at expiry must fail closed");
+        assert!(err.to_string().contains("physically settled"));
+
+        // Cash settlement at expiry remains valid (t = 0 intrinsic).
+        let cash = CDSOption::example().expect("CDS option example");
+        ensure_valuation_not_after_expiry(&cash, cash.expiry)
+            .expect("cash valuation at expiry is supported");
+    }
+}
+
+#[cfg(test)]
+mod settlement_and_sigma_tests {
+    use super::*;
+    use crate::instruments::credit_derivatives::cds_option::{CDSOptionParams, CDSOptionStrike};
+    use crate::instruments::{CreditParams, OptionType, SettlementType};
+    use finstack_quant_core::currency::Currency;
+    use finstack_quant_core::dates::{Date, DateExt};
+    use finstack_quant_core::market_data::surfaces::{VolQuoteType, VolSurface, VolSurfaceAxis};
+    use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCurve};
+    use rust_decimal::Decimal;
+    use time::macros::date;
+
+    const BP: f64 = 10_000.0;
+
+    fn flat_discount(base: Date) -> DiscountCurve {
+        DiscountCurve::builder("USD-OIS")
+            .base_date(base)
+            .knots([
+                (0.0, 1.0),
+                (1.0, (-0.03_f64).exp()),
+                (5.0, (-0.15_f64).exp()),
+                (10.0, (-0.30_f64).exp()),
+            ])
+            .build()
+            .expect("flat discount curve")
+    }
+
+    fn flat_hazard(base: Date) -> HazardCurve {
+        let hazard_rate = 0.02;
+        let par = hazard_rate * BP * 0.6;
+        HazardCurve::builder("HZ-SN")
+            .base_date(base)
+            .recovery_rate(0.4)
+            .knots([(1.0, hazard_rate), (5.0, hazard_rate), (10.0, hazard_rate)])
+            .par_spreads([(1.0, par), (5.0, par), (10.0, par)])
+            .build()
+            .expect("flat hazard curve")
+    }
+
+    fn market(as_of: Date) -> MarketContext {
+        MarketContext::new()
+            .insert(flat_discount(as_of))
+            .insert(flat_hazard(as_of))
+    }
+
+    fn spread_option(as_of: Date, settlement: SettlementType, vol: Option<f64>) -> CDSOption {
+        let params = CDSOptionParams::new(
+            CDSOptionStrike::Spread(Decimal::new(1, 2)),
+            as_of.add_months(12),
+            as_of.add_months(60),
+            Money::new(10_000_000.0, Currency::USD),
+            OptionType::Call,
+        )
+        .expect("valid params")
+        .with_settlement(settlement);
+        let credit = CreditParams::corporate_standard("SN", "HZ-SN");
+        let mut option = CDSOption::new("CDSO-SETTLE", &params, &credit, "USD-OIS", "CDSO-VOL")
+            .expect("valid option");
+        option
+            .instrument_pricing_overrides
+            .market_quotes
+            .implied_volatility = vol;
+        option
+    }
+
+    fn price_strike_option(as_of: Date) -> CDSOption {
+        let params = CDSOptionParams::new(
+            CDSOptionStrike::CleanPricePct(Decimal::new(1070, 1)),
+            as_of.add_months(12),
+            as_of.add_months(60),
+            Money::new(10_000_000.0, Currency::USD),
+            OptionType::Call,
+        )
+        .expect("valid params")
+        .as_index(1.0)
+        .expect("valid factor")
+        .with_strike_index_factor(1.0)
+        .expect("valid strike factor")
+        .with_underlying_cds_coupon(Decimal::new(5, 2));
+        let credit = CreditParams::corporate_standard("HY", "HZ-SN");
+        CDSOption::new("CDSO-HY-SIGMA", &params, &credit, "USD-OIS", "CDSO-VOL")
+            .expect("valid option")
+    }
+
+    fn price_surface() -> VolSurface {
+        // Clean-price strike axis in percentage points; stored values are
+        // lognormal forward-spread model vols.
+        VolSurface::builder("CDSO-VOL")
+            .expiries(&[0.25, 2.0])
+            .strikes(&[100.0, 110.0])
+            .row(&[0.30, 0.40])
+            .row(&[0.30, 0.40])
+            .build()
+            .expect("price-coordinate surface")
+    }
+
+    fn spread_surface() -> VolSurface {
+        VolSurface::builder("CDSO-VOL")
+            .expiries(&[0.25, 2.0])
+            .strikes(&[0.005, 0.015])
+            .row(&[0.32, 0.36])
+            .row(&[0.32, 0.36])
+            .build()
+            .expect("spread-coordinate surface")
+    }
+
+    #[test]
+    fn cash_and_physical_pre_expiry_npvs_match() {
+        let as_of = date!(2025 - 01 - 01);
+        let mkt = market(as_of);
+        let cash = spread_option(as_of, SettlementType::Cash, Some(0.35));
+        let physical = spread_option(as_of, SettlementType::Physical, Some(0.35));
+
+        let cash_npv = npv(&cash, &mkt, as_of).expect("cash npv");
+        let physical_npv = npv(&physical, &mkt, as_of).expect("physical npv");
+        assert_eq!(
+            cash_npv.amount(),
+            physical_npv.amount(),
+            "pre-expiry cash and physical settlement must share the same \
+             cash-equivalent model NPV"
+        );
+        assert!(cash_npv.amount() > 0.0);
+    }
+
+    #[test]
+    fn price_strike_lookup_uses_percent_coordinate_not_fraction_or_spread() {
+        let as_of = date!(2025 - 01 - 01);
+        let mkt = market(as_of).insert_surface(price_surface());
+        let option = price_strike_option(as_of);
+
+        // 107.0 interpolates between the 100 → 0.30 and 110 → 0.40 columns.
+        let sigma = resolve_sigma(&option, &mkt, as_of).expect("sigma at 107.0");
+        assert!(
+            (sigma - 0.37).abs() < 1e-12,
+            "expected interpolation at the native 107.0 coordinate, got {sigma}"
+        );
+
+        // A spread-struck option against the SAME price-coordinate surface
+        // queries 0.01 — far outside [100, 110] — and must fail rather than
+        // clamp, proving the native coordinate is used.
+        let spread = spread_option(as_of, SettlementType::Cash, None);
+        let err = resolve_sigma(&spread, &mkt, as_of)
+            .expect_err("decimal spread coordinate must be out of bounds");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("0.01") || msg.to_lowercase().contains("out of"),
+            "error should reflect the out-of-bounds strike lookup: {msg}"
+        );
+    }
+
+    #[test]
+    fn spread_strike_lookup_uses_decimal_spread_coordinate() {
+        let as_of = date!(2025 - 01 - 01);
+        let mkt = market(as_of).insert_surface(spread_surface());
+        let option = spread_option(as_of, SettlementType::Cash, None);
+        let sigma = resolve_sigma(&option, &mkt, as_of).expect("sigma at 0.01");
+        assert!(
+            (sigma - 0.34).abs() < 1e-12,
+            "expected interpolation at the 0.01 spread coordinate, got {sigma}"
+        );
+    }
+
+    #[test]
+    fn strict_surface_contract_rejects_wrong_axis_quote_type_and_missing_surface() {
+        let as_of = date!(2025 - 01 - 01);
+        let option = price_strike_option(as_of);
+
+        // Missing surface.
+        let err =
+            resolve_sigma(&option, &market(as_of), as_of).expect_err("missing surface must fail");
+        assert!(!err.to_string().is_empty());
+
+        // Wrong secondary axis.
+        let tenor_surface = VolSurface::builder("CDSO-VOL")
+            .expiries(&[0.25, 2.0])
+            .strikes(&[100.0, 110.0])
+            .row(&[0.30, 0.40])
+            .row(&[0.30, 0.40])
+            .secondary_axis(VolSurfaceAxis::Tenor)
+            .build()
+            .expect("tenor surface");
+        let err = resolve_sigma(&option, &market(as_of).insert_surface(tenor_surface), as_of)
+            .expect_err("tenor axis must fail");
+        assert!(err.to_string().contains("strike"), "{err}");
+
+        // Wrong quote type.
+        let normal_surface = VolSurface::builder("CDSO-VOL")
+            .expiries(&[0.25, 2.0])
+            .strikes(&[100.0, 110.0])
+            .row(&[0.30, 0.40])
+            .row(&[0.30, 0.40])
+            .quote_type(VolQuoteType::Normal)
+            .build()
+            .expect("normal surface");
+        let err = resolve_sigma(
+            &option,
+            &market(as_of).insert_surface(normal_surface),
+            as_of,
+        )
+        .expect_err("normal quote type must fail");
+        assert!(
+            err.to_string().to_lowercase().contains("lognormal"),
+            "{err}"
+        );
+
+        // Out-of-bounds expiry (surface stops before the option expiry).
+        let short_surface = VolSurface::builder("CDSO-VOL")
+            .expiries(&[0.05, 0.10])
+            .strikes(&[100.0, 110.0])
+            .row(&[0.30, 0.40])
+            .row(&[0.30, 0.40])
+            .build()
+            .expect("short surface");
+        resolve_sigma(&option, &market(as_of).insert_surface(short_surface), as_of)
+            .expect_err("expiry extrapolation must fail");
+    }
+
+    #[test]
+    fn explicit_implied_vol_bypasses_surface_lookup() {
+        let as_of = date!(2025 - 01 - 01);
+        // No surface registered at all: the override must be sufficient.
+        let option = spread_option(as_of, SettlementType::Cash, Some(0.31));
+        let sigma =
+            resolve_sigma(&option, &market(as_of), as_of).expect("override needs no surface");
+        assert_eq!(sigma, 0.31);
     }
 }

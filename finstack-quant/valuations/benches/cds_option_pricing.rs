@@ -16,7 +16,7 @@ use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCur
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::{
-    CDSOption, CDSOptionParams, ProtectionStartConvention,
+    CDSOption, CDSOptionParams, CDSOptionStrike, ProtectionStartConvention,
 };
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::instruments::{CreditParams, OptionType};
@@ -34,13 +34,15 @@ fn create_cds_option(
     let cds_maturity = base + time::Duration::days((cds_tenor_years * 365) as i64);
 
     let option_params = CDSOptionParams {
-        strike: Decimal::new(1, 2), // 0.01 = 100bp
+        strike: CDSOptionStrike::Spread(Decimal::new(1, 2)), // 0.01 = 100bp
         option_type,
         expiry,
         cds_maturity,
         notional: Money::new(10_000_000.0, Currency::USD),
+        settlement: finstack_quant_valuations::instruments::SettlementType::Cash,
         underlying_is_index: false,
         index_factor: None,
+        strike_index_factor: None,
         underlying_cds_coupon: None,
         protection_start_convention: ProtectionStartConvention::Forward,
     };

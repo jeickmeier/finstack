@@ -138,6 +138,38 @@ pub fn forward_par_at_expiry_bp(
 
 // Pre-computed deterministic inputs
 
+/// Typed, precomputed strike data for the deterministic exercise term.
+///
+/// The two variants carry exactly the inputs their payoff branch needs:
+///
+/// - `Spread`: the strike spread `K` for the annuity-based adjustment
+///   `H_spread = ξ (c − K) A(K)` (DOCS 2055833 Eq. 2.4).
+/// - `CleanPrice`: the strike clean-price **fraction** `K` (`107.0` wire
+///   points become `1.07` exactly once, upstream in
+///   [`CDSOptionStrike::clean_price_fraction`]) and the original index
+///   factor `f0`, for the direct price term
+///   `H_price = ξ (K − 1) · f0 / f` evaluated inside the outer
+///   current-factor scale `f`.
+///
+/// [`CDSOptionStrike::clean_price_fraction`]:
+///     super::strike::CDSOptionStrike::clean_price_fraction
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum QuadratureStrike {
+    /// Forward-spread strike `K` (decimal rate).
+    Spread {
+        /// Strike spread as a decimal rate.
+        strike: f64,
+    },
+    /// Clean-price strike expressed as a fraction (`1.07`), with the
+    /// original index factor `f0` attached to the strike.
+    CleanPrice {
+        /// Strike clean price as a fraction of par (`107.0%` → `1.07`).
+        strike_fraction: f64,
+        /// Original index factor `f0` attached to the strike.
+        strike_index_factor: f64,
+    },
+}
+
 /// All deterministic quantities the quadrature integrand and the
 /// calibration target need. Built once at the top of `npv()` from the
 /// instrument + curves; the calibration loop and the payoff loop both
@@ -186,8 +218,8 @@ pub struct ForwardCdsContext {
     pub accrual_pcd_to_expiry: f64,
     /// Index contractual coupon `c` (decimal).
     pub coupon: f64,
-    /// Option strike `K` (decimal).
-    pub strike: f64,
+    /// Typed, precomputed strike data for the deterministic strike term.
+    pub strike: QuadratureStrike,
     /// `ξ = +1` for payer (Call), `−1` for receiver (Put).
     pub option_type: OptionType,
     /// Index-factor scale (1.0 for non-index or original-version index
@@ -442,8 +474,26 @@ impl ForwardCdsContext {
         }
         let display_forward_par_spread = spot_protection_pv / display_denom_par_raw;
 
-        let coupon = decimal_to_f64(option.effective_underlying_cds_coupon())?;
-        let strike = decimal_to_f64(option.strike)?;
+        let coupon = decimal_to_f64(option.effective_underlying_cds_coupon()?)?;
+        let strike = match &option.strike {
+            super::strike::CDSOptionStrike::Spread(spread) => QuadratureStrike::Spread {
+                strike: decimal_to_f64(*spread)?,
+            },
+            price @ super::strike::CDSOptionStrike::CleanPricePct(_) => {
+                let strike_index_factor = option.strike_index_factor.ok_or_else(|| {
+                    finstack_quant_core::Error::Validation(format!(
+                        "CDS option '{}' has a clean-price strike but no \
+                         strike_index_factor; construction-time validation \
+                         should have rejected this instrument",
+                        option.id
+                    ))
+                })?;
+                QuadratureStrike::CleanPrice {
+                    strike_fraction: price.clean_price_fraction()?,
+                    strike_index_factor,
+                }
+            }
+        };
         let scale = if option.underlying_is_index {
             option.index_factor.unwrap_or(1.0)
         } else {
@@ -540,9 +590,49 @@ impl ForwardCdsContext {
         (s - self.coupon) * self.flat_annuity(s)
     }
 
-    /// Eq. 2.4 deterministic strike adjustment, per unit notional.
+    /// Deterministic strike adjustment, per unit **current** notional
+    /// (the outer index-factor scale `f` is applied by
+    /// [`quadrature_payoff`]).
+    ///
+    /// - Spread strike (DOCS 2055833 Eq. 2.4):
+    ///   `H_spread = ξ (c − K) · A(K)`.
+    /// - Clean-price strike: `H_price = ξ (K − 1) · f0 / f`, the direct
+    ///   deterministic price term. The strike price is quoted on the
+    ///   original factor `f0` notional while the payoff is scaled by the
+    ///   current factor `f`, hence the `f0 / f` ratio inside the scale.
+    ///   Realized index losses stay exclusively in
+    ///   [`Self::signed_loss_settlement_per_n`]; folding them into an
+    ///   adjusted strike here as well would double-count them.
     pub fn signed_strike_adjustment_per_n(&self) -> f64 {
-        self.sign() * (self.coupon - self.strike) * self.flat_annuity(self.strike)
+        match self.strike {
+            QuadratureStrike::Spread { strike } => {
+                self.sign() * (self.coupon - strike) * self.flat_annuity(strike)
+            }
+            QuadratureStrike::CleanPrice {
+                strike_fraction,
+                strike_index_factor,
+            } => {
+                let scale = self.scale.max(numerical::ZERO_TOLERANCE);
+                self.sign() * (strike_fraction - 1.0) * strike_index_factor / scale
+            }
+        }
+    }
+
+    /// The strike spread for Black-formula screen metrics, failing for
+    /// clean-price strikes (whose delta/gamma use curve-reprice hedge
+    /// semantics instead of the spread `d₁`).
+    pub fn spread_strike(&self) -> Result<f64> {
+        match self.strike {
+            QuadratureStrike::Spread { strike } => Ok(strike),
+            QuadratureStrike::CleanPrice {
+                strike_fraction, ..
+            } => Err(finstack_quant_core::Error::Validation(format!(
+                "Black spread d1 metrics are not defined for a clean-price \
+                     strike (K = {:.6} fraction); use the curve-reprice \
+                     price-strike metrics",
+                strike_fraction
+            ))),
+        }
     }
 
     /// Eq. 2.5 deterministic loss settlement, per unit current notional
@@ -580,6 +670,49 @@ impl ForwardCdsContext {
     /// against the credit-triangle F_0 overshoots materially.
     pub fn no_knockout_forward(&self) -> f64 {
         (self.forward_par_spread - self.coupon) * self.bootstrapped_l_at_expiry
+    }
+
+    /// Native ATM-forward clean-price coordinate in percentage points, for
+    /// moneyness and volatility-surface selection on price-struck index
+    /// options.
+    ///
+    /// Derived from payer/receiver parity under the exact price-strike
+    /// payoff used by the quadrature — not from a separate price
+    /// approximation. With `F0 = E[V_te]` from the lognormal-mean
+    /// calibration anchor, payer − receiver telescopes to
+    /// `df · (f·F0 + (K − 1)·f0 + L + f·FEP)`, so the parity strike is
+    ///
+    /// ```text
+    /// K_ATM = 1 − (f·F0 + L + f·FEP) / f0
+    /// ```
+    ///
+    /// returned as `100 · K_ATM`. In the limiting case `f = f0 = 1`,
+    /// `L = 0`, `FEP = 0` this reduces to `K_ATM = 1 − F0`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error for spread-struck contexts: the
+    /// coordinate needs the strike's original factor `f0`.
+    pub fn native_atm_forward_clean_price_pct(&self) -> Result<f64> {
+        let QuadratureStrike::CleanPrice {
+            strike_index_factor,
+            ..
+        } = self.strike
+        else {
+            return Err(finstack_quant_core::Error::Validation(
+                "the native ATM clean-price coordinate requires a clean-price strike \
+                 (it scales by the strike's original index factor f0)"
+                    .to_string(),
+            ));
+        };
+        let f = self.scale.max(numerical::ZERO_TOLERANCE);
+        let f0 = strike_index_factor.max(numerical::ZERO_TOLERANCE);
+        let k_atm = 1.0
+            - (f * self.no_knockout_forward()
+                + self.realized_index_loss
+                + f * self.front_end_protection)
+                / f0;
+        Ok(100.0 * k_atm)
     }
 }
 
@@ -849,7 +982,7 @@ mod tests {
         vol: f64,
     ) -> CDSOption {
         let params = CDSOptionParams::new(
-            bp_to_decimal(strike_bp),
+            super::super::strike::CDSOptionStrike::Spread(bp_to_decimal(strike_bp)),
             as_of.add_months(12),
             as_of.add_months(60),
             Money::new(10_000_000.0, Currency::USD),
@@ -908,7 +1041,10 @@ mod tests {
 
     fn black76_payer_per_n(ctx: &ForwardCdsContext) -> f64 {
         let f = ctx.forward_par_spread.max(numerical::ZERO_TOLERANCE);
-        let k = ctx.strike.max(numerical::ZERO_TOLERANCE);
+        let k = ctx
+            .spread_strike()
+            .expect("Black-76 helper requires a spread strike")
+            .max(numerical::ZERO_TOLERANCE);
         let vol_sqrt_t = ctx.sigma * ctx.t_expiry.sqrt();
         let d1 = ((f / k).ln() + 0.5 * vol_sqrt_t * vol_sqrt_t) / vol_sqrt_t;
         let d2 = d1 - vol_sqrt_t;
@@ -1398,5 +1534,370 @@ mod tests {
              fails, a refactor unified the two annuities — re-verify the \
              cdx_ig_46 Bloomberg golden before accepting the change."
         );
+    }
+
+    // Price-strike (CDX HY convention) payoff tests
+
+    /// S&P CDS Indices Primer default-adjusted strike, used as a TEST ORACLE
+    /// only. Production uses the direct `H_price = ξ(K − 1)·f0/f` term and
+    /// keeps realized loss in the `D` settlement; this oracle folds factor
+    /// and loss into an equivalent strike quoted on the current factor.
+    fn adjusted_strike_pct(k_pct: f64, f0: f64, f: f64, realized_loss: f64) -> f64 {
+        let k = k_pct / 100.0;
+        100.0 * (1.0 - ((1.0 - k) * f0 - realized_loss) / f)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn price_strike_option(
+        as_of: Date,
+        option_type: OptionType,
+        strike_price_pct: f64,
+        coupon_bp: f64,
+        vol: f64,
+        strike_factor: f64,
+        current_factor: f64,
+        realized_loss: Option<f64>,
+    ) -> CDSOption {
+        use crate::instruments::common_impl::traits::Instrument;
+
+        let params = CDSOptionParams::new(
+            super::super::strike::CDSOptionStrike::CleanPricePct(
+                Decimal::try_from(strike_price_pct).expect("valid clean-price strike"),
+            ),
+            as_of.add_months(12),
+            as_of.add_months(60),
+            Money::new(10_000_000.0, Currency::USD),
+            option_type,
+        )
+        .expect("valid option params")
+        .as_index(current_factor)
+        .expect("valid index factor")
+        .with_strike_index_factor(strike_factor)
+        .expect("valid strike index factor")
+        .with_underlying_cds_coupon(bp_to_decimal(coupon_bp));
+        let credit = CreditParams::corporate_standard("HY", "HZ-SN");
+        let mut option = CDSOption::new("CDSO-HY-UNIT", &params, &credit, "USD-OIS", "CDSO-VOL")
+            .expect("valid cds option");
+        option.realized_index_loss = realized_loss;
+        option
+            .instrument_pricing_overrides
+            .market_quotes
+            .implied_volatility = Some(vol);
+        option
+            .validate_invariants()
+            .expect("post-construction state must satisfy full validation");
+        option
+    }
+
+    fn npv_per_unit(option: &CDSOption, market: &MarketContext, as_of: Date, sigma: f64) -> f64 {
+        let cds = synthetic_underlying_cds(option, as_of).expect("synthetic cds");
+        npv(option, &cds, market, sigma, as_of)
+            .expect("npv")
+            .amount()
+            / option.notional.amount()
+    }
+
+    #[test]
+    fn sp_primer_factor_loss_fixture_yields_107_9874() {
+        // S&P Dow Jones Indices CDS Indices Primer clean-price adjustment:
+        // K = 107.0, f0 = 1.00, f = 0.99, one default at 9.25% recovery of
+        // a 1% weight name: L = (1 − 0.0925)·0.01 = 0.009075.
+        // Published adjusted strike: 107.9874% (rounded to 4 dp).
+        let k_adj = adjusted_strike_pct(107.0, 1.0, 0.99, (1.0 - 0.0925) * 0.01);
+        assert!(
+            (k_adj - 107.9874).abs() < 5e-4,
+            "S&P primer adjusted strike mismatch: got {k_adj}, expected 107.9874"
+        );
+    }
+
+    /// The direct `H_price` production form must equal the adjusted-strike
+    /// oracle when the oracle OMITS realized loss from `D` (the loss is
+    /// already folded into its strike). This is the plan's anti-double-count
+    /// identity: `ξ(K_adj − 1) = ξ(K − 1)·f0/f + ξ·L/f`.
+    #[test]
+    fn price_strike_direct_form_matches_adjusted_strike_oracle() {
+        let as_of = date!(2025 - 01 - 01);
+        let mkt = market(as_of);
+        let (k_pct, f0, f, loss) = (107.0, 1.0, 0.99, (1.0 - 0.0925) * 0.01);
+        let vol = 0.35;
+
+        for option_type in [OptionType::Call, OptionType::Put] {
+            let direct =
+                price_strike_option(as_of, option_type, k_pct, 500.0, vol, f0, f, Some(loss));
+            // Oracle: adjusted strike quoted on the CURRENT factor (f0' = f),
+            // realized loss removed from the settlement term.
+            let oracle = price_strike_option(
+                as_of,
+                option_type,
+                adjusted_strike_pct(k_pct, f0, f, loss),
+                500.0,
+                vol,
+                f,
+                f,
+                None,
+            );
+            let npv_direct = npv_per_unit(&direct, &mkt, as_of, vol);
+            let npv_oracle = npv_per_unit(&oracle, &mkt, as_of, vol);
+            assert!(
+                (npv_direct - npv_oracle).abs() <= 1e-10 * npv_direct.abs().max(1.0),
+                "{option_type:?}: direct={npv_direct}, oracle={npv_oracle}"
+            );
+        }
+    }
+
+    /// A deliberately double-counted oracle (adjusted strike AND realized
+    /// loss retained in `D`) must NOT match — this protects the production
+    /// path against a regression that counts the loss twice.
+    #[test]
+    fn double_counted_adjusted_strike_oracle_differs() {
+        let as_of = date!(2025 - 01 - 01);
+        let mkt = market(as_of);
+        let (k_pct, f0, f, loss) = (107.0, 1.0, 0.99, (1.0 - 0.0925) * 0.01);
+        let vol = 0.35;
+
+        let direct = price_strike_option(
+            as_of,
+            OptionType::Call,
+            k_pct,
+            500.0,
+            vol,
+            f0,
+            f,
+            Some(loss),
+        );
+        // Same (valid) factor/loss state as `direct`, but the strike already
+        // folds the loss in — retaining it in `D` then counts it twice.
+        let double_counted = price_strike_option(
+            as_of,
+            OptionType::Call,
+            adjusted_strike_pct(k_pct, f0, f, loss),
+            500.0,
+            vol,
+            f0,
+            f,
+            Some(loss),
+        );
+        let npv_direct = npv_per_unit(&direct, &mkt, as_of, vol);
+        let npv_double = npv_per_unit(&double_counted, &mkt, as_of, vol);
+        // The double count adds ~ξ·L/f to every exercised node: material.
+        assert!(
+            (npv_double - npv_direct).abs() > 1e-4,
+            "double-counted oracle must differ: direct={npv_direct}, double={npv_double}"
+        );
+    }
+
+    /// Pre-default state (`f = f0`, `L = 0`): the deterministic price term
+    /// reduces to `ξ(K − 1)` exactly.
+    #[test]
+    fn pre_default_price_term_reduces_to_k_minus_one() {
+        let as_of = date!(2025 - 01 - 01);
+        let mkt = market(as_of);
+        let payer =
+            price_strike_option(as_of, OptionType::Call, 107.0, 500.0, 0.35, 1.0, 1.0, None);
+        let ctx = context_for(&payer, &mkt, as_of, 0.35);
+        assert!(
+            (ctx.signed_strike_adjustment_per_n() - 0.07).abs() < 1e-14,
+            "payer H_price should be K − 1 = 0.07, got {}",
+            ctx.signed_strike_adjustment_per_n()
+        );
+
+        let receiver =
+            price_strike_option(as_of, OptionType::Put, 107.0, 500.0, 0.35, 1.0, 1.0, None);
+        let ctx_r = context_for(&receiver, &mkt, as_of, 0.35);
+        assert!(
+            (ctx_r.signed_strike_adjustment_per_n() + 0.07).abs() < 1e-14,
+            "receiver H_price should be −(K − 1) = −0.07, got {}",
+            ctx_r.signed_strike_adjustment_per_n()
+        );
+    }
+
+    /// Payer/receiver parity for the price-strike payoff:
+    /// `payer − receiver = df · (f·F0 + (K − 1)·f0 + L + f·FEP)` per unit
+    /// notional, both node-by-node (max(x,0) − max(−x,0) = x) and after
+    /// integration against the calibrated lognormal density.
+    #[test]
+    fn price_strike_payer_receiver_parity_holds() {
+        let as_of = date!(2025 - 01 - 01);
+        let mkt = market(as_of);
+        let (k_pct, f0, f, loss) = (105.0, 1.0, 0.99, 0.004);
+        let vol = 0.40;
+
+        let payer = price_strike_option(
+            as_of,
+            OptionType::Call,
+            k_pct,
+            500.0,
+            vol,
+            f0,
+            f,
+            Some(loss),
+        );
+        let receiver =
+            price_strike_option(as_of, OptionType::Put, k_pct, 500.0, vol, f0, f, Some(loss));
+        let ctx = context_for(&payer, &mkt, as_of, vol);
+
+        let parity_rhs = ctx.df_to_expiry
+            * (f * ctx.no_knockout_forward()
+                + (k_pct / 100.0 - 1.0) * f0
+                + loss
+                + f * ctx.front_end_protection);
+        let lhs =
+            npv_per_unit(&payer, &mkt, as_of, vol) - npv_per_unit(&receiver, &mkt, as_of, vol);
+        assert!(
+            (lhs - parity_rhs).abs() < 1e-9,
+            "parity violated: payer − receiver = {lhs}, expected {parity_rhs}"
+        );
+    }
+
+    /// The native ATM-forward clean-price coordinate is the parity strike:
+    /// payer and receiver struck there have equal value.
+    #[test]
+    fn native_atm_forward_clean_price_is_the_parity_strike() {
+        let as_of = date!(2025 - 01 - 01);
+        let mkt = market(as_of);
+        let (f0, f, loss) = (1.0, 0.99, 0.004);
+        let vol = 0.40;
+
+        let seed = price_strike_option(
+            as_of,
+            OptionType::Call,
+            105.0,
+            500.0,
+            vol,
+            f0,
+            f,
+            Some(loss),
+        );
+        let ctx = context_for(&seed, &mkt, as_of, vol);
+        let k_atm_pct = ctx
+            .native_atm_forward_clean_price_pct()
+            .expect("ATM coordinate");
+
+        let payer = price_strike_option(
+            as_of,
+            OptionType::Call,
+            k_atm_pct,
+            500.0,
+            vol,
+            f0,
+            f,
+            Some(loss),
+        );
+        let receiver = price_strike_option(
+            as_of,
+            OptionType::Put,
+            k_atm_pct,
+            500.0,
+            vol,
+            f0,
+            f,
+            Some(loss),
+        );
+        let diff =
+            npv_per_unit(&payer, &mkt, as_of, vol) - npv_per_unit(&receiver, &mkt, as_of, vol);
+        assert!(
+            diff.abs() < 1e-8,
+            "payer/receiver parity must be zero at K_ATM = {k_atm_pct}: diff = {diff}"
+        );
+    }
+
+    /// Limiting identity: `f = f0 = 1`, `L = 0`, `FEP = 0` reduces the ATM
+    /// coordinate to `K_ATM = 1 − F0`. FEP is forced to zero by placing the
+    /// FEP start at expiry via an explicit cash settlement date.
+    #[test]
+    fn native_atm_forward_limit_reduces_to_one_minus_f0() {
+        let as_of = date!(2025 - 01 - 01);
+        let mkt = market(as_of);
+        let mut option =
+            price_strike_option(as_of, OptionType::Call, 107.0, 500.0, 0.35, 1.0, 1.0, None);
+        option.cash_settlement_date = Some(option.expiry);
+        let ctx = context_for(&option, &mkt, as_of, 0.35);
+        assert!(
+            ctx.front_end_protection == 0.0,
+            "FEP must be zero when its start is at expiry"
+        );
+        let k_atm = ctx
+            .native_atm_forward_clean_price_pct()
+            .expect("ATM coordinate")
+            / 100.0;
+        let expected = 1.0 - ctx.no_knockout_forward();
+        assert!(
+            (k_atm - expected).abs() < 1e-12,
+            "limiting K_ATM mismatch: got {k_atm}, expected {expected}"
+        );
+    }
+
+    /// Payer value rises in the clean-price strike and in the credit spread;
+    /// receiver value falls in both.
+    #[test]
+    fn price_strike_monotonicity_in_strike_and_spread() {
+        let as_of = date!(2025 - 01 - 01);
+        let mkt = market(as_of);
+        let wider_spread_market = MarketContext::new()
+            .insert(flat_discount("USD-OIS", as_of, 0.03))
+            .insert(flat_hazard("HZ-SN", as_of, 0.4, 0.03));
+        let vol = 0.40;
+
+        let payer_low =
+            price_strike_option(as_of, OptionType::Call, 103.0, 500.0, vol, 1.0, 1.0, None);
+        let payer_high =
+            price_strike_option(as_of, OptionType::Call, 107.0, 500.0, vol, 1.0, 1.0, None);
+        assert!(
+            npv_per_unit(&payer_high, &mkt, as_of, vol)
+                > npv_per_unit(&payer_low, &mkt, as_of, vol),
+            "payer must gain value as the clean-price strike rises"
+        );
+
+        let receiver_low =
+            price_strike_option(as_of, OptionType::Put, 103.0, 500.0, vol, 1.0, 1.0, None);
+        let receiver_high =
+            price_strike_option(as_of, OptionType::Put, 107.0, 500.0, vol, 1.0, 1.0, None);
+        assert!(
+            npv_per_unit(&receiver_high, &mkt, as_of, vol)
+                < npv_per_unit(&receiver_low, &mkt, as_of, vol),
+            "receiver must lose value as the clean-price strike rises"
+        );
+
+        // Wider spreads: protection worth more → payer up, receiver down.
+        assert!(
+            npv_per_unit(&payer_low, &wider_spread_market, as_of, vol)
+                > npv_per_unit(&payer_low, &mkt, as_of, vol),
+            "payer must gain value as spreads widen"
+        );
+        assert!(
+            npv_per_unit(&receiver_high, &wider_spread_market, as_of, vol)
+                < npv_per_unit(&receiver_high, &mkt, as_of, vol),
+            "receiver must lose value as spreads widen"
+        );
+    }
+
+    /// The small-positive-vol limit converges to the clean deterministic
+    /// intrinsic payoff without altering the explicit-vol validation
+    /// contract.
+    #[test]
+    fn price_strike_small_vol_limit_matches_deterministic_payoff() {
+        let as_of = date!(2025 - 01 - 01);
+        let mkt = market(as_of);
+        let vol = 1e-4;
+        for option_type in [OptionType::Call, OptionType::Put] {
+            let option = price_strike_option(
+                as_of,
+                option_type,
+                105.0,
+                500.0,
+                vol,
+                1.0,
+                0.99,
+                Some(0.004),
+            );
+            let ctx = context_for(&option, &mkt, as_of, vol);
+            let intrinsic = deterministic_payoff_per_n(&ctx);
+            let priced = npv_per_unit(&option, &mkt, as_of, vol);
+            assert!(
+                (priced - intrinsic).abs() < 1e-6,
+                "{option_type:?}: small-vol limit {priced} must approach \
+                 deterministic intrinsic {intrinsic}"
+            );
+        }
     }
 }

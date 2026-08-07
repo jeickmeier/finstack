@@ -17,7 +17,7 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, IndexId};
 use finstack_quant_valuations::constants::isda::STANDARD_RECOVERY_SENIOR;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::{
-    CDSOption, CDSOptionParams, ProtectionStartConvention,
+    CDSOption, CDSOptionParams, CDSOptionStrike, ProtectionStartConvention,
 };
 use finstack_quant_valuations::instruments::CreditParams;
 use finstack_quant_valuations::instruments::OptionType;
@@ -112,6 +112,7 @@ fn bp_to_decimal(bp: f64) -> Decimal {
 pub struct CDSOptionBuilder {
     id: String,
     strike_bp: f64,
+    clean_price_strike_pct: Option<f64>,
     option_type: OptionType,
     expiry_months: i32,
     cds_maturity_months: i32,
@@ -119,6 +120,8 @@ pub struct CDSOptionBuilder {
     implied_vol: Option<f64>,
     is_index: bool,
     index_factor: Option<f64>,
+    strike_index_factor: Option<f64>,
+    realized_index_loss: Option<f64>,
     underlying_cds_coupon_bp: Option<f64>,
     protection_start_convention: ProtectionStartConvention,
     knockout: Option<bool>,
@@ -129,6 +132,7 @@ impl CDSOptionBuilder {
         Self {
             id: "CDSOPT-TEST".to_string(),
             strike_bp: 100.0,
+            clean_price_strike_pct: None,
             option_type: OptionType::Call,
             expiry_months: 12,
             cds_maturity_months: 60,
@@ -136,6 +140,8 @@ impl CDSOptionBuilder {
             implied_vol: Some(0.30),
             is_index: false,
             index_factor: None,
+            strike_index_factor: None,
+            realized_index_loss: None,
             underlying_cds_coupon_bp: None,
             protection_start_convention: ProtectionStartConvention::Forward,
             knockout: None,
@@ -150,6 +156,29 @@ impl CDSOptionBuilder {
 
     pub fn strike(mut self, bp: f64) -> Self {
         self.strike_bp = bp;
+        self
+    }
+
+    /// Use a clean-price strike quoted in percentage points (CDX HY
+    /// convention), e.g. `107.0`. Implies an index underlying; combine with
+    /// [`Self::with_index`] and [`Self::strike_index_factor`].
+    #[allow(dead_code)]
+    pub fn clean_price_strike(mut self, pct: f64) -> Self {
+        self.clean_price_strike_pct = Some(pct);
+        self
+    }
+
+    /// Original index factor `f0` attached to a clean-price strike.
+    #[allow(dead_code)]
+    pub fn strike_index_factor(mut self, f0: f64) -> Self {
+        self.strike_index_factor = Some(f0);
+        self
+    }
+
+    /// Realized cumulative index loss per unit original notional.
+    #[allow(dead_code)]
+    pub fn realized_index_loss(mut self, loss: f64) -> Self {
+        self.realized_index_loss = Some(loss);
         self
     }
 
@@ -220,7 +249,12 @@ impl CDSOptionBuilder {
         let expiry = as_of.add_months(self.expiry_months);
         let cds_maturity = as_of.add_months(self.cds_maturity_months);
 
-        let strike = bp_to_decimal(self.strike_bp);
+        let strike = match self.clean_price_strike_pct {
+            Some(pct) => CDSOptionStrike::CleanPricePct(
+                Decimal::try_from(pct).expect("valid clean-price strike"),
+            ),
+            None => CDSOptionStrike::Spread(bp_to_decimal(self.strike_bp)),
+        };
         let mut option_params = CDSOptionParams::new(
             strike,
             expiry,
@@ -236,6 +270,11 @@ impl CDSOptionBuilder {
             option_params = option_params
                 .as_index(self.index_factor.unwrap_or(1.0))
                 .expect("valid index factor");
+        }
+        if let Some(f0) = self.strike_index_factor {
+            option_params = option_params
+                .with_strike_index_factor(f0)
+                .expect("valid strike index factor");
         }
         if let Some(bp) = self.underlying_cds_coupon_bp {
             option_params = option_params.with_underlying_cds_coupon(bp_to_decimal(bp));
@@ -258,6 +297,7 @@ impl CDSOptionBuilder {
                 .implied_volatility = Some(vol);
         }
         option.knockout = self.knockout.unwrap_or(!self.is_index);
+        option.realized_index_loss = self.realized_index_loss;
 
         option
     }

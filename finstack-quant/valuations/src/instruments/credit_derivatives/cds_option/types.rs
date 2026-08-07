@@ -1,5 +1,6 @@
-//! `CDSOption` instrument: European option to enter a forward CDS at a fixed
-//! strike spread.
+//! `CDSOption` instrument: European option to enter a forward CDS at a
+//! typed strike — a forward spread, or a clean index price (CDX HY
+//! convention).
 //!
 //! Pricing is performed by the Bloomberg CDSO numerical-quadrature model
 //! ([`super::pricer`] / [`super::bloomberg_quadrature`]) per *Pricing Credit
@@ -10,18 +11,23 @@
 //!
 //! # Validation
 //!
-//! `CDSOption::try_new` validates all inputs at construction time:
-//! - Strike spread must be positive
+//! `CDSOption::new` validates all inputs at construction time:
+//! - Spread strikes must be positive and within the distressed-credit bound;
+//!   clean-price strikes must be positive percentage points (values above
+//!   100 are valid)
+//! - Clean-price strikes require an index underlying, no-knockout terms, an
+//!   explicit positive coupon, both index factors in (0, 1] with
+//!   `f <= f0`, and realized loss bounded by the removed original notional
 //! - Option expiry must precede underlying CDS maturity
 //! - Recovery rate must be in (0, 1)
-//! - Index factor must be in (0, 1] when specified
 //! - Implied volatility override must be in (0, 5] when specified
-//! - Only European, cash-settled CDS options are supported
+//! - Only European exercise is supported; settlement may be cash or physical
 //!
 //! # Volatility convention
 //!
-//! Volatilities are lognormal (Black) volatilities in decimal form (e.g. 0.30
-//! for 30%). The Bloomberg CDSO terminal expects the same.
+//! Volatilities are lognormal (Black) forward-spread model volatilities in
+//! decimal form (e.g. 0.30 for 30%) for both strike conventions. The
+//! Bloomberg CDSO terminal expects the same.
 
 use crate::instruments::common_impl::parameters::CreditParams;
 use crate::instruments::common_impl::traits::Attributes;
@@ -43,6 +49,11 @@ pub(crate) const MAX_RECOVERY_RATE: f64 = 1.0;
 /// Maximum valid implied volatility (inclusive upper bound).
 /// 500% lognormal vol is extremely high but theoretically valid.
 pub(crate) const MAX_IMPLIED_VOL: f64 = 5.0;
+/// Numerical tolerance for index factor/loss consistency checks. Factors and
+/// realized losses are market data quoted to ~6 decimal places; the tolerance
+/// absorbs the resulting rounding without admitting economically inconsistent
+/// state.
+pub(crate) const FACTOR_TOLERANCE: f64 = 1e-6;
 
 /// Accrual-start convention for the synthetic underlying CDS used by CDSO.
 #[derive(
@@ -65,12 +76,19 @@ pub enum ProtectionStartConvention {
     Forward,
 }
 
-/// Credit option instrument (option on CDS spread)
+/// Credit option instrument (option on CDS spread or clean index price)
 ///
-/// Currently the public pricing surface supports only European, cash-settled
-/// CDS options. Other exercise and settlement styles are rejected at pricing
-/// time so deserialized instruments cannot silently fall through to the
-/// Black-on-spreads engine.
+/// The public pricing surface supports European options with cash or
+/// physical settlement. Before expiry, cash- and physical-settled options
+/// carry the same cash-equivalent model NPV and route through the same
+/// quadrature; the clean payoff excludes accrued because the same underlying
+/// accrued appears on both sides before exercise and cancels. A physical
+/// exercise cashflow at settlement is dirty (includes accrued at exercise
+/// settlement), and this pricer does not create or deliver a live underlying
+/// CDS position — valuation at or after a physical exercise boundary fails
+/// explicitly. Non-European exercise is rejected at pricing time so
+/// deserialized instruments cannot silently fall through to an unsupported
+/// engine.
 #[derive(
     PartialEq,
     Debug,
@@ -84,10 +102,9 @@ pub enum ProtectionStartConvention {
 pub struct CDSOption {
     /// Unique instrument identifier
     pub id: InstrumentId,
-    /// Strike spread as a decimal rate (e.g., 0.01 = 100bp)
-    #[serde(with = "finstack_quant_core::wire::decimal")]
-    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
-    pub strike: Decimal,
+    /// Typed option strike: a decimal forward spread (`{"spread": "0.0325"}`)
+    /// or a clean price in percentage points (`{"clean_price_pct": "107.0"}`).
+    pub strike: super::strike::CDSOptionStrike,
     /// Option type (Call = right to buy protection, Put = right to sell protection)
     pub option_type: OptionType,
     /// Exercise style
@@ -189,7 +206,24 @@ pub struct CDSOption {
     #[serde(default)]
     pub underlying_is_index: bool,
     /// Optional index factor scaling for the index underlying.
+    ///
+    /// This is the **current** index factor `f` at valuation. See
+    /// [`Self::strike_index_factor`] for the original factor `f0` attached
+    /// to a clean-price strike.
     pub index_factor: Option<f64>,
+    /// Original index factor `f0` attached to the option strike.
+    ///
+    /// Distinct from [`Self::index_factor`], which is the current factor
+    /// `f` at valuation: defaults settled between option strike and
+    /// valuation reduce `f` below `f0`. A clean-price strike quotes the
+    /// price on `f0` notional, so its deterministic payoff term scales by
+    /// `f0 / f`; the strike factor is therefore required for clean-price
+    /// strikes (`CDSOptionStrike::CleanPricePct`) and must not be inferred
+    /// from the current factor after a default. Rejected for spread
+    /// strikes, whose payoff does not reference it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[builder(default)]
+    pub strike_index_factor: Option<f64>,
     /// Realized cumulative index loss from option inception to valuation
     /// date, expressed per unit of original index notional.
     ///
@@ -223,13 +257,10 @@ impl CDSOption {
             )));
         }
 
-        if self.settlement != SettlementType::Cash {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "CDS options currently support only cash settlement; got {:?}",
-                self.settlement
-            )));
-        }
-
+        // Cash and physical settlement carry the same pre-expiry
+        // cash-equivalent model value; both route through the same
+        // quadrature. Post-expiry physical exercise lifecycle is rejected in
+        // the pricer's valuation-date guard.
         Ok(())
     }
 
@@ -238,11 +269,12 @@ impl CDSOption {
         use crate::instruments::common_impl::validation;
 
         super::parameters::validate_common_terms(
-            self.strike,
+            &self.strike,
             self.expiry,
             self.cds_maturity,
             self.index_factor,
         )?;
+        self.validate_strike_state()?;
         validation::validate_money_finite(self.notional, "CDS option notional")?;
         validation::validate_money_gt(self.notional, 0.0, "CDS option notional")?;
 
@@ -304,6 +336,13 @@ impl CDSOption {
                 "underlying_cds_coupon is required for CDS index options".to_string(),
             ));
         }
+        if let Some(coupon) = self.underlying_cds_coupon {
+            if coupon <= Decimal::ZERO {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "underlying_cds_coupon must be positive when set, got {coupon}"
+                )));
+            }
+        }
 
         // Implied volatility override validation
         if let Some(vol) = self
@@ -328,12 +367,86 @@ impl CDSOption {
         Ok(())
     }
 
+    /// Validate index-state requirements that depend on the strike kind.
+    ///
+    /// Clean-price strikes require the full index state — index underlying,
+    /// no-knockout, both factors — because the deterministic payoff term
+    /// `ξ (K − 1) f0 / f` and the realized-loss settlement reference it
+    /// directly. Spread strikes reject `strike_index_factor` as an inert
+    /// input.
+    fn validate_strike_state(&self) -> finstack_quant_core::Result<()> {
+        use super::strike::CDSOptionStrike;
+
+        match &self.strike {
+            CDSOptionStrike::Spread(_) => {
+                if self.strike_index_factor.is_some() {
+                    return Err(finstack_quant_core::Error::Validation(
+                        "strike_index_factor is only meaningful for clean-price strikes; \
+                         remove it from this spread-struck option"
+                            .to_string(),
+                    ));
+                }
+                Ok(())
+            }
+            CDSOptionStrike::CleanPricePct(_) => {
+                if !self.underlying_is_index {
+                    return Err(finstack_quant_core::Error::Validation(
+                        "clean-price strikes are an index-option convention; \
+                         set underlying_is_index = true"
+                            .to_string(),
+                    ));
+                }
+                if self.knockout {
+                    return Err(finstack_quant_core::Error::Validation(
+                        "clean-price-struck index options must be no-knockout".to_string(),
+                    ));
+                }
+                let Some(f0) = self.strike_index_factor else {
+                    return Err(finstack_quant_core::Error::Validation(
+                        "strike_index_factor (original factor f0) is required for \
+                         clean-price strikes and must not be inferred from the \
+                         current index_factor"
+                            .to_string(),
+                    ));
+                };
+                if !f0.is_finite() || f0 <= 0.0 || f0 > 1.0 {
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "strike_index_factor must be finite and in (0, 1], got {f0}"
+                    )));
+                }
+                let Some(f) = self.index_factor else {
+                    return Err(finstack_quant_core::Error::Validation(
+                        "index_factor (current factor f) is required for \
+                         clean-price strikes"
+                            .to_string(),
+                    ));
+                };
+                if f > f0 + FACTOR_TOLERANCE {
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "current index_factor {f} exceeds strike_index_factor {f0}; \
+                         the factor cannot rise after defaults"
+                    )));
+                }
+                let loss = self.realized_index_loss.unwrap_or(0.0);
+                let removed_notional = (f0 - f).max(0.0);
+                if loss > removed_notional + FACTOR_TOLERANCE {
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "realized_index_loss {loss} exceeds removed original notional \
+                         {removed_notional} (f0 − f = {f0} − {f}); loss cannot exceed \
+                         the defaulted weight"
+                    )));
+                }
+                Ok(())
+            }
+        }
+    }
+
     /// Create a canonical example CDS option (call on CDS spread).
     pub fn example() -> finstack_quant_core::Result<Self> {
         use finstack_quant_core::currency::Currency;
         use time::macros::date;
         let option_params = CDSOptionParams::call(
-            Decimal::new(1, 2), // 0.01 = 100bp
+            super::strike::CDSOptionStrike::Spread(Decimal::new(1, 2)), // 0.01 = 100bp
             date!(2025 - 06 - 20),
             date!(2030 - 06 - 20),
             Money::new(10_000_000.0, Currency::USD),
@@ -380,7 +493,7 @@ impl CDSOption {
             expiry: option_params.expiry,
             cds_maturity: option_params.cds_maturity,
             notional: option_params.notional,
-            settlement: SettlementType::Cash,
+            settlement: option_params.settlement,
             cash_settlement_date: None,
             exercise_settlement_date: None,
             underlying_effective_date: None,
@@ -398,6 +511,7 @@ impl CDSOption {
             attributes: Attributes::new(),
             underlying_is_index: option_params.underlying_is_index,
             index_factor: option_params.index_factor,
+            strike_index_factor: option_params.strike_index_factor,
             realized_index_loss: None,
             underlying_cds_coupon: option_params.underlying_cds_coupon,
         };
@@ -476,10 +590,30 @@ impl CDSOption {
     /// Effective contractual coupon `c` of the synthetic underlying CDS,
     /// as a decimal rate. Returns the explicitly-set `underlying_cds_coupon`
     /// when present (e.g., the 100 bp standard CDX coupon), otherwise falls
-    /// back to `strike` for single-name SNAC trades where the option is
-    /// struck at the underlying CDS coupon.
-    pub(crate) fn effective_underlying_cds_coupon(&self) -> Decimal {
-        self.underlying_cds_coupon.unwrap_or(self.strike)
+    /// back to the strike spread for single-name SNAC trades where the
+    /// option is struck at the underlying CDS coupon.
+    ///
+    /// # Errors
+    ///
+    /// A clean-price strike has no spread representation, so it can never
+    /// serve as the running coupon: the coupon must be explicit for
+    /// price-struck options (validation enforces this for index options,
+    /// which price strikes always are).
+    pub(crate) fn effective_underlying_cds_coupon(&self) -> finstack_quant_core::Result<Decimal> {
+        if let Some(coupon) = self.underlying_cds_coupon {
+            return Ok(coupon);
+        }
+        match &self.strike {
+            super::strike::CDSOptionStrike::Spread(s) => Ok(*s),
+            super::strike::CDSOptionStrike::CleanPricePct(p) => {
+                Err(finstack_quant_core::Error::Validation(format!(
+                    "CDS option '{}' has clean-price strike {p} and no explicit \
+                     underlying_cds_coupon; a price strike cannot serve as the \
+                     running coupon",
+                    self.id
+                )))
+            }
+        }
     }
 
     /// Effective accrual-start date for the synthetic underlying CDS. When
@@ -510,10 +644,12 @@ impl CDSOption {
         })
     }
 
-    /// Bloomberg CDSO Δ — closed-form Black-76 N(d₁) on the displayed
-    /// ATM forward spread (DOCS 2055833 §2.5). Returned as a unit-less
-    /// ratio (multiply by 100 for the displayed percentage). Calls
-    /// Δ ≥ 0, puts Δ ≤ 0.
+    /// CDS option Δ, branched by strike kind: closed-form Black-76 N(d₁)
+    /// on the displayed ATM forward spread for spread strikes (DOCS
+    /// 2055833 §2.5), and the curve-reprice hedge ratio
+    /// `option_CS01 / underlying_spread_DV01` for clean-price strikes.
+    /// Returned as a unit-less ratio (multiply by 100 for the displayed
+    /// percentage). Calls Δ ≥ 0, puts Δ ≤ 0.
     pub fn delta(
         &self,
         curves: &finstack_quant_core::market_data::context::MarketContext,
@@ -523,9 +659,12 @@ impl CDSOption {
         super::metrics::delta::delta(self, curves, as_of)
     }
 
-    /// Bloomberg CDSO Γ — central difference of the Black-76 N(d₁)
-    /// delta across a ±5 bp move in the displayed ATM forward (DOCS
-    /// 2055833 §2.5). Returned as a unit-less number.
+    /// CDS option Γ, branched by strike kind: central difference of the
+    /// Black-76 N(d₁) delta across a ±5 bp move in the displayed ATM
+    /// forward for spread strikes (DOCS 2055833 §2.5), and the change in
+    /// the curve-reprice hedge-ratio delta under the same ±5 bp par-quote
+    /// spread bump for clean-price strikes. Returned as a unit-less
+    /// number.
     pub fn gamma(
         &self,
         curves: &finstack_quant_core::market_data::context::MarketContext,
@@ -605,7 +744,6 @@ impl crate::instruments::common_impl::traits::Instrument for CDSOption {
         crate::instruments::common_impl::dependencies::MarketDependencies,
     > {
         use crate::instruments::common_impl::dependencies::VolatilityDependency;
-        use rust_decimal::prelude::ToPrimitive;
 
         let mut deps = crate::instruments::common_impl::dependencies::MarketDependencies::new();
         deps.add_discount_curve(self.discount_curve_id.clone());
@@ -613,7 +751,7 @@ impl crate::instruments::common_impl::traits::Instrument for CDSOption {
         deps.add_volatility_dependency(VolatilityDependency::new(
             self.vol_surface_id.clone(),
             None,
-            self.strike.to_f64(),
+            Some(self.strike.native_surface_coordinate()?),
         ));
         Ok(deps)
     }
@@ -651,13 +789,14 @@ crate::impl_empty_cashflow_provider!(
 mod tests {
     use super::*;
     use crate::instruments::common_impl::traits::Instrument;
+    use crate::instruments::credit_derivatives::cds_option::CDSOptionStrike;
     use finstack_quant_core::currency::Currency;
     use time::macros::date;
 
     #[test]
     fn cash_settlement_date_defaults_to_t_plus_settle_lag() {
         let option_params = CDSOptionParams::call(
-            Decimal::from_str_exact("0.0058395400").expect("valid strike"),
+            CDSOptionStrike::Spread(Decimal::from_str_exact("0.0058395400").expect("valid strike")),
             date!(2026 - 06 - 26),
             date!(2031 - 06 - 20),
             Money::new(10_000_000.0, Currency::USD),
@@ -694,7 +833,7 @@ mod tests {
     #[test]
     fn focused_overrides_use_canonical_wire_shape() {
         let option_params = CDSOptionParams::call(
-            Decimal::from_str_exact("0.0058395400").expect("valid strike"),
+            CDSOptionStrike::Spread(Decimal::from_str_exact("0.0058395400").expect("valid strike")),
             date!(2026 - 06 - 26),
             date!(2031 - 06 - 20),
             Money::new(10_000_000.0, Currency::USD),
@@ -758,7 +897,7 @@ mod tests {
     #[test]
     fn index_option_requires_underlying_cds_coupon() {
         let option_params = CDSOptionParams::call(
-            Decimal::from_str_exact("0.005").expect("valid strike"),
+            CDSOptionStrike::Spread(Decimal::from_str_exact("0.005").expect("valid strike")),
             date!(2026 - 06 - 26),
             date!(2031 - 06 - 20),
             Money::new(10_000_000.0, Currency::USD),
