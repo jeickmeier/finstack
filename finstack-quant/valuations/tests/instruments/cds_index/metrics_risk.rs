@@ -333,9 +333,11 @@ fn test_bucketed_cs01_reconciles_to_parallel_single_curve() {
 }
 
 #[test]
+#[ignore = "slow: covered by mise rust-test-slow"]
 fn test_bucketed_cs01_reconciles_to_parallel_constituents() {
     // Same reconciliation in `Constituents` mode: the bucketed calculator bumps
     // every constituent curve at each tenor and reprices the index end-to-end.
+    // Expensive under parallel CI load (N curves × tenors × central-diff reprices).
     let start = date!(2025 - 01 - 01);
     let end = date!(2030 - 01 - 01);
     let as_of = start;
