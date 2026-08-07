@@ -11,6 +11,7 @@ from finstack_quant.core.currency import Currency
 from finstack_quant.core.dates import DayCount, Tenor
 from finstack_quant.core.money import Money
 from finstack_quant.core.types import Bps, Rate
+from finstack_quant.valuations import ValuationResult
 from finstack_quant.valuations.instruments import (
     Bond,
     TermLoan,
@@ -62,15 +63,37 @@ def _fixed_bond() -> Bond:
     )
 
 
-def _without_timestamp(result_json: str) -> dict[str, object]:
-    """Parse a ValuationResult and drop the wall-clock stamp.
+def _without_timestamp(result: ValuationResult) -> dict[str, object]:
+    """Serialize a ValuationResult and drop the wall-clock stamp.
 
     ``meta.timestamp`` records when the pricing call ran, so two otherwise
     identical calls differ there by construction.
     """
-    parsed = json.loads(result_json)
+    parsed = json.loads(result.to_json())
     parsed["meta"].pop("timestamp", None)
     return parsed
+
+
+def _approx_payload(value: object) -> object:
+    """Mirror a decoded payload with every float wrapped in ``pytest.approx``.
+
+    serde_json's default (non-``float_roundtrip``) float parser is not always
+    bit-exact on reparse, so a parse -> reserialize cycle can shift a value by
+    1 ULP. That is a pre-existing serde_json characteristic, not a round-trip
+    fidelity bug.
+
+    The tolerance is sized for exactly that: ``rel=1e-15`` is a few ULP of an
+    f64 and ``abs=0`` keeps zeros exact. ``pytest.approx``'s default
+    ``rel=1e-6`` would have let a PV of 1,000,000.0 reparse as 1,000,000.9,
+    which is a data-loss bug rather than a rounding artefact.
+    """
+    if isinstance(value, dict):
+        return {key: _approx_payload(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_approx_payload(item) for item in value]
+    if isinstance(value, float):
+        return pytest.approx(value, rel=1e-15, abs=0)
+    return value
 
 
 class TestBondTyped:
@@ -138,6 +161,36 @@ class TestBondTyped:
         typed = price_instrument_with_metrics(bond, market, "2024-06-30", "discounting", ["ytm", "dv01"])
         via_json = price_instrument_with_metrics(bond.to_json(), market, "2024-06-30", "discounting", ["ytm", "dv01"])
         assert _without_timestamp(typed) == _without_timestamp(via_json)
+
+    def test_price_instrument_returns_typed_result(self) -> None:
+        """``price_instrument`` hands back a ``ValuationResult``, not JSON."""
+        result = price_instrument(_fixed_bond(), _market_json(), "2024-06-30")
+
+        assert isinstance(result, ValuationResult)
+        assert not isinstance(result, str)
+        assert result.instrument_id == "BOND-1"
+        assert result.currency == "USD"
+
+        # Nobody loses the JSON: `to_json` still emits the wire payload, and
+        # `from_json` decodes it back to an equal one.
+        wire = result.to_json()
+        reparsed = json.loads(ValuationResult.from_json(wire).to_json())
+        assert reparsed == _approx_payload(json.loads(wire))
+
+    def test_price_instrument_with_metrics_returns_typed_result(self) -> None:
+        """``price_instrument_with_metrics`` hands back a ``ValuationResult``."""
+        result = price_instrument_with_metrics(
+            _fixed_bond(), _market_json(), "2024-06-30", "discounting", ["ytm", "dv01"]
+        )
+
+        assert isinstance(result, ValuationResult)
+        assert not isinstance(result, str)
+        assert result.get_metric("ytm") is not None
+        assert result.get_metric("dv01") is not None
+
+        wire = result.to_json()
+        reparsed = json.loads(ValuationResult.from_json(wire).to_json())
+        assert reparsed == _approx_payload(json.loads(wire))
 
     def test_instrument_cashflows_json_accepts_typed(self) -> None:
         bond = _fixed_bond()

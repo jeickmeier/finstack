@@ -302,6 +302,58 @@ fn price_heston(
     .map_err(core_to_py)
 }
 
+/// Price a European call under the Heston stochastic-volatility model by Monte Carlo.
+///
+/// Paths are generated with the Quadratic-Exponential (QE) discretization of
+/// Andersen (2008), which stays stable when the Feller condition
+/// (``2 * kappa * theta > vol_of_vol**2``) is violated — the common case for
+/// equity calibrations. Check it with
+/// :func:`~finstack_quant.monte_carlo.heston_satisfies_feller`.
+///
+/// Parameters
+/// ----------
+/// spot : float
+///     Current underlying price.
+/// strike : float
+///     Option strike.
+/// rate : float
+///     Continuously compounded risk-free rate.
+/// div_yield : float
+///     Continuous dividend yield.
+/// kappa : float
+///     Mean-reversion speed of the variance process.
+/// theta : float
+///     Long-run variance level.
+/// vol_of_vol : float
+///     Volatility of variance.
+/// rho : float
+///     Correlation between the spot and variance Brownian drivers, in ``[-1, 1]``.
+/// v0 : float
+///     Initial instantaneous variance (variance, not volatility).
+/// expiry : float
+///     Time to expiry in years.
+/// num_paths : int, optional
+///     Simulated paths. Defaults to the configured European-pricer default.
+/// seed : int, optional
+///     RNG seed. The same seed reproduces the same price on any thread count.
+/// num_steps : int, optional
+///     Time steps per path.
+/// currency : Currency or str, optional
+///     Currency stamped on the result. Defaults to the configured default.
+///
+/// Returns
+/// -------
+/// MoneyEstimate
+///     Price with its Monte Carlo standard error.
+///
+/// References
+/// ----------
+/// Andersen, L. (2008). "Simple and Efficient Simulation of the Heston
+/// Stochastic Volatility Model." *Journal of Computational Finance*, 11(3), 1-42.
+///
+/// Heston, S. L. (1993). "A Closed-Form Solution for Options with Stochastic
+/// Volatility with Applications to Bond and Currency Options." *Review of
+/// Financial Studies*, 6(2), 327-343.
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 #[pyo3(signature = (spot, strike, rate, div_yield, kappa, theta, vol_of_vol, rho, v0, expiry, num_paths=None, seed=None, num_steps=None, currency=None))]
@@ -328,6 +380,50 @@ fn price_heston_call(
     )
 }
 
+/// Price a European put under the Heston stochastic-volatility model by Monte Carlo.
+///
+/// Identical machinery to :func:`price_heston_call` — QE discretization,
+/// same parameters, same determinism guarantee — with a put payoff.
+///
+/// Parameters
+/// ----------
+/// spot : float
+///     Current underlying price.
+/// strike : float
+///     Option strike.
+/// rate : float
+///     Continuously compounded risk-free rate.
+/// div_yield : float
+///     Continuous dividend yield.
+/// kappa : float
+///     Mean-reversion speed of the variance process.
+/// theta : float
+///     Long-run variance level.
+/// vol_of_vol : float
+///     Volatility of variance.
+/// rho : float
+///     Correlation between the spot and variance Brownian drivers, in ``[-1, 1]``.
+/// v0 : float
+///     Initial instantaneous variance (variance, not volatility).
+/// expiry : float
+///     Time to expiry in years.
+/// num_paths : int, optional
+///     Simulated paths. Defaults to the configured European-pricer default.
+/// seed : int, optional
+///     RNG seed. The same seed reproduces the same price on any thread count.
+/// num_steps : int, optional
+///     Time steps per path.
+/// currency : Currency or str, optional
+///     Currency stamped on the result. Defaults to the configured default.
+///
+/// Returns
+/// -------
+/// MoneyEstimate
+///     Price with its Monte Carlo standard error.
+///
+/// See Also
+/// --------
+/// price_heston_call : Call counterpart, with full model references.
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 #[pyo3(signature = (spot, strike, rate, div_yield, kappa, theta, vol_of_vol, rho, v0, expiry, num_paths=None, seed=None, num_steps=None, currency=None))]

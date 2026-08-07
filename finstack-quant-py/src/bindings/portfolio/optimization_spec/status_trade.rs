@@ -3,6 +3,8 @@ use pyo3::types::PyType;
 
 use finstack_quant_portfolio::optimization::{OptimizationStatus, TradeDirection, TradeSpec};
 
+use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe;
+
 use super::super::json_bridge::{deserialize_json, serialize_json};
 use super::enums::{PyTradeDirection, PyTradeType};
 
@@ -55,6 +57,17 @@ impl PyOptimizationStatus {
         Self::from_inner(OptimizationStatus::Error { message })
     }
 
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Parse from a JSON string.
     #[classmethod]
     #[pyo3(text_signature = "(cls, json_str)")]
     fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
@@ -62,6 +75,7 @@ impl PyOptimizationStatus {
         Ok(Self::from_inner(inner))
     }
 
+    /// Serialize to JSON.
     #[pyo3(text_signature = "(self)")]
     fn to_json(&self) -> PyResult<String> {
         serialize_json(&self.inner)
@@ -131,6 +145,17 @@ impl PyTradeSpec {
 
 #[pymethods]
 impl PyTradeSpec {
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Parse from a JSON string.
     #[classmethod]
     #[pyo3(text_signature = "(cls, json_str)")]
     fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
@@ -138,21 +163,26 @@ impl PyTradeSpec {
         Ok(Self::from_inner(inner))
     }
 
+    /// Serialize to JSON.
     #[pyo3(text_signature = "(self)")]
     fn to_json(&self) -> PyResult<String> {
         serialize_json(&self.inner)
     }
 
+    /// Position identifier in the optimized portfolio.
     #[getter]
     fn position_id(&self) -> String {
         self.inner.position_id.as_str().to_owned()
     }
 
+    /// Underlying instrument identifier, or the candidate id for a new position.
     #[getter]
     fn instrument_id(&self) -> String {
         self.inner.instrument_id.clone()
     }
 
+    /// Whether the trade adjusts an existing position, opens a new one, or
+    /// closes one out.
     #[getter]
     fn trade_type(&self) -> PyTradeType {
         PyTradeType {
@@ -160,6 +190,8 @@ impl PyTradeSpec {
         }
     }
 
+    /// Buy / sell / hold classification, derived from the sign of
+    /// :attr:`delta_quantity`.
     #[getter]
     fn direction(&self) -> PyTradeDirection {
         PyTradeDirection {
@@ -167,29 +199,46 @@ impl PyTradeSpec {
         }
     }
 
+    /// Pre-trade quantity in instrument units (units / face / notional).
     #[getter]
     fn current_quantity(&self) -> f64 {
         self.inner.current_quantity
     }
 
+    /// Post-trade quantity in the same units as :attr:`current_quantity`.
     #[getter]
     fn target_quantity(&self) -> f64 {
         self.inner.target_quantity
     }
 
+    /// Quantity change ``target - current``; negative means a sell.
     #[getter]
     fn delta_quantity(&self) -> f64 {
         self.inner.delta_quantity
     }
 
+    /// Pre-trade portfolio weight as a **fraction**, not a percentage.
     #[getter]
     fn current_weight(&self) -> f64 {
         self.inner.current_weight
     }
 
+    /// Post-trade portfolio weight as a **fraction**, not a percentage.
     #[getter]
     fn target_weight(&self) -> f64 {
         self.inner.target_weight
+    }
+
+    /// Export this trade as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``position_id``, ``instrument_id``, ``trade_type``,
+    /// ``current_quantity``, ``target_quantity``, ``delta_quantity``,
+    /// ``direction``, ``current_weight``, ``target_weight`` — the same schema
+    /// :meth:`PortfolioOptimizationResult.to_trade_dataframe` emits, so
+    /// single-trade frames concatenate cleanly onto a full trade list.
+    #[pyo3(text_signature = "(self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_object_to_single_row_dataframe(py, &self.inner)
     }
 
     fn __repr__(&self) -> String {
@@ -204,5 +253,16 @@ impl PyTradeSpec {
             },
             self.inner.delta_quantity,
         )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }

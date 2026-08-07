@@ -9,6 +9,9 @@ Submodules are loaded lazily — importing ``finstack_quant`` does not pull in e
 domain, which reduces cold-start time in CLIs, notebooks, and serverless
 contexts.
 
+The installed version is available as ``finstack_quant.__version__`` — record it
+alongside results so a notebook stays reproducible.
+
 Examples:
 >>> from finstack_quant import core
 >>> core.dates.Tenor.parse("3M").months
@@ -23,6 +26,7 @@ from types import ModuleType
 from typing import TYPE_CHECKING
 
 __all__ = [
+    "__version__",
     "analytics",
     "attribution",
     "cashflows",
@@ -40,9 +44,14 @@ __all__ = [
     "valuations",
 ]
 
-_SUBMODULES: frozenset[str] = frozenset(__all__)
+# Lazily importable domains. `__all__` also carries `__version__`, which is a
+# plain attribute bound above and must never be routed through `__getattr__`.
+_SUBMODULES: frozenset[str] = frozenset(__all__) - {"__version__"}
 
 if TYPE_CHECKING:
+    # Declared for type checkers and IDEs; resolved lazily via `__getattr__`.
+    __version__: str
+
     from . import (
         analytics as analytics,
         attribution as attribution,
@@ -62,7 +71,15 @@ if TYPE_CHECKING:
     )
 
 
-def __getattr__(name: str) -> ModuleType:
+def __getattr__(name: str) -> ModuleType | str:
+    if name == "__version__":
+        # Served lazily for the same reason the domains are: reading it must not
+        # drag the compiled extension (and every domain's registration) into a
+        # bare `import finstack_quant`.
+        from finstack_quant.finstack_quant import __version__ as version
+
+        globals()["__version__"] = version
+        return version
     if name in _SUBMODULES:
         mod = _importlib.import_module(f".{name}", __name__)
         globals()[name] = mod

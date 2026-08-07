@@ -66,6 +66,16 @@ impl PyCreditDefaultSwap {
         }
     }
 
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     /// Deserialize a validated CDS from its canonical v1 envelope.
     ///
     /// Parameters

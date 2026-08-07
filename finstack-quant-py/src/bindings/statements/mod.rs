@@ -10,6 +10,7 @@ mod checks;
 mod dsl;
 pub(crate) mod evaluator;
 mod monte_carlo;
+mod schema;
 pub(crate) mod types;
 
 use pyo3::prelude::*;
@@ -31,6 +32,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     dsl::register(py, &m)?;
     adjustments::register(py, &m)?;
     checks::register(py, &m)?;
+    schema::register(py, &m)?;
 
     let all = PyList::new(
         py,
@@ -65,6 +67,8 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             // Checks
             "CheckSuiteSpec",
             "CheckReport",
+            // Schema
+            "schema",
         ],
     )?;
     m.setattr("__all__", all)?;

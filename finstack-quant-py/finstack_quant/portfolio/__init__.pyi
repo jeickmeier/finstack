@@ -11,6 +11,7 @@ Examples
 
 from __future__ import annotations
 
+import datetime
 from typing import Any
 
 import numpy as np
@@ -25,6 +26,7 @@ from finstack_quant.factor_model.credit import CreditFactorModel
 __all__ = [
     "ContractLimitExceededError",
     "ContractValidationError",
+    "FinstackError",
     "FinstackFxError",
     "FinstackOptimizationError",
     "FinstackValuationError",
@@ -135,7 +137,32 @@ __all__ = [
     "PortfolioOptimizationResult",
 ]
 
-class PortfolioError(ValueError):
+class FinstackError(ValueError):
+    """
+    Base class for the library's named exceptions.
+
+    Catch this in a single ``except FinstackError`` clause to handle any error
+    the library raises through one of its own exception classes, rather than
+    enumerating them.
+
+    It derives from ``ValueError``, so every subclass keeps ``ValueError`` in
+    its MRO and existing ``except ValueError`` clauses are unaffected. Bare
+    ``ValueError`` / ``KeyError`` raised by the lower-level mapping helpers are
+    deliberately not reparented and are *not* caught by this class.
+
+    Its canonical home is ``finstack_quant.core``; it is re-exported here
+    alongside the portfolio exception family.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import FinstackError, PortfolioError
+    >>> issubclass(PortfolioError, FinstackError)
+    True
+    >>> issubclass(FinstackError, ValueError)
+    True
+    """
+
+class PortfolioError(FinstackError):
     """
     Portfolio validation or calculation failure.
 
@@ -179,7 +206,7 @@ class FinstackOptimizationError(PortfolioError):
     'infeasible'
     """
 
-class ContractValidationError(ValueError):
+class ContractValidationError(FinstackError):
     """
     Persisted contract validation failure with structured diagnostics.
 
@@ -419,6 +446,29 @@ class MaterializationReport:
             decode, position build, and index build phases.
         """
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the materialization counters as a single-row DataFrame.
+
+        The report is a flat set of counters, so it yields exactly one row —
+        concatenate rows across loads to chart materialization cost over time.
+        The nested ``phase_nanos`` mapping is flattened into one column per
+        phase; the structured :attr:`diagnostics` payload is not included.
+
+        Columns: ``unique_instruments``, ``positions``, ``dependencies``,
+        ``cache_hits``, ``input_bytes``, ``truncated``, ``timing_available``,
+        ``phase_parse_nanos``, ``phase_validate_versions_nanos``,
+        ``phase_decode_instruments_nanos``, ``phase_build_positions_nanos``,
+        ``phase_index_build_nanos``.
+
+        Returns
+        -------
+        pd.DataFrame
+            Exactly one row. The ``phase_*`` columns are zero — not measured
+            durations — whenever ``timing_available`` is ``False``.
+        """
+        ...
+
 class Portfolio:
     """
     Built runtime portfolio. Cheap to clone; pass directly to pipeline functions.
@@ -638,171 +688,197 @@ class PortfolioAttribution:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the portfolio-level factor totals as a single-row DataFrame.
+
+        Every ``Money`` aggregate is flattened to a float column plus one
+        shared ``currency`` column; the per-position nested breakdown stays on
+        :meth:`by_position_json`.
+
+        Columns: ``currency``, ``total_pnl``, ``carry``, ``rates_curves_pnl``,
+        ``credit_curves_pnl``, ``inflation_curves_pnl``, ``correlations_pnl``,
+        ``fx_pnl``, ``fx_translation_pnl``, ``cross_factor_pnl``, ``vol_pnl``,
+        ``model_params_pnl``, ``market_scalars_pnl``, ``residual``,
+        ``result_invalid``.
+
+        Returns
+        -------
+        pd.DataFrame
+            Exactly one row; concatenate rows across attribution runs to build
+            a P&L time series.
+        """
+        ...
+
     @property
     def total_pnl(self) -> Money:
         """
-        Return the total pnl for `PortfolioAttribution`.
+        Total portfolio P&L between the two market snapshots.
 
         Returns
         -------
         Money
-            The total pnl exposed by this `PortfolioAttribution`.
+            Base-currency total; the factor components below decompose it.
         """
         ...
 
     @property
     def carry(self) -> Money:
         """
-        Return the carry for `PortfolioAttribution`.
+        Carry (time decay plus coupon/dividend income) component of total P&L.
 
         Returns
         -------
         Money
-            The carry exposed by this `PortfolioAttribution`.
+            Base-currency carry. Positive when the passage of time earns income.
         """
         ...
 
     @property
     def rates_curves_pnl(self) -> Money:
         """
-        Return the rates curves pnl for `PortfolioAttribution`.
+        P&L attributed to interest-rate (discount and forward) curve moves.
 
         Returns
         -------
         Money
-            The rates curves pnl exposed by this `PortfolioAttribution`.
+            Base-currency rates component. Excludes credit and inflation curves, which are reported separately.
         """
         ...
 
     @property
     def credit_curves_pnl(self) -> Money:
         """
-        Return the credit curves pnl for `PortfolioAttribution`.
+        P&L attributed to credit-spread / hazard-rate curve moves.
 
         Returns
         -------
         Money
-            The credit curves pnl exposed by this `PortfolioAttribution`.
+            Base-currency credit component, from spread and hazard-rate moves only.
         """
         ...
 
     @property
     def inflation_curves_pnl(self) -> Money:
         """
-        Return the inflation curves pnl for `PortfolioAttribution`.
+        P&L attributed to inflation curve moves.
 
         Returns
         -------
         Money
-            The inflation curves pnl exposed by this `PortfolioAttribution`.
+            Base-currency inflation component, from index-curve moves only.
         """
         ...
 
     @property
     def correlations_pnl(self) -> Money:
         """
-        Return the correlations pnl for `PortfolioAttribution`.
+        P&L attributed to correlation-input moves.
 
         Returns
         -------
         Money
-            The correlations pnl exposed by this `PortfolioAttribution`.
+            Base-currency correlation component, from correlation inputs only.
         """
         ...
 
     @property
     def fx_pnl(self) -> Money:
         """
-        Return the fx pnl for `PortfolioAttribution`.
+        P&L attributed to FX spot/forward moves on FX-sensitive instruments.
 
         Returns
         -------
         Money
-            The fx pnl exposed by this `PortfolioAttribution`.
+            Distinct from :attr:`fx_translation_pnl`, which covers restating
+            unchanged foreign-currency values into the base currency.
         """
         ...
 
     @property
     def fx_translation_pnl(self) -> Money:
         """
-        Return the fx translation pnl for `PortfolioAttribution`.
+        P&L from translating non-base-currency values at the new FX rates.
 
         Returns
         -------
         Money
-            The fx translation pnl exposed by this `PortfolioAttribution`.
+            Base-currency translation effect only; economic FX exposure is reported in ``fx_pnl``.
         """
         ...
 
     @property
     def cross_factor_pnl(self) -> Money:
         """
-        Return the cross factor pnl for `PortfolioAttribution`.
+        Second-order P&L from joint moves of two or more factors.
 
         Returns
         -------
         Money
-            The cross factor pnl exposed by this `PortfolioAttribution`.
+            Base-currency interaction term. Non-zero only when factors move jointly, and not attributable to any single factor.
         """
         ...
 
     @property
     def vol_pnl(self) -> Money:
         """
-        Return the vol pnl for `PortfolioAttribution`.
+        P&L attributed to implied-volatility surface moves.
 
         Returns
         -------
         Money
-            The vol pnl exposed by this `PortfolioAttribution`.
+            Base-currency volatility component, from implied-vol surface moves only.
         """
         ...
 
     @property
     def model_params_pnl(self) -> Money:
         """
-        Return the model params pnl for `PortfolioAttribution`.
+        P&L attributed to changes in calibrated model parameters.
 
         Returns
         -------
         Money
-            The model params pnl exposed by this `PortfolioAttribution`.
+            Base-currency model component, from recalibration rather than market moves.
         """
         ...
 
     @property
     def market_scalars_pnl(self) -> Money:
         """
-        Return the market scalars pnl for `PortfolioAttribution`.
+        P&L attributed to scalar market inputs (spots, dividends, recoveries).
 
         Returns
         -------
         Money
-            The market scalars pnl exposed by this `PortfolioAttribution`.
+            Base-currency scalar component, covering inputs that are not curves or surfaces.
         """
         ...
 
     @property
     def residual(self) -> Money:
         """
-        Return the residual for `PortfolioAttribution`.
+        Unexplained P&L left after every factor has been attributed.
 
         Returns
         -------
         Money
-            The residual exposed by this `PortfolioAttribution`.
+            ``total_pnl`` less the sum of all factor components. Check it
+            against a tolerance with :meth:`reconciliation_check`.
         """
         ...
 
     @property
     def result_invalid(self) -> bool:
         """
-        Return the result invalid for `PortfolioAttribution`.
+        Whether Rust flagged the attribution as unusable.
 
         Returns
         -------
         bool
-            The result invalid exposed by this `PortfolioAttribution`.
+            ``True`` when at least one position produced non-finite
+            sensitivities or failed residual computation. Aggregating an
+            invalid result across instruments is not meaningful.
         """
         ...
 
@@ -924,6 +1000,26 @@ class PortfolioValuation:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export per-position values as a pandas DataFrame.
+
+        One row per entry of ``position_values``. Built from the same
+        ``positions_to_table`` envelope that backs :meth:`to_arrow_positions`,
+        so the two exits cannot drift apart.
+
+        Columns: ``position_id``, ``entity_id``, ``value_native``,
+        ``value_base``, ``currency_native``, ``currency_base``.
+
+        Returns
+        -------
+        pd.DataFrame
+            Values are floats and currency codes are strings. Prefer
+            :meth:`to_arrow_positions` when a zero-copy handoff matters more
+            than pandas ergonomics.
+        """
+        ...
+
     def __len__(self) -> int:
         """Number of valued positions.
         Returns
@@ -1030,6 +1126,28 @@ class PortfolioCashflows:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the flat ``events`` ladder as a pandas DataFrame.
+
+        One row per dated cashflow event, in the ladder's canonical
+        payment-date order. ``amount`` is flattened to a float column plus a
+        ``currency`` column rather than a nested dict, so a multi-currency
+        ladder stays currency-safe: group by ``currency`` before summing.
+
+        Columns: ``position_id``, ``instrument_id``, ``instrument_type``,
+        ``date`` (ISO 8601 string), ``amount`` (position-scaled), ``currency``,
+        ``kind`` (``"fixed"``, ``"float_reset"``, ``"notional"``, ...),
+        ``reset_date`` (ISO 8601 string, ``None`` outside floating coupons),
+        ``accrual_factor``, ``rate`` (``None`` when the event carries no rate).
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per event; ``len(df)`` equals ``len(cashflows)``.
+        """
+        ...
+
     def num_positions(self) -> int:
         """
         Number of positions represented in the ladder.
@@ -1054,7 +1172,7 @@ class PortfolioCashflows:
         self,
         market: MarketContext | str,
         base_currency: str,
-        as_of: str,
+        as_of: datetime.date | str,
     ) -> str:
         """
         Collapse the ladder to a base-currency ``(date, kind) → Money`` JSON.
@@ -1069,8 +1187,9 @@ class PortfolioCashflows:
             base-currency conversion.
         base_currency : str
             ISO currency code into which each classified cashflow is converted.
-        as_of : str
-            ISO-8601 valuation date used for conversion diagnostics and limits.
+        as_of : datetime.date | str
+            Valuation date used for conversion diagnostics and limits, either a
+            date-like object or an ISO 8601 string.
 
         Returns
         -------
@@ -1330,6 +1449,43 @@ class PortfolioMetrics:
         """
         ...
 
+    def to_aggregated_dataframe(self) -> pd.DataFrame:
+        """
+        Export the portfolio-wide aggregated metrics as a pandas DataFrame.
+
+        One row per entry of the ``aggregated`` map, in canonical Rust
+        ``IndexMap`` insertion order. The per-entity breakdown is not
+        flattened here — reach it through :meth:`metric_series`.
+
+        Columns: ``metric_id``, ``total`` (sum across positions; only summable
+        metrics are aggregated).
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per aggregated metric.
+        """
+        ...
+
+    def to_position_dataframe(self) -> pd.DataFrame:
+        """
+        Export the raw per-position metric values in long format.
+
+        One row per ``(position, metric)`` pair — the row count is the total
+        number of metric values across positions, not the number of positions.
+        Pivot with ``df.pivot(index="position_id", columns="metric_id",
+        values="value")`` for a wide view.
+
+        Columns: ``position_id``, ``currency`` (the position's native currency;
+        non-summable metrics are quoted in it), ``metric_id``, ``value``.
+
+        Returns
+        -------
+        pd.DataFrame
+            Long-format per-position metric values.
+        """
+        ...
+
     def __repr__(self) -> str: ...
 
 def parse_portfolio_spec(json_str: str) -> str:
@@ -1507,7 +1663,7 @@ def aggregate_metrics(
     valuation: PortfolioValuation | str,
     base_currency: str,
     market: MarketContext | str,
-    as_of: str,
+    as_of: datetime.date | str,
 ) -> str:
     """
     Aggregate portfolio metrics from a valuation.
@@ -1522,8 +1678,9 @@ def aggregate_metrics(
         ISO base-currency code in which aggregate values and metrics are stated.
     market : MarketContext or str
         Market context object or JSON supplying conversion and market inputs.
-    as_of : str
-        ISO-8601 valuation date used to resolve date-dependent market data.
+    as_of : datetime.date | str
+        Valuation date used to resolve date-dependent market data, either a
+        date-like object or an ISO 8601 string.
 
     Returns
     -------
@@ -1801,8 +1958,8 @@ def attribute_portfolio_pnl(
     portfolio: Portfolio | str,
     market_t0: MarketContext | str,
     market_t1: MarketContext | str,
-    as_of_t0: str,
-    as_of_t1: str,
+    as_of_t0: datetime.date | str,
+    as_of_t1: datetime.date | str,
     method: str | dict[str, Any],
     config: dict[str, Any] | str | None = None,
 ) -> PortfolioAttribution:
@@ -1817,9 +1974,9 @@ def attribute_portfolio_pnl(
         Opening market context object or JSON at the start of the P&L interval.
     market_t1 : MarketContext or str
         Closing market context object or JSON at the end of the P&L interval.
-    as_of_t0 : str
+    as_of_t0 : datetime.date | str
         ISO-8601 opening valuation date associated with ``market_t0``.
-    as_of_t1 : str
+    as_of_t1 : datetime.date | str
         ISO-8601 closing valuation date associated with ``market_t1``.
     method : str or dict[str, Any]
         Attribution-method name or method configuration understood by Rust.
@@ -3666,6 +3823,57 @@ class RiskDecomposition:
         Returns
         -------
         list[PositionResidualContribution]
+            Empty unless the decomposer had per-issuer idiosyncratic vol
+            estimates (credit-aware position decomposers).
+        """
+        ...
+
+    def to_factor_dataframe(self) -> pd.DataFrame:
+        """
+        Export factor contributions as a pandas DataFrame.
+
+        Columns: ``factor_id``, ``absolute_risk``, ``relative_risk``,
+        ``marginal_risk`` — identical to
+        :meth:`FactorRiskDecomposition.to_factor_dataframe`, which renders the
+        same Rust type reached through the sensitivity engine.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry of :attr:`factor_contributions`.
+        """
+        ...
+
+    def to_position_factor_dataframe(self) -> pd.DataFrame:
+        """
+        Export position x factor contributions as a pandas DataFrame.
+
+        Columns: ``position_id``, ``factor_id``, ``risk_contribution`` —
+        identical to
+        :meth:`FactorRiskDecomposition.to_position_factor_dataframe`.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry of :attr:`position_factor_contributions`.
+        """
+        ...
+
+    def to_position_residual_dataframe(self) -> pd.DataFrame:
+        """
+        Export per-position residual variance contributions as a DataFrame.
+
+        Columns: ``position_id``, ``residual_variance`` (annualized variance,
+        non-negative), ``source_kind`` (``"from_credit_model"`` or
+        ``"other"``), ``source_issuer_id`` (``None`` unless ``source_kind`` is
+        ``"from_credit_model"``).
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry of :attr:`position_residual_contributions`; zero
+            rows — with the columns still present — when the decomposer
+            produced no position-level residual allocation.
         """
         ...
 
@@ -3785,6 +3993,21 @@ class PositionVarContribution:
         -------
         float or None
             The incremental var exposed by this `PositionVarContribution`.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export this contribution as a single-row pandas DataFrame.
+
+        Columns: ``position_id``, ``component_var``, ``relative_var``,
+        ``marginal_var``, ``incremental_var``.
+
+        Returns
+        -------
+        pd.DataFrame
+            Exactly one row, for symmetry with
+            :meth:`PositionRiskDecomposition.to_dataframe`.
         """
         ...
 
@@ -3960,12 +4183,12 @@ class PositionRiskDecomposition:
     @property
     def portfolio_var(self) -> float:
         """
-        Return the portfolio var for `PositionRiskDecomposition`.
-        Portfolio VaR.
+        Total portfolio Value-at-Risk.
         Returns
         -------
         float
-            The portfolio var exposed by this `PositionRiskDecomposition`.
+            Portfolio-currency amount under the workspace loss convention, so
+            losses are reported as **negative** numbers.
         """
         ...
 
@@ -4041,6 +4264,30 @@ class PositionRiskDecomposition:
         Returns
         -------
         list[PositionEsContribution]
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the joined per-position VaR and ES decomposition.
+
+        ``var_contributions`` and ``es_contributions`` are both keyed by
+        position, so they are joined on ``position_id`` into one frame. Rows
+        follow ``var_contributions`` order; an ES column is ``None`` for a
+        position that has no matching ES entry.
+
+        The portfolio-level scalars (:attr:`portfolio_var`,
+        :attr:`portfolio_es`, :attr:`confidence`, :attr:`method`) are header
+        metadata and are deliberately **not** repeated on every row.
+
+        Columns: ``position_id``, ``component_var``, ``relative_var``,
+        ``marginal_var``, ``incremental_var``, ``component_es``,
+        ``relative_es``, ``marginal_es``.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry of :attr:`var_contributions`.
         """
         ...
 
@@ -4163,6 +4410,21 @@ class PositionBudgetEntry:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export this budget entry as a single-row pandas DataFrame.
+
+        Columns: ``position_id``, ``actual_component_var``,
+        ``target_component_var``, ``utilization``, ``excess``.
+
+        Returns
+        -------
+        pd.DataFrame
+            Exactly one row, with the same schema
+            :meth:`RiskBudgetResult.to_dataframe` emits.
+        """
+        ...
+
     def __repr__(self) -> str:
         """Return a concise debug representation.
         Returns
@@ -4251,6 +4513,25 @@ class RiskBudgetResult:
         Returns
         -------
         list[PositionBudgetEntry]
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the per-position budget comparison as a pandas DataFrame.
+
+        One row per entry of :attr:`positions`. The scalars
+        :attr:`total_overbudget` and :attr:`has_breach` are header metadata
+        and are not repeated per row.
+
+        Columns: ``position_id``, ``actual_component_var``,
+        ``target_component_var``, ``utilization`` (ratio, not percentage),
+        ``excess``.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per budgeted position.
         """
         ...
 
@@ -4441,6 +4722,24 @@ class WhatIfResult:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the per-factor contribution changes as a pandas DataFrame.
+
+        One row per entry of :attr:`delta`. The baseline and scenario
+        decompositions are not flattened here — reach them through
+        :attr:`before` / :attr:`after` and their own frame accessors.
+
+        Columns: ``factor_id``, ``absolute_change`` (risk-measure units),
+        ``relative_change`` (dimensionless fraction, not a percentage).
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per changed factor.
+        """
+        ...
+
     def __repr__(self) -> str:
         """Return a concise debug representation.
         Returns
@@ -4535,6 +4834,23 @@ class StressResult:
         Returns
         -------
         RiskDecomposition
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the per-position stressed P&L as a pandas DataFrame.
+
+        One row per entry of :attr:`position_pnl`. The scenario totals stay on
+        :attr:`total_pnl` and :attr:`stressed_decomposition`.
+
+        Columns: ``position_id``, ``pnl`` (portfolio-currency amount; a loss
+        is negative).
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per position with a stressed P&L contribution.
         """
         ...
 
@@ -4743,6 +5059,35 @@ class TailScenarioBreakdown:
         """
         ...
 
+    def to_dataframe(self, position_ids: list[str]) -> pd.DataFrame:
+        """
+        Export this scenario's per-position P&L as a pandas DataFrame.
+
+        The breakdown carries no identifiers of its own — they live once on
+        the parent ``StressAttribution.position_ids`` — so they must be
+        supplied here, exactly as for :meth:`FactorPnlProfile.to_dataframe`.
+
+        Columns: ``position_id``, ``pnl`` (portfolio-currency amount; a loss
+        is negative).
+
+        Parameters
+        ----------
+        position_ids : list[str]
+            Position identifiers, normally ``attribution.position_ids``. Must
+            match the number of entries in :attr:`position_pnls`.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per position.
+
+        Raises
+        ------
+        ValueError
+            If ``len(position_ids)`` does not match ``len(position_pnls)``.
+        """
+        ...
+
     def __repr__(self) -> str:
         """Return a concise debug representation.
         Returns
@@ -4855,6 +5200,50 @@ class StressAttribution:
         Returns
         -------
         list[TailScenarioBreakdown]
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the per-position tail-loss contributions as a DataFrame.
+
+        One row per entry of :attr:`position_contributions`, in the same
+        (largest-driver-first) order.
+
+        Columns: ``position_id``, ``avg_tail_pnl`` (portfolio-currency average
+        across tail scenarios; a loss is negative), ``pct_of_tail_loss``
+        (**fraction**, not percentage, of total portfolio tail loss),
+        ``worst_scenario_pnl``.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per contributing position.
+        """
+        ...
+
+    def to_scenario_dataframe(self) -> pd.DataFrame:
+        """
+        Export the tail scenario x position P&L matrix as a DataFrame.
+
+        Rows are tail scenarios indexed by
+        ``TailScenarioBreakdown.scenario_index``; columns are the position
+        identifiers from :attr:`position_ids`, in that order. Every cell is a
+        portfolio-currency P&L (a loss is negative).
+
+        Columns: one per entry of :attr:`position_ids`.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per tail scenario, indexed by scenario index.
+
+        Raises
+        ------
+        ValueError
+            If any tail scenario's ``position_pnls`` width disagrees with
+            ``len(position_ids)`` (only reachable through a hand-built
+            :meth:`from_json` payload).
         """
         ...
 
@@ -5129,6 +5518,52 @@ class FactorAssignmentReport:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the matched assignments as a long-format DataFrame.
+
+        One row per ``(dependency, factor_id, beta)`` mapping, so a position
+        matched by a hierarchical matcher (e.g. credit) contributes one row
+        per level. Row count is the sum of ``n_mappings`` across
+        :attr:`assignments`, not the number of positions.
+
+        Columns: ``position_id``, ``factor_id``, ``beta`` (factor loading),
+        ``dependency_json`` — the ``MarketDependency`` variant tree is
+        deliberately kept as a JSON string rather than exploded into columns,
+        matching :meth:`PositionAssignment.mappings_json`.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per matched mapping.
+
+        Raises
+        ------
+        ValueError
+            If a market dependency cannot be serialized to JSON.
+        """
+        ...
+
+    def to_unmatched_dataframe(self) -> pd.DataFrame:
+        """
+        Export the unmatched dependencies as a pandas DataFrame.
+
+        Columns: ``position_id``, ``dependency_json`` (the unmatched
+        ``MarketDependency`` as a JSON string).
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry of :attr:`unmatched`; a zero-row frame (columns
+            still present) means every dependency matched a configured factor.
+
+        Raises
+        ------
+        ValueError
+            If a market dependency cannot be serialized to JSON.
+        """
+        ...
+
     def __repr__(self) -> str:
         """Return a concise debug representation.
         Returns
@@ -5333,6 +5768,44 @@ class CreditVolReport:
         Returns
         -------
         list[PositionVolContribution] or None
+        """
+        ...
+
+    def to_level_dataframe(self) -> pd.DataFrame:
+        """
+        Export the per-hierarchy-level rollup as a pandas DataFrame.
+
+        One row per entry of :attr:`by_level`. The per-bucket drill-down stays
+        on ``LevelVolContribution.by_bucket``, which is already a plain dict.
+
+        Columns: ``level_name``, ``total`` (level contribution in the units of
+        :attr:`measure_json`).
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per hierarchy level.
+        """
+        ...
+
+    def to_position_dataframe(self) -> pd.DataFrame:
+        """
+        Export the optional per-position breakdown as a pandas DataFrame.
+
+        One row per entry of :attr:`by_position`. When the report was built
+        without ``by_position=True`` the result is a zero-row frame that still
+        carries the full column schema, so downstream ``df[...]`` selections
+        keep working instead of raising ``KeyError``.
+
+        Columns: ``position_id``, ``factor_total`` (systematic),
+        ``idiosyncratic`` (issuer-specific), ``total`` (their sum) — all in
+        the units of :attr:`measure_json`.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per position, or zero rows when :attr:`by_position` is
+            ``None``.
         """
         ...
 
@@ -5665,7 +6138,7 @@ def factor_stress(
     portfolio: Portfolio | str,
     market: MarketContext | str,
     factor_model_config_json: str,
-    as_of: str,
+    as_of: datetime.date | str,
     stresses: list[tuple[str, float]],
 ) -> StressResult:
     """
@@ -5685,8 +6158,8 @@ def factor_stress(
         compiled market extractor.
     factor_model_config_json : str
         JSON-encoded ``finstack_quant_factor_model::FactorModelConfig``.
-    as_of : str
-        ISO calculation date, ``YYYY-MM-DD``.
+    as_of : datetime.date | str
+        Calculation date, either a date-like object or an ISO 8601 string.
     stresses : list[tuple[str, float]]
         ``(factor_id, shift)`` pairs. Factor IDs must match the
         configured model; shifts use the Rust factor model's units for that
@@ -5724,7 +6197,7 @@ def position_what_if(
     portfolio: Portfolio | str,
     market: MarketContext | str,
     factor_model_config_json: str,
-    as_of: str,
+    as_of: datetime.date | str,
     changes: list[dict[str, Any]],
 ) -> WhatIfResult:
     """
@@ -5744,8 +6217,8 @@ def position_what_if(
         compiled market extractor.
     factor_model_config_json : str
         JSON-encoded ``finstack_quant_factor_model::FactorModelConfig``.
-    as_of : str
-        ISO calculation date, ``YYYY-MM-DD``.
+    as_of : datetime.date | str
+        Calculation date, either a date-like object or an ISO 8601 string.
     changes : list[dict[str, Any]]
         List of dictionaries. Remove changes use
         ``{"kind": "remove", "position_id": "..."}``; resize changes use
@@ -7836,8 +8309,8 @@ class TradeSpec:
     @property
     def trade_type(self) -> TradeType:
         """
-        Return the trade type for `TradeSpec`.
-        Trade type.
+        Whether the trade adjusts an existing position, opens a new one, or
+        closes one out.
         Returns
         -------
         TradeType
@@ -7903,11 +8376,28 @@ class TradeSpec:
     @property
     def target_weight(self) -> float:
         """
-        Target portfolio weight.
+        Target portfolio weight, as a **fraction** rather than a percentage.
         Returns
         -------
         float
             The target weight exposed by this `TradeSpec`.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export this trade as a single-row pandas DataFrame.
+
+        Columns: ``position_id``, ``instrument_id``, ``trade_type``,
+        ``current_quantity``, ``target_quantity``, ``delta_quantity``,
+        ``direction``, ``current_weight``, ``target_weight``.
+
+        Returns
+        -------
+        pd.DataFrame
+            Exactly one row, with the same schema
+            :meth:`PortfolioOptimizationResult.to_trade_dataframe` emits, so
+            single-trade frames concatenate cleanly onto a full trade list.
         """
         ...
 
@@ -8316,6 +8806,49 @@ class PortfolioOptimizationResult:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the per-position weight and quantity solution, indexed by position.
+
+        ``current_weights``, ``optimal_weights``, ``weight_deltas`` and
+        ``implied_quantities`` share one position key space, so they are
+        joined into a single frame. The row axis is the union of their keys,
+        ordered by first appearance (``current_weights`` first); a value
+        missing from one map becomes ``None`` in that column — this is how
+        candidate positions with no current weight show up.
+
+        Columns: ``current_weight``, ``optimal_weight``, ``weight_delta`` (all
+        fractions of the portfolio, not percentages), ``implied_quantity``
+        (units / face / notional per the weighting scheme).
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per position; the index holds the position ids.
+        """
+        ...
+
+    def to_trade_dataframe(self) -> pd.DataFrame:
+        """
+        Export :meth:`to_trade_list` as a pandas DataFrame.
+
+        One row per trade, in the same order as :meth:`to_trade_list` (sorted
+        by absolute quantity delta, largest first).
+
+        Columns: ``position_id``, ``instrument_id``, ``trade_type``
+        (``"existing"``, ``"new_position"``, ``"close_out"``),
+        ``current_quantity``, ``target_quantity``, ``delta_quantity``,
+        ``direction`` (``"buy"``, ``"sell"``, ``"hold"``), ``current_weight``,
+        ``target_weight`` (weights are fractions, not percentages).
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per trade; a solution that requires no trades yields a
+            zero-row frame that still carries the column schema.
+        """
+        ...
+
     def binding_constraints(self) -> list[tuple[str, float]]:
         """
         Return constraints with near-zero slack as ``(label, slack)`` pairs.
@@ -8624,7 +9157,7 @@ def compute_factor_sensitivities(
     positions_json: str,
     factors_json: str,
     market: MarketContext | str,
-    as_of: str,
+    as_of: datetime.date | str,
     bump_config_json: str | None = None,
 ) -> SensitivityMatrix:
     """
@@ -8639,8 +9172,8 @@ def compute_factor_sensitivities(
             JSON array of ``FactorDefinition`` objects.
         market : MarketContext or str
             ``MarketContext`` instance or JSON string.
-        as_of : str
-            Valuation date in ISO 8601 format.
+        as_of : datetime.date | str
+            Valuation date, either a date-like object or an ISO 8601 string.
         bump_config_json : str, optional
             Optional JSON-serialized ``BumpSizeConfig``.
             Defaults to 1 bp / 1 % per factor type.
@@ -8674,7 +9207,7 @@ def compute_pnl_profiles(
     positions_json: str,
     factors_json: str,
     market: MarketContext | str,
-    as_of: str,
+    as_of: datetime.date | str,
     bump_config_json: str | None = None,
     n_scenario_points: int = 5,
 ) -> list[FactorPnlProfile]:
@@ -8690,8 +9223,8 @@ def compute_pnl_profiles(
         JSON array of ``FactorDefinition`` objects.
     market : MarketContext or str
         ``MarketContext`` instance or JSON string.
-    as_of : str
-        Valuation date in ISO 8601 format.
+    as_of : datetime.date | str
+        Valuation date, either a date-like object or an ISO 8601 string.
     bump_config_json : str, optional
         Optional JSON-serialized ``BumpSizeConfig``.
     n_scenario_points : int, default 5

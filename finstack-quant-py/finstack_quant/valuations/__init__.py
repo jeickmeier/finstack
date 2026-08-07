@@ -11,6 +11,7 @@ Examples:
 """
 
 import json as _json
+import sys as _sys
 from typing import TYPE_CHECKING as _TYPE_CHECKING, Any as _Any
 
 from finstack_quant.finstack_quant import valuations as _valuations
@@ -52,6 +53,11 @@ SabrParameters = _valuations.SabrParameters
 SabrModel = _valuations.SabrModel
 SabrSmile = _valuations.SabrSmile
 SabrCalibrator = _valuations.SabrCalibrator
+
+# `schema` is a compiled submodule with no pure-Python shim package, so alias it
+# onto the public dotted path that `import finstack_quant.valuations.schema` uses.
+schema = _valuations.schema
+_sys.modules.setdefault("finstack_quant.valuations.schema", schema)
 
 
 def instrument_cashflows(
@@ -143,6 +149,7 @@ __all__: list[str] = [
     "merton_jump_cos_price",
     "models",
     "quanto_option_price",
+    "schema",
     "snowball_coupon_profile",
     "tarn_coupon_profile",
     "validate_calibration_json",

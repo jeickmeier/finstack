@@ -139,6 +139,17 @@ impl PySensitivityMatrix {
             self.n_factors
         )
     }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
+    }
 }
 
 // FactorPnlProfile
@@ -249,8 +260,9 @@ impl PyFactorPnlProfile {
 ///     JSON array of ``FactorDefinition`` objects.
 /// market_json : str
 ///     JSON-serialized ``MarketContext``.
-/// as_of : str
-///     Valuation date in ISO 8601 format.
+/// as_of : datetime.date | str
+///     Valuation date, either a date-like object (``datetime.date``,
+///     ``pandas.Timestamp``) or an ISO 8601 string.
 /// bump_config_json : str, optional
 ///     JSON-serialized ``BumpSizeConfig``.  Defaults to 1 bp / 1 % per
 ///     factor type.
@@ -266,11 +278,11 @@ fn compute_factor_sensitivities(
     positions_json: &str,
     factors_json: &str,
     market: &Bound<'_, PyAny>,
-    as_of: &str,
+    as_of: &Bound<'_, PyAny>,
     bump_config_json: Option<&str>,
 ) -> PyResult<PySensitivityMatrix> {
     let market = extract_market(py, market)?;
-    let date = super::parse_date(as_of)?;
+    let date = crate::bindings::date_utils::extract_date(as_of)?;
     let positions_json = positions_json.to_owned();
     let factors_json = factors_json.to_owned();
     let bump_config_json = bump_config_json.map(str::to_owned);
@@ -301,8 +313,9 @@ fn compute_factor_sensitivities(
 ///     JSON array of ``FactorDefinition`` objects.
 /// market_json : str
 ///     JSON-serialized ``MarketContext``.
-/// as_of : str
-///     Valuation date in ISO 8601 format.
+/// as_of : datetime.date | str
+///     Valuation date, either a date-like object (``datetime.date``,
+///     ``pandas.Timestamp``) or an ISO 8601 string.
 /// bump_config_json : str, optional
 ///     JSON-serialized ``BumpSizeConfig``.
 /// n_scenario_points : int, optional
@@ -319,12 +332,12 @@ fn compute_pnl_profiles(
     positions_json: &str,
     factors_json: &str,
     market: &Bound<'_, PyAny>,
-    as_of: &str,
+    as_of: &Bound<'_, PyAny>,
     bump_config_json: Option<&str>,
     n_scenario_points: usize,
 ) -> PyResult<Vec<PyFactorPnlProfile>> {
     let market = extract_market(py, market)?;
-    let date = super::parse_date(as_of)?;
+    let date = crate::bindings::date_utils::extract_date(as_of)?;
     let positions_json = positions_json.to_owned();
     let factors_json = factors_json.to_owned();
     let bump_config_json = bump_config_json.map(str::to_owned);

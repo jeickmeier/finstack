@@ -132,6 +132,16 @@ impl PyPerPositionMetric {
         Self::from_inner(PerPositionMetric::Constant(value))
     }
 
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     /// Parse from a serde-JSON object (e.g. ``{"Metric": "dv01"}``).
     #[classmethod]
     #[pyo3(text_signature = "(cls, json_str)")]
@@ -249,6 +259,16 @@ impl PyPositionFilter {
         ))
     }
 
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     /// Parse from JSON (matches the on-wire Rust shape).
     #[classmethod]
     #[pyo3(text_signature = "(cls, json_str)")]
@@ -331,6 +351,16 @@ impl PyMetricExpr {
         })
     }
 
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     #[classmethod]
     #[pyo3(text_signature = "(cls, json_str)")]
     fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
@@ -386,6 +416,16 @@ impl PyObjective {
     #[pyo3(text_signature = "(cls, expr)")]
     fn minimize(_cls: &Bound<'_, PyType>, expr: PyMetricExpr) -> Self {
         Self::from_inner(Objective::Minimize(expr.inner))
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[classmethod]
@@ -544,6 +584,16 @@ impl PyConstraint {
     #[pyo3(text_signature = "(self, label)")]
     fn with_label(&self, label: String) -> Self {
         Self::from_inner(self.inner.clone().with_label(label))
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[classmethod]

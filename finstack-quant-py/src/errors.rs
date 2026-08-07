@@ -5,23 +5,71 @@
 //! error). Avoid inline `PyValueError::new_err(e.to_string())` patterns —
 //! they bypass this module and break the error-chain-preservation contract
 //! the helpers below provide.
+//!
+//! # Exception hierarchy
+//!
+//! [`FinstackError`] is the common base for the library's named exceptions, so
+//! `except FinstackError` catches all but the one carve-out noted below:
+//!
+//! ```text
+//! ValueError
+//! └── FinstackError
+//!     ├── AnalyticsError
+//!     ├── CholeskyError
+//!     ├── PortfolioError
+//!     │   ├── FinstackValuationError
+//!     │   ├── FinstackFxError
+//!     │   └── FinstackOptimizationError
+//!     └── ContractValidationError
+//!         ├── UnsupportedContractVersionError
+//!         ├── MissingContractVersionError
+//!         ├── MalformedContractSchemaError
+//!         └── ContractLimitExceededError
+//! ```
+//!
+//! `FinstackError` derives from `ValueError` rather than `Exception` so that
+//! inserting it above the pre-existing classes cannot break callers: every
+//! reparented type keeps `ValueError` in its MRO, so `except ValueError` still
+//! catches everything it caught before this base was introduced.
+//!
+//! `pyo3::create_exception!` accepts exactly one base type (it forwards a single
+//! `&Bound<'_, PyType>` to `PyErr::new_type`), so a class cannot derive from both
+//! `FinstackError` and an unrelated builtin. One named exception therefore stays
+//! outside this tree:
+//!
+//! - `CalibrationEnvelopeError` (`bindings/valuations/calibration.rs`) derives
+//!   from `RuntimeError`. Reparenting it onto `FinstackError` would silently
+//!   stop it being a `RuntimeError` and break existing `except RuntimeError`
+//!   handlers, so it is deliberately left out until PyO3 can express two bases.
+//!
+//! The bare `ValueError`/`KeyError`/`RuntimeError` values produced by
+//! [`core_to_py`], [`value_error`], and friends are deliberately left
+//! unclassified — reclassifying them would change the exception type of every
+//! existing call site.
 
 use pyo3::exceptions::{PyKeyError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
 pyo3::create_exception!(
+    finstack_quant.core,
+    FinstackError,
+    PyValueError,
+    "Base class for the library's named exceptions (inherits ValueError)."
+);
+
+pyo3::create_exception!(
     finstack_quant.analytics,
     AnalyticsError,
-    PyValueError,
-    "Analytics validation or calculation failure (inherits ValueError)."
+    FinstackError,
+    "Analytics validation or calculation failure (inherits FinstackError, ValueError)."
 );
 
 pyo3::create_exception!(
     finstack_quant.portfolio,
     PortfolioError,
-    PyValueError,
-    "Portfolio validation or calculation failure (inherits ValueError)."
+    FinstackError,
+    "Portfolio validation or calculation failure (inherits FinstackError, ValueError)."
 );
 
 pyo3::create_exception!(
@@ -48,8 +96,8 @@ pyo3::create_exception!(
 pyo3::create_exception!(
     finstack_quant.portfolio,
     ContractValidationError,
-    PyValueError,
-    "Persisted contract validation failure with structured diagnostics (inherits ValueError)."
+    FinstackError,
+    "Persisted contract validation failure with structured diagnostics (inherits FinstackError)."
 );
 
 pyo3::create_exception!(
@@ -168,9 +216,9 @@ pub fn migration_to_py(e: finstack_quant_core::credit::migration::MigrationError
 
 /// Convert an analytics-domain core error into a Python `AnalyticsError`.
 ///
-/// `AnalyticsError` inherits from `ValueError`, so existing callers catching
-/// `ValueError` remain compatible while analytics users can opt into a narrower
-/// exception type.
+/// `AnalyticsError` inherits from [`FinstackError`], which inherits from
+/// `ValueError`, so existing callers catching `ValueError` remain compatible
+/// while analytics users can opt into a narrower exception type.
 pub fn analytics_to_py(e: finstack_quant_core::Error) -> PyErr {
     AnalyticsError::new_err(format_chain(&e))
 }

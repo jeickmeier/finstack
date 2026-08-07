@@ -24,6 +24,16 @@ pub struct PyStatementResult {
 
 #[pymethods]
 impl PyStatementResult {
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     /// Deserialize from JSON.
     #[staticmethod]
     #[pyo3(text_signature = "(json, /)")]
@@ -41,12 +51,23 @@ impl PyStatementResult {
 
     /// Get the value for a node at a specific period.
     ///
+    /// Returns the f64 view of whichever source won this period under the
+    /// crate's **Value > Forecast > Formula** precedence rule.
+    ///
     /// Parameters
     /// ----------
     /// node_id : str
     ///     Node identifier (e.g. ``"revenue"``).
     /// period : str
     ///     Period identifier string (e.g. ``"2025Q1"``).
+    ///
+    /// Returns
+    /// -------
+    /// float | None
+    ///     The value in the node's own units — a currency amount for
+    ///     monetary nodes (currency not carried; use :meth:`get_money` for
+    ///     that) and a unitless scalar otherwise. ``None`` when the node or
+    ///     period is unknown.
     #[pyo3(text_signature = "($self, node_id, period)")]
     fn get(&self, node_id: &str, period: &str) -> PyResult<Option<f64>> {
         let pid = parse_period_id(period)?;
@@ -91,7 +112,19 @@ impl PyStatementResult {
         Ok(self.inner.get_scalar(node_id, &pid))
     }
 
-    /// Get all period values for a specific node as a dict.
+    /// Get every evaluated period for one node as a dict.
+    ///
+    /// Parameters
+    /// ----------
+    /// node_id : str
+    ///     Node identifier (e.g. ``"revenue"``).
+    ///
+    /// Returns
+    /// -------
+    /// dict[str, float] | None
+    ///     Period identifier string → value, in evaluation order, in the
+    ///     node's own units (currency amount for monetary nodes, unitless
+    ///     otherwise). ``None`` when the node is not in the result.
     #[pyo3(text_signature = "($self, node_id)")]
     fn get_node<'py>(
         &self,
@@ -110,7 +143,12 @@ impl PyStatementResult {
         }
     }
 
-    /// All node identifiers in the result.
+    /// All node identifiers in the result, in evaluation order.
+    ///
+    /// Returns
+    /// -------
+    /// list[str]
+    ///     Node ids as declared in the model graph.
     #[pyo3(text_signature = "($self)")]
     fn node_ids(&self) -> Vec<String> {
         self.inner.nodes.keys().cloned().collect()
@@ -122,19 +160,27 @@ impl PyStatementResult {
         self.inner.nodes.len()
     }
 
-    /// Number of periods evaluated.
+    /// Number of periods evaluated, counted in **periods** on the model's own
+    /// cadence (quarters, months, years), not months.
     #[getter]
     fn num_periods(&self) -> usize {
         self.inner.meta.num_periods
     }
 
-    /// Evaluation time in milliseconds (if available).
+    /// Wall-clock evaluation time in milliseconds, or ``None`` when the
+    /// producing run did not record it.
+    ///
+    /// Diagnostic only — it is not part of the deterministic result, so two
+    /// identical runs may report different values.
     #[getter]
     fn eval_time_ms(&self) -> Option<u64> {
         self.inner.meta.eval_time_ms
     }
 
-    /// Number of evaluation warnings.
+    /// Number of evaluation warnings recorded.
+    ///
+    /// Warnings never fail an evaluation; see :attr:`warnings` for what was
+    /// flagged.
     #[getter]
     fn warning_count(&self) -> usize {
         self.inner.meta.warnings.len()
@@ -231,6 +277,7 @@ impl PyStatementResult {
         crate::bindings::core::table::PyArrowTable::from_envelope(&table)
     }
 
+    /// Return the debug representation with node and period counts.
     fn __repr__(&self) -> String {
         format!(
             "StatementResult(nodes={}, periods={})",

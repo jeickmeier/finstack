@@ -1,7 +1,10 @@
 //! Result structs and enums for the analytics domain.
 
 use crate::bindings::core::dates::utils::date_to_py;
-use crate::bindings::pandas_utils::{dates_to_pylist, dict_to_dataframe};
+use crate::bindings::pandas_utils::{
+    dates_to_pylist, dict_to_dataframe, serde_object_to_single_row_dataframe_with_schema,
+    serde_rows_to_dataframe_with_schema, ColumnSchema,
+};
 use finstack_quant_analytics as fa;
 use numpy::PyArray1;
 use pyo3::prelude::*;
@@ -122,11 +125,48 @@ impl PyBetaResult {
         self.inner.ci_upper
     }
 
+    /// Export as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``beta``, ``std_err``, ``ci_lower``, ``ci_upper``.
+    ///
+    /// One flat record describes one regression, so a one-row frame is the
+    /// right shape: ``pd.concat([r.to_dataframe() for r in results])`` stacks
+    /// every ticker's beta into one comparison table without reshaping.
+    ///
+    /// A degenerate regression (fewer than three observations) yields
+    /// non-finite estimates, which arrive as ``None`` and make the affected
+    /// column ``object`` dtype; coerce with ``pd.to_numeric`` before
+    /// aggregating.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let row = serde_json::json!({
+            "beta": self.inner.beta,
+            "std_err": self.inner.std_err,
+            "ci_lower": self.inner.ci_lower,
+            "ci_upper": self.inner.ci_upper,
+        });
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &["beta", "std_err", "ci_lower", "ci_upper"],
+        )
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "BetaResult(beta={:.4}, se={:.4}, ci=[{:.4}, {:.4}])",
             self.inner.beta, self.inner.std_err, self.inner.ci_lower, self.inner.ci_upper
         )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 
@@ -161,11 +201,47 @@ impl PyGreeksResult {
         self.inner.adjusted_r_squared
     }
 
+    /// Export as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``alpha``, ``beta``, ``r_squared``, ``adjusted_r_squared``.
+    ///
+    /// One flat record describes one regression, so a one-row frame is the
+    /// right shape: ``pd.concat([r.to_dataframe() for r in results])`` stacks
+    /// every ticker's greeks into one comparison table without reshaping.
+    ///
+    /// Non-finite estimates from a degenerate fit arrive as ``None`` and make
+    /// the affected column ``object`` dtype; coerce with ``pd.to_numeric``
+    /// before aggregating.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let row = serde_json::json!({
+            "alpha": self.inner.alpha,
+            "beta": self.inner.beta,
+            "r_squared": self.inner.r_squared,
+            "adjusted_r_squared": self.inner.adjusted_r_squared,
+        });
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &["alpha", "beta", "r_squared", "adjusted_r_squared"],
+        )
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "GreeksResult(alpha={:.6}, beta={:.4}, r2={:.4}, adj_r2={:.4})",
             self.inner.alpha, self.inner.beta, self.inner.r_squared, self.inner.adjusted_r_squared
         )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 
@@ -212,9 +288,31 @@ impl PyRollingGreeks {
     fn __repr__(&self) -> String {
         format!("RollingGreeks(len={})", self.inner.dates.len())
     }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
+    }
 }
 
 // MultiFactorResult
+
+/// Column schema of `PyMultiFactorResult::to_dataframe`, kept so a
+/// zero-factor regression still exports a frame with the documented columns.
+const MULTI_FACTOR_COLUMNS: &[ColumnSchema<'static>] = &[
+    ("factor", "str"),
+    ("beta", "float64"),
+    ("alpha", "float64"),
+    ("r_squared", "float64"),
+    ("adjusted_r_squared", "float64"),
+    ("residual_vol", "float64"),
+];
 
 /// Multi-factor regression result.
 #[pyclass(
@@ -252,6 +350,68 @@ impl PyMultiFactorResult {
     #[getter]
     fn residual_vol(&self) -> f64 {
         self.inner.residual_vol
+    }
+
+    /// Export the factor loadings as a pandas ``DataFrame``, one row per factor.
+    ///
+    /// Columns: ``factor``, ``beta``, ``alpha``, ``r_squared``,
+    /// ``adjusted_r_squared``, ``residual_vol``.
+    ///
+    /// The loadings are the per-row payload; the four regression-level
+    /// statistics repeat on every row so a single row carries its own fit
+    /// context after ``pd.concat`` across tickers or ``groupby("factor")``.
+    ///
+    /// Rows follow the order of the ``factor_returns`` passed to
+    /// :meth:`Performance.multi_factor_greeks`, which is also the order of
+    /// :attr:`betas`. There is always at least one row: the regression rejects
+    /// an empty factor set.
+    ///
+    /// Parameters
+    /// ----------
+    /// factor_names : list[str], optional
+    ///     Labels for the ``factor`` column, positionally aligned with
+    ///     :attr:`betas`. Defaults to ``factor_0``, ``factor_1``, ... because
+    ///     the regression itself carries no names.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``factor_names`` is supplied and its length differs from the
+    ///     number of fitted betas.
+    #[pyo3(signature = (factor_names=None))]
+    #[pyo3(text_signature = "(self, factor_names=None)")]
+    fn to_dataframe<'py>(
+        &self,
+        py: Python<'py>,
+        factor_names: Option<Vec<String>>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let betas = &self.inner.betas;
+        let names = match factor_names {
+            Some(names) if names.len() != betas.len() => {
+                return Err(crate::errors::value_error(format!(
+                    "factor_names has {} entries but the regression fitted {} betas",
+                    names.len(),
+                    betas.len()
+                )));
+            }
+            Some(names) => names,
+            None => (0..betas.len()).map(|i| format!("factor_{i}")).collect(),
+        };
+        let rows: Vec<serde_json::Value> = names
+            .iter()
+            .zip(betas.iter())
+            .map(|(name, &beta)| {
+                serde_json::json!({
+                    "factor": name,
+                    "beta": beta,
+                    "alpha": self.inner.alpha,
+                    "r_squared": self.inner.r_squared,
+                    "adjusted_r_squared": self.inner.adjusted_r_squared,
+                    "residual_vol": self.inner.residual_vol,
+                })
+            })
+            .collect();
+        serde_rows_to_dataframe_with_schema(py, &rows, MULTI_FACTOR_COLUMNS)
     }
 
     fn __repr__(&self) -> String {
@@ -442,6 +602,17 @@ impl PyDatedSeries {
             self.value_column,
             self.inner.values.len()
         )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 

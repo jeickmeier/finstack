@@ -19,8 +19,9 @@ use pyo3::prelude::*;
 ///     Canonical v1 instrument envelope.
 /// market : MarketContext | str
 ///     A ``MarketContext`` object or JSON string.
-/// as_of : str
-///     Valuation date in ISO 8601 format (e.g. ``"2025-01-15"``).
+/// as_of : datetime.date | str
+///     Valuation date, either a date-like object (``datetime.date``,
+///     ``pandas.Timestamp``) or an ISO 8601 string (e.g. ``"2025-01-15"``).
 /// scenario_json : str
 ///     JSON-serialized ``ScenarioSpec``.
 /// method : str, optional
@@ -56,7 +57,7 @@ pub(crate) fn compute_horizon_return<'py>(
     py: Python<'py>,
     instrument_json: &str,
     market: &Bound<'py, PyAny>,
-    as_of: &str,
+    as_of: &Bound<'py, PyAny>,
     scenario_json: &str,
     method: &str,
     config: Option<&str>,
@@ -74,7 +75,7 @@ pub(crate) fn compute_horizon_return<'py>(
     let market_ctx = extract_market(py, market)?;
 
     // Parse date
-    let date = super::parse_date(as_of)?;
+    let date = crate::bindings::date_utils::extract_date(as_of)?;
 
     // Parse scenario
     let scenario: finstack_quant_scenarios::ScenarioSpec =
@@ -164,7 +165,10 @@ impl PyHorizonResult {
         self.inner.horizon_days
     }
 
-    /// Total return as decimal fraction (0.05 = 5%).
+    /// Total return as a decimal fraction (``0.05`` = +5%).
+    ///
+    /// Note the library is not uniform here: ``PnlAttribution.residual_pct``
+    /// and ``CheckReport.materiality_relative_pct`` are already ×100.
     #[getter]
     fn total_return_pct(&self) -> f64 {
         self.inner.total_return_pct()
@@ -241,6 +245,72 @@ impl PyHorizonResult {
         serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
     }
 
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Deserialize from JSON produced by :meth:`to_json`.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: finstack_quant_scenarios::horizon::HorizonResult =
+            serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Export the horizon summary as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``initial_value``, ``terminal_value``, ``currency``,
+    /// ``total_pnl``, ``total_return_pct``, ``annualized_return``,
+    /// ``horizon_days``, ``user_operations``, ``expanded_operations``,
+    /// ``operations_applied``, ``warning_count``.
+    ///
+    /// ``initial_value`` and ``terminal_value`` are bare amounts in
+    /// ``currency``. When the initial value and total P&L are denominated in
+    /// different currencies, ``total_return_pct`` is ``nan`` and
+    /// ``annualized_return`` is ``None`` — the same no-implicit-FX rule the
+    /// getters follow.
+    ///
+    /// For the factor-level breakdown use
+    /// ``result.attribution.to_dataframe()``.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let row = serde_json::json!({
+            "initial_value": self.inner.initial_value.amount(),
+            "terminal_value": self.inner.terminal_value.amount(),
+            "currency": self.inner.initial_value.currency().to_string(),
+            "total_pnl": self.inner.attribution.total_pnl.amount(),
+            "total_return_pct": self.inner.total_return_pct(),
+            "annualized_return": self.inner.annualized_return(),
+            "horizon_days": self.inner.horizon_days,
+            "user_operations": self.inner.scenario_report.user_operations,
+            "expanded_operations": self.inner.scenario_report.expanded_operations,
+            "operations_applied": self.inner.scenario_report.operations_applied,
+            "warning_count": self.inner.scenario_report.warnings.len(),
+        });
+        crate::bindings::pandas_utils::serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "initial_value",
+                "terminal_value",
+                "currency",
+                "total_pnl",
+                "total_return_pct",
+                "annualized_return",
+                "horizon_days",
+                "user_operations",
+                "expanded_operations",
+                "operations_applied",
+                "warning_count",
+            ],
+        )
+    }
+
     /// Human-readable summary.
     fn explain(&self) -> String {
         let mut s = String::new();
@@ -282,6 +352,17 @@ impl PyHorizonResult {
             self.inner.total_return_pct() * 100.0,
             self.inner.horizon_days,
         )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 

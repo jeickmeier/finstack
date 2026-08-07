@@ -3,6 +3,7 @@
 use crate::bindings::core::money::PyMoney;
 use crate::bindings::extract::{extract_market_ref, extract_portfolio_ref};
 use crate::bindings::module_utils::py_to_json_string;
+use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe_with_schema;
 use crate::errors::{display_to_py, portfolio_to_py, serde_json_to_py};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -61,71 +62,158 @@ impl PyPortfolioAttribution {
         Ok(result)
     }
 
+    /// Export the portfolio-level factor totals as a single-row pandas ``DataFrame``.
+    ///
+    /// Every ``Money`` aggregate is flattened to a float column plus one
+    /// shared ``currency`` column; the per-position nested breakdown stays on
+    /// :meth:`by_position_json`.
+    ///
+    /// Columns: ``currency``, ``total_pnl``, ``carry``, ``rates_curves_pnl``,
+    /// ``credit_curves_pnl``, ``inflation_curves_pnl``, ``correlations_pnl``,
+    /// ``fx_pnl``, ``fx_translation_pnl``, ``cross_factor_pnl``, ``vol_pnl``,
+    /// ``model_params_pnl``, ``market_scalars_pnl``, ``residual``,
+    /// ``result_invalid``.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        // `currency` is taken from `total_pnl`; the aggregates are guaranteed
+        // currency-consistent by the Rust attribution engine.
+        let row = serde_json::json!({
+            "currency": self.inner.total_pnl.currency().to_string(),
+            "total_pnl": self.inner.total_pnl.amount(),
+            "carry": self.inner.carry.amount(),
+            "rates_curves_pnl": self.inner.rates_curves_pnl.amount(),
+            "credit_curves_pnl": self.inner.credit_curves_pnl.amount(),
+            "inflation_curves_pnl": self.inner.inflation_curves_pnl.amount(),
+            "correlations_pnl": self.inner.correlations_pnl.amount(),
+            "fx_pnl": self.inner.fx_pnl.amount(),
+            "fx_translation_pnl": self.inner.fx_translation_pnl.amount(),
+            "cross_factor_pnl": self.inner.cross_factor_pnl.amount(),
+            "vol_pnl": self.inner.vol_pnl.amount(),
+            "model_params_pnl": self.inner.model_params_pnl.amount(),
+            "market_scalars_pnl": self.inner.market_scalars_pnl.amount(),
+            "residual": self.inner.residual.amount(),
+            // Lets downstream pipelines refuse to aggregate attributions that
+            // Rust flagged invalid (non-finite sensitivities, residual failures).
+            "result_invalid": self.inner.result_invalid,
+        });
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "currency",
+                "total_pnl",
+                "carry",
+                "rates_curves_pnl",
+                "credit_curves_pnl",
+                "inflation_curves_pnl",
+                "correlations_pnl",
+                "fx_pnl",
+                "fx_translation_pnl",
+                "cross_factor_pnl",
+                "vol_pnl",
+                "model_params_pnl",
+                "market_scalars_pnl",
+                "residual",
+                "result_invalid",
+            ],
+        )
+    }
+
+    /// Total portfolio P&L between the two market snapshots.
     #[getter]
     fn total_pnl(&self) -> PyMoney {
         PyMoney::from_inner(self.inner.total_pnl)
     }
 
+    /// Carry (time-decay plus coupon/dividend income) component of total P&L.
     #[getter]
     fn carry(&self) -> PyMoney {
         PyMoney::from_inner(self.inner.carry)
     }
 
+    /// P&L attributed to interest-rate (discount and forward) curve moves.
     #[getter]
     fn rates_curves_pnl(&self) -> PyMoney {
         PyMoney::from_inner(self.inner.rates_curves_pnl)
     }
 
+    /// P&L attributed to credit-spread / hazard-rate curve moves.
     #[getter]
     fn credit_curves_pnl(&self) -> PyMoney {
         PyMoney::from_inner(self.inner.credit_curves_pnl)
     }
 
+    /// P&L attributed to inflation curve moves.
     #[getter]
     fn inflation_curves_pnl(&self) -> PyMoney {
         PyMoney::from_inner(self.inner.inflation_curves_pnl)
     }
 
+    /// P&L attributed to correlation-input moves.
     #[getter]
     fn correlations_pnl(&self) -> PyMoney {
         PyMoney::from_inner(self.inner.correlations_pnl)
     }
 
+    /// P&L attributed to FX spot/forward moves on FX-sensitive instruments.
+    ///
+    /// Distinct from :attr:`fx_translation_pnl`, which covers restating
+    /// unchanged foreign-currency values into the base currency.
     #[getter]
     fn fx_pnl(&self) -> PyMoney {
         PyMoney::from_inner(self.inner.fx_pnl)
     }
 
+    /// P&L from translating non-base-currency position values into the base
+    /// currency at the new FX rates.
     #[getter]
     fn fx_translation_pnl(&self) -> PyMoney {
         PyMoney::from_inner(self.inner.fx_translation_pnl)
     }
 
+    /// Second-order P&L from joint moves of two or more factors.
     #[getter]
     fn cross_factor_pnl(&self) -> PyMoney {
         PyMoney::from_inner(self.inner.cross_factor_pnl)
     }
 
+    /// P&L attributed to implied-volatility surface moves.
     #[getter]
     fn vol_pnl(&self) -> PyMoney {
         PyMoney::from_inner(self.inner.vol_pnl)
     }
 
+    /// P&L attributed to changes in calibrated model parameters.
     #[getter]
     fn model_params_pnl(&self) -> PyMoney {
         PyMoney::from_inner(self.inner.model_params_pnl)
     }
 
+    /// P&L attributed to scalar market inputs (spots, dividends, recovery rates).
     #[getter]
     fn market_scalars_pnl(&self) -> PyMoney {
         PyMoney::from_inner(self.inner.market_scalars_pnl)
     }
 
+    /// Unexplained P&L left after every factor has been attributed.
+    ///
+    /// Returns
+    /// -------
+    /// Money
+    ///     ``total_pnl`` less the sum of all factor components. Check it
+    ///     against a tolerance with :meth:`reconciliation_check`.
     #[getter]
     fn residual(&self) -> PyMoney {
         PyMoney::from_inner(self.inner.residual)
     }
 
+    /// Whether Rust flagged the attribution as unusable.
+    ///
+    /// Returns
+    /// -------
+    /// bool
+    ///     ``True`` when at least one position produced non-finite
+    ///     sensitivities or failed residual computation. Aggregating an
+    ///     invalid result across instruments is not meaningful.
     #[getter]
     fn result_invalid(&self) -> bool {
         self.inner.result_invalid
@@ -139,6 +227,34 @@ impl PyPortfolioAttribution {
             self.inner.result_invalid,
         )
     }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
+    }
+
+    /// Deserialize from JSON produced by `to_json`.
+    ///
+    /// Completes the wire round-trip, which is also what makes this type
+    /// picklable (see `__reduce__`).
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: finstack_quant_portfolio::attribution::PortfolioAttribution =
+            serde_json::from_str(json).map_err(crate::errors::display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json(py)?)
+    }
 }
 
 /// Attribute portfolio P&L between two market snapshots.
@@ -147,7 +263,9 @@ impl PyPortfolioAttribution {
 /// canonical JSON representations. ``method`` uses the same serde shape as
 /// instrument attribution (for example ``"parallel"`` or
 /// ``{"waterfall": ["carry", "rates_curves"]}``). ``config`` is an optional
-/// canonical ``FinstackConfig`` dictionary or JSON string.
+/// canonical ``FinstackConfig`` dictionary or JSON string. ``as_of_t0`` and
+/// ``as_of_t1`` are the two snapshot dates, each either a date-like object
+/// (``datetime.date``, ``pandas.Timestamp``) or an ISO 8601 string.
 #[pyfunction]
 #[pyo3(signature = (portfolio, market_t0, market_t1, as_of_t0, as_of_t1, method, config=None))]
 #[allow(clippy::too_many_arguments)]
@@ -156,16 +274,16 @@ fn attribute_portfolio_pnl(
     portfolio: &Bound<'_, PyAny>,
     market_t0: &Bound<'_, PyAny>,
     market_t1: &Bound<'_, PyAny>,
-    as_of_t0: &str,
-    as_of_t1: &str,
+    as_of_t0: &Bound<'_, PyAny>,
+    as_of_t1: &Bound<'_, PyAny>,
     method: &Bound<'_, PyAny>,
     config: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PyPortfolioAttribution> {
     let portfolio = extract_portfolio_ref(py, portfolio)?;
     let market_t0 = extract_market_ref(py, market_t0)?;
     let market_t1 = extract_market_ref(py, market_t1)?;
-    let as_of_t0 = super::parse_date(as_of_t0)?;
-    let as_of_t1 = super::parse_date(as_of_t1)?;
+    let as_of_t0 = crate::bindings::date_utils::extract_date(as_of_t0)?;
+    let as_of_t1 = crate::bindings::date_utils::extract_date(as_of_t1)?;
 
     let method_json = py_to_json_string(py, method, "method")?;
     let config_json = config

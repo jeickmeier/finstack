@@ -7,6 +7,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyList;
 
 pub(crate) mod credit;
+mod schema;
 
 /// Register the `factor_model` Python domain.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -48,7 +49,9 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     credit.setattr("__all__", credit_all)?;
     crate::bindings::module_utils::register_submodule_at(py, &m, &credit, &credit_qual)?;
 
-    let all = PyList::new(py, ["credit"])?;
+    schema::register(py, &m)?;
+
+    let all = PyList::new(py, ["credit", "schema"])?;
     m.setattr("__all__", all)?;
     crate::bindings::module_utils::register_submodule_at(py, parent, &m, &qual)?;
 

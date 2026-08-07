@@ -78,9 +78,8 @@ class TestFxForwardTyped:
             .build()
         )
 
-        result = ValuationResult.from_json(
-            price_instrument(forward, market, fixture.metadata.valuation_date, model=fixture.body["model"])
-        )
+        result = price_instrument(forward, market, fixture.metadata.valuation_date, model=fixture.body["model"])
+        assert isinstance(result, ValuationResult)
         actual_npv = float(result.price)
         expected_npv = fixture.expected["npv"]
         assert actual_npv == pytest.approx(expected_npv, abs=_TYPED_GOLDEN_NPV_ABS_TOLERANCE)

@@ -1,7 +1,6 @@
 //! Python bindings for `finstack_quant_core::math::linalg`.
 
 use finstack_quant_core::math::linalg;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
 
@@ -10,8 +9,8 @@ use pyo3::types::{PyList, PyModule};
 pyo3::create_exception!(
     finstack_quant.core.math.linalg,
     CholeskyError,
-    PyValueError,
-    "Cholesky decomposition failure (inherits ValueError)."
+    crate::errors::FinstackError,
+    "Cholesky decomposition failure (inherits FinstackError, ValueError)."
 );
 
 /// Map a core linear-algebra error to a Python `CholeskyError` exception.

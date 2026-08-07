@@ -95,6 +95,16 @@ impl PyUnknownScalePolicy {
             .map_err(|err| serde_json_to_py(err, "invalid UnknownScalePolicy"))
     }
 
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     /// Deserialize a policy from JSON.
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
@@ -168,6 +178,16 @@ impl PyRatingLevel {
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner)
             .map_err(|err| serde_json_to_py(err, "invalid RatingLevel"))
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Deserialize a rating level from JSON.
@@ -261,6 +281,16 @@ impl PyScorecardScale {
             .map_err(|err| serde_json_to_py(err, "invalid ScorecardScale"))
     }
 
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     /// Deserialize a scorecard scale from JSON.
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
@@ -342,6 +372,16 @@ impl PyRatingScaleRegistry {
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner)
             .map_err(|err| serde_json_to_py(err, "invalid RatingScaleRegistry"))
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Deserialize a registry from JSON. The payload is validated.

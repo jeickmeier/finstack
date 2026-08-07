@@ -15,6 +15,8 @@ Examples
 
 from __future__ import annotations
 
+import datetime
+
 from typing import Any
 
 import pandas as pd
@@ -590,8 +592,8 @@ def attribute_pnl(
     instrument_json: str,
     market_t0_json: str,
     market_t1_json: str,
-    as_of_t0: str,
-    as_of_t1: str,
+    as_of_t0: datetime.date | str,
+    as_of_t1: datetime.date | str,
     method: str | dict[str, Any],
     config: dict[str, Any] | None = None,
     full_cross_attribution: bool | None = None,
@@ -613,9 +615,9 @@ def attribute_pnl(
         JSON-serialized ``MarketContext`` at T₀.
     market_t1_json : str
         JSON-serialized ``MarketContext`` at T₁.
-    as_of_t0 : str
+    as_of_t0 : datetime.date | str
         Valuation date T₀ in ISO 8601 format.
-    as_of_t1 : str
+    as_of_t1 : datetime.date | str
         Valuation date T₁ in ISO 8601 format.
     method : str or dict[str, Any]
         Attribution method — one of ``"parallel"``,

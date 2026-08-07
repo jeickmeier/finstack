@@ -10,9 +10,11 @@
 //! PD term structures are passed as ``Vec<(time_years, cumulative_pd)>`` knots
 //! (wrapped by [`finstack_quant_statements_analytics::analysis::RawPdCurve`]).
 
+use crate::bindings::pandas_utils::dict_to_dataframe;
 use crate::errors::display_to_py;
 use finstack_quant_statements_analytics::analysis as rust_ecl;
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 
 // Helpers
 
@@ -92,18 +94,31 @@ fn trigger_reason(trigger: &rust_ecl::StagingTrigger) -> String {
 )]
 #[derive(Clone)]
 pub struct PyExposure {
+    /// Unique identifier for the exposure.
     #[pyo3(get, set)]
     pub id: String,
+    /// Exposure at default (drawn balance), in the exposure's base currency.
     #[pyo3(get, set)]
     pub ead: f64,
+    /// Loss given default as a decimal fraction in ``[0, 1]`` (``0.45`` =
+    /// 45% loss).
     #[pyo3(get, set)]
     pub lgd: f64,
+    /// Effective interest rate as a decimal fraction (``0.06`` = 6%), used as
+    /// the IFRS 9 discount rate.
     #[pyo3(get, set)]
     pub eir: f64,
+    /// Remaining maturity in years.
     #[pyo3(get, set)]
     pub remaining_maturity: f64,
+    /// Current lifetime probability of default as a decimal fraction in
+    /// ``[0, 1]``.
     #[pyo3(get, set)]
     pub current_pd: f64,
+    /// Lifetime probability of default at initial recognition, as a decimal
+    /// fraction in ``[0, 1]``.
+    ///
+    /// The SICR test compares ``current_pd`` against this origination value.
     #[pyo3(get, set)]
     pub origination_pd: f64,
     dpd: Option<u32>,
@@ -136,6 +151,11 @@ impl PyExposure {
         }
     }
 
+    /// Days past due as a whole number of days.
+    ///
+    /// Reads back the value the staging rules actually use: when no explicit
+    /// value was supplied at construction the canonical request resolves to
+    /// zero days, so this getter returns ``0`` rather than ``None``.
     #[getter]
     fn dpd(&self) -> u32 {
         self.stage_request(None, None, None)
@@ -145,6 +165,28 @@ impl PyExposure {
     #[setter]
     fn set_dpd(&mut self, dpd: u32) {
         self.dpd = Some(dpd);
+    }
+
+    /// Export the exposure as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``id``, ``ead``, ``lgd``, ``eir``, ``remaining_maturity``,
+    /// ``current_pd``, ``origination_pd``, ``dpd``.
+    ///
+    /// ``ead`` is in the exposure's base currency; ``lgd``, ``current_pd``
+    /// and ``origination_pd`` are decimal fractions in ``[0, 1]``; ``eir`` is
+    /// a decimal annual rate; ``remaining_maturity`` is in years; ``dpd`` is
+    /// a whole number of days past due.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let data = PyDict::new(py);
+        data.set_item("id", vec![self.id.clone()])?;
+        data.set_item("ead", vec![self.ead])?;
+        data.set_item("lgd", vec![self.lgd])?;
+        data.set_item("eir", vec![self.eir])?;
+        data.set_item("remaining_maturity", vec![self.remaining_maturity])?;
+        data.set_item("current_pd", vec![self.current_pd])?;
+        data.set_item("origination_pd", vec![self.origination_pd])?;
+        data.set_item("dpd", vec![self.dpd()])?;
+        dict_to_dataframe(py, &data, None)
     }
 
     fn __repr__(&self) -> String {
@@ -160,6 +202,17 @@ impl PyExposure {
             self.origination_pd,
             self.dpd(),
         )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 

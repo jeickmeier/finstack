@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+import pandas as pd
+
 from finstack_quant.core.money import Money
 
 __all__ = [
@@ -691,6 +693,32 @@ class GbmPathSummary:
         -------
         list[list[float]]
             The paths exposed by this `GbmPathSummary`.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the captured paths as a pandas DataFrame indexed by time.
+
+        Columns: ``path_0``, ``path_1``, ... — one column per captured path,
+        in the deterministic path-id order Rust produced. The index is the
+        shared time grid in year fractions, including time zero.
+
+        Wide (time x path) rather than one row: it is the shape ``df.plot()``
+        and ``df.quantile(axis=1)`` expect for a path bundle, and every path
+        already shares the one time grid. There is always at least one column:
+        the engine rejects a zero-path simulation.
+
+        Returns
+        -------
+        pd.DataFrame
+            Time-indexed frame with one column per captured path.
+
+        Raises
+        ------
+        ValueError
+            If a captured path's length differs from the time grid's, which
+            would silently misalign the index.
         """
         ...
 

@@ -1,4 +1,4 @@
-//! Shared helpers for constructing pandas DataFrames from Rust data.
+//! Shared helpers for constructing pandas DataFrames and Series from Rust data.
 
 use crate::bindings::core::dates::utils::date_to_py;
 use finstack_quant_core::table::{TableColumn, TableColumnData, TableEnvelope};
@@ -18,6 +18,14 @@ fn pandas_dataframe<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
         .map(|ctor| ctor.bind(py))
 }
 
+static PANDAS_SERIES: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+
+fn pandas_series<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    PANDAS_SERIES
+        .get_or_try_init(py, || Ok(py.import("pandas")?.getattr("Series")?.unbind()))
+        .map(|ctor| ctor.bind(py))
+}
+
 /// Build a `pd.DataFrame` from a dict of column data with an optional index.
 ///
 /// `columns` is a pre-populated `PyDict` mapping column names to list-like values.
@@ -32,6 +40,53 @@ pub fn dict_to_dataframe<'py>(
         kwargs.set_item("index", idx)?;
     }
     pandas_dataframe(py)?.call((columns,), Some(&kwargs))
+}
+
+/// Build a `pd.Series` from already-converted data plus a label index.
+///
+/// Shared by [`values_to_series`] and [`int_values_to_series`] so both dtypes
+/// reach pandas through the same `pd.Series(data, index=..., name=...)` call.
+fn build_series<'py>(
+    py: Python<'py>,
+    data: Bound<'py, PyAny>,
+    index: &[String],
+    name: &str,
+) -> PyResult<Bound<'py, PyAny>> {
+    let labels: Vec<&str> = index.iter().map(String::as_str).collect();
+    let kwargs = PyDict::new(py);
+    kwargs.set_item("index", labels)?;
+    kwargs.set_item("name", name)?;
+    pandas_series(py)?.call((data,), Some(&kwargs))
+}
+
+/// Build a float64 `pd.Series` from per-entity values labelled by `index`.
+///
+/// Scalar-per-entity metrics return a labelled Series rather than a bare list
+/// so callers select by name (`s["FUND"]`) instead of having to remember the
+/// positional order, and so `name` survives as the column label under
+/// `pd.concat([...], axis=1)`. The data goes through `PyArray1::from_vec`, so
+/// there is no per-element `PyFloat` boxing.
+pub fn values_to_series<'py>(
+    py: Python<'py>,
+    values: Vec<f64>,
+    index: &[String],
+    name: &str,
+) -> PyResult<Bound<'py, PyAny>> {
+    build_series(py, PyArray1::from_vec(py, values).into_any(), index, name)
+}
+
+/// Build an int64 `pd.Series` from per-entity values labelled by `index`.
+///
+/// The integer counterpart of [`values_to_series`], so integer-valued metrics
+/// (drawdown durations in calendar days) keep an integer dtype instead of
+/// being silently widened to float64.
+pub fn int_values_to_series<'py>(
+    py: Python<'py>,
+    values: Vec<i64>,
+    index: &[String],
+    name: &str,
+) -> PyResult<Bound<'py, PyAny>> {
+    build_series(py, PyArray1::from_vec(py, values).into_any(), index, name)
 }
 
 /// Build a single-row pandas DataFrame from any serializable object.
@@ -63,28 +118,112 @@ where
     pandas_dataframe(py)?.call1((py_rows,))
 }
 
-/// Like [`serde_rows_to_dataframe`], but an empty input yields a zero-row
-/// DataFrame that still carries the fixed column schema.
+/// Like [`serde_rows_to_dataframe`], but the declared `columns` schema is
+/// authoritative: the frame always carries exactly those columns, in that order,
+/// whether or not there are rows.
 ///
-/// `pd.DataFrame([])` has NO columns, so pipelines filtering the documented
-/// columns (`df.query("kind.str.startswith('rates')")`) raise on instruments
-/// without detail blocks — exactly the heterogeneous-portfolio case the long
-/// format exists for (quant review MO-B2).
+/// Two problems make this necessary. `pd.DataFrame([])` has NO columns, so
+/// pipelines filtering the documented columns (`df.query("kind.str.startswith('rates')")`)
+/// raise on instruments without detail blocks — exactly the heterogeneous-portfolio
+/// case the long format exists for (quant review MO-B2). And rows built with
+/// `serde_json::json!` are `serde_json::Value::Object`, i.e. a `BTreeMap` unless
+/// the `preserve_order` feature is on, so pandas would infer columns in
+/// ALPHABETICAL order — silently disagreeing both with the documented `Columns:`
+/// list and with the empty-frame layout above.
+/// A column's name paired with the pandas dtype an empty frame should carry.
+///
+/// Use `"float64"`, `"int64"`, `"bool"`, or `"str"`. `"str"` matches what pandas
+/// infers for a populated text column on both pandas 2 (object) and pandas 3
+/// (`str`), so the empty and populated frames agree either way.
+pub type ColumnSchema<'a> = (&'a str, &'a str);
 pub fn serde_rows_to_dataframe_with_schema<'py, T>(
     py: Python<'py>,
     rows: &[T],
+    columns: &[ColumnSchema<'_>],
+) -> PyResult<Bound<'py, PyAny>>
+where
+    T: Serialize,
+{
+    let names: Vec<&str> = columns.iter().map(|(name, _)| *name).collect();
+    if rows.is_empty() {
+        return empty_typed_frame(py, columns);
+    }
+    let frame = serde_rows_to_dataframe(py, rows)?;
+    reindex_columns(py, frame, &names)
+}
+
+/// Build a zero-row frame whose columns already carry their real dtypes.
+///
+/// `pd.DataFrame([], columns=[...])` types every column `object`. Concatenating
+/// such a frame with a populated one downgrades EVERY column to `object`, so a
+/// numeric column stops being numeric — `groupby().sum()`, arithmetic and
+/// `to_parquet` all break, silently. Building from typed empty Series instead
+/// means `pd.concat` over a mix of empty and populated results preserves dtypes,
+/// which is the whole point of guaranteeing the schema on the empty path.
+fn empty_typed_frame<'py>(
+    py: Python<'py>,
+    columns: &[ColumnSchema<'_>],
+) -> PyResult<Bound<'py, PyAny>> {
+    let data = PyDict::new(py);
+    let series = pandas_series(py)?;
+    for (name, dtype) in columns {
+        let kwargs = PyDict::new(py);
+        kwargs.set_item("dtype", *dtype)?;
+        let empty = PyList::empty(py);
+        data.set_item(*name, series.call((empty,), Some(&kwargs))?)?;
+    }
+    dict_to_dataframe(py, &data, None)
+}
+
+/// Order `frame` so the declared `columns` come first, in order.
+///
+/// Any column the rows produced that is NOT in `columns` is kept, appended
+/// after the declared ones in its existing order. That matters for the frames
+/// whose schema is only partly fixed — `SensitivityResult.to_dataframe` declares
+/// `scenario` but adds one column per perturbed parameter, and a strict reindex
+/// would silently delete exactly the data the caller wants.
+///
+/// A declared column the rows did not produce becomes an all-null column rather
+/// than raising, so a row type with a `skip_serializing_if` field keeps its
+/// documented schema.
+fn reindex_columns<'py>(
+    py: Python<'py>,
+    frame: Bound<'py, PyAny>,
+    columns: &[&str],
+) -> PyResult<Bound<'py, PyAny>> {
+    let present: Vec<String> = frame
+        .getattr(pyo3::intern!(py, "columns"))?
+        .try_iter()?
+        .map(|c| c?.extract::<String>())
+        .collect::<PyResult<_>>()?;
+    let mut ordered: Vec<&str> = columns.to_vec();
+    ordered.extend(
+        present
+            .iter()
+            .map(String::as_str)
+            .filter(|name| !columns.contains(name)),
+    );
+    let kwargs = PyDict::new(py);
+    kwargs.set_item("columns", ordered)?;
+    frame.call_method(pyo3::intern!(py, "reindex"), (), Some(&kwargs))
+}
+
+/// Build a single-row `pd.DataFrame` with an explicit, ordered column schema.
+///
+/// The single-row frames are built from `serde_json::json!` literals, whose keys
+/// land in a `BTreeMap` and therefore reach pandas alphabetically. Passing the
+/// documented column list here keeps the emitted order equal to the order the
+/// docstring promises, and makes those two share one source of truth.
+pub fn serde_object_to_single_row_dataframe_with_schema<'py, T>(
+    py: Python<'py>,
+    value: &T,
     columns: &[&str],
 ) -> PyResult<Bound<'py, PyAny>>
 where
     T: Serialize,
 {
-    if rows.is_empty() {
-        let kwargs = pyo3::types::PyDict::new(py);
-        kwargs.set_item("columns", columns.to_vec())?;
-        let empty = PyList::empty(py);
-        return pandas_dataframe(py)?.call((empty,), Some(&kwargs));
-    }
-    serde_rows_to_dataframe(py, rows)
+    let frame = serde_object_to_single_row_dataframe(py, value)?;
+    reindex_columns(py, frame, columns)
 }
 
 /// Convert a slice of `time::Date` into a Python list suitable for a DataFrame index.

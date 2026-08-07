@@ -4,11 +4,23 @@
 //! require a Python representation of the Rust `Marginable` trait.
 
 use super::calculators::{money_from_amount, PyImResult};
+use super::sensitivity_frame::SensitivityRows;
 use super::types::{PyCollateralAssetClass, PyEligibleCollateralSchedule};
 use crate::bindings::module_utils::{parse_currency, parse_date};
 use crate::errors::core_to_py;
 use finstack_quant_margin as fm;
 use pyo3::prelude::*;
+
+/// Render a SIMM credit sector as its canonical snake_case wire label.
+///
+/// Reads the sector's own serde representation rather than re-listing the
+/// thirteen variants here, so the label cannot drift from the wire format.
+fn credit_sector_label(sector: fm::SimmCreditSector) -> String {
+    match serde_json::to_value(sector) {
+        Ok(serde_json::Value::String(label)) => label,
+        _ => format!("{sector:?}"),
+    }
+}
 
 fn parse_simm_version(version: &str) -> PyResult<fm::SimmVersion> {
     version
@@ -54,6 +66,16 @@ impl PySimmSensitivities {
         Ok(Self {
             inner: fm::SimmSensitivities::new(parse_currency(base_currency)?),
         })
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Construct from a JSON serialization of `SimmSensitivities`.
@@ -154,6 +176,166 @@ impl PySimmSensitivities {
     #[getter]
     fn base_currency(&self) -> String {
         self.inner.base_currency.to_string()
+    }
+
+    /// Export every populated sensitivity bucket as one long-format pandas
+    /// ``DataFrame``.
+    ///
+    /// Columns: ``risk_class``, ``bucket``, ``tenor``, ``issuer``, ``kind``,
+    /// ``amount``. One row per populated bucket; an empty container still
+    /// carries all six columns. Long format is used deliberately — a column
+    /// per bucket would give a different schema for every portfolio, and it
+    /// matches ``FrtbSensitivities.to_dataframe``.
+    ///
+    /// ``risk_class`` uses the SIMM labels ``interest_rate``,
+    /// ``credit_qualifying``, ``credit_non_qualifying``, ``equity``,
+    /// ``commodity`` and ``fx``. ``kind`` is ``delta``, ``vega`` or
+    /// ``curvature``; SIMM curvature is a single signed contribution per risk
+    /// class, not an up/down pair.
+    ///
+    /// ``issuer`` carries the name axis: a currency code for IR and FX delta,
+    /// a ``"CCY1/CCY2"`` pair for FX vega, an issuer or index for credit, an
+    /// underlier for equity. It is ``None`` for commodity (keyed by bucket
+    /// alone) and for curvature. ``bucket`` holds the SIMM credit sector for
+    /// bucketed credit deltas (e.g. ``"sovereign"``) and the commodity bucket
+    /// label; it is ``None`` elsewhere. ``tenor`` is the SIMM tenor bucket
+    /// (``"2W"``, ``"1M"``, ..., ``"30Y"``) where the risk class has one.
+    ///
+    /// ``amount`` is a signed currency sensitivity in the container's base
+    /// currency, in whatever convention the caller supplied — SIMM does not
+    /// re-scale these on ingest.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let mut rows = SensitivityRows::default();
+        let sens = &self.inner;
+
+        for ((currency, tenor), amount) in &sens.ir_delta {
+            rows.push(
+                "interest_rate",
+                "delta",
+                Some(currency.to_string()),
+                None,
+                Some(tenor.clone()),
+                *amount,
+            );
+        }
+        for ((currency, tenor), amount) in &sens.ir_vega {
+            rows.push(
+                "interest_rate",
+                "vega",
+                Some(currency.to_string()),
+                None,
+                Some(tenor.clone()),
+                *amount,
+            );
+        }
+
+        for ((name, tenor), amount) in &sens.credit_qualifying_delta {
+            rows.push(
+                "credit_qualifying",
+                "delta",
+                Some(name.clone()),
+                None,
+                Some(tenor.clone()),
+                *amount,
+            );
+        }
+        for ((sector, name, tenor), amount) in &sens.credit_qualifying_delta_bucketed {
+            rows.push(
+                "credit_qualifying",
+                "delta",
+                Some(name.clone()),
+                Some(credit_sector_label(*sector)),
+                Some(tenor.clone()),
+                *amount,
+            );
+        }
+        for ((name, tenor), amount) in &sens.credit_non_qualifying_delta {
+            rows.push(
+                "credit_non_qualifying",
+                "delta",
+                Some(name.clone()),
+                None,
+                Some(tenor.clone()),
+                *amount,
+            );
+        }
+
+        for (underlier, amount) in &sens.equity_delta {
+            rows.push(
+                "equity",
+                "delta",
+                Some(underlier.clone()),
+                None,
+                None,
+                *amount,
+            );
+        }
+        for (underlier, amount) in &sens.equity_vega {
+            rows.push(
+                "equity",
+                "vega",
+                Some(underlier.clone()),
+                None,
+                None,
+                *amount,
+            );
+        }
+
+        for (currency, amount) in &sens.fx_delta {
+            rows.push(
+                "fx",
+                "delta",
+                Some(currency.to_string()),
+                None,
+                None,
+                *amount,
+            );
+        }
+        for ((ccy1, ccy2), amount) in &sens.fx_vega {
+            rows.push(
+                "fx",
+                "vega",
+                Some(format!("{ccy1}/{ccy2}")),
+                None,
+                None,
+                *amount,
+            );
+        }
+
+        for (bucket, amount) in &sens.commodity_delta {
+            rows.push(
+                "commodity",
+                "delta",
+                None,
+                Some(bucket.clone()),
+                None,
+                *amount,
+            );
+        }
+
+        for (risk_class, amount) in &sens.curvature {
+            rows.push(
+                risk_class.to_string(),
+                "curvature",
+                None,
+                None,
+                None,
+                *amount,
+            );
+        }
+
+        rows.into_dataframe(py)
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 

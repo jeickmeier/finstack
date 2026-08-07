@@ -1420,6 +1420,23 @@ class VmResult:
         ...
 
     def __repr__(self) -> str: ...
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the result as a single-row pandas ``DataFrame``.
+
+        Columns: ``gross_exposure``, ``net_exposure``, ``delivery_amount``,
+        ``return_amount``, ``net_margin``, ``requires_call``, ``currency``.
+
+        All amount columns are floats in the single CSA currency reported by
+        ``currency``; positive ``delivery_amount`` means we post margin and
+        positive ``return_amount`` means we receive margin back.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row describing the variation-margin result.
+        """
+        ...
 
 class VmCalculator:
     """
@@ -1632,6 +1649,46 @@ class ImResult:
         ...
 
     def __repr__(self) -> str: ...
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the headline result as a single-row pandas ``DataFrame``.
+
+        Columns: ``amount``, ``currency``, ``methodology``, ``mpor_days``,
+        ``as_of``, ``approximation``.
+
+        ``amount`` is a float in ``currency``; ``mpor_days`` is the margin
+        period of risk in calendar days; ``as_of`` is an ISO 8601 date string.
+        ``approximation`` is ``True`` when the amount is a conservative proxy
+        rather than an exact computation under the named methodology - do not
+        reconcile an approximated figure against an actual margin call.
+        Per-risk-class detail lives in ``to_breakdown_dataframe``.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row describing the initial-margin result.
+        """
+        ...
+
+    def to_breakdown_dataframe(self) -> pd.DataFrame:
+        """
+        Export the per-risk-class breakdown as a pandas ``DataFrame``.
+
+        Columns: ``risk_class``, ``amount``, ``currency``. One row per risk
+        class (e.g. ``"interest_rate"``, ``"credit"``, ``"equity"``), sorted
+        by ``risk_class`` so repeated runs are byte-identical; the underlying
+        map is unordered. Methodologies that publish no breakdown yield a
+        zero-row frame that still carries all three columns.
+
+        Breakdown components do not generally sum to ``amount``: SIMM and
+        other methodologies aggregate risk classes with correlations.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per risk class, sorted by ``risk_class``.
+        """
+        ...
 
 class SimmSensitivities:
     """
@@ -1921,6 +1978,45 @@ class SimmSensitivities:
         -------
         str
             ISO currency code for sensitivity amounts.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export every populated sensitivity bucket as one long-format pandas
+        ``DataFrame``.
+
+        Columns: ``risk_class``, ``bucket``, ``tenor``, ``issuer``, ``kind``,
+        ``amount``. One row per populated bucket; an empty container still
+        carries all six columns. Long format is used deliberately - a column
+        per bucket would give a different schema for every portfolio, and it
+        matches ``FrtbSensitivities.to_dataframe``.
+
+        ``risk_class`` uses the SIMM labels ``interest_rate``,
+        ``credit_qualifying``, ``credit_non_qualifying``, ``equity``,
+        ``commodity`` and ``fx``. ``kind`` is ``delta``, ``vega`` or
+        ``curvature``; SIMM curvature is a single signed contribution per risk
+        class, not an up/down pair.
+
+        ``issuer`` carries the name axis: a currency code for IR and FX delta,
+        a ``"CCY1/CCY2"`` pair for FX vega, an issuer or index for credit, an
+        underlier for equity. It is ``None`` for commodity (keyed by bucket
+        alone) and for curvature. ``bucket`` holds the SIMM credit sector for
+        bucketed credit deltas (e.g. ``"sovereign"``) and the commodity bucket
+        label; it is ``None`` elsewhere. ``tenor`` is the SIMM tenor bucket
+        (``"2W"``, ``"1M"``, ..., ``"30Y"``) where the risk class has one.
+
+        ``amount`` is a signed currency sensitivity in the container's base
+        currency, in whatever convention the caller supplied - SIMM does not
+        re-scale these on ingest.
+
+        Rows are sorted by ``(risk_class, kind, issuer, bucket, tenor)`` so
+        repeated exports of the same portfolio are identical.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per populated sensitivity bucket.
         """
         ...
 
@@ -4147,6 +4243,24 @@ class MarginUtilization:
         ...
 
     def __repr__(self) -> str: ...
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the result as a single-row pandas ``DataFrame``.
+
+        Columns: ``posted``, ``required``, ``ratio``, ``shortfall``,
+        ``is_adequate``, ``currency``.
+
+        ``posted``, ``required`` and ``shortfall`` are floats in ``currency``.
+        ``ratio`` is ``posted / required`` as a decimal fraction (``1.0`` =
+        fully covered); it is ``inf`` when nothing is required but margin is
+        posted, and ``1.0`` when neither is.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row describing margin utilization.
+        """
+        ...
 
 class ExcessCollateral:
     """
@@ -4304,6 +4418,25 @@ class ExcessCollateral:
         ...
 
     def __repr__(self) -> str: ...
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the result as a single-row pandas ``DataFrame``.
+
+        Columns: ``collateral_value``, ``required_value``, ``excess``,
+        ``excess_percentage``, ``has_excess``, ``has_shortfall``,
+        ``currency``.
+
+        The three amount columns are floats in ``currency``; ``excess`` is
+        ``collateral_value - required_value`` and is negative on a shortfall.
+        ``excess_percentage`` is a decimal fraction of ``required_value``
+        (``0.1`` = 10% over-collateralised).
+
+        Returns
+        -------
+        pd.DataFrame
+            One row describing the collateral position.
+        """
+        ...
 
 class MarginFundingCost:
     """
@@ -4472,6 +4605,24 @@ class MarginFundingCost:
         ...
 
     def __repr__(self) -> str: ...
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the result as a single-row pandas ``DataFrame``.
+
+        Columns: ``margin_posted``, ``funding_rate``, ``collateral_rate``,
+        ``spread``, ``annual_cost``, ``currency``.
+
+        ``margin_posted`` and ``annual_cost`` are floats in ``currency``; the
+        three rate columns are annualized decimal fractions (``0.03`` = 3%).
+        ``annual_cost`` is ``margin_posted * spread``, so a collateral rate
+        above the funding rate makes it negative (a funding benefit).
+
+        Returns
+        -------
+        pd.DataFrame
+            One row describing the funding cost.
+        """
+        ...
 
 class Haircut01:
     """
@@ -4921,6 +5072,48 @@ class FrtbSensitivities:
         ...
 
     def __repr__(self) -> str: ...
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export every populated sensitivity bucket as one long-format pandas
+        ``DataFrame``.
+
+        Columns: ``risk_class``, ``bucket``, ``tenor``, ``issuer``, ``kind``,
+        ``amount``. One row per populated bucket; an empty container still
+        carries all six columns. Long format is used deliberately - a column
+        per bucket would give a different schema for every portfolio.
+
+        ``risk_class`` uses the same labels as the ``frtb_sba_charge``
+        breakdown (``girr``, ``csr_non_sec``, ``csr_sec_ctp``,
+        ``csr_sec_non_ctp``, ``equity``, ``commodity``, ``fx``), plus ``drc``
+        and ``rrao`` for the two position lists.
+
+        ``kind`` is ``delta``, ``vega``, ``curvature_up``, ``curvature_down``,
+        ``inflation_delta``, ``xccy_basis_delta``, ``jtd`` (DRC notional), or
+        ``exotic_notional`` / ``other_notional`` (RRAO). A curvature pair is
+        split across two rows so ``amount`` stays scalar.
+
+        ``issuer`` carries the name axis: a currency code for GIRR, a
+        ``"CCY1/CCY2"`` pair for FX, an issuer, tranche, underlier, commodity
+        name, or instrument id elsewhere. ``bucket`` is the FRTB bucket index
+        as a **string** (``pd.to_numeric`` if you need it numeric); ``tenor``
+        is the tenor or option maturity, and for GIRR vega the
+        ``"{option_maturity}/{underlying_tenor}"`` pair. Both are ``None``
+        where the risk class has no such axis.
+
+        ``amount`` keeps each bucket's own convention: GIRR deltas are
+        base-currency P&L per **1 percentage point** of curve shift (that is,
+        ``100 x DV01``), DRC rows are signed JTD notionals before LGD, and
+        RRAO rows are gross notionals.
+
+        Rows are sorted by ``(risk_class, kind, issuer, bucket, tenor)`` so
+        repeated exports of the same portfolio are identical.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per populated sensitivity bucket.
+        """
+        ...
 
 class FrtbSbaEngine:
     """

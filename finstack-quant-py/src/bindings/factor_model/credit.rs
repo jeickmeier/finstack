@@ -5,10 +5,46 @@
 //! [`PyFactorCovarianceForecast`] which wraps the vol-forecast engine from
 //! `finstack-quant-portfolio`.
 
-use crate::bindings::date_utils::parse_iso_date_py as parse_date;
+use crate::bindings::pandas_utils::serde_rows_to_dataframe_with_schema;
+use crate::bindings::pandas_utils::ColumnSchema;
 use crate::errors::{core_to_py, display_to_py};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+
+/// Column schema of `PyPeriodDecomposition::to_level_dataframe`, kept so a
+/// level-free decomposition still exports the documented columns.
+const LEVEL_DELTA_COLUMNS: &[ColumnSchema<'static>] = &[
+    ("from_date", "str"),
+    ("to_date", "str"),
+    ("level_index", "int64"),
+    ("dimension", "str"),
+    ("bucket", "str"),
+    ("delta", "float64"),
+];
+
+/// Column schema of `PyPeriodDecomposition::to_adder_dataframe`, kept so a
+/// decomposition with no shared issuers still exports the documented columns.
+const ADDER_DELTA_COLUMNS: &[ColumnSchema<'static>] = &[
+    ("from_date", "str"),
+    ("to_date", "str"),
+    ("issuer_id", "str"),
+    ("d_adder", "float64"),
+];
+
+/// Display label for a hierarchy dimension, matching
+/// `PyCreditFactorModel::level_names` so the two line up on a join.
+fn dimension_label(
+    dim: &finstack_quant_factor_model::credit::hierarchy::HierarchyDimension,
+) -> String {
+    use finstack_quant_factor_model::credit::hierarchy::HierarchyDimension;
+    match dim {
+        HierarchyDimension::Rating => "Rating".to_owned(),
+        HierarchyDimension::Region => "Region".to_owned(),
+        HierarchyDimension::Sector => "Sector".to_owned(),
+        HierarchyDimension::Custom(name) => name.clone(),
+        _ => "Unknown".to_owned(),
+    }
+}
 
 // PyCreditFactorModel
 
@@ -60,6 +96,16 @@ impl PyCreditFactorModel {
 
 #[pymethods]
 impl PyCreditFactorModel {
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     /// Deserialize a :class:`CreditFactorModel` from JSON.
     ///
     /// Validates the required ``schema`` marker and all structural constraints.
@@ -123,18 +169,11 @@ impl PyCreditFactorModel {
     /// Returns:
     ///     List of dimension names (e.g. ``["Rating", "Region", "Sector"]``).
     fn level_names(&self) -> Vec<String> {
-        use finstack_quant_factor_model::credit::hierarchy::HierarchyDimension;
         self.inner
             .hierarchy
             .levels
             .iter()
-            .map(|d| match d {
-                HierarchyDimension::Rating => "Rating".to_owned(),
-                HierarchyDimension::Region => "Region".to_owned(),
-                HierarchyDimension::Sector => "Sector".to_owned(),
-                HierarchyDimension::Custom(name) => name.clone(),
-                _ => "Unknown".to_owned(),
-            })
+            .map(dimension_label)
             .collect()
     }
 
@@ -484,6 +523,72 @@ impl PyPeriodDecomposition {
         Ok(d)
     }
 
+    /// Export the per-level bucket deltas as a pandas ``DataFrame``.
+    ///
+    /// Columns: ``from_date``, ``to_date``, ``level_index``, ``dimension``,
+    /// ``bucket``, ``delta``.
+    ///
+    /// One row per (level, bucket) pair — the long format the level deltas
+    /// naturally take, since each level has its own bucket set. The two dates
+    /// repeat on every row as ISO strings so a row survives ``pd.concat``
+    /// across periods. Rows are ordered by ``level_index``, then by
+    /// ``bucket`` — the deltas are a ``BTreeMap``, so bucket order is the
+    /// sorted key order and repeated exports are identical.
+    ///
+    /// A decomposition with no hierarchy levels yields a zero-row frame that
+    /// still carries the columns above.
+    fn to_level_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        // `PeriodDecomposition` derives Serialize, but its wire form nests
+        // `by_level` as a list of maps, so the long rows are built by hand.
+        let from_date = self.inner.from.to_string();
+        let to_date = self.inner.to.to_string();
+        let mut rows: Vec<serde_json::Value> = Vec::new();
+        for level in &self.inner.by_level {
+            let dimension = dimension_label(&level.dimension);
+            for (bucket, delta) in &level.deltas {
+                rows.push(serde_json::json!({
+                    "from_date": from_date,
+                    "to_date": to_date,
+                    "level_index": level.level_index,
+                    "dimension": dimension,
+                    "bucket": bucket,
+                    "delta": delta,
+                }));
+            }
+        }
+        serde_rows_to_dataframe_with_schema(py, &rows, LEVEL_DELTA_COLUMNS)
+    }
+
+    /// Export the per-issuer adder deltas as a pandas ``DataFrame``.
+    ///
+    /// Columns: ``from_date``, ``to_date``, ``issuer_id``, ``d_adder``.
+    ///
+    /// One row per issuer. The two dates repeat on every row as ISO strings so
+    /// a row survives ``pd.concat`` across periods. Rows are ordered by
+    /// ``issuer_id`` — the adders are a ``BTreeMap``, so this is the sorted
+    /// key order and repeated exports are identical.
+    ///
+    /// A decomposition sharing no issuers between snapshots yields a zero-row
+    /// frame that still carries the columns above.
+    fn to_adder_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let from_date = self.inner.from.to_string();
+        let to_date = self.inner.to.to_string();
+        let rows: Vec<serde_json::Value> = self
+            .inner
+            .d_adder
+            .iter()
+            .map(|(issuer, delta)| {
+                serde_json::json!({
+                    "from_date": from_date,
+                    "to_date": to_date,
+                    "issuer_id": issuer.as_str(),
+                    "d_adder": delta,
+                })
+            })
+            .collect();
+        serde_rows_to_dataframe_with_schema(py, &rows, ADDER_DELTA_COLUMNS)
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "PeriodDecomposition(from={:?}, to={:?}, d_generic={:.4}, n_levels={})",
@@ -505,7 +610,8 @@ impl PyPeriodDecomposition {
 ///     observed_spreads_json: JSON string (e.g. via ``json.dumps``) of a mapping
 ///         from issuer ID string to observed spread (float).
 ///     observed_generic: Generic (PC) factor value at ``as_of``.
-///     as_of: Valuation date in ISO 8601 format.
+///     as_of: Valuation date, either a date-like object (``datetime.date``,
+///         ``pandas.Timestamp``) or an ISO 8601 string.
 ///     runtime_tags_json: Optional JSON string of
 ///         ``{issuer_id: {dim_key: tag_value}}`` for issuers not present in
 ///         the model.
@@ -540,13 +646,13 @@ fn decompose_levels(
     model: &PyCreditFactorModel,
     observed_spreads_json: &str,
     observed_generic: f64,
-    as_of: &str,
+    as_of: &Bound<'_, PyAny>,
     runtime_tags_json: Option<&str>,
 ) -> PyResult<PyLevelsAtDate> {
     let observed_spreads: std::collections::BTreeMap<finstack_quant_core::types::IssuerId, f64> =
         serde_json::from_str(observed_spreads_json).map_err(display_to_py)?;
 
-    let date = parse_date(as_of)?;
+    let date = crate::bindings::date_utils::extract_date(as_of)?;
 
     let runtime_tags: Option<
         std::collections::BTreeMap<

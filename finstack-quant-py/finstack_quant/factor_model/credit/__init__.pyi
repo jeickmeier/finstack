@@ -18,6 +18,10 @@ True
 
 from __future__ import annotations
 
+import datetime
+
+import pandas as pd
+
 class CreditFactorModel:
     """
     Calibrated credit factor hierarchy artifact.
@@ -446,6 +450,51 @@ class PeriodDecomposition:
         """
         ...
 
+    def to_level_dataframe(self) -> pd.DataFrame:
+        """
+        Export the per-level bucket deltas as a pandas DataFrame.
+
+        Columns: ``from_date``, ``to_date``, ``level_index``, ``dimension``,
+        ``bucket``, ``delta``.
+
+        One row per (level, bucket) pair — the long format the level deltas
+        naturally take, since each level has its own bucket set. The two dates
+        repeat on every row as ISO strings so a row survives ``pd.concat``
+        across periods. Rows are ordered by ``level_index``, then by
+        ``bucket`` — the deltas are a sorted map, so bucket order is the sorted
+        key order and repeated exports are identical.
+
+        A decomposition with no hierarchy levels yields a zero-row frame that
+        still carries the columns above.
+
+        Returns
+        -------
+        pd.DataFrame
+            Long-format frame of bucket deltas, one row per (level, bucket).
+        """
+        ...
+
+    def to_adder_dataframe(self) -> pd.DataFrame:
+        """
+        Export the per-issuer adder deltas as a pandas DataFrame.
+
+        Columns: ``from_date``, ``to_date``, ``issuer_id``, ``d_adder``.
+
+        One row per issuer. The two dates repeat on every row as ISO strings so
+        a row survives ``pd.concat`` across periods. Rows are ordered by
+        ``issuer_id`` — the adders are a sorted map, so this is the sorted key
+        order and repeated exports are identical.
+
+        A decomposition sharing no issuers between snapshots yields a zero-row
+        frame that still carries the columns above.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per issuer present in both snapshots.
+        """
+        ...
+
     def __repr__(self) -> str: ...
 
 class FactorCovarianceForecast:
@@ -559,7 +608,7 @@ def decompose_levels(
     model: CreditFactorModel,
     observed_spreads_json: str,
     observed_generic: float,
-    as_of: str,
+    as_of: datetime.date | str,
     runtime_tags_json: str | None = None,
 ) -> LevelsAtDate:
     """
@@ -573,8 +622,8 @@ def decompose_levels(
         JSON map of issuer ID to observed spread in basis points.
     observed_generic : float
         Observed market generic spread in basis points.
-    as_of : str
-        Observation date as ISO 8601 ``YYYY-MM-DD``.
+    as_of : datetime.date | str
+        Observation date, either a date-like object or an ISO 8601 string.
     runtime_tags_json : str, optional
         Optional JSON map of runtime tags for bucket assignment overrides.
 

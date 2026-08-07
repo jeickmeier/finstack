@@ -9,9 +9,22 @@
 //! - [`PyCorkscrewReport`] — validation report (status, message, structured data, warnings, errors).
 
 use crate::bindings::extract::{extract_model_ref, extract_results_ref};
+use crate::bindings::pandas_utils::{
+    serde_object_to_single_row_dataframe_with_schema, serde_rows_to_dataframe_with_schema,
+    ColumnSchema,
+};
 use crate::errors::display_to_py;
 use finstack_quant_statements_analytics::extensions::corkscrew as rust_corkscrew;
 use pyo3::prelude::*;
+
+/// Column schema for [`PyCorkscrewReport::to_validations_dataframe`].
+const VALIDATION_COLUMNS: [ColumnSchema<'static>; 5] = [
+    ("account", "str"),
+    ("type", "str"),
+    ("periods_validated", "int64"),
+    ("max_error", "float64"),
+    ("is_valid", "bool"),
+];
 
 // AccountType
 
@@ -123,21 +136,31 @@ impl PyCorkscrewAccount {
         }
     }
 
+    /// Node id of the balance account being rolled forward.
     #[getter]
     fn node_id(&self) -> &str {
         &self.inner.node_id
     }
 
+    /// Balance-sheet classifier: asset, liability, or equity.
     #[getter]
     fn account_type(&self) -> PyAccountType {
         PyAccountType::from_rust(self.inner.account_type)
     }
 
+    /// Node ids of the period changes applied to the balance.
+    ///
+    /// Sign convention: every change node is **added** to the prior balance
+    /// (``expected = prev_balance + sum(changes)``), so reductions
+    /// (repayments, outflows, disposals) must already be negative in the
+    /// model.
     #[getter]
     fn changes(&self) -> Vec<String> {
         self.inner.changes.clone()
     }
 
+    /// Node id overriding the beginning balance, or ``None`` to use the
+    /// account's own prior-period closing balance.
     #[getter]
     fn beginning_balance_node(&self) -> Option<&str> {
         self.inner.beginning_balance_node.as_deref()
@@ -146,6 +169,16 @@ impl PyCorkscrewAccount {
     /// Round-trip via JSON.
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Build a corkscrew account from JSON.
@@ -202,6 +235,7 @@ impl PyCorkscrewConfig {
         }
     }
 
+    /// Balance accounts validated by this configuration, in configured order.
     #[getter]
     fn accounts(&self) -> Vec<PyCorkscrewAccount> {
         self.inner
@@ -212,11 +246,17 @@ impl PyCorkscrewConfig {
             .collect()
     }
 
+    /// Absolute roll-forward tolerance, in the balance node's own units.
+    ///
+    /// A period is flagged when
+    /// ``abs(closing - (opening + sum(changes))) > tolerance``.
     #[getter]
     fn tolerance(&self) -> f64 {
         self.inner.tolerance
     }
 
+    /// When ``True``, any roll-forward violation is fatal (reported as an
+    /// error) rather than a warning.
     #[getter]
     fn fail_on_error(&self) -> bool {
         self.inner.fail_on_error
@@ -225,6 +265,16 @@ impl PyCorkscrewConfig {
     /// Serialize this config to JSON.
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Build a config from JSON.
@@ -260,6 +310,7 @@ pub struct PyCorkscrewReport {
 
 #[pymethods]
 impl PyCorkscrewReport {
+    /// ``"success"`` or ``"failed"``.
     #[getter]
     fn status(&self) -> String {
         match self.inner.status {
@@ -268,16 +319,22 @@ impl PyCorkscrewReport {
         }
     }
 
+    /// Human-readable summary of the validation run.
     #[getter]
     fn message(&self) -> &str {
         &self.inner.message
     }
 
+    /// Non-fatal warnings, including roll-forward breaks reported when
+    /// ``fail_on_error`` is ``False``.
     #[getter]
     fn warnings(&self) -> Vec<String> {
         self.inner.warnings.clone()
     }
 
+    /// Roll-forward violations treated as fatal (``fail_on_error=True``) plus
+    /// any structural failure. A non-empty list means ``status`` is
+    /// ``"failed"``.
     #[getter]
     fn errors(&self) -> Vec<String> {
         self.inner.errors.clone()
@@ -288,9 +345,63 @@ impl PyCorkscrewReport {
         serde_json::to_string(&self.inner.data).map_err(display_to_py)
     }
 
+    /// Export the report header as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``status``, ``message``, ``account_count``,
+    /// ``warning_count``, ``error_count``.
+    ///
+    /// ``account_count`` is the number of validated accounts. Per-account
+    /// detail lives in ``to_validations_dataframe``.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let row = serde_json::json!({
+            "status": self.status(),
+            "message": self.inner.message,
+            "account_count": self.validations().len(),
+            "warning_count": self.inner.warnings.len(),
+            "error_count": self.inner.errors.len(),
+        });
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "status",
+                "message",
+                "account_count",
+                "warning_count",
+                "error_count",
+            ],
+        )
+    }
+
+    /// Export the per-account roll-forward validations as a pandas
+    /// ``DataFrame``.
+    ///
+    /// Columns: ``account``, ``type``, ``periods_validated``, ``max_error``,
+    /// ``is_valid``. One row per validated account, in configured order; a
+    /// report with no validations still carries the full column schema.
+    ///
+    /// ``type`` is the account classifier (``"asset"``, ``"liability"``,
+    /// ``"equity"``), ``periods_validated`` is a count of model periods, and
+    /// ``max_error`` is the largest absolute roll-forward break across those
+    /// periods, in the balance node's own units. ``is_valid`` is ``False``
+    /// when ``max_error`` exceeded the configured tolerance.
+    fn to_validations_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_rows_to_dataframe_with_schema(py, &self.validations(), &VALIDATION_COLUMNS)
+    }
+
     /// Serialize the full report to JSON.
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Build a report from JSON.
@@ -311,6 +422,32 @@ impl PyCorkscrewReport {
             self.inner.warnings.len(),
             self.inner.errors.len()
         )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
+    }
+}
+
+impl PyCorkscrewReport {
+    /// Per-account validation records from the structured `data` payload.
+    ///
+    /// An absent or non-array `validations` entry yields an empty slice, so
+    /// the DataFrame builders degrade to a zero-row frame rather than raising.
+    fn validations(&self) -> Vec<serde_json::Value> {
+        self.inner
+            .data
+            .get("validations")
+            .and_then(serde_json::Value::as_array)
+            .cloned()
+            .unwrap_or_default()
     }
 }
 

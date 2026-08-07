@@ -22,12 +22,13 @@ use pyo3::prelude::*;
 ///     JSON-serialized ``MarketContext`` at T₀.
 /// market_t1_json : str
 ///     JSON-serialized ``MarketContext`` at T₁.
-/// as_of_t0 : str
-///     Valuation date T₀ as an ISO 8601 calendar date (``YYYY-MM-DD``).
-///     Time-of-day and timezone offsets are not accepted; for time-of-day
-///     -sensitive workflows pass the start-of-day calendar date in UTC.
-/// as_of_t1 : str
-///     Valuation date T₁ as an ISO 8601 calendar date (``YYYY-MM-DD``).
+/// as_of_t0 : datetime.date | str
+///     Valuation date T₀, either a date-like object (``datetime.date``,
+///     ``pandas.Timestamp``) or an ISO 8601 calendar date (``YYYY-MM-DD``).
+///     A tz-aware timestamp contributes its wall-clock calendar date; for
+///     time-of-day-sensitive workflows pass the start-of-day date in UTC.
+/// as_of_t1 : datetime.date | str
+///     Valuation date T₁, in the same forms as ``as_of_t0``.
 /// method : str | dict
 ///     Attribution method. One of:
 ///
@@ -61,12 +62,14 @@ pub(crate) fn attribute_pnl(
     instrument_json: &str,
     market_t0_json: &str,
     market_t1_json: &str,
-    as_of_t0: &str,
-    as_of_t1: &str,
+    as_of_t0: &Bound<'_, PyAny>,
+    as_of_t1: &Bound<'_, PyAny>,
     method: &Bound<'_, PyAny>,
     config: Option<&Bound<'_, PyAny>>,
     full_cross_attribution: Option<bool>,
 ) -> PyResult<String> {
+    let as_of_t0 = crate::bindings::date_utils::extract_date_iso(as_of_t0)?;
+    let as_of_t1 = crate::bindings::date_utils::extract_date_iso(as_of_t1)?;
     let method_json = py_to_json_string(py, method, "method")?;
     let config_json = config
         .map(|value| py_to_json_string(py, value, "config"))
@@ -75,8 +78,8 @@ pub(crate) fn attribute_pnl(
         instrument_json,
         market_t0_json,
         market_t1_json,
-        as_of_t0,
-        as_of_t1,
+        &as_of_t0,
+        &as_of_t1,
         &method_json,
         config_json.as_deref(),
     )

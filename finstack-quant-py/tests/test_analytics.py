@@ -118,7 +118,7 @@ class TestConstruction:
         prices = [[100.0, 101.0, 102.0, 103.0, 104.0], [50.0, 50.5, 51.0, 51.5, 52.0]]
         perf = Performance.from_arrays(dates, prices, ["A", "B"])
         assert perf.ticker_names == ["A", "B"]
-        assert len(perf.cagr()) == 2
+        assert list(perf.cagr().index) == ["A", "B"]
 
     def test_from_returns_arrays(self) -> None:
         dates = _daily_dates(4)
@@ -130,7 +130,7 @@ class TestConstruction:
             benchmark_ticker="B",
         )
         assert perf.benchmark_idx == 1
-        assert len(perf.cagr()) == 2
+        assert list(perf.cagr().index) == ["A", "B"]
 
     def test_prices_and_returns_paths_agree_on_volatility(self) -> None:
         """Prices and returns paths should agree on volatility on the same window.
@@ -151,8 +151,8 @@ class TestConstruction:
 
         vol_p = perf_p.volatility(annualize=False)
         vol_r = perf_r.volatility(annualize=False)
-        for a, b in zip(vol_p, vol_r, strict=False):
-            assert a == pytest.approx(b, rel=1e-12, abs=1e-12)
+        for ticker in perf_p.ticker_names:
+            assert vol_p[ticker] == pytest.approx(vol_r[ticker], rel=1e-12, abs=1e-12)
 
 
 # Return / risk metrics
@@ -161,34 +161,35 @@ class TestConstruction:
 class TestReturnRiskMetrics:
     def test_cagr_returns_one_per_ticker(self, perf_prices: Performance) -> None:
         values = perf_prices.cagr()
-        assert len(values) == 2
+        assert list(values.index) == ["ACME", "BENCH"]
         assert all(isinstance(v, float) for v in values)
 
     def test_volatility_positive_for_oscillating_series(self, perf_prices: Performance) -> None:
         vols = perf_prices.volatility(annualize=True)
-        assert vols[0] > 0.0  # ACME oscillates
-        assert vols[1] >= 0.0  # BENCH drifts smoothly
+        assert vols["ACME"] > 0.0  # ACME oscillates
+        assert vols["BENCH"] >= 0.0  # BENCH drifts smoothly
 
     def test_sharpe_sortino_finite(self, perf_prices: Performance) -> None:
         for values in [perf_prices.sharpe(0.0), perf_prices.sortino(0.0)]:
-            assert len(values) == 2
-            assert all(not math.isnan(v) for v in values)
+            assert list(values.index) == ["ACME", "BENCH"]
+            assert not math.isnan(values["ACME"])
+            assert not math.isnan(values["BENCH"])
 
     def test_max_drawdown_non_positive(self, perf_prices: Performance) -> None:
-        for dd in perf_prices.max_drawdown():
-            assert dd <= 0.0
+        for ticker, dd in perf_prices.max_drawdown().items():
+            assert dd <= 0.0, ticker
 
     def test_tail_metrics_finite(self, perf_prices: Performance) -> None:
         for getter in (perf_prices.value_at_risk, perf_prices.expected_shortfall):
             values = getter(0.95)
-            assert len(values) == 2
-            assert all(not math.isnan(v) for v in values)
+            assert list(values.index) == ["ACME", "BENCH"]
+            assert not values.isna().any()
 
     def test_higher_moments_finite(self, perf_prices: Performance) -> None:
         for getter in (perf_prices.skewness, perf_prices.kurtosis):
             values = getter()
-            assert len(values) == 2
-            assert all(not math.isnan(v) for v in values)
+            assert list(values.index) == ["ACME", "BENCH"]
+            assert not values.isna().any()
 
     def test_summary_to_dataframe_has_one_row_per_ticker(self, perf_prices: Performance) -> None:
         summary = perf_prices.summary_to_dataframe()
@@ -196,6 +197,47 @@ class TestReturnRiskMetrics:
         assert "cagr" in summary.columns
         assert "sharpe" in summary.columns
         assert "max_drawdown" in summary.columns
+
+
+# Scalar-metric Series contract
+
+
+class TestScalarMetricSeries:
+    """Per-ticker scalar metrics are ticker-labelled `pd.Series`, not lists."""
+
+    def test_metric_returns_series(self, perf_prices: Performance) -> None:
+        assert isinstance(perf_prices.sharpe(), pd.Series)
+        assert isinstance(perf_prices.max_drawdown_duration(), pd.Series)
+
+    def test_metric_index_equals_ticker_names(self, perf_prices: Performance) -> None:
+        assert list(perf_prices.volatility().index) == perf_prices.ticker_names
+
+    def test_metric_series_name_is_metric_name(self, perf_prices: Performance) -> None:
+        for metric in ("cagr", "sharpe", "max_drawdown", "tail_ratio", "max_drawdown_duration"):
+            assert getattr(perf_prices, metric)().name == metric
+
+    def test_label_access_matches_positional(self, perf_prices: Performance) -> None:
+        vols = perf_prices.volatility()
+        assert vols["ACME"] == vols.iloc[0]
+        assert vols["BENCH"] == vols.iloc[1]
+
+    def test_concat_yields_metric_named_columns(self, perf_prices: Performance) -> None:
+        df = pd.concat([perf_prices.sharpe(), perf_prices.sortino()], axis=1)
+        assert list(df.columns) == ["sharpe", "sortino"]
+        assert list(df.index) == ["ACME", "BENCH"]
+
+    def test_max_drawdown_duration_keeps_integer_dtype(self, perf_prices: Performance) -> None:
+        durations = perf_prices.max_drawdown_duration()
+        assert durations.dtype.kind == "i"
+        assert durations["ACME"] >= 0
+
+    def test_paired_metrics_return_named_series(self, perf_prices: Performance) -> None:
+        skew, kurt = perf_prices.skew_kurt()
+        assert (skew.name, kurt.name) == ("skewness", "kurtosis")
+        assert skew["ACME"] == pytest.approx(perf_prices.skewness()["ACME"])
+        var, es = perf_prices.value_at_risk_and_es(0.95)
+        assert (var.name, es.name) == ("value_at_risk", "expected_shortfall")
+        assert var["BENCH"] == pytest.approx(perf_prices.value_at_risk(0.95)["BENCH"])
 
 
 # Periodic returns
@@ -298,8 +340,9 @@ class TestBenchmark:
     def test_information_and_tracking(self, perf_prices: Performance) -> None:
         te = perf_prices.tracking_error()
         ir = perf_prices.information_ratio()
-        assert len(te) == 2
-        assert len(ir) == 2
+        assert list(te.index) == ["ACME", "BENCH"]
+        assert list(ir.index) == ["ACME", "BENCH"]
+        assert not math.isnan(te["ACME"])
 
     def test_reset_bench_ticker_changes_index(self, perf_prices: Performance) -> None:
         perf_prices.reset_bench_ticker("ACME")

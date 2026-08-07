@@ -14,7 +14,9 @@ True
 from __future__ import annotations
 
 from finstack_quant.factor_model import credit as credit
+from finstack_quant.factor_model import schema as schema
 
 __all__ = [
     "credit",
+    "schema",
 ]

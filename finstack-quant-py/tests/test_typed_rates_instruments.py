@@ -10,6 +10,7 @@ import pytest
 from finstack_quant.core.currency import Currency
 from finstack_quant.core.dates import DayCount, Tenor
 from finstack_quant.core.money import Money
+from finstack_quant.valuations import ValuationResult
 from finstack_quant.valuations.instruments import (
     FixedLegSpec,
     FloatLegSpec,
@@ -143,8 +144,8 @@ def _payer_swap_hand_written_json() -> str:
     })
 
 
-def _without_timestamp(result_json: str) -> dict[str, object]:
-    parsed = json.loads(result_json)
+def _without_timestamp(result: ValuationResult) -> dict[str, object]:
+    parsed = json.loads(result.to_json())
     parsed["meta"].pop("timestamp", None)
     return parsed
 

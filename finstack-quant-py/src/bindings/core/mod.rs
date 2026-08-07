@@ -31,9 +31,19 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     rating_scales::register(py, &m)?;
     table::register(py, &m)?;
 
+    // `FinstackError` is declared with `module = finstack_quant.core`, so this
+    // is its canonical home. Exporting it here is what makes that declaration
+    // true: without it `repr()` names an unreachable module and pickling an
+    // exception instance cannot resolve the class.
+    m.setattr(
+        "FinstackError",
+        py.get_type::<crate::errors::FinstackError>(),
+    )?;
+
     let all = PyList::new(
         py,
         [
+            "FinstackError",
             "config",
             "types",
             "currency",

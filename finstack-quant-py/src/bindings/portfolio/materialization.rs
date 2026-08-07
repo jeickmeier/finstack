@@ -12,6 +12,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyByteArray, PyBytes, PyDict, PyModule, PyString};
 
 use super::types::PyPortfolio;
+use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe_with_schema;
 use crate::errors::{diagnostics_to_py, materialization_to_py};
 
 /// Reusable, bounded cache of decoded instrument artifacts.
@@ -160,6 +161,58 @@ impl PyMaterializationReport {
         Ok(phases.into_any().unbind())
     }
 
+    /// Export the materialization counters as a single-row pandas ``DataFrame``.
+    ///
+    /// The report is a flat set of counters, so it yields exactly one row —
+    /// concatenate rows across loads to chart materialization cost over time.
+    /// The nested ``phase_nanos`` struct is flattened into one column per
+    /// phase; the structured :attr:`diagnostics` payload is not included.
+    ///
+    /// Columns: ``unique_instruments``, ``positions``, ``dependencies``,
+    /// ``cache_hits``, ``input_bytes``, ``truncated``, ``timing_available``,
+    /// ``phase_parse_nanos``, ``phase_validate_versions_nanos``,
+    /// ``phase_decode_instruments_nanos``, ``phase_build_positions_nanos``,
+    /// ``phase_index_build_nanos``.
+    ///
+    /// The ``phase_*`` columns are zero — not measured durations — whenever
+    /// ``timing_available`` is ``False``.
+    #[pyo3(text_signature = "($self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let phases = &self.inner.phase_nanos;
+        let row = serde_json::json!({
+            "unique_instruments": self.inner.unique_instruments,
+            "positions": self.inner.positions,
+            "dependencies": self.inner.dependencies,
+            "cache_hits": self.inner.cache_hits,
+            "input_bytes": self.inner.input_bytes,
+            "truncated": self.inner.report.truncated,
+            "timing_available": self.inner.timing_available,
+            "phase_parse_nanos": phases.parse,
+            "phase_validate_versions_nanos": phases.validate_versions,
+            "phase_decode_instruments_nanos": phases.decode_instruments,
+            "phase_build_positions_nanos": phases.build_positions,
+            "phase_index_build_nanos": phases.index_build,
+        });
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "unique_instruments",
+                "positions",
+                "dependencies",
+                "cache_hits",
+                "input_bytes",
+                "truncated",
+                "timing_available",
+                "phase_parse_nanos",
+                "phase_validate_versions_nanos",
+                "phase_decode_instruments_nanos",
+                "phase_build_positions_nanos",
+                "phase_index_build_nanos",
+            ],
+        )
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "MaterializationReport(unique_instruments={}, positions={}, dependencies={}, cache_hits={}, input_bytes={})",
@@ -169,6 +222,17 @@ impl PyMaterializationReport {
             self.inner.cache_hits,
             self.inner.input_bytes
         )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 

@@ -56,16 +56,26 @@ pub struct PyEcfSweepSpec {
 impl PyEcfSweepSpec {
     /// Construct an ECF sweep spec.
     ///
+    /// Excess cash flow is built as
+    /// ``ECF = EBITDA - taxes - capex - ΔWC - cash interest paid``, less any
+    /// fees and scheduled principal that rank ahead of the prepayment
+    /// priority. Every node reference is evaluated per period as a monetary
+    /// amount in the model's reporting currency.
+    ///
     /// Parameters
     /// ----------
     /// ebitda_node : str
-    ///     Node reference or formula for EBITDA.
+    ///     Node reference or DSL formula for EBITDA.
     /// sweep_percentage : float
-    ///     Sweep percentage in [0, 1] (e.g. 0.5 for 50%).
+    ///     Fraction of ECF swept to debt paydown, as a **decimal fraction in
+    ///     [0, 1]** (0.5 = 50%), not a percentage.
     /// taxes_node, capex_node, working_capital_node, cash_interest_node : str | None
-    ///     Optional node references deducted from EBITDA to compute ECF.
+    ///     Optional node references deducted from EBITDA to compute ECF. When
+    ///     ``cash_interest_node`` is omitted the engine deducts contractual
+    ///     cash interest from the period's debt-service magnitude instead.
     /// target_instrument_id : str | None
-    ///     If set, sweep applies only to this debt instrument id.
+    ///     If set, sweep applies only to this debt instrument id; otherwise
+    ///     it applies to all term loans.
     #[new]
     #[pyo3(
         signature = (
@@ -102,6 +112,16 @@ impl PyEcfSweepSpec {
         }
     }
 
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     /// Deserialize from JSON.
     #[staticmethod]
     #[pyo3(text_signature = "(json, /)")]
@@ -116,21 +136,47 @@ impl PyEcfSweepSpec {
         serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
+    /// Node reference or DSL formula supplying EBITDA, the ECF starting
+    /// point.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     A node id (``"ebitda"``) or an expression over nodes
+    ///     (``"revenue - cogs - opex"``), evaluated per period as a monetary
+    ///     amount.
     #[getter]
     fn ebitda_node(&self) -> &str {
         &self.inner.ebitda_node
     }
 
+    /// Fraction of excess cash flow swept to debt paydown.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     A **decimal fraction in [0, 1]**, not a percentage — 0.5 means a
+    ///     50% sweep. Values outside the unit interval are rejected by
+    ///     :meth:`WaterfallSpec.validate`.
     #[getter]
     fn sweep_percentage(&self) -> f64 {
         self.inner.sweep_percentage
     }
 
+    /// Debt instrument the sweep pays down, if the sweep is targeted.
+    ///
+    /// Returns
+    /// -------
+    /// str | None
+    ///     Instrument id, or ``None`` when the sweep applies to all term
+    ///     loans in the capital structure.
     #[getter]
     fn target_instrument_id(&self) -> Option<&str> {
         self.inner.target_instrument_id.as_deref()
     }
 
+    /// Return the debug representation with the EBITDA source, sweep
+    /// fraction and target instrument.
     fn __repr__(&self) -> String {
         format!(
             "EcfSweepSpec(ebitda_node={:?}, sweep_percentage={}, target_instrument_id={:?})",
@@ -167,13 +213,21 @@ impl PyPikToggleSpec {
     /// Parameters
     /// ----------
     /// liquidity_metric : str
-    ///     Node reference or formula for the liquidity signal.
+    ///     Node reference or DSL formula for the liquidity signal (a balance
+    ///     such as ``"cash_balance"`` or a ratio such as
+    ///     ``"ebitda / interest_expense"``).
     /// threshold : float
-    ///     When the metric is below this value, PIK is triggered.
+    ///     PIK triggers when ``metric < threshold``. Expressed in the same
+    ///     units as ``liquidity_metric`` — currency amount for a balance,
+    ///     unitless for a ratio.
     /// target_instrument_ids : list[str] | None
-    ///     If set, PIK toggles only these instruments.
+    ///     If set, PIK toggles only these instruments; otherwise every
+    ///     PIK-capable instrument. An explicitly empty list is rejected by
+    ///     :meth:`WaterfallSpec.validate`.
     /// min_periods_in_pik : int
-    ///     Minimum periods PIK stays active once triggered (hysteresis; default 0).
+    ///     Hysteresis floor counted in **periods** on the model's own cadence
+    ///     (not months): once triggered, PIK stays on for at least this many
+    ///     periods. Default 0 lets PIK toggle every period.
     #[new]
     #[pyo3(
         signature = (
@@ -200,6 +254,17 @@ impl PyPikToggleSpec {
         }
     }
 
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Deserialize a PIK toggle spec from JSON.
     #[staticmethod]
     #[pyo3(text_signature = "(json, /)")]
     fn from_json(json: &str) -> PyResult<Self> {
@@ -207,26 +272,54 @@ impl PyPikToggleSpec {
         Ok(Self { inner })
     }
 
+    /// Serialize this PIK toggle spec to JSON.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
+    /// Node reference or DSL formula producing the liquidity signal.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     A node id (``"cash_balance"``) or an expression
+    ///     (``"ebitda / interest_expense"``). Whether the value is monetary
+    ///     or a unitless ratio depends on the expression — the threshold must
+    ///     use the same units.
     #[getter]
     fn liquidity_metric(&self) -> &str {
         &self.inner.liquidity_metric
     }
 
+    /// Level below which interest accrues as PIK instead of cash.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Threshold in the **same units as the liquidity metric** — a
+    ///     currency amount when the metric is a balance, a unitless ratio
+    ///     when it is a coverage ratio. PIK triggers when
+    ///     ``metric < threshold``.
     #[getter]
     fn threshold(&self) -> f64 {
         self.inner.threshold
     }
 
+    /// Hysteresis floor: minimum time PIK stays on once triggered.
+    ///
+    /// Returns
+    /// -------
+    /// int
+    ///     Count in **periods** on the model's own cadence (quarters for a
+    ///     quarterly model), not months. ``0`` disables hysteresis, letting
+    ///     PIK toggle every period.
     #[getter]
     fn min_periods_in_pik(&self) -> usize {
         self.inner.min_periods_in_pik
     }
 
+    /// Return the debug representation with metric, threshold and hysteresis.
     fn __repr__(&self) -> String {
         format!(
             "PikToggleSpec(liquidity_metric={:?}, threshold={}, min_periods_in_pik={})",
@@ -297,6 +390,16 @@ impl PyWaterfallSpec {
         Ok(Self { inner })
     }
 
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     /// Deserialize from JSON.
     #[staticmethod]
     #[pyo3(text_signature = "(json, /)")]
@@ -320,7 +423,15 @@ impl PyWaterfallSpec {
         self.inner.validate().map_err(display_to_py)
     }
 
-    /// Payment priority order as a list of strings.
+    /// Payment priority order, highest priority first.
+    ///
+    /// Returns
+    /// -------
+    /// list[str]
+    ///     Snake-case priority names in allocation order — cash is applied to
+    ///     the first entry before any of the next. Allocation *within* a
+    ///     category is single-class pro-rata across instruments; there is no
+    ///     tranche seniority, so a shortfall is shared proportionally.
     #[getter]
     fn priority_of_payments(&self) -> Vec<&'static str> {
         self.inner
@@ -331,21 +442,35 @@ impl PyWaterfallSpec {
             .collect()
     }
 
+    /// Node reference or DSL formula for the cash pool the waterfall may
+    /// spend.
+    ///
+    /// Returns
+    /// -------
+    /// str | None
+    ///     A node id or expression evaluating to a monetary amount per
+    ///     period. ``None`` keeps the fully-funded behaviour, in which
+    ///     scheduled cashflows are paid in full without being capped against
+    ///     available cash.
     #[getter]
     fn available_cash_node(&self) -> Option<&str> {
         self.inner.available_cash_node.as_deref()
     }
 
+    /// Whether an excess-cash-flow sweep is configured.
     #[getter]
     fn has_ecf_sweep(&self) -> bool {
         self.inner.ecf_sweep.is_some()
     }
 
+    /// Whether a PIK toggle is configured.
     #[getter]
     fn has_pik_toggle(&self) -> bool {
         self.inner.pik_toggle.is_some()
     }
 
+    /// Return the debug representation with priority order and which optional
+    /// mechanics are configured.
     fn __repr__(&self) -> String {
         format!(
             "WaterfallSpec(priority={:?}, ecf_sweep={}, pik_toggle={})",

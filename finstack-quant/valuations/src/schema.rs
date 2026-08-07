@@ -294,8 +294,12 @@ pub fn valuation_result_schema() -> finstack_quant_core::Result<&'static Value> 
 /// * `instance` - Parsed JSON instrument envelope to validate against the
 ///   canonical v1 envelope schema and its selected type schema.
 pub fn validate_instrument_envelope_json(instance: &Value) -> finstack_quant_core::Result<()> {
-    let schema = instrument_envelope_schema()?;
-    let envelope_result = validate_against_schema(instance, schema, "instrument envelope");
+    // Consulted before the `instrument.type` lookup below so that a malformed
+    // embedded envelope schema is still reported first, as it was before the
+    // validator cache was introduced.
+    let _envelope_schema = instrument_envelope_schema()?;
+    let envelope_result = instrument_envelope_validator()
+        .and_then(|validator| validate_with(validator, instance, "instrument envelope"));
 
     let instrument_type = instance
         .pointer("/instrument/type")
@@ -331,23 +335,152 @@ pub fn validate_instrument_type_json(
     instrument_type: &str,
     instance: &Value,
 ) -> finstack_quant_core::Result<()> {
-    let schema = instrument_schema(instrument_type)?;
-    validate_against_schema(instance, &schema, instrument_type)
+    let validator = instrument_type_validator(instrument_type)?;
+    validate_with(validator, instance, instrument_type)
 }
 
-/// Validate a JSON value against an arbitrary schema.
-fn validate_against_schema(
-    instance: &Value,
+/// Outcome of compiling one schema, as stored in the validator caches.
+///
+/// `finstack_quant_core::Error` is `Clone`, so a cached failure is replayed
+/// verbatim - same variant, same message - on every later call.
+type CachedValidator = Result<jsonschema::Validator, finstack_quant_core::Error>;
+
+/// Resources an individual instrument schema can actually reach.
+///
+/// Every instrument schema `$ref`s only into `common/1` and `cashflow/1` — none
+/// references another instrument schema (verified: 654 `common/1` and 21
+/// `cashflow/1` absolute refs across all seventy, zero cross-instrument).
+/// Registering all seventy instrument documents for a single-type validator
+/// therefore costs memory without ever resolving a reference. The envelope
+/// validator still needs the full set, because its `oneOf` branches point at
+/// every instrument.
+///
+/// # Memory
+///
+/// A compiled `jsonschema::Validator` retains its whole resolver registry, and
+/// `jsonschema` 0.28 offers no way to share one registry across validators. The
+/// cache is therefore unbounded but per-type-lazy: measured from Python, warming
+/// all seventy type validators costs ~477 MB over baseline with this trimmed set
+/// versus ~1375 MB with the full one. A process that only touches the handful of
+/// types it actually prices pays proportionally less. This is a deliberate trade
+/// against the ~2800x latency win — rebuilding per call cost ~105 ms.
+///
+/// `registry_coverage::every_registered_instrument_satisfies_persistence_contract`
+/// validates all seventy fixtures through this path, so a schema that grew a
+/// cross-instrument `$ref` would fail there rather than silently mis-resolve.
+fn instrument_ref_resources() -> finstack_quant_core::Result<Vec<(String, jsonschema::Resource)>> {
+    let mut resources = common_schema_resources()?;
+    resources.extend(finstack_quant_cashflows::schema::resources()?);
+    Ok(resources)
+}
+
+/// Compile `schema` against the supplied resolver resources.
+///
+/// This is the expensive step the caches below exist to amortize: each call
+/// parses the `common/1` schemas, clones the cashflow resources and (for the
+/// envelope) all embedded instrument schemas, then builds a resolver registry
+/// over them.
+fn build_validator_with(
     schema: &Value,
     context: &str,
-) -> finstack_quant_core::Result<()> {
-    let validator = jsonschema::options()
-        .with_resources(external_schema_resources()?.into_iter())
+    resources: Vec<(String, jsonschema::Resource)>,
+) -> CachedValidator {
+    jsonschema::options()
+        .with_resources(resources.into_iter())
         .build(schema)
         .map_err(|e| {
             finstack_quant_core::Error::Validation(format!("Invalid {context} schema: {e}"))
-        })?;
+        })
+}
 
+/// Compile `schema` with every embedded resource registered.
+///
+/// Used for the envelope, whose `oneOf` reaches every instrument schema.
+fn build_validator(schema: &Value, context: &str) -> CachedValidator {
+    build_validator_with(schema, context, external_schema_resources()?)
+}
+
+/// Compile a single instrument type's schema with only the resources it can reach.
+fn build_instrument_validator(schema: &Value, context: &str) -> CachedValidator {
+    build_validator_with(schema, context, instrument_ref_resources()?)
+}
+
+/// Compiled validator for the instrument envelope schema.
+///
+/// # Why this is cached
+///
+/// Building a `jsonschema::Validator` compiles every embedded resource - the
+/// twelve `common/1` schemas, the cashflow schemas and all instrument schemas -
+/// into a resolver registry. Measured in release on this workspace that build
+/// costs ~16 ms, while checking an instance against an already-built validator
+/// costs ~1 us. Rebuilding the validator per call therefore dominated bulk
+/// validation: a 5,000-instrument book spent minutes recompiling the same
+/// schemas. Caching makes the compile a one-off.
+///
+/// `jsonschema::Validator` is `Send + Sync`, so lending `&'static` references
+/// is sound from rayon workers and from Python callers that released the GIL.
+/// `OnceLock` stores the compilation *result*, so a schema that fails to
+/// compile reports the identical error on every call instead of being silently
+/// retried or skipped.
+fn instrument_envelope_validator() -> finstack_quant_core::Result<&'static jsonschema::Validator> {
+    static VALIDATOR: OnceLock<CachedValidator> = OnceLock::new();
+    VALIDATOR
+        .get_or_init(|| build_validator(instrument_envelope_schema()?, "instrument envelope"))
+        .as_ref()
+        .map_err(Clone::clone)
+}
+
+/// Per-instrument-type compiled validators, keyed by canonical registry tag.
+///
+/// Each tag owns its own `OnceLock`, so two instrument types can never share a
+/// validator and each is compiled at most once. Slots are filled lazily rather
+/// than all at once because a validator retains its own copy of the resource
+/// registry (~20 MB measured): compiling all of them up front would cost about
+/// a second and 1.4 GB for callers that touch only a handful of types.
+fn instrument_validator_cache(
+) -> &'static std::collections::BTreeMap<&'static str, OnceLock<CachedValidator>> {
+    static CACHE: OnceLock<std::collections::BTreeMap<&'static str, OnceLock<CachedValidator>>> =
+        OnceLock::new();
+    CACHE.get_or_init(|| {
+        instrument_schema_cache()
+            .keys()
+            .map(|tag| (*tag, OnceLock::new()))
+            .collect()
+    })
+}
+
+/// Compiled validator for one canonical instrument tag.
+///
+/// # Errors
+///
+/// Returns `Error::Validation` if the type is not registered, if its embedded
+/// schema is malformed, or if that schema fails to compile.
+///
+/// # Arguments
+///
+/// * `instrument_type` - Registered tagged-instrument type to look up.
+fn instrument_type_validator(
+    instrument_type: &str,
+) -> finstack_quant_core::Result<&'static jsonschema::Validator> {
+    let (tag, slot) = instrument_validator_cache()
+        .get_key_value(instrument_type)
+        .map(|(tag, slot)| (*tag, slot))
+        .ok_or_else(|| {
+            finstack_quant_core::Error::Validation(format!(
+                "unknown instrument type '{instrument_type}'"
+            ))
+        })?;
+    slot.get_or_init(|| build_instrument_validator(&instrument_schema(tag)?, tag))
+        .as_ref()
+        .map_err(Clone::clone)
+}
+
+/// Collect every violation `validator` reports for `instance`.
+fn validate_with(
+    validator: &jsonschema::Validator,
+    instance: &Value,
+    context: &str,
+) -> finstack_quant_core::Result<()> {
     let errors: Vec<String> = validator
         .iter_errors(instance)
         .map(|e| {
@@ -382,6 +515,191 @@ mod tests {
             .and_then(|examples| examples.first())
             .cloned()
             .expect("schema should have at least one example")
+    }
+
+    /// Validate the way the pre-cache code did: compile a throwaway validator
+    /// for every call. Used as the behavioural reference for the cached path.
+    fn validate_uncached(
+        instrument_type: &str,
+        instance: &Value,
+    ) -> finstack_quant_core::Result<()> {
+        let schema = instrument_schema(instrument_type)?;
+        let validator = build_validator(&schema, instrument_type)?;
+        validate_with(&validator, instance, instrument_type)
+    }
+
+    fn bond_example() -> Value {
+        first_schema_example(&instrument_schema("bond").expect("bond schema"))
+    }
+
+    #[test]
+    fn test_cached_validator_matches_uncached_verdicts() {
+        let valid = bond_example();
+
+        let mut unknown_field = bond_example();
+        unknown_field["instrument"]["spec"]["not_a_real_field"] = serde_json::json!(1);
+
+        let mut malformed_scalar = bond_example();
+        malformed_scalar["instrument"]["spec"]["notional"]["amount"] =
+            serde_json::json!("not-a-decimal");
+
+        // (instrument type, payload, expected verdict)
+        let cases: [(&str, &Value, bool); 5] = [
+            ("bond", &valid, true),
+            // Cross-type: a bond envelope must not satisfy another type's schema.
+            ("interest_rate_swap", &valid, false),
+            ("deposit", &valid, false),
+            ("bond", &unknown_field, false),
+            ("bond", &malformed_scalar, false),
+        ];
+
+        for (instrument_type, instance, expect_ok) in cases {
+            let cached = validate_instrument_type_json(instrument_type, instance);
+            let uncached = validate_uncached(instrument_type, instance);
+            assert_eq!(
+                cached.is_ok(),
+                expect_ok,
+                "{instrument_type}: unexpected verdict: {cached:?}"
+            );
+            assert_eq!(
+                cached, uncached,
+                "{instrument_type}: cached and uncached validation must agree exactly"
+            );
+            // Repeat calls must be stable, not just the first one.
+            assert_eq!(
+                validate_instrument_type_json(instrument_type, instance),
+                uncached,
+                "{instrument_type}: repeated cached validation must stay identical"
+            );
+        }
+    }
+
+    #[test]
+    fn test_cached_envelope_validation_keeps_its_verdicts() {
+        let valid = bond_example();
+
+        let mut unknown_field = bond_example();
+        unknown_field["instrument"]["spec"]["not_a_real_field"] = serde_json::json!(1);
+
+        let mut malformed_scalar = bond_example();
+        malformed_scalar["instrument"]["spec"]["notional"]["amount"] =
+            serde_json::json!("not-a-decimal");
+
+        for (label, instance, expect_ok) in [
+            ("valid", &valid, true),
+            ("unknown field", &unknown_field, false),
+            ("malformed scalar", &malformed_scalar, false),
+        ] {
+            let first = validate_instrument_envelope_json(instance);
+            assert_eq!(first.is_ok(), expect_ok, "{label}: unexpected verdict");
+            assert_eq!(
+                validate_instrument_envelope_json(instance),
+                first,
+                "{label}: cached envelope validation must be stable across calls"
+            );
+        }
+    }
+
+    #[test]
+    fn test_cached_validators_are_not_shared_across_instrument_types() {
+        let bond = instrument_type_validator("bond").expect("bond validator");
+        let swap = instrument_type_validator("interest_rate_swap").expect("swap validator");
+        assert!(
+            !std::ptr::eq(bond, swap),
+            "each instrument type must get its own validator"
+        );
+        assert!(
+            std::ptr::eq(
+                bond,
+                instrument_type_validator("bond").expect("bond validator")
+            ),
+            "repeat lookups must reuse the same cached validator"
+        );
+    }
+
+    #[test]
+    fn test_cached_validator_is_shared_across_threads() {
+        let instance = bond_example();
+        let address = |validator: &jsonschema::Validator| std::ptr::from_ref(validator) as usize;
+        let expected = address(instrument_type_validator("bond").expect("bond validator"));
+        std::thread::scope(|scope| {
+            for _ in 0..8 {
+                scope.spawn(|| {
+                    for _ in 0..20 {
+                        validate_instrument_type_json("bond", &instance)
+                            .expect("valid bond example should pass on any thread");
+                    }
+                    assert_eq!(
+                        address(instrument_type_validator("bond").expect("bond validator")),
+                        expected,
+                        "all threads must observe the same cached validator"
+                    );
+                });
+            }
+        });
+    }
+
+    #[test]
+    fn test_cached_compilation_failure_is_reported_on_every_call() {
+        // A schema that cannot compile must keep failing with the same error
+        // rather than being retried or silently forgotten by the cache.
+        static SLOT: OnceLock<CachedValidator> = OnceLock::new();
+        let broken = serde_json::json!({ "type": "not_a_json_schema_type" });
+        let first = SLOT
+            .get_or_init(|| build_validator(&broken, "broken"))
+            .as_ref()
+            .map_err(Clone::clone);
+        let second = SLOT
+            .get_or_init(|| build_validator(&broken, "broken"))
+            .as_ref()
+            .map_err(Clone::clone);
+        let message = first
+            .expect_err("broken schema must not compile")
+            .to_string();
+        assert!(
+            message.contains("Invalid broken schema"),
+            "unexpected message: {message}"
+        );
+        assert_eq!(
+            message,
+            second
+                .expect_err("broken schema must not compile")
+                .to_string(),
+            "cached compilation failures must be replayed verbatim"
+        );
+    }
+
+    /// Timing harness for the validator cache; run with
+    /// `cargo nextest run -p finstack-quant-valuations --release
+    /// --run-ignored all -E 'test(bench_validator_cache)' --no-capture`.
+    #[test]
+    #[ignore = "timing harness, not a correctness assertion"]
+    fn bench_validator_cache() {
+        use std::time::Instant;
+
+        let instance = bond_example();
+        let iterations = 50;
+
+        // Pre-cache behaviour: rebuild the validator on every call.
+        let start = Instant::now();
+        for _ in 0..iterations {
+            validate_uncached("bond", &instance).expect("valid");
+        }
+        let uncached = start.elapsed() / iterations;
+
+        validate_instrument_type_json("bond", &instance).expect("warm the cache");
+        let start = Instant::now();
+        for _ in 0..iterations {
+            validate_instrument_type_json("bond", &instance).expect("valid");
+        }
+        let cached = start.elapsed() / iterations;
+
+        println!("uncached: {uncached:?}/call");
+        println!("cached:   {cached:?}/call");
+        println!(
+            "speedup:  {:.0}x",
+            uncached.as_secs_f64() / cached.as_secs_f64()
+        );
     }
 
     #[test]

@@ -19,7 +19,15 @@ pub struct PyNormalizationConfig {
 
 #[pymethods]
 impl PyNormalizationConfig {
-    /// Create a new normalization configuration for a target node.
+    /// Create a normalization configuration for a target node.
+    ///
+    /// Starts with no adjustments; add-backs and deductions are supplied via
+    /// the JSON form (:meth:`from_json`).
+    ///
+    /// Parameters
+    /// ----------
+    /// target_node : str
+    ///     Node identifier of the metric to normalize (e.g. ``"ebitda"``).
     #[new]
     #[pyo3(text_signature = "(target_node)")]
     fn new(target_node: &str) -> Self {
@@ -30,7 +38,23 @@ impl PyNormalizationConfig {
         }
     }
 
-    /// Deserialize from JSON.
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Deserialize a normalization configuration from JSON.
+    ///
+    /// This is the way to supply adjustments: each carries an id, name,
+    /// optional category, a value rule (a fixed per-period amount or a
+    /// percentage of a reference node, where the percentage is a decimal
+    /// fraction — 0.05 for 5%), and an optional cap. Unknown fields are
+    /// rejected.
     #[staticmethod]
     #[pyo3(text_signature = "(json, /)")]
     fn from_json(json: &str) -> PyResult<Self> {
@@ -39,24 +63,26 @@ impl PyNormalizationConfig {
         Ok(Self { inner })
     }
 
-    /// Serialize to JSON.
+    /// Serialize this configuration to pretty-printed JSON.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
     }
 
-    /// Target node being normalized.
+    /// Node identifier of the metric being normalized (e.g. ``"ebitda"``).
     #[getter]
     fn target_node(&self) -> &str {
         &self.inner.target_node
     }
 
-    /// Number of adjustments configured.
+    /// Number of add-back / deduction adjustments configured.
     #[getter]
     fn adjustment_count(&self) -> usize {
         self.inner.adjustments.len()
     }
 
+    /// Return the debug representation with the target node and adjustment
+    /// count.
     fn __repr__(&self) -> String {
         format!(
             "NormalizationConfig(target={:?}, adjustments={})",

@@ -48,6 +48,14 @@ impl PricingOptions {
     /// Set the configuration for metric computation.
     ///
     /// The config controls sensitivity bump sizes and other calculation parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `cfg` - Metric configuration to clone into this request. Supplies the
+    ///   finite-difference bump sizes (rate bumps in decimal, credit-spread bumps
+    ///   in basis points, relative spot/vol bumps), solver tolerances, and
+    ///   iteration caps used by sensitivity calculations. Cloned into an `Arc`, so
+    ///   the caller retains ownership.
     pub fn with_config(mut self, cfg: &FinstackConfig) -> Self {
         self.config = Some(Arc::new(cfg.clone()));
         self
@@ -56,6 +64,14 @@ impl PricingOptions {
     /// Set the market history for Historical VaR / Expected Shortfall.
     ///
     /// Required for computing `MetricId::HVar` and `MetricId::ExpectedShortfall`.
+    ///
+    /// # Arguments
+    ///
+    /// * `history` - Shared historical market snapshots used to build the return
+    ///   distribution for historical VaR and expected shortfall. The observation
+    ///   dates must cover the lookback window requested by the metric
+    ///   configuration; when the history is absent or too short, those metrics
+    ///   report an error rather than falling back to a parametric estimate.
     pub fn with_market_history(mut self, history: Arc<MarketHistory>) -> Self {
         self.market_history = Some(history);
         self

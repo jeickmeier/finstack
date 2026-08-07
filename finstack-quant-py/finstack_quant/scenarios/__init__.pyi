@@ -10,6 +10,10 @@ Examples
 
 from __future__ import annotations
 
+import datetime
+
+import pandas as pd
+
 from typing import Any, Literal
 
 from finstack_quant.attribution import PnlAttribution
@@ -293,7 +297,7 @@ def apply_scenario(
     scenario_json: str,
     market: Any,
     model: Any,
-    as_of: str,
+    as_of: datetime.date | str,
 ) -> dict[str, Any]:
     """
     Apply a scenario to both market data and a financial model.
@@ -306,8 +310,8 @@ def apply_scenario(
         ``MarketContext`` object or JSON ``MarketContext`` string.
     model : Any
         ``FinancialModelSpec`` object or JSON ``FinancialModelSpec`` string.
-    as_of : str
-        ISO 8601 valuation date.
+    as_of : datetime.date | str
+        Valuation date, either a date-like object or an ISO 8601 string.
 
     Returns
     -------
@@ -342,7 +346,7 @@ def apply_scenario(
 def apply_scenario_to_market(
     scenario_json: str,
     market: Any,
-    as_of: str,
+    as_of: datetime.date | str,
 ) -> dict[str, Any]:
     """
     Apply a scenario to market data only (no model mutations returned).
@@ -353,8 +357,8 @@ def apply_scenario_to_market(
         JSON ``ScenarioSpec``.
     market : Any
         ``MarketContext`` object or JSON ``MarketContext`` string.
-    as_of : str
-        ISO 8601 valuation date.
+    as_of : datetime.date | str
+        Valuation date, either a date-like object or an ISO 8601 string.
 
     Returns
     -------
@@ -573,6 +577,56 @@ class HorizonResult:
         """
         ...
 
+    @classmethod
+    def from_json(cls, json: str) -> HorizonResult:
+        """
+        Deserialize from JSON produced by :meth:`to_json`.
+
+        Parameters
+        ----------
+        json : str
+            JSON-serialized ``HorizonResult`` envelope.
+
+        Returns
+        -------
+        HorizonResult
+            The deserialized result.
+
+        Raises
+        ------
+        ValueError
+            If *json* does not match the ``HorizonResult`` schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.scenarios import HorizonResult
+        >>> try:
+        ...     HorizonResult.from_json("{}")
+        ... except ValueError as exc:
+        ...     print(type(exc).__name__)
+        ValueError
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the horizon summary as a single-row pandas ``DataFrame``.
+
+        Columns: ``initial_value``, ``terminal_value``, ``currency``,
+        ``total_pnl``, ``total_return_pct``, ``annualized_return``,
+        ``horizon_days``, ``user_operations``, ``expanded_operations``,
+        ``operations_applied``, ``warning_count``.
+
+        ``total_return_pct`` is a decimal fraction (``0.05`` = +5%). For the
+        factor-level breakdown use ``result.attribution.to_dataframe()``.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One-row summary frame.
+        """
+        ...
+
     def explain(self) -> str:
         """
         Human-readable summary of horizon return and attribution.
@@ -587,7 +641,7 @@ class HorizonResult:
 def compute_horizon_return(
     instrument_json: str,
     market: Any,
-    as_of: str,
+    as_of: datetime.date | str,
     scenario_json: str,
     method: str = "parallel",
     config: str | None = None,
@@ -602,8 +656,8 @@ def compute_horizon_return(
         Canonical v1 instrument envelope.
     market : Any
         ``MarketContext`` object or JSON string.
-    as_of : str
-        Valuation date in ISO 8601 format.
+    as_of : datetime.date | str
+        Valuation date, either a date-like object or an ISO 8601 string.
     scenario_json : str
         JSON-serialized ``ScenarioSpec``.
     method : str, default "parallel"

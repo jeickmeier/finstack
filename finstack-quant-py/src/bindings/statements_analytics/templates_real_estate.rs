@@ -10,6 +10,9 @@
 //! `capital_structure` from the input spec are preserved on output.
 
 use crate::bindings::extract::extract_model_ref;
+use crate::bindings::pandas_utils::{
+    serde_object_to_single_row_dataframe, serde_object_to_single_row_dataframe_with_schema,
+};
 use crate::errors::display_to_py;
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_statements_analytics::templates::real_estate as rust_re;
@@ -78,36 +81,48 @@ impl PySimpleLeaseSpec {
         Ok(Self { inner })
     }
 
+    /// Node id storing this lease's rent revenue series.
     #[getter]
     fn node_id(&self) -> &str {
         &self.inner.node_id
     }
 
+    /// First period (inclusive) the lease is active, as a period-id string
+    /// (e.g. ``"2025Q1"``).
     #[getter]
     fn start(&self) -> String {
         self.inner.start.to_string()
     }
 
+    /// Last period (inclusive) the lease is active, or ``None`` to run
+    /// through the model end.
     #[getter]
     fn end(&self) -> Option<String> {
         self.inner.end.map(|p| p.to_string())
     }
 
+    /// Base rent for one model period at ``start``, in model currency units.
+    ///
+    /// A quarterly model means rent per quarter, not per year.
     #[getter]
     fn base_rent(&self) -> f64 {
         self.inner.base_rent
     }
 
+    /// Growth rate compounded every model period after ``start``, as a
+    /// decimal fraction (``0.03`` = +3% per period).
     #[getter]
     fn growth_rate(&self) -> f64 {
         self.inner.growth_rate
     }
 
+    /// Number of model periods of free rent counted from ``start``.
     #[getter]
     fn free_rent_periods(&self) -> u32 {
         self.inner.free_rent_periods
     }
 
+    /// Occupancy factor in ``[0, 1]`` applied to rent.
     #[getter]
     fn occupancy(&self) -> f64 {
         self.inner.occupancy
@@ -118,14 +133,71 @@ impl PySimpleLeaseSpec {
         self.inner.validate().map_err(display_to_py)
     }
 
+    /// Export the lease spec as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``node_id``, ``start``, ``end``, ``base_rent``,
+    /// ``growth_rate``, ``free_rent_periods``, ``occupancy``.
+    ///
+    /// ``start`` and ``end`` are period-id strings (``end`` is ``None`` for a
+    /// lease running to the model end). ``base_rent`` is per model period,
+    /// ``growth_rate`` and ``occupancy`` are decimal fractions, and
+    /// ``free_rent_periods`` is a count of model periods.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let row = serde_json::json!({
+            "node_id": self.inner.node_id,
+            "start": self.inner.start.to_string(),
+            // Emitted explicitly rather than through the inner type's serde,
+            // which skips a `None` `end` and would drop the column.
+            "end": self.inner.end.map(|p| p.to_string()),
+            "base_rent": self.inner.base_rent,
+            "growth_rate": self.inner.growth_rate,
+            "free_rent_periods": self.inner.free_rent_periods,
+            "occupancy": self.inner.occupancy,
+        });
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "node_id",
+                "start",
+                "end",
+                "base_rent",
+                "growth_rate",
+                "free_rent_periods",
+                "occupancy",
+            ],
+        )
+    }
+
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner: rust_re::SimpleLeaseSpec = serde_json::from_str(json).map_err(display_to_py)?;
         Ok(Self { inner })
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 
@@ -154,11 +226,16 @@ impl PyRentStepSpec {
         })
     }
 
+    /// Period (inclusive) this rent level takes effect, as a period-id string.
     #[getter]
     fn start(&self) -> String {
         self.inner.start.to_string()
     }
 
+    /// Rent for one model period from ``start``, in model currency units.
+    ///
+    /// This replaces the prevailing rent level rather than adding to it, and
+    /// restarts growth compounding from ``start``.
     #[getter]
     fn rent(&self) -> f64 {
         self.inner.rent
@@ -166,6 +243,16 @@ impl PyRentStepSpec {
 
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]
@@ -198,11 +285,13 @@ impl PyFreeRentWindowSpec {
         })
     }
 
+    /// Period (inclusive) free rent starts, as a period-id string.
     #[getter]
     fn start(&self) -> String {
         self.inner.start.to_string()
     }
 
+    /// Length of the concession as a count of model periods.
     #[getter]
     fn periods(&self) -> u32 {
         self.inner.periods
@@ -210,6 +299,16 @@ impl PyFreeRentWindowSpec {
 
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]
@@ -253,43 +352,87 @@ impl PyRenewalSpec {
         }
     }
 
+    /// Renewal term length as a count of model periods.
     #[getter]
     fn term_periods(&self) -> u32 {
         self.inner.term_periods
     }
 
+    /// Probability of renewal as a decimal fraction in ``[0, 1]``.
+    ///
+    /// Renewal is modelled in expected-value terms, so this weights the
+    /// renewal rent rather than selecting a branch.
     #[getter]
     fn probability(&self) -> f64 {
         self.inner.probability
     }
 
+    /// Rent-free downtime after the initial term ends, as a count of model
+    /// periods.
     #[getter]
     fn downtime_periods(&self) -> u32 {
         self.inner.downtime_periods
     }
 
+    /// Multiplier applied to the last contractual rent of the initial term
+    /// (``1.05`` means renewal starts 5% above the prior rent level).
     #[getter]
     fn rent_factor(&self) -> f64 {
         self.inner.rent_factor
     }
 
+    /// Number of model periods of free rent at renewal start.
     #[getter]
     fn free_rent_periods(&self) -> u32 {
         self.inner.free_rent_periods
     }
 
+    /// Validate renewal fields.
     fn validate(&self) -> PyResult<()> {
         self.inner.validate().map_err(display_to_py)
+    }
+
+    /// Export the renewal spec as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``downtime_periods``, ``term_periods``, ``probability``,
+    /// ``rent_factor``, ``free_rent_periods``.
+    ///
+    /// The three ``*_periods`` columns are counts of model periods;
+    /// ``probability`` is a decimal fraction in ``[0, 1]`` and
+    /// ``rent_factor`` is a multiplier on the prior rent level.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_object_to_single_row_dataframe(py, &self.inner)
     }
 
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner: rust_re::RenewalSpec = serde_json::from_str(json).map_err(display_to_py)?;
         Ok(Self { inner })
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 
@@ -325,6 +468,8 @@ impl PyLeaseGrowthConvention {
         }
     }
 
+    /// String identifier used in JSON (``"per_period"`` or
+    /// ``"annual_escalator"``).
     fn value(&self) -> &'static str {
         match self {
             PyLeaseGrowthConvention::PerPeriod => "per_period",
@@ -416,46 +561,65 @@ impl PyLeaseSpec {
         Ok(Self { inner })
     }
 
+    /// Base node id; per-lease detail nodes are derived from it
+    /// (``{node_id}.pgi``, ``.free_rent``, ``.vacancy_loss``,
+    /// ``.effective_rent``).
     #[getter]
     fn node_id(&self) -> &str {
         &self.inner.node_id
     }
 
+    /// First period (inclusive) the lease is active, as a period-id string
+    /// (e.g. ``"2025Q1"``).
     #[getter]
     fn start(&self) -> String {
         self.inner.start.to_string()
     }
 
+    /// Last period (inclusive) of the initial term, or ``None`` to run
+    /// through the model end (which also disables renewal modelling).
     #[getter]
     fn end(&self) -> Option<String> {
         self.inner.end.map(|p| p.to_string())
     }
 
+    /// Base rent for one model period at ``start``, in model currency units.
+    ///
+    /// A quarterly model means rent per quarter, not per year.
     #[getter]
     fn base_rent(&self) -> f64 {
         self.inner.base_rent
     }
 
+    /// Growth rate applied within a rent segment as a decimal fraction
+    /// (``0.03`` = +3%), compounded per ``growth_convention``.
     #[getter]
     fn growth_rate(&self) -> f64 {
         self.inner.growth_rate
     }
 
+    /// Compounding convention for ``growth_rate``: every model period
+    /// (``per_period``) or once per lease-start anniversary
+    /// (``annual_escalator``).
     #[getter]
     fn growth_convention(&self) -> PyLeaseGrowthConvention {
         PyLeaseGrowthConvention::from_rust(self.inner.growth_convention)
     }
 
+    /// Number of model periods of free rent counted from ``start``, before
+    /// any additional ``free_rent_windows``.
     #[getter]
     fn free_rent_periods(&self) -> u32 {
         self.inner.free_rent_periods
     }
 
+    /// Occupancy factor in ``[0, 1]`` applied to non-free contractual rent.
     #[getter]
     fn occupancy(&self) -> f64 {
         self.inner.occupancy
     }
 
+    /// Renewal modelling applied after ``end``, or ``None`` for no renewal.
     #[getter]
     fn renewal(&self) -> Option<PyRenewalSpec> {
         self.inner
@@ -464,18 +628,85 @@ impl PyLeaseSpec {
             .map(|inner| PyRenewalSpec { inner })
     }
 
+    /// Validate lease fields.
     fn validate(&self) -> PyResult<()> {
         self.inner.validate().map_err(display_to_py)
+    }
+
+    /// Export the lease spec as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``node_id``, ``start``, ``end``, ``base_rent``,
+    /// ``growth_rate``, ``growth_convention``, ``free_rent_periods``,
+    /// ``occupancy``, ``rent_step_count``, ``free_rent_window_count``,
+    /// ``has_renewal``.
+    ///
+    /// ``start`` and ``end`` are period-id strings, ``base_rent`` is per
+    /// model period, ``growth_rate`` and ``occupancy`` are decimal fractions,
+    /// and ``free_rent_periods`` is a count of model periods. The nested
+    /// collections are summarised as counts here — read ``renewal`` (and its
+    /// own ``to_dataframe``) for the renewal terms.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let row = serde_json::json!({
+            "node_id": self.inner.node_id,
+            "start": self.inner.start.to_string(),
+            "end": self.inner.end.map(|p| p.to_string()),
+            "base_rent": self.inner.base_rent,
+            "growth_rate": self.inner.growth_rate,
+            "growth_convention": self.growth_convention().value(),
+            "free_rent_periods": self.inner.free_rent_periods,
+            "occupancy": self.inner.occupancy,
+            "rent_step_count": self.inner.rent_steps.len(),
+            "free_rent_window_count": self.inner.free_rent_windows.len(),
+            "has_renewal": self.inner.renewal.is_some(),
+        });
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "node_id",
+                "start",
+                "end",
+                "base_rent",
+                "growth_rate",
+                "growth_convention",
+                "free_rent_periods",
+                "occupancy",
+                "rent_step_count",
+                "free_rent_window_count",
+                "has_renewal",
+            ],
+        )
     }
 
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner: rust_re::LeaseSpec = serde_json::from_str(json).map_err(display_to_py)?;
         Ok(Self { inner })
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 
@@ -517,28 +748,54 @@ impl PyRentRollOutputNodes {
         }
     }
 
+    /// Node id holding total contractual rent (potential gross income) across
+    /// all leases.
     #[getter]
     fn rent_pgi_node(&self) -> &str {
         &self.inner.rent_pgi_node
     }
 
+    /// Node id holding total free-rent concessions.
     #[getter]
     fn free_rent_node(&self) -> &str {
         &self.inner.free_rent_node
     }
 
+    /// Node id holding total vacancy loss, including occupancy and
+    /// renewal-probability effects.
     #[getter]
     fn vacancy_loss_node(&self) -> &str {
         &self.inner.vacancy_loss_node
     }
 
+    /// Node id holding total effective rent, the EGI rent component
+    /// ``rent_pgi - free_rent - vacancy_loss``.
     #[getter]
     fn rent_effective_node(&self) -> &str {
         &self.inner.rent_effective_node
     }
 
+    /// Export the node-id mapping as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``rent_pgi_node``, ``free_rent_node``, ``vacancy_loss_node``,
+    /// ``rent_effective_node``. Every value is a statement node id, not a
+    /// numeric amount.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_object_to_single_row_dataframe(py, &self.inner)
+    }
+
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]
@@ -546,6 +803,17 @@ impl PyRentRollOutputNodes {
         let inner: rust_re::RentRollOutputNodes =
             serde_json::from_str(json).map_err(display_to_py)?;
         Ok(Self { inner })
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 
@@ -568,6 +836,8 @@ pub enum PyManagementFeeBase {
 
 #[pymethods]
 impl PyManagementFeeBase {
+    /// Parse an exact snake_case identifier (``"egi"`` or
+    /// ``"effective_rent"``).
     #[staticmethod]
     fn from_str(value: &str) -> PyResult<Self> {
         match value {
@@ -580,6 +850,7 @@ impl PyManagementFeeBase {
         }
     }
 
+    /// String identifier used in JSON (``"egi"`` or ``"effective_rent"``).
     fn value(&self) -> &'static str {
         match self {
             PyManagementFeeBase::Egi => "egi",
@@ -632,11 +903,14 @@ impl PyManagementFeeSpec {
         }
     }
 
+    /// Management fee rate as a decimal fraction (``0.03`` = 3%).
     #[getter]
     fn rate(&self) -> f64 {
         self.inner.rate
     }
 
+    /// Basis the fee applies to: ``egi`` (effective gross income) or
+    /// ``effective_rent`` (rent only, excluding other income).
     #[getter]
     fn base(&self) -> PyManagementFeeBase {
         PyManagementFeeBase::from_rust(self.inner.base)
@@ -644,6 +918,16 @@ impl PyManagementFeeSpec {
 
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]
@@ -705,6 +989,8 @@ impl PyPropertyTemplateNodes {
         }
     }
 
+    /// Rent-roll output node ids (PGI, free rent, vacancy loss, effective
+    /// rent).
     #[getter]
     fn rent_roll(&self) -> PyRentRollOutputNodes {
         PyRentRollOutputNodes {
@@ -712,43 +998,103 @@ impl PyPropertyTemplateNodes {
         }
     }
 
+    /// Node id holding total other (non-rent) income.
     #[getter]
     fn other_income_total_node(&self) -> &str {
         &self.inner.other_income_total_node
     }
 
+    /// Node id holding effective gross income (EGI).
     #[getter]
     fn egi_node(&self) -> &str {
         &self.inner.egi_node
     }
 
+    /// Node id holding the management fee, when one is configured.
     #[getter]
     fn management_fee_node(&self) -> &str {
         &self.inner.management_fee_node
     }
 
+    /// Node id holding total operating expenses, inclusive of the management
+    /// fee when one is configured.
     #[getter]
     fn opex_total_node(&self) -> &str {
         &self.inner.opex_total_node
     }
 
+    /// Node id holding net operating income (NOI).
     #[getter]
     fn noi_node(&self) -> &str {
         &self.inner.noi_node
     }
 
+    /// Node id holding total capital expenditure.
     #[getter]
     fn capex_total_node(&self) -> &str {
         &self.inner.capex_total_node
     }
 
+    /// Node id holding net cash flow, ``noi - capex_total``.
     #[getter]
     fn ncf_node(&self) -> &str {
         &self.inner.ncf_node
     }
 
+    /// Export the node-id mapping as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``rent_pgi_node``, ``free_rent_node``, ``vacancy_loss_node``,
+    /// ``rent_effective_node``, ``other_income_total_node``, ``egi_node``,
+    /// ``management_fee_node``, ``opex_total_node``, ``noi_node``,
+    /// ``capex_total_node``, ``ncf_node``.
+    ///
+    /// The four rent-roll node ids are flattened in rather than nested, so
+    /// every value is a plain statement node id, not a numeric amount.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let row = serde_json::json!({
+            "rent_pgi_node": self.inner.rent_roll.rent_pgi_node,
+            "free_rent_node": self.inner.rent_roll.free_rent_node,
+            "vacancy_loss_node": self.inner.rent_roll.vacancy_loss_node,
+            "rent_effective_node": self.inner.rent_roll.rent_effective_node,
+            "other_income_total_node": self.inner.other_income_total_node,
+            "egi_node": self.inner.egi_node,
+            "management_fee_node": self.inner.management_fee_node,
+            "opex_total_node": self.inner.opex_total_node,
+            "noi_node": self.inner.noi_node,
+            "capex_total_node": self.inner.capex_total_node,
+            "ncf_node": self.inner.ncf_node,
+        });
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "rent_pgi_node",
+                "free_rent_node",
+                "vacancy_loss_node",
+                "rent_effective_node",
+                "other_income_total_node",
+                "egi_node",
+                "management_fee_node",
+                "opex_total_node",
+                "noi_node",
+                "capex_total_node",
+                "ncf_node",
+            ],
+        )
+    }
+
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]
@@ -756,6 +1102,17 @@ impl PyPropertyTemplateNodes {
         let inner: rust_re::PropertyTemplateNodes =
             serde_json::from_str(json).map_err(display_to_py)?;
         Ok(Self { inner })
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 

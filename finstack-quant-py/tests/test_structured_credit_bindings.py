@@ -30,6 +30,32 @@ SC_ENTRY_POINTS = (
     "structured_credit_tranche_scenario_table",
 )
 
+# Both stochastic dimensions off collapses the OAS to a single deterministic
+# scenario (see `OasConfig::num_paths`), which keeps this fast. Every field is
+# required when a config is supplied; values track `OasConfig::default`.
+_DETERMINISTIC_OAS_CONFIG_JSON = json.dumps({
+    "num_paths": 1,
+    "stochastic_rates": False,
+    "stochastic_credit": False,
+    "hw_kappa": 0.05,
+    "hw_sigma": 0.01,
+    "prepay_beta": 7.0,
+    "credit_loading": 0.3,
+    "seed": 42,
+    "tolerance": 1e-7,
+})
+
+
+def _approx(value: float) -> object:
+    """Round-trip tolerance sized for serde_json's float reparse, nothing looser.
+
+    A parse -> reserialize cycle can move an f64 by about 1 ULP, so ``rel=1e-15``
+    (a few ULP) with ``abs=0`` covers it while keeping zeros exact.
+    ``pytest.approx``'s default ``rel=1e-6`` would have accepted a PV of
+    1,000,000.0 coming back as 1,000,000.9.
+    """
+    return pytest.approx(value, rel=1e-15, abs=0)
+
 
 def _deal_json() -> str:
     return canonical_structured_credit_json(payment_calendar_id="NOT_A_CALENDAR")
@@ -83,19 +109,95 @@ def test_tranche_metrics_happy_path_uses_model_price() -> None:
     """A valid fixture deal returns finite metrics at its own model price."""
     market = _market()
 
-    metrics = json.loads(
-        instruments.structured_credit_tranche_metrics(
-            _valid_deal_json(),
-            "CLONOTES-A",
-            market,
-            "2024-01-01",
-            market_price_pct=None,
-        )
+    metrics = instruments.structured_credit_tranche_metrics(
+        _valid_deal_json(),
+        "CLONOTES-A",
+        market,
+        "2024-01-01",
+        market_price_pct=None,
     )
 
-    assert math.isfinite(metrics["pv"])
-    assert metrics["pv"] > 0.0
-    assert metrics["z_spread_bp"] == pytest.approx(0.0, abs=1e-4)
+    assert math.isfinite(metrics.pv)
+    assert metrics.pv > 0.0
+    assert metrics.z_spread_bp == pytest.approx(0.0, abs=1e-4)
+
+
+def test_tranche_metrics_returns_typed_wrapper() -> None:
+    """The metrics entry point returns ``TrancheMetrics``, not a JSON string."""
+    metrics = instruments.structured_credit_tranche_metrics(_valid_deal_json(), "CLONOTES-A", _market(), "2024-01-01")
+
+    assert isinstance(metrics, instruments.TrancheMetrics)
+    assert not isinstance(metrics, str)
+
+    # The wire payload is still one call away and survives a round trip.
+    wire = metrics.to_json()
+    payload = json.loads(wire)
+    reparsed = json.loads(instruments.TrancheMetrics.from_json(wire).to_json())
+    assert reparsed.keys() == payload.keys()
+    for key, expected in payload.items():
+        if isinstance(expected, float):
+            assert reparsed[key] == _approx(expected)
+        else:
+            assert reparsed[key] == expected
+
+
+def test_tranche_oas_returns_typed_wrapper() -> None:
+    """The OAS entry point returns ``OasResult``, not a JSON string."""
+    market = _market()
+    deal_json = _valid_deal_json()
+    # Solve against the deal's own model price so the Brent search starts
+    # inside its bracket; this test is about the return type, not the level.
+    model_price_pct = instruments.structured_credit_tranche_metrics(
+        deal_json, "CLONOTES-A", market, "2024-01-01"
+    ).price_pct
+
+    result = instruments.structured_credit_tranche_oas(
+        deal_json,
+        "CLONOTES-A",
+        model_price_pct,
+        market,
+        "2024-01-01",
+        _DETERMINISTIC_OAS_CONFIG_JSON,
+    )
+
+    assert isinstance(result, instruments.OasResult)
+    assert not isinstance(result, str)
+    # The solver echoes back the price it was handed; nothing computes on it,
+    # so this is an exact identity rather than a numerical comparison.
+    assert result.market_price == model_price_pct
+
+    wire = result.to_json()
+    payload = json.loads(wire)
+    reparsed = json.loads(instruments.OasResult.from_json(wire).to_json())
+    assert reparsed.keys() == payload.keys()
+    for key, expected in payload.items():
+        if isinstance(expected, float):
+            assert reparsed[key] == _approx(expected)
+        else:
+            assert reparsed[key] == expected
+
+
+def test_tranche_scenario_table_returns_typed_wrapper() -> None:
+    """The scenario-table entry point returns ``ScenarioTable``, not JSON."""
+    grid_json = json.dumps({"cprs": [0.10], "cdrs": [0.02], "severities": [0.40]})
+
+    table = instruments.structured_credit_tranche_scenario_table(
+        _valid_deal_json(), "CLONOTES-A", _market(), "2024-01-01", grid_json
+    )
+
+    assert isinstance(table, instruments.ScenarioTable)
+    assert not isinstance(table, str)
+    assert table.tranche_id == "CLONOTES-A"
+    assert len(table.cells()) == 1
+
+    wire = table.to_json()
+    payload = json.loads(wire)
+    reparsed = json.loads(instruments.ScenarioTable.from_json(wire).to_json())
+    assert reparsed.keys() == payload.keys()
+    assert reparsed["tranche_id"] == payload["tranche_id"]
+    assert len(reparsed["cells"]) == len(payload["cells"])
+    for got, want in zip(reparsed["cells"], payload["cells"], strict=True):
+        assert got == _approx(want)
 
 
 def test_unknown_tranche_raises_value_error_not_panic() -> None:

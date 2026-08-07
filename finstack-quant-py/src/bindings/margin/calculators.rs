@@ -1,11 +1,13 @@
 //! Python wrappers for margin calculators (VM + IM result types).
 
 use super::types::{PyCsaSpec, PyImMethodology};
+use crate::bindings::pandas_utils::dict_to_dataframe;
 use crate::errors::{core_to_py, display_to_py};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
 use finstack_quant_margin as fm;
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 
 // VmResult
 
@@ -58,6 +60,29 @@ impl PyVmResult {
         self.inner.requires_call()
     }
 
+    /// Export the result as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``gross_exposure``, ``net_exposure``, ``delivery_amount``,
+    /// ``return_amount``, ``net_margin``, ``requires_call``, ``currency``.
+    ///
+    /// All amount columns are floats in the single CSA currency reported by
+    /// ``currency``; positive ``delivery_amount`` means we post margin and
+    /// positive ``return_amount`` means we receive margin back.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let data = PyDict::new(py);
+        data.set_item("gross_exposure", vec![self.inner.gross_exposure.amount()])?;
+        data.set_item("net_exposure", vec![self.inner.net_exposure.amount()])?;
+        data.set_item("delivery_amount", vec![self.inner.delivery_amount.amount()])?;
+        data.set_item("return_amount", vec![self.inner.return_amount.amount()])?;
+        data.set_item("net_margin", vec![self.inner.net_margin().amount()])?;
+        data.set_item("requires_call", vec![self.inner.requires_call()])?;
+        data.set_item(
+            "currency",
+            vec![self.inner.gross_exposure.currency().to_string()],
+        )?;
+        dict_to_dataframe(py, &data, None)
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "VmResult(delivery={:.2}, return={:.2}, requires_call={})",
@@ -65,6 +90,17 @@ impl PyVmResult {
             self.inner.return_amount.amount(),
             self.inner.requires_call()
         )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 
@@ -195,6 +231,56 @@ impl PyImResult {
         self.inner.breakdown.get(key).map(|m| m.amount())
     }
 
+    /// Export the headline result as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``amount``, ``currency``, ``methodology``, ``mpor_days``,
+    /// ``as_of``, ``approximation``.
+    ///
+    /// ``amount`` is a float in ``currency``; ``mpor_days`` is the margin
+    /// period of risk in calendar days; ``as_of`` is an ISO 8601 date string.
+    /// ``approximation`` is ``True`` when the amount is a conservative proxy
+    /// rather than an exact computation under the named methodology — do not
+    /// reconcile an approximated figure against an actual margin call.
+    /// Per-risk-class detail lives in ``to_breakdown_dataframe``.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let data = PyDict::new(py);
+        data.set_item("amount", vec![self.inner.amount.amount()])?;
+        data.set_item("currency", vec![self.inner.amount.currency().to_string()])?;
+        data.set_item("methodology", vec![self.inner.methodology.to_string()])?;
+        data.set_item("mpor_days", vec![self.inner.mpor_days])?;
+        data.set_item("as_of", vec![self.inner.as_of.to_string()])?;
+        data.set_item("approximation", vec![self.inner.approximation])?;
+        dict_to_dataframe(py, &data, None)
+    }
+
+    /// Export the per-risk-class breakdown as a pandas ``DataFrame``.
+    ///
+    /// Columns: ``risk_class``, ``amount``, ``currency``. One row per risk
+    /// class (e.g. ``"interest_rate"``, ``"credit"``, ``"equity"``), sorted
+    /// by ``risk_class`` so repeated runs are byte-identical; the underlying
+    /// map is unordered. Methodologies that publish no breakdown yield a
+    /// zero-row frame that still carries all three columns.
+    ///
+    /// Breakdown components do not generally sum to ``amount``: SIMM and
+    /// other methodologies aggregate risk classes with correlations.
+    fn to_breakdown_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let mut entries: Vec<(&String, &Money)> = self.inner.breakdown.iter().collect();
+        entries.sort_by(|(left, _), (right, _)| left.cmp(right));
+
+        let risk_classes: Vec<String> = entries.iter().map(|(key, _)| (*key).clone()).collect();
+        let amounts: Vec<f64> = entries.iter().map(|(_, money)| money.amount()).collect();
+        let currencies: Vec<String> = entries
+            .iter()
+            .map(|(_, money)| money.currency().to_string())
+            .collect();
+
+        let data = PyDict::new(py);
+        data.set_item("risk_class", risk_classes)?;
+        data.set_item("amount", amounts)?;
+        data.set_item("currency", currencies)?;
+        dict_to_dataframe(py, &data, None)
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "ImResult(amount={:.2}, methodology={}, mpor={}d, approximation={})",
@@ -203,6 +289,17 @@ impl PyImResult {
             self.inner.mpor_days,
             self.inner.approximation
         )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 
