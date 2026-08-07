@@ -44,7 +44,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 50
     needs: prime-cache
 
     env:
@@ -103,7 +103,7 @@ jobs:
   test-rust:
     name: Test Rust
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
     needs: prime-cache
 
     env:
@@ -134,7 +134,7 @@ jobs:
   rust-msrv:
     name: Rust MSRV (1.90)
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
     needs: prime-cache
 
     env:
@@ -175,7 +175,7 @@ jobs:
   rust-release-build:
     name: Rust release build
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
     needs: prime-cache
 
     env:
@@ -207,7 +207,7 @@ jobs:
   test-python:
     name: Test Python
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 50
     needs: prime-cache
 
     env:
@@ -248,7 +248,7 @@ jobs:
   test-wasm:
     name: Test WASM
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 50
     needs: prime-cache
 
     env:
@@ -366,7 +366,7 @@ jobs:
   semver-checks:
     name: Semver Checks
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
     if: github.event_name == 'pull_request'
     needs: [prime-cache, lint, test-rust, test-python, test-wasm]
 
