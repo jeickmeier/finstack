@@ -20,7 +20,7 @@ concurrency:
   cancel-in-progress: true
 
 # Managed toolchain versions are pinned in mise.toml.
-# CI uses jdx/mise-action@v2 to provision them, then runs raw commands.
+# CI uses jdx/mise-action@v4 to provision them, then runs raw commands.
 
 jobs:
   # ── Python Wheels ───────────────────────────────────────────────
@@ -66,12 +66,12 @@ jobs:
         run: '"HOME=$env:USERPROFILE" | Out-File -FilePath $env:GITHUB_ENV -Append'
 
       - name: Provision toolchain (mise)
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@v4
         with:
           cache: true
 
       - name: Set up matrix Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
 
@@ -144,7 +144,7 @@ jobs:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.ref }}
 
       - name: Provision toolchain (mise)
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@v4
         with:
           cache: true
 
