@@ -3,7 +3,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use finstack_quant_core::market_data::term_structures::HazardCurve;
@@ -278,12 +277,92 @@ fn registry_coverage_manifest_is_checked_in() {
     );
 }
 
+/// Mirror of `scripts/check_generated_instrument_fixtures.py` for in-process Rust tests.
+///
+/// Kept in Rust so `mise run rust-test` / CI Test Rust do not require `uv` or a
+/// Python runtime. The Python script remains the mise/`gen-check` entry point.
+fn generated_fixtures_are_valid(root: &Path) -> bool {
+    const EXPECTED_CANONICAL_FIXTURES: usize = 70;
+    let manifest_path = root
+        .join("finstack-quant")
+        .join("valuations")
+        .join("tests")
+        .join("instruments")
+        .join("coverage_manifest.toml");
+    let Ok(contents) = fs::read_to_string(&manifest_path) else {
+        return false;
+    };
+    let Ok(manifest) = toml::from_str::<CoverageManifest>(&contents) else {
+        return false;
+    };
+    if manifest.instrument.len() != EXPECTED_CANONICAL_FIXTURES {
+        return false;
+    }
+
+    let instruments_dir = Path::new("finstack-quant")
+        .join("valuations")
+        .join("tests")
+        .join("instruments");
+    let mut expected_paths = BTreeSet::new();
+    let mut entries = Vec::new();
+    for entry in &manifest.instrument {
+        let relative = instruments_dir.join(&entry.fixture);
+        if !expected_paths.insert(relative.clone()) {
+            return false;
+        }
+        entries.push((entry.tag.as_str(), relative));
+    }
+
+    let fixture_root = root.join(&instruments_dir).join("json_examples");
+    let Ok(dir) = fs::read_dir(&fixture_root) else {
+        return false;
+    };
+    let mut actual_paths = BTreeSet::new();
+    for entry in dir {
+        let Ok(entry) = entry else {
+            return false;
+        };
+        let path = entry.path();
+        if !path.is_file() || path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+            continue;
+        }
+        let Ok(relative) = path.strip_prefix(root) else {
+            return false;
+        };
+        actual_paths.insert(relative.to_path_buf());
+    }
+    if actual_paths != expected_paths {
+        return false;
+    }
+
+    for (tag, relative_path) in entries {
+        let path = root.join(&relative_path);
+        let Ok(bytes) = fs::read(&path) else {
+            return false;
+        };
+        let Ok(document) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+            return false;
+        };
+        if document.get("schema").and_then(serde_json::Value::as_str)
+            != Some("finstack_quant.instrument/1")
+        {
+            return false;
+        }
+        let Some(instrument) = document
+            .get("instrument")
+            .and_then(serde_json::Value::as_object)
+        else {
+            return false;
+        };
+        if instrument.get("type").and_then(serde_json::Value::as_str) != Some(tag) {
+            return false;
+        }
+    }
+    true
+}
+
 #[test]
 fn generator_freshness_check_rejects_non_registry_fixtures() {
-    let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(Path::parent)
-        .expect("valuations crate must be nested under the workspace root");
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("system clock must be after Unix epoch")
@@ -315,50 +394,19 @@ fn generator_freshness_check_rejects_non_registry_fixtures() {
     let canonical = examples_dir.join("bond.json");
     let auxiliary = examples_dir.join("basket_with_instruments.json");
 
-    let git = |args: &[&str]| {
-        Command::new("git")
-            .args(args)
-            .current_dir(&temp_root)
-            .status()
-            .expect("run git command")
-    };
-    assert!(git(&["init", "--quiet"]).success());
-    assert!(git(&["add", "."]).success());
-    assert!(git(&[
-        "-c",
-        "user.name=Finstack Test",
-        "-c",
-        "user.email=finstack@example.invalid",
-        "commit",
-        "--quiet",
-        "-m",
-        "fixture baseline",
-    ])
-    .success());
-
-    let checker = workspace_root
-        .join("scripts")
-        .join("check_generated_instrument_fixtures.py");
-    let check = || {
-        Command::new("uv")
-            .args(["run", "--no-sync", "python"])
-            .arg(&checker)
-            .arg("--root")
-            .arg(&temp_root)
-            .status()
-            .expect("run generated-fixture freshness checker")
-    };
-
-    assert!(check().success(), "canonical fixture inventory must pass");
+    assert!(
+        generated_fixtures_are_valid(&temp_root),
+        "canonical fixture inventory must pass"
+    );
     fs::write(&auxiliary, "{\"auxiliary\":true}\n").expect("write auxiliary fixture");
     assert!(
-        !check().success(),
+        !generated_fixtures_are_valid(&temp_root),
         "non-registry fixtures must fail generated freshness"
     );
     fs::remove_file(&auxiliary).expect("remove auxiliary fixture");
     fs::write(&canonical, "{\"stale\":true}\n").expect("modify canonical fixture");
     assert!(
-        !check().success(),
+        !generated_fixtures_are_valid(&temp_root),
         "canonical fixture changes must fail generated freshness"
     );
 
