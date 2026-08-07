@@ -5,7 +5,6 @@ use finstack_quant_portfolio::factor_model::{
     self as fm, StressAttribution, StressPositionEntry, StressResult, TailScenarioBreakdown,
 };
 
-use crate::bindings::date_utils::parse_iso_date_py;
 use crate::bindings::extract::{extract_market_ref, extract_portfolio_ref};
 use crate::bindings::pandas_utils::dict_to_dataframe;
 use crate::errors::{core_to_py, display_to_py, portfolio_to_py, value_error};
@@ -42,7 +41,7 @@ impl PyStressResult {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Parse from a JSON string.
@@ -152,7 +151,7 @@ impl PyStressPositionEntry {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Parse from a JSON string.
@@ -232,7 +231,7 @@ impl PyTailScenarioBreakdown {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Parse from a JSON string.
@@ -344,7 +343,7 @@ impl PyStressAttribution {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Parse from a JSON string.
@@ -508,6 +507,9 @@ impl PyStressAttribution {
 }
 
 /// Run a factor-stress scenario and revalue the portfolio under the stressed market.
+///
+/// ``as_of`` accepts either a date-like object (``datetime.date``,
+/// ``pandas.Timestamp``) or an ISO 8601 string.
 #[pyfunction]
 #[pyo3(signature = (portfolio, market, factor_model_config_json, as_of, stresses))]
 pub(super) fn factor_stress(
@@ -515,12 +517,12 @@ pub(super) fn factor_stress(
     portfolio: &Bound<'_, PyAny>,
     market: &Bound<'_, PyAny>,
     factor_model_config_json: &str,
-    as_of: &str,
+    as_of: &Bound<'_, PyAny>,
     stresses: Vec<(String, f64)>,
 ) -> PyResult<PyStressResult> {
     let portfolio = extract_portfolio_ref(py, portfolio)?;
     let market = extract_market_ref(py, market)?;
-    let as_of = parse_iso_date_py(as_of)?;
+    let as_of = crate::bindings::date_utils::extract_date(as_of)?;
     let config_json = factor_model_config_json.to_owned();
     let config: finstack_quant_factor_model::FactorModelConfig = py
         .detach(move || serde_json::from_str(&config_json))

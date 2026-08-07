@@ -1174,18 +1174,21 @@ class FinancialModelSpec:
         Returns
         -------
         str
-            The id exposed by this `FinancialModelSpec`.
+            Unique model identifier.
         """
         ...
 
     @property
     def period_count(self) -> int:
         """
-        Number of periods defined on the model.
+        Number of periods in the model timeline.
+
         Returns
         -------
         int
-            The period count exposed by this `FinancialModelSpec`.
+            Count in **periods** on the model's own cadence (quarters, months,
+            years), not months. Their declared order *is* the evaluation
+            timeline.
         """
         ...
 
@@ -1196,7 +1199,7 @@ class FinancialModelSpec:
         Returns
         -------
         int
-            The node count exposed by this `FinancialModelSpec`.
+            Number of nodes (line items / metrics) declared in the model.
         """
         ...
 
@@ -1248,11 +1251,13 @@ class FinancialModelSpec:
     @property
     def schema_version(self) -> int:
         """
-        Wire-format schema version of this specification.
+        Wire-format schema version of this model spec.
+
         Returns
         -------
         int
-            The schema version exposed by this `FinancialModelSpec`.
+            Only version ``1`` is accepted today; the field exists so persisted
+            models can be migrated rather than silently misread.
         """
         ...
 

@@ -6455,7 +6455,7 @@ def price_instrument(
     | EquityOption
     | StructuredCredit,
     market: MarketContext | str,
-    as_of: str,
+    as_of: datetime.date | str,
     model: str = "default",
 ) -> ValuationResult:
     """
@@ -6473,8 +6473,8 @@ def price_instrument(
         :class:`EquityOption` / :class:`StructuredCredit` instance.
     market : MarketContext or str
         Typed ``MarketContext`` or serialized market-context JSON.
-    as_of : str
-        ISO 8601 valuation date.
+    as_of : datetime.date | str
+        Valuation date, either a date-like object or an ISO 8601 string.
     model : str, default "default"
         Pricing model selector. Common values include ``"default"``,
         ``"discounting"``, ``"hazard_rate"``, and option-model keys such
@@ -6529,7 +6529,7 @@ def price_instrument_with_metrics(
     | EquityOption
     | StructuredCredit,
     market: MarketContext | str,
-    as_of: str,
+    as_of: datetime.date | str,
     model: str = "default",
     metrics: list[str] = [],
     pricing_options: str | None = None,
@@ -6549,8 +6549,8 @@ def price_instrument_with_metrics(
         :class:`EquityOption` / :class:`StructuredCredit` instance.
     market : MarketContext or str
         Typed ``MarketContext`` or serialized market-context JSON.
-    as_of : str
-        ISO 8601 valuation date.
+    as_of : datetime.date | str
+        Valuation date, either a date-like object or an ISO 8601 string.
     model : str, default "default"
         Pricing model selector.
     metrics : list[str], default []
@@ -6611,7 +6611,7 @@ def instrument_cashflows_json(
     | EquityOption
     | StructuredCredit,
     market: MarketContext | str,
-    as_of: str,
+    as_of: datetime.date | str,
     model: str,
 ) -> str:
     """
@@ -6628,8 +6628,8 @@ def instrument_cashflows_json(
         :class:`EquityOption` / :class:`StructuredCredit` instance.
     market : MarketContext or str
         Typed ``MarketContext`` or serialized market-context JSON.
-    as_of : str
-        ISO 8601 valuation date.
+    as_of : datetime.date | str
+        Valuation date, either a date-like object or an ISO 8601 string.
     model : str
         ``"discounting"`` or ``"hazard_rate"``.
 
@@ -7194,7 +7194,7 @@ def structured_credit_tranche_discount_margin(
     instrument_json: str | StructuredCredit,
     tranche_id: str,
     market: MarketContext | str,
-    as_of: str,
+    as_of: datetime.date | str,
     target_pv: float,
 ) -> float:
     """Solve a z-spread-equivalent discount margin for a floating-rate tranche.
@@ -7217,8 +7217,9 @@ def structured_credit_tranche_discount_margin(
         Typed ``MarketContext`` or serialized market-context JSON supplying
         the discount curve and any forward curves or historical fixings
         required for cashflow projection.
-    as_of : str
-        ISO 8601 valuation date used for projection and discounting.
+    as_of : datetime.date | str
+        Valuation date used for projection and discounting, either a date-like
+        object or an ISO 8601 string.
     target_pv : float
         Target present value in the tranche's currency. Values above model PV
         produce a negative result; values below model PV produce a positive
@@ -7253,7 +7254,7 @@ def structured_credit_tranche_breakeven_cdr(
     instrument_json: str | StructuredCredit,
     tranche_id: str,
     market: MarketContext | str,
-    as_of: str,
+    as_of: datetime.date | str,
 ) -> float:
     """Solve the constant default rate at which a tranche first takes a writedown.
 
@@ -7267,8 +7268,8 @@ def structured_credit_tranche_breakeven_cdr(
     market : MarketContext or str
         Typed ``MarketContext`` or serialized market-context JSON supplying
         curves and fixings.
-    as_of : str
-        ISO 8601 valuation date.
+    as_of : datetime.date | str
+        Valuation date, either a date-like object or an ISO 8601 string.
 
     Returns
     -------
@@ -7298,7 +7299,7 @@ def structured_credit_tranche_oas(
     tranche_id: str,
     market_price_pct: float,
     market: MarketContext | str,
-    as_of: str,
+    as_of: datetime.date | str,
     config_json: str | None = None,
 ) -> OasResult:
     """Compute option-adjusted spread for a tranche. Returns an ``OasResult``.
@@ -7315,8 +7316,8 @@ def structured_credit_tranche_oas(
     market : MarketContext or str
         Typed ``MarketContext`` or serialized market-context JSON supplying
         curves and fixings.
-    as_of : str
-        ISO 8601 valuation date.
+    as_of : datetime.date | str
+        Valuation date, either a date-like object or an ISO 8601 string.
     config_json : str or None, optional
         Serialized ``OasConfig``. All fields are required when supplied.
 
@@ -7348,7 +7349,7 @@ def structured_credit_tranche_metrics(
     instrument_json: str | StructuredCredit,
     tranche_id: str,
     market: MarketContext | str,
-    as_of: str,
+    as_of: datetime.date | str,
     market_price_pct: float | None = None,
 ) -> TrancheMetrics:
     """Summary risk/pricing metrics for a tranche. Returns a ``TrancheMetrics``.
@@ -7363,8 +7364,8 @@ def structured_credit_tranche_metrics(
     market : MarketContext or str
         Typed ``MarketContext`` or serialized market-context JSON supplying
         curves and fixings.
-    as_of : str
-        ISO 8601 valuation date.
+    as_of : datetime.date | str
+        Valuation date, either a date-like object or an ISO 8601 string.
     market_price_pct : float or None, optional
         Market price as a percentage of original balance; the model price is
         used when omitted.
@@ -7397,7 +7398,7 @@ def structured_credit_tranche_scenario_table(
     instrument_json: str | StructuredCredit,
     tranche_id: str,
     market: MarketContext | str,
-    as_of: str,
+    as_of: datetime.date | str,
     grid_json: str,
 ) -> ScenarioTable:
     """Price a tranche across a CPR x CDR x severity grid. Returns a ``ScenarioTable``.
@@ -7412,8 +7413,8 @@ def structured_credit_tranche_scenario_table(
     market : MarketContext or str
         Typed ``MarketContext`` or serialized market-context JSON supplying
         curves and fixings.
-    as_of : str
-        ISO 8601 valuation date.
+    as_of : datetime.date | str
+        Valuation date, either a date-like object or an ISO 8601 string.
     grid_json : str
         Serialized ``ScenarioGrid``. Capped at 10,000 cells because each cell
         reprices the entire deal.

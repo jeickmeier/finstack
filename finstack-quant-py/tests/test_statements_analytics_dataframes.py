@@ -100,7 +100,7 @@ def test_variance_report_to_dataframe_row_per_metric_period() -> None:
     df = report.to_dataframe()
 
     assert isinstance(df, pd.DataFrame)
-    assert set(VARIANCE_COLUMNS) <= set(df.columns)
+    assert list(df.columns) == VARIANCE_COLUMNS
     assert len(df) == len(report.rows) == 2
     assert list(df["period"]) == ["2025Q1", "2025Q2"]
     assert df.iloc[0]["abs_var"] == 10.0
@@ -161,8 +161,7 @@ def test_bridge_chart_to_dataframe_preserves_step_order() -> None:
     chart = _bridge_chart(steps)
     df = chart.to_dataframe()
 
-    # Column order follows serde_json's key ordering; only membership is pinned.
-    assert set(df.columns) == {"driver", "contribution"}
+    assert list(df.columns) == ["driver", "contribution"]
     assert len(df) == len(chart.steps) == 3
     # Row order is decomposition order, not sorted.
     assert list(df["driver"]) == ["revenue", "opex", "cogs"]
@@ -205,10 +204,10 @@ def test_sensitivity_result_to_dataframe_row_per_scenario() -> None:
 
     assert isinstance(df, pd.DataFrame)
     assert len(df) == len(result) == 2
-    assert "scenario" in df.columns
-    assert "revenue@2025Q1" in df.columns
-    assert sorted(df["scenario"]) == [0, 1]
-    assert sorted(df["revenue@2025Q1"]) == [90.0, 110.0]
+    assert list(df.columns) == ["scenario", "revenue@2025Q1"]
+    # Sorting each column independently would destroy the property under test:
+    # the reversed pairing {0: 110.0, 1: 90.0} sorts to the same two lists.
+    assert df.set_index("scenario")["revenue@2025Q1"].to_dict() == {0: 90.0, 1: 110.0}
 
 
 # ScenarioResultSet
@@ -223,18 +222,46 @@ def _scenario_result_set() -> ScenarioResultSet:
     )
 
 
+def test_scenario_result_set_to_dataframe_renders_the_comparison() -> None:
+    """The frame's own values, including the derived relative-change column.
+
+    Comparing this to ``to_comparison_table`` proves nothing on its own: both
+    exports call the same Rust builder, so they agree by construction even if
+    that builder is wrong. The literals below are what actually pin it.
+    """
+    df = _scenario_result_set().to_dataframe(["revenue"])
+
+    assert isinstance(df, pd.DataFrame)
+    assert list(df.columns) == [
+        "period",
+        "metric",
+        "base",
+        "downside",
+        "downside_vs_base_pct",
+    ]
+    assert len(df) == 1
+    row = df.iloc[0]
+    assert row["period"] == "2025Q1"
+    assert row["metric"] == "revenue"
+    assert row["base"] == pytest.approx(100.0)
+    assert row["downside"] == pytest.approx(90.0)
+    # (90 - 100) / 100, a decimal fraction rather than a percentage.
+    assert row["downside_vs_base_pct"] == pytest.approx(-0.1)
+
+
 def test_scenario_result_set_to_dataframe_matches_comparison_table() -> None:
-    """``to_dataframe`` and ``to_comparison_table`` share one Rust builder."""
+    """The two exports stay in lockstep on schema and row count.
+
+    Kept deliberately narrow: because both spellings delegate to one Rust
+    builder, this can only catch the pandas adapter dropping or renaming a
+    column, not a wrong number. The value assertions live in the test above.
+    """
     results = _scenario_result_set()
     df = results.to_dataframe(["revenue"])
     table = results.to_comparison_table(["revenue"])
 
-    assert isinstance(df, pd.DataFrame)
     assert list(df.columns) == table.column_names()
-    assert len(df) == table.num_rows
-    assert {"period", "metric", "base", "downside"} <= set(df.columns)
-    assert df.iloc[0]["base"] == pytest.approx(100.0)
-    assert df.iloc[0]["downside"] == pytest.approx(90.0)
+    assert len(df) == table.num_rows == 1
 
 
 def test_scenario_result_set_to_dataframe_rejects_empty_metrics() -> None:
@@ -269,7 +296,7 @@ def test_scorecard_report_to_dataframe_is_one_row() -> None:
     df = _scorecard_report([]).to_dataframe()
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 1
-    expected = {
+    assert list(df.columns) == [
         "status",
         "message",
         "rating",
@@ -280,8 +307,7 @@ def test_scorecard_report_to_dataframe_is_one_row() -> None:
         "weight_coverage",
         "warning_count",
         "error_count",
-    }
-    assert expected <= set(df.columns)
+    ]
     row = df.iloc[0]
     assert row["status"] == "success"
     assert row["rating"] == "BBB"
@@ -312,7 +338,7 @@ def test_scorecard_report_metric_scores_dataframe() -> None:
 
     assert isinstance(df, pd.DataFrame)
     assert len(df) == len(scores)
-    assert {"metric", "value", "score", "weight", "weighted_score"} <= set(df.columns)
+    assert list(df.columns) == ["metric", "value", "score", "weight", "weighted_score"]
     assert list(df["metric"]) == ["leverage", "coverage"]
     assert df.iloc[0]["weighted_score"] == pytest.approx(2.4)
 
@@ -358,13 +384,13 @@ def test_corkscrew_report_to_dataframe_is_one_row() -> None:
 
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 1
-    assert {
+    assert list(df.columns) == [
         "status",
         "message",
         "account_count",
         "warning_count",
         "error_count",
-    } <= set(df.columns)
+    ]
     assert df.iloc[0]["account_count"] == 1
 
 
@@ -389,13 +415,13 @@ def test_corkscrew_report_validations_dataframe() -> None:
 
     assert isinstance(df, pd.DataFrame)
     assert len(df) == len(validations)
-    assert {
+    assert list(df.columns) == [
         "account",
         "type",
         "periods_validated",
         "max_error",
         "is_valid",
-    } <= set(df.columns)
+    ]
     assert list(df["account"]) == ["debt", "ppe"]
     assert bool(df.iloc[1]["is_valid"]) is False
 
@@ -460,7 +486,7 @@ def test_simple_lease_spec_to_dataframe() -> None:
 
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 1
-    assert set(df.columns) == {
+    assert list(df.columns) == [
         "node_id",
         "start",
         "end",
@@ -468,7 +494,7 @@ def test_simple_lease_spec_to_dataframe() -> None:
         "growth_rate",
         "free_rent_periods",
         "occupancy",
-    }
+    ]
     row = df.iloc[0]
     assert row["node_id"] == "tenant_a"
     assert row["start"] == "2025Q1"
@@ -489,13 +515,13 @@ def test_renewal_spec_to_dataframe() -> None:
 
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 1
-    assert {
+    assert list(df.columns) == [
         "downtime_periods",
         "term_periods",
         "probability",
         "rent_factor",
         "free_rent_periods",
-    } <= set(df.columns)
+    ]
     row = df.iloc[0]
     assert row["term_periods"] == 4
     assert row["probability"] == pytest.approx(0.75)
@@ -515,7 +541,7 @@ def test_lease_spec_to_dataframe_summarises_nested_collections() -> None:
 
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 1
-    assert set(df.columns) == {
+    assert list(df.columns) == [
         "node_id",
         "start",
         "end",
@@ -527,7 +553,7 @@ def test_lease_spec_to_dataframe_summarises_nested_collections() -> None:
         "rent_step_count",
         "free_rent_window_count",
         "has_renewal",
-    }
+    ]
     row = df.iloc[0]
     assert row["growth_convention"] == "per_period"
     assert row["rent_step_count"] == 0
@@ -540,12 +566,12 @@ def test_rent_roll_output_nodes_to_dataframe() -> None:
 
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 1
-    assert {
+    assert list(df.columns) == [
         "rent_pgi_node",
         "free_rent_node",
         "vacancy_loss_node",
         "rent_effective_node",
-    } <= set(df.columns)
+    ]
     assert df.iloc[0]["rent_pgi_node"] == "rent_pgi"
 
 
@@ -554,7 +580,7 @@ def test_property_template_nodes_to_dataframe_flattens_rent_roll() -> None:
 
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 1
-    assert set(df.columns) == {
+    assert list(df.columns) == [
         "rent_pgi_node",
         "free_rent_node",
         "vacancy_loss_node",
@@ -566,7 +592,7 @@ def test_property_template_nodes_to_dataframe_flattens_rent_roll() -> None:
         "noi_node",
         "capex_total_node",
         "ncf_node",
-    }
+    ]
     row = df.iloc[0]
     # The rent-roll block is flattened, never a dict in a cell.
     assert row["rent_effective_node"] == "rent_effective"

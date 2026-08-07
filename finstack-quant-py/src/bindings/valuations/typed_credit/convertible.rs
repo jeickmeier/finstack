@@ -71,7 +71,7 @@ impl PyConvertibleBond {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Deserialize a validated convertible bond from its canonical v1 envelope.

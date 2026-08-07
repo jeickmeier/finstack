@@ -5,26 +5,31 @@
 //! [`PyFactorCovarianceForecast`] which wraps the vol-forecast engine from
 //! `finstack-quant-portfolio`.
 
-use crate::bindings::date_utils::parse_iso_date_py as parse_date;
 use crate::bindings::pandas_utils::serde_rows_to_dataframe_with_schema;
+use crate::bindings::pandas_utils::ColumnSchema;
 use crate::errors::{core_to_py, display_to_py};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 /// Column schema of `PyPeriodDecomposition::to_level_dataframe`, kept so a
 /// level-free decomposition still exports the documented columns.
-const LEVEL_DELTA_COLUMNS: &[&str] = &[
-    "from_date",
-    "to_date",
-    "level_index",
-    "dimension",
-    "bucket",
-    "delta",
+const LEVEL_DELTA_COLUMNS: &[ColumnSchema<'static>] = &[
+    ("from_date", "str"),
+    ("to_date", "str"),
+    ("level_index", "int64"),
+    ("dimension", "str"),
+    ("bucket", "str"),
+    ("delta", "float64"),
 ];
 
 /// Column schema of `PyPeriodDecomposition::to_adder_dataframe`, kept so a
 /// decomposition with no shared issuers still exports the documented columns.
-const ADDER_DELTA_COLUMNS: &[&str] = &["from_date", "to_date", "issuer_id", "d_adder"];
+const ADDER_DELTA_COLUMNS: &[ColumnSchema<'static>] = &[
+    ("from_date", "str"),
+    ("to_date", "str"),
+    ("issuer_id", "str"),
+    ("d_adder", "float64"),
+];
 
 /// Display label for a hierarchy dimension, matching
 /// `PyCreditFactorModel::level_names` so the two line up on a join.
@@ -98,7 +103,7 @@ impl PyCreditFactorModel {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Deserialize a :class:`CreditFactorModel` from JSON.
@@ -605,7 +610,8 @@ impl PyPeriodDecomposition {
 ///     observed_spreads_json: JSON string (e.g. via ``json.dumps``) of a mapping
 ///         from issuer ID string to observed spread (float).
 ///     observed_generic: Generic (PC) factor value at ``as_of``.
-///     as_of: Valuation date in ISO 8601 format.
+///     as_of: Valuation date, either a date-like object (``datetime.date``,
+///         ``pandas.Timestamp``) or an ISO 8601 string.
 ///     runtime_tags_json: Optional JSON string of
 ///         ``{issuer_id: {dim_key: tag_value}}`` for issuers not present in
 ///         the model.
@@ -640,13 +646,13 @@ fn decompose_levels(
     model: &PyCreditFactorModel,
     observed_spreads_json: &str,
     observed_generic: f64,
-    as_of: &str,
+    as_of: &Bound<'_, PyAny>,
     runtime_tags_json: Option<&str>,
 ) -> PyResult<PyLevelsAtDate> {
     let observed_spreads: std::collections::BTreeMap<finstack_quant_core::types::IssuerId, f64> =
         serde_json::from_str(observed_spreads_json).map_err(display_to_py)?;
 
-    let date = parse_date(as_of)?;
+    let date = crate::bindings::date_utils::extract_date(as_of)?;
 
     let runtime_tags: Option<
         std::collections::BTreeMap<

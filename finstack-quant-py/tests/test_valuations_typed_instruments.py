@@ -81,13 +81,18 @@ def _approx_payload(value: object) -> object:
     bit-exact on reparse, so a parse -> reserialize cycle can shift a value by
     1 ULP. That is a pre-existing serde_json characteristic, not a round-trip
     fidelity bug.
+
+    The tolerance is sized for exactly that: ``rel=1e-15`` is a few ULP of an
+    f64 and ``abs=0`` keeps zeros exact. ``pytest.approx``'s default
+    ``rel=1e-6`` would have let a PV of 1,000,000.0 reparse as 1,000,000.9,
+    which is a data-loss bug rather than a rounding artefact.
     """
     if isinstance(value, dict):
         return {key: _approx_payload(item) for key, item in value.items()}
     if isinstance(value, list):
         return [_approx_payload(item) for item in value]
     if isinstance(value, float):
-        return pytest.approx(value)
+        return pytest.approx(value, rel=1e-15, abs=0)
     return value
 
 

@@ -492,6 +492,15 @@ impl PyModelBuilder {
         qualified_id: &str,
         registry: PyRef<'_, PyMetricRegistry>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        // Check membership BEFORE `take_ready()`. An unknown metric id is a
+        // routine typo, and the consuming Rust call would otherwise leave
+        // `inner = None`, bricking the builder and forcing the caller to
+        // rebuild the whole model (same rationale as `validate_compute_args`).
+        if !registry.inner.has(qualified_id) {
+            return Err(pyo3::exceptions::PyKeyError::new_err(format!(
+                "Metric not found: '{qualified_id}'"
+            )));
+        }
         let state = slf.take_ready()?;
         let ready = state
             .add_metric_from_registry(qualified_id, &registry.inner)

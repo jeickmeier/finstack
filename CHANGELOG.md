@@ -2,7 +2,67 @@
 
 ## Unreleased
 
+### Added
+
+- **Python:** ~90 `to_dataframe` / `to_*_dataframe` exports across portfolio,
+  statements, statements-analytics, margin, scenarios, analytics, core.credit,
+  core.market_data, monte_carlo, factor-model and valuations.correlation. Every
+  frame documents its columns; `Money` becomes a float column plus one
+  `currency` column, never a nested cell. 52 result types also gained
+  `_repr_html_`, so they render as tables in Jupyter.
+- **Python:** pickle support on every wrapper that round-trips through JSON, so
+  results survive `multiprocessing` / `joblib` / `dask`. `copy.deepcopy` works
+  through the same path. `PortfolioOptimizationResult` is the one exception: its
+  Rust type has no `Deserialize`.
+- **Python:** `finstack_quant.<domain>.schema` for `valuations`, `statements`,
+  `factor_model` and `cashflows`, exposing the JSON Schemas compiled into the
+  extension, so they can never drift from the installed wheel.
+- **Python:** `finstack_quant.__version__`, sourced from the crate version.
+- **Python:** `FinstackError` (`finstack_quant.core`) as the common base for the
+  library's named exceptions. It derives from `ValueError`, so every existing
+  `except ValueError` is unaffected. `CalibrationEnvelopeError` stays outside the
+  tree because it is a `RuntimeError` and PyO3 cannot express two bases.
+
 ### Changed
+
+- **Breaking (Python):** 40 `Performance` metrics return a `pandas.Series`
+  indexed by ticker (with `.name` set to the metric) instead of `list[float]`;
+  `skew_kurt` and `value_at_risk_and_es` return a tuple of two Series. Positional
+  access must become `.iloc[i]` — `perf.sharpe()[0]` warns on pandas 2 and raises
+  on pandas 3. `perf.sharpe()["FUND"]` is the preferred form, and
+  `pd.concat([...], axis=1)` now yields correctly named columns.
+- **Breaking (Python):** the pricers return typed results instead of JSON
+  strings — `price_instrument` / `price_instrument_with_metrics` →
+  `ValuationResult`, and `structured_credit_tranche_oas` / `_metrics` /
+  `_scenario_table` → `OasResult` / `TrancheMetrics` / `ScenarioTable`. Replace
+  `ValuationResult.from_json(price_instrument(...))` with the call itself, and
+  `json.loads(result)` with `result.to_json()` where the wire payload is still
+  wanted. `instrument_cashflows_json` is unchanged and still returns `str`.
+- **Breaking (Python):** `ModelBuilder` / `MixedNodeBuilder` configuration
+  methods return the builder instead of `None`, so calls chain. Statement-per-line
+  code is unaffected (the object is mutated in place and the returned value *is*
+  the same builder); the only visible change is that a notebook cell ending on a
+  setter now echoes a builder repr. `build()` and `mixed()` remain terminal.
+- **Python:** every date-valued `as_of` parameter accepts a `datetime.date` /
+  `pandas.Timestamp` as well as an ISO string — the pricers, the scenario entry
+  points, the `structured_credit_tranche_*` family, the portfolio sensitivity,
+  stress, what-if and aggregation functions, `accrued_interest_json`,
+  `evaluate_engine`, `decompose_levels` and `run_corporate_analysis`. The two
+  functions that take a fiscal *period* rather than a date
+  (`credit_assessment`, `credit_assessment_report`, e.g. `"2025Q4"`) still take
+  a string, since a calendar date has no meaning there. A malformed date string
+  is now rejected by the shared extractor, so the `ValueError` names the
+  offending value and the reason and reads the same at every entry point.
+- **Python:** zero-row result frames now carry their real dtypes instead of
+  `object`. Concatenating an empty frame with a populated one previously
+  downgraded every column, so a numeric column silently stopped being numeric
+  and `groupby().sum()`, arithmetic and `to_parquet` broke — on the common path
+  of iterating a book where some entries produce no rows.
+- **Python:** `PnlAttribution.to_dataframe()` now raises `ValueError` when a
+  factor's currency differs from `total_pnl`'s. The single-row frame carries one
+  `currency` label for every factor, so a mixed-currency attribution would have
+  made `df[factors].sum(axis=1)` add unlike units. Use `to_long_dataframe()`,
+  which carries currency per row, for genuinely mixed input.
 
 - Canonicalized editor and agent rules under `.agents/rules`. Cursor and
   Claude now resolve the same reviewed rule tree through checkout-relative

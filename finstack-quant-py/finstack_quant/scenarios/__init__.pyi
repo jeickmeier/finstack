@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import datetime
 
+import pandas as pd
+
 from typing import Any, Literal
 
 from finstack_quant.attribution import PnlAttribution
@@ -572,6 +574,56 @@ class HorizonResult:
         -------
         str
             JSON-serialized ``HorizonResult`` envelope.
+        """
+        ...
+
+    @classmethod
+    def from_json(cls, json: str) -> HorizonResult:
+        """
+        Deserialize from JSON produced by :meth:`to_json`.
+
+        Parameters
+        ----------
+        json : str
+            JSON-serialized ``HorizonResult`` envelope.
+
+        Returns
+        -------
+        HorizonResult
+            The deserialized result.
+
+        Raises
+        ------
+        ValueError
+            If *json* does not match the ``HorizonResult`` schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.scenarios import HorizonResult
+        >>> try:
+        ...     HorizonResult.from_json("{}")
+        ... except ValueError as exc:
+        ...     print(type(exc).__name__)
+        ValueError
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the horizon summary as a single-row pandas ``DataFrame``.
+
+        Columns: ``initial_value``, ``terminal_value``, ``currency``,
+        ``total_pnl``, ``total_return_pct``, ``annualized_return``,
+        ``horizon_days``, ``user_operations``, ``expanded_operations``,
+        ``operations_applied``, ``warning_count``.
+
+        ``total_return_pct`` is a decimal fraction (``0.05`` = +5%). For the
+        factor-level breakdown use ``result.attribution.to_dataframe()``.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One-row summary frame.
         """
         ...
 

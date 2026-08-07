@@ -1,31 +1,32 @@
 //! Python wrappers for the financial statement checks framework.
 
 use crate::bindings::pandas_utils::serde_rows_to_dataframe_with_schema;
+use crate::bindings::pandas_utils::ColumnSchema;
 use crate::errors::display_to_py;
 use pyo3::prelude::*;
 
 /// Columns emitted by [`PyCheckReport::to_dataframe`].
-const CHECK_RESULT_COLUMNS: [&str; 5] = [
-    "check_id",
-    "check_name",
-    "category",
-    "passed",
-    "finding_count",
+const CHECK_RESULT_COLUMNS: [ColumnSchema<'static>; 5] = [
+    ("check_id", "str"),
+    ("check_name", "str"),
+    ("category", "str"),
+    ("passed", "bool"),
+    ("finding_count", "int64"),
 ];
 
 /// Columns emitted by [`PyCheckReport::to_findings_dataframe`].
-const CHECK_FINDING_COLUMNS: [&str; 11] = [
-    "check_id",
-    "check_name",
-    "category",
-    "severity",
-    "message",
-    "period",
-    "nodes",
-    "materiality_absolute",
-    "materiality_relative_pct",
-    "materiality_reference_value",
-    "materiality_reference_label",
+const CHECK_FINDING_COLUMNS: [ColumnSchema<'static>; 11] = [
+    ("check_id", "str"),
+    ("check_name", "str"),
+    ("category", "str"),
+    ("severity", "str"),
+    ("message", "str"),
+    ("period", "str"),
+    ("nodes", "str"),
+    ("materiality_absolute", "float64"),
+    ("materiality_relative_pct", "float64"),
+    ("materiality_reference_value", "float64"),
+    ("materiality_reference_label", "str"),
 ];
 
 // CheckSuiteSpec
@@ -50,7 +51,7 @@ impl PyCheckSuiteSpec {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Deserialize a suite spec from a JSON string.
@@ -133,7 +134,7 @@ impl PyCheckReport {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Deserialize a check report from a JSON string.

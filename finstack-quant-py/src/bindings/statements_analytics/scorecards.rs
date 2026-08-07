@@ -11,14 +11,21 @@
 
 use crate::bindings::extract::{extract_model_ref, extract_results_ref};
 use crate::bindings::pandas_utils::{
-    serde_object_to_single_row_dataframe, serde_rows_to_dataframe_with_schema,
+    serde_object_to_single_row_dataframe_with_schema, serde_rows_to_dataframe_with_schema,
+    ColumnSchema,
 };
 use crate::errors::display_to_py;
 use finstack_quant_statements_analytics::extensions::scorecards as rust_scorecards;
 use pyo3::prelude::*;
 
 /// Column schema for [`PyScorecardReport::to_metric_scores_dataframe`].
-const METRIC_SCORE_COLUMNS: [&str; 5] = ["metric", "value", "score", "weight", "weighted_score"];
+const METRIC_SCORE_COLUMNS: [ColumnSchema<'static>; 5] = [
+    ("metric", "str"),
+    ("value", "float64"),
+    ("score", "float64"),
+    ("weight", "float64"),
+    ("weighted_score", "float64"),
+];
 
 // ScorecardMetric
 
@@ -115,7 +122,7 @@ impl PyScorecardMetric {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Build a metric from JSON.
@@ -231,7 +238,7 @@ impl PyScorecardConfig {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Build a config from JSON.
@@ -330,7 +337,22 @@ impl PyScorecardReport {
             "warning_count": self.inner.warnings.len(),
             "error_count": self.inner.errors.len(),
         });
-        serde_object_to_single_row_dataframe(py, &row)
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "status",
+                "message",
+                "rating",
+                "rating_scale",
+                "period",
+                "total_score",
+                "partial",
+                "weight_coverage",
+                "warning_count",
+                "error_count",
+            ],
+        )
     }
 
     /// Export the per-metric scores as a pandas ``DataFrame``.
@@ -366,7 +388,7 @@ impl PyScorecardReport {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Build a report from JSON.

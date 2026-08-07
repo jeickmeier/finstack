@@ -10,7 +10,9 @@
 //! `capital_structure` from the input spec are preserved on output.
 
 use crate::bindings::extract::extract_model_ref;
-use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe;
+use crate::bindings::pandas_utils::{
+    serde_object_to_single_row_dataframe, serde_object_to_single_row_dataframe_with_schema,
+};
 use crate::errors::display_to_py;
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_statements_analytics::templates::real_estate as rust_re;
@@ -152,7 +154,19 @@ impl PySimpleLeaseSpec {
             "free_rent_periods": self.inner.free_rent_periods,
             "occupancy": self.inner.occupancy,
         });
-        serde_object_to_single_row_dataframe(py, &row)
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "node_id",
+                "start",
+                "end",
+                "base_rent",
+                "growth_rate",
+                "free_rent_periods",
+                "occupancy",
+            ],
+        )
     }
 
     fn to_json(&self) -> PyResult<String> {
@@ -166,7 +180,7 @@ impl PySimpleLeaseSpec {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]
@@ -238,7 +252,7 @@ impl PyRentStepSpec {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]
@@ -294,7 +308,7 @@ impl PyFreeRentWindowSpec {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]
@@ -401,7 +415,7 @@ impl PyRenewalSpec {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]
@@ -645,7 +659,23 @@ impl PyLeaseSpec {
             "free_rent_window_count": self.inner.free_rent_windows.len(),
             "has_renewal": self.inner.renewal.is_some(),
         });
-        serde_object_to_single_row_dataframe(py, &row)
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "node_id",
+                "start",
+                "end",
+                "base_rent",
+                "growth_rate",
+                "growth_convention",
+                "free_rent_periods",
+                "occupancy",
+                "rent_step_count",
+                "free_rent_window_count",
+                "has_renewal",
+            ],
+        )
     }
 
     fn to_json(&self) -> PyResult<String> {
@@ -659,7 +689,7 @@ impl PyLeaseSpec {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]
@@ -765,7 +795,7 @@ impl PyRentRollOutputNodes {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]
@@ -897,7 +927,7 @@ impl PyManagementFeeSpec {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]
@@ -1034,7 +1064,23 @@ impl PyPropertyTemplateNodes {
             "capex_total_node": self.inner.capex_total_node,
             "ncf_node": self.inner.ncf_node,
         });
-        serde_object_to_single_row_dataframe(py, &row)
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "rent_pgi_node",
+                "free_rent_node",
+                "vacancy_loss_node",
+                "rent_effective_node",
+                "other_income_total_node",
+                "egi_node",
+                "management_fee_node",
+                "opex_total_node",
+                "noi_node",
+                "capex_total_node",
+                "ncf_node",
+            ],
+        )
     }
 
     fn to_json(&self) -> PyResult<String> {
@@ -1048,7 +1094,7 @@ impl PyPropertyTemplateNodes {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]

@@ -78,6 +78,24 @@ class TestReduceCoverage:
         ]
         assert not missing, f"JSON-capable classes without __reduce__: {sorted(set(missing))}"
 
+    def test_known_unpicklable_types_are_exactly_the_documented_set(self) -> None:
+        """A type with `to_json` but no `from_json` cannot pickle.
+
+        The coverage test above requires BOTH methods, so it would silently
+        exempt any such type rather than flag it. Pin the known set instead, so
+        a new result type that ships without a `from_json` fails here.
+
+        `PortfolioOptimizationResult` is the sole remaining case: its canonical
+        Rust type has a hand-written `Serialize` via a wire struct and no
+        `Deserialize`, so closing it needs a change in the portfolio crate.
+        """
+        expected = {"portfolio.PortfolioOptimizationResult"}
+        actual = {name for name, cls in _walk_classes() if hasattr(cls, "to_json") and not hasattr(cls, "from_json")}
+        assert actual == expected, (
+            f"un-pickleable set changed.\n  newly un-pickleable: {sorted(actual - expected)}\n"
+            f"  now fixed (drop from `expected`): {sorted(expected - actual)}"
+        )
+
     def test_reduce_is_not_claimed_by_json_free_classes(self) -> None:
         """`__reduce__` here is implemented in terms of `to_json`.
 

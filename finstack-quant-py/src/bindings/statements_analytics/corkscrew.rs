@@ -10,19 +10,20 @@
 
 use crate::bindings::extract::{extract_model_ref, extract_results_ref};
 use crate::bindings::pandas_utils::{
-    serde_object_to_single_row_dataframe, serde_rows_to_dataframe_with_schema,
+    serde_object_to_single_row_dataframe_with_schema, serde_rows_to_dataframe_with_schema,
+    ColumnSchema,
 };
 use crate::errors::display_to_py;
 use finstack_quant_statements_analytics::extensions::corkscrew as rust_corkscrew;
 use pyo3::prelude::*;
 
 /// Column schema for [`PyCorkscrewReport::to_validations_dataframe`].
-const VALIDATION_COLUMNS: [&str; 5] = [
-    "account",
-    "type",
-    "periods_validated",
-    "max_error",
-    "is_valid",
+const VALIDATION_COLUMNS: [ColumnSchema<'static>; 5] = [
+    ("account", "str"),
+    ("type", "str"),
+    ("periods_validated", "int64"),
+    ("max_error", "float64"),
+    ("is_valid", "bool"),
 ];
 
 // AccountType
@@ -177,7 +178,7 @@ impl PyCorkscrewAccount {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Build a corkscrew account from JSON.
@@ -273,7 +274,7 @@ impl PyCorkscrewConfig {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Build a config from JSON.
@@ -359,7 +360,17 @@ impl PyCorkscrewReport {
             "warning_count": self.inner.warnings.len(),
             "error_count": self.inner.errors.len(),
         });
-        serde_object_to_single_row_dataframe(py, &row)
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "status",
+                "message",
+                "account_count",
+                "warning_count",
+                "error_count",
+            ],
+        )
     }
 
     /// Export the per-account roll-forward validations as a pandas
@@ -390,7 +401,7 @@ impl PyCorkscrewReport {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Build a report from JSON.

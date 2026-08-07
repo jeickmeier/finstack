@@ -10,7 +10,7 @@ use pyo3::types::{PyList, PyModule};
 
 use crate::bindings::core::currency::extract_currency;
 use crate::bindings::core::dates::utils::py_to_date;
-use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe;
+use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe_with_schema;
 use crate::errors::core_to_py;
 
 // Helpers
@@ -140,7 +140,7 @@ impl PyFxRateResult {
             "rate": self.inner.rate,
             "triangulated": self.inner.triangulated,
         });
-        serde_object_to_single_row_dataframe(py, &row)
+        serde_object_to_single_row_dataframe_with_schema(py, &row, &["rate", "triangulated"])
     }
 
     fn __repr__(&self) -> String {

@@ -7,7 +7,7 @@ use finstack_quant_core::credit::pd::{
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
 
-use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe;
+use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe_with_schema;
 use crate::errors::{core_to_py, pd_calibration_to_py};
 
 // PiT / TtC conversion
@@ -177,7 +177,11 @@ impl PyMasterScaleResult {
             "input_pd": self.input_pd,
             "central_pd": self.central_pd,
         });
-        serde_object_to_single_row_dataframe(py, &row)
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &["grade", "grade_index", "input_pd", "central_pd"],
+        )
     }
 
     fn __repr__(&self) -> String {

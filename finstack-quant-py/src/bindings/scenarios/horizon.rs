@@ -165,7 +165,10 @@ impl PyHorizonResult {
         self.inner.horizon_days
     }
 
-    /// Total return as decimal fraction (0.05 = 5%).
+    /// Total return as a decimal fraction (``0.05`` = +5%).
+    ///
+    /// Note the library is not uniform here: ``PnlAttribution.residual_pct``
+    /// and ``CheckReport.materiality_relative_pct`` are already ×100.
     #[getter]
     fn total_return_pct(&self) -> f64 {
         self.inner.total_return_pct()
@@ -249,7 +252,7 @@ impl PyHorizonResult {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Deserialize from JSON produced by :meth:`to_json`.
@@ -289,7 +292,23 @@ impl PyHorizonResult {
             "operations_applied": self.inner.scenario_report.operations_applied,
             "warning_count": self.inner.scenario_report.warnings.len(),
         });
-        crate::bindings::pandas_utils::serde_object_to_single_row_dataframe(py, &row)
+        crate::bindings::pandas_utils::serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "initial_value",
+                "terminal_value",
+                "currency",
+                "total_pnl",
+                "total_return_pct",
+                "annualized_return",
+                "horizon_days",
+                "user_operations",
+                "expanded_operations",
+                "operations_applied",
+                "warning_count",
+            ],
+        )
     }
 
     /// Human-readable summary.

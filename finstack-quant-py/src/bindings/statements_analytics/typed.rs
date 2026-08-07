@@ -1,6 +1,8 @@
 //! Typed Python wrappers for statement-analysis configs and root results.
 
-use crate::bindings::pandas_utils::{serde_rows_to_dataframe_with_schema, table_to_dataframe};
+use crate::bindings::pandas_utils::{
+    serde_rows_to_dataframe_with_schema, table_to_dataframe, ColumnSchema,
+};
 use crate::bindings::statements::evaluator::PyStatementResult;
 use crate::errors::display_to_py;
 use finstack_quant_core::dates::PeriodId;
@@ -20,17 +22,18 @@ use pyo3::types::PyDict;
 type SensitivityParameterInput = (String, String, f64, Vec<f64>);
 
 /// Column schema for [`PyVarianceReport::to_dataframe`].
-const VARIANCE_ROW_COLUMNS: [&str; 6] = [
-    "period",
-    "metric",
-    "baseline",
-    "comparison",
-    "abs_var",
-    "pct_var",
+const VARIANCE_ROW_COLUMNS: [ColumnSchema<'static>; 6] = [
+    ("period", "str"),
+    ("metric", "str"),
+    ("baseline", "float64"),
+    ("comparison", "float64"),
+    ("abs_var", "float64"),
+    ("pct_var", "float64"),
 ];
 
 /// Column schema for [`PyBridgeChart::to_dataframe`].
-const BRIDGE_STEP_COLUMNS: [&str; 2] = ["driver", "contribution"];
+const BRIDGE_STEP_COLUMNS: [ColumnSchema<'static>; 2] =
+    [("driver", "str"), ("contribution", "float64")];
 
 fn parse_period(period: &str) -> PyResult<PeriodId> {
     period.parse().map_err(display_to_py)
@@ -111,7 +114,7 @@ impl PySensitivityConfig {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]
@@ -179,7 +182,7 @@ impl PyVarianceConfig {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]
@@ -258,7 +261,7 @@ impl PyScenarioSet {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]
@@ -319,7 +322,7 @@ impl PySensitivityResult {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]
@@ -367,7 +370,7 @@ impl PySensitivityResult {
                 serde_json::Value::Object(row)
             })
             .collect();
-        serde_rows_to_dataframe_with_schema(py, &rows, &["scenario"])
+        serde_rows_to_dataframe_with_schema(py, &rows, &[("scenario", "int64")])
     }
 
     fn get_parameter_value(&self, scenario_index: usize, parameter: &str) -> PyResult<Option<f64>> {
@@ -479,7 +482,7 @@ impl PyVarianceReport {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]
@@ -580,7 +583,7 @@ impl PyScenarioResultSet {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]
@@ -767,7 +770,7 @@ impl PyBridgeChart {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]

@@ -52,12 +52,20 @@ from finstack_quant.valuations.correlation import (
 
 
 def _benchmarked_performance() -> Performance:
-    """Two perfectly collinear series so the regressions are well determined."""
+    """A noisy 2x beta, so every regression statistic takes a different value.
+
+    A perfectly collinear pair (``fund == 2 * benchmark``) collapses the frame:
+    ``beta == ci_lower == ci_upper == 2.0``, ``r_squared == adjusted_r_squared
+    == 1.0`` and ``std_err == alpha == 0``. A column-swapped export would then
+    compare equal. Adding a small idiosyncratic residual separates all six.
+    """
     dates = [dt_date(2024, 1, 1) + timedelta(days=i) for i in range(8)]
     benchmark = [-0.02, -0.01, 0.0, 0.01, 0.02, 0.03, 0.015, -0.005]
+    residual = [0.004, -0.003, 0.006, -0.002, 0.001, -0.005, 0.003, -0.004]
+    fund = [2.0 * value + noise for value, noise in zip(benchmark, residual, strict=True)]
     return Performance.from_returns_arrays(
         dates,
-        [[2.0 * value for value in benchmark], benchmark],
+        [fund, benchmark],
         ["FUND", "BENCH"],
         benchmark_ticker="BENCH",
         frequency="monthly",
@@ -69,9 +77,17 @@ def test_beta_result_to_dataframe_is_one_row() -> None:
     df = result.to_dataframe()
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 1
-    assert set(df.columns) == {"beta", "std_err", "ci_lower", "ci_upper"}
-    assert df["beta"].iloc[0] == pytest.approx(result.beta)
-    assert df["ci_upper"].iloc[0] == pytest.approx(result.ci_upper)
+    assert list(df.columns) == ["beta", "std_err", "ci_lower", "ci_upper"]
+    row = df.iloc[0]
+    # Each cell against its own accessor, not against a shared constant.
+    assert row["beta"] == pytest.approx(result.beta)
+    assert row["std_err"] == pytest.approx(result.std_err)
+    assert row["ci_lower"] == pytest.approx(result.ci_lower)
+    assert row["ci_upper"] == pytest.approx(result.ci_upper)
+    # ... and the four accessors are themselves four different numbers.
+    assert len({row["beta"], row["std_err"], row["ci_lower"], row["ci_upper"]}) == 4
+    assert row["ci_lower"] < row["beta"] < row["ci_upper"]
+    assert row["std_err"] > 0.0
 
 
 def test_greeks_result_to_dataframe_is_one_row() -> None:
@@ -79,18 +95,29 @@ def test_greeks_result_to_dataframe_is_one_row() -> None:
     df = result.to_dataframe()
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 1
-    assert set(df.columns) == {"alpha", "beta", "r_squared", "adjusted_r_squared"}
-    assert df["beta"].iloc[0] == pytest.approx(result.beta)
-    assert df["r_squared"].iloc[0] == pytest.approx(result.r_squared)
+    assert list(df.columns) == ["alpha", "beta", "r_squared", "adjusted_r_squared"]
+    row = df.iloc[0]
+    assert row["alpha"] == pytest.approx(result.alpha)
+    assert row["beta"] == pytest.approx(result.beta)
+    assert row["r_squared"] == pytest.approx(result.r_squared)
+    assert row["adjusted_r_squared"] == pytest.approx(result.adjusted_r_squared)
+    assert len({row["alpha"], row["beta"], row["r_squared"], row["adjusted_r_squared"]}) == 4
+    # An imperfect fit: adjusted R^2 is strictly penalised below R^2.
+    assert row["adjusted_r_squared"] < row["r_squared"] < 1.0
+    assert row["alpha"] != 0.0
 
 
-def _multi_factor_result() -> MultiFactorResult:
+_FACTOR_A = [-0.02, -0.01, 0.0, 0.01, 0.02, 0.03, 0.015, -0.005]
+_FACTOR_B = [0.01, 0.0, -0.01, 0.02, 0.0, 0.01, -0.02, 0.005]
+
+
+def _multi_factor_result(swap_factors: bool = False) -> MultiFactorResult:
+    """Two-factor regression with betas 2.0 and 0.5, optionally supplied swapped."""
     dates = [dt_date(2024, 1, 1) + timedelta(days=i) for i in range(8)]
-    factor_a = [-0.02, -0.01, 0.0, 0.01, 0.02, 0.03, 0.015, -0.005]
-    factor_b = [0.01, 0.0, -0.01, 0.02, 0.0, 0.01, -0.02, 0.005]
-    returns = [2.0 * a + 0.5 * b for a, b in zip(factor_a, factor_b, strict=True)]
+    returns = [2.0 * a + 0.5 * b for a, b in zip(_FACTOR_A, _FACTOR_B, strict=True)]
     perf = Performance.from_returns_arrays(dates, [returns], ["FUND"], frequency="monthly")
-    return perf.multi_factor_greeks(0, [factor_a, factor_b])
+    factors = [_FACTOR_B, _FACTOR_A] if swap_factors else [_FACTOR_A, _FACTOR_B]
+    return perf.multi_factor_greeks(0, factors)
 
 
 def test_multi_factor_result_to_dataframe_is_one_row_per_factor() -> None:
@@ -108,8 +135,12 @@ def test_multi_factor_result_to_dataframe_is_one_row_per_factor() -> None:
     ]
     assert list(df["factor"]) == ["factor_0", "factor_1"]
     assert list(df["beta"]) == pytest.approx(list(result.betas))
+    # The two loadings are the two different numbers the regression was built
+    # from, so a frame that repeated one row would fail here.
+    assert list(df["beta"]) == pytest.approx([2.0, 0.5])
     # Regression-level statistics repeat on every row.
-    assert df["r_squared"].nunique() == 1
+    assert list(df["r_squared"]) == pytest.approx([result.r_squared] * len(df))
+    assert list(df["alpha"]) == pytest.approx([result.alpha] * len(df))
 
 
 def test_multi_factor_result_to_dataframe_accepts_factor_names() -> None:
@@ -124,9 +155,24 @@ def test_multi_factor_result_to_dataframe_rejects_mismatched_names() -> None:
         result.to_dataframe(["only_one"])
 
 
-def test_multi_factor_result_to_dataframe_is_stable_across_calls() -> None:
-    result = _multi_factor_result()
-    pd.testing.assert_frame_equal(result.to_dataframe(), result.to_dataframe())
+def test_multi_factor_result_rows_follow_the_supplied_factor_order() -> None:
+    """Row order is the caller's factor order, and each beta travels with it.
+
+    This replaces an ``assert_frame_equal(f(x), f(x))`` on a frozen object,
+    which could only have failed on intra-process nondeterminism. Supplying the
+    same two factors in the opposite order is the assertion with content: the
+    rows permute and the loadings follow, rather than the frame silently
+    re-sorting or pinning the label to the wrong row.
+    """
+    forward = _multi_factor_result().to_dataframe()
+    swapped = _multi_factor_result(swap_factors=True).to_dataframe()
+
+    assert list(forward["factor"]) == list(swapped["factor"]) == ["factor_0", "factor_1"]
+    assert list(forward["beta"]) == pytest.approx([2.0, 0.5])
+    assert list(swapped["beta"]) == pytest.approx([0.5, 2.0])
+    # The regression itself is unchanged: only the row order moved.
+    assert forward["r_squared"].iloc[0] == pytest.approx(swapped["r_squared"].iloc[0])
+    assert forward["alpha"].iloc[0] == pytest.approx(swapped["alpha"].iloc[0])
 
 
 # core.credit.pd
@@ -137,7 +183,7 @@ def test_master_scale_result_to_dataframe_is_one_row() -> None:
     df = result.to_dataframe()
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 1
-    assert set(df.columns) == {"grade", "grade_index", "input_pd", "central_pd"}
+    assert list(df.columns) == ["grade", "grade_index", "input_pd", "central_pd"]
     assert df["grade"].iloc[0] == result.grade
     assert df["grade_index"].iloc[0] == result.grade_index
     assert df["input_pd"].iloc[0] == pytest.approx(0.003)
@@ -167,28 +213,37 @@ _ALLOCATION_COLUMNS = [
 ]
 
 
-def _waterfall() -> recovery_waterfall.RecoveryWaterfallResult:
-    """Three claims supplied out of priority order to exercise the sort."""
-    claims = [
+def _claims() -> list[recovery_waterfall.RecoveryClaim]:
+    """Three claims of different size, supplied out of priority order."""
+    return [
         recovery_waterfall.RecoveryClaim("SUB", "subordinated", 3, 100.0),
         recovery_waterfall.RecoveryClaim("SEN", "senior_secured", 1, 100.0),
         recovery_waterfall.RecoveryClaim("MEZZ", "senior_unsecured", 2, 50.0),
     ]
-    return recovery_waterfall.allocate_recovery(120.0, claims)
+
+
+def _waterfall() -> recovery_waterfall.RecoveryWaterfallResult:
+    return recovery_waterfall.allocate_recovery(120.0, _claims())
 
 
 def test_recovery_waterfall_to_dataframe_is_one_row_per_claim() -> None:
     result = _waterfall()
     df = result.to_dataframe()
     assert isinstance(df, pd.DataFrame)
-    assert len(df) == len(result.allocations)
+    assert len(df) == len(result.allocations) == 3
     assert set(_ALLOCATION_COLUMNS) <= set(df.columns)
 
 
 def test_recovery_waterfall_to_dataframe_is_ordered_by_priority() -> None:
     df = _waterfall().to_dataframe()
-    assert list(df["priority"]) == sorted(df["priority"])
+    assert list(df["priority"]) == sorted(df["priority"]) == [1, 2, 3]
     assert list(df["id"]) == ["SEN", "MEZZ", "SUB"]
+    # 120 of value against 250 of claims: senior is made whole, mezz takes the
+    # remainder, sub recovers nothing. Distinct per-row values, so a frame that
+    # replicated one allocation across all three rows fails here.
+    assert list(df["total_recovery"]) == pytest.approx([100.0, 20.0, 0.0])
+    assert list(df["recovery_rate"]) == pytest.approx([1.0, 0.4, 0.0])
+    assert list(df["deficiency"]) == pytest.approx([0.0, 30.0, 100.0])
 
 
 def test_recovery_waterfall_to_dataframe_keeps_schema_when_empty() -> None:
@@ -199,9 +254,17 @@ def test_recovery_waterfall_to_dataframe_keeps_schema_when_empty() -> None:
     assert list(df.columns) == _ALLOCATION_COLUMNS
 
 
-def test_recovery_waterfall_to_dataframe_is_stable_across_calls() -> None:
-    result = _waterfall()
-    pd.testing.assert_frame_equal(result.to_dataframe(), result.to_dataframe())
+def test_recovery_waterfall_ordering_ignores_the_input_order() -> None:
+    """The same claims in a different order produce the identical frame.
+
+    That is what the priority sort actually guarantees. Re-exporting one frozen
+    result twice, which is what this test used to do, can only fail on
+    intra-process nondeterminism.
+    """
+    forward = recovery_waterfall.allocate_recovery(120.0, _claims()).to_dataframe()
+    reversed_input = recovery_waterfall.allocate_recovery(120.0, list(reversed(_claims()))).to_dataframe()
+    pd.testing.assert_frame_equal(forward, reversed_input)
+    assert list(forward["id"]) == ["SEN", "MEZZ", "SUB"]
 
 
 # core.credit.liability_management
@@ -212,7 +275,7 @@ def test_exchange_offer_analysis_to_dataframe_is_one_row() -> None:
     df = analysis.to_dataframe()
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 1
-    assert set(df.columns) == {
+    assert list(df.columns) == [
         "exchange_type",
         "old_npv",
         "new_npv",
@@ -222,13 +285,19 @@ def test_exchange_offer_analysis_to_dataframe_is_one_row() -> None:
         "delta_npv",
         "breakeven_recovery",
         "tender_recommended",
-    }
-    assert df["exchange_type"].iloc[0] == analysis.exchange_type
-    assert df["delta_npv"].iloc[0] == pytest.approx(analysis.delta_npv)
-    assert bool(df["tender_recommended"].iloc[0]) is analysis.tender_recommended
+    ]
+    row = df.iloc[0]
+    assert row["exchange_type"] == analysis.exchange_type
+    # Distinct per-column values, so a shuffled schema cannot slip through.
+    assert row["old_npv"] == pytest.approx(60.0)
+    assert row["new_npv"] == pytest.approx(75.0)
+    assert row["consent_fee"] == pytest.approx(2.0)
+    assert row["tender_total"] == pytest.approx(analysis.tender_total) == pytest.approx(77.0)
+    assert row["delta_npv"] == pytest.approx(analysis.delta_npv) == pytest.approx(17.0)
+    assert bool(row["tender_recommended"]) is analysis.tender_recommended
 
 
-_LME_COLUMNS = {
+_LME_COLUMNS = [
     "lme_type",
     "cost",
     "notional_reduction",
@@ -240,7 +309,7 @@ _LME_COLUMNS = {
     "pre_leverage",
     "post_leverage",
     "leverage_reduction",
-}
+]
 
 
 def test_lme_analysis_to_dataframe_flattens_leverage_impact() -> None:
@@ -248,7 +317,7 @@ def test_lme_analysis_to_dataframe_flattens_leverage_impact() -> None:
     df = analysis.to_dataframe()
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 1
-    assert set(df.columns) == _LME_COLUMNS
+    assert list(df.columns) == _LME_COLUMNS
     impact = analysis.leverage_impact
     assert impact is not None
     assert df["pre_leverage"].iloc[0] == pytest.approx(impact.pre_leverage)
@@ -260,7 +329,7 @@ def test_lme_analysis_to_dataframe_nulls_leverage_without_ebitda() -> None:
     analysis = liability_management.analyze_lme("open_market_repurchase", 100.0, 0.70, 0.50)
     df = analysis.to_dataframe()
     assert len(df) == 1
-    assert set(df.columns) == _LME_COLUMNS
+    assert list(df.columns) == _LME_COLUMNS
     assert analysis.leverage_impact is None
     assert df["pre_leverage"].isna().all()
     assert df["leverage_reduction"].isna().all()
@@ -276,7 +345,7 @@ def test_fx_rate_result_to_dataframe_is_one_row() -> None:
     df = result.to_dataframe()
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 1
-    assert set(df.columns) == {"rate", "triangulated"}
+    assert list(df.columns) == ["rate", "triangulated"]
     assert df["rate"].iloc[0] == pytest.approx(result.rate)
     assert bool(df["triangulated"].iloc[0]) is result.triangulated
 
@@ -301,12 +370,22 @@ def test_scalar_time_series_to_dataframe_is_date_indexed() -> None:
     assert list(df["value"]) == pytest.approx([0.03, 0.035, 0.04])
 
 
-def test_scalar_time_series_to_dataframe_is_stable_across_calls() -> None:
-    series = ScalarTimeSeries(
-        "SOFR",
-        [(datetime.date(2025, 1, 1), 0.03), (datetime.date(2025, 1, 2), 0.04)],
-    )
-    pd.testing.assert_frame_equal(series.to_dataframe(), series.to_dataframe())
+def test_scalar_time_series_ordering_ignores_the_insertion_order() -> None:
+    """Two insertion orders of the same observations give the identical frame.
+
+    That is the content behind the chronological guarantee. Exporting one
+    frozen series twice — the previous assertion — could only fail on
+    intra-process nondeterminism.
+    """
+    observations = [
+        (datetime.date(2025, 1, 1), 0.03),
+        (datetime.date(2025, 1, 2), 0.035),
+        (datetime.date(2025, 1, 3), 0.04),
+    ]
+    chronological = ScalarTimeSeries("SOFR", observations).to_dataframe()
+    shuffled = ScalarTimeSeries("SOFR", list(reversed(observations))).to_dataframe()
+    pd.testing.assert_frame_equal(chronological, shuffled)
+    assert list(chronological["value"]) == pytest.approx([0.03, 0.035, 0.04])
 
 
 # monte_carlo
@@ -322,9 +401,21 @@ def test_gbm_path_summary_to_dataframe_is_time_by_path() -> None:
     assert list(df["path_0"]) == pytest.approx(summary.paths[0])
 
 
-def test_gbm_path_summary_to_dataframe_is_stable_across_calls() -> None:
-    summary = simulate_gbm_paths(100.0, 0.05, 0.0, 0.2, 1.0, 2, 3, seed=7)
-    pd.testing.assert_frame_equal(summary.to_dataframe(), summary.to_dataframe())
+def test_gbm_path_summary_dataframe_is_reproducible_from_the_seed() -> None:
+    """Two independent simulations on one seed export the identical frame.
+
+    Re-exporting a single frozen summary — the previous assertion — proved
+    nothing: the paths were already fixed. Re-simulating is what pins the
+    determinism claim the seed argument exists for. A different seed must move
+    the paths, otherwise the seed is being ignored.
+    """
+    first = simulate_gbm_paths(100.0, 0.05, 0.0, 0.2, 1.0, 2, 3, seed=7).to_dataframe()
+    second = simulate_gbm_paths(100.0, 0.05, 0.0, 0.2, 1.0, 2, 3, seed=7).to_dataframe()
+    pd.testing.assert_frame_equal(first, second)
+
+    other_seed = simulate_gbm_paths(100.0, 0.05, 0.0, 0.2, 1.0, 2, 3, seed=8).to_dataframe()
+    assert list(other_seed.columns) == list(first.columns)
+    assert not first.equals(other_seed), "a different seed must produce different paths"
 
 
 # factor_model.credit
@@ -412,8 +503,22 @@ def _hierarchy_period_decomposition() -> PeriodDecomposition:
     return decompose_period(start, end)
 
 
-def _flat_period_decomposition() -> PeriodDecomposition:
-    """A level-free hierarchy, so ``to_level_dataframe`` has nothing to emit."""
+def _flat_period_decomposition(issuers: tuple[str, str] = ("ZEBRA", "ALPHA")) -> PeriodDecomposition:
+    """A level-free hierarchy, so ``to_level_dataframe`` has nothing to emit.
+
+    ``issuers`` fixes the *declaration* order of every issuer-keyed map. The
+    default declares ``ZEBRA`` first so the alphabetical export order is not
+    simply the input order.
+    """
+    first, second = issuers
+    series = {"ZEBRA": [100.0, 101.0], "ALPHA": [90.0, 91.0]}
+    as_of = {"ZEBRA": 101.0, "ALPHA": 91.0}
+    start_spreads = {"ZEBRA": 105.0, "ALPHA": 95.0}
+    end_spreads = {"ZEBRA": 106.5, "ALPHA": 96.0}
+
+    def ordered(values: dict[str, object]) -> dict[str, object]:
+        return {first: values[first], second: values[second]}
+
     config = {
         "policy": "globally_off",
         "hierarchy": {"levels": []},
@@ -427,21 +532,20 @@ def _flat_period_decomposition() -> PeriodDecomposition:
     inputs = {
         "history_panel": {
             "dates": ["2024-01-01", "2024-02-01"],
-            "spreads": {"ZEBRA": [100.0, 101.0], "ALPHA": [90.0, 91.0]},
+            "spreads": ordered(series),
         },
-        "issuer_tags": {"tags": {"ZEBRA": {}, "ALPHA": {}}},
+        "issuer_tags": {"tags": ordered({"ZEBRA": {}, "ALPHA": {}})},
         "generic_factor": {
             "spec": {"name": "G", "series_id": "G"},
             "values": [100.0, 101.0],
         },
         "as_of": "2024-02-01",
-        "as_of_spreads": {"ZEBRA": 101.0, "ALPHA": 91.0},
+        "as_of_spreads": ordered(as_of),
         "idiosyncratic_overrides": {},
     }
     model = CreditCalibrator(json.dumps(config)).calibrate(json.dumps(inputs))
-    spreads_json = json.dumps({"ZEBRA": 105.0, "ALPHA": 95.0})
-    start = decompose_levels(model, spreads_json, 100.0, "2024-03-01")
-    end = decompose_levels(model, json.dumps({"ZEBRA": 106.5, "ALPHA": 96.0}), 101.5, "2024-03-02")
+    start = decompose_levels(model, json.dumps(ordered(start_spreads)), 100.0, "2024-03-01")
+    end = decompose_levels(model, json.dumps(ordered(end_spreads)), 101.5, "2024-03-02")
     return decompose_period(start, end)
 
 
@@ -453,12 +557,27 @@ def test_period_decomposition_level_dataframe_is_long_and_sorted() -> None:
 
     expected_rows = sum(len(period.level_deltas(k)) for k in range(period.n_levels))
     assert len(df) == expected_rows
-    assert expected_rows > 0
+    # 2 rating buckets + 6 rating x region buckets. Asserted rather than
+    # skipped on: a regression to zero rows would otherwise pass silently.
+    assert expected_rows == 8
 
-    assert list(df["level_index"]) == sorted(df["level_index"])
+    assert list(df["level_index"]) == sorted(df["level_index"]) == [0, 0, 1, 1, 1, 1, 1, 1]
+    assert list(df["dimension"]) == ["Rating"] * 2 + ["Region"] * 6
+    assert list(df["bucket"]) == [
+        "HY",
+        "IG",
+        "HY.APAC",
+        "HY.EU",
+        "HY.NA",
+        "IG.APAC",
+        "IG.EU",
+        "IG.NA",
+    ]
     for level_index, group in df.groupby("level_index"):
-        assert list(group["bucket"]) == sorted(group["bucket"])
-        assert set(group["bucket"]) == set(period.level_deltas(int(level_index)))
+        deltas = period.level_deltas(int(level_index))
+        # Both the labels and their values, in the map's own key order.
+        assert list(group["bucket"]) == list(deltas)
+        assert list(group["delta"]) == pytest.approx([deltas[bucket] for bucket in group["bucket"]])
 
     assert set(df["from_date"]) == {period.from_date}
     assert set(df["to_date"]) == {period.to_date}
@@ -479,27 +598,46 @@ def test_period_decomposition_adder_dataframe_is_sorted_by_issuer() -> None:
     df = period.to_adder_dataframe()
     assert isinstance(df, pd.DataFrame)
     assert set(_ADDER_DELTA_COLUMNS) <= set(df.columns)
-    assert len(df) == len(adders)
-    # "ALPHA" was declared after "ZEBRA"; the export is key-sorted.
-    assert list(df["issuer_id"]) == sorted(adders)
+    assert len(df) == len(adders) == 2
+    # "ALPHA" was declared after "ZEBRA"; the export is key-sorted, so the
+    # literal below is not the input order.
+    assert list(df["issuer_id"]) == ["ALPHA", "ZEBRA"]
+    assert list(df["d_adder"]) == pytest.approx([adders["ALPHA"], adders["ZEBRA"]])
+    # The two adders differ, so a frame that mislabelled them would fail.
+    assert adders["ALPHA"] != adders["ZEBRA"]
     assert set(df["from_date"]) == {period.from_date}
 
 
-def test_period_decomposition_dataframes_are_stable_across_calls() -> None:
-    period = _hierarchy_period_decomposition()
-    pd.testing.assert_frame_equal(period.to_level_dataframe(), period.to_level_dataframe())
-    pd.testing.assert_frame_equal(period.to_adder_dataframe(), period.to_adder_dataframe())
+def test_period_decomposition_adder_order_ignores_the_declaration_order() -> None:
+    """Declaring the issuers the other way round yields the identical frame.
+
+    That is what the key sort guarantees. Exporting one frozen decomposition
+    twice — the previous assertion — could only fail on intra-process
+    nondeterminism.
+    """
+    zebra_first = _flat_period_decomposition(("ZEBRA", "ALPHA")).to_adder_dataframe()
+    alpha_first = _flat_period_decomposition(("ALPHA", "ZEBRA")).to_adder_dataframe()
+    pd.testing.assert_frame_equal(zebra_first, alpha_first)
+    assert list(zebra_first["issuer_id"]) == ["ALPHA", "ZEBRA"]
 
 
 # valuations.correlation
 
 
+_PORTFOLIO_NOTIONAL = 2_000.0
+
+
 def _portfolio_loss_result() -> PortfolioLossResult:
-    exposures = [
-        CreditExposure("A", 100.0, 0.05, 0.6, [0.3]),
-        CreditExposure("B", 100.0, 0.03, 0.6, [0.3]),
-    ]
-    config = PortfolioLossConfig(200, 42, 0.99, CopulaSpec.gaussian())
+    """Twenty names over 5,000 paths, so the loss distribution has interior mass.
+
+    The previous two-name / 200-path fixture put the whole distribution above
+    every tranche's detachment, which collapsed the tranche export: ``VaR ==
+    ES == tranche_notional`` and ``prob_full_writedown ==
+    prob_attachment_breached == expected_loss_fraction``. Eight of the eleven
+    columns then shared four values and a shuffled schema went unnoticed.
+    """
+    exposures = [CreditExposure(f"N{index}", 100.0, 0.05, 0.6, [0.4]) for index in range(20)]
+    config = PortfolioLossConfig(5_000, 42, 0.99, CopulaSpec.gaussian())
     return simulate_portfolio_loss(exposures, config)
 
 
@@ -517,19 +655,25 @@ def test_portfolio_loss_summary_dataframe_is_one_row() -> None:
     df = result.to_summary_dataframe()
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 1
-    assert set(df.columns) == {
+    assert list(df.columns) == [
         "expected_loss",
         "var",
         "expected_shortfall",
         "confidence",
         "num_paths",
-    }
-    assert df["expected_loss"].iloc[0] == pytest.approx(result.expected_loss)
-    assert df["var"].iloc[0] == pytest.approx(result.var)
-    assert df["num_paths"].iloc[0] == len(result.losses)
+    ]
+    row = df.iloc[0]
+    assert row["expected_loss"] == pytest.approx(result.expected_loss)
+    assert row["var"] == pytest.approx(result.var)
+    assert row["expected_shortfall"] == pytest.approx(result.expected_shortfall)
+    assert row["confidence"] == pytest.approx(0.99)
+    assert row["num_paths"] == len(result.losses) == 5_000
+    # The three loss statistics are ordered, and therefore distinct: a frame
+    # that rendered one of them into all three columns fails here.
+    assert row["expected_loss"] < row["var"] < row["expected_shortfall"]
 
 
-_TRANCHE_COLUMNS = {
+_TRANCHE_COLUMNS = [
     "attachment",
     "detachment",
     "tranche_notional",
@@ -541,27 +685,61 @@ _TRANCHE_COLUMNS = {
     "expected_shortfall_amount",
     "prob_attachment_breached",
     "prob_full_writedown",
-}
+]
 
 
 def test_tranche_loss_statistics_to_dataframe_is_one_row() -> None:
-    stats = _portfolio_loss_result().tranche_loss_statistics(0.0, 0.03, 200.0)
+    """A mezzanine tranche the loss distribution straddles, so no two cells tie."""
+    stats = _portfolio_loss_result().tranche_loss_statistics(0.05, 0.20, _PORTFOLIO_NOTIONAL)
     df = stats.to_dataframe()
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 1
-    assert set(df.columns) == _TRANCHE_COLUMNS
-    assert df["attachment"].iloc[0] == pytest.approx(0.0)
-    assert df["detachment"].iloc[0] == pytest.approx(0.03)
-    assert df["tranche_notional"].iloc[0] == pytest.approx(stats.tranche_notional)
+    assert list(df.columns) == _TRANCHE_COLUMNS
+
+    row = df.iloc[0]
+    assert row["attachment"] == pytest.approx(0.05)
+    assert row["detachment"] == pytest.approx(0.20)
+    assert row["tranche_notional"] == pytest.approx(stats.tranche_notional) == pytest.approx(300.0)
+    # Every one of the eleven columns takes a different value.
+    assert len({float(row[column]) for column in df.columns}) == len(_TRANCHE_COLUMNS)
+
+
+def test_tranche_loss_statistics_respect_the_domain_ordering() -> None:
+    """ES >= VaR >= EL, and a full write-down is rarer than a breach.
+
+    These are the invariants that make the eleven columns meaningful, and they
+    only bite on a tranche that is neither wiped out nor untouched.
+    """
+    df = _portfolio_loss_result().tranche_loss_statistics(0.05, 0.20, _PORTFOLIO_NOTIONAL).to_dataframe()
+    row = df.iloc[0]
+
+    for scale in ("fraction", "amount"):
+        expected_loss = float(row[f"expected_loss_{scale}"])
+        value_at_risk = float(row[f"var_{scale}"])
+        shortfall = float(row[f"expected_shortfall_{scale}"])
+        assert shortfall >= value_at_risk >= expected_loss > 0.0, scale
+
+    # Fractions and amounts describe the same quantity at two scales.
+    notional = float(row["tranche_notional"])
+    for statistic in ("expected_loss", "var", "expected_shortfall"):
+        assert row[f"{statistic}_amount"] == pytest.approx(row[f"{statistic}_fraction"] * notional)
+
+    breached = float(row["prob_attachment_breached"])
+    written_down = float(row["prob_full_writedown"])
+    assert 0.0 <= written_down <= breached <= 1.0
+    assert written_down < breached, "a straddled tranche must breach more often than it wipes out"
 
 
 def test_tranche_loss_statistics_concat_into_a_capital_structure() -> None:
     result = _portfolio_loss_result()
     tranches = [(0.0, 0.03), (0.03, 0.07), (0.07, 1.0)]
     table = pd.concat(
-        [result.tranche_loss_statistics(a, d, 200.0).to_dataframe() for a, d in tranches],
+        [result.tranche_loss_statistics(a, d, _PORTFOLIO_NOTIONAL).to_dataframe() for a, d in tranches],
         ignore_index=True,
     )
     assert len(table) == len(tranches)
     assert list(table["attachment"]) == pytest.approx([a for a, _ in tranches])
     assert list(table["detachment"]) == pytest.approx([d for _, d in tranches])
+    # Subordination: junior tranches lose a strictly larger fraction.
+    assert list(table["expected_loss_fraction"]) == sorted(table["expected_loss_fraction"], reverse=True)
+    assert table["expected_loss_amount"].sum() == pytest.approx(result.expected_loss)

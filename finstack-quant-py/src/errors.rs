@@ -8,13 +8,14 @@
 //!
 //! # Exception hierarchy
 //!
-//! [`FinstackError`] is the common base, so `except FinstackError` catches any
-//! named exception this library defines:
+//! [`FinstackError`] is the common base for the library's named exceptions, so
+//! `except FinstackError` catches all but the one carve-out noted below:
 //!
 //! ```text
 //! ValueError
 //! └── FinstackError
 //!     ├── AnalyticsError
+//!     ├── CholeskyError
 //!     ├── PortfolioError
 //!     │   ├── FinstackValuationError
 //!     │   ├── FinstackFxError
@@ -33,13 +34,13 @@
 //!
 //! `pyo3::create_exception!` accepts exactly one base type (it forwards a single
 //! `&Bound<'_, PyType>` to `PyErr::new_type`), so a class cannot derive from both
-//! `FinstackError` and an unrelated builtin. Two named exceptions therefore stay
+//! `FinstackError` and an unrelated builtin. One named exception therefore stays
 //! outside this tree:
 //!
 //! - `CalibrationEnvelopeError` (`bindings/valuations/calibration.rs`) derives
-//!   from `RuntimeError`; joining would require multiple inheritance.
-//! - `CholeskyError` (`bindings/core/math/linalg.rs`) derives from `ValueError`
-//!   and can be reparented onto `FinstackError` in a one-line change.
+//!   from `RuntimeError`. Reparenting it onto `FinstackError` would silently
+//!   stop it being a `RuntimeError` and break existing `except RuntimeError`
+//!   handlers, so it is deliberately left out until PyO3 can express two bases.
 //!
 //! The bare `ValueError`/`KeyError`/`RuntimeError` values produced by
 //! [`core_to_py`], [`value_error`], and friends are deliberately left

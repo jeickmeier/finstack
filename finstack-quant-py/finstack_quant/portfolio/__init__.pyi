@@ -11,6 +11,7 @@ Examples
 
 from __future__ import annotations
 
+import datetime
 from typing import Any
 
 import numpy as np
@@ -1171,7 +1172,7 @@ class PortfolioCashflows:
         self,
         market: MarketContext | str,
         base_currency: str,
-        as_of: str,
+        as_of: datetime.date | str,
     ) -> str:
         """
         Collapse the ladder to a base-currency ``(date, kind) → Money`` JSON.
@@ -1186,8 +1187,9 @@ class PortfolioCashflows:
             base-currency conversion.
         base_currency : str
             ISO currency code into which each classified cashflow is converted.
-        as_of : str
-            ISO-8601 valuation date used for conversion diagnostics and limits.
+        as_of : datetime.date | str
+            Valuation date used for conversion diagnostics and limits, either a
+            date-like object or an ISO 8601 string.
 
         Returns
         -------
@@ -1661,7 +1663,7 @@ def aggregate_metrics(
     valuation: PortfolioValuation | str,
     base_currency: str,
     market: MarketContext | str,
-    as_of: str,
+    as_of: datetime.date | str,
 ) -> str:
     """
     Aggregate portfolio metrics from a valuation.
@@ -1676,8 +1678,9 @@ def aggregate_metrics(
         ISO base-currency code in which aggregate values and metrics are stated.
     market : MarketContext or str
         Market context object or JSON supplying conversion and market inputs.
-    as_of : str
-        ISO-8601 valuation date used to resolve date-dependent market data.
+    as_of : datetime.date | str
+        Valuation date used to resolve date-dependent market data, either a
+        date-like object or an ISO 8601 string.
 
     Returns
     -------
@@ -1955,8 +1958,8 @@ def attribute_portfolio_pnl(
     portfolio: Portfolio | str,
     market_t0: MarketContext | str,
     market_t1: MarketContext | str,
-    as_of_t0: str,
-    as_of_t1: str,
+    as_of_t0: datetime.date | str,
+    as_of_t1: datetime.date | str,
     method: str | dict[str, Any],
     config: dict[str, Any] | str | None = None,
 ) -> PortfolioAttribution:
@@ -1971,9 +1974,9 @@ def attribute_portfolio_pnl(
         Opening market context object or JSON at the start of the P&L interval.
     market_t1 : MarketContext or str
         Closing market context object or JSON at the end of the P&L interval.
-    as_of_t0 : str
+    as_of_t0 : datetime.date | str
         ISO-8601 opening valuation date associated with ``market_t0``.
-    as_of_t1 : str
+    as_of_t1 : datetime.date | str
         ISO-8601 closing valuation date associated with ``market_t1``.
     method : str or dict[str, Any]
         Attribution-method name or method configuration understood by Rust.
@@ -6135,7 +6138,7 @@ def factor_stress(
     portfolio: Portfolio | str,
     market: MarketContext | str,
     factor_model_config_json: str,
-    as_of: str,
+    as_of: datetime.date | str,
     stresses: list[tuple[str, float]],
 ) -> StressResult:
     """
@@ -6155,8 +6158,8 @@ def factor_stress(
         compiled market extractor.
     factor_model_config_json : str
         JSON-encoded ``finstack_quant_factor_model::FactorModelConfig``.
-    as_of : str
-        ISO calculation date, ``YYYY-MM-DD``.
+    as_of : datetime.date | str
+        Calculation date, either a date-like object or an ISO 8601 string.
     stresses : list[tuple[str, float]]
         ``(factor_id, shift)`` pairs. Factor IDs must match the
         configured model; shifts use the Rust factor model's units for that
@@ -6194,7 +6197,7 @@ def position_what_if(
     portfolio: Portfolio | str,
     market: MarketContext | str,
     factor_model_config_json: str,
-    as_of: str,
+    as_of: datetime.date | str,
     changes: list[dict[str, Any]],
 ) -> WhatIfResult:
     """
@@ -6214,8 +6217,8 @@ def position_what_if(
         compiled market extractor.
     factor_model_config_json : str
         JSON-encoded ``finstack_quant_factor_model::FactorModelConfig``.
-    as_of : str
-        ISO calculation date, ``YYYY-MM-DD``.
+    as_of : datetime.date | str
+        Calculation date, either a date-like object or an ISO 8601 string.
     changes : list[dict[str, Any]]
         List of dictionaries. Remove changes use
         ``{"kind": "remove", "position_id": "..."}``; resize changes use
@@ -9154,7 +9157,7 @@ def compute_factor_sensitivities(
     positions_json: str,
     factors_json: str,
     market: MarketContext | str,
-    as_of: str,
+    as_of: datetime.date | str,
     bump_config_json: str | None = None,
 ) -> SensitivityMatrix:
     """
@@ -9169,8 +9172,8 @@ def compute_factor_sensitivities(
             JSON array of ``FactorDefinition`` objects.
         market : MarketContext or str
             ``MarketContext`` instance or JSON string.
-        as_of : str
-            Valuation date in ISO 8601 format.
+        as_of : datetime.date | str
+            Valuation date, either a date-like object or an ISO 8601 string.
         bump_config_json : str, optional
             Optional JSON-serialized ``BumpSizeConfig``.
             Defaults to 1 bp / 1 % per factor type.
@@ -9204,7 +9207,7 @@ def compute_pnl_profiles(
     positions_json: str,
     factors_json: str,
     market: MarketContext | str,
-    as_of: str,
+    as_of: datetime.date | str,
     bump_config_json: str | None = None,
     n_scenario_points: int = 5,
 ) -> list[FactorPnlProfile]:
@@ -9220,8 +9223,8 @@ def compute_pnl_profiles(
         JSON array of ``FactorDefinition`` objects.
     market : MarketContext or str
         ``MarketContext`` instance or JSON string.
-    as_of : str
-        Valuation date in ISO 8601 format.
+    as_of : datetime.date | str
+        Valuation date, either a date-like object or an ISO 8601 string.
     bump_config_json : str, optional
         Optional JSON-serialized ``BumpSizeConfig``.
     n_scenario_points : int, default 5

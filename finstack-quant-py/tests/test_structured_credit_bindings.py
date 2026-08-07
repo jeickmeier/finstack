@@ -46,6 +46,17 @@ _DETERMINISTIC_OAS_CONFIG_JSON = json.dumps({
 })
 
 
+def _approx(value: float) -> object:
+    """Round-trip tolerance sized for serde_json's float reparse, nothing looser.
+
+    A parse -> reserialize cycle can move an f64 by about 1 ULP, so ``rel=1e-15``
+    (a few ULP) with ``abs=0`` covers it while keeping zeros exact.
+    ``pytest.approx``'s default ``rel=1e-6`` would have accepted a PV of
+    1,000,000.0 coming back as 1,000,000.9.
+    """
+    return pytest.approx(value, rel=1e-15, abs=0)
+
+
 def _deal_json() -> str:
     return canonical_structured_credit_json(payment_calendar_id="NOT_A_CALENDAR")
 
@@ -125,7 +136,7 @@ def test_tranche_metrics_returns_typed_wrapper() -> None:
     assert reparsed.keys() == payload.keys()
     for key, expected in payload.items():
         if isinstance(expected, float):
-            assert reparsed[key] == pytest.approx(expected)
+            assert reparsed[key] == _approx(expected)
         else:
             assert reparsed[key] == expected
 
@@ -151,7 +162,9 @@ def test_tranche_oas_returns_typed_wrapper() -> None:
 
     assert isinstance(result, instruments.OasResult)
     assert not isinstance(result, str)
-    assert result.market_price == pytest.approx(model_price_pct)
+    # The solver echoes back the price it was handed; nothing computes on it,
+    # so this is an exact identity rather than a numerical comparison.
+    assert result.market_price == model_price_pct
 
     wire = result.to_json()
     payload = json.loads(wire)
@@ -159,7 +172,7 @@ def test_tranche_oas_returns_typed_wrapper() -> None:
     assert reparsed.keys() == payload.keys()
     for key, expected in payload.items():
         if isinstance(expected, float):
-            assert reparsed[key] == pytest.approx(expected)
+            assert reparsed[key] == _approx(expected)
         else:
             assert reparsed[key] == expected
 
@@ -184,7 +197,7 @@ def test_tranche_scenario_table_returns_typed_wrapper() -> None:
     assert reparsed["tranche_id"] == payload["tranche_id"]
     assert len(reparsed["cells"]) == len(payload["cells"])
     for got, want in zip(reparsed["cells"], payload["cells"], strict=True):
-        assert got == pytest.approx(want)
+        assert got == _approx(want)
 
 
 def test_unknown_tranche_raises_value_error_not_panic() -> None:

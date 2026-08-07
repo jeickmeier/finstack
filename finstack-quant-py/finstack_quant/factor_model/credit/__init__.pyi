@@ -18,6 +18,8 @@ True
 
 from __future__ import annotations
 
+import datetime
+
 import pandas as pd
 
 class CreditFactorModel:
@@ -606,7 +608,7 @@ def decompose_levels(
     model: CreditFactorModel,
     observed_spreads_json: str,
     observed_generic: float,
-    as_of: str,
+    as_of: datetime.date | str,
     runtime_tags_json: str | None = None,
 ) -> LevelsAtDate:
     """
@@ -620,8 +622,8 @@ def decompose_levels(
         JSON map of issuer ID to observed spread in basis points.
     observed_generic : float
         Observed market generic spread in basis points.
-    as_of : str
-        Observation date as ISO 8601 ``YYYY-MM-DD``.
+    as_of : datetime.date | str
+        Observation date, either a date-like object or an ISO 8601 string.
     runtime_tags_json : str, optional
         Optional JSON map of runtime tags for bucket assignment overrides.
 

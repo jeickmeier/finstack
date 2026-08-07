@@ -78,7 +78,7 @@ impl PyMertonModel {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Deserialize a structural credit model from JSON.
@@ -142,7 +142,7 @@ impl PyDynamicRecoverySpec {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]
@@ -188,7 +188,7 @@ impl PyEndogenousHazardSpec {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]
@@ -249,6 +249,22 @@ impl PyCreditState {
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
     }
+
+    /// Deserialize from JSON produced by `to_json`.
+    ///
+    /// Completes the wire round-trip, which is also what makes this type
+    /// picklable (see `__reduce__`).
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: CreditState = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
 }
 
 #[pyclass(
@@ -302,7 +318,7 @@ impl PyToggleExerciseModel {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     #[staticmethod]

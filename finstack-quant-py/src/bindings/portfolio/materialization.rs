@@ -12,7 +12,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyByteArray, PyBytes, PyDict, PyModule, PyString};
 
 use super::types::PyPortfolio;
-use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe;
+use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe_with_schema;
 use crate::errors::{diagnostics_to_py, materialization_to_py};
 
 /// Reusable, bounded cache of decoded instrument artifacts.
@@ -193,7 +193,24 @@ impl PyMaterializationReport {
             "phase_build_positions_nanos": phases.build_positions,
             "phase_index_build_nanos": phases.index_build,
         });
-        serde_object_to_single_row_dataframe(py, &row)
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "unique_instruments",
+                "positions",
+                "dependencies",
+                "cache_hits",
+                "input_bytes",
+                "truncated",
+                "timing_available",
+                "phase_parse_nanos",
+                "phase_validate_versions_nanos",
+                "phase_decode_instruments_nanos",
+                "phase_build_positions_nanos",
+                "phase_index_build_nanos",
+            ],
+        )
     }
 
     fn __repr__(&self) -> String {

@@ -25,7 +25,6 @@ mod sensitivity;
 mod spec;
 pub(crate) mod types;
 
-use crate::bindings::date_utils::parse_iso_date_py as parse_date;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 

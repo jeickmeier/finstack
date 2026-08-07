@@ -1,6 +1,6 @@
 //! Python bindings for `finstack_quant_core::credit::liability_management`.
 
-use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe;
+use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe_with_schema;
 use crate::errors::core_to_py;
 use finstack_quant_core::credit::liability_management::{
     self as lm, ExchangeOfferAnalysis, ExchangeType, LeverageImpact, LmeAnalysis, LmeType,
@@ -91,7 +91,21 @@ impl PyExchangeOfferAnalysis {
             "breakeven_recovery": self.inner.breakeven_recovery,
             "tender_recommended": self.inner.tender_recommended,
         });
-        serde_object_to_single_row_dataframe(py, &row)
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "exchange_type",
+                "old_npv",
+                "new_npv",
+                "consent_fee",
+                "equity_sweetener_value",
+                "tender_total",
+                "delta_npv",
+                "breakeven_recovery",
+                "tender_recommended",
+            ],
+        )
     }
 
     fn __repr__(&self) -> String {
@@ -198,11 +212,14 @@ impl PyLmeAnalysis {
         self.inner.discount_capture
     }
 
+    /// Discount captured, as a decimal fraction (``0.1`` = 10%), not ×100.
     #[getter]
     fn discount_capture_pct(&self) -> f64 {
         self.inner.discount_capture_pct
     }
 
+    /// Impact on remaining holders, as a decimal fraction (``-0.05`` = −5%),
+    /// not ×100.
     #[getter]
     fn remaining_holder_impact_pct(&self) -> f64 {
         self.inner.remaining_holder_impact_pct
@@ -250,7 +267,23 @@ impl PyLmeAnalysis {
             "post_leverage": leverage.map(|l| l.post_leverage),
             "leverage_reduction": leverage.map(|l| l.leverage_reduction),
         });
-        serde_object_to_single_row_dataframe(py, &row)
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "lme_type",
+                "cost",
+                "notional_reduction",
+                "discount_capture",
+                "discount_capture_pct",
+                "remaining_holder_impact_pct",
+                "pre_total_debt",
+                "post_total_debt",
+                "pre_leverage",
+                "post_leverage",
+                "leverage_reduction",
+            ],
+        )
     }
 
     fn __repr__(&self) -> String {

@@ -139,7 +139,7 @@ impl PyPortfolioValuation {
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let payload = self.to_json(py)?;
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (payload,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, payload)
     }
 
     /// Parse a valuation from a JSON string.
@@ -269,7 +269,7 @@ impl PyPortfolioResult {
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let payload = self.to_json(py)?;
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (payload,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, payload)
     }
 
     /// Parse a result from a JSON string.
@@ -347,7 +347,7 @@ impl PyPortfolioMetrics {
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let payload = self.to_json(py)?;
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (payload,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, payload)
     }
 
     /// Parse aggregate portfolio metrics from canonical JSON.
@@ -489,7 +489,7 @@ impl PyPortfolioCashflows {
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let payload = self.to_json(py)?;
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (payload,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, payload)
     }
 
     /// Parse a cashflow ladder from a JSON string.
@@ -606,18 +606,21 @@ impl PyPortfolioCashflows {
     ///
     /// See :func:`finstack_quant_portfolio::cashflows::PortfolioCashflows::collapse_to_base_by_date_kind`
     /// for the exact convention. Returns JSON.
+    ///
+    /// ``as_of`` accepts either a date-like object (``datetime.date``,
+    /// ``pandas.Timestamp``) or an ISO 8601 string.
     #[pyo3(text_signature = "(self, market, base_currency, as_of)")]
     fn collapse_to_base_by_date_kind(
         &self,
         py: Python<'_>,
         market: &Bound<'_, PyAny>,
         base_currency: &str,
-        as_of: &str,
+        as_of: &Bound<'_, PyAny>,
     ) -> PyResult<String> {
         let market = crate::bindings::extract::extract_market_ref(py, market)?;
         let ccy: finstack_quant_core::currency::Currency =
             base_currency.parse().map_err(display_to_py)?;
-        let as_of_date = super::parse_date(as_of)?;
+        let as_of_date = crate::bindings::date_utils::extract_date(as_of)?;
         let market_ref: &finstack_quant_core::market_data::context::MarketContext = &market;
         let cashflows = &self.inner;
         let collapsed = py

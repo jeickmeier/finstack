@@ -257,7 +257,7 @@ impl PyForecastSpec {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Deserialize a forecast spec from its canonical JSON form.
@@ -471,7 +471,7 @@ impl PyFinancialModelSpec {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Deserialize from a JSON string.
@@ -490,19 +490,22 @@ impl PyFinancialModelSpec {
         serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
-    /// Model identifier.
+    /// Unique model identifier.
     #[getter]
     fn id(&self) -> &str {
         &self.inner.id
     }
 
-    /// Number of periods.
+    /// Number of periods in the model timeline.
+    ///
+    /// Counted in **periods** on the model's own cadence (quarters, months,
+    /// years), not months. Their declared order *is* the evaluation timeline.
     #[getter]
     fn period_count(&self) -> usize {
         self.inner.periods.len()
     }
 
-    /// Number of nodes.
+    /// Number of nodes (line items / metrics) declared in the model.
     #[getter]
     fn node_count(&self) -> usize {
         self.inner.nodes.len()
@@ -520,12 +523,16 @@ impl PyFinancialModelSpec {
         self.inner.has_node(node_id)
     }
 
-    /// Schema version.
+    /// Wire-format schema version of this model spec.
+    ///
+    /// Only version ``1`` is accepted today; the field exists so persisted
+    /// models can be migrated rather than silently misread.
     #[getter]
     fn schema_version(&self) -> u32 {
         self.inner.schema_version.into()
     }
 
+    /// Return the debug representation with the id, period and node counts.
     fn __repr__(&self) -> String {
         format!(
             "FinancialModelSpec(id={:?}, periods={}, nodes={})",

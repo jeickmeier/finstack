@@ -839,8 +839,9 @@ fn wacc(
 ///     Node used for DSCR/interest-coverage (default: ``"ebitda"``).
 /// market_json : str | None
 ///     Optional JSON ``MarketContext``.
-/// as_of : str | None
-///     Optional ISO 8601 date string for valuation date.
+/// as_of : datetime.date | str | None
+///     Optional valuation date, either a date-like object (``datetime.date``,
+///     ``pandas.Timestamp``) or an ISO 8601 string.
 ///
 /// Returns
 /// -------
@@ -868,7 +869,7 @@ fn run_corporate_analysis<'py>(
     net_debt_override: Option<f64>,
     coverage_node: &str,
     market: Option<&Bound<'py, PyAny>>,
-    as_of: Option<&str>,
+    as_of: Option<&Bound<'py, PyAny>>,
 ) -> PyResult<Bound<'py, PyDict>> {
     use finstack_quant_valuations::instruments::equity::dcf_equity::TerminalValueSpec;
 
@@ -894,9 +895,8 @@ fn run_corporate_analysis<'py>(
         builder = builder.market(mkt);
     }
 
-    if let Some(date_str) = as_of {
-        let format = time::format_description::well_known::Iso8601::DEFAULT;
-        let date = time::Date::parse(date_str, &format).map_err(display_to_py)?;
+    if let Some(as_of) = as_of {
+        let date = crate::bindings::date_utils::extract_date(as_of)?;
         builder = builder.as_of(date);
     }
 
@@ -970,7 +970,10 @@ fn pl_summary_report(
 /// results_json : str
 ///     JSON-serialized ``StatementResult``.
 /// as_of : str
-///     Period string for the assessment date (e.g. ``"2025Q1"``).
+///     Period identifier for the assessment (e.g. ``"2025Q1"``, ``"2025M03"``,
+///     ``"FY2025"``). Unlike the ``as_of`` valuation dates elsewhere in the
+///     bindings, this is a ``PeriodId``, not a date: ``datetime.date`` and
+///     ISO 8601 strings such as ``"2025-03-31"`` are rejected.
 ///
 /// Returns
 /// -------
@@ -995,7 +998,10 @@ fn credit_assessment_report(results: &Bound<'_, PyAny>, as_of: &str) -> PyResult
 /// results : StatementResult | str
 ///     A ``StatementResult`` object or a JSON string.
 /// as_of : str
-///     Period string for the assessment date (e.g. ``"2025Q4"``).
+///     Period identifier for the assessment (e.g. ``"2025Q4"``, ``"2025M03"``,
+///     ``"FY2025"``). Unlike the ``as_of`` valuation dates elsewhere in the
+///     bindings, this is a ``PeriodId``, not a date: ``datetime.date`` and
+///     ISO 8601 strings such as ``"2025-12-31"`` are rejected.
 ///
 /// Returns
 /// -------

@@ -25,8 +25,6 @@ import importlib as _importlib
 from types import ModuleType
 from typing import TYPE_CHECKING
 
-from finstack_quant.finstack_quant import __version__ as __version__
-
 __all__ = [
     "__version__",
     "analytics",
@@ -51,6 +49,9 @@ __all__ = [
 _SUBMODULES: frozenset[str] = frozenset(__all__) - {"__version__"}
 
 if TYPE_CHECKING:
+    # Declared for type checkers and IDEs; resolved lazily via `__getattr__`.
+    __version__: str
+
     from . import (
         analytics as analytics,
         attribution as attribution,
@@ -70,7 +71,15 @@ if TYPE_CHECKING:
     )
 
 
-def __getattr__(name: str) -> ModuleType:
+def __getattr__(name: str) -> ModuleType | str:
+    if name == "__version__":
+        # Served lazily for the same reason the domains are: reading it must not
+        # drag the compiled extension (and every domain's registration) into a
+        # bare `import finstack_quant`.
+        from finstack_quant.finstack_quant import __version__ as version
+
+        globals()["__version__"] = version
+        return version
     if name in _SUBMODULES:
         mod = _importlib.import_module(f".{name}", __name__)
         globals()[name] = mod

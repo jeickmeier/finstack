@@ -2,8 +2,8 @@
 
 use crate::bindings::core::dates::utils::date_to_py;
 use crate::bindings::pandas_utils::{
-    dates_to_pylist, dict_to_dataframe, serde_object_to_single_row_dataframe,
-    serde_rows_to_dataframe_with_schema,
+    dates_to_pylist, dict_to_dataframe, serde_object_to_single_row_dataframe_with_schema,
+    serde_rows_to_dataframe_with_schema, ColumnSchema,
 };
 use finstack_quant_analytics as fa;
 use numpy::PyArray1;
@@ -144,7 +144,11 @@ impl PyBetaResult {
             "ci_lower": self.inner.ci_lower,
             "ci_upper": self.inner.ci_upper,
         });
-        serde_object_to_single_row_dataframe(py, &row)
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &["beta", "std_err", "ci_lower", "ci_upper"],
+        )
     }
 
     fn __repr__(&self) -> String {
@@ -215,7 +219,11 @@ impl PyGreeksResult {
             "r_squared": self.inner.r_squared,
             "adjusted_r_squared": self.inner.adjusted_r_squared,
         });
-        serde_object_to_single_row_dataframe(py, &row)
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &["alpha", "beta", "r_squared", "adjusted_r_squared"],
+        )
     }
 
     fn __repr__(&self) -> String {
@@ -297,13 +305,13 @@ impl PyRollingGreeks {
 
 /// Column schema of `PyMultiFactorResult::to_dataframe`, kept so a
 /// zero-factor regression still exports a frame with the documented columns.
-const MULTI_FACTOR_COLUMNS: &[&str] = &[
-    "factor",
-    "beta",
-    "alpha",
-    "r_squared",
-    "adjusted_r_squared",
-    "residual_vol",
+const MULTI_FACTOR_COLUMNS: &[ColumnSchema<'static>] = &[
+    ("factor", "str"),
+    ("beta", "float64"),
+    ("alpha", "float64"),
+    ("r_squared", "float64"),
+    ("adjusted_r_squared", "float64"),
+    ("residual_vol", "float64"),
 ];
 
 /// Multi-factor regression result.

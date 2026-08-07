@@ -1,7 +1,8 @@
 //! PnlAttribution Python wrapper.
 
 use crate::bindings::pandas_utils::{
-    serde_object_to_single_row_dataframe, serde_rows_to_dataframe_with_schema,
+    serde_object_to_single_row_dataframe_with_schema, serde_rows_to_dataframe_with_schema,
+    ColumnSchema,
 };
 use crate::errors::display_to_py;
 use pyo3::prelude::*;
@@ -15,7 +16,14 @@ use super::dataframe::{build_carry_detail_rows, build_credit_factor_rows, build_
 /// interactions, model parameters, market scalars, and residual.
 ///
 /// Construct via :func:`attribute_pnl` or :meth:`from_json`.
-const LONG_DETAIL_COLUMNS: [&str; 6] = ["kind", "factor", "key_a", "key_b", "amount", "currency"];
+const LONG_DETAIL_COLUMNS: [ColumnSchema<'static>; 6] = [
+    ("kind", "str"),
+    ("factor", "str"),
+    ("key_a", "str"),
+    ("key_b", "str"),
+    ("amount", "float64"),
+    ("currency", "str"),
+];
 
 #[pyclass(
     name = "PnlAttribution",
@@ -37,7 +45,7 @@ impl PyPnlAttribution {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Deserialize from JSON.
@@ -290,16 +298,30 @@ impl PyPnlAttribution {
 
     /// Export attribution as a single-row pandas ``DataFrame``.
     ///
+    /// Raises ``ValueError`` if any factor is denominated in a currency other
+    /// than ``total_pnl``'s. The row carries ONE ``currency`` label beside every
+    /// factor amount, so a mixed-currency attribution would make
+    /// ``df[factor_cols].sum(axis=1)`` add unlike units — this is the same check
+    /// :meth:`validate_currencies` performs, applied before the frame is built.
+    /// The long format (:meth:`to_long_dataframe`) carries currency per row and
+    /// has no such restriction.
+    ///
     /// Columns: ``instrument_id``, ``method``, ``t0``, ``t1``, ``currency``,
     /// ``total_pnl``, ``mark_to_market_pnl`` (``None`` for payloads predating
     /// the field — note the column dtype is then ``object``, not ``float64``;
     /// coerce with ``pd.to_numeric`` before concatenating mixed vintages),
     /// ``carry``,
     /// ``rates_curves_pnl``, ``credit_curves_pnl``, ``inflation_curves_pnl``,
-    /// ``correlations_pnl``, ``fx_pnl``, ``vol_pnl``, ``cross_factor_pnl``,
+    /// ``correlations_pnl``, ``fx_pnl``, ``fx_translation_pnl``, ``vol_pnl``,
+    /// ``cross_factor_pnl``,
     /// ``model_params_pnl``, ``market_scalars_pnl``, ``residual``,
     /// ``residual_pct``, ``num_repricings``, ``result_invalid``.
     fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        // One `currency` column labels every factor amount on this row, so the
+        // frame is only meaningful when the factors agree with `total_pnl`.
+        // Without this, a EUR `fx_pnl` beside a USD total is presented as
+        // comparable and `df[factors].sum(axis=1)` silently adds unlike units.
+        self.inner.validate_currencies().map_err(display_to_py)?;
         // `mark_to_market_pnl` is Option<Money>; serialize as null when
         // missing. A null makes pandas infer dtype `object` for the column
         // (documented caveat above) — present values give `float64`.
@@ -330,7 +352,34 @@ impl PyPnlAttribution {
             // computation failures).
             "result_invalid": self.inner.result_invalid,
         });
-        serde_object_to_single_row_dataframe(py, &row)
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "instrument_id",
+                "method",
+                "t0",
+                "t1",
+                "currency",
+                "total_pnl",
+                "mark_to_market_pnl",
+                "carry",
+                "rates_curves_pnl",
+                "credit_curves_pnl",
+                "inflation_curves_pnl",
+                "correlations_pnl",
+                "fx_pnl",
+                "fx_translation_pnl",
+                "vol_pnl",
+                "cross_factor_pnl",
+                "model_params_pnl",
+                "market_scalars_pnl",
+                "residual",
+                "residual_pct",
+                "num_repricings",
+                "result_invalid",
+            ],
+        )
     }
 
     /// Export every populated detail breakdown as a single long-format DataFrame.

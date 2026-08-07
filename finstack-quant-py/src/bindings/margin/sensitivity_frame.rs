@@ -10,11 +10,18 @@
 //! underlying `HashMap` iteration order is not stable across runs.
 
 use crate::bindings::pandas_utils::serde_rows_to_dataframe_with_schema;
+use crate::bindings::pandas_utils::ColumnSchema;
 use pyo3::prelude::*;
 
 /// Column schema shared by every sensitivity long-format export.
-pub(super) const SENSITIVITY_COLUMNS: [&str; 6] =
-    ["risk_class", "bucket", "tenor", "issuer", "kind", "amount"];
+pub(super) const SENSITIVITY_COLUMNS: [ColumnSchema<'static>; 6] = [
+    ("risk_class", "str"),
+    ("bucket", "str"),
+    ("tenor", "str"),
+    ("issuer", "str"),
+    ("kind", "str"),
+    ("amount", "float64"),
+];
 
 /// One long-format sensitivity row.
 struct SensitivityRow {

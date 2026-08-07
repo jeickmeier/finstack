@@ -84,8 +84,9 @@ fn dated_flows_json(py: Python<'_>, schedule_json: &str) -> PyResult<String> {
 /// ----------
 /// schedule_json : str
 ///     JSON-encoded `CashFlowSchedule`.
-/// as_of : str
-///     ISO-8601 date (YYYY-MM-DD) for the accrual snapshot.
+/// as_of : datetime.date | str
+///     Accrual snapshot date, either a date-like object (``datetime.date``,
+///     ``pandas.Timestamp``) or an ISO 8601 string.
 /// config_json : str, optional
 ///     JSON-encoded `AccrualConfig` overriding defaults.
 ///
@@ -105,11 +106,12 @@ fn dated_flows_json(py: Python<'_>, schedule_json: &str) -> PyResult<String> {
 fn accrued_interest_json(
     py: Python<'_>,
     schedule_json: &str,
-    as_of: &str,
+    as_of: &Bound<'_, PyAny>,
     config_json: Option<&str>,
 ) -> PyResult<f64> {
+    let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     py.detach(|| {
-        finstack_quant_cashflows::accrued_interest_json(schedule_json, as_of, config_json)
+        finstack_quant_cashflows::accrued_interest_json(schedule_json, &as_of, config_json)
             .map_err(crate::errors::core_to_py)
     })
 }

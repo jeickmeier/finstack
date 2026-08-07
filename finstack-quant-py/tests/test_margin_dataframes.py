@@ -11,6 +11,8 @@ stay self-contained.
 
 from __future__ import annotations
 
+import json
+
 import pandas as pd
 import pytest
 
@@ -58,9 +60,35 @@ def _sort_keys(df: pd.DataFrame) -> list[tuple[object, ...]]:
 # VmResult
 
 
+VM_COLUMNS = [
+    "gross_exposure",
+    "net_exposure",
+    "delivery_amount",
+    "return_amount",
+    "net_margin",
+    "requires_call",
+    "currency",
+]
+
+
+def _threshold_csa() -> CsaSpec:
+    """A CSA with a real threshold and independent amount.
+
+    ``CsaSpec.usd_regulatory`` has a zero threshold and zero IA, which makes
+    ``net_exposure`` identical to ``gross_exposure``. Two columns holding the
+    same number cannot detect a swap between them, so this fixture separates
+    them: net = max(gross - threshold, 0) + IA.
+    """
+    spec = json.loads(CsaSpec.usd_regulatory().to_json())
+    spec["id"] = "USD-THRESHOLD-CSA"
+    spec["vm_params"]["threshold"]["amount"] = "300000"
+    spec["vm_params"]["independent_amount"]["amount"] = "100000"
+    spec["vm_params"]["mta"]["amount"] = "50000"
+    return CsaSpec.from_json(json.dumps(spec))
+
+
 def _vm_result() -> VmResult:
-    csa = CsaSpec.usd_regulatory()
-    return VmCalculator(csa).calculate(1_000_000.0, 250_000.0, "USD", 2025, 6, 30)
+    return VmCalculator(_threshold_csa()).calculate(1_000_000.0, 250_000.0, "USD", 2025, 6, 30)
 
 
 def test_vm_result_to_dataframe_is_one_row() -> None:
@@ -69,20 +97,36 @@ def test_vm_result_to_dataframe_is_one_row() -> None:
 
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 1
-    assert list(df.columns) == [
-        "gross_exposure",
-        "net_exposure",
-        "delivery_amount",
-        "return_amount",
-        "net_margin",
-        "requires_call",
-        "currency",
-    ]
+    assert list(df.columns) == VM_COLUMNS
     row = df.iloc[0]
     assert row["currency"] == "USD"
-    assert row["gross_exposure"] == pytest.approx(result.gross_exposure)
-    assert row["delivery_amount"] == pytest.approx(result.delivery_amount)
-    assert bool(row["requires_call"]) == result.requires_call
+    assert row["gross_exposure"] == pytest.approx(result.gross_exposure) == pytest.approx(1_000_000.0)
+    # 1,000,000 - 300,000 threshold + 100,000 IA: distinct from the gross.
+    assert row["net_exposure"] == pytest.approx(result.net_exposure) == pytest.approx(800_000.0)
+    assert row["net_exposure"] != row["gross_exposure"]
+    # 800,000 required against 250,000 posted.
+    assert row["delivery_amount"] == pytest.approx(result.delivery_amount) == pytest.approx(550_000.0)
+    assert row["return_amount"] == pytest.approx(result.return_amount) == pytest.approx(0.0)
+    assert row["net_margin"] == pytest.approx(result.net_margin) == pytest.approx(550_000.0)
+    assert bool(row["requires_call"]) == result.requires_call is True
+
+
+def test_vm_result_to_dataframe_renders_a_collateral_return() -> None:
+    """The mirror case, so ``delivery_amount`` and ``return_amount`` differ.
+
+    A single call direction leaves one of the two at zero and makes
+    ``net_margin`` equal the other, so the two legs are only distinguishable
+    across a pair of results.
+    """
+    result = VmCalculator(_threshold_csa()).calculate(1_000_000.0, 1_200_000.0, "USD", 2025, 6, 30)
+    row = result.to_dataframe().iloc[0]
+
+    assert row["gross_exposure"] == pytest.approx(1_000_000.0)
+    assert row["net_exposure"] == pytest.approx(800_000.0)
+    assert row["delivery_amount"] == pytest.approx(0.0)
+    assert row["return_amount"] == pytest.approx(400_000.0)
+    assert row["net_margin"] == pytest.approx(-400_000.0)
+    assert row["delivery_amount"] != row["return_amount"]
 
 
 # ImResult
@@ -125,24 +169,54 @@ def test_im_result_breakdown_dataframe_is_sorted_by_risk_class() -> None:
 
     assert isinstance(df, pd.DataFrame)
     assert list(df.columns) == ["risk_class", "amount", "currency"]
-    assert len(df) == len(result.breakdown_keys())
-    if len(df):
-        risk_classes = list(df["risk_class"])
-        assert risk_classes == sorted(risk_classes), "breakdown must be deterministic"
-        assert set(risk_classes) == set(result.breakdown_keys())
-        first = risk_classes[0]
-        assert df.iloc[0]["amount"] == pytest.approx(result.breakdown_amount(first))
-        assert set(df["currency"]) == {"USD"}
+    assert len(df) == len(result.breakdown_keys()) == 3
+    risk_classes = list(df["risk_class"])
+    # The frame sorts; `breakdown_keys()` does not. Pinning both is what makes
+    # the sort assertion bite — comparing the frame to its own source order
+    # would agree no matter what either side did.
+    assert result.breakdown_keys() == ["FX_Delta", "Equity_Delta", "IR_Delta"]
+    assert risk_classes == ["Equity_Delta", "FX_Delta", "IR_Delta"]
+    assert risk_classes == sorted(risk_classes), "breakdown must be deterministic"
+    assert set(risk_classes) == set(result.breakdown_keys())
+    # Every row against its own key, and the three amounts are three different
+    # numbers, so a frame that repeated one amount would fail here.
+    amounts = [result.breakdown_amount(name) for name in risk_classes]
+    assert list(df["amount"]) == pytest.approx(amounts)
+    assert len(set(amounts)) == 3
+    assert set(df["currency"]) == {"USD"}
 
 
 def test_im_result_breakdown_dataframe_keeps_schema_when_empty() -> None:
-    """A methodology with no published breakdown still yields all columns."""
+    """A result with no risk classes at all yields zero rows and every column.
+
+    This used to run on ``ScheduleImCalculator``, which always publishes
+    exactly one breakdown key — so ``len(df) == len(result.breakdown_keys())``
+    was ``1 == 1`` and the empty path was never taken. An unpopulated SIMM
+    sensitivity set is the genuinely empty case.
+    """
+    result = SimmCalculator("v2_6").calculate_from_sensitivities(SimmSensitivities("USD"), "USD", 2025, 6, 30)
+
+    assert result.breakdown_keys() == []
+    assert result.amount == pytest.approx(0.0)
+
+    df = result.to_breakdown_dataframe()
+    assert isinstance(df, pd.DataFrame)
+    assert len(df) == 0
+    assert list(df.columns) == ["risk_class", "amount", "currency"]
+
+
+def test_schedule_im_breakdown_dataframe_has_one_row_per_asset_class() -> None:
+    """The schedule methodology publishes exactly its one asset class."""
     result = ScheduleImCalculator.bcbs_standard().calculate_for_notional(
         10_000_000.0, "USD", "interest_rate", 7.0, 2025, 6, 30
     )
     df = result.to_breakdown_dataframe()
+
     assert list(df.columns) == ["risk_class", "amount", "currency"]
-    assert len(df) == len(result.breakdown_keys())
+    assert list(df["risk_class"]) == result.breakdown_keys() == ["interest_rate"]
+    assert df.iloc[0]["amount"] == pytest.approx(result.breakdown_amount("interest_rate"))
+    assert df.iloc[0]["amount"] == pytest.approx(result.amount)
+    assert df.iloc[0]["currency"] == "USD"
 
 
 # Metrics
@@ -233,7 +307,7 @@ def test_frtb_sensitivities_to_dataframe_is_long_and_sorted() -> None:
     df = sens.to_dataframe()
 
     assert isinstance(df, pd.DataFrame)
-    assert set(SENSITIVITY_COLUMNS) <= set(df.columns)
+    assert list(df.columns) == SENSITIVITY_COLUMNS
     # 2 GIRR deltas + 1 CSR + 1 equity + 1 FX + 2 curvature halves + 1 RRAO.
     assert len(df) == 8
 
@@ -260,15 +334,30 @@ def test_frtb_sensitivities_to_dataframe_is_long_and_sorted() -> None:
     assert rrao.iloc[0]["amount"] == pytest.approx(5_000_000.0)
 
 
-def test_frtb_sensitivities_to_dataframe_is_stable_across_calls() -> None:
-    sens = FrtbSensitivities("USD")
-    for tenor in ("1Y", "2Y", "5Y", "10Y", "30Y"):
-        sens.add_girr_delta(tenor, 1_000.0)
-        sens.add_equity_delta(f"NAME_{tenor}", 1, 2_000.0)
+def test_frtb_sensitivities_row_order_ignores_the_insertion_order() -> None:
+    """Two insertion orders of the same book give the identical frame.
 
-    first = sens.to_dataframe()
-    second = sens.to_dataframe()
-    pd.testing.assert_frame_equal(first, second)
+    That is what the ``(risk_class, kind, issuer, bucket, tenor)`` sort
+    guarantees. Exporting one frozen object twice — the previous assertion —
+    could only have failed on intra-process nondeterminism.
+    """
+    # Amounts key off the tenor, never the insertion index, so reversing the
+    # loop reorders the same book rather than building a different one.
+    amounts = {"1Y": 1_100.0, "2Y": 2_200.0, "5Y": 5_500.0, "10Y": 10_100.0, "30Y": 30_300.0}
+    tenors = tuple(amounts)
+
+    def build(order: tuple[str, ...]) -> FrtbSensitivities:
+        sens = FrtbSensitivities("USD")
+        for tenor in order:
+            sens.add_girr_delta(tenor, amounts[tenor])
+            sens.add_equity_delta(f"NAME_{tenor}", 1, 2.0 * amounts[tenor])
+        return sens
+
+    forward = build(tenors).to_dataframe()
+    backward = build(tuple(reversed(tenors))).to_dataframe()
+
+    assert len(forward) == 10
+    pd.testing.assert_frame_equal(forward, backward)
 
 
 # SimmSensitivities long format
@@ -295,7 +384,7 @@ def test_simm_sensitivities_to_dataframe_is_long_and_sorted() -> None:
     df = sens.to_dataframe()
 
     assert isinstance(df, pd.DataFrame)
-    assert set(SENSITIVITY_COLUMNS) <= set(df.columns)
+    assert list(df.columns) == SENSITIVITY_COLUMNS
     assert len(df) == 8
 
     keys = _sort_keys(df)
@@ -331,12 +420,25 @@ def test_simm_sensitivities_bucketed_credit_carries_sector_label() -> None:
     assert row["amount"] == pytest.approx(40_000.0)
 
 
-def test_simm_sensitivities_to_dataframe_is_stable_across_calls() -> None:
-    sens = SimmSensitivities("USD")
-    for tenor in ("1Y", "2Y", "5Y", "10Y", "30Y"):
-        sens.add_ir_delta("USD", tenor, 1_000.0)
-        sens.add_equity_delta(f"NAME_{tenor}", 2_000.0)
+def test_simm_sensitivities_row_order_ignores_the_insertion_order() -> None:
+    """Two insertion orders of the same book give the identical frame.
 
-    first = sens.to_dataframe()
-    second = sens.to_dataframe()
-    pd.testing.assert_frame_equal(first, second)
+    Same reasoning as the FRTB case: re-exporting a frozen object proves
+    nothing, whereas re-inserting in reverse is exactly what the row sort is
+    for.
+    """
+    amounts = {"1Y": 1_100.0, "2Y": 2_200.0, "5Y": 5_500.0, "10Y": 10_100.0, "30Y": 30_300.0}
+    tenors = tuple(amounts)
+
+    def build(order: tuple[str, ...]) -> SimmSensitivities:
+        sens = SimmSensitivities("USD")
+        for tenor in order:
+            sens.add_ir_delta("USD", tenor, amounts[tenor])
+            sens.add_equity_delta(f"NAME_{tenor}", 2.0 * amounts[tenor])
+        return sens
+
+    forward = build(tenors).to_dataframe()
+    backward = build(tuple(reversed(tenors))).to_dataframe()
+
+    assert len(forward) == 10
+    pd.testing.assert_frame_equal(forward, backward)

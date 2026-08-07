@@ -15,6 +15,8 @@ Examples
 
 from __future__ import annotations
 
+import datetime
+
 __all__ = [
     "cov_lite",
     "evaluate_engine",
@@ -119,7 +121,7 @@ def validate_covenant_engine(engine_json: str) -> str:
     0
     """
 
-def evaluate_engine(engine_json: str, metrics_json: str, as_of: str) -> str:
+def evaluate_engine(engine_json: str, metrics_json: str, as_of: datetime.date | str) -> str:
     """
     Evaluate a covenant engine against a JSON metric map.
 
@@ -129,8 +131,8 @@ def evaluate_engine(engine_json: str, metrics_json: str, as_of: str) -> str:
         Serialized covenant engine configuration.
     metrics_json : str
         JSON map of metric name to numeric value (e.g. leverage, DSCR, coverage).
-    as_of : str
-        Evaluation date as ISO 8601 ``YYYY-MM-DD``.
+    as_of : datetime.date | str
+        Evaluation date, either a date-like object or an ISO 8601 string.
 
     Returns
     -------

@@ -18,9 +18,9 @@ pub(crate) fn parse_iso_date_py(s: &str) -> PyResult<time::Date> {
 /// because the object they already hold is whichever one the *other* group
 /// wanted. This accepts both.
 ///
-/// String parsing is tried only after the attribute probe fails, so a
-/// `datetime.date`, `datetime.datetime` or `pandas.Timestamp` never pays for a
-/// failed parse.
+/// The string extraction is attempted first because it is a cheap type check,
+/// not a parse: a `datetime.date`, `datetime.datetime` or `pandas.Timestamp`
+/// fails it immediately and falls through to the attribute probe.
 ///
 /// # Errors
 ///

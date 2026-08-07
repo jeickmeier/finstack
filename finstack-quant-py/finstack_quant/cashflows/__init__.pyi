@@ -17,6 +17,8 @@ Examples
 
 from __future__ import annotations
 
+import datetime
+
 from finstack_quant.cashflows import accrual as accrual
 from finstack_quant.cashflows import aggregation as aggregation
 from finstack_quant.cashflows import builder as builder
@@ -173,7 +175,7 @@ def dated_flows_json(schedule_json: str) -> str:
 
     """
 
-def accrued_interest_json(schedule_json: str, as_of: str, config_json: str | None = None) -> float:
+def accrued_interest_json(schedule_json: str, as_of: datetime.date | str, config_json: str | None = None) -> float:
     """
     Compute accrued interest for a schedule as of a valuation date.
 
@@ -181,8 +183,8 @@ def accrued_interest_json(schedule_json: str, as_of: str, config_json: str | Non
     ----------
     schedule_json : str
         JSON-encoded ``CashFlowSchedule``.
-    as_of : str
-        Accrual snapshot date in ISO 8601 ``YYYY-MM-DD`` form.
+    as_of : datetime.date | str
+        Accrual snapshot date, either a date-like object or an ISO 8601 string.
     config_json : str, optional
         JSON-encoded ``AccrualConfig`` overriding default accrual conventions.
 

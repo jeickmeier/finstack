@@ -35,8 +35,9 @@ use std::collections::BTreeMap;
 /// market : MarketContext
 ///     Market context supplying the discount curve and any forward curves or
 ///     historical fixings required for cashflow projection.
-/// as_of : str
-///     Valuation date used for projection and discounting, ``YYYY-MM-DD``.
+/// as_of : datetime.date | str
+///     Valuation date used for projection and discounting, either a date-like
+///     object (``datetime.date``, ``pandas.Timestamp``) or an ISO 8601 string.
 /// target_pv : float
 ///     Target present value in the tranche's currency. Values above model PV
 ///     produce a negative result; values below model PV produce a positive
@@ -63,13 +64,13 @@ fn structured_credit_tranche_discount_margin(
     instrument_json: &Bound<'_, PyAny>,
     tranche_id: &str,
     market: &Bound<'_, PyAny>,
-    as_of: &str,
+    as_of: &Bound<'_, PyAny>,
     target_pv: f64,
 ) -> PyResult<f64> {
     let instrument_json = extract_instrument_json(instrument_json)?;
     let market = extract_market(py, market)?;
     let tranche_id = tranche_id.to_owned();
-    let as_of = as_of.to_owned();
+    let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     py.detach(move || {
         finstack_quant_valuations::pricer::structured_credit_tranche_discount_margin_json(
             &instrument_json,
@@ -93,8 +94,9 @@ fn structured_credit_tranche_discount_margin(
 ///     Identifier of the tranche.
 /// market : MarketContext
 ///     Market context supplying curves and fixings.
-/// as_of : str
-///     Valuation date, ``YYYY-MM-DD``.
+/// as_of : datetime.date | str
+///     Valuation date, either a date-like object (``datetime.date``,
+///     ``pandas.Timestamp``) or an ISO 8601 string.
 ///
 /// Returns
 /// -------
@@ -110,12 +112,12 @@ fn structured_credit_tranche_breakeven_cdr(
     instrument_json: &Bound<'_, PyAny>,
     tranche_id: &str,
     market: &Bound<'_, PyAny>,
-    as_of: &str,
+    as_of: &Bound<'_, PyAny>,
 ) -> PyResult<f64> {
     let instrument_json = extract_instrument_json(instrument_json)?;
     let market = extract_market(py, market)?;
     let tranche_id = tranche_id.to_owned();
-    let as_of = as_of.to_owned();
+    let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     py.detach(move || {
         finstack_quant_valuations::pricer::structured_credit_tranche_breakeven_cdr_json(
             &instrument_json,
@@ -140,8 +142,9 @@ fn structured_credit_tranche_breakeven_cdr(
 ///     Market price as a percentage of original balance (100.0 = par).
 /// market : MarketContext
 ///     Market context supplying curves and fixings.
-/// as_of : str
-///     Valuation date, ``YYYY-MM-DD``.
+/// as_of : datetime.date | str
+///     Valuation date, either a date-like object (``datetime.date``,
+///     ``pandas.Timestamp``) or an ISO 8601 string.
 /// config_json : str, optional
 ///     Serialized ``OasConfig``. All fields are currently required when
 ///     supplied.
@@ -162,13 +165,13 @@ fn structured_credit_tranche_oas(
     tranche_id: &str,
     market_price_pct: f64,
     market: &Bound<'_, PyAny>,
-    as_of: &str,
+    as_of: &Bound<'_, PyAny>,
     config_json: Option<&str>,
 ) -> PyResult<PyOasResult> {
     let instrument_json = extract_instrument_json(instrument_json)?;
     let market = extract_market(py, market)?;
     let tranche_id = tranche_id.to_owned();
-    let as_of = as_of.to_owned();
+    let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     let config_json = config_json.map(str::to_owned);
     let inner = py
         .detach(move || {
@@ -196,8 +199,9 @@ fn structured_credit_tranche_oas(
 ///     Identifier of the tranche.
 /// market : MarketContext
 ///     Market context supplying curves and fixings.
-/// as_of : str
-///     Valuation date, ``YYYY-MM-DD``.
+/// as_of : datetime.date | str
+///     Valuation date, either a date-like object (``datetime.date``,
+///     ``pandas.Timestamp``) or an ISO 8601 string.
 /// market_price_pct : float, optional
 ///     Market price as a percentage of original balance; when omitted the
 ///     model price is used.
@@ -217,13 +221,13 @@ fn structured_credit_tranche_metrics(
     instrument_json: &Bound<'_, PyAny>,
     tranche_id: &str,
     market: &Bound<'_, PyAny>,
-    as_of: &str,
+    as_of: &Bound<'_, PyAny>,
     market_price_pct: Option<f64>,
 ) -> PyResult<PyTrancheMetrics> {
     let instrument_json = extract_instrument_json(instrument_json)?;
     let market = extract_market(py, market)?;
     let tranche_id = tranche_id.to_owned();
-    let as_of = as_of.to_owned();
+    let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     let inner = py
         .detach(move || {
             finstack_quant_valuations::pricer::structured_credit_tranche_metrics_json(
@@ -249,8 +253,9 @@ fn structured_credit_tranche_metrics(
 ///     Identifier of the tranche.
 /// market : MarketContext
 ///     Market context supplying curves and fixings.
-/// as_of : str
-///     Valuation date, ``YYYY-MM-DD``.
+/// as_of : datetime.date | str
+///     Valuation date, either a date-like object (``datetime.date``,
+///     ``pandas.Timestamp``) or an ISO 8601 string.
 /// grid_json : str
 ///     Serialized ``ScenarioGrid``. The grid is capped at 10,000 cells because
 ///     each cell reprices the entire deal.
@@ -269,13 +274,13 @@ fn structured_credit_tranche_scenario_table(
     instrument_json: &Bound<'_, PyAny>,
     tranche_id: &str,
     market: &Bound<'_, PyAny>,
-    as_of: &str,
+    as_of: &Bound<'_, PyAny>,
     grid_json: &str,
 ) -> PyResult<PyScenarioTable> {
     let instrument_json = extract_instrument_json(instrument_json)?;
     let market = extract_market(py, market)?;
     let tranche_id = tranche_id.to_owned();
-    let as_of = as_of.to_owned();
+    let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     let grid_json = grid_json.to_owned();
     let inner = py
         .detach(move || {
@@ -315,7 +320,7 @@ impl PyOasResult {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Deserialize from the JSON produced by ``to_json``.
@@ -428,7 +433,7 @@ impl PyTrancheMetrics {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Deserialize from the JSON produced by ``to_json``.
@@ -580,7 +585,7 @@ impl PyScenarioTable {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Deserialize from the JSON produced by ``to_json``.

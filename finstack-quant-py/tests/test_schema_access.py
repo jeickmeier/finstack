@@ -27,6 +27,8 @@ from finstack_quant.valuations import schema as valuations_schema
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CASHFLOW_SCHEMA_BASE = "https://finstack_quant.dev/schemas/cashflow/1/"
+INSTRUMENT_SCHEMA_BASE = "https://finstack_quant.dev/schemas/instrument/1/"
+INSTRUMENT_SCHEMA_DIR = REPO_ROOT / "finstack-quant" / "valuations" / "schemas" / "instruments" / "1"
 
 SCHEMA_MODULES: dict[str, ModuleType] = {
     "finstack_quant.cashflows.schema": cashflows_schema,
@@ -281,18 +283,86 @@ def test_compiled_cashflow_resources_match_checked_in_artifacts() -> None:
     )
 
 
-def test_compiled_instrument_type_schema_matches_checked_in_artifact() -> None:
-    """A per-type instrument schema matches its checked-in artifact."""
-    artifact = (
-        REPO_ROOT
-        / "finstack-quant"
-        / "valuations"
-        / "schemas"
-        / "instruments"
-        / "1"
-        / "fixed_income"
-        / "bond.schema.json"
-    )
+@pytest.mark.parametrize("instrument_type", sorted(valuations_schema.instrument_types()))
+def test_compiled_instrument_type_schema_matches_checked_in_artifact(instrument_type: str) -> None:
+    """Every per-type instrument schema matches its checked-in artifact.
+
+    Checking only ``bond`` left the other sixty-nine unguarded: a schema
+    regenerated on disk without rebuilding the extension would have gone
+    unnoticed for every type but one. The artifact path is derived from the
+    schema's own ``$id`` rather than hard-coded, so adding an instrument needs
+    no change here.
+    """
+    compiled = _parse_schema_document(valuations_schema.instrument_schema(instrument_type))
+
+    schema_id = compiled.get("$id")
+    assert isinstance(schema_id, str), f"{instrument_type} carries no string $id: {schema_id!r}"
+    assert schema_id.startswith(INSTRUMENT_SCHEMA_BASE), f"{instrument_type} carries an off-base $id: {schema_id!r}"
+    artifact = INSTRUMENT_SCHEMA_DIR / schema_id.removeprefix(INSTRUMENT_SCHEMA_BASE)
     assert artifact.is_file(), f"missing generated schema artifact: {artifact}"
-    compiled = json.loads(valuations_schema.instrument_schema("bond"))
     assert compiled == json.loads(artifact.read_text(encoding="utf-8"))
+
+
+def test_compiled_instrument_types_cover_the_whole_schema_directory() -> None:
+    """The registry and the checked-in schema tree are a bijection.
+
+    This is what stops the parametrized sweep above from silently shrinking: a
+    per-type schema that exists on disk but is no longer reachable through
+    ``instrument_types()`` (or the reverse) fails here. ``instrument.schema.json``
+    is the envelope, served by ``instrument_envelope_schema`` instead.
+    """
+    ids = {
+        instrument_type: json.loads(valuations_schema.instrument_schema(instrument_type))["$id"]
+        for instrument_type in valuations_schema.instrument_types()
+    }
+    assert len(set(ids.values())) == len(ids), "two instrument types share one schema $id"
+
+    compiled_in = {schema_id.removeprefix(INSTRUMENT_SCHEMA_BASE) for schema_id in ids.values()}
+    on_disk = {
+        str(path.relative_to(INSTRUMENT_SCHEMA_DIR)) for path in INSTRUMENT_SCHEMA_DIR.rglob("*.schema.json")
+    } - {"instrument.schema.json"}
+    assert compiled_in == on_disk, (
+        "instrument registry diverged from the checked-in schema directory.\n"
+        f"  not compiled in: {sorted(on_disk - compiled_in)}\n"
+        f"  not on disk: {sorted(compiled_in - on_disk)}"
+    )
+
+
+# Validator discrimination: payloads that must be REJECTED
+
+
+def test_validate_instrument_type_json_rejects_another_types_payload() -> None:
+    """A valid bond envelope must not validate against a different type's schema.
+
+    Without this, ``validate_instrument_type_json`` could ignore the
+    discriminator entirely and every "accepts a good payload" test above would
+    still pass.
+    """
+    payload = _bond_example_payload()
+    assert valuations_schema.validate_instrument_type_json("bond", payload) is True
+    with pytest.raises(ValueError, match="validation failed"):
+        valuations_schema.validate_instrument_type_json("interest_rate_swap", payload)
+
+
+def test_validators_reject_an_unknown_field() -> None:
+    """Instrument specs deny unknown fields, so a typo cannot be silently dropped."""
+    payload = json.loads(_bond_example_payload())
+    payload["instrument"]["spec"]["not_a_real_field"] = 1
+    text = json.dumps(payload)
+
+    with pytest.raises(ValueError, match="validation failed"):
+        valuations_schema.validate_instrument_envelope_json(text)
+    with pytest.raises(ValueError, match="validation failed"):
+        valuations_schema.validate_instrument_type_json("bond", text)
+
+
+def test_validators_reject_a_bad_scalar() -> None:
+    """A wrongly typed field is rejected even though the envelope shape is fine."""
+    payload = json.loads(_bond_example_payload())
+    payload["instrument"]["spec"]["notional"] = "not-money"
+    text = json.dumps(payload)
+
+    with pytest.raises(ValueError, match="validation failed"):
+        valuations_schema.validate_instrument_envelope_json(text)
+    with pytest.raises(ValueError, match="validation failed"):
+        valuations_schema.validate_instrument_type_json("bond", text)

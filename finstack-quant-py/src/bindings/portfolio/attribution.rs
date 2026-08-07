@@ -3,7 +3,7 @@
 use crate::bindings::core::money::PyMoney;
 use crate::bindings::extract::{extract_market_ref, extract_portfolio_ref};
 use crate::bindings::module_utils::py_to_json_string;
-use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe;
+use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe_with_schema;
 use crate::errors::{display_to_py, portfolio_to_py, serde_json_to_py};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -95,7 +95,27 @@ impl PyPortfolioAttribution {
             // Rust flagged invalid (non-finite sensitivities, residual failures).
             "result_invalid": self.inner.result_invalid,
         });
-        serde_object_to_single_row_dataframe(py, &row)
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "currency",
+                "total_pnl",
+                "carry",
+                "rates_curves_pnl",
+                "credit_curves_pnl",
+                "inflation_curves_pnl",
+                "correlations_pnl",
+                "fx_pnl",
+                "fx_translation_pnl",
+                "cross_factor_pnl",
+                "vol_pnl",
+                "model_params_pnl",
+                "market_scalars_pnl",
+                "residual",
+                "result_invalid",
+            ],
+        )
     }
 
     /// Total portfolio P&L between the two market snapshots.
@@ -218,6 +238,23 @@ impl PyPortfolioAttribution {
         let frame = self.to_dataframe(py).ok()?;
         frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
+
+    /// Deserialize from JSON produced by `to_json`.
+    ///
+    /// Completes the wire round-trip, which is also what makes this type
+    /// picklable (see `__reduce__`).
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: finstack_quant_portfolio::attribution::PortfolioAttribution =
+            serde_json::from_str(json).map_err(crate::errors::display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json(py)?)
+    }
 }
 
 /// Attribute portfolio P&L between two market snapshots.
@@ -226,7 +263,9 @@ impl PyPortfolioAttribution {
 /// canonical JSON representations. ``method`` uses the same serde shape as
 /// instrument attribution (for example ``"parallel"`` or
 /// ``{"waterfall": ["carry", "rates_curves"]}``). ``config`` is an optional
-/// canonical ``FinstackConfig`` dictionary or JSON string.
+/// canonical ``FinstackConfig`` dictionary or JSON string. ``as_of_t0`` and
+/// ``as_of_t1`` are the two snapshot dates, each either a date-like object
+/// (``datetime.date``, ``pandas.Timestamp``) or an ISO 8601 string.
 #[pyfunction]
 #[pyo3(signature = (portfolio, market_t0, market_t1, as_of_t0, as_of_t1, method, config=None))]
 #[allow(clippy::too_many_arguments)]
@@ -235,16 +274,16 @@ fn attribute_portfolio_pnl(
     portfolio: &Bound<'_, PyAny>,
     market_t0: &Bound<'_, PyAny>,
     market_t1: &Bound<'_, PyAny>,
-    as_of_t0: &str,
-    as_of_t1: &str,
+    as_of_t0: &Bound<'_, PyAny>,
+    as_of_t1: &Bound<'_, PyAny>,
     method: &Bound<'_, PyAny>,
     config: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PyPortfolioAttribution> {
     let portfolio = extract_portfolio_ref(py, portfolio)?;
     let market_t0 = extract_market_ref(py, market_t0)?;
     let market_t1 = extract_market_ref(py, market_t1)?;
-    let as_of_t0 = super::parse_date(as_of_t0)?;
-    let as_of_t1 = super::parse_date(as_of_t1)?;
+    let as_of_t0 = crate::bindings::date_utils::extract_date(as_of_t0)?;
+    let as_of_t1 = crate::bindings::date_utils::extract_date(as_of_t1)?;
 
     let method_json = py_to_json_string(py, method, "method")?;
     let config_json = config

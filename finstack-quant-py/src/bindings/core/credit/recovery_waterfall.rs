@@ -1,6 +1,7 @@
 //! Python bindings for `finstack_quant_core::credit::recovery_waterfall`.
 
 use crate::bindings::pandas_utils::serde_rows_to_dataframe_with_schema;
+use crate::bindings::pandas_utils::ColumnSchema;
 use crate::errors::core_to_py;
 use finstack_quant_core::credit::recovery_waterfall::{
     self as waterfall, RecoveryAllocation, RecoveryClaim, RecoveryWaterfallResult,
@@ -10,16 +11,16 @@ use pyo3::types::{PyList, PyModule};
 
 /// Column schema of `PyRecoveryWaterfallResult::to_dataframe`, kept so a
 /// claim-free waterfall still exports a frame with the documented columns.
-const ALLOCATION_COLUMNS: &[&str] = &[
-    "id",
-    "seniority",
-    "priority",
-    "total_claim",
-    "collateral_recovery",
-    "general_recovery",
-    "total_recovery",
-    "recovery_rate",
-    "deficiency",
+const ALLOCATION_COLUMNS: &[ColumnSchema<'static>] = &[
+    ("id", "str"),
+    ("seniority", "str"),
+    ("priority", "int64"),
+    ("total_claim", "float64"),
+    ("collateral_recovery", "float64"),
+    ("general_recovery", "float64"),
+    ("total_recovery", "float64"),
+    ("recovery_rate", "float64"),
+    ("deficiency", "float64"),
 ];
 
 /// A claim participating in an absolute-priority recovery waterfall.

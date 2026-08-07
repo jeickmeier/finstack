@@ -11,6 +11,7 @@ Examples
 
 from __future__ import annotations
 
+import datetime
 from typing import Any
 
 import pandas as pd
@@ -1478,7 +1479,7 @@ def run_corporate_analysis(
     net_debt_override: float | None = None,
     coverage_node: str = "ebitda",
     market: MarketContext | str | None = None,
-    as_of: str | None = None,
+    as_of: datetime.date | str | None = None,
 ) -> dict[str, Any]:
     """
     Run statements plus optional DCF equity and credit context.
@@ -1497,8 +1498,8 @@ def run_corporate_analysis(
         Node for DSCR / interest coverage (default ``ebitda``).
     market : MarketContext or str or None
         Optional ``MarketContext`` object or JSON string.
-    as_of : str or None
-        Optional ISO 8601 valuation date string.
+    as_of : datetime.date | str | None
+        Optional valuation date, either a date-like object or an ISO 8601 string.
 
     Returns
     -------
@@ -1577,7 +1578,9 @@ def credit_assessment_report(results: StatementResult | str, as_of: str) -> str:
     results : StatementResult or str
         ``StatementResult`` object or JSON string.
     as_of : str
-        Period string for the as-of date (e.g. ``"2025Q1"``).
+        Period identifier (e.g. ``"2025Q1"``, ``"2025M03"``, ``"FY2025"``).
+        Unlike the ``as_of`` valuation dates elsewhere in the bindings this is a
+        period, not a date: ``datetime.date`` and ISO 8601 strings are rejected.
 
     Returns
     -------
@@ -1615,7 +1618,9 @@ def credit_assessment(results: StatementResult | str, as_of: str) -> dict[str, A
     results : StatementResult or str
         ``StatementResult`` object or JSON string.
     as_of : str
-        Period string for the as-of date (e.g. ``"2025Q4"``).
+        Period identifier (e.g. ``"2025Q4"``, ``"2025M03"``, ``"FY2025"``).
+        Unlike the ``as_of`` valuation dates elsewhere in the bindings this is a
+        period, not a date: ``datetime.date`` and ISO 8601 strings are rejected.
 
     Returns
     -------

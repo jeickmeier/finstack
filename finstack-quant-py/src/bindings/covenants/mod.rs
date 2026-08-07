@@ -51,7 +51,8 @@ fn validate_covenant_engine(py: Python<'_>, engine_json: &str) -> PyResult<Strin
 ///
 /// * `engine_json` - Serialized covenant engine configuration
 /// * `metrics_json` - JSON map of metric name to numeric value
-/// * `as_of` - Evaluation date as ISO 8601 `YYYY-MM-DD`
+/// * `as_of` - Evaluation date, either a date-like object (`datetime.date`,
+///   `pandas.Timestamp`) or an ISO 8601 string
 ///
 /// # Returns
 ///
@@ -66,10 +67,11 @@ fn evaluate_engine(
     py: Python<'_>,
     engine_json: &str,
     metrics_json: &str,
-    as_of: &str,
+    as_of: &Bound<'_, PyAny>,
 ) -> PyResult<String> {
+    let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     py.detach(|| {
-        finstack_quant_covenants::evaluate_engine_json(engine_json, metrics_json, as_of)
+        finstack_quant_covenants::evaluate_engine_json(engine_json, metrics_json, &as_of)
             .map_err(crate::errors::core_to_py)
     })
 }

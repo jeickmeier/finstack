@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import json
 import math
 
@@ -322,8 +323,17 @@ def test_cashflows_reject_malformed_json_and_invalid_dates() -> None:
             })
         )
 
-    with pytest.raises(ValueError, match="invalid ISO date"):
+    # `as_of` now accepts `datetime.date | str`, so a malformed string is
+    # rejected by the shared date extractor before it reaches the cashflow
+    # crate. Same `ValueError`, but the message names the offending value and
+    # the reason, and is identical across every date-taking entry point.
+    with pytest.raises(ValueError, match=r"Invalid date '2025-02-30'"):
         accrued_interest_json(schedule_json, "2025-02-30")
+
+    # The date-object spelling must reach the same computation as the string.
+    assert accrued_interest_json(schedule_json, datetime.date(2025, 6, 30)) == (
+        accrued_interest_json(schedule_json, "2025-06-30")
+    )
 
 
 def test_cashflows_reject_malformed_market_json() -> None:

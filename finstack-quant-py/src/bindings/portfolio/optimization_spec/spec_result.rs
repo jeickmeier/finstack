@@ -10,7 +10,9 @@ use finstack_quant_portfolio::optimization::{
 };
 use finstack_quant_portfolio::types::PositionId;
 
-use crate::bindings::pandas_utils::{dict_to_dataframe, serde_rows_to_dataframe_with_schema};
+use crate::bindings::pandas_utils::{
+    dict_to_dataframe, serde_rows_to_dataframe_with_schema, ColumnSchema,
+};
 
 use super::super::json_bridge::{deserialize_json, serialize_json};
 use super::enums::{PyMissingMetricPolicy, PyWeightingScheme};
@@ -234,7 +236,7 @@ impl PyPortfolioOptimizationSpec {
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
-        Ok((from_json, (self.to_json()?,)))
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Parse from a JSON string.
@@ -304,16 +306,16 @@ impl PyPortfolioOptimizationSpec {
 ///
 /// Pinned so a solution with no trades still yields a frame carrying every
 /// documented column instead of a schema-less empty frame.
-const TRADE_COLUMNS: [&str; 9] = [
-    "position_id",
-    "instrument_id",
-    "trade_type",
-    "current_quantity",
-    "target_quantity",
-    "delta_quantity",
-    "direction",
-    "current_weight",
-    "target_weight",
+const TRADE_COLUMNS: [ColumnSchema<'static>; 9] = [
+    ("position_id", "str"),
+    ("instrument_id", "str"),
+    ("trade_type", "str"),
+    ("current_quantity", "float64"),
+    ("target_quantity", "float64"),
+    ("delta_quantity", "float64"),
+    ("direction", "str"),
+    ("current_weight", "float64"),
+    ("target_weight", "float64"),
 ];
 
 /// Result of an optimization run.

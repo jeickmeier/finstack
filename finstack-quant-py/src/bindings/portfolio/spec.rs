@@ -75,21 +75,22 @@ pub fn portfolio_result_get_metric(
 ///     Base currency code.
 /// market : MarketContext | str
 ///     A ``MarketContext`` object or a JSON string.
-/// as_of : str
-///     Valuation date in ISO 8601 format.
+/// as_of : datetime.date | str
+///     Valuation date, either a date-like object (``datetime.date``,
+///     ``pandas.Timestamp``) or an ISO 8601 string.
 #[pyfunction]
 pub fn aggregate_metrics(
     py: Python<'_>,
     valuation: &Bound<'_, PyAny>,
     base_currency: &str,
     market: &Bound<'_, PyAny>,
-    as_of: &str,
+    as_of: &Bound<'_, PyAny>,
 ) -> PyResult<String> {
     let valuation = extract_valuation_ref(py, valuation)?;
     let ccy: finstack_quant_core::currency::Currency =
         base_currency.parse().map_err(display_to_py)?;
     let market = extract_market_ref(py, market)?;
-    let date = super::parse_date(as_of)?;
+    let date = crate::bindings::date_utils::extract_date(as_of)?;
     let valuation_ref: &finstack_quant_portfolio::valuation::PortfolioValuation = &valuation;
     let market_ref: &finstack_quant_core::market_data::context::MarketContext = &market;
     let metrics = py

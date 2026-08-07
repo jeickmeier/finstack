@@ -4,7 +4,9 @@
 //! probability utilities to Python under `finstack_quant.valuations.correlation`,
 //! mirroring the Rust module [`finstack_quant_valuations::correlation`].
 
-use crate::bindings::pandas_utils::{dict_to_dataframe, serde_object_to_single_row_dataframe};
+use crate::bindings::pandas_utils::{
+    dict_to_dataframe, serde_object_to_single_row_dataframe_with_schema,
+};
 use crate::errors::{core_to_py, display_to_py, value_error};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyModule, PyType};
@@ -884,6 +886,23 @@ impl PyCreditExposure {
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(|error| value_error(error.to_string()))
     }
+
+    /// Deserialize from JSON produced by `to_json`.
+    ///
+    /// Completes the wire round-trip, which is also what makes this type
+    /// picklable (see `__reduce__`).
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: finstack_quant_valuations::correlation::CreditExposure =
+            serde_json::from_str(json).map_err(crate::errors::display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
 }
 
 /// Settings for deterministic portfolio credit-loss simulation.
@@ -938,6 +957,23 @@ impl PyPortfolioLossConfig {
 
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(|error| value_error(error.to_string()))
+    }
+
+    /// Deserialize from JSON produced by `to_json`.
+    ///
+    /// Completes the wire round-trip, which is also what makes this type
+    /// picklable (see `__reduce__`).
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: finstack_quant_valuations::correlation::PortfolioLossConfig =
+            serde_json::from_str(json).map_err(crate::errors::display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 }
 
@@ -1022,6 +1058,9 @@ impl PyPortfolioLossResult {
 
     /// Export the aggregate loss statistics as a single-row pandas ``DataFrame``.
     ///
+    /// ``var`` must be read as ``df["var"]``: attribute access resolves to
+    /// ``DataFrame.var`` (the variance method), not the column.
+    ///
     /// Columns: ``expected_loss``, ``var``, ``expected_shortfall``,
     /// ``confidence``, ``num_paths``.
     ///
@@ -1039,11 +1078,38 @@ impl PyPortfolioLossResult {
             "confidence": self.inner.confidence,
             "num_paths": self.inner.losses.len(),
         });
-        serde_object_to_single_row_dataframe(py, &row)
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "expected_loss",
+                "var",
+                "expected_shortfall",
+                "confidence",
+                "num_paths",
+            ],
+        )
     }
 
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(|error| value_error(error.to_string()))
+    }
+
+    /// Deserialize from JSON produced by `to_json`.
+    ///
+    /// Completes the wire round-trip, which is also what makes this type
+    /// picklable (see `__reduce__`).
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: finstack_quant_valuations::correlation::PortfolioLossResult =
+            serde_json::from_str(json).map_err(crate::errors::display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 }
 
@@ -1152,7 +1218,23 @@ impl PyTrancheLossStatistics {
             "prob_attachment_breached": self.inner.prob_attachment_breached,
             "prob_full_writedown": self.inner.prob_full_writedown,
         });
-        serde_object_to_single_row_dataframe(py, &row)
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "attachment",
+                "detachment",
+                "tranche_notional",
+                "expected_loss_fraction",
+                "expected_loss_amount",
+                "var_fraction",
+                "var_amount",
+                "expected_shortfall_fraction",
+                "expected_shortfall_amount",
+                "prob_attachment_breached",
+                "prob_full_writedown",
+            ],
+        )
     }
 
     fn to_json(&self) -> PyResult<String> {
@@ -1168,6 +1250,23 @@ impl PyTrancheLossStatistics {
     fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
         let frame = self.to_dataframe(py).ok()?;
         frame.call_method0("_repr_html_").ok()?.extract().ok()
+    }
+
+    /// Deserialize from JSON produced by `to_json`.
+    ///
+    /// Completes the wire round-trip, which is also what makes this type
+    /// picklable (see `__reduce__`).
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: finstack_quant_valuations::correlation::TrancheLossStatistics =
+            serde_json::from_str(json).map_err(crate::errors::display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 }
 
