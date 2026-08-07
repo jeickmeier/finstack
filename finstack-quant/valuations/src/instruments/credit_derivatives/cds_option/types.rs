@@ -70,12 +70,19 @@ pub enum ProtectionStartConvention {
     Forward,
 }
 
-/// Credit option instrument (option on CDS spread)
+/// Credit option instrument (option on CDS spread or clean index price)
 ///
-/// Currently the public pricing surface supports only European, cash-settled
-/// CDS options. Other exercise and settlement styles are rejected at pricing
-/// time so deserialized instruments cannot silently fall through to the
-/// Black-on-spreads engine.
+/// The public pricing surface supports European options with cash or
+/// physical settlement. Before expiry, cash- and physical-settled options
+/// carry the same cash-equivalent model NPV and route through the same
+/// quadrature; the clean payoff excludes accrued because the same underlying
+/// accrued appears on both sides before exercise and cancels. A physical
+/// exercise cashflow at settlement is dirty (includes accrued at exercise
+/// settlement), and this pricer does not create or deliver a live underlying
+/// CDS position — valuation at or after a physical exercise boundary fails
+/// explicitly. Non-European exercise is rejected at pricing time so
+/// deserialized instruments cannot silently fall through to an unsupported
+/// engine.
 #[derive(
     PartialEq,
     Debug,
@@ -244,13 +251,10 @@ impl CDSOption {
             )));
         }
 
-        if self.settlement != SettlementType::Cash {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "CDS options currently support only cash settlement; got {:?}",
-                self.settlement
-            )));
-        }
-
+        // Cash and physical settlement carry the same pre-expiry
+        // cash-equivalent model value; both route through the same
+        // quadrature. Post-expiry physical exercise lifecycle is rejected in
+        // the pricer's valuation-date guard.
         Ok(())
     }
 

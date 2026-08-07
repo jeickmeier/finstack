@@ -199,14 +199,31 @@ fn test_american_exercise_is_rejected_at_pricing_time() {
 }
 
 #[test]
-fn test_physical_settlement_is_rejected_at_pricing_time() {
+fn test_physical_settlement_prices_as_cash_equivalent_before_expiry() {
+    let as_of = date!(2025 - 01 - 01);
+    let market = standard_market(as_of);
+    let cash = CDSOptionBuilder::new().build(as_of);
+    let mut physical = cash.clone();
+    physical.settlement = SettlementType::Physical;
+
+    // Pre-expiry, cash- and physical-settled European options have the same
+    // cash-equivalent model NPV under the current assumptions.
+    let cash_npv = cash.value(&market, as_of).expect("cash npv");
+    let physical_npv = physical.value(&market, as_of).expect("physical npv");
+    assert_eq!(cash_npv.amount(), physical_npv.amount());
+}
+
+#[test]
+fn test_physical_settlement_is_rejected_at_exercise_boundary() {
     let as_of = date!(2025 - 01 - 01);
     let market = standard_market(as_of);
     let mut option = CDSOptionBuilder::new().build(as_of);
     option.settlement = SettlementType::Physical;
 
+    // At (or after) expiry the physical exercise lifecycle boundary is
+    // reached; delivery is not modelled, so valuation must fail closed.
     let err = option
-        .value(&market, as_of)
-        .expect_err("Physical CDS option settlement should be rejected");
+        .value(&market, option.expiry)
+        .expect_err("physical valuation at expiry must be rejected");
     assert!(matches!(err, finstack_quant_core::Error::Validation(_)));
 }

@@ -38,13 +38,8 @@ pub(crate) fn gamma(
     if t <= 0.0 {
         return Ok(0.0);
     }
-    let strike = option.strike.native_surface_coordinate()?;
-    let sigma = crate::instruments::common_impl::vol_resolution::resolve_sigma_at(
-        &option.instrument_pricing_overrides.market_quotes,
-        curves,
-        option.vol_surface_id.as_str(),
-        t,
-        strike,
+    let sigma = crate::instruments::credit_derivatives::cds_option::pricer::resolve_sigma(
+        option, curves, as_of,
     )?;
     let cds = synthetic_underlying_cds(option, as_of)?;
     let disc = curves.get_discount(&option.discount_curve_id)?;
