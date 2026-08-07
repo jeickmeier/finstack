@@ -120,6 +120,17 @@ risk calculation with a standard reference.
   conventions. Use for hazard-rate, survival-probability, and CDS-style
   accrual/settlement references.
 
+<a id="sp-cds-indices-primer"></a>
+
+### S&P CDS Indices Primer
+
+- S&P Dow Jones Indices. *CDS Indices Primer*.
+  <https://www.spglobal.com/spdji/en/landing/topic/credit-default-swap-cds-indices/>
+  Clean-price strike quotation for CDX HY index options and the published
+  factor/loss default-adjusted strike example (`107.0 -> 107.9874` with
+  `f0 = 1.00`, `f = 0.99`, one 1%-weight default at 9.25% recovery), used as
+  an independent unit fixture for the price-strike payoff algebra.
+
 <a id="altman-1968"></a>
 
 ### Altman 1968

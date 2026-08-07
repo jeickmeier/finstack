@@ -39,7 +39,8 @@ use rust_decimal::Decimal;
 
 /// Typed CDS-option strike: forward-spread or clean-price convention.
 ///
-/// See the [module documentation](self) for units and wire format.
+/// Wire format: externally tagged JSON — `{"spread": "0.0325"}` or
+/// `{"clean_price_pct": "107.0"}` — with no bare-decimal fallback.
 ///
 /// # Examples
 ///

@@ -1,5 +1,6 @@
-//! `CDSOption` instrument: European option to enter a forward CDS at a fixed
-//! strike spread.
+//! `CDSOption` instrument: European option to enter a forward CDS at a
+//! typed strike — a forward spread, or a clean index price (CDX HY
+//! convention).
 //!
 //! Pricing is performed by the Bloomberg CDSO numerical-quadrature model
 //! ([`super::pricer`] / [`super::bloomberg_quadrature`]) per *Pricing Credit
@@ -10,18 +11,23 @@
 //!
 //! # Validation
 //!
-//! `CDSOption::try_new` validates all inputs at construction time:
-//! - Strike spread must be positive
+//! `CDSOption::new` validates all inputs at construction time:
+//! - Spread strikes must be positive and within the distressed-credit bound;
+//!   clean-price strikes must be positive percentage points (values above
+//!   100 are valid)
+//! - Clean-price strikes require an index underlying, no-knockout terms, an
+//!   explicit positive coupon, both index factors in (0, 1] with
+//!   `f <= f0`, and realized loss bounded by the removed original notional
 //! - Option expiry must precede underlying CDS maturity
 //! - Recovery rate must be in (0, 1)
-//! - Index factor must be in (0, 1] when specified
 //! - Implied volatility override must be in (0, 5] when specified
-//! - Only European, cash-settled CDS options are supported
+//! - Only European exercise is supported; settlement may be cash or physical
 //!
 //! # Volatility convention
 //!
-//! Volatilities are lognormal (Black) volatilities in decimal form (e.g. 0.30
-//! for 30%). The Bloomberg CDSO terminal expects the same.
+//! Volatilities are lognormal (Black) forward-spread model volatilities in
+//! decimal form (e.g. 0.30 for 30%) for both strike conventions. The
+//! Bloomberg CDSO terminal expects the same.
 
 use crate::instruments::common_impl::parameters::CreditParams;
 use crate::instruments::common_impl::traits::Attributes;
