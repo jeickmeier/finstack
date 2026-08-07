@@ -12,7 +12,7 @@ import type { ResidualWeightingScheme } from "./ResidualWeightingScheme";
  * - `hazard_hard_max` > `hazard_hard_min`
  *
  * # Examples
- * ```ignore
+ * ```
  * use finstack_quant_valuations::calibration::HazardCurveSolveConfig;
  *
  * // For distressed debt scenarios, increase the max hazard rate

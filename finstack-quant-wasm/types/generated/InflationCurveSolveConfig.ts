@@ -8,7 +8,7 @@ import type { ResidualWeightingScheme } from "./ResidualWeightingScheme";
  * bootstrapping or global solve for CPI curve calibration.
  *
  * # Examples
- * ```ignore
+ * ```
  * use finstack_quant_valuations::calibration::InflationCurveSolveConfig;
  *
  * let config = InflationCurveSolveConfig {

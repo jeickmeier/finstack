@@ -12,7 +12,7 @@ import type { ResidualWeightingScheme } from "./ResidualWeightingScheme";
  * - `scan_grid_points` > 0
  *
  * # Examples
- * ```ignore
+ * ```
  * use finstack_quant_valuations::calibration::DiscountCurveSolveConfig;
  *
  * let config = DiscountCurveSolveConfig {
