@@ -138,6 +138,38 @@ pub fn forward_par_at_expiry_bp(
 
 // Pre-computed deterministic inputs
 
+/// Typed, precomputed strike data for the deterministic exercise term.
+///
+/// The two variants carry exactly the inputs their payoff branch needs:
+///
+/// - `Spread`: the strike spread `K` for the annuity-based adjustment
+///   `H_spread = ξ (c − K) A(K)` (DOCS 2055833 Eq. 2.4).
+/// - `CleanPrice`: the strike clean-price **fraction** `K` (`107.0` wire
+///   points become `1.07` exactly once, upstream in
+///   [`CDSOptionStrike::clean_price_fraction`]) and the original index
+///   factor `f0`, for the direct price term
+///   `H_price = ξ (K − 1) · f0 / f` evaluated inside the outer
+///   current-factor scale `f`.
+///
+/// [`CDSOptionStrike::clean_price_fraction`]:
+///     super::strike::CDSOptionStrike::clean_price_fraction
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum QuadratureStrike {
+    /// Forward-spread strike `K` (decimal rate).
+    Spread {
+        /// Strike spread as a decimal rate.
+        strike: f64,
+    },
+    /// Clean-price strike expressed as a fraction (`1.07`), with the
+    /// original index factor `f0` attached to the strike.
+    CleanPrice {
+        /// Strike clean price as a fraction of par (`107.0%` → `1.07`).
+        strike_fraction: f64,
+        /// Original index factor `f0` attached to the strike.
+        strike_index_factor: f64,
+    },
+}
+
 /// All deterministic quantities the quadrature integrand and the
 /// calibration target need. Built once at the top of `npv()` from the
 /// instrument + curves; the calibration loop and the payoff loop both
@@ -186,8 +218,8 @@ pub struct ForwardCdsContext {
     pub accrual_pcd_to_expiry: f64,
     /// Index contractual coupon `c` (decimal).
     pub coupon: f64,
-    /// Option strike `K` (decimal).
-    pub strike: f64,
+    /// Typed, precomputed strike data for the deterministic strike term.
+    pub strike: QuadratureStrike,
     /// `ξ = +1` for payer (Call), `−1` for receiver (Put).
     pub option_type: OptionType,
     /// Index-factor scale (1.0 for non-index or original-version index
@@ -442,8 +474,26 @@ impl ForwardCdsContext {
         }
         let display_forward_par_spread = spot_protection_pv / display_denom_par_raw;
 
-        let coupon = decimal_to_f64(option.effective_underlying_cds_coupon())?;
-        let strike = decimal_to_f64(option.strike)?;
+        let coupon = decimal_to_f64(option.effective_underlying_cds_coupon()?)?;
+        let strike = match &option.strike {
+            super::strike::CDSOptionStrike::Spread(spread) => QuadratureStrike::Spread {
+                strike: decimal_to_f64(*spread)?,
+            },
+            price @ super::strike::CDSOptionStrike::CleanPricePct(_) => {
+                let strike_index_factor = option.strike_index_factor.ok_or_else(|| {
+                    finstack_quant_core::Error::Validation(format!(
+                        "CDS option '{}' has a clean-price strike but no \
+                         strike_index_factor; construction-time validation \
+                         should have rejected this instrument",
+                        option.id
+                    ))
+                })?;
+                QuadratureStrike::CleanPrice {
+                    strike_fraction: price.clean_price_fraction()?,
+                    strike_index_factor,
+                }
+            }
+        };
         let scale = if option.underlying_is_index {
             option.index_factor.unwrap_or(1.0)
         } else {
@@ -540,9 +590,49 @@ impl ForwardCdsContext {
         (s - self.coupon) * self.flat_annuity(s)
     }
 
-    /// Eq. 2.4 deterministic strike adjustment, per unit notional.
+    /// Deterministic strike adjustment, per unit **current** notional
+    /// (the outer index-factor scale `f` is applied by
+    /// [`quadrature_payoff`]).
+    ///
+    /// - Spread strike (DOCS 2055833 Eq. 2.4):
+    ///   `H_spread = ξ (c − K) · A(K)`.
+    /// - Clean-price strike: `H_price = ξ (K − 1) · f0 / f`, the direct
+    ///   deterministic price term. The strike price is quoted on the
+    ///   original factor `f0` notional while the payoff is scaled by the
+    ///   current factor `f`, hence the `f0 / f` ratio inside the scale.
+    ///   Realized index losses stay exclusively in
+    ///   [`Self::signed_loss_settlement_per_n`]; folding them into an
+    ///   adjusted strike here as well would double-count them.
     pub fn signed_strike_adjustment_per_n(&self) -> f64 {
-        self.sign() * (self.coupon - self.strike) * self.flat_annuity(self.strike)
+        match self.strike {
+            QuadratureStrike::Spread { strike } => {
+                self.sign() * (self.coupon - strike) * self.flat_annuity(strike)
+            }
+            QuadratureStrike::CleanPrice {
+                strike_fraction,
+                strike_index_factor,
+            } => {
+                let scale = self.scale.max(numerical::ZERO_TOLERANCE);
+                self.sign() * (strike_fraction - 1.0) * strike_index_factor / scale
+            }
+        }
+    }
+
+    /// The strike spread for Black-formula screen metrics, failing for
+    /// clean-price strikes (whose delta/gamma use curve-reprice hedge
+    /// semantics instead of the spread `d₁`).
+    pub fn spread_strike(&self) -> Result<f64> {
+        match self.strike {
+            QuadratureStrike::Spread { strike } => Ok(strike),
+            QuadratureStrike::CleanPrice {
+                strike_fraction, ..
+            } => Err(finstack_quant_core::Error::Validation(format!(
+                "Black spread d1 metrics are not defined for a clean-price \
+                     strike (K = {:.6} fraction); use the curve-reprice \
+                     price-strike metrics",
+                strike_fraction
+            ))),
+        }
     }
 
     /// Eq. 2.5 deterministic loss settlement, per unit current notional
@@ -849,7 +939,7 @@ mod tests {
         vol: f64,
     ) -> CDSOption {
         let params = CDSOptionParams::new(
-            bp_to_decimal(strike_bp),
+            super::super::strike::CDSOptionStrike::Spread(bp_to_decimal(strike_bp)),
             as_of.add_months(12),
             as_of.add_months(60),
             Money::new(10_000_000.0, Currency::USD),
@@ -908,7 +998,10 @@ mod tests {
 
     fn black76_payer_per_n(ctx: &ForwardCdsContext) -> f64 {
         let f = ctx.forward_par_spread.max(numerical::ZERO_TOLERANCE);
-        let k = ctx.strike.max(numerical::ZERO_TOLERANCE);
+        let k = ctx
+            .spread_strike()
+            .expect("Black-76 helper requires a spread strike")
+            .max(numerical::ZERO_TOLERANCE);
         let vol_sqrt_t = ctx.sigma * ctx.t_expiry.sqrt();
         let d1 = ((f / k).ln() + 0.5 * vol_sqrt_t * vol_sqrt_t) / vol_sqrt_t;
         let d2 = d1 - vol_sqrt_t;

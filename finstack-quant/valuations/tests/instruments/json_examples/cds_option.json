@@ -18,7 +18,9 @@
       "protection_start_convention": "spot",
       "recovery_rate": 0.4,
       "settlement": "cash",
-      "strike": "0.01",
+      "strike": {
+        "spread": "0.01"
+      },
       "underlying_cds_coupon": null,
       "underlying_convention": "isda_na",
       "underlying_is_index": false,

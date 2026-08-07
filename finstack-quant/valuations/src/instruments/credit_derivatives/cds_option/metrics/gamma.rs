@@ -6,7 +6,6 @@
 //! pass-through to [`gamma`].
 
 use super::delta::{black_delta_ratio, delta_display_forward};
-use crate::instruments::common_impl::numeric::decimal_to_f64;
 use crate::instruments::credit_derivatives::cds_option::bloomberg_quadrature::ForwardCdsContext;
 use crate::instruments::credit_derivatives::cds_option::pricer::synthetic_underlying_cds;
 use crate::instruments::credit_derivatives::cds_option::CDSOption;
@@ -39,7 +38,7 @@ pub(crate) fn gamma(
     if t <= 0.0 {
         return Ok(0.0);
     }
-    let strike = decimal_to_f64(option.strike, "strike")?;
+    let strike = option.strike.native_surface_coordinate()?;
     let sigma = crate::instruments::common_impl::vol_resolution::resolve_sigma_at(
         &option.instrument_pricing_overrides.market_quotes,
         curves,
@@ -55,14 +54,14 @@ pub(crate) fn gamma(
     let up = black_delta_ratio(
         option.option_type,
         clean_forward + GAMMA_SPREAD_BUMP,
-        ctx.strike,
+        ctx.spread_strike()?,
         sigma,
         t,
     );
     let down = black_delta_ratio(
         option.option_type,
         (clean_forward - GAMMA_SPREAD_BUMP).max(1e-12),
-        ctx.strike,
+        ctx.spread_strike()?,
         sigma,
         t,
     );

@@ -560,7 +560,9 @@
       "type": "cds_option",
       "spec": {
         "id": "CDX-NA-IG-46-CDSO-PAYER-ATM-20260507",
-        "strike": "0.00552848",
+        "strike": {
+          "spread": "0.00552848"
+        },
         "option_type": "call",
         "expiry": "2026-06-17",
         "cds_maturity": "2031-06-20",

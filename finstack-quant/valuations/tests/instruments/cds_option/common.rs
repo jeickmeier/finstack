@@ -17,7 +17,7 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, IndexId};
 use finstack_quant_valuations::constants::isda::STANDARD_RECOVERY_SENIOR;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::{
-    CDSOption, CDSOptionParams, ProtectionStartConvention,
+    CDSOption, CDSOptionParams, CDSOptionStrike, ProtectionStartConvention,
 };
 use finstack_quant_valuations::instruments::CreditParams;
 use finstack_quant_valuations::instruments::OptionType;
@@ -220,7 +220,7 @@ impl CDSOptionBuilder {
         let expiry = as_of.add_months(self.expiry_months);
         let cds_maturity = as_of.add_months(self.cds_maturity_months);
 
-        let strike = bp_to_decimal(self.strike_bp);
+        let strike = CDSOptionStrike::Spread(bp_to_decimal(self.strike_bp));
         let mut option_params = CDSOptionParams::new(
             strike,
             expiry,

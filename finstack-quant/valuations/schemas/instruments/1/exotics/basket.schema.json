@@ -2910,7 +2910,7 @@
           "description": "Unique instrument identifier"
         },
         "index_factor": {
-          "description": "Optional index factor scaling for the index underlying.",
+          "description": "Optional index factor scaling for the index underlying.\n\nThis is the **current** index factor `f` at valuation. See\n[`Self::strike_index_factor`] for the original factor `f0` attached\nto a clean-price strike.",
           "format": "double",
           "type": [
             "number",
@@ -2965,8 +2965,16 @@
           "description": "Settlement type"
         },
         "strike": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json",
-          "description": "Strike spread as a decimal rate (e.g., 0.01 = 100bp)"
+          "$ref": "#/$defs/CDSOptionStrike",
+          "description": "Typed option strike: a decimal forward spread (`{\"spread\": \"0.0325\"}`)\nor a clean price in percentage points (`{\"clean_price_pct\": \"107.0\"}`)."
+        },
+        "strike_index_factor": {
+          "description": "Original index factor `f0` attached to the option strike.\n\nDistinct from [`Self::index_factor`], which is the current factor\n`f` at valuation: defaults settled between option strike and\nvaluation reduce `f` below `f0`. A clean-price strike quotes the\nprice on `f0` notional, so its deterministic payoff term scales by\n`f0 / f`; the strike factor is therefore required for clean-price\nstrikes (`CDSOptionStrike::CleanPricePct`) and must not be inferred\nfrom the current factor after a default. Rejected for spread\nstrikes, whose payoff does not reference it.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "underlying_cds_coupon": {
           "anyOf": [
@@ -3021,6 +3029,37 @@
         "vol_surface_id"
       ],
       "type": "object"
+    },
+    "CDSOptionStrike": {
+      "description": "Typed CDS-option strike: forward-spread or clean-price convention.\n\nSee the [module documentation](self) for units and wire format.\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::credit_derivatives::cds_option::CDSOptionStrike;\nuse rust_decimal::Decimal;\n\nlet spread = CDSOptionStrike::Spread(Decimal::new(325, 4)); // 0.0325 = 325 bp\nassert!(spread.spread_decimal().is_some());\nassert_eq!(spread.native_surface_coordinate().unwrap(), 0.0325);\n\nlet price = CDSOptionStrike::CleanPricePct(Decimal::new(1070, 1)); // 107.0\nassert_eq!(price.native_surface_coordinate().unwrap(), 107.0);\nassert!((price.clean_price_fraction().unwrap() - 1.07).abs() < 1e-15);\n```",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Strike forward spread as a decimal annual rate (`0.0325` = 325 bp).",
+          "properties": {
+            "spread": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json"
+            }
+          },
+          "required": [
+            "spread"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Strike clean price in percentage-price points (`107.0` = fraction\n`1.07`). CDX HY index options are quoted this way.",
+          "properties": {
+            "clean_price_pct": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json"
+            }
+          },
+          "required": [
+            "clean_price_pct"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "CDSTranche": {
       "additionalProperties": false,

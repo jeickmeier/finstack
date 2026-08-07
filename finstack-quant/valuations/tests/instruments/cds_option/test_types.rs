@@ -5,6 +5,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::CDSOption;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::CDSOptionParams;
+use finstack_quant_valuations::instruments::credit_derivatives::cds_option::CDSOptionStrike;
 use finstack_quant_valuations::instruments::CreditParams;
 use finstack_quant_valuations::instruments::ExerciseStyle;
 use finstack_quant_valuations::instruments::Instrument;
@@ -21,7 +22,7 @@ fn test_cds_option_construction() {
     let maturity = date!(2031 - 01 - 01);
 
     let option_params = CDSOptionParams::call(
-        Decimal::new(1, 2), // 0.01 = 100bp
+        CDSOptionStrike::Spread(Decimal::new(1, 2)), // 0.01 = 100bp
         expiry,
         maturity,
         Money::new(10_000_000.0, Currency::USD),
@@ -39,7 +40,7 @@ fn test_cds_option_construction() {
     .expect("valid CDS option");
 
     assert_eq!(option.id(), "TEST-CDSOPT");
-    assert_eq!(option.strike, Decimal::new(1, 2));
+    assert_eq!(option.strike.spread_decimal(), Some(Decimal::new(1, 2)));
     assert!(matches!(option.option_type, OptionType::Call));
     assert_eq!(option.expiry, expiry);
     assert_eq!(option.cds_maturity, maturity);
@@ -118,7 +119,7 @@ fn test_various_strikes() {
     for strike_bp in [25.0, 50.0, 100.0, 200.0, 500.0] {
         let option = CDSOptionBuilder::new().strike(strike_bp).build(as_of);
         let expected = Decimal::try_from(strike_bp / 10000.0).unwrap();
-        assert_eq!(option.strike, expected);
+        assert_eq!(option.strike.spread_decimal(), Some(expected));
     }
 }
 

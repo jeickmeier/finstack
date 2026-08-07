@@ -15,7 +15,6 @@
 //!   DOCS 2057273 ⟨GO⟩, August 2024.
 
 use super::bloomberg_quadrature;
-use crate::instruments::common_impl::numeric::decimal_to_f64;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::credit_derivatives::cds::{
     CdsValuationConvention, CreditDefaultSwap, PayReceive,
@@ -179,7 +178,7 @@ pub(crate) fn resolve_sigma(
     as_of: finstack_quant_core::dates::Date,
 ) -> Result<f64> {
     let t = option.time_to_expiry(as_of)?;
-    let strike = decimal_to_f64(option.strike, "strike")?;
+    let strike = option.strike.native_surface_coordinate()?;
     let sigma = crate::instruments::common_impl::vol_resolution::resolve_sigma_at(
         &option.instrument_pricing_overrides.market_quotes,
         curves,
@@ -208,8 +207,9 @@ pub fn synthetic_underlying_cds(
     as_of: finstack_quant_core::dates::Date,
 ) -> Result<CreditDefaultSwap> {
     // The contractual coupon `c` of the underlying CDS — for CDX it is
-    // 100 bp; for single-name SNAC it is the strike.
-    let coupon_decimal = option.effective_underlying_cds_coupon();
+    // 100 bp; for single-name SNAC it is the strike spread. Clean-price
+    // strikes require an explicit coupon.
+    let coupon_decimal = option.effective_underlying_cds_coupon()?;
     let spread_bp = coupon_decimal * Decimal::new(10_000, 0);
 
     let notional_scale = if option.underlying_is_index {

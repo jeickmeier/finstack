@@ -60,7 +60,9 @@ pub(crate) mod metrics;
 pub(crate) mod parameters;
 #[doc(hidden)]
 pub mod pricer;
+mod strike;
 mod types;
 
 pub use parameters::CDSOptionParams;
+pub use strike::{CDSOptionStrike, CDSOptionStrikeKind};
 pub use types::{CDSOption, ProtectionStartConvention};

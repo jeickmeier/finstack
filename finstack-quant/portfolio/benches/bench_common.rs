@@ -755,7 +755,9 @@ pub fn create_institutional_portfolio(num_positions: usize) -> Portfolio {
     for i in 0..positions_per_derivative.min(2) {
         let cds_option_id = format!("CDSOPTION_{}", i);
         let option_params = CDSOptionParams::call(
-            rust_decimal::Decimal::new(1, 2),
+            finstack_quant_valuations::instruments::credit_derivatives::CDSOptionStrike::Spread(
+                rust_decimal::Decimal::new(1, 2),
+            ),
             base + time::Duration::days(365),
             maturity_5y(),
             Money::new(10_000_000.0, Currency::USD),

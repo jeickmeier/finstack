@@ -6,7 +6,6 @@
 //! identity). This module is the single source of truth for that value;
 //! [`CDSOption::delta`] is a thin pass-through to [`delta`].
 
-use crate::instruments::common_impl::numeric::decimal_to_f64;
 use crate::instruments::credit_derivatives::cds::pricer::CDSPricer;
 use crate::instruments::credit_derivatives::cds_option::bloomberg_quadrature::ForwardCdsContext;
 use crate::instruments::credit_derivatives::cds_option::pricer::synthetic_underlying_cds;
@@ -41,7 +40,7 @@ pub(crate) fn delta(
     if t <= 0.0 {
         return Ok(0.0);
     }
-    let strike = decimal_to_f64(option.strike, "strike")?;
+    let strike = option.strike.native_surface_coordinate()?;
     let sigma = crate::instruments::common_impl::vol_resolution::resolve_sigma_at(
         &option.instrument_pricing_overrides.market_quotes,
         curves,
@@ -57,7 +56,7 @@ pub(crate) fn delta(
     Ok(black_delta_ratio(
         option.option_type,
         clean_forward,
-        ctx.strike,
+        ctx.spread_strike()?,
         sigma,
         t,
     ))
