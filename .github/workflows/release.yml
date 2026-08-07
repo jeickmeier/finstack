@@ -39,21 +39,21 @@ jobs:
       matrix:
         include:
           # ── Linux x86_64 ──
-          - { os: linux-x64,   runner: ubuntu-latest,  target: x86_64,  python: "3.12", timeout: 30 }
-          - { os: linux-x64,   runner: ubuntu-latest,  target: x86_64,  python: "3.13", timeout: 30 }
-          - { os: linux-x64,   runner: ubuntu-latest,  target: x86_64,  python: "3.14", timeout: 30 }
+          - { os: linux-x64,   runner: ubuntu-latest,  target: x86_64,  python: "3.12", timeout: 60 }
+          - { os: linux-x64,   runner: ubuntu-latest,  target: x86_64,  python: "3.13", timeout: 60 }
+          - { os: linux-x64,   runner: ubuntu-latest,  target: x86_64,  python: "3.14", timeout: 60 }
           # ── Linux arm64 ──
-          - { os: linux-arm64, runner: ubuntu-latest,  target: aarch64, python: "3.12", timeout: 30 }
-          - { os: linux-arm64, runner: ubuntu-latest,  target: aarch64, python: "3.13", timeout: 30 }
-          - { os: linux-arm64, runner: ubuntu-latest,  target: aarch64, python: "3.14", timeout: 30 }
+          - { os: linux-arm64, runner: ubuntu-latest,  target: aarch64, python: "3.12", timeout: 60 }
+          - { os: linux-arm64, runner: ubuntu-latest,  target: aarch64, python: "3.13", timeout: 60 }
+          - { os: linux-arm64, runner: ubuntu-latest,  target: aarch64, python: "3.14", timeout: 60 }
           # ── macOS arm64 (Apple Silicon) ──
-          - { os: macos-arm64, runner: macos-14,       target: aarch64, python: "3.12", timeout: 30 }
-          - { os: macos-arm64, runner: macos-14,       target: aarch64, python: "3.13", timeout: 30 }
-          - { os: macos-arm64, runner: macos-14,       target: aarch64, python: "3.14", timeout: 30 }
+          - { os: macos-arm64, runner: macos-14,       target: aarch64, python: "3.12", timeout: 60 }
+          - { os: macos-arm64, runner: macos-14,       target: aarch64, python: "3.13", timeout: 60 }
+          - { os: macos-arm64, runner: macos-14,       target: aarch64, python: "3.14", timeout: 60 }
           # ── Windows x86_64 (MSVC is slower — larger timeout) ──
-          - { os: windows-x64, runner: windows-latest, target: x64,     python: "3.12", timeout: 60 }
-          - { os: windows-x64, runner: windows-latest, target: x64,     python: "3.13", timeout: 60 }
-          - { os: windows-x64, runner: windows-latest, target: x64,     python: "3.14", timeout: 60 }
+          - { os: windows-x64, runner: windows-latest, target: x64,     python: "3.12", timeout: 90 }
+          - { os: windows-x64, runner: windows-latest, target: x64,     python: "3.13", timeout: 90 }
+          - { os: windows-x64, runner: windows-latest, target: x64,     python: "3.14", timeout: 90 }
 
     steps:
       - uses: actions/checkout@v5
@@ -113,7 +113,7 @@ jobs:
       (github.event_name == 'workflow_dispatch' &&
        github.event.inputs.publish == 'true')
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
         with:
@@ -137,7 +137,7 @@ jobs:
       (github.event_name == 'workflow_dispatch' &&
        github.event.inputs.publish == 'true')
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v5
         with:
@@ -196,7 +196,7 @@ jobs:
     name: Publish Release
     needs: [build-wheels, build-sdist, build-wasm]
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     if: |
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.conclusion == 'success' &&
