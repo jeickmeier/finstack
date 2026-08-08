@@ -9,6 +9,8 @@
 pub mod parity;
 pub mod parameters;
 pub mod pricer;
+pub mod test_callable_credit_baseline;
+pub mod test_callable_floating_resets;
 pub mod test_discountable;
 pub mod test_helpers;
 pub mod test_rates_credit_tree;

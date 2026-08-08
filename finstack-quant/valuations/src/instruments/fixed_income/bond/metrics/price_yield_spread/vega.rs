@@ -41,6 +41,29 @@ fn resolve_oas_decimal(bond: &Bond, context: &MetricContext) -> finstack_quant_c
     Ok(0.0)
 }
 
+/// Whether this bond routes onto the two-factor rates-credit lattice.
+///
+/// That path reads its short-rate volatility from `model_config.hw1f_sigma`
+/// and ignores (in fact rejects) `market_quotes.implied_volatility`, so a vega
+/// bump has to move the field the model actually consumes. Bumping the wrong
+/// channel would report a silently zero vega on every credit-risky callable.
+fn uses_rates_credit_lattice(bond: &Bond) -> bool {
+    bond.credit_curve_id.is_some()
+}
+
+/// Base short-rate volatility the bond's own routing will read.
+fn base_rate_volatility(bond: &Bond) -> finstack_quant_core::Result<f64> {
+    if uses_rates_credit_lattice(bond) {
+        Ok(bond
+            .instrument_pricing_overrides
+            .model_config
+            .hw1f_sigma
+            .unwrap_or(0.0))
+    } else {
+        Ok(bond_tree_config(bond)?.volatility)
+    }
+}
+
 fn holder_option_value_at_vol(
     bond: &Bond,
     context: &MetricContext,
@@ -48,10 +71,14 @@ fn holder_option_value_at_vol(
     volatility: f64,
 ) -> finstack_quant_core::Result<f64> {
     let mut bumped = bond.clone();
-    bumped
-        .instrument_pricing_overrides
-        .market_quotes
-        .implied_volatility = Some(volatility);
+    if uses_rates_credit_lattice(bond) {
+        bumped.instrument_pricing_overrides.model_config.hw1f_sigma = Some(volatility);
+    } else {
+        bumped
+            .instrument_pricing_overrides
+            .market_quotes
+            .implied_volatility = Some(volatility);
+    }
     let quote_date = settlement_date(&bumped, context.as_of)?;
     let price_with_options =
         price_from_oas(&bumped, context.curves.as_ref(), quote_date, oas_decimal)?;
@@ -70,12 +97,17 @@ impl MetricCalculator for BondVegaCalculator {
         let defaults =
             sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
         let bump = defaults.vol_bump_pct;
-        let base_vol = bond_tree_config(bond)?.volatility;
-        let source_vol = bond
-            .instrument_pricing_overrides
-            .market_quotes
-            .implied_volatility
-            .filter(|source_vol| source_vol.is_finite() && *source_vol > 0.0);
+        let base_vol = base_rate_volatility(bond)?;
+        // On the rates-credit path the canonical field is itself the source
+        // quote, so there is no quote-to-model conversion to undo.
+        let source_vol = if uses_rates_credit_lattice(bond) {
+            None
+        } else {
+            bond.instrument_pricing_overrides
+                .market_quotes
+                .implied_volatility
+                .filter(|source_vol| source_vol.is_finite() && *source_vol > 0.0)
+        };
         let model_bump = source_vol.map_or(bump, |source_vol| bump * base_vol / source_vol);
         let down_vol = (base_vol - model_bump).max(1e-8);
         let up_vol = base_vol + model_bump;

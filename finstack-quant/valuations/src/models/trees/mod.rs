@@ -28,3 +28,6 @@ pub use tree_framework::{
     BarrierStyle, EvolutionParams, NodeState, TreeBranching, TreeGreeks, TreeModel, TreeParameters,
     TreeValuator,
 };
+pub use two_factor_rates_credit::{
+    resolve_rates_credit_config, RatesCreditConfig, RatesCreditTree, KAPPA_MAX,
+};

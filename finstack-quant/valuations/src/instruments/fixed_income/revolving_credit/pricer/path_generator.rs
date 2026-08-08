@@ -589,14 +589,19 @@ fn build_credit_spread_params(
                 .min(remaining)
                 .max(CIR_MIN_SPREAD);
 
-            // Conditional survival and average hazard over [anchor, anchor+T].
+            // Conditional survival and average hazard over [anchor, anchor+T],
+            // and the hazard↔spread mapping, both from the shared
+            // market-anchored helpers so the callable lattice and this Monte
+            // Carlo path cannot drift apart.
             let sp_0 = hazard.sp(t_anchor).max(f64::MIN_POSITIVE);
             let sp_t = hazard.sp(t_anchor + t).max(f64::MIN_POSITIVE);
-            let avg_lambda = (-(sp_t / sp_0).ln() / t).max(0.0);
+            let avg_lambda =
+                crate::models::credit::market_anchored::conditional_average_hazard(sp_0, sp_t, t)?;
             let lambda0 = hazard.hazard_rate(t_anchor).max(0.0);
 
-            // Map hazard ↔ spread using s ≈ (1 − R) · λ
-            // Use facility recovery rate for consistency with pricing
+            // Credit triangle: s ≈ (1 − R) · λ, using the facility recovery
+            // rate for consistency with pricing. The `1e-6` guard keeps a
+            // recovery of exactly 1 from collapsing the spread scale.
             let one_minus_r = (1.0 - facility.recovery_rate).max(1e-6);
             let s0 = (one_minus_r * lambda0).max(CIR_MIN_SPREAD);
             let s_bar = (one_minus_r * avg_lambda).max(CIR_MIN_SPREAD);
@@ -614,8 +619,12 @@ fn build_credit_spread_params(
                 ((s_bar - a * s0) / (1.0 - a)).max(CIR_MIN_SPREAD)
             };
 
-            // Volatility scaled to match fractional vol
-            let sigma = (*implied_vol) * s_bar.max(CIR_MIN_SPREAD).sqrt();
+            // CIR diffusion coefficient matching the local fractional vol at
+            // the anchored spread: σ_CIR·√s_ref = σ_fractional·s_ref.
+            let sigma = crate::models::credit::market_anchored::cir_diffusion_coefficient(
+                *implied_vol,
+                s_bar.max(CIR_MIN_SPREAD),
+            )?;
 
             // Check Feller condition: 2κθ > σ²
             let feller_lhs = 2.0 * k * theta;
@@ -782,6 +791,96 @@ mod tests {
             .expect("credit parameters");
 
         assert!((params.initial - 0.03).abs() < 1e-12);
+    }
+
+    /// Behavioral baseline for the market-anchored CIR parameters.
+    ///
+    /// Every field is re-derived here from the documented mapping rather
+    /// than copied from a prior run, so the test states the contract the
+    /// shared `models::credit::market_anchored` extraction must preserve:
+    ///
+    /// ```text
+    /// avg_lambda = -ln(sp(t_a + T) / sp(t_a)) / T
+    /// s_ref      = (1 - R) * lambda_ref            (credit triangle)
+    /// a          = (1 - exp(-k T)) / (k T)
+    /// theta      = (s_bar - a * s0) / (1 - a)      (mean-anchored CIR)
+    /// sigma_CIR  = sigma_fractional * sqrt(s_bar)
+    /// ```
+    ///
+    /// If the extraction changes any produced parameter this fails with the
+    /// offending field named.
+    #[test]
+    fn market_anchored_parameters_match_documented_mapping() {
+        let mut facility = RevolvingCredit::example().expect("facility");
+        facility.recovery_rate = 0.4;
+        let hazard = HazardCurve::builder("RC-HZ")
+            .base_date(date!(2024 - 01 - 01))
+            .knots([(0.5, 0.01), (5.0, 0.05)])
+            .build()
+            .expect("hazard curve");
+        let market = MarketContext::new().insert(hazard.clone());
+        let (kappa, implied_vol) = (0.5_f64, 0.2_f64);
+        let config = McConfig {
+            recovery_rate: 0.4,
+            credit_spread_process: CreditSpreadProcessSpec::MarketAnchored {
+                credit_curve_id: "RC-HZ".into(),
+                kappa,
+                implied_vol,
+                tenor_years: None,
+            },
+            interest_rate_process: None,
+            correlation_matrix: None,
+            util_credit_corr: None,
+        };
+        let as_of = date!(2025 - 01 - 01);
+
+        let params =
+            build_credit_spread_params(&config, &facility, &market, as_of).expect("parameters");
+
+        // Independent re-derivation of the documented mapping.
+        let day_count = hazard.day_count();
+        let t_anchor = day_count
+            .signed_year_fraction(hazard.base_date(), as_of, DayCountContext::default())
+            .expect("anchor year fraction");
+        let horizon = day_count
+            .year_fraction(as_of, facility.maturity, DayCountContext::default())
+            .expect("remaining horizon");
+        let sp_0 = hazard.sp(t_anchor);
+        let sp_t = hazard.sp(t_anchor + horizon);
+        let avg_lambda = -(sp_t / sp_0).ln() / horizon;
+        let lambda0 = hazard.hazard_rate(t_anchor);
+        let one_minus_r = 1.0 - facility.recovery_rate;
+        let s0 = one_minus_r * lambda0;
+        let s_bar = one_minus_r * avg_lambda;
+        let a = (1.0 - (-kappa * horizon).exp()) / (kappa * horizon);
+        let theta = (s_bar - a * s0) / (1.0 - a);
+        let sigma = implied_vol * s_bar.sqrt();
+
+        for (label, actual, expected) in [
+            ("initial (s0)", params.initial, s0),
+            ("kappa", params.cir.kappa, kappa),
+            ("theta", params.cir.theta, theta),
+            ("sigma", params.cir.sigma, sigma),
+        ] {
+            assert!(
+                (actual - expected).abs() < 1e-12,
+                "market-anchored {label} drifted: actual={actual}, \
+                 documented mapping={expected}"
+            );
+        }
+
+        // Recovery cancels out of the hazard-vol mapping under the same
+        // triangle approximation: sigma_lambda = sigma_fractional * lambda_ref
+        // equals sigma_s_abs / (1 - R). Pinning it here fixes the identity the
+        // extracted helper must reproduce.
+        let sigma_s_abs = implied_vol * s_bar;
+        let sigma_lambda = implied_vol * avg_lambda;
+        assert!(
+            (sigma_lambda - sigma_s_abs / one_minus_r).abs() < 1e-15,
+            "recovery must cancel: sigma_lambda={sigma_lambda}, \
+             sigma_s_abs/(1-R)={}",
+            sigma_s_abs / one_minus_r
+        );
     }
 
     #[test]

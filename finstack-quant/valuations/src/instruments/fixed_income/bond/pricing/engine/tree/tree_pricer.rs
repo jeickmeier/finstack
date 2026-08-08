@@ -6,7 +6,7 @@ use super::config::{TreeModelChoice, TreePricerConfig};
 use crate::instruments::pricing_overrides::OasPriceBasis;
 use crate::models::trees::hull_white_tree::{HullWhiteTree, HullWhiteTreeConfig};
 use crate::models::trees::short_rate_tree::CalibrationResult;
-use crate::models::trees::two_factor_rates_credit::{RatesCreditConfig, RatesCreditTree};
+use crate::models::trees::two_factor_rates_credit::{resolve_rates_credit_config, RatesCreditTree};
 use crate::models::{short_rate_keys, ShortRateTree, ShortRateTreeConfig, TreeModel};
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -17,8 +17,34 @@ use finstack_quant_core::{Error, Result};
 /// Tree-based pricer for bonds with embedded options and OAS calculations.
 ///
 /// Provides methods for calculating option-adjusted spread (OAS) for bonds with
-/// embedded call/put options. Automatically selects between short-rate and
-/// rates+credit tree models based on available market data.
+/// embedded call/put options.
+///
+/// # Model routing
+///
+/// A bond that opts into credit via an explicit `credit_curve_id` prices on
+/// the two-factor rates-credit lattice; otherwise it uses the short-rate or
+/// Hull-White path selected by [`TreeModelChoice`]. Curve-naming conventions
+/// are never used to infer the routing.
+///
+/// On the rates-credit path all model inputs come from
+/// [`resolve_rates_credit_config`], so the four volatility regimes are
+/// selected purely by `ModelConfig` (`hw1f_sigma`, `hazard_volatility`, the
+/// two mean reversions, and `rate_credit_correlation`), and an unset
+/// volatility means a deterministic factor rather than an engine default.
+/// That path reads only the canonical `hw1f_*` fields: the legacy
+/// `implied_volatility` / `mean_reversion` channels are rejected there rather
+/// than reinterpreted. Hazard inputs on a bond with no credit curve are
+/// likewise rejected, not silently dropped.
+///
+/// Direct PV and the OAS objective share one calibrated tree, so the zero-OAS
+/// point and a direct valuation cannot disagree about the model.
+///
+/// With a positive `hw1f_sigma`, future floating resets re-fix off the rate
+/// node: the deterministic projection stays booked unchanged and the
+/// node-dependent increment is folded at each reset slice (see
+/// [`RatesCreditTree::price_with_node_coupons`]). Known fixings stay
+/// deterministic, and call/put dates strictly inside a future floating
+/// period are rejected rather than approximated.
 pub struct TreePricer {
     /// Pricer configuration (tree steps, volatility, convergence settings)
     config: TreePricerConfig,
@@ -55,6 +81,37 @@ impl TreePricer {
                     ))
                 }),
         }
+    }
+
+    /// Reject hazard-model inputs on an instrument that never reaches the
+    /// rates-credit lattice.
+    ///
+    /// Without a `credit_curve_id` the callable instrument prices on the
+    /// short-rate tree, which has no hazard factor at all. Silently ignoring a
+    /// configured hazard volatility or rate/credit correlation would leave the
+    /// user believing they had selected a credit regime that was never
+    /// applied.
+    fn reject_inert_hazard_inputs(bond: &Bond) -> Result<()> {
+        let model = &bond.instrument_pricing_overrides.model_config;
+        let configured = [
+            ("hazard_volatility", model.hazard_volatility),
+            ("hazard_mean_reversion", model.hazard_mean_reversion),
+            ("rate_credit_correlation", model.rate_credit_correlation),
+        ]
+        .into_iter()
+        .filter_map(|(label, value)| value.map(|_| label))
+        .collect::<Vec<_>>();
+        if configured.is_empty() {
+            return Ok(());
+        }
+        Err(Error::Validation(format!(
+            "Bond '{}' sets {} but has no credit_curve_id, so it prices on the \
+             risk-free short-rate tree where the hazard factor does not exist. \
+             Set credit_curve_id to opt into the rates-credit lattice, or remove \
+             the hazard inputs.",
+            bond.id.as_str(),
+            configured.join(", ")
+        )))
     }
 
     fn effective_steps_for_model(
@@ -240,17 +297,33 @@ impl TreePricer {
         )?;
 
         if let Some(hc) = hazard_curve.as_ref() {
-            let cfg = RatesCreditConfig {
-                steps: self.config.tree_steps,
-                rate_vol: self.config.volatility,
-                ..Default::default()
-            };
+            // One shared resolver owns the public-config to lattice-input
+            // mapping; the engine never rebuilds it.
+            let cfg = resolve_rates_credit_config(
+                &bond.instrument_pricing_overrides,
+                self.config.tree_steps,
+            )?;
             let mut tree = RatesCreditTree::new(cfg);
             tree.calibrate(discount_curve.as_ref(), hc.as_ref(), time_to_maturity)?;
+            // Future floating resets re-fix off the rate node only when the
+            // rate factor actually diffuses; deterministic-rate pricing keeps
+            // today's projected coupons byte-for-byte.
+            let node_coupons = if tree.config.rate_vol > 0.0 {
+                valuator.stochastic_node_coupons(market_context)?
+            } else {
+                Vec::new()
+            };
             let mut vars = HashMap::<&'static str, f64>::default();
             vars.insert("oas", continuous_oas_bp);
-            return tree.price(vars, time_to_maturity, market_context, &valuator);
+            return tree.price_with_node_coupons(
+                vars,
+                time_to_maturity,
+                market_context,
+                &valuator,
+                &node_coupons,
+            );
         }
+        Self::reject_inert_hazard_inputs(bond)?;
 
         let effective_model = match &self.config.tree_model {
             TreeModelChoice::HullWhiteCalibratedToSwaptions {
@@ -445,15 +518,18 @@ impl TreePricer {
         }
         let hazard_curve = Self::resolve_opt_in_hazard_curve(bond, market_context)?;
         if let Some(hc) = hazard_curve.as_ref() {
-            let cfg = RatesCreditConfig {
-                steps: self.config.tree_steps,
-                rate_vol: self.config.volatility,
-                ..Default::default()
-            };
+            // Same resolver as the direct-PV path, so the zero-OAS point and a
+            // direct valuation cannot disagree about the model.
+            let cfg = resolve_rates_credit_config(
+                &bond.instrument_pricing_overrides,
+                self.config.tree_steps,
+            )?;
             let mut tree = RatesCreditTree::new(cfg);
             tree.calibrate(discount_curve.as_ref(), hc.as_ref(), time_to_maturity)?;
             rc_tree = Some(tree);
             use_rates_credit = true;
+        } else {
+            Self::reject_inert_hazard_inputs(bond)?;
         }
 
         // Resolve the effective HW parameters when using HullWhite model variants.
@@ -561,6 +637,16 @@ impl TreePricer {
             0.0 // Not used for rates+credit or HW tree
         };
 
+        // Node-dependent floating resets, active only when the rates-credit
+        // rate factor diffuses. Built once here — the descriptors are
+        // OAS-independent; the per-OAS folding happens inside the tree.
+        let rc_node_coupons = match rc_tree.as_ref() {
+            Some(tree) if tree.config.rate_vol > 0.0 => {
+                valuator.stochastic_node_coupons(market_context)?
+            }
+            _ => Vec::new(),
+        };
+
         // Capture the first tree-pricing error so a solver failure can report
         // the underlying cause instead of a generic bracket/convergence error.
         let pricing_error: std::cell::RefCell<Option<finstack_quant_core::Error>> =
@@ -585,7 +671,13 @@ impl TreePricer {
                 let mut vars = HashMap::<&'static str, f64>::default();
                 vars.insert("oas", oas);
                 if let Some(tree) = rc_tree.as_ref() {
-                    match tree.price(vars, time_to_maturity, market_context, &valuator) {
+                    match tree.price_with_node_coupons(
+                        vars,
+                        time_to_maturity,
+                        market_context,
+                        &valuator,
+                        &rc_node_coupons,
+                    ) {
                         Ok(model_price) => model_price - dirty_target,
                         Err(e) => record_error(e),
                     }

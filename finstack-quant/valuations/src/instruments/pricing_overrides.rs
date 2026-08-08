@@ -459,9 +459,19 @@ pub struct ModelConfig {
     /// A value of 0.20 (a typical lognormal swaption vol) would be approximately
     /// 13–40× too large and would produce a wildly mis-priced HW tree.
     ///
-    /// A σ override must be set together with [`Self::hw1f_mean_reversion`].
-    /// A κ-only cap/floor override is valid when a normal-vol surface is
-    /// available: κ is held fixed while σ is calibrated from market quotes.
+    /// Setting σ alone is valid and means κ = 0 (pure Ho-Lee dynamics); pair
+    /// it with [`Self::hw1f_mean_reversion`] to select a mean-reverting
+    /// parameterisation. A κ-only cap/floor override is also valid when a
+    /// normal-vol surface is available: κ is held fixed while σ is calibrated
+    /// from market quotes.
+    ///
+    /// This is the canonical short-rate volatility field for the
+    /// **rates-credit** callable path (`credit_curve_id` set): that path reads
+    /// only `hw1f_sigma`/`hw1f_mean_reversion` and rejects the legacy
+    /// `implied_volatility`/`mean_reversion` channel rather than silently
+    /// reinterpreting it. Its mean reversion is additionally capped by
+    /// [`KAPPA_MAX`](crate::models::trees::two_factor_rates_credit::KAPPA_MAX);
+    /// Hull-White trees on other paths keep their own wider range.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hw1f_sigma: Option<f64>,
     /// Optional piecewise-constant Hull-White short-rate volatility schedule.
@@ -473,11 +483,61 @@ pub struct ModelConfig {
     pub hw1f_sigma_schedule: Option<finstack_quant_core::math::piecewise::PiecewiseConstantCurve>,
     /// Hull-White 1F mean-reversion speed override (κ), in annualised units.
     ///
-    /// Companion to [`Self::hw1f_sigma`]. Both values define an explicit HW1F
-    /// parameter pair; cap/floor pricing may also hold κ fixed and calibrate σ
-    /// from a normal-vol surface. Typical values: 0.01–0.10.
+    /// Companion to [`Self::hw1f_sigma`]; either may be set alone. Cap/floor
+    /// pricing may hold κ fixed and calibrate σ from a normal-vol surface.
+    /// Typical values: 0.01–0.10.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hw1f_mean_reversion: Option<f64>,
+    /// Credit hazard-rate volatility for the two-factor rates-credit callable
+    /// lattice (σ_λ), annualised, in **absolute** decimal hazard-rate points
+    /// per √year.
+    ///
+    /// This is an additive-normal hazard volatility on the same scale as the
+    /// hazard rate itself: `0.02` means the instantaneous hazard diffuses by
+    /// about 2 percentage points of hazard per √year. It is **not** a relative
+    /// or lognormal credit-spread volatility — inserting a CDS-option quote
+    /// such as `0.35` here would be roughly an order of magnitude too large.
+    /// Convert a fractional spread vol first (see
+    /// [`models::credit::market_anchored`](crate::models::credit::market_anchored)):
+    /// `σ_λ = σ_fractional · λ_ref`.
+    ///
+    /// `None` and `0.0` are equivalent and both mean a **deterministic** credit
+    /// factor: the lattice still reprices the survival curve exactly, it just
+    /// carries no hazard diffusion. Requires `credit_curve_id` on the
+    /// instrument; setting it without one is a validation error rather than a
+    /// silent no-op.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hazard_volatility: Option<f64>,
+    /// Mean-reversion speed of the hazard factor (κ_λ) on the rates-credit
+    /// lattice, annualised.
+    ///
+    /// `None` and `0.0` both mean no reversion. Capped by
+    /// [`KAPPA_MAX`](crate::models::trees::two_factor_rates_credit::KAPPA_MAX),
+    /// above which the binomial lattice's conditional variance collapses far
+    /// enough to distort option values. Requires `credit_curve_id`.
+    ///
+    /// Note that mean reversion narrows the feasible correlation range: it
+    /// skews the per-node marginal transition probabilities away from ½, and
+    /// two Bernoulli marginals admit only correlations inside their Fréchet
+    /// bounds. At `KAPPA_MAX` on both factors over a five-year lattice the
+    /// feasible `|ρ|` can fall to around `0.12`. Calibration rejects an
+    /// unattainable correlation and reports the lattice-wide maximum, which is
+    /// also available up front from
+    /// [`RatesCreditTree::max_feasible_correlation`](crate::models::trees::two_factor_rates_credit::RatesCreditTree::max_feasible_correlation).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hazard_mean_reversion: Option<f64>,
+    /// Instantaneous correlation between the short-rate and hazard-rate
+    /// shocks on the rates-credit lattice, in `[-1, 1]`.
+    ///
+    /// `None` and `0.0` both mean independent factors. A non-zero value is
+    /// only meaningful when **both** factor volatilities are positive;
+    /// otherwise it is rejected as an inert input rather than ignored.
+    /// Requires `credit_curve_id`.
+    ///
+    /// Feasibility depends on the mean-reversion settings — see
+    /// [`Self::hazard_mean_reversion`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rate_credit_correlation: Option<f64>,
     /// Optional discount curve identifier for tree-based option/OAS models.
     ///
     /// Some vendor OAS screens use a model curve distinct from the bond's pricing
@@ -551,13 +611,25 @@ impl ModelConfig {
                 return Err(InputError::Invalid.into());
             }
         }
-        // Friction and mean reversion must be finite and non-negative.
+        // Friction, volatilities, and mean reversions must be finite and
+        // non-negative. Correlation is signed, so it is range-checked
+        // separately.
         check_finite_fields(&[
             (self.call_friction_cents, true),
             (self.mean_reversion, true),
             (self.hw1f_sigma, true),
             (self.hw1f_mean_reversion, true),
-        ])
+            (self.hazard_volatility, true),
+            (self.hazard_mean_reversion, true),
+        ])?;
+        if let Some(rho) = self.rate_credit_correlation {
+            if !rho.is_finite() || !(-1.0..=1.0).contains(&rho) {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "rate_credit_correlation must be finite and in [-1, 1], got {rho}"
+                )));
+            }
+        }
+        Ok(())
     }
 }
 
@@ -646,8 +718,42 @@ impl InstrumentPricingOverrides {
     }
 
     /// Set implied volatility (flat σ across tenor and strike).
+    ///
+    /// # Arguments
+    ///
+    /// * `vol` - option-implied volatility as a decimal (e.g. `0.35`); this
+    ///   is an option-quote channel, not a short-rate σ — the rates-credit
+    ///   callable path rejects it in favour of [`Self::with_hw1f_sigma`]
     pub fn with_implied_vol(mut self, vol: f64) -> Self {
         self.market_quotes.implied_volatility = Some(vol);
+        self
+    }
+
+    /// Set the Hull-White short-rate volatility σ (annualised, absolute).
+    ///
+    /// This is the canonical short-rate volatility channel, and the only one
+    /// the rates-credit callable path accepts. Prefer it over
+    /// [`Self::with_implied_vol`] whenever the intent is a short-rate σ rather
+    /// than an option implied volatility.
+    ///
+    /// # Arguments
+    ///
+    /// * `sigma` - annualised absolute short-rate volatility (e.g. `0.01` is
+    ///   100 bp/yr)
+    pub fn with_hw1f_sigma(mut self, sigma: f64) -> Self {
+        self.model_config.hw1f_sigma = Some(sigma);
+        self
+    }
+
+    /// Set the hazard-rate volatility σ_λ for the rates-credit callable
+    /// lattice (annualised, absolute decimal hazard points per √year).
+    ///
+    /// # Arguments
+    ///
+    /// * `sigma` - annualised absolute hazard volatility (e.g. `0.0105` for
+    ///   a 35% fractional vol on a 3% hazard)
+    pub fn with_hazard_volatility(mut self, sigma: f64) -> Self {
+        self.model_config.hazard_volatility = Some(sigma);
         self
     }
 
