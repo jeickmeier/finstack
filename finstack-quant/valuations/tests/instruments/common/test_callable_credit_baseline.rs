@@ -321,6 +321,58 @@ fn legacy_vol_channel_is_rejected_on_the_credit_path() {
     );
 }
 
+/// Every risk path reads the same resolved model inputs.
+///
+/// Rate vega in particular has to bump the volatility channel the instrument's
+/// routing actually consumes. A credit-risky callable reads `hw1f_sigma`, so a
+/// vega that bumped `implied_volatility` would report identically zero — a
+/// silently inert risk number rather than a visible failure.
+#[test]
+fn risk_metrics_share_the_resolved_model_inputs() {
+    use finstack_quant_valuations::instruments::Instrument;
+    use finstack_quant_valuations::instruments::PricingOptions;
+    use finstack_quant_valuations::metrics::MetricId;
+
+    let market = market();
+    let mut bond = callable_credit_bond();
+    apply_baseline_regime(&mut bond.instrument_pricing_overrides);
+
+    let result = bond
+        .price_with_metrics(
+            &market,
+            as_of(),
+            &[
+                MetricId::Vega,
+                MetricId::Cs01,
+                MetricId::EmbeddedOptionValue,
+            ],
+            PricingOptions::default(),
+        )
+        .expect("credit-risky callable must produce risk metrics");
+
+    let vega = *result.measures.get("vega").expect("vega measure");
+    assert!(
+        vega.is_finite() && vega.abs() > 1e-9,
+        "rate vega must be live on the rates-credit path — a zero here means \
+         the bump moved a channel the model no longer reads: {vega}"
+    );
+
+    let cs01 = *result.measures.get("cs01").expect("cs01 measure");
+    assert!(
+        cs01.is_finite() && cs01.abs() > 1e-9,
+        "CS01 must be live on the rates-credit path: {cs01}"
+    );
+
+    let option_value = *result
+        .measures
+        .get("embedded_option_value")
+        .expect("embedded option value");
+    assert!(
+        option_value.is_finite(),
+        "embedded option value must resolve through the same tree inputs"
+    );
+}
+
 /// Removing the call schedule recovers the straight credit-risky value under
 /// the same resolved model inputs.
 #[test]

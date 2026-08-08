@@ -5,9 +5,28 @@
 //!
 //! Design goals:
 //! - Use the shared tree framework (`TreeModel` + `TreeValuator`)
-//! - Support deterministic discounting (via the calibrated rate tree) and an optional
-//!   credit-spread tree path
 //! - Apply `InstrumentPricingOverrides::call_friction_cents` as an exercise threshold uplift
+//!
+//! # Model routing
+//!
+//! A loan with an explicit `credit_curve_id` prices on the two-factor
+//! rates-credit lattice; without one it prices on the risk-free short-rate
+//! tree. Nothing is inferred from curve naming conventions.
+//!
+//! On the rates-credit path every model input comes from
+//! [`resolve_rates_credit_config`], so the four volatility regimes
+//! (deterministic/stochastic rates × deterministic/stochastic credit) are
+//! selected purely by `ModelConfig` — `hw1f_sigma`, `hazard_volatility`, the
+//! two mean reversions, and `rate_credit_correlation`. There are no
+//! engine-side volatility defaults: an unset volatility means a deterministic
+//! factor, not a hidden regime. Hazard inputs on a loan with no credit curve
+//! are rejected rather than ignored, since the short-rate tree has no hazard
+//! factor to apply them to.
+//!
+//! `hazard_volatility` is an **absolute** hazard-rate volatility, not a
+//! relative credit-spread volatility; see
+//! [`models::credit::market_anchored`](crate::models::credit::market_anchored)
+//! for the conversion from a market-quoted fractional spread vol.
 
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::fixed_income::term_loan::TermLoan;

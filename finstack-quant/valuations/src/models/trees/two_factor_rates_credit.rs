@@ -5,6 +5,37 @@
 //! respective market curves (discount curve for rates, hazard curve for credit)
 //! via independent Arrow-Debreu forward induction, analogous to Ho-Lee calibration.
 //!
+//! # Volatility regimes
+//!
+//! One lattice covers all four regimes; there is no separate rate-only or
+//! hazard-only tree, and no second model key. Each factor is deterministic
+//! when its volatility is zero (`None` and `0.0` are equivalent), and the
+//! curves are repriced exactly either way:
+//!
+//! | `rate_vol` | `hazard_vol` | Behavior |
+//! | --- | --- | --- |
+//! | zero | zero | Deterministic rates and deterministic credit |
+//! | nonzero | zero | Stochastic rates, deterministic credit |
+//! | zero | nonzero | Deterministic rates, stochastic credit |
+//! | nonzero | nonzero | Correlated stochastic rates and credit |
+//!
+//! Public configuration reaches these through
+//! [`resolve_rates_credit_config`], which reads `hw1f_sigma`,
+//! `hazard_volatility`, the two mean reversions, and
+//! `rate_credit_correlation` from an instrument's `ModelConfig`.
+//!
+//! # Units
+//!
+//! Both volatilities are **absolute** (normal), on the same scale as the
+//! factor itself: `rate_vol = 0.01` is 100 bp/yr of short rate, and
+//! `hazard_vol = 0.02` is 2 percentage points of hazard per √year. A hazard
+//! volatility is **not** a relative credit-spread volatility — a CDS-option
+//! quote such as `0.35` is roughly an order of magnitude too large to use
+//! directly. Convert with
+//! [`models::credit::market_anchored`](crate::models::credit::market_anchored):
+//! `σ_λ = σ_fractional · λ_ref`. Heavy
+//! [`HazardFloorSaturation`] is the symptom of having skipped that step.
+//!
 //! # Lattice convention
 //!
 //! Each factor evolves on an **additive normal** binomial lattice: from a node
@@ -58,6 +89,26 @@
 //! `calibrate()` must be called before `price()`. The calibration ensures:
 //! - Tree-implied zero-coupon bond prices match the discount curve at every step
 //! - Tree-implied survival probabilities match the hazard curve at every step
+//!
+//! The hazard factor is additive-normal, so low nodes can go negative. A
+//! negative hazard is not a credit state, so node hazards pass through a
+//! non-negative transform — **in calibration and in backward induction
+//! alike**. Sharing one transform is what keeps the forward Arrow-Debreu
+//! recursion and the backward induction exact duals, so the survival curve the
+//! valuator sees is the one that was calibrated. The floored step equation is
+//! non-linear in the per-step shift, so that shift is bracketed and bisected
+//! rather than read off in closed form. Where the floor binds, the realized
+//! hazard dispersion is smaller than `hazard_vol` asks;
+//! [`RatesCreditTree::hazard_floor_saturation`] reports how much.
+//!
+//! Correlation feasibility is settled at calibration time. Two Bernoulli
+//! marginals only admit correlations inside their Fréchet bounds, and mean
+//! reversion skews the corner nodes' marginals away from ½, so a large `|ρ|`
+//! can be unattainable. `calibrate()` rejects such a request with the
+//! offending node and the lattice-wide maximum; the same figure is available
+//! up front from [`RatesCreditTree::max_feasible_correlation`]. Pricing
+//! therefore never meets an infeasible node and never silently alters a
+//! marginal to accommodate one.
 //!
 //! # OAS
 //!

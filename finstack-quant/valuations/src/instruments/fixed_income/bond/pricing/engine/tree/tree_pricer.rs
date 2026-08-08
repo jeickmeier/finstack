@@ -17,8 +17,27 @@ use finstack_quant_core::{Error, Result};
 /// Tree-based pricer for bonds with embedded options and OAS calculations.
 ///
 /// Provides methods for calculating option-adjusted spread (OAS) for bonds with
-/// embedded call/put options. Automatically selects between short-rate and
-/// rates+credit tree models based on available market data.
+/// embedded call/put options.
+///
+/// # Model routing
+///
+/// A bond that opts into credit via an explicit `credit_curve_id` prices on
+/// the two-factor rates-credit lattice; otherwise it uses the short-rate or
+/// Hull-White path selected by [`TreeModelChoice`]. Curve-naming conventions
+/// are never used to infer the routing.
+///
+/// On the rates-credit path all model inputs come from
+/// [`resolve_rates_credit_config`], so the four volatility regimes are
+/// selected purely by `ModelConfig` (`hw1f_sigma`, `hazard_volatility`, the
+/// two mean reversions, and `rate_credit_correlation`), and an unset
+/// volatility means a deterministic factor rather than an engine default.
+/// That path reads only the canonical `hw1f_*` fields: the legacy
+/// `implied_volatility` / `mean_reversion` channels are rejected there rather
+/// than reinterpreted. Hazard inputs on a bond with no credit curve are
+/// likewise rejected, not silently dropped.
+///
+/// Direct PV and the OAS objective share one calibrated tree, so the zero-OAS
+/// point and a direct valuation cannot disagree about the model.
 pub struct TreePricer {
     /// Pricer configuration (tree steps, volatility, convergence settings)
     config: TreePricerConfig,
