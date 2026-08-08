@@ -80,6 +80,7 @@
 pub(crate) mod build;
 /// Market conventions and registries.
 pub mod conventions;
+pub mod credit_option_vol;
 /// Market quote schemas.
 pub mod quotes;
 
