@@ -104,6 +104,13 @@ pub struct HazardVolatilityQuote {
 
 /// Resolve a hazard volatility for the request's target curve.
 ///
+/// # Arguments
+///
+/// * `request` - index option description, selector, horizon, and target
+///   credit curve
+/// * `market` - market context holding the vol surface and credit curves
+/// * `as_of` - valuation date anchoring expiry and horizon year fractions
+///
 /// # Errors
 ///
 /// Returns [`Error::Validation`] when the surface is missing, uses a

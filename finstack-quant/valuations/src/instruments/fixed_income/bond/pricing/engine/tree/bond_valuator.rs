@@ -54,6 +54,9 @@ pub struct BondValuator {
     pub(super) outstanding_principal_vec: Vec<f64>,
     /// Time steps for tree pricing
     time_steps: Vec<f64>,
+    /// Valuation origin (the tree's `t = 0`), kept for node-coupon
+    /// descriptor construction on the stochastic-rate rates-credit path.
+    as_of: Date,
     /// Optional recovery rate sourced from a hazard curve in MarketContext
     recovery_rate: Option<f64>,
     /// Issuer call exercise friction in **cents per 100** of outstanding principal.
@@ -553,9 +556,101 @@ impl BondValuator {
             put_vec,
             outstanding_principal_vec,
             time_steps,
+            as_of,
             recovery_rate,
             call_friction_cents,
         })
+    }
+
+    /// Build node-coupon descriptors for future floating resets and
+    /// validate that the bond's schedule supports stochastic-rate pricing.
+    ///
+    /// Called by the tree pricer **only** on the rates-credit path with a
+    /// positive short-rate volatility; deterministic-rate pricing never
+    /// invokes it, so instruments that price today keep pricing unchanged.
+    /// The deterministic projection of every coupon stays in
+    /// `cashflow_vec`; the descriptors carry only the node-dependent
+    /// increment (see
+    /// [`NodeCoupon`](crate::models::trees::two_factor_rates_credit::NodeCoupon)).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`finstack_quant_core::Error::Validation`] when:
+    /// - a future floating coupon's reset and payment collapse onto one
+    ///   tree slice (grid too coarse),
+    /// - a call/put exercise step falls strictly inside a future floating
+    ///   coupon period (path-dependent fixing state is unsupported), or
+    /// - the schedule capitalizes (PIK) after the valuation date on a
+    ///   floating bond (path-dependent principal is unsupported).
+    pub(crate) fn stochastic_node_coupons(
+        &self,
+        market_context: &MarketContext,
+    ) -> Result<Vec<crate::models::trees::two_factor_rates_credit::NodeCoupon>> {
+        use crate::instruments::common_impl::pricing::floating_reset_descriptors::{
+            build_node_coupons, has_future_pik, params_from_spec, strips_index_constraints,
+            validate_exercise_alignment, NodeCouponBuildInputs, SliceSnap,
+        };
+        use crate::instruments::fixed_income::bond::CashflowSpec;
+
+        let CashflowSpec::Floating(ref floating) = self.bond.cashflow_spec else {
+            return Ok(Vec::new());
+        };
+        let full_schedule = self.bond.full_cashflow_schedule(market_context)?;
+        let discount_curve = market_context.get_discount(&self.bond.discount_curve_id)?;
+
+        // PIK first: a 100% PIK floating leg emits no cash FloatReset flows
+        // at all, so an empty descriptor list must not be read as "nothing
+        // stochastic here" — the capitalized amounts themselves are
+        // node-dependent.
+        if has_future_pik(&full_schedule, self.as_of) {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "Bond '{}' capitalizes coupons (PIK) after the valuation date \
+                 while pricing floating resets under stochastic rates. A future \
+                 floating PIK coupon makes outstanding principal path-dependent, \
+                 which the recombining rates-credit lattice cannot represent. \
+                 Price with deterministic rates (hw1f_sigma unset) or remove the \
+                 PIK feature.",
+                self.bond.id.as_str()
+            )));
+        }
+
+        let coupons = build_node_coupons(
+            &NodeCouponBuildInputs {
+                schedule: &full_schedule,
+                params: params_from_spec(&floating.rate_spec),
+                grid_origin: self.as_of,
+                time_steps: &self.time_steps,
+                day_count: discount_curve.day_count(),
+                discount: discount_curve.as_ref(),
+                snap: SliceSnap::Nearest,
+                strip_index_constraints: strips_index_constraints(&floating.rate_spec),
+            },
+            |step| self.outstanding_principal_at(step),
+        )?;
+        if coupons.is_empty() {
+            return Ok(coupons);
+        }
+
+        let exercise_steps = self
+            .call_vec
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| c.is_some())
+            .map(|(step, _)| step)
+            .chain(
+                self.put_vec
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, p)| p.is_some())
+                    .map(|(step, _)| step),
+            );
+        validate_exercise_alignment(
+            &coupons,
+            exercise_steps,
+            &format!("Bond '{}'", self.bond.id.as_str()),
+        )?;
+
+        Ok(coupons)
     }
 
     /// Get the total holder-view cashflow amount at this time step.

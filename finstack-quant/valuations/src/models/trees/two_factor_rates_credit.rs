@@ -116,8 +116,35 @@
 //! applied as a parallel shift to calibrated short rates during backward induction.
 //! This matches the `ShortRateTree` convention.
 //!
+//! # Node-dependent floating resets
+//!
+//! A floating coupon whose index fixes in the future re-fixes off the rate
+//! node it meets, not off today's curve. [`RatesCreditTree::price_with_node_coupons`]
+//! values that dependence with **two distinct operators**:
+//!
+//! 1. **Forward derivation** ([`RatesCreditTree::conditional_discount_factors`]):
+//!    the one-period node forward comes from tree-conditional risk-free
+//!    discount factors built from the **raw calibrated rate nodes** — no OAS,
+//!    no survival, no positive floor. Node forwards are a property of the
+//!    calibrated risk-free lattice; the OAS never moves them.
+//! 2. **Pricing-measure folding**: the coupon's node-dependent *increment*
+//!    over its deterministic projection is folded into continuation at the
+//!    reset slice using exactly the discounting backward induction applies —
+//!    raw rate **plus** OAS, floored-hazard survival, and the correlated
+//!    joint transitions.
+//!
+//! The deterministic projection of every coupon stays booked in the
+//! valuator's cashflow vectors unchanged; only the increment is
+//! node-dependent, so the stochastic path collapses onto today's projected
+//! cashflows as `rate_vol → 0` by construction. For an option-free FRN with
+//! zero rate/credit correlation the folded increment prices to zero
+//! *exactly* (the classic result that a floater's forward-set leg is worth
+//! its curve projection; cf. Tuckman & Serrat, *Fixed Income Securities*,
+//! ch. 2 on floaters pricing to par), which the tests assert on the lattice.
+//!
 //! [`HullWhiteTree`]: super::hull_white_tree::HullWhiteTree
 
+use crate::cashflow::builder::rate_helpers::{calculate_floating_rate, FloatingRateParams};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::HazardCurve;
 use finstack_quant_core::market_data::traits::Discounting;
@@ -387,6 +414,121 @@ impl HazardFloorSaturation {
     }
 }
 
+/// A future floating-coupon reset valued at tree nodes.
+///
+/// Describes one coupon whose index rate fixes at `reset_step` (in the
+/// future) and pays at `payment_step`. The instrument's **deterministic**
+/// projection of this coupon stays booked exactly as before in the
+/// valuator's step-indexed cashflow vector; the lattice adds only the
+/// **node-dependent increment**
+///
+/// ```text
+/// ΔC(i) = notional · accrual · timing_scale
+///         · [ compose(base_index_rate + ΔF(i)) − compose(base_index_rate) ]
+/// ΔF(i) = node_discount_forward(i) − base_discount_forward
+/// ```
+///
+/// where `compose` is the existing floating-rate composition
+/// ([`calculate_floating_rate`]: index floor/cap, gearing, spread, all-in
+/// floor/cap) and `node_discount_forward(i)` is the simply-compounded
+/// forward implied by the tree-conditional risk-free discount factor at
+/// rate node `i` (see [`RatesCreditTree::conditional_discount_factors`]).
+///
+/// Anchoring the node index rate to the **emission's own**
+/// `base_index_rate` implements the deterministic multi-curve basis
+///
+/// ```text
+/// node_projection_forward
+///   = node_discount_forward + (market_projection_forward − market_discount_forward)
+/// ```
+///
+/// (additive deterministic basis in the sense of Mercurio (2009),
+/// "Interest Rates and The Credit Crunch: New Formulas and Market
+/// Models", §2), and makes the increment vanish identically as
+/// `rate_vol → 0`, so the stochastic path collapses onto today's
+/// deterministic projection by construction.
+///
+/// # Invariants
+///
+/// - `reset_step < payment_step ≤ steps`: reset and payment snap to
+///   distinct tree slices; a coarser grid must be refined, not silently
+///   collapsed.
+/// - `accrual > 0`, all fields finite; `timing_scale > 0` carries the
+///   `DF(payment_date)/DF(payment_slice)` timing correction the
+///   deterministic booking applies via `value_at_step_time`.
+#[derive(Debug, Clone)]
+pub struct NodeCoupon {
+    /// Tree slice at which the coupon's index rate fixes (accrual start).
+    pub reset_step: usize,
+    /// Tree slice at which the coupon pays (accrual end / payment date).
+    pub payment_step: usize,
+    /// Accrual fraction τ of the underlying period in the instrument's
+    /// day count (the emitted flow's `accrual_factor`).
+    pub accrual: f64,
+    /// Outstanding principal the coupon accrues on.
+    pub notional: f64,
+    /// Index rate (pre-composition) the deterministic emission projected
+    /// for this period (`CashFlowAccrual::projected_index_rate`).
+    pub base_index_rate: f64,
+    /// Market simply-compounded discount forward over the **snapped slice
+    /// interval** `[t(reset_step), t(payment_step)]` with the same
+    /// `accrual` denominator: `(DF(t_n)/DF(t_m) − 1) / accrual`.
+    pub base_discount_forward: f64,
+    /// Payment-timing correction `DF(payment_date)/DF(t(payment_step))`
+    /// mirroring the deterministic booking's `value_at_step_time`.
+    pub timing_scale: f64,
+    /// Floating-rate composition parameters (index floor/cap, gearing,
+    /// spread, all-in floor/cap) taken from the instrument's
+    /// `FloatingRateSpec` — no second coupon specification.
+    pub params: FloatingRateParams,
+}
+
+impl NodeCoupon {
+    /// Validate the descriptor against the calibrated lattice geometry.
+    fn validate(&self, steps: usize) -> Result<()> {
+        if self.reset_step >= self.payment_step {
+            return Err(Error::Validation(format!(
+                "node coupon reset_step ({}) and payment_step ({}) must snap to \
+                 distinct, ordered tree slices; the tree grid is too coarse for \
+                 this coupon period. Increase tree_steps.",
+                self.reset_step, self.payment_step
+            )));
+        }
+        if self.payment_step > steps {
+            return Err(Error::Validation(format!(
+                "node coupon payment_step ({}) exceeds the lattice step count ({steps})",
+                self.payment_step
+            )));
+        }
+        for (label, value) in [
+            ("accrual", self.accrual),
+            ("notional", self.notional),
+            ("base_index_rate", self.base_index_rate),
+            ("base_discount_forward", self.base_discount_forward),
+            ("timing_scale", self.timing_scale),
+        ] {
+            if !value.is_finite() {
+                return Err(Error::Validation(format!(
+                    "node coupon {label} must be finite, got {value}"
+                )));
+            }
+        }
+        if self.accrual <= 0.0 {
+            return Err(Error::Validation(format!(
+                "node coupon accrual must be positive, got {}",
+                self.accrual
+            )));
+        }
+        if self.timing_scale <= 0.0 {
+            return Err(Error::Validation(format!(
+                "node coupon timing_scale must be positive, got {}",
+                self.timing_scale
+            )));
+        }
+        Ok(())
+    }
+}
+
 /// Per-factor lattice geometry and calibration target shared by the rate and
 /// hazard passes of [`RatesCreditTree::calibrate`].
 #[derive(Debug, Clone, Copy)]
@@ -651,6 +793,11 @@ impl RatesCreditTree {
     /// nodes' marginals away from ½. This reports the binding constraint
     /// across the whole lattice, so a caller can pick a workable correlation
     /// instead of discovering the limit through a calibration failure.
+    ///
+    /// # Arguments
+    ///
+    /// * `time_to_maturity` - total lattice horizon in years (defines the
+    ///   step size the marginal probabilities are evaluated at)
     ///
     /// Returns `1.0` for an uncalibrated tree or one without mean reversion,
     /// where every correlation in `[-1, 1]` is attainable.
@@ -1082,15 +1229,273 @@ impl RatesCreditTree {
         // Marginals are exact by construction.
         (a, p_r - a, p_h - a, 1.0 - p_r - p_h + a)
     }
+
+    /// Tree-conditional risk-free discount factors `P(t_n → t_m | rate node)`.
+    ///
+    /// For each rate node `i` at `reset_step`, returns the conditional
+    /// zero-coupon price to `payment_step` implied by backward induction on
+    /// the **rate-marginal** lattice using the **raw calibrated rates** —
+    /// no OAS shift, no survival, no positive floor. The rate marginal is
+    /// Markov on its own binomial lattice because the joint transition
+    /// probabilities are built from the marginals by Fréchet coupling
+    /// (`p_uu + p_ud = p_r` identically), so conditioning on the rate node
+    /// alone is exact.
+    ///
+    /// This is the **forward-derivation operator** for node-dependent
+    /// floating coupons: the simply-compounded node forward over the
+    /// schedule accrual fraction τ is `(1/P − 1)/τ`. It is deliberately a
+    /// *different* operator from the pricing-measure folding in
+    /// [`Self::price_with_node_coupons`] (which applies OAS, survival, and
+    /// the correlated joint transitions): node forwards are a property of
+    /// the calibrated risk-free lattice and must not move with the OAS.
+    ///
+    /// # Arguments
+    ///
+    /// * `reset_step` - slice at which the forward is observed
+    /// * `payment_step` - slice at which the notional would be repaid
+    /// * `time_to_maturity` - total lattice horizon in years (defines `Δt`)
+    ///
+    /// # Returns
+    ///
+    /// `P[i]` for `i in 0..=reset_step`, each in `(0, ∞)`; higher rate
+    /// nodes produce smaller discount factors.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the tree is uncalibrated, the steps are not
+    /// strictly ordered within the lattice, or `time_to_maturity` is not
+    /// positive.
+    pub fn conditional_discount_factors(
+        &self,
+        reset_step: usize,
+        payment_step: usize,
+        time_to_maturity: f64,
+    ) -> Result<Vec<f64>> {
+        if self.calibrated_rates.is_empty() {
+            return Err(Error::internal(
+                "rates-credit tree must be calibrated before conditional discounting",
+            ));
+        }
+        let steps = self.config.steps;
+        if time_to_maturity <= 0.0 || steps == 0 {
+            return Err(Error::internal(
+                "conditional discounting requires positive steps and time_to_maturity",
+            ));
+        }
+        if reset_step >= payment_step || payment_step > steps {
+            return Err(Error::Validation(format!(
+                "conditional discounting requires reset_step < payment_step <= steps, \
+                 got reset_step={reset_step}, payment_step={payment_step}, steps={steps}"
+            )));
+        }
+        let dt = time_to_maturity / steps as f64;
+
+        // Backward induction on the rate marginal: value 1 at payment_step,
+        // discount with the raw calibrated node rate, transition with the
+        // same mean-reversion-aware probability pricing uses.
+        let mut values = vec![1.0; payment_step + 1];
+        for k in (reset_step..payment_step).rev() {
+            let mut next = vec![0.0; k + 1];
+            for (i, slot) in next.iter_mut().enumerate() {
+                let r = self.calibrated_rates[k][i];
+                let p_up = Self::mean_reverting_up_prob(
+                    r,
+                    self.rate_ref,
+                    self.config.rate_mean_reversion,
+                    self.config.rate_vol,
+                    dt,
+                );
+                let df = (-r * dt).exp();
+                *slot = df * (p_up * values[i + 1] + (1.0 - p_up) * values[i]);
+            }
+            values = next;
+        }
+        Ok(values)
+    }
+
+    /// Pricing-measure fold of one node coupon's increment onto its reset
+    /// slice.
+    ///
+    /// Returns the amount to add to the **continuation value** at each
+    /// joint node `(i, j)` of `coupon.reset_step` (flattened with stride
+    /// `max_nodes = steps + 1`). The unit claim — 1 paid at
+    /// `payment_step` contingent on survival — is rolled back with exactly
+    /// the operator the main backward induction applies to a deterministic
+    /// cashflow at that slice: per-step discounting at the raw calibrated
+    /// rate **plus the active OAS**, per-step survival at the floored node
+    /// hazard, and the correlated joint transitions. The valuator applies
+    /// the reset slice's own survival weighting when it wraps the
+    /// continuation, so this fold deliberately stops one survival factor
+    /// short at the reset slice; a coupon paying at the terminal slice
+    /// seeds at `1` because `value_at_maturity` carries no survival
+    /// weighting.
+    ///
+    /// The increment amount per rate node is `ΔC(i)` as documented on
+    /// [`NodeCoupon`]; multiplying the unit fold by `ΔC(i)` is exact
+    /// because the amount is fixed at the reset node.
+    fn folded_increment_values(
+        &self,
+        coupon: &NodeCoupon,
+        time_to_maturity: f64,
+        oas_decimal: f64,
+    ) -> Result<Vec<f64>> {
+        let steps = self.config.steps;
+        let dt = time_to_maturity / steps as f64;
+        let max_nodes = steps + 1;
+        let n = coupon.reset_step;
+        let m = coupon.payment_step;
+
+        // Node-dependent increment amounts from the forward-derivation
+        // operator (raw rates, no OAS, no survival).
+        let p_rf = self.conditional_discount_factors(n, m, time_to_maturity)?;
+        let base_composed = calculate_floating_rate(coupon.base_index_rate, &coupon.params);
+        let mut delta_amounts = vec![0.0; n + 1];
+        for (i, slot) in delta_amounts.iter_mut().enumerate() {
+            let node_forward = (1.0 / p_rf[i] - 1.0) / coupon.accrual;
+            let delta_f = node_forward - coupon.base_discount_forward;
+            let bumped = calculate_floating_rate(coupon.base_index_rate + delta_f, &coupon.params);
+            *slot =
+                coupon.notional * coupon.accrual * coupon.timing_scale * (bumped - base_composed);
+        }
+
+        // Unit-claim roll-back on the joint lattice with the pricing
+        // operator. `w` holds the claim value at the slice currently being
+        // consumed, in the same "post-valuator" form the main induction's
+        // value function carries.
+        let mut w = vec![0.0; max_nodes * max_nodes];
+        let mut w_next = vec![0.0; max_nodes * max_nodes];
+        for i in 0..=m {
+            for j in 0..=m {
+                let seed = if m == steps {
+                    // value_at_maturity applies no survival weighting.
+                    1.0
+                } else {
+                    let h = Self::effective_hazard(self.calibrated_hazards[m][j]);
+                    (-h * dt).exp()
+                };
+                w[i * max_nodes + j] = seed;
+            }
+        }
+        for k in (n + 1..m).rev() {
+            for i in 0..=k {
+                let r = self.calibrated_rates[k][i];
+                let p_r = Self::mean_reverting_up_prob(
+                    r,
+                    self.rate_ref,
+                    self.config.rate_mean_reversion,
+                    self.config.rate_vol,
+                    dt,
+                );
+                let df = (-(r + oas_decimal) * dt).exp();
+                for j in 0..=k {
+                    let h = self.calibrated_hazards[k][j];
+                    let p_h = Self::mean_reverting_up_prob(
+                        h,
+                        self.hazard_ref,
+                        self.config.hazard_mean_reversion,
+                        self.config.hazard_vol,
+                        dt,
+                    );
+                    let (p_uu, p_ud, p_du, p_dd) = self.joint_probabilities(p_r, p_h);
+                    let expectation = p_uu * w[(i + 1) * max_nodes + (j + 1)]
+                        + p_ud * w[(i + 1) * max_nodes + j]
+                        + p_du * w[i * max_nodes + (j + 1)]
+                        + p_dd * w[i * max_nodes + j];
+                    let p_surv = (-Self::effective_hazard(h) * dt).exp();
+                    w_next[i * max_nodes + j] = p_surv * df * expectation;
+                }
+            }
+            std::mem::swap(&mut w, &mut w_next);
+        }
+
+        // Assemble at the reset slice: continuation-form (discount + joint
+        // expectation, no survival — the valuator applies it), scaled by the
+        // node's increment amount.
+        let mut folded = vec![0.0; max_nodes * max_nodes];
+        for (i, &delta) in delta_amounts.iter().enumerate() {
+            let r = self.calibrated_rates[n][i];
+            let p_r = Self::mean_reverting_up_prob(
+                r,
+                self.rate_ref,
+                self.config.rate_mean_reversion,
+                self.config.rate_vol,
+                dt,
+            );
+            let df = (-(r + oas_decimal) * dt).exp();
+            for j in 0..=n {
+                let h = self.calibrated_hazards[n][j];
+                let p_h = Self::mean_reverting_up_prob(
+                    h,
+                    self.hazard_ref,
+                    self.config.hazard_mean_reversion,
+                    self.config.hazard_vol,
+                    dt,
+                );
+                let (p_uu, p_ud, p_du, p_dd) = self.joint_probabilities(p_r, p_h);
+                let expectation = p_uu * w[(i + 1) * max_nodes + (j + 1)]
+                    + p_ud * w[(i + 1) * max_nodes + j]
+                    + p_du * w[i * max_nodes + (j + 1)]
+                    + p_dd * w[i * max_nodes + j];
+                folded[i * max_nodes + j] = delta * df * expectation;
+            }
+        }
+        Ok(folded)
+    }
 }
 
-impl TreeModel for RatesCreditTree {
-    fn price<V: TreeValuator>(
+impl RatesCreditTree {
+    /// Price with node-dependent floating-coupon increments folded into
+    /// continuation at their reset slices.
+    ///
+    /// This is the full backward induction of [`TreeModel::price`] plus, at
+    /// each [`NodeCoupon::reset_step`], the coupon's node-dependent
+    /// increment added to the continuation value **before** the valuator's
+    /// exercise decision and survival weighting. Adding it to continuation
+    /// gives the correct exercise economics: a redemption at the reset
+    /// slice forfeits the not-yet-accrued coupon, while a redemption at
+    /// the payment slice still pays it (matching the engine's
+    /// coupon-paid-regardless convention). Because the folded unit claim
+    /// carries no exercise decisions between reset and payment, callers
+    /// must ensure no exercise step lies strictly inside a node coupon's
+    /// `(reset_step, payment_step)` — the instrument engines validate
+    /// this before pricing.
+    ///
+    /// Two distinct operators are involved, per the callable-integration
+    /// design:
+    ///
+    /// 1. **Forward derivation** — raw calibrated rates, no OAS, no
+    ///    survival ([`Self::conditional_discount_factors`]); sets the
+    ///    coupon amount at each rate node.
+    /// 2. **Pricing-measure folding** — the same per-node discounting the
+    ///    main induction applies (raw rate + OAS, floored-hazard survival,
+    ///    correlated joint transitions); moves that amount from payment to
+    ///    reset.
+    ///
+    /// With an empty `node_coupons` slice this is exactly
+    /// [`TreeModel::price`], which delegates here.
+    ///
+    /// # Arguments
+    ///
+    /// * `initial_vars` - initial state variables; `"oas"` (basis points)
+    ///   is applied as a parallel shift to the calibrated short rates
+    /// * `time_to_maturity` - total lattice horizon in years
+    /// * `market_context` - market data passed through to the valuator
+    /// * `valuator` - instrument value function driven by the induction
+    /// * `node_coupons` - future floating-coupon increments to fold at
+    ///   their reset slices
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the tree is uncalibrated, the horizon is not
+    /// positive, a descriptor violates its invariants (see
+    /// [`NodeCoupon`]), or the valuator fails.
+    pub fn price_with_node_coupons<V: TreeValuator>(
         &self,
         initial_vars: HashMap<&'static str, f64>,
         time_to_maturity: f64,
         market_context: &MarketContext,
         valuator: &V,
+        node_coupons: &[NodeCoupon],
     ) -> Result<f64> {
         if self.calibrated_rates.is_empty() || self.calibrated_hazards.is_empty() {
             return Err(Error::internal(
@@ -1108,6 +1513,24 @@ impl TreeModel for RatesCreditTree {
 
         // OAS from initial variables (bp units, same convention as ShortRateTree)
         let oas_decimal = initial_vars.get("oas").copied().unwrap_or(0.0) / 10_000.0;
+
+        // Fold every node coupon's increment onto its reset slice up front;
+        // the claims are independent of the instrument value function, so
+        // they precompute cleanly. The fold depends on the active OAS, so
+        // an OAS solve re-folds on every objective evaluation by design.
+        let mut folded_by_step: Vec<Option<Vec<f64>>> = vec![None; steps];
+        for coupon in node_coupons {
+            coupon.validate(steps)?;
+            let folded = self.folded_increment_values(coupon, time_to_maturity, oas_decimal)?;
+            match &mut folded_by_step[coupon.reset_step] {
+                Some(existing) => {
+                    for (slot, add) in existing.iter_mut().zip(folded.iter()) {
+                        *slot += add;
+                    }
+                }
+                slot @ None => *slot = Some(folded),
+            }
+        }
 
         // Pre-allocate flat double buffers for backward induction (zero
         // allocations in the loop). Row-major `[i * max_nodes + j]` storage is
@@ -1193,7 +1616,14 @@ impl TreeModel for RatesCreditTree {
                     // variables*, which shields valuators that cannot accept
                     // non-positive rates.
                     let df = (-(r_t + oas_decimal) * dt).exp();
-                    let cont = df * (p_uu * v_uu + p_ud * v_ud + p_du * v_du + p_dd * v_dd);
+                    let mut cont = df * (p_uu * v_uu + p_ud * v_ud + p_du * v_du + p_dd * v_dd);
+
+                    // Node-dependent floating-coupon increments fold into
+                    // continuation at their reset slice, ahead of the
+                    // valuator's exercise decision and survival weighting.
+                    if let Some(folded) = folded_by_step.get(k).and_then(|f| f.as_ref()) {
+                        cont += folded[i * max_nodes + j];
+                    }
 
                     // `r_t`/`h_t` are floored only for the cached *state*
                     // variables (shields valuators that reject non-positive
@@ -1220,6 +1650,24 @@ impl TreeModel for RatesCreditTree {
         }
 
         Ok(curr_values[0])
+    }
+}
+
+impl TreeModel for RatesCreditTree {
+    fn price<V: TreeValuator>(
+        &self,
+        initial_vars: HashMap<&'static str, f64>,
+        time_to_maturity: f64,
+        market_context: &MarketContext,
+        valuator: &V,
+    ) -> Result<f64> {
+        self.price_with_node_coupons(
+            initial_vars,
+            time_to_maturity,
+            market_context,
+            valuator,
+            &[],
+        )
     }
 }
 
@@ -1763,6 +2211,289 @@ mod tests {
             .par_interp(ParInterp::Linear)
             .build()
             .expect("hazard curve should build")
+    }
+
+    /// Valuator that pays step-indexed cashflows under the same survival
+    /// convention the bond/term-loan valuators use (no recovery, no
+    /// exercise). Used to probe the node-coupon fold in isolation.
+    struct SurvivalCashflowValuator {
+        cashflows: Vec<f64>,
+    }
+
+    impl TreeValuator for SurvivalCashflowValuator {
+        fn value_at_maturity(&self, state: &NodeState) -> Result<f64> {
+            Ok(self.cashflows.get(state.step).copied().unwrap_or(0.0))
+        }
+        fn value_at_node(
+            &self,
+            state: &NodeState,
+            continuation_value: f64,
+            dt: f64,
+        ) -> Result<f64> {
+            let alive = self.cashflows.get(state.step).copied().unwrap_or(0.0) + continuation_value;
+            if let Some(hazard) = state.hazard_rate {
+                let p_surv = (-hazard.max(0.0) * dt).exp();
+                Ok(p_surv * alive)
+            } else {
+                Ok(alive)
+            }
+        }
+    }
+
+    /// With zero rate volatility every rate node collapses onto the
+    /// calibrated deterministic path, so the tree-conditional discount
+    /// factor must equal the market forward discount factor over the same
+    /// slice interval.
+    #[test]
+    fn conditional_discount_factors_match_curve_at_zero_rate_vol() {
+        let disc = sloped_discount_curve();
+        let haz = test_hazard_curve();
+        let steps = 40;
+        let ttm = 5.0;
+        let mut tree = RatesCreditTree::new(RatesCreditConfig {
+            steps,
+            rate_vol: 0.0,
+            hazard_vol: 0.0,
+            ..Default::default()
+        });
+        tree.calibrate(&disc, &haz, ttm).expect("calibration");
+
+        let dt = ttm / steps as f64;
+        let (n, m) = (16usize, 20usize);
+        let market_fwd_df = disc.df(m as f64 * dt) / disc.df(n as f64 * dt);
+        let conditional = tree
+            .conditional_discount_factors(n, m, ttm)
+            .expect("conditional discounting");
+        assert_eq!(conditional.len(), n + 1);
+        for (i, p) in conditional.iter().enumerate() {
+            assert!(
+                (p - market_fwd_df).abs() < 1e-9,
+                "node {i}: conditional DF {p} must equal market forward DF {market_fwd_df} \
+                 when the rate factor is deterministic"
+            );
+        }
+    }
+
+    /// Higher rate nodes must produce smaller conditional discount factors,
+    /// and the derivation must ignore the OAS entirely (it takes no OAS
+    /// input — asserted here by construction through the API shape).
+    #[test]
+    fn conditional_discount_factors_decrease_in_rate_node() {
+        let disc = sloped_discount_curve();
+        let haz = test_hazard_curve();
+        let steps = 40;
+        let ttm = 5.0;
+        let mut tree = RatesCreditTree::new(RatesCreditConfig {
+            steps,
+            rate_vol: 0.015,
+            hazard_vol: 0.0,
+            ..Default::default()
+        });
+        tree.calibrate(&disc, &haz, ttm).expect("calibration");
+
+        let conditional = tree
+            .conditional_discount_factors(16, 24, ttm)
+            .expect("conditional discounting");
+        for pair in conditional.windows(2) {
+            assert!(
+                pair[1] < pair[0],
+                "conditional DF must strictly decrease in the rate node: {conditional:?}"
+            );
+        }
+        assert!(conditional.iter().all(|p| *p > 0.0 && p.is_finite()));
+    }
+
+    /// The razor identity behind the whole floating-reset design: for an
+    /// increment defined off the slice-interval market forward with identity
+    /// composition, the fold prices to **zero** when rates and credit are
+    /// uncorrelated — for any rate vol, hazard vol, and OAS. The increment
+    /// `N·((1/P − 1) − f·τ)` satisfies
+    /// `E[D·(1/P − 1 − f·τ)·P] = (DF(n) − DF(m)) − f·τ·DF(m) = 0`, and with
+    /// `ρ = 0` the survival and OAS factors multiply out node-independently.
+    /// A non-zero correlation breaks the factorization and must move the
+    /// value — that is precisely the coupon/discount-survival covariance the
+    /// milestone exists to capture.
+    #[test]
+    fn pure_forward_increment_folds_to_zero_without_correlation() {
+        let disc = sloped_discount_curve();
+        let haz = test_hazard_curve();
+        let steps = 40;
+        let ttm = 5.0;
+        let dt = ttm / steps as f64;
+        let (n, m) = (16usize, 20usize);
+        let tau = (m - n) as f64 * dt;
+        let slice_fwd = (disc.df(n as f64 * dt) / disc.df(m as f64 * dt) - 1.0) / tau;
+
+        let coupon = NodeCoupon {
+            reset_step: n,
+            payment_step: m,
+            accrual: tau,
+            notional: 1_000_000.0,
+            base_index_rate: slice_fwd,
+            base_discount_forward: slice_fwd,
+            timing_scale: 1.0,
+            params: FloatingRateParams::default(),
+        };
+        let valuator = SurvivalCashflowValuator {
+            cashflows: vec![0.0; steps + 1],
+        };
+
+        let price_with_rho = |rho: f64| -> f64 {
+            let mut tree = RatesCreditTree::new(RatesCreditConfig {
+                steps,
+                rate_vol: 0.015,
+                hazard_vol: 0.01,
+                correlation: rho,
+                ..Default::default()
+            });
+            tree.calibrate(&disc, &haz, ttm).expect("calibration");
+            let mut vars = HashMap::<&'static str, f64>::default();
+            vars.insert("oas", 175.0);
+            tree.price_with_node_coupons(
+                vars,
+                ttm,
+                &MarketContext::new(),
+                &valuator,
+                std::slice::from_ref(&coupon),
+            )
+            .expect("pricing")
+        };
+
+        let uncorrelated = price_with_rho(0.0);
+        assert!(
+            uncorrelated.abs() < 1e-2,
+            "pure forward increment must fold to ~zero at rho = 0 (got {uncorrelated})"
+        );
+
+        // Positive rate/credit correlation puts the high-coupon states on
+        // the low-survival paths, so the coupon-specific covariance is
+        // strictly negative — this is the isolated sign of the channel the
+        // floating-reset milestone exists to capture. (At the instrument
+        // level the total correlation response also carries the opposing
+        // risky-discount covariance `E[S·D]` on every booked cashflow,
+        // which exists for fixed bonds too.)
+        let correlated = price_with_rho(0.5);
+        assert!(
+            correlated < -1.0,
+            "positive correlation must make the folded increment strictly \
+             negative (high coupons on low-survival paths), got {correlated}"
+        );
+    }
+
+    /// The node-coupon path with an empty descriptor slice is exactly the
+    /// plain pricing path.
+    #[test]
+    fn empty_node_coupons_match_plain_price() {
+        let disc = sloped_discount_curve();
+        let haz = test_hazard_curve();
+        let steps = 30;
+        let ttm = 5.0;
+        let mut tree = RatesCreditTree::new(RatesCreditConfig {
+            steps,
+            rate_vol: 0.012,
+            hazard_vol: 0.015,
+            ..Default::default()
+        });
+        tree.calibrate(&disc, &haz, ttm).expect("calibration");
+
+        let mut cashflows = vec![0.0; steps + 1];
+        cashflows[steps] = 1_000_000.0;
+        let valuator = SurvivalCashflowValuator { cashflows };
+
+        let plain = tree
+            .price(
+                HashMap::<&'static str, f64>::default(),
+                ttm,
+                &MarketContext::new(),
+                &valuator,
+            )
+            .expect("plain price");
+        let with_empty = tree
+            .price_with_node_coupons(
+                HashMap::<&'static str, f64>::default(),
+                ttm,
+                &MarketContext::new(),
+                &valuator,
+                &[],
+            )
+            .expect("empty-coupon price");
+        assert_eq!(plain, with_empty);
+    }
+
+    /// Descriptor invariants are enforced before any folding happens.
+    #[test]
+    fn node_coupon_descriptor_validation_rejects_bad_geometry() {
+        let disc = sloped_discount_curve();
+        let haz = test_hazard_curve();
+        let steps = 20;
+        let ttm = 5.0;
+        let mut tree = RatesCreditTree::new(RatesCreditConfig {
+            steps,
+            rate_vol: 0.01,
+            hazard_vol: 0.0,
+            ..Default::default()
+        });
+        tree.calibrate(&disc, &haz, ttm).expect("calibration");
+        let valuator = SurvivalCashflowValuator {
+            cashflows: vec![0.0; steps + 1],
+        };
+
+        let base = NodeCoupon {
+            reset_step: 4,
+            payment_step: 8,
+            accrual: 1.0,
+            notional: 100.0,
+            base_index_rate: 0.03,
+            base_discount_forward: 0.03,
+            timing_scale: 1.0,
+            params: FloatingRateParams::default(),
+        };
+
+        let collapsed = NodeCoupon {
+            payment_step: 4,
+            ..base.clone()
+        };
+        let err = tree
+            .price_with_node_coupons(
+                HashMap::default(),
+                ttm,
+                &MarketContext::new(),
+                &valuator,
+                std::slice::from_ref(&collapsed),
+            )
+            .expect_err("collapsed reset/payment must be rejected");
+        assert!(
+            err.to_string().contains("too coarse"),
+            "unexpected error: {err}"
+        );
+
+        let beyond = NodeCoupon {
+            payment_step: steps + 1,
+            ..base.clone()
+        };
+        assert!(tree
+            .price_with_node_coupons(
+                HashMap::default(),
+                ttm,
+                &MarketContext::new(),
+                &valuator,
+                std::slice::from_ref(&beyond),
+            )
+            .is_err());
+
+        let bad_accrual = NodeCoupon {
+            accrual: 0.0,
+            ..base
+        };
+        assert!(tree
+            .price_with_node_coupons(
+                HashMap::default(),
+                ttm,
+                &MarketContext::new(),
+                &valuator,
+                std::slice::from_ref(&bad_accrual),
+            )
+            .is_err());
     }
 
     #[test]

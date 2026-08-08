@@ -126,6 +126,11 @@ pub fn conditional_average_hazard(
 /// Reference par spread implied by a hazard rate under the credit triangle:
 /// `s ≈ (1 − R) · λ`.
 ///
+/// # Arguments
+///
+/// * `hazard` - annualized default intensity `λ`
+/// * `recovery` - recovery rate `R`, in `[0, 1)`
+///
 /// # Errors
 ///
 /// Returns [`Error::Validation`] for a non-finite or negative hazard, or a
@@ -138,6 +143,11 @@ pub fn reference_spread(hazard: f64, recovery: f64) -> Result<f64> {
 
 /// Convert a fractional (relative) spread volatility to an absolute one at a
 /// reference spread level: `σ_s,abs = σ_fractional · s_ref`.
+///
+/// # Arguments
+///
+/// * `fractional_vol` - relative spread volatility, e.g. `0.35`
+/// * `reference_spread` - par spread level the volatility is anchored at
 ///
 /// # Errors
 ///
@@ -159,6 +169,11 @@ pub fn absolute_spread_volatility(fractional_vol: f64, reference_spread: f64) ->
 /// Equivalently `σ_s,abs / (1 − R)` under the same triangle — recovery
 /// cancels, so this needs only the reference hazard.
 ///
+/// # Arguments
+///
+/// * `fractional_vol` - relative spread volatility, e.g. `0.35`
+/// * `reference_hazard` - hazard level `λ_ref` the volatility is anchored at
+///
 /// # Errors
 ///
 /// Returns [`Error::Validation`] for a non-finite or negative volatility or
@@ -175,6 +190,11 @@ pub fn additive_hazard_volatility(fractional_vol: f64, reference_hazard: f64) ->
 /// The CIR diffusion term is `σ_CIR·√s·dW`, so matching the local lognormal
 /// volatility `σ_fractional·s` at `s = s_ref` requires
 /// `σ_CIR·√s_ref = σ_fractional·s_ref`.
+///
+/// # Arguments
+///
+/// * `fractional_vol` - relative spread volatility, e.g. `0.35`
+/// * `reference_spread` - par spread level `s_ref` the process is anchored at
 ///
 /// # Errors
 ///
@@ -221,8 +241,10 @@ impl CreditVolatilityConversion {
     /// # Arguments
     ///
     /// * `fractional_spread_volatility` - relative spread vol, e.g. `0.35`
-    /// * `survival_start` / `survival_end` - survival probabilities bounding
-    ///   the horizon on the **target** credit curve
+    /// * `survival_start` - survival probability at the window start on the
+    ///   **target** credit curve
+    /// * `survival_end` - survival probability at the window end on the same
+    ///   curve
     /// * `horizon_years` - window length in years
     /// * `recovery` - recovery rate for the credit triangle, in `[0, 1)`
     ///

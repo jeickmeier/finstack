@@ -10,6 +10,7 @@
 //! - [`swap_legs`]: Shared floating/fixed leg pricing for swaps
 //! - [`time`]: Shared time-mapping and discount factor helpers for consistent curve usage
 
+pub(crate) mod floating_reset_descriptors;
 mod generic;
 pub(crate) mod overnight;
 pub mod swap_legs;

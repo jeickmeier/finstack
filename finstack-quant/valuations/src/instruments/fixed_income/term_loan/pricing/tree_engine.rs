@@ -27,6 +27,14 @@
 //! relative credit-spread volatility; see
 //! [`models::credit::market_anchored`](crate::models::credit::market_anchored)
 //! for the conversion from a market-quoted fractional spread vol.
+//!
+//! With a positive `hw1f_sigma`, future floating resets re-fix off the rate
+//! node (see [`RatesCreditTree::price_with_node_coupons`]): the
+//! deterministic projection stays booked unchanged, the node-dependent
+//! increment folds at each reset slice, and the standing call provision is
+//! discretized to the floating periods' reset/payment slices. Future
+//! floating PIK is rejected in that mode rather than misstating
+//! path-dependent principal.
 
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::fixed_income::term_loan::TermLoan;
@@ -122,6 +130,13 @@ struct TermLoanValuator {
     recovery_rate: Option<f64>,
     /// Call friction in cents per 100 of outstanding.
     call_friction_cents: f64,
+    /// Uniform tree time grid, kept for node-coupon descriptor
+    /// construction on the stochastic-rate rates-credit path.
+    time_steps: Vec<f64>,
+    /// Valuation date the pricing schedule was built with.
+    as_of: Date,
+    /// Settlement origin — the tree's `t = 0`.
+    origin: Date,
 }
 
 impl TermLoanValuator {
@@ -392,7 +407,106 @@ impl TermLoanValuator {
             outstanding_vec,
             recovery_rate,
             call_friction_cents,
+            time_steps,
+            as_of,
+            origin,
         })
+    }
+
+    /// Build node-coupon descriptors for future floating resets and reject
+    /// schedules the stochastic-rate lattice cannot represent.
+    ///
+    /// Called by the engine **only** on the rates-credit path with a
+    /// positive short-rate volatility; deterministic-rate pricing never
+    /// invokes it. The deterministic projection of every coupon stays in
+    /// `coupon_fee_vec`; descriptors carry only the node-dependent
+    /// increment.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`finstack_quant_core::Error::Validation`] when a future
+    /// floating coupon's reset and payment collapse onto one tree slice
+    /// (grid too coarse) or the schedule capitalizes (PIK) after the
+    /// settlement origin — a future floating PIK coupon makes outstanding
+    /// principal path-dependent.
+    fn stochastic_node_coupons(
+        &self,
+        market: &MarketContext,
+    ) -> Result<Vec<crate::models::trees::two_factor_rates_credit::NodeCoupon>> {
+        use crate::instruments::common_impl::pricing::floating_reset_descriptors::{
+            build_node_coupons, has_future_pik, params_from_spec, strips_index_constraints,
+            NodeCouponBuildInputs, SliceSnap,
+        };
+        use crate::instruments::fixed_income::term_loan::RateSpec;
+
+        let RateSpec::Floating(ref float_spec) = self.loan.rate else {
+            return Ok(Vec::new());
+        };
+        let schedule = super::discounting::TermLoanDiscountingPricer::pricing_schedule(
+            &self.loan, market, self.as_of,
+        )?;
+        let disc = market.get_discount(&self.loan.discount_curve_id)?;
+
+        // PIK first: a 100% PIK floating leg emits no cash FloatReset flows
+        // at all, so an empty descriptor list must not be read as "nothing
+        // stochastic here" — the capitalized amounts themselves are
+        // node-dependent.
+        if has_future_pik(&schedule, self.origin) {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "TermLoan '{}' capitalizes coupons (PIK) after settlement while \
+                 pricing floating resets under stochastic rates. A future \
+                 floating PIK coupon makes outstanding principal \
+                 path-dependent, which the recombining rates-credit lattice \
+                 cannot represent. Price with deterministic rates (hw1f_sigma \
+                 unset) or remove the PIK feature.",
+                self.loan.id
+            )));
+        }
+
+        build_node_coupons(
+            &NodeCouponBuildInputs {
+                schedule: &schedule,
+                params: params_from_spec(float_spec),
+                grid_origin: self.origin,
+                time_steps: &self.time_steps,
+                day_count: disc.day_count(),
+                discount: disc.as_ref(),
+                snap: SliceSnap::Ceil,
+                strip_index_constraints: strips_index_constraints(float_spec),
+            },
+            |step| self.outstanding_at(step),
+        )
+    }
+
+    /// Restrict the standing call provision to reset/payment boundaries
+    /// inside node-dependent coupon periods.
+    ///
+    /// A term-loan call entry is an effective-dated **standing** provision:
+    /// the deterministic engine evaluates exercise at every tree step. With
+    /// node-dependent coupons, an exercise strictly inside a future
+    /// floating period would need the path-dependent fixing state the
+    /// recombining lattice does not carry, so in stochastic-rate mode the
+    /// exercise opportunity set is discretized to the periods' reset and
+    /// payment slices — the market-standard convention of evaluating loan
+    /// prepayment on coupon dates. Steps outside node-dependent periods
+    /// (in particular the current, already-fixed period) keep every-step
+    /// exercise, matching the deterministic engine.
+    fn restrict_exercise_to_reset_boundaries(
+        &mut self,
+        coupons: &[crate::models::trees::two_factor_rates_credit::NodeCoupon],
+    ) {
+        if coupons.is_empty() {
+            return;
+        }
+        for step in 0..self.call_vec.len() {
+            let interior = coupons
+                .iter()
+                .any(|c| step > c.reset_step && step < c.payment_step);
+            if interior {
+                self.call_vec[step] = None;
+                self.call_outstanding_vec[step] = None;
+            }
+        }
     }
 
     #[inline]
@@ -546,7 +660,7 @@ impl TermLoanTreePricer {
             .map(|id| market.get_hazard(id.as_str()))
             .transpose()?;
 
-        let valuator =
+        let mut valuator =
             TermLoanValuator::new(loan.clone(), market, as_of, origin, time_to_maturity, steps)?;
 
         let price_amount = if let Some(hc) = hazard_curve.as_ref() {
@@ -557,8 +671,19 @@ impl TermLoanTreePricer {
             let mut tree = RatesCreditTree::new(cfg);
             tree.calibrate(disc.as_ref(), hc.as_ref(), time_to_maturity)?;
 
+            // Future floating resets re-fix off the rate node only when the
+            // rate factor diffuses; deterministic-rate pricing keeps today's
+            // projected coupons and every-step exercise unchanged.
+            let node_coupons = if tree.config.rate_vol > 0.0 {
+                let coupons = valuator.stochastic_node_coupons(market)?;
+                valuator.restrict_exercise_to_reset_boundaries(&coupons);
+                coupons
+            } else {
+                Vec::new()
+            };
+
             let vars = HashMap::<&'static str, f64>::default();
-            tree.price(vars, time_to_maturity, market, &valuator)?
+            tree.price_with_node_coupons(vars, time_to_maturity, market, &valuator, &node_coupons)?
         } else {
             reject_inert_hazard_inputs(loan)?;
             // Short-rate tree calibrated to the discount curve.
@@ -650,7 +775,7 @@ impl TermLoanTreePricer {
             .transpose()?;
 
         // Build valuator once.
-        let valuator =
+        let mut valuator =
             TermLoanValuator::new(loan.clone(), market, as_of, origin, time_to_maturity, steps)?;
 
         // Pre-calibrate the credit tree once (it stays fixed; OAS is passed via vars).
@@ -662,6 +787,21 @@ impl TermLoanTreePricer {
         } else {
             None
         };
+
+        // Node-dependent floating resets, active only when the rates-credit
+        // rate factor diffuses. Descriptors are OAS-independent, so they are
+        // built (and the standing call discretized to reset/payment
+        // boundaries) once before the solve; the per-OAS folding happens
+        // inside the tree.
+        let rc_node_coupons = match rc_tree.as_ref() {
+            Some(tree) if tree.config.rate_vol > 0.0 => {
+                let coupons = valuator.stochastic_node_coupons(market)?;
+                valuator.restrict_exercise_to_reset_boundaries(&coupons);
+                coupons
+            }
+            _ => Vec::new(),
+        };
+        let valuator = valuator;
 
         // Pre-calibrate the short-rate tree once when the credit tree is absent.
         // OAS is passed via state variables on each Brent iteration, so the rate
@@ -711,7 +851,13 @@ impl TermLoanTreePricer {
                 // Calibrated credit tree: OAS as a parallel shift to calibrated rates.
                 let mut vars = HashMap::<&'static str, f64>::default();
                 vars.insert("oas", oas_bp);
-                match tree.price(vars, time_to_maturity, market, &valuator) {
+                match tree.price_with_node_coupons(
+                    vars,
+                    time_to_maturity,
+                    market,
+                    &valuator,
+                    &rc_node_coupons,
+                ) {
                     Ok(model_price) => model_price - dirty_target,
                     Err(e) => record_error(e),
                 }

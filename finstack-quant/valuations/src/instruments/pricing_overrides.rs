@@ -718,6 +718,12 @@ impl InstrumentPricingOverrides {
     }
 
     /// Set implied volatility (flat σ across tenor and strike).
+    ///
+    /// # Arguments
+    ///
+    /// * `vol` - option-implied volatility as a decimal (e.g. `0.35`); this
+    ///   is an option-quote channel, not a short-rate σ — the rates-credit
+    ///   callable path rejects it in favour of [`Self::with_hw1f_sigma`]
     pub fn with_implied_vol(mut self, vol: f64) -> Self {
         self.market_quotes.implied_volatility = Some(vol);
         self
@@ -729,6 +735,11 @@ impl InstrumentPricingOverrides {
     /// the rates-credit callable path accepts. Prefer it over
     /// [`Self::with_implied_vol`] whenever the intent is a short-rate σ rather
     /// than an option implied volatility.
+    ///
+    /// # Arguments
+    ///
+    /// * `sigma` - annualised absolute short-rate volatility (e.g. `0.01` is
+    ///   100 bp/yr)
     pub fn with_hw1f_sigma(mut self, sigma: f64) -> Self {
         self.model_config.hw1f_sigma = Some(sigma);
         self
@@ -736,6 +747,11 @@ impl InstrumentPricingOverrides {
 
     /// Set the hazard-rate volatility σ_λ for the rates-credit callable
     /// lattice (annualised, absolute decimal hazard points per √year).
+    ///
+    /// # Arguments
+    ///
+    /// * `sigma` - annualised absolute hazard volatility (e.g. `0.0105` for
+    ///   a 35% fractional vol on a 3% hazard)
     pub fn with_hazard_volatility(mut self, sigma: f64) -> Self {
         self.model_config.hazard_volatility = Some(sigma);
         self

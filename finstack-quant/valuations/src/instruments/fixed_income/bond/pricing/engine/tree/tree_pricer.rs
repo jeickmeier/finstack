@@ -38,6 +38,13 @@ use finstack_quant_core::{Error, Result};
 ///
 /// Direct PV and the OAS objective share one calibrated tree, so the zero-OAS
 /// point and a direct valuation cannot disagree about the model.
+///
+/// With a positive `hw1f_sigma`, future floating resets re-fix off the rate
+/// node: the deterministic projection stays booked unchanged and the
+/// node-dependent increment is folded at each reset slice (see
+/// [`RatesCreditTree::price_with_node_coupons`]). Known fixings stay
+/// deterministic, and call/put dates strictly inside a future floating
+/// period are rejected rather than approximated.
 pub struct TreePricer {
     /// Pricer configuration (tree steps, volatility, convergence settings)
     config: TreePricerConfig,
@@ -298,9 +305,23 @@ impl TreePricer {
             )?;
             let mut tree = RatesCreditTree::new(cfg);
             tree.calibrate(discount_curve.as_ref(), hc.as_ref(), time_to_maturity)?;
+            // Future floating resets re-fix off the rate node only when the
+            // rate factor actually diffuses; deterministic-rate pricing keeps
+            // today's projected coupons byte-for-byte.
+            let node_coupons = if tree.config.rate_vol > 0.0 {
+                valuator.stochastic_node_coupons(market_context)?
+            } else {
+                Vec::new()
+            };
             let mut vars = HashMap::<&'static str, f64>::default();
             vars.insert("oas", continuous_oas_bp);
-            return tree.price(vars, time_to_maturity, market_context, &valuator);
+            return tree.price_with_node_coupons(
+                vars,
+                time_to_maturity,
+                market_context,
+                &valuator,
+                &node_coupons,
+            );
         }
         Self::reject_inert_hazard_inputs(bond)?;
 
@@ -616,6 +637,16 @@ impl TreePricer {
             0.0 // Not used for rates+credit or HW tree
         };
 
+        // Node-dependent floating resets, active only when the rates-credit
+        // rate factor diffuses. Built once here — the descriptors are
+        // OAS-independent; the per-OAS folding happens inside the tree.
+        let rc_node_coupons = match rc_tree.as_ref() {
+            Some(tree) if tree.config.rate_vol > 0.0 => {
+                valuator.stochastic_node_coupons(market_context)?
+            }
+            _ => Vec::new(),
+        };
+
         // Capture the first tree-pricing error so a solver failure can report
         // the underlying cause instead of a generic bracket/convergence error.
         let pricing_error: std::cell::RefCell<Option<finstack_quant_core::Error>> =
@@ -640,7 +671,13 @@ impl TreePricer {
                 let mut vars = HashMap::<&'static str, f64>::default();
                 vars.insert("oas", oas);
                 if let Some(tree) = rc_tree.as_ref() {
-                    match tree.price(vars, time_to_maturity, market_context, &valuator) {
+                    match tree.price_with_node_coupons(
+                        vars,
+                        time_to_maturity,
+                        market_context,
+                        &valuator,
+                        &rc_node_coupons,
+                    ) {
                         Ok(model_price) => model_price - dirty_target,
                         Err(e) => record_error(e),
                     }
