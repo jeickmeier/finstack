@@ -122,16 +122,154 @@ pub struct RatesCreditConfig {
 }
 
 impl Default for RatesCreditConfig {
+    /// Deterministic in both factors.
+    ///
+    /// The default deliberately carries **zero** volatility on each factor:
+    /// the lattice still reprices the discount and survival curves exactly,
+    /// it just carries no diffusion. A stochastic default would make
+    /// `..Default::default()` construction silently price optionality that
+    /// the caller never asked for, which is exactly how the bond path
+    /// inherited a `0.20` hazard vol it never declared. Callers that want a
+    /// stochastic factor must say so explicitly.
     fn default() -> Self {
         Self {
             steps: 100,
-            rate_vol: 0.01,
-            hazard_vol: 0.20,
+            rate_vol: 0.0,
+            hazard_vol: 0.0,
             correlation: 0.0,
             rate_mean_reversion: 0.0,
             hazard_mean_reversion: 0.0,
         }
     }
+}
+
+/// Resolve the fully explicit rates-credit lattice configuration from an
+/// instrument's pricing overrides.
+///
+/// This is the single mapping from public configuration to
+/// [`RatesCreditConfig`] for every callable instrument on the rates-credit
+/// path. Bond and term-loan engines must both route through it so one
+/// instrument description cannot mean two different lattices.
+///
+/// # Channel resolution
+///
+/// The rate factor reads only `hw1f_sigma` / `hw1f_mean_reversion`. The
+/// legacy `market_quotes.implied_volatility` and `model_config.mean_reversion`
+/// channels are rejected on this path when their canonical counterpart is
+/// absent: silently reinterpreting an option implied vol as a short-rate σ
+/// (or silently dropping it, flipping a stochastic configuration to a
+/// deterministic one) would move prices with no diagnostic. When both are
+/// set the `hw1f_*` value wins, so a single `ModelConfig` can describe both
+/// the credit-risky and the risk-free routing of the same instrument.
+///
+/// # Arguments
+///
+/// * `overrides` - the instrument's pricing overrides (both `model_config`
+///   and `market_quotes` are consulted)
+/// * `steps` - resolved lattice step count
+///
+/// # Errors
+///
+/// Returns [`Error::Validation`] when a volatility or mean reversion is
+/// non-finite or negative, a mean reversion exceeds [`KAPPA_MAX`], the
+/// correlation is outside `[-1, 1]`, a non-zero correlation is inert
+/// (either factor deterministic), a legacy vol/mean-reversion channel is
+/// used without its canonical counterpart, or an unsupported
+/// `hw1f_sigma_schedule` is present.
+pub fn resolve_rates_credit_config(
+    overrides: &crate::instruments::InstrumentPricingOverrides,
+    steps: usize,
+) -> Result<RatesCreditConfig> {
+    let model = &overrides.model_config;
+    let quotes = &overrides.market_quotes;
+
+    if model.hw1f_sigma_schedule.is_some() {
+        return Err(Error::Validation(
+            "hw1f_sigma_schedule is not supported on the rates-credit callable \
+             path: the two-factor lattice carries a single scalar short-rate \
+             volatility. Set hw1f_sigma instead, or price without a credit curve \
+             to use a term-structure Hull-White tree."
+                .to_string(),
+        ));
+    }
+
+    // Legacy-channel guards. `implied_volatility` is an option (Black/normal)
+    // quote, not a short-rate sigma; `mean_reversion` predates the typed HW1F
+    // pair. Accepting either here would silently change the regime.
+    if model.hw1f_sigma.is_none() && quotes.implied_volatility.is_some() {
+        return Err(Error::Validation(
+            "the rates-credit callable path reads the short-rate volatility from \
+             model_config.hw1f_sigma (annualised absolute short-rate sigma, \
+             e.g. 0.01 = 100 bp/yr), not market_quotes.implied_volatility. Set \
+             hw1f_sigma explicitly; leave it unset only if you intend \
+             deterministic rates."
+                .to_string(),
+        ));
+    }
+    if model.hw1f_mean_reversion.is_none() && model.mean_reversion.is_some_and(|k| k != 0.0) {
+        return Err(Error::Validation(
+            "the rates-credit callable path reads the short-rate mean reversion \
+             from model_config.hw1f_mean_reversion (annualised kappa), not \
+             model_config.mean_reversion. Set hw1f_mean_reversion explicitly."
+                .to_string(),
+        ));
+    }
+
+    let rate_vol = model.hw1f_sigma.unwrap_or(0.0);
+    let hazard_vol = model.hazard_volatility.unwrap_or(0.0);
+    let rate_mean_reversion = model.hw1f_mean_reversion.unwrap_or(0.0);
+    let hazard_mean_reversion = model.hazard_mean_reversion.unwrap_or(0.0);
+    let correlation = model.rate_credit_correlation.unwrap_or(0.0);
+
+    for (label, value) in [
+        ("hw1f_sigma", rate_vol),
+        ("hazard_volatility", hazard_vol),
+        ("hw1f_mean_reversion", rate_mean_reversion),
+        ("hazard_mean_reversion", hazard_mean_reversion),
+    ] {
+        if !value.is_finite() || value < 0.0 {
+            return Err(Error::Validation(format!(
+                "{label} must be finite and non-negative on the rates-credit \
+                 path, got {value}"
+            )));
+        }
+    }
+    for (label, kappa) in [
+        ("hw1f_mean_reversion", rate_mean_reversion),
+        ("hazard_mean_reversion", hazard_mean_reversion),
+    ] {
+        if kappa > KAPPA_MAX {
+            return Err(Error::Validation(format!(
+                "{label} = {kappa:.4} exceeds the rates-credit binomial-lattice \
+                 limit (KAPPA_MAX = {KAPPA_MAX}). Above it the conditional \
+                 variance of the factor collapses far enough to degrade callable \
+                 option values. Reduce the speed, or price without a credit curve \
+                 to use HullWhiteTree."
+            )));
+        }
+    }
+    if !correlation.is_finite() || !(-1.0..=1.0).contains(&correlation) {
+        return Err(Error::Validation(format!(
+            "rate_credit_correlation must be finite and in [-1, 1], got {correlation}"
+        )));
+    }
+    if correlation != 0.0 && (rate_vol <= 0.0 || hazard_vol <= 0.0) {
+        return Err(Error::Validation(format!(
+            "rate_credit_correlation = {correlation} is inert: correlation only \
+             has meaning when both factors diffuse, but hw1f_sigma = {rate_vol} \
+             and hazard_volatility = {hazard_vol}. Set both volatilities \
+             positive, or leave the correlation unset."
+        )));
+    }
+
+    Ok(RatesCreditConfig {
+        steps,
+        rate_vol,
+        hazard_vol,
+        correlation,
+        rate_mean_reversion,
+        hazard_mean_reversion,
+    })
 }
 
 /// Two-factor correlated binomial tree (short rate + hazard rate).
@@ -158,6 +296,61 @@ pub struct RatesCreditTree {
     /// Mean-reversion reference level for the hazard factor (the calibrated
     /// `t = 0` instantaneous hazard `h₀`). Populated by `calibrate()`.
     hazard_ref: f64,
+    /// Hazard floor-saturation diagnostic from the most recent `calibrate()`.
+    hazard_floor_saturation: HazardFloorSaturation,
+}
+
+/// How much of the calibrated hazard lattice sits on the zero floor.
+///
+/// The hazard factor is additive-normal, so a wide lattice drives low nodes
+/// negative. A negative hazard is not a credit state, so those nodes are
+/// floored at zero — consistently in calibration and in pricing. Where the
+/// floor binds, the lattice cannot spread as far downward as the configured
+/// volatility asks, so the **realized** hazard volatility is lower than the
+/// configured `hazard_vol`, and the calibrated theta compensates on the
+/// upside to keep repricing the survival curve exactly.
+///
+/// The survival curve is still reproduced; what degrades is the dispersion
+/// that drives credit optionality. Heavy saturation means the configured
+/// `hazard_vol` is too large for the hazard level, which usually indicates a
+/// **relative** spread volatility was supplied where an **absolute** hazard
+/// volatility belongs (see
+/// [`models::credit::market_anchored`](crate::models::credit::market_anchored)).
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct HazardFloorSaturation {
+    /// Largest share of step-conditional state-price mass sitting at the
+    /// zero floor across all calibrated steps, in `[0, 1]`.
+    pub max_mass_at_floor: f64,
+    /// Step index at which `max_mass_at_floor` occurred.
+    pub worst_step: usize,
+    /// Number of steps where the target survival probability was
+    /// unreachable because the whole row floored. Non-zero means the
+    /// lattice could not reprice the survival curve at those steps.
+    pub unreachable_steps: usize,
+}
+
+impl HazardFloorSaturation {
+    /// Whether any node hazard was floored during calibration.
+    pub fn is_saturated(&self) -> bool {
+        self.max_mass_at_floor > 0.0
+    }
+}
+
+/// Per-factor lattice geometry and calibration target shared by the rate and
+/// hazard passes of [`RatesCreditTree::calibrate`].
+#[derive(Debug, Clone, Copy)]
+struct FactorGrid {
+    /// Number of time steps.
+    steps: usize,
+    /// Step size in years.
+    dt: f64,
+    /// Annualised absolute (normal) volatility of this factor.
+    sigma: f64,
+    /// Total horizon in years.
+    time_to_maturity: f64,
+    /// Whether node values are passed through the non-negative transform.
+    /// Set for the hazard factor; the rate factor allows negative rates.
+    floor_at_zero: bool,
 }
 
 impl RatesCreditTree {
@@ -172,7 +365,27 @@ impl RatesCreditTree {
             recovery_rate: 0.0,
             rate_ref: 0.0,
             hazard_ref: 0.0,
+            hazard_floor_saturation: HazardFloorSaturation::default(),
         }
+    }
+
+    /// Hazard floor-saturation diagnostic from the most recent `calibrate()`.
+    ///
+    /// See [`HazardFloorSaturation`] for how to read it.
+    pub fn hazard_floor_saturation(&self) -> HazardFloorSaturation {
+        self.hazard_floor_saturation
+    }
+
+    /// Node hazard actually used by calibration and pricing.
+    ///
+    /// The additive-normal factor can go negative on a wide lattice; a
+    /// negative hazard is not a credit state. Both the forward Arrow-Debreu
+    /// recursion and the backward induction pass every node hazard through
+    /// this same transform, which is what makes them exact duals and lets the
+    /// tree reproduce the survival curve as the valuator sees it.
+    #[inline]
+    fn effective_hazard(raw: f64) -> f64 {
+        raw.max(0.0)
     }
 
     /// Calibrate both factors to market curves using Arrow-Debreu forward induction.
@@ -242,29 +455,189 @@ impl RatesCreditTree {
         let rate_vol = self.config.rate_vol;
         let rate_kappa = self.config.rate_mean_reversion;
         let rate_ref = self.rate_ref;
-        self.calibrated_rates = self.calibrate_factor_ho_lee(
-            steps,
-            dt,
-            rate_vol,
+        let (calibrated_rates, _) = self.calibrate_factor_ho_lee(
+            FactorGrid {
+                steps,
+                dt,
+                sigma: rate_vol,
+                time_to_maturity,
+                floor_at_zero: false,
+            },
             |t| disc.df(t),
-            time_to_maturity,
             |r| Self::mean_reverting_up_prob(r, rate_ref, rate_kappa, rate_vol, dt),
         )?;
+        self.calibrated_rates = calibrated_rates;
 
         // --- Hazard factor calibration (same Ho-Lee approach targeting survival) ---
         let hazard_vol = self.config.hazard_vol;
         let hazard_kappa = self.config.hazard_mean_reversion;
         let hazard_ref = self.hazard_ref;
-        self.calibrated_hazards = self.calibrate_factor_ho_lee(
-            steps,
-            dt,
-            hazard_vol,
+        let (calibrated_hazards, saturation) = self.calibrate_factor_ho_lee(
+            FactorGrid {
+                steps,
+                dt,
+                sigma: hazard_vol,
+                time_to_maturity,
+                floor_at_zero: true,
+            },
             |t| hazard.sp(t),
-            time_to_maturity,
             |h| Self::mean_reverting_up_prob(h, hazard_ref, hazard_kappa, hazard_vol, dt),
         )?;
+        self.calibrated_hazards = calibrated_hazards;
+        self.hazard_floor_saturation = saturation;
+
+        // Correlation feasibility is fully determined once both factors are
+        // calibrated: each node's marginal up-probability is fixed by its
+        // level, mean reversion, volatility, and step size, and the OAS shift
+        // in `price()` never touches transition probabilities. Checking here
+        // means pricing can never meet an infeasible node.
+        self.validate_correlation_feasibility(dt)?;
 
         Ok(())
+    }
+
+    /// Verify the configured correlation is attainable at every node pair.
+    ///
+    /// Two Bernoulli marginals admit a correlation only inside their Fréchet
+    /// bounds. With both mean reversions zero every marginal is exactly ½ and
+    /// the whole range `[-1, 1]` is attainable, so the scan is skipped. Mean
+    /// reversion skews the corner nodes' marginals away from ½ and shrinks the
+    /// attainable interval sharply: with both speeds at [`KAPPA_MAX`] over a
+    /// five-year lattice the feasible `|ρ|` measures about `0.12`
+    /// (σ_r = 0.012, σ_λ = 0.05, 40 steps). The exact bound depends on the
+    /// volatilities and step count as well — the skew scales like
+    /// `κ·(x − x_ref)·√Δt / (2σ)` — so callers should read it from
+    /// [`Self::max_feasible_correlation`] rather than assume a fixed number.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Validation`] naming the offending step and node pair,
+    /// their marginal probabilities, and the largest `|ρ|` feasible across the
+    /// whole lattice.
+    fn validate_correlation_feasibility(&self, dt: f64) -> Result<()> {
+        let rho = self.config.correlation;
+        if rho == 0.0 {
+            return Ok(());
+        }
+        // Without mean reversion every marginal is ½ and any |ρ| ≤ 1 is
+        // attainable, so there is nothing to scan.
+        if self.config.rate_mean_reversion == 0.0 && self.config.hazard_mean_reversion == 0.0 {
+            return Ok(());
+        }
+
+        let (lattice_lo, lattice_hi, worst) = self.scan_correlation_feasibility(dt, Some(rho));
+        let Some((step, i, j, p_r, p_h, node_lo, node_hi)) = worst else {
+            return Ok(());
+        };
+        let max_feasible_abs = lattice_lo.abs().min(lattice_hi.abs()).max(0.0);
+        Err(Error::Validation(format!(
+            "rate_credit_correlation = {rho:.4} is not attainable on this lattice. \
+             At step {step}, rate node {i} / hazard node {j}, the marginal \
+             up-probabilities are p_r = {p_r:.4} and p_h = {p_h:.4}, whose Fréchet \
+             bounds admit only ρ ∈ [{node_lo:.4}, {node_hi:.4}]. Across the whole \
+             lattice the attainable interval is [{lattice_lo:.4}, {lattice_hi:.4}], \
+             so the largest usable |ρ| is {max_feasible_abs:.4}. Mean reversion is \
+             what narrows this: it skews the corner nodes' marginals away from ½. \
+             Reduce |ρ|, or reduce the mean-reversion speeds \
+             (rate κ = {kappa_r}, hazard κ = {kappa_h}).",
+            kappa_r = self.config.rate_mean_reversion,
+            kappa_h = self.config.hazard_mean_reversion,
+        )))
+    }
+
+    /// Lattice-wide Fréchet-admissible correlation interval.
+    ///
+    /// Returns the intersection over every node pair of the per-node
+    /// admissible interval, together with the first node (if any) at which
+    /// `probe` falls outside it.
+    #[allow(clippy::type_complexity)]
+    fn scan_correlation_feasibility(
+        &self,
+        dt: f64,
+        probe: Option<f64>,
+    ) -> (f64, f64, Option<(usize, usize, usize, f64, f64, f64, f64)>) {
+        let mut lattice_lo = -1.0_f64;
+        let mut lattice_hi = 1.0_f64;
+        let mut worst = None;
+
+        for step in 0..self.config.steps {
+            for (i, &r) in self.calibrated_rates[step].iter().enumerate() {
+                let p_r = Self::mean_reverting_up_prob(
+                    r,
+                    self.rate_ref,
+                    self.config.rate_mean_reversion,
+                    self.config.rate_vol,
+                    dt,
+                );
+                for (j, &h) in self.calibrated_hazards[step].iter().enumerate() {
+                    let p_h = Self::mean_reverting_up_prob(
+                        h,
+                        self.hazard_ref,
+                        self.config.hazard_mean_reversion,
+                        self.config.hazard_vol,
+                        dt,
+                    );
+                    // A degenerate marginal carries no correlation at all; the
+                    // joint reduces to the independent product there.
+                    let Some((node_lo, node_hi)) = Self::node_correlation_range(p_r, p_h) else {
+                        continue;
+                    };
+                    lattice_lo = lattice_lo.max(node_lo);
+                    lattice_hi = lattice_hi.min(node_hi);
+                    if probe.is_some_and(|rho| rho < node_lo || rho > node_hi) {
+                        worst.get_or_insert((step, i, j, p_r, p_h, node_lo, node_hi));
+                    }
+                }
+            }
+        }
+        (lattice_lo, lattice_hi, worst)
+    }
+
+    /// Largest `|ρ|` this calibrated lattice can express.
+    ///
+    /// The Fréchet bounds of two Bernoulli marginals limit how much
+    /// correlation a node can carry, and mean reversion skews the corner
+    /// nodes' marginals away from ½. This reports the binding constraint
+    /// across the whole lattice, so a caller can pick a workable correlation
+    /// instead of discovering the limit through a calibration failure.
+    ///
+    /// Returns `1.0` for an uncalibrated tree or one without mean reversion,
+    /// where every correlation in `[-1, 1]` is attainable.
+    pub fn max_feasible_correlation(&self, time_to_maturity: f64) -> f64 {
+        if self.calibrated_rates.is_empty()
+            || self.config.steps == 0
+            || time_to_maturity <= 0.0
+            || (self.config.rate_mean_reversion == 0.0 && self.config.hazard_mean_reversion == 0.0)
+        {
+            return 1.0;
+        }
+        let dt = time_to_maturity / self.config.steps as f64;
+        let (lo, hi, _) = self.scan_correlation_feasibility(dt, None);
+        lo.abs().min(hi.abs()).max(0.0)
+    }
+
+    /// Fréchet-admissible correlation interval for two Bernoulli marginals.
+    ///
+    /// With `±1` coding the joint law is pinned by the single joint-up
+    /// probability `a = P(up, up)`, which must satisfy
+    /// `max(0, p_r + p_h − 1) ≤ a ≤ min(p_r, p_h)`, and the realized
+    /// correlation is `ρ = (a − p_r·p_h) / √(var_r·var_h)`. Mapping the bounds
+    /// on `a` through that relation gives the attainable `ρ` interval.
+    ///
+    /// Returns `None` when either marginal is degenerate (`p = 0` or `1`):
+    /// that factor does not move at the node, so no correlation is
+    /// expressible and the joint is the independent product.
+    #[inline]
+    fn node_correlation_range(p_r: f64, p_h: f64) -> Option<(f64, f64)> {
+        let var_r = p_r * (1.0 - p_r);
+        let var_h = p_h * (1.0 - p_h);
+        let denom = (var_r * var_h).sqrt();
+        if denom.is_nan() || denom <= 0.0 {
+            return None;
+        }
+        let a_lo = (p_r + p_h - 1.0).max(0.0);
+        let a_hi = p_r.min(p_h);
+        Some(((a_lo - p_r * p_h) / denom, (a_hi - p_r * p_h) / denom))
     }
 
     /// Return the recovery rate from the most recent `calibrate()` call.
@@ -381,25 +754,53 @@ impl RatesCreditTree {
     /// the backward induction in `price()` are exact duals only when they share
     /// the same per-node probability, which is what makes the calibrated tree
     /// reprice the input curve when mean reversion is active.
+    ///
+    /// # Non-negative factors
+    ///
+    /// When `floor_at_zero` is set (the hazard factor), every node value is
+    /// passed through [`Self::effective_hazard`] in **both** the state-price
+    /// recursion and the theta solve, matching what `price()` applies. The
+    /// floor makes the step equation non-linear in theta — `exp(-θΔt)` no
+    /// longer factors out — so theta is bracketed and bisected instead of
+    /// being read off in closed form. The rate factor is left unfloored:
+    /// negative short rates are a legitimate market state, and the discounting
+    /// in `price()` deliberately uses the raw calibrated rate.
     fn calibrate_factor_ho_lee(
         &self,
-        steps: usize,
-        dt: f64,
-        sigma: f64,
+        grid: FactorGrid,
         target_fn: impl Fn(f64) -> f64,
-        time_to_maturity: f64,
         up_prob_fn: impl Fn(f64) -> f64,
-    ) -> Result<Vec<Vec<f64>>> {
+    ) -> Result<(Vec<Vec<f64>>, HazardFloorSaturation)> {
+        let FactorGrid {
+            steps,
+            dt,
+            sigma,
+            time_to_maturity,
+            floor_at_zero,
+        } = grid;
         let mut rates = vec![Vec::new(); steps + 1];
 
         // Initial rate: r0 = -ln(target(dt)) / dt
         let r0 = Self::initial_instantaneous(&target_fn, dt);
-        rates[0] = vec![r0];
+        rates[0] = vec![if floor_at_zero {
+            Self::effective_hazard(r0)
+        } else {
+            r0
+        }];
 
         // Arrow-Debreu state prices
         let mut state_prices = vec![1.0];
+        let mut saturation = HazardFloorSaturation::default();
 
         let sqrt_dt = dt.sqrt();
+        // Value actually used for discounting/survival at a node.
+        let effective = |x: f64| -> f64 {
+            if floor_at_zero {
+                Self::effective_hazard(x)
+            } else {
+                x
+            }
+        };
 
         for step in 0..steps {
             let next_nodes = step + 2;
@@ -414,7 +815,7 @@ impl RatesCreditTree {
             // backward induction in `price()` because both use this probability.
             for (i, &current_rate) in rates[step].iter().enumerate() {
                 let q = state_prices[i];
-                let df_i = (-current_rate * dt).exp();
+                let df_i = (-effective(current_rate) * dt).exp();
                 let p_up = up_prob_fn(current_rate);
 
                 // Up move (to node i+1)
@@ -432,18 +833,31 @@ impl RatesCreditTree {
                 }
             }
 
-            // Solve for theta: target = exp(-theta*dt) * sum_j(Q_next[j] * exp(-r_base[j]*dt))
+            // Solve for theta so the lattice reproduces the target curve at
+            // the next maturity.
             let next_next_time = (step + 2) as f64 * dt;
             let theta = if next_next_time <= time_to_maturity + dt * 0.5 {
                 let p_target = target_fn(next_next_time);
-                let mut p_model_base = 0.0;
-                for (j, &q_next) in next_state_prices.iter().enumerate() {
-                    p_model_base += q_next * (-next_rates_base[j] * dt).exp();
-                }
-                if p_model_base > 0.0 && p_target > 0.0 {
-                    -(p_target / p_model_base).ln() / dt
+                if !floor_at_zero {
+                    // Unfloored: exp(-θΔt) factors out, so theta is exact.
+                    let mut p_model_base = 0.0;
+                    for (j, &q_next) in next_state_prices.iter().enumerate() {
+                        p_model_base += q_next * (-next_rates_base[j] * dt).exp();
+                    }
+                    if p_model_base > 0.0 && p_target > 0.0 {
+                        -(p_target / p_model_base).ln() / dt
+                    } else {
+                        0.0
+                    }
                 } else {
-                    0.0
+                    Self::solve_floored_theta(
+                        &next_state_prices,
+                        &next_rates_base,
+                        dt,
+                        p_target,
+                        step + 1,
+                        &mut saturation,
+                    )
                 }
             } else {
                 0.0
@@ -454,55 +868,168 @@ impl RatesCreditTree {
             for j in 0..next_nodes {
                 next_rates[j] = next_rates_base[j] + theta;
             }
+            if floor_at_zero {
+                Self::record_floor_saturation(
+                    &next_rates,
+                    &next_state_prices,
+                    step + 1,
+                    &mut saturation,
+                );
+            }
             rates[step + 1] = next_rates;
             state_prices = next_state_prices;
         }
 
-        Ok(rates)
+        Ok((rates, saturation))
     }
 
-    /// Couple the two marginal up-probabilities into joint cell
-    /// probabilities with covariance `ρ·√(var_r·var_h)`.
+    /// Solve the per-step hazard shift `θ` against the target survival
+    /// probability under the non-negative transform.
     ///
-    /// In the moderate regime (no cell clamps) this preserves both
-    /// marginals and realizes the configured correlation exactly (see
-    /// `joint_probabilities_realize_configured_correlation_when_unclamped`).
+    /// Finds `θ` with
     ///
-    /// **Known limitation:** for skewed marginals (mean-reverted extreme
-    /// nodes push `p` far from ½) a large |ρ| can exceed the Fréchet upper
-    /// bound for two Bernoullis, in which case individual cells clamp at 0
-    /// and the renormalisation both lowers the realized correlation below
-    /// `config.correlation` and perturbs the marginals — silently.
-    /// Probabilities remain valid (non-negative, sum to 1), so pricing is
-    /// never corrupted, but effective correlation degrades at the lattice
-    /// edges. Callers needing high |ρ| with strong mean reversion should
-    /// treat edge-node correlation as approximate.
+    /// ```text
+    /// Σ_j Q[j] · exp(−max(0, base_j + θ)·Δt) = target
+    /// ```
+    ///
+    /// The left side is continuous and non-increasing in `θ`: it equals the
+    /// total state-price mass `Σ_j Q[j]` once `θ` is low enough to floor the
+    /// whole row, and tends to `0` as `θ` grows. A root therefore exists
+    /// exactly when `0 < target < Σ_j Q[j]`. When the target exceeds the
+    /// floored ceiling the survival curve is unreachable at this step: the
+    /// shift is driven to the all-floored limit and the step is counted in
+    /// `saturation.unreachable_steps` rather than failing, so a caller can
+    /// still price while seeing that the configured hazard volatility is too
+    /// large for the hazard level.
+    fn solve_floored_theta(
+        state_prices: &[f64],
+        base: &[f64],
+        dt: f64,
+        target: f64,
+        step: usize,
+        saturation: &mut HazardFloorSaturation,
+    ) -> f64 {
+        let survival_at = |theta: f64| -> f64 {
+            state_prices
+                .iter()
+                .zip(base.iter())
+                .map(|(q, b)| q * (-Self::effective_hazard(b + theta) * dt).exp())
+                .sum::<f64>()
+        };
+
+        let total_mass: f64 = state_prices.iter().sum();
+        if target.is_nan() || target <= 0.0 || total_mass <= 0.0 {
+            return 0.0;
+        }
+        // All-floored limit: θ low enough that *every* node hits zero hazard,
+        // which is the highest survival the row can produce. That requires
+        // θ ≤ −max_j(base_j) — the largest base node is the last one to floor.
+        let max_base = base.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let theta_all_floored = -max_base;
+        if target >= total_mass {
+            // Unreachable: even zero hazard everywhere survives less than the
+            // target asks (the target itself already exceeds the mass carried
+            // into this step).
+            saturation.unreachable_steps += 1;
+            saturation.worst_step = step;
+            saturation.max_mass_at_floor = 1.0_f64.max(saturation.max_mass_at_floor);
+            return theta_all_floored;
+        }
+
+        // Expand upward from the all-floored point until survival drops below
+        // the target, then bisect. Survival is monotone non-increasing in θ.
+        let (mut lo, mut hi) = (theta_all_floored, theta_all_floored.max(0.0) + 1.0);
+        let mut guard = 0;
+        while survival_at(hi) > target && guard < 200 {
+            hi = theta_all_floored + (hi - theta_all_floored) * 2.0;
+            guard += 1;
+        }
+        for _ in 0..200 {
+            let mid = 0.5 * (lo + hi);
+            if survival_at(mid) > target {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+            if (hi - lo).abs() <= 1e-14 * (1.0 + hi.abs()) {
+                break;
+            }
+        }
+        0.5 * (lo + hi)
+    }
+
+    /// Record how much state-price mass sits on the zero hazard floor at a
+    /// calibrated step.
+    fn record_floor_saturation(
+        rates: &[f64],
+        state_prices: &[f64],
+        step: usize,
+        saturation: &mut HazardFloorSaturation,
+    ) {
+        let total: f64 = state_prices.iter().sum();
+        if total <= 0.0 {
+            return;
+        }
+        let floored: f64 = rates
+            .iter()
+            .zip(state_prices.iter())
+            .filter(|(rate, _)| **rate <= 0.0)
+            .map(|(_, q)| *q)
+            .sum();
+        let share = (floored / total).clamp(0.0, 1.0);
+        if share > saturation.max_mass_at_floor {
+            saturation.max_mass_at_floor = share;
+            saturation.worst_step = step;
+        }
+    }
+
+    /// Couple the two marginal up-probabilities into joint cell probabilities.
+    ///
+    /// The joint law of two Bernoullis has exactly one degree of freedom once
+    /// the marginals are fixed, so it is built from the single joint-up
+    /// probability
+    ///
+    /// ```text
+    /// a = P(up, up) = p_r·p_h + ρ·√(var_r·var_h)
+    /// ```
+    ///
+    /// and the remaining three cells follow by **subtraction**:
+    ///
+    /// ```text
+    /// p_ud = p_r − a,  p_du = p_h − a,  p_dd = 1 − p_r − p_h + a
+    /// ```
+    ///
+    /// Deriving them this way makes both marginals exact by construction —
+    /// `p_uu + p_ud = p_r` and `p_uu + p_du = p_h` hold identically — which is
+    /// what keeps the forward Arrow-Debreu recursion and the backward
+    /// induction exact duals, so the calibrated tree still reprices both input
+    /// curves. The previous formulation clamped all four cells independently
+    /// and renormalised, which silently perturbed the marginals (and hence the
+    /// curve repricing) whenever a cell hit the clamp.
+    ///
+    /// `a` is confined to the Fréchet interval
+    /// `[max(0, p_r + p_h − 1), min(p_r, p_h)]` purely as a numerical guard:
+    /// [`Self::validate_correlation_feasibility`] has already proved at
+    /// calibration time that the configured `ρ` is attainable at every node,
+    /// so the clamp is unreachable in a calibrated tree and is asserted as
+    /// such in debug builds.
     #[inline]
     fn joint_probabilities(&self, p_r: f64, p_h: f64) -> (f64, f64, f64, f64) {
-        // Correlated Bernoulli coupling
         let var_r = p_r * (1.0 - p_r);
         let var_h = p_h * (1.0 - p_h);
-        let cov = self.config.correlation * (var_r * var_h).sqrt();
+        let a_target = p_r * p_h + self.config.correlation * (var_r * var_h).sqrt();
 
-        let mut p_uu = (p_r * p_h + cov).clamp(0.0, 1.0);
-        let mut p_ud = (p_r * (1.0 - p_h) - cov).clamp(0.0, 1.0);
-        let mut p_du = ((1.0 - p_r) * p_h - cov).clamp(0.0, 1.0);
-        let mut p_dd = ((1.0 - p_r) * (1.0 - p_h) + cov).clamp(0.0, 1.0);
+        let a_lo = (p_r + p_h - 1.0).max(0.0);
+        let a_hi = p_r.min(p_h);
+        debug_assert!(
+            a_target >= a_lo - 1e-9 && a_target <= a_hi + 1e-9,
+            "calibration must have rejected an infeasible correlation before \
+             pricing: p_r={p_r}, p_h={p_h}, a={a_target}, bounds=[{a_lo}, {a_hi}]"
+        );
+        let a = a_target.clamp(a_lo, a_hi);
 
-        let sum = p_uu + p_ud + p_du + p_dd;
-        if sum > 0.0 {
-            p_uu /= sum;
-            p_ud /= sum;
-            p_du /= sum;
-            p_dd /= sum;
-        } else {
-            // fallback to independent
-            p_uu = p_r * p_h;
-            p_ud = p_r * (1.0 - p_h);
-            p_du = (1.0 - p_r) * p_h;
-            p_dd = (1.0 - p_r) * (1.0 - p_h);
-        }
-        (p_uu, p_ud, p_du, p_dd)
+        // Marginals are exact by construction.
+        (a, p_r - a, p_h - a, 1.0 - p_r - p_h + a)
     }
 }
 
@@ -551,7 +1078,7 @@ impl TreeModel for RatesCreditTree {
                 let h_t = self.calibrated_hazards[steps][j];
                 let cached = CachedValues {
                     interest_rate: Some(r_t.max(1e-8)),
-                    hazard_rate: Some(h_t.max(0.0)),
+                    hazard_rate: Some(Self::effective_hazard(h_t)),
                     ..CachedValues::default()
                 };
                 let state = NodeState::with_cached(
@@ -623,7 +1150,7 @@ impl TreeModel for RatesCreditTree {
                     // calibrated rate.
                     let cached = CachedValues {
                         interest_rate: Some(r_t.max(1e-8)),
-                        hazard_rate: Some(h_t.max(0.0)),
+                        hazard_rate: Some(Self::effective_hazard(h_t)),
                         df: Some(df),
                         ..CachedValues::default()
                     };
@@ -648,9 +1175,430 @@ impl TreeModel for RatesCreditTree {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::instruments::InstrumentPricingOverrides;
     use finstack_quant_core::market_data::context::MarketContext;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
     use finstack_quant_core::math::interp::InterpStyle;
+
+    // Resolver: public configuration to explicit lattice inputs
+
+    /// Build overrides with the rates-credit fields set.
+    fn overrides_with(
+        hw1f_sigma: Option<f64>,
+        hazard_volatility: Option<f64>,
+        correlation: Option<f64>,
+    ) -> InstrumentPricingOverrides {
+        let mut o = InstrumentPricingOverrides::default();
+        o.model_config.hw1f_sigma = hw1f_sigma;
+        o.model_config.hazard_volatility = hazard_volatility;
+        o.model_config.rate_credit_correlation = correlation;
+        o
+    }
+
+    /// All four regimes in the plan's matrix resolve to the intended lattice
+    /// inputs, and omitted values mean deterministic rather than defaulted.
+    #[test]
+    fn resolver_maps_all_four_volatility_regimes() {
+        let cases = [
+            ("zero/zero", None, None, 0.0, 0.0),
+            ("nonzero/zero", Some(0.012), None, 0.012, 0.0),
+            ("zero/nonzero", None, Some(0.02), 0.0, 0.02),
+            ("nonzero/nonzero", Some(0.012), Some(0.02), 0.012, 0.02),
+        ];
+        for (label, sigma, hazard_vol, want_rate, want_hazard) in cases {
+            let cfg = resolve_rates_credit_config(&overrides_with(sigma, hazard_vol, None), 64)
+                .unwrap_or_else(|e| panic!("{label} must resolve: {e}"));
+            assert_eq!(cfg.steps, 64, "{label}: steps");
+            assert!(
+                (cfg.rate_vol - want_rate).abs() < 1e-15,
+                "{label}: rate_vol = {}, want {want_rate}",
+                cfg.rate_vol
+            );
+            assert!(
+                (cfg.hazard_vol - want_hazard).abs() < 1e-15,
+                "{label}: hazard_vol = {}, want {want_hazard}",
+                cfg.hazard_vol
+            );
+            assert_eq!(cfg.correlation, 0.0, "{label}: correlation");
+        }
+
+        // Explicit zero and omitted must be indistinguishable.
+        let omitted = resolve_rates_credit_config(&overrides_with(None, None, None), 32).unwrap();
+        let explicit_zero =
+            resolve_rates_credit_config(&overrides_with(Some(0.0), Some(0.0), Some(0.0)), 32)
+                .unwrap();
+        assert_eq!(omitted.rate_vol, explicit_zero.rate_vol);
+        assert_eq!(omitted.hazard_vol, explicit_zero.hazard_vol);
+        assert_eq!(omitted.correlation, explicit_zero.correlation);
+    }
+
+    /// The default config is deterministic in both factors, so
+    /// `..Default::default()` construction can never silently price
+    /// optionality the caller did not request.
+    #[test]
+    fn default_config_is_deterministic_in_both_factors() {
+        let cfg = RatesCreditConfig::default();
+        assert_eq!(cfg.rate_vol, 0.0);
+        assert_eq!(cfg.hazard_vol, 0.0);
+        assert_eq!(cfg.correlation, 0.0);
+        assert_eq!(cfg.rate_mean_reversion, 0.0);
+        assert_eq!(cfg.hazard_mean_reversion, 0.0);
+    }
+
+    /// Invalid, non-finite, out-of-range, and inert inputs are rejected with
+    /// messages naming the offending field.
+    #[test]
+    fn resolver_rejects_invalid_and_inert_inputs() {
+        let negative_sigma = overrides_with(Some(-0.01), None, None);
+        assert!(resolve_rates_credit_config(&negative_sigma, 32)
+            .expect_err("negative sigma")
+            .to_string()
+            .contains("hw1f_sigma"));
+
+        let nan_hazard = overrides_with(Some(0.01), Some(f64::NAN), None);
+        assert!(resolve_rates_credit_config(&nan_hazard, 32)
+            .expect_err("NaN hazard vol")
+            .to_string()
+            .contains("hazard_volatility"));
+
+        let rho_out_of_range = overrides_with(Some(0.01), Some(0.02), Some(1.5));
+        assert!(resolve_rates_credit_config(&rho_out_of_range, 32)
+            .expect_err("rho > 1")
+            .to_string()
+            .contains("rate_credit_correlation"));
+
+        // Inert correlation: one factor deterministic.
+        for (label, sigma, hazard_vol) in [
+            ("deterministic rates", None, Some(0.02)),
+            ("deterministic credit", Some(0.01), None),
+        ] {
+            let inert = overrides_with(sigma, hazard_vol, Some(0.5));
+            let err = resolve_rates_credit_config(&inert, 32)
+                .expect_err("inert correlation must be rejected")
+                .to_string();
+            assert!(err.contains("inert"), "{label}: unexpected error {err}");
+        }
+
+        // Mean reversion above the lattice limit.
+        let mut steep = overrides_with(Some(0.01), Some(0.02), None);
+        steep.model_config.hazard_mean_reversion = Some(KAPPA_MAX + 0.01);
+        let err = resolve_rates_credit_config(&steep, 32)
+            .expect_err("kappa above KAPPA_MAX")
+            .to_string();
+        assert!(
+            err.contains("hazard_mean_reversion") && err.contains("KAPPA_MAX"),
+            "{err}"
+        );
+
+        // Unsupported term-structure sigma.
+        let mut scheduled = overrides_with(Some(0.01), None, None);
+        scheduled.model_config.hw1f_sigma_schedule = Some(
+            finstack_quant_core::math::piecewise::PiecewiseConstantCurve::new(
+                vec![0.0, 5.0],
+                vec![0.01, 0.012],
+            )
+            .expect("piecewise curve"),
+        );
+        assert!(resolve_rates_credit_config(&scheduled, 32)
+            .expect_err("sigma schedule")
+            .to_string()
+            .contains("hw1f_sigma_schedule"));
+    }
+
+    /// The legacy vol/mean-reversion channels fail loudly on this path rather
+    /// than being reinterpreted or silently dropped.
+    #[test]
+    fn resolver_rejects_legacy_channels_without_canonical_counterpart() {
+        let mut legacy_vol = InstrumentPricingOverrides::default();
+        legacy_vol.market_quotes.implied_volatility = Some(0.01);
+        let err = resolve_rates_credit_config(&legacy_vol, 32)
+            .expect_err("implied_volatility without hw1f_sigma")
+            .to_string();
+        assert!(
+            err.contains("hw1f_sigma") && err.contains("implied_volatility"),
+            "error must name both fields: {err}"
+        );
+
+        let mut legacy_kappa = InstrumentPricingOverrides::default();
+        legacy_kappa.model_config.mean_reversion = Some(0.03);
+        let err = resolve_rates_credit_config(&legacy_kappa, 32)
+            .expect_err("mean_reversion without hw1f_mean_reversion")
+            .to_string();
+        assert!(
+            err.contains("hw1f_mean_reversion") && err.contains("mean_reversion"),
+            "error must name both fields: {err}"
+        );
+
+        // A zero legacy mean reversion is not a regime selection, so it passes.
+        let mut zero_legacy_kappa = InstrumentPricingOverrides::default();
+        zero_legacy_kappa.model_config.mean_reversion = Some(0.0);
+        resolve_rates_credit_config(&zero_legacy_kappa, 32)
+            .expect("zero legacy mean reversion is not a regime selection");
+    }
+
+    // Lattice safety: marginals, correlation feasibility, floor saturation
+
+    /// The Fréchet construction preserves both marginals exactly and realizes
+    /// the requested correlation, including at skewed marginals where the old
+    /// clamp-and-renormalise formulation silently distorted them.
+    #[test]
+    fn joint_probabilities_preserve_marginals_at_skewed_nodes() {
+        for &(p_r, p_h) in &[
+            (0.5, 0.5),
+            (0.2, 0.8),
+            (0.12, 0.5),
+            (0.875, 0.125),
+            (0.35, 0.4),
+        ] {
+            let (lo, hi) = RatesCreditTree::node_correlation_range(p_r, p_h)
+                .expect("non-degenerate marginals");
+            // Sample inside the feasible interval, including both endpoints.
+            for &rho in &[lo, lo * 0.5, 0.0, hi * 0.5, hi] {
+                let tree = RatesCreditTree::new(RatesCreditConfig {
+                    rate_vol: 0.01,
+                    hazard_vol: 0.20,
+                    correlation: rho,
+                    ..RatesCreditConfig::default()
+                });
+                let (p_uu, p_ud, p_du, p_dd) = tree.joint_probabilities(p_r, p_h);
+
+                for (label, cell) in [("uu", p_uu), ("ud", p_ud), ("du", p_du), ("dd", p_dd)] {
+                    assert!(
+                        cell >= -1e-15,
+                        "p_{label} negative at p_r={p_r}, p_h={p_h}, rho={rho}: {cell}"
+                    );
+                }
+                let sum = p_uu + p_ud + p_du + p_dd;
+                assert!(
+                    (sum - 1.0).abs() < 1e-14,
+                    "probabilities must sum to 1: {sum}"
+                );
+                assert!(
+                    (p_uu + p_ud - p_r).abs() < 1e-14,
+                    "rate marginal distorted at p_r={p_r}, p_h={p_h}, rho={rho}: {}",
+                    p_uu + p_ud
+                );
+                assert!(
+                    (p_uu + p_du - p_h).abs() < 1e-14,
+                    "hazard marginal distorted at p_r={p_r}, p_h={p_h}, rho={rho}: {}",
+                    p_uu + p_du
+                );
+
+                // Realized correlation with ±1 coding.
+                let var_r = p_r * (1.0 - p_r);
+                let var_h = p_h * (1.0 - p_h);
+                let realized = (p_uu - p_r * p_h) / (var_r * var_h).sqrt();
+                assert!(
+                    (realized - rho).abs() < 1e-12,
+                    "realized correlation {realized} != requested {rho} at \
+                     p_r={p_r}, p_h={p_h}"
+                );
+            }
+        }
+    }
+
+    /// Without mean reversion every marginal is ½, so the whole `[-1, 1]`
+    /// range stays feasible and calibration accepts extreme correlations.
+    #[test]
+    fn correlation_is_unconstrained_without_mean_reversion() {
+        let disc = sloped_discount_curve();
+        let haz = test_hazard_curve();
+        for &rho in &[-1.0, -0.99, 0.0, 0.99, 1.0] {
+            let mut tree = RatesCreditTree::new(RatesCreditConfig {
+                steps: 30,
+                rate_vol: 0.012,
+                hazard_vol: 0.05,
+                correlation: rho,
+                ..RatesCreditConfig::default()
+            });
+            tree.calibrate(&disc, &haz, 5.0)
+                .unwrap_or_else(|e| panic!("rho={rho} must calibrate without mean reversion: {e}"));
+        }
+    }
+
+    /// An infeasible correlation fails at `calibrate()` — before any pricing —
+    /// and the message carries the offending node, its marginals, and the
+    /// largest usable |ρ|. A request at that bound then calibrates and prices.
+    #[test]
+    fn infeasible_correlation_fails_at_calibration_with_bound() {
+        let disc = sloped_discount_curve();
+        let haz = test_hazard_curve();
+        let ttm = 5.0;
+
+        let strong_reversion = |rho: f64| RatesCreditConfig {
+            steps: 40,
+            rate_vol: 0.012,
+            hazard_vol: 0.05,
+            correlation: rho,
+            rate_mean_reversion: KAPPA_MAX,
+            hazard_mean_reversion: KAPPA_MAX,
+        };
+
+        let mut tree = RatesCreditTree::new(strong_reversion(0.9));
+        let err = tree
+            .calibrate(&disc, &haz, ttm)
+            .expect_err("rho = 0.9 must be infeasible under strong mean reversion");
+        let msg = err.to_string();
+        for needle in [
+            "rate_credit_correlation",
+            "not attainable",
+            "step",
+            "largest usable",
+            "Fréchet",
+        ] {
+            assert!(msg.contains(needle), "message must mention {needle}: {msg}");
+        }
+
+        // The same bound is available programmatically, so a caller can pick a
+        // workable correlation without scraping the message. A tree calibrated
+        // at zero correlation exposes it; a request inside it then prices.
+        let mut probe = RatesCreditTree::new(strong_reversion(0.0));
+        probe.calibrate(&disc, &haz, ttm).expect("probe calibrates");
+        let bound = probe.max_feasible_correlation(ttm);
+        assert!(
+            (0.0..1.0).contains(&bound),
+            "reported bound {bound} must be a proper fraction"
+        );
+        assert!(
+            msg.contains(&format!("{bound:.4}")),
+            "the error must quote the same bound the accessor reports \
+             ({bound:.4}): {msg}"
+        );
+
+        let mut feasible = RatesCreditTree::new(strong_reversion(bound * 0.95));
+        feasible
+            .calibrate(&disc, &haz, ttm)
+            .expect("a correlation inside the reported bound must calibrate");
+        feasible
+            .price(
+                HashMap::<&'static str, f64>::default(),
+                ttm,
+                &MarketContext::new(),
+                &DummyValuator,
+            )
+            .expect("and must price");
+    }
+
+    /// The floor-saturation diagnostic is silent when the hazard lattice never
+    /// floors and positive when it does — the signal that a *relative* spread
+    /// vol was supplied where an *absolute* hazard vol belongs.
+    #[test]
+    fn hazard_floor_saturation_reports_binding_floor() {
+        let disc = sloped_discount_curve();
+        let haz = test_hazard_curve();
+        let ttm = 5.0;
+
+        // Hazard ~2-3.5% with a small absolute vol: the lattice stays positive.
+        let mut calm = RatesCreditTree::new(RatesCreditConfig {
+            steps: 40,
+            hazard_vol: 0.001,
+            ..RatesCreditConfig::default()
+        });
+        calm.calibrate(&disc, &haz, ttm).expect("calibrate calm");
+        let calm_saturation = calm.hazard_floor_saturation();
+        assert!(
+            !calm_saturation.is_saturated(),
+            "a small absolute hazard vol must not floor: {calm_saturation:?}"
+        );
+        assert_eq!(calm_saturation.unreachable_steps, 0);
+
+        // 0.20 absolute hazard vol against a ~3% hazard is roughly a 600%
+        // relative vol: the floor must bind hard and say so.
+        let mut violent = RatesCreditTree::new(RatesCreditConfig {
+            steps: 40,
+            hazard_vol: 0.20,
+            ..RatesCreditConfig::default()
+        });
+        violent
+            .calibrate(&disc, &haz, ttm)
+            .expect("calibrate violent");
+        let violent_saturation = violent.hazard_floor_saturation();
+        assert!(
+            violent_saturation.is_saturated() && violent_saturation.max_mass_at_floor > 0.25,
+            "an absurd absolute hazard vol must report heavy floor saturation: \
+             {violent_saturation:?}"
+        );
+    }
+
+    /// Deterministic limits: the zero-vol lattice is the deterministic
+    /// backward induction, and both vols tending to zero converge to it.
+    /// There is no separate rate-only or hazard-only tree.
+    #[test]
+    fn zero_volatility_factors_are_deterministic_limits() {
+        let disc = sloped_discount_curve();
+        let haz = test_hazard_curve();
+        let ttm = 5.0;
+        let ctx = MarketContext::new();
+
+        let price_at = |rate_vol: f64, hazard_vol: f64| -> f64 {
+            let mut tree = RatesCreditTree::new(RatesCreditConfig {
+                steps: 40,
+                rate_vol,
+                hazard_vol,
+                ..RatesCreditConfig::default()
+            });
+            tree.calibrate(&disc, &haz, ttm).expect("calibrate");
+            tree.price(
+                HashMap::<&'static str, f64>::default(),
+                ttm,
+                &ctx,
+                &DummyValuator,
+            )
+            .expect("price")
+        };
+
+        // zero/zero reprices the discount curve (DummyValuator pays 1 and
+        // passes continuation through, so the tree price is the ZCB price).
+        let deterministic = price_at(0.0, 0.0);
+        let market_df = disc.df(ttm);
+        assert!(
+            (deterministic - market_df).abs() * 10_000.0 < 1.0,
+            "zero/zero must reprice the discount curve: tree={deterministic:.8}, \
+             market={market_df:.8}"
+        );
+
+        // Each single-factor regime reprices the same curve.
+        for (label, rate_vol, hazard_vol) in
+            [("nonzero/zero", 0.01, 0.0), ("zero/nonzero", 0.0, 0.02)]
+        {
+            let price = price_at(rate_vol, hazard_vol);
+            assert!(
+                price.is_finite() && (price - market_df).abs() * 10_000.0 < 1.0,
+                "{label} must reprice the discount curve: {price:.8} vs {market_df:.8}"
+            );
+        }
+
+        // Both vols tending to zero converge to the zero/zero result.
+        let mut previous = f64::INFINITY;
+        for scale in [1e-2, 1e-3, 1e-4, 1e-5] {
+            let gap = (price_at(0.01 * scale, 0.02 * scale) - deterministic).abs();
+            assert!(
+                gap <= previous + 1e-12,
+                "convergence must be monotone as vols shrink: gap={gap}, previous={previous}"
+            );
+            previous = gap;
+        }
+        assert!(
+            previous < 1e-9,
+            "the vanishing-vol limit must reach the deterministic price, gap={previous}"
+        );
+    }
+
+    /// With both channels populated the canonical `hw1f_*` values win, so one
+    /// `ModelConfig` can describe the credit-risky and risk-free routings of
+    /// the same instrument.
+    #[test]
+    fn canonical_fields_win_when_both_channels_are_set() {
+        let mut both = InstrumentPricingOverrides::default();
+        both.market_quotes.implied_volatility = Some(0.35);
+        both.model_config.mean_reversion = Some(0.09);
+        both.model_config.hw1f_sigma = Some(0.011);
+        both.model_config.hw1f_mean_reversion = Some(0.05);
+
+        let cfg = resolve_rates_credit_config(&both, 48).expect("both channels resolve");
+        assert!((cfg.rate_vol - 0.011).abs() < 1e-15);
+        assert!((cfg.rate_mean_reversion - 0.05).abs() < 1e-15);
+    }
 
     /// The joint transition probabilities must realize the configured
     /// correlation exactly in the moderate regime (no clamping active).
@@ -668,6 +1616,8 @@ mod tests {
     fn joint_probabilities_realize_configured_correlation_when_unclamped() {
         for &target_rho in &[-0.9, -0.5, 0.0, 0.5, 0.9] {
             let tree = RatesCreditTree::new(RatesCreditConfig {
+                rate_vol: 0.01,
+                hazard_vol: 0.20,
                 correlation: target_rho,
                 ..RatesCreditConfig::default()
             });
@@ -768,8 +1718,12 @@ mod tests {
     fn rates_credit_calibrated_prices_positive() {
         let disc = sloped_discount_curve();
         let haz = test_hazard_curve();
+        // Both factors stochastic: stated explicitly now that the default is
+        // deterministic.
         let mut tree = RatesCreditTree::new(RatesCreditConfig {
             steps: 40,
+            rate_vol: 0.01,
+            hazard_vol: 0.20,
             ..Default::default()
         });
         tree.calibrate(&disc, &haz, 5.0).expect("calibration");
@@ -846,14 +1800,17 @@ mod tests {
 
         // Forward-propagate Arrow-Debreu state prices through the calibrated
         // hazard lattice to compute model survival probability at each step.
-        // No floor applied — must exactly mirror the calibration logic.
+        // The non-negative transform is applied here exactly as calibration
+        // and `price()` apply it: a negative additive-normal node is not a
+        // credit state, and all three passes must agree or the tree stops
+        // reproducing the survival curve the valuator actually sees.
         let mut state_prices = vec![1.0_f64]; // Q_h[0] = 1.0
 
         for k in 0..steps {
             let next_nodes = k + 2;
             let mut next_sp = vec![0.0_f64; next_nodes];
             for j in 0..=k {
-                let h_j = tree.calibrated_hazards[k][j];
+                let h_j = RatesCreditTree::effective_hazard(tree.calibrated_hazards[k][j]);
                 let surv_df = (-h_j * dt).exp();
                 let q = state_prices[j];
                 // Up move to j+1, down move to j — p = 0.5 each (no mean reversion)
@@ -987,11 +1944,17 @@ mod tests {
                 let next_nodes = k + 2;
                 let mut next_sp = vec![0.0_f64; next_nodes];
                 for j in 0..=k {
-                    let h_j = tree.hazard_at_node(k, j).expect("hazard node");
-                    let surv_df = (-h_j * dt).exp();
+                    // The raw additive-normal level drives the lattice
+                    // dynamics (it is what recombines with uniform spacing, so
+                    // the mean-reversion drift is measured on it); the
+                    // non-negative transform applies only where the level is
+                    // read as a credit intensity. Calibration and `price()`
+                    // make exactly this split.
+                    let raw_j = tree.hazard_at_node(k, j).expect("node");
+                    let surv_df = (-RatesCreditTree::effective_hazard(raw_j) * dt).exp();
                     let q = state_prices[j];
                     let p_up = RatesCreditTree::mean_reverting_up_prob(
-                        h_j,
+                        raw_j,
                         tree.hazard_ref,
                         kappa,
                         0.20,
@@ -1075,6 +2038,8 @@ mod tests {
         // Exactly at the threshold: must succeed.
         let mut tree_at_limit = RatesCreditTree::new(RatesCreditConfig {
             steps: 20,
+            rate_vol: 0.01,
+            hazard_vol: 0.20,
             rate_mean_reversion: KAPPA_MAX,
             ..Default::default()
         });
@@ -1086,6 +2051,8 @@ mod tests {
         let over_rate = KAPPA_MAX + 0.01;
         let mut tree_over_rate = RatesCreditTree::new(RatesCreditConfig {
             steps: 20,
+            rate_vol: 0.01,
+            hazard_vol: 0.20,
             rate_mean_reversion: over_rate,
             ..Default::default()
         });
@@ -1107,6 +2074,8 @@ mod tests {
         let over_hazard = KAPPA_MAX + 0.01;
         let mut tree_over_hazard = RatesCreditTree::new(RatesCreditConfig {
             steps: 20,
+            rate_vol: 0.01,
+            hazard_vol: 0.20,
             hazard_mean_reversion: over_hazard,
             ..Default::default()
         });

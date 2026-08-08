@@ -11,7 +11,7 @@
 
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::fixed_income::term_loan::TermLoan;
-use crate::models::trees::two_factor_rates_credit::{RatesCreditConfig, RatesCreditTree};
+use crate::models::trees::two_factor_rates_credit::{resolve_rates_credit_config, RatesCreditTree};
 use crate::models::{
     short_rate_keys, NodeState, ShortRateTree, ShortRateTreeConfig, TreeModel, TreeValuator,
 };
@@ -26,12 +26,44 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::HashMap;
 use finstack_quant_core::Result;
 
+/// Reject hazard-model inputs on a loan that never reaches the rates-credit
+/// lattice.
+///
+/// Without a `credit_curve_id` the callable loan prices on the short-rate
+/// tree, which has no hazard factor. Silently ignoring a configured hazard
+/// volatility or rate/credit correlation would leave the user believing they
+/// selected a credit regime that was never applied.
+fn reject_inert_hazard_inputs(loan: &TermLoan) -> Result<()> {
+    let model = &loan.instrument_pricing_overrides.model_config;
+    let configured = [
+        ("hazard_volatility", model.hazard_volatility),
+        ("hazard_mean_reversion", model.hazard_mean_reversion),
+        ("rate_credit_correlation", model.rate_credit_correlation),
+    ]
+    .into_iter()
+    .filter_map(|(label, value)| value.map(|_| label))
+    .collect::<Vec<_>>();
+    if configured.is_empty() {
+        return Ok(());
+    }
+    Err(finstack_quant_core::Error::Validation(format!(
+        "TermLoan '{}' sets {} but has no credit_curve_id, so it prices on the \
+         risk-free short-rate tree where the hazard factor does not exist. Set \
+         credit_curve_id to opt into the rates-credit lattice, or remove the \
+         hazard inputs.",
+        loan.id,
+        configured.join(", ")
+    )))
+}
+
 /// Configuration for tree-based term loan pricing (callable PV, OAS).
 #[derive(Debug, Clone)]
 pub(crate) struct TermLoanTreePricerConfig {
     pub(crate) tree_steps: usize,
+    /// Short-rate volatility used **only** by the risk-free short-rate tree
+    /// (no credit curve). The rates-credit path takes its volatilities from
+    /// [`resolve_rates_credit_config`], never from here.
     pub(crate) rate_volatility: f64,
-    pub(crate) hazard_volatility: f64,
     pub(crate) tolerance: f64,
     pub(crate) max_iterations: usize,
     pub(crate) initial_bracket_size_bp: Option<f64>,
@@ -42,7 +74,6 @@ impl Default for TermLoanTreePricerConfig {
         Self {
             tree_steps: 100,
             rate_volatility: 0.01,
-            hazard_volatility: 0.20,
             tolerance: 1e-6,
             max_iterations: 50,
             initial_bracket_size_bp: Some(1000.0),
@@ -481,14 +512,12 @@ impl TermLoanTreePricer {
                 .model_config
                 .hw1f_sigma
                 .unwrap_or(self.config.rate_volatility),
-            hazard_volatility: self.config.hazard_volatility,
             tolerance: self.config.tolerance,
             max_iterations: self.config.max_iterations,
             initial_bracket_size_bp: self.config.initial_bracket_size_bp,
         };
         let steps = cfg.tree_steps;
         let rate_volatility = cfg.rate_volatility;
-        let hazard_volatility = cfg.hazard_volatility;
 
         // Choose model: if hazard curve is available, use the rates+credit tree; otherwise short-rate.
         // Precedence mirrors TermLoan's `credit_curve_id` semantics.
@@ -502,19 +531,17 @@ impl TermLoanTreePricer {
             TermLoanValuator::new(loan.clone(), market, as_of, origin, time_to_maturity, steps)?;
 
         let price_amount = if let Some(hc) = hazard_curve.as_ref() {
-            // Credit-spread tree path: calibrated to discount + hazard curves.
-            // Rate vol 0 → deterministic forward rates; stochastic hazard.
-            let mut tree = RatesCreditTree::new(RatesCreditConfig {
-                steps,
-                rate_vol: 0.0,
-                hazard_vol: hazard_volatility,
-                ..Default::default()
-            });
+            // Rates-credit lattice: both factor volatilities come from the
+            // shared resolver, so the regime is whatever the instrument's
+            // ModelConfig declares rather than a hard-coded pair.
+            let cfg = resolve_rates_credit_config(&loan.instrument_pricing_overrides, steps)?;
+            let mut tree = RatesCreditTree::new(cfg);
             tree.calibrate(disc.as_ref(), hc.as_ref(), time_to_maturity)?;
 
             let vars = HashMap::<&'static str, f64>::default();
             tree.price(vars, time_to_maturity, market, &valuator)?
         } else {
+            reject_inert_hazard_inputs(loan)?;
             // Short-rate tree calibrated to the discount curve.
             let mut tree = ShortRateTree::new(ShortRateTreeConfig {
                 steps,
@@ -589,14 +616,12 @@ impl TermLoanTreePricer {
                 .model_config
                 .hw1f_sigma
                 .unwrap_or(self.config.rate_volatility),
-            hazard_volatility: self.config.hazard_volatility,
             tolerance: self.config.tolerance,
             max_iterations: self.config.max_iterations,
             initial_bracket_size_bp: self.config.initial_bracket_size_bp,
         };
         let steps = cfg.tree_steps;
         let rate_volatility = cfg.rate_volatility;
-        let hazard_volatility = cfg.hazard_volatility;
 
         // Choose model based on hazard availability.
         let hazard_curve = loan
@@ -611,12 +636,8 @@ impl TermLoanTreePricer {
 
         // Pre-calibrate the credit tree once (it stays fixed; OAS is passed via vars).
         let rc_tree = if let Some(hc) = hazard_curve.as_ref() {
-            let mut tree = RatesCreditTree::new(RatesCreditConfig {
-                steps,
-                rate_vol: 0.0,
-                hazard_vol: hazard_volatility,
-                ..Default::default()
-            });
+            let cfg = resolve_rates_credit_config(&loan.instrument_pricing_overrides, steps)?;
+            let mut tree = RatesCreditTree::new(cfg);
             tree.calibrate(disc.as_ref(), hc.as_ref(), time_to_maturity)?;
             Some(tree)
         } else {
@@ -631,6 +652,7 @@ impl TermLoanTreePricer {
         let sr_tree_and_initial: Option<(ShortRateTree, f64)> = if rc_tree.is_some() {
             None
         } else {
+            reject_inert_hazard_inputs(loan)?;
             let mut tree = ShortRateTree::new(ShortRateTreeConfig {
                 steps,
                 volatility: rate_volatility,
@@ -646,6 +668,25 @@ impl TermLoanTreePricer {
             Some((tree, initial_rate))
         };
 
+        // Capture the first in-iteration tree-pricing error so a solver failure
+        // reports the underlying cause instead of a bare convergence message.
+        // `BrentSolver` takes an `FnMut(f64) -> f64` with no error channel, so
+        // the residual has to stand in for the failure; a flat large positive
+        // value is correct here because the model price falls monotonically in
+        // OAS and pricing only fails in the divergent deeply-negative regime
+        // where the true price tends to +infinity. A `±1e6` keyed to
+        // `sign(oas)` would flip at oas = 0 and hand Brent a fabricated bracket
+        // around a non-root.
+        let pricing_error: std::cell::RefCell<Option<finstack_quant_core::Error>> =
+            std::cell::RefCell::new(None);
+        let record_error = |e: finstack_quant_core::Error| -> f64 {
+            let mut slot = pricing_error.borrow_mut();
+            if slot.is_none() {
+                *slot = Some(e);
+            }
+            1.0e12
+        };
+
         let objective_fn = |oas_bp: f64| -> f64 {
             if let Some(tree) = rc_tree.as_ref() {
                 // Calibrated credit tree: OAS as a parallel shift to calibrated rates.
@@ -653,7 +694,7 @@ impl TermLoanTreePricer {
                 vars.insert("oas", oas_bp);
                 match tree.price(vars, time_to_maturity, market, &valuator) {
                     Ok(model_price) => model_price - dirty_target,
-                    Err(_) => 1.0e6,
+                    Err(e) => record_error(e),
                 }
             } else if let Some((tree, initial_rate)) = sr_tree_and_initial.as_ref() {
                 // Short-rate tree: pre-calibrated; OAS is a parallel shift via state.
@@ -662,19 +703,12 @@ impl TermLoanTreePricer {
                 vars.insert(short_rate_keys::OAS, oas_bp);
                 match tree.price(vars, time_to_maturity, market, &valuator) {
                     Ok(model_price) => model_price - dirty_target,
-                    Err(_) => {
-                        if oas_bp > 0.0 {
-                            1.0e6
-                        } else {
-                            -1.0e6
-                        }
-                    }
+                    Err(e) => record_error(e),
                 }
             } else {
-                // Unreachable by construction: if rc_tree is None we always
-                // populate sr_tree_and_initial above. Returning a large residual
-                // keeps the solver well-behaved if this contract is ever broken.
-                1.0e6
+                record_error(finstack_quant_core::Error::internal(
+                    "term-loan OAS solve invoked without a calibrated tree",
+                ))
             }
         };
 
@@ -682,7 +716,15 @@ impl TermLoanTreePricer {
             .tolerance(cfg.tolerance)
             .initial_bracket_size(cfg.initial_bracket_size_bp);
         solver.max_iterations = cfg.max_iterations;
-        solver.solve(objective_fn, 0.0)
+        solver
+            .solve(objective_fn, 0.0)
+            .map_err(|e| match pricing_error.borrow_mut().take() {
+                Some(tree_err) => finstack_quant_core::Error::Validation(format!(
+                    "TermLoan OAS tree solve failed: {e}; first underlying \
+                     tree-pricing error: {tree_err}"
+                )),
+                None => e,
+            })
     }
 }
 

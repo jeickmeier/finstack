@@ -6,7 +6,7 @@ use super::config::{TreeModelChoice, TreePricerConfig};
 use crate::instruments::pricing_overrides::OasPriceBasis;
 use crate::models::trees::hull_white_tree::{HullWhiteTree, HullWhiteTreeConfig};
 use crate::models::trees::short_rate_tree::CalibrationResult;
-use crate::models::trees::two_factor_rates_credit::{RatesCreditConfig, RatesCreditTree};
+use crate::models::trees::two_factor_rates_credit::{resolve_rates_credit_config, RatesCreditTree};
 use crate::models::{short_rate_keys, ShortRateTree, ShortRateTreeConfig, TreeModel};
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -55,6 +55,37 @@ impl TreePricer {
                     ))
                 }),
         }
+    }
+
+    /// Reject hazard-model inputs on an instrument that never reaches the
+    /// rates-credit lattice.
+    ///
+    /// Without a `credit_curve_id` the callable instrument prices on the
+    /// short-rate tree, which has no hazard factor at all. Silently ignoring a
+    /// configured hazard volatility or rate/credit correlation would leave the
+    /// user believing they had selected a credit regime that was never
+    /// applied.
+    fn reject_inert_hazard_inputs(bond: &Bond) -> Result<()> {
+        let model = &bond.instrument_pricing_overrides.model_config;
+        let configured = [
+            ("hazard_volatility", model.hazard_volatility),
+            ("hazard_mean_reversion", model.hazard_mean_reversion),
+            ("rate_credit_correlation", model.rate_credit_correlation),
+        ]
+        .into_iter()
+        .filter_map(|(label, value)| value.map(|_| label))
+        .collect::<Vec<_>>();
+        if configured.is_empty() {
+            return Ok(());
+        }
+        Err(Error::Validation(format!(
+            "Bond '{}' sets {} but has no credit_curve_id, so it prices on the \
+             risk-free short-rate tree where the hazard factor does not exist. \
+             Set credit_curve_id to opt into the rates-credit lattice, or remove \
+             the hazard inputs.",
+            bond.id.as_str(),
+            configured.join(", ")
+        )))
     }
 
     fn effective_steps_for_model(
@@ -240,17 +271,19 @@ impl TreePricer {
         )?;
 
         if let Some(hc) = hazard_curve.as_ref() {
-            let cfg = RatesCreditConfig {
-                steps: self.config.tree_steps,
-                rate_vol: self.config.volatility,
-                ..Default::default()
-            };
+            // One shared resolver owns the public-config to lattice-input
+            // mapping; the engine never rebuilds it.
+            let cfg = resolve_rates_credit_config(
+                &bond.instrument_pricing_overrides,
+                self.config.tree_steps,
+            )?;
             let mut tree = RatesCreditTree::new(cfg);
             tree.calibrate(discount_curve.as_ref(), hc.as_ref(), time_to_maturity)?;
             let mut vars = HashMap::<&'static str, f64>::default();
             vars.insert("oas", continuous_oas_bp);
             return tree.price(vars, time_to_maturity, market_context, &valuator);
         }
+        Self::reject_inert_hazard_inputs(bond)?;
 
         let effective_model = match &self.config.tree_model {
             TreeModelChoice::HullWhiteCalibratedToSwaptions {
@@ -445,15 +478,18 @@ impl TreePricer {
         }
         let hazard_curve = Self::resolve_opt_in_hazard_curve(bond, market_context)?;
         if let Some(hc) = hazard_curve.as_ref() {
-            let cfg = RatesCreditConfig {
-                steps: self.config.tree_steps,
-                rate_vol: self.config.volatility,
-                ..Default::default()
-            };
+            // Same resolver as the direct-PV path, so the zero-OAS point and a
+            // direct valuation cannot disagree about the model.
+            let cfg = resolve_rates_credit_config(
+                &bond.instrument_pricing_overrides,
+                self.config.tree_steps,
+            )?;
             let mut tree = RatesCreditTree::new(cfg);
             tree.calibrate(discount_curve.as_ref(), hc.as_ref(), time_to_maturity)?;
             rc_tree = Some(tree);
             use_rates_credit = true;
+        } else {
+            Self::reject_inert_hazard_inputs(bond)?;
         }
 
         // Resolve the effective HW parameters when using HullWhite model variants.

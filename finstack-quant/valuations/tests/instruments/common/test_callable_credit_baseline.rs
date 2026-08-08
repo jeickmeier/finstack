@@ -117,6 +117,7 @@ fn callable_credit_loan() -> TermLoan {
             call_type: LoanCallType::Hard,
         }],
     });
+    apply_baseline_regime(&mut loan.instrument_pricing_overrides);
     loan
 }
 
@@ -128,19 +129,34 @@ fn callable_credit_loan() -> TermLoan {
 fn apply_baseline_regime(
     overrides: &mut finstack_quant_valuations::instruments::InstrumentPricingOverrides,
 ) {
-    overrides.market_quotes.implied_volatility = Some(BASELINE_RATE_VOL);
-    let _ = BASELINE_HAZARD_VOL;
+    overrides.model_config.hw1f_sigma = Some(BASELINE_RATE_VOL);
+    overrides.model_config.hazard_volatility = Some(BASELINE_HAZARD_VOL);
 }
 
-/// PV of the callable credit-risky bond under the baseline regime, captured
-/// from the pre-refactor engine (implicit `rate_vol = 0.01`,
-/// `hazard_vol = 0.20`).
-const BASELINE_BOND_PV: f64 = 743_256.321_062_46;
-/// PV of the callable credit-risky term loan under the same regime.
-const BASELINE_LOAN_PV: f64 = 7_517_234.091_682_44;
+/// PV of the callable credit-risky bond under the baseline regime.
+///
+/// # Why this moved from the pre-refactor number
+///
+/// The pre-refactor engine produced `743_256.32` for this instrument. That
+/// number was wrong, and the correction is deliberate: calibration solved the
+/// per-step hazard shift against **raw** additive-normal node values while
+/// backward induction applied `max(0, h)`. Because the floor only ever raises
+/// a hazard, pricing defaulted the instrument faster than the calibration
+/// believed — on this fixture the survival the valuator actually saw was
+/// `0.99173` at `t = 0.2` where the market curve said `0.99601`, roughly 43 bp
+/// of spurious default probability inside the first fifth of a year, which
+/// compounds to about a 24% PV understatement over the five-year life.
+///
+/// Both passes now share one non-negative transform, so the lattice reproduces
+/// the survival curve the valuator consumes. The remaining gap to the
+/// deterministic-credit price is genuine hazard-volatility convexity.
+const BASELINE_BOND_PV: f64 = 979_291.972_611_376;
+/// PV of the callable credit-risky term loan under the same regime, corrected
+/// by the same calibration/valuation consistency fix.
+const BASELINE_LOAN_PV: f64 = 9_790_919.149_191_16;
 /// OAS (bp) recovered by re-solving at the term loan's own model price.
 /// Non-zero only by the clean/dirty accrued conversion inside the solve.
-const BASELINE_LOAN_OAS_BP: f64 = -1.282_977_864_4;
+const BASELINE_LOAN_OAS_BP: f64 = -1.182_775_425_0;
 
 #[test]
 fn callable_credit_bond_pv_baseline() {
@@ -186,6 +202,143 @@ fn callable_credit_term_loan_pv_and_oas_baseline() {
         (oas_bp - BASELINE_LOAN_OAS_BP).abs() < 1e-6,
         "callable credit-risky term-loan OAS moved: actual={oas_bp:.10}, \
          baseline={BASELINE_LOAN_OAS_BP:.10}"
+    );
+}
+
+/// One instrument reaches every applicable regime by changing only
+/// `ModelConfig` — no second model key, no engine switch, no rebuild.
+#[test]
+fn all_four_regimes_are_selected_by_model_config_alone() {
+    use finstack_quant_valuations::instruments::Instrument;
+
+    let market = market();
+    let price_in = |sigma: Option<f64>, hazard_vol: Option<f64>, rho: Option<f64>| -> f64 {
+        let mut bond = callable_credit_bond();
+        bond.instrument_pricing_overrides.model_config.hw1f_sigma = sigma;
+        bond.instrument_pricing_overrides
+            .model_config
+            .hazard_volatility = hazard_vol;
+        bond.instrument_pricing_overrides
+            .model_config
+            .rate_credit_correlation = rho;
+        bond.value(&market, as_of()).unwrap().amount()
+    };
+
+    let deterministic = price_in(None, None, None);
+    let stochastic_rates = price_in(Some(0.01), None, None);
+    let stochastic_credit = price_in(None, Some(0.02), None);
+    let correlated = price_in(Some(0.01), Some(0.02), Some(-0.4));
+
+    for (label, pv) in [
+        ("zero/zero", deterministic),
+        ("nonzero/zero", stochastic_rates),
+        ("zero/nonzero", stochastic_credit),
+        ("nonzero/nonzero", correlated),
+    ] {
+        assert!(
+            pv.is_finite() && pv > 0.0,
+            "{label} regime must price: {pv}"
+        );
+    }
+
+    // Each stochastic factor must actually bite — a regime that silently
+    // collapsed onto another would show up as an identical price.
+    assert!(
+        (stochastic_rates - deterministic).abs() > 1e-6,
+        "rate volatility must change the callable value: \
+         stochastic={stochastic_rates:.6}, deterministic={deterministic:.6}"
+    );
+    assert!(
+        (stochastic_credit - deterministic).abs() > 1e-6,
+        "hazard volatility must change the callable value: \
+         stochastic={stochastic_credit:.6}, deterministic={deterministic:.6}"
+    );
+    assert!(
+        (correlated - price_in(Some(0.01), Some(0.02), None)).abs() > 1e-9,
+        "correlation must change the correlated regime's value"
+    );
+}
+
+/// Hazard-model inputs on an instrument with no credit curve are rejected,
+/// not silently ignored: that instrument prices on the short-rate tree, which
+/// has no hazard factor at all.
+#[test]
+fn hazard_inputs_without_a_credit_curve_fail_validation() {
+    use finstack_quant_valuations::instruments::Instrument;
+
+    let market = market();
+    for (label, apply) in [
+        (
+            "hazard_volatility",
+            Box::new(|b: &mut Bond| {
+                b.instrument_pricing_overrides
+                    .model_config
+                    .hazard_volatility = Some(0.02);
+            }) as Box<dyn Fn(&mut Bond)>,
+        ),
+        (
+            "rate_credit_correlation",
+            Box::new(|b: &mut Bond| {
+                b.instrument_pricing_overrides
+                    .model_config
+                    .rate_credit_correlation = Some(0.3);
+            }),
+        ),
+    ] {
+        let mut bond = callable_credit_bond();
+        bond.credit_curve_id = None;
+        apply(&mut bond);
+        let err = bond
+            .value(&market, as_of())
+            .expect_err("hazard input without a credit curve must fail");
+        let msg = err.to_string();
+        assert!(
+            msg.contains(label) && msg.contains("credit_curve_id"),
+            "error must name the inert field and the missing curve: {msg}"
+        );
+    }
+}
+
+/// The legacy `implied_volatility` channel fails loudly on the credit path
+/// rather than silently flipping the regime to deterministic rates.
+#[test]
+fn legacy_vol_channel_is_rejected_on_the_credit_path() {
+    use finstack_quant_valuations::instruments::Instrument;
+
+    let mut bond = callable_credit_bond();
+    bond.instrument_pricing_overrides.model_config.hw1f_sigma = None;
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
+
+    let err = bond
+        .value(&market(), as_of())
+        .expect_err("implied_volatility without hw1f_sigma must fail on this path");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("hw1f_sigma") && msg.contains("implied_volatility"),
+        "error must name both the canonical and the legacy field: {msg}"
+    );
+}
+
+/// Removing the call schedule recovers the straight credit-risky value under
+/// the same resolved model inputs.
+#[test]
+fn removing_calls_recovers_the_straight_credit_risky_value() {
+    use finstack_quant_valuations::instruments::Instrument;
+
+    let market = market();
+    let mut callable = callable_credit_bond();
+    apply_baseline_regime(&mut callable.instrument_pricing_overrides);
+    let mut straight = callable.clone();
+    straight.call_put = None;
+
+    let callable_pv = callable.value(&market, as_of()).unwrap().amount();
+    let straight_pv = straight.value(&market, as_of()).unwrap().amount();
+    assert!(
+        straight_pv >= callable_pv - 1e-9,
+        "the issuer's call cannot raise the holder's value: \
+         straight={straight_pv:.6}, callable={callable_pv:.6}"
     );
 }
 

@@ -66,7 +66,7 @@ fn test_quoted_callable_credit_bond_risk_nonzero_and_call_aware() {
     // CS01 bumps the hazard and reprices through the same tree.
     let mut unquoted = build_callable_credit_bond(as_of);
     unquoted.instrument_pricing_overrides =
-        InstrumentPricingOverrides::default().with_implied_vol(0.02);
+        InstrumentPricingOverrides::default().with_hw1f_sigma(0.02);
     let base = unquoted
         .price_with_metrics(
             &market,
@@ -86,7 +86,7 @@ fn test_quoted_callable_credit_bond_risk_nonzero_and_call_aware() {
     let mut quoted = build_callable_credit_bond(as_of);
     quoted.instrument_pricing_overrides = InstrumentPricingOverrides::default()
         .with_quoted_clean_price(model_clean)
-        .with_implied_vol(0.02);
+        .with_hw1f_sigma(0.02);
     let result = quoted
         .price_with_metrics(
             &market,
