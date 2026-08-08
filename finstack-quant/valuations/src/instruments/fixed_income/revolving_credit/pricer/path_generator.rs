@@ -589,14 +589,19 @@ fn build_credit_spread_params(
                 .min(remaining)
                 .max(CIR_MIN_SPREAD);
 
-            // Conditional survival and average hazard over [anchor, anchor+T].
+            // Conditional survival and average hazard over [anchor, anchor+T],
+            // and the hazard↔spread mapping, both from the shared
+            // market-anchored helpers so the callable lattice and this Monte
+            // Carlo path cannot drift apart.
             let sp_0 = hazard.sp(t_anchor).max(f64::MIN_POSITIVE);
             let sp_t = hazard.sp(t_anchor + t).max(f64::MIN_POSITIVE);
-            let avg_lambda = (-(sp_t / sp_0).ln() / t).max(0.0);
+            let avg_lambda =
+                crate::models::credit::market_anchored::conditional_average_hazard(sp_0, sp_t, t)?;
             let lambda0 = hazard.hazard_rate(t_anchor).max(0.0);
 
-            // Map hazard ↔ spread using s ≈ (1 − R) · λ
-            // Use facility recovery rate for consistency with pricing
+            // Credit triangle: s ≈ (1 − R) · λ, using the facility recovery
+            // rate for consistency with pricing. The `1e-6` guard keeps a
+            // recovery of exactly 1 from collapsing the spread scale.
             let one_minus_r = (1.0 - facility.recovery_rate).max(1e-6);
             let s0 = (one_minus_r * lambda0).max(CIR_MIN_SPREAD);
             let s_bar = (one_minus_r * avg_lambda).max(CIR_MIN_SPREAD);
@@ -614,8 +619,12 @@ fn build_credit_spread_params(
                 ((s_bar - a * s0) / (1.0 - a)).max(CIR_MIN_SPREAD)
             };
 
-            // Volatility scaled to match fractional vol
-            let sigma = (*implied_vol) * s_bar.max(CIR_MIN_SPREAD).sqrt();
+            // CIR diffusion coefficient matching the local fractional vol at
+            // the anchored spread: σ_CIR·√s_ref = σ_fractional·s_ref.
+            let sigma = crate::models::credit::market_anchored::cir_diffusion_coefficient(
+                *implied_vol,
+                s_bar.max(CIR_MIN_SPREAD),
+            )?;
 
             // Check Feller condition: 2κθ > σ²
             let feller_lhs = 2.0 * k * theta;

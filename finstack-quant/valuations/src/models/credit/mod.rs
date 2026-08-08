@@ -9,14 +9,19 @@
 //! - [`dynamic_recovery`]: notional-dependent recovery curves for PIK accrual.
 //! - [`endogenous_hazard`]: leverage-dependent hazard-rate feedback functions.
 //! - [`toggle_exercise`]: threshold, stochastic, and nested-MC PIK toggle rules.
+//! - [`market_anchored`]: convert market-quoted fractional credit volatility
+//!   into the absolute parameters the callable lattice and the
+//!   revolving-credit CIR process consume.
 
 pub mod dynamic_recovery;
 pub mod endogenous_hazard;
+pub mod market_anchored;
 pub mod merton;
 pub mod toggle_exercise;
 
 pub use dynamic_recovery::DynamicRecoverySpec;
 pub use endogenous_hazard::EndogenousHazardSpec;
+pub use market_anchored::CreditVolatilityConversion;
 pub use merton::{AssetDynamics, BarrierType, MertonModel};
 pub use toggle_exercise::{
     CreditState, CreditStateVariable, OptimalToggle, ThresholdDirection, ToggleExerciseModel,
