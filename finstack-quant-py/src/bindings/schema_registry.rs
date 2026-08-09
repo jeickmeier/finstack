@@ -65,7 +65,10 @@ pub(crate) fn find_artifact<'a>(
                 .iter()
                 .map(|artifact| artifact.relative_path)
                 .collect();
-            format!("no schema matches {selector:?}; available: {}", available.join(", "))
+            format!(
+                "no schema matches {selector:?}; available: {}",
+                available.join(", ")
+            )
         })
 }
 

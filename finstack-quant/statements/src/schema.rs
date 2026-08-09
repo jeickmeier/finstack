@@ -98,7 +98,6 @@ pub fn normalization_config_schema() -> Result<&'static Value> {
     )
 }
 
-
 /// A canonical two-period model with one value node and one formula node.
 ///
 /// Small on purpose: it shows the graph shape and the Value > Forecast >
@@ -125,8 +124,16 @@ fn financial_model_examples() -> finstack_quant_core::Result<Vec<Value>> {
     };
 
     let periods = vec![
-        quarter("2024Q1", (2024, time::Month::January, 1), (2024, time::Month::April, 1))?,
-        quarter("2024Q2", (2024, time::Month::April, 1), (2024, time::Month::July, 1))?,
+        quarter(
+            "2024Q1",
+            (2024, time::Month::January, 1),
+            (2024, time::Month::April, 1),
+        )?,
+        quarter(
+            "2024Q2",
+            (2024, time::Month::April, 1),
+            (2024, time::Month::July, 1),
+        )?,
     ];
     let model = crate::FinancialModelSpec::new("example_model", periods);
 
@@ -180,19 +187,17 @@ fn normalization_examples() -> finstack_quant_core::Result<Vec<Value>> {
     Ok(vec![value])
 }
 
-
 /// Canonical `StatementResult`: an empty evaluation envelope.
 ///
 /// Minimal on purpose - its job is to show the envelope shape and the policy
 /// stamps a caller reads back, not to carry a worked model.
 fn statement_result_examples() -> finstack_quant_core::Result<Vec<Value>> {
-    let value = serde_json::to_value(crate::evaluator::StatementResult::default()).map_err(
-        |error| {
+    let value =
+        serde_json::to_value(crate::evaluator::StatementResult::default()).map_err(|error| {
             finstack_quant_core::Error::Internal(format!(
                 "serialize statement result example: {error}"
             ))
-        },
-    )?;
+        })?;
     Ok(vec![value])
 }
 
@@ -213,7 +218,9 @@ pub const ARTIFACTS: &[finstack_quant_core::schema::SchemaArtifact] = &[
         "Statement model graph: periods, nodes and the Value > Forecast > Formula precedence.",
     )
     .with_examples(financial_model_examples),
-    finstack_quant_core::schema::SchemaArtifact::new::<crate::adjustments::types::NormalizationConfig>(
+    finstack_quant_core::schema::SchemaArtifact::new::<
+        crate::adjustments::types::NormalizationConfig,
+    >(
         "schemas/statements/1/normalization_config.schema.json",
         "https://finstack_quant.dev/schemas/statements/1/normalization_config.schema.json",
         "NormalizationConfig",

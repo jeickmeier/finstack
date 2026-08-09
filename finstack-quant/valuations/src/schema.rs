@@ -504,13 +504,12 @@ fn validate_with(
     }
 }
 
-
-use finstack_quant_core::schema::{SchemaArtifact, SchemaKind};
 use crate::instruments::json_loader::instrument_registry;
 use crate::instruments::{
     InstrumentEnvelope, InstrumentPricingOverrides, MetricPricingOverrides,
     ScenarioPricingOverrides,
 };
+use finstack_quant_core::schema::{SchemaArtifact, SchemaKind};
 
 /// Canonical `Attributes` payloads.
 fn attributes_examples() -> finstack_quant_core::Result<Vec<Value>> {
@@ -617,7 +616,6 @@ fn scenario_override_examples() -> finstack_quant_core::Result<Vec<Value>> {
     ])
 }
 
-
 /// A canonical minimal calibration request.
 ///
 /// Only `plan` is required; `market_data` and `prior_market` are omitted when
@@ -630,28 +628,21 @@ fn calibration_examples() -> finstack_quant_core::Result<Vec<Value>> {
         steps: Vec::new(),
         settings: Default::default(),
     };
-    let envelope = crate::calibration::api::schema::CalibrationEnvelope::new(
-        plan,
-        Vec::new(),
-        Vec::new(),
-    );
+    let envelope =
+        crate::calibration::api::schema::CalibrationEnvelope::new(plan, Vec::new(), Vec::new());
     let value = serde_json::to_value(&envelope).map_err(|error| {
         finstack_quant_core::Error::Internal(format!("serialize calibration example: {error}"))
     })?;
     Ok(vec![value])
 }
 
-
 /// Canonical `ValuationResult`: a priced bond with its policy stamps.
 fn valuation_result_examples() -> finstack_quant_core::Result<Vec<Value>> {
-    let as_of = finstack_quant_core::dates::Date::from_calendar_date(
-        2024,
-        time::Month::January,
-        15,
-    )
-    .map_err(|error| {
-        finstack_quant_core::Error::Internal(format!("build example as-of date: {error}"))
-    })?;
+    let as_of =
+        finstack_quant_core::dates::Date::from_calendar_date(2024, time::Month::January, 15)
+            .map_err(|error| {
+                finstack_quant_core::Error::Internal(format!("build example as-of date: {error}"))
+            })?;
     let value = finstack_quant_core::money::Money::new(
         1_012_345.67,
         finstack_quant_core::currency::Currency::USD,
@@ -693,7 +684,6 @@ fn market_quote_examples() -> finstack_quant_core::Result<Vec<Value>> {
     })?;
     Ok(vec![value])
 }
-
 
 /// Canonical examples for the instrument umbrella union.
 fn instrument_examples() -> finstack_quant_core::Result<Vec<Value>> {
@@ -906,9 +896,7 @@ pub fn artifacts() -> Vec<SchemaArtifact> {
              beside it: this document is too large to hand to a model.",
         )
         .with_examples(instrument_examples),
-        SchemaArtifact::new::<
-            crate::calibration::api::schema::CalibrationEnvelope,
-        >(
+        SchemaArtifact::new::<crate::calibration::api::schema::CalibrationEnvelope>(
             "schemas/calibration/1/calibration.schema.json",
             "https://finstack_quant.dev/schemas/calibration/1/calibration.schema.json",
             "Calibration",

@@ -35,7 +35,6 @@ pub fn package_materialization_schema(schema: &mut Value) -> Result<()> {
     externalize_schema_definitions(schema, EXTERNAL_DEFINITIONS)
 }
 
-
 /// A one-position portfolio bundle, materialized from the public builder.
 ///
 /// Built from real constructors and then round-tripped through
@@ -102,7 +101,6 @@ fn materialization_examples() -> Result<Vec<Value>> {
     })?;
     Ok(vec![value])
 }
-
 
 /// A canonical optimizer result: a single rebalancing trade.
 fn optimization_result_examples() -> Result<Vec<Value>> {

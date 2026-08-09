@@ -100,7 +100,9 @@ pub(crate) fn instrument_summary(tag: &str) -> &'static str {
         "convertible_bond" => "Corporate bond convertible into a fixed number of shares.",
         "credit_default_swap" => "Single-name CDS priced on the ISDA standard model.",
         "deposit" => "Money-market deposit quoted as a simple rate.",
-        "discounted_cash_flow" => "Enterprise DCF valuation with an explicit forecast and terminal value.",
+        "discounted_cash_flow" => {
+            "Enterprise DCF valuation with an explicit forecast and terminal value."
+        }
         "dollar_roll" => "Simultaneous TBA sale and forward repurchase.",
         "equity" => "Cash equity position.",
         "equity_index_future" => "Future on an equity index.",
@@ -123,8 +125,12 @@ pub(crate) fn instrument_summary(tag: &str) -> &'static str {
         "levered_real_estate_equity" => "Property equity net of its financing stack.",
         "lookback_option" => "Option struck on the path maximum or minimum.",
         "ndf" => "Non-deliverable forward cash-settled against a fixing.",
-        "private_markets_fund" => "Closed-end fund with a commitment schedule and distribution waterfall.",
-        "quanto_option" => "Option on a foreign asset settled in the domestic currency at a fixed rate.",
+        "private_markets_fund" => {
+            "Closed-end fund with a commitment schedule and distribution waterfall."
+        }
+        "quanto_option" => {
+            "Option on a foreign asset settled in the domestic currency at a fixed rate."
+        }
         "range_accrual" => "Coupon accruing only on days the index sits inside a range.",
         "real_estate_asset" => "Direct property asset with rent roll and exit assumptions.",
         "repo" => "Repurchase agreement against posted collateral.",
@@ -135,7 +141,9 @@ pub(crate) fn instrument_summary(tag: &str) -> &'static str {
         "tarn" => "Target-redemption note that terminates once cumulative coupons hit a cap.",
         "term_loan" => "Amortising leveraged loan with call protection and covenants.",
         "trs_equity" => "Equity total-return swap versus a funding leg.",
-        "trs_fixed_income_index" => "Total-return swap on a fixed-income index versus a funding leg.",
+        "trs_fixed_income_index" => {
+            "Total-return swap on a fixed-income index versus a funding leg."
+        }
         "variance_swap" => "Swap on realised variance against a strike.",
         "volatility_index_future" => "Future on a volatility index such as VIX.",
         "volatility_index_option" => "Option on a volatility-index future.",

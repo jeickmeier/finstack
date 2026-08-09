@@ -115,16 +115,12 @@ pub fn credit_calibration_inputs_schema() -> finstack_quant_core::Result<&'stati
     )
 }
 
-
-
-
 /// The three-issuer, six-date panel behind both credit examples.
 ///
 /// Small enough to read end to end, and shared so the published inputs and the
 /// published model are demonstrably the same calibration.
-fn example_credit_inputs() -> finstack_quant_core::Result<
-    crate::credit::calibration::CreditCalibrationInputs,
-> {
+fn example_credit_inputs(
+) -> finstack_quant_core::Result<crate::credit::calibration::CreditCalibrationInputs> {
     use crate::credit::calibration::{
         CreditCalibrationInputs, GenericFactorSeries, HistoryPanel, IssuerTagPanel,
     };
@@ -159,7 +155,10 @@ fn example_credit_inputs() -> finstack_quant_core::Result<
     let mut as_of_spreads = BTreeMap::new();
     for (issuer, rating, series) in issuers {
         let id = finstack_quant_core::types::IssuerId::from(issuer);
-        spreads.insert(id.clone(), series.iter().map(|value| Some(*value)).collect());
+        spreads.insert(
+            id.clone(),
+            series.iter().map(|value| Some(*value)).collect(),
+        );
         let mut issuer_tags = BTreeMap::new();
         issuer_tags.insert("rating".to_string(), rating.to_string());
         tags.insert(id.clone(), IssuerTags(issuer_tags));
@@ -218,7 +217,9 @@ fn credit_factor_model_examples() -> finstack_quant_core::Result<Vec<serde_json:
 /// rule, which is enough to show how factors, their market mapping and the
 /// dependency matcher fit together.
 fn factor_model_config_examples() -> finstack_quant_core::Result<Vec<serde_json::Value>> {
-    use crate::{FactorDefinition, FactorId, FactorType, MappingRule, MarketMapping, MatchingConfig};
+    use crate::{
+        FactorDefinition, FactorId, FactorType, MappingRule, MarketMapping, MatchingConfig,
+    };
     use finstack_quant_core::market_data::bumps::BumpUnits;
 
     let factor_id = FactorId::new("rates::usd::parallel");
@@ -231,8 +232,7 @@ fn factor_model_config_examples() -> finstack_quant_core::Result<Vec<serde_json:
         },
         description: Some("Parallel shift of the USD OIS curve.".to_string()),
     };
-    let covariance =
-        crate::FactorCovarianceMatrix::new(vec![factor_id.clone()], vec![0.000_1])?;
+    let covariance = crate::FactorCovarianceMatrix::new(vec![factor_id.clone()], vec![0.000_1])?;
     let matching = MatchingConfig::MappingTable(vec![MappingRule {
         dependency_filter: Default::default(),
         attribute_filter: Default::default(),
@@ -248,24 +248,24 @@ fn factor_model_config_examples() -> finstack_quant_core::Result<Vec<serde_json:
         bump_size: None,
         unmatched_policy: None,
     };
-    let value = serde_json::to_value(crate::FactorModelConfigEnvelope::new(config)).map_err(
-        |error| {
+    let value =
+        serde_json::to_value(crate::FactorModelConfigEnvelope::new(config)).map_err(|error| {
             finstack_quant_core::Error::Internal(format!(
                 "serialize factor-model config example: {error}"
             ))
-        },
-    )?;
+        })?;
     Ok(vec![value])
 }
 
 /// Canonical `CreditCalibrationConfig`: the shipped defaults.
 fn credit_calibration_config_examples() -> finstack_quant_core::Result<Vec<serde_json::Value>> {
-    let value = serde_json::to_value(crate::credit::calibration::CreditCalibrationConfig::default())
-        .map_err(|error| {
-            finstack_quant_core::Error::Internal(format!(
-                "serialize credit calibration config example: {error}"
-            ))
-        })?;
+    let value =
+        serde_json::to_value(crate::credit::calibration::CreditCalibrationConfig::default())
+            .map_err(|error| {
+                finstack_quant_core::Error::Internal(format!(
+                    "serialize credit calibration config example: {error}"
+                ))
+            })?;
     Ok(vec![value])
 }
 

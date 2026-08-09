@@ -43,7 +43,6 @@ pub fn generated_schema<T: SerdeSchema>(
     )
 }
 
-
 /// A canonical single-operation scenario: a 50 bp parallel shock.
 fn scenario_examples() -> finstack_quant_core::Result<Vec<serde_json::Value>> {
     let scenario = crate::ScenarioSpec {
@@ -71,17 +70,14 @@ fn scenario_examples() -> finstack_quant_core::Result<Vec<serde_json::Value>> {
 /// contract tests and the bindings all render from one definition. Render an
 /// entry with [`finstack_quant_core::schema::SchemaArtifact::generate`];
 /// `generated_schema` produces only the raw derived document.
-pub const ARTIFACTS: &[finstack_quant_core::schema::SchemaArtifact] =
-    &[
-        finstack_quant_core::schema::SchemaArtifact::new::<crate::ScenarioEnvelope>(
-            "schemas/scenarios/1/scenario.schema.json",
-            "https://finstack_quant.dev/schemas/scenarios/1/scenario.schema.json",
-            SCENARIO_SCHEMA_TITLE,
-            SCENARIO_SCHEMA_DESCRIPTION,
-        )
-        .with_kind(finstack_quant_core::schema::SchemaKind::Input)
-        .with_summary(
-            "Ordered shock and roll operations over market, statement and valuation targets.",
-        )
-        .with_examples(scenario_examples),
-    ];
+pub const ARTIFACTS: &[finstack_quant_core::schema::SchemaArtifact] = &[
+    finstack_quant_core::schema::SchemaArtifact::new::<crate::ScenarioEnvelope>(
+        "schemas/scenarios/1/scenario.schema.json",
+        "https://finstack_quant.dev/schemas/scenarios/1/scenario.schema.json",
+        SCENARIO_SCHEMA_TITLE,
+        SCENARIO_SCHEMA_DESCRIPTION,
+    )
+    .with_kind(finstack_quant_core::schema::SchemaKind::Input)
+    .with_summary("Ordered shock and roll operations over market, statement and valuation targets.")
+    .with_examples(scenario_examples),
+];

@@ -11,8 +11,6 @@ use std::path::{Component, Path, PathBuf};
 
 const FIXTURE_ROOT: &str = "tests/instruments/json_examples";
 
-
-
 fn fixture_artifacts() -> Result<BTreeMap<PathBuf, Vec<u8>>> {
     let mut expected = BTreeMap::new();
     for entry in instrument_registry() {

@@ -858,10 +858,7 @@ fn inline_external_references(
             if handle.get("type").is_some_and(|kind| kind == "object") {
                 handle.insert("additionalProperties".to_string(), Value::Bool(true));
             }
-            handle.insert(
-                RESOLVES_FROM_KEYWORD.to_string(),
-                Value::String(id.clone()),
-            );
+            handle.insert(RESOLVES_FROM_KEYWORD.to_string(), Value::String(id.clone()));
             handle.insert(
                 "description".to_string(),
                 Value::String(match summary {
@@ -959,9 +956,10 @@ fn flatten_const_unions(node: &mut Value) {
                 let Some(Value::String(constant)) = branch.get("const") else {
                     return;
                 };
-                if branch.keys().any(|key| {
-                    !matches!(key.as_str(), "const" | "type" | "description" | "title")
-                }) {
+                if branch
+                    .keys()
+                    .any(|key| !matches!(key.as_str(), "const" | "type" | "description" | "title"))
+                {
                     return;
                 }
                 if let Some(Value::String(note)) = branch.get("description") {
@@ -1165,10 +1163,7 @@ fn apply_strict_shape(node: &mut Value) {
 
             if let Some(Value::Object(properties)) = object.get("properties") {
                 let names: Vec<Value> = properties.keys().cloned().map(Value::String).collect();
-                object.insert(
-                    "additionalProperties".to_string(),
-                    Value::Bool(false),
-                );
+                object.insert("additionalProperties".to_string(), Value::Bool(false));
                 object.insert("required".to_string(), Value::Array(names));
             }
 
@@ -1784,7 +1779,6 @@ fn prune_unreachable_defs(value: &mut Value) {
     }
 }
 
-
 /// A valid but empty market snapshot.
 ///
 /// Deliberately minimal: its job is to show the required-key shape, including
@@ -1793,9 +1787,8 @@ fn market_context_state_examples() -> Result<Vec<Value>> {
     let state = crate::market_data::context::MarketContextState::from(
         &crate::market_data::context::MarketContext::new(),
     );
-    let value = serde_json::to_value(&state).map_err(|error| {
-        Error::Internal(format!("serialize market context example: {error}"))
-    })?;
+    let value = serde_json::to_value(&state)
+        .map_err(|error| Error::Internal(format!("serialize market context example: {error}")))?;
     Ok(vec![value])
 }
 
@@ -1804,21 +1797,20 @@ fn market_context_state_examples() -> Result<Vec<Value>> {
 /// This lives beside the emitter rather than in the generator binary, so the
 /// generator, the contract tests and the bindings all render from one
 /// definition. Render an entry with [`SchemaArtifact::generate`].
-pub const ARTIFACTS: &[SchemaArtifact] =
-    &[
-        SchemaArtifact::new::<crate::market_data::context::MarketContextState>(
-            "schemas/market_data/1/market_context_state.schema.json",
-            "https://finstack_quant.dev/schemas/market_data/1/market_context_state.schema.json",
-            "Market Context State",
-            "Canonical v1 persisted snapshot of a complete market-data context.",
-        )
-        .with_kind(SchemaKind::Input)
-        .with_summary(
-            "Curves, surfaces, prices, series and FX for one valuation date; the market input to \
+pub const ARTIFACTS: &[SchemaArtifact] = &[SchemaArtifact::new::<
+    crate::market_data::context::MarketContextState,
+>(
+    "schemas/market_data/1/market_context_state.schema.json",
+    "https://finstack_quant.dev/schemas/market_data/1/market_context_state.schema.json",
+    "Market Context State",
+    "Canonical v1 persisted snapshot of a complete market-data context.",
+)
+.with_kind(SchemaKind::Input)
+.with_summary(
+    "Curves, surfaces, prices, series and FX for one valuation date; the market input to \
              every pricing, scenario and attribution call.",
-        )
-        .with_examples(market_context_state_examples),
-    ];
+)
+.with_examples(market_context_state_examples)];
 
 #[cfg(test)]
 mod tests {
@@ -2159,14 +2151,18 @@ mod tests {
                 ]}
             }
         });
-        let projected = project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
+        let projected =
+            project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
         let stub = &projected["properties"]["stub"];
 
         assert_eq!(stub["type"], json!("string"));
         assert_eq!(stub["enum"], json!(["short_front", "long_back"]));
         assert!(stub.get("oneOf").is_none());
         let described = stub["description"].as_str().expect("folded notes");
-        assert!(described.contains("`short_front`: Short first period."), "{described}");
+        assert!(
+            described.contains("`short_front`: Short first period."),
+            "{described}"
+        );
     }
 
     #[test]
@@ -2177,7 +2173,8 @@ mod tests {
             {"properties": {"fixed": {"type": "number"}}, "required": ["fixed"]},
             {"properties": {"floating": {"type": "number"}}, "required": ["floating"]}
         ]});
-        let projected = project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
+        let projected =
+            project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
         assert!(projected["oneOf"].is_array());
         assert!(projected.get("enum").is_none());
     }
@@ -2191,14 +2188,26 @@ mod tests {
             "See [`DayCount`] for the full set."
         );
         let schema = json!({"type": "string", "description": description});
-        let projected = project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
-        let text = projected["description"].as_str().expect("description survives");
+        let projected =
+            project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
+        let text = projected["description"]
+            .as_str()
+            .expect("description survives");
 
         assert!(text.contains("Act/360 day count."));
-        assert!(text.contains("ISDA 2006 Definitions"), "domain grounding is kept: {text}");
+        assert!(
+            text.contains("ISDA 2006 Definitions"),
+            "domain grounding is kept: {text}"
+        );
         assert!(!text.contains("```"), "code fences are dropped: {text}");
-        assert!(!text.contains("let convention"), "Rust examples are dropped: {text}");
-        assert!(text.contains("`DayCount`") && !text.contains("[`DayCount`]"), "links flatten: {text}");
+        assert!(
+            !text.contains("let convention"),
+            "Rust examples are dropped: {text}"
+        );
+        assert!(
+            text.contains("`DayCount`") && !text.contains("[`DayCount`]"),
+            "links flatten: {text}"
+        );
     }
 
     #[test]
@@ -2208,7 +2217,8 @@ mod tests {
             "properties": {"id": {"type": "string"}, "note": {"type": "string"}},
             "required": ["id"]
         });
-        let projected = project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
+        let projected =
+            project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
 
         assert_eq!(projected["additionalProperties"], json!(false));
         assert_eq!(projected["required"], json!(["id", "note"]));
@@ -2222,12 +2232,16 @@ mod tests {
             "uniqueItems": true,
             "format": "double"
         });
-        let projected = project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
+        let projected =
+            project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
 
         assert!(projected.get("prefixItems").is_none());
         // `items` must stay a schema: draft 2020-12 has no array form.
         assert!(projected["items"].is_object(), "{}", projected["items"]);
-        assert!(projected["items"]["anyOf"].is_array(), "differing positions become a union");
+        assert!(
+            projected["items"]["anyOf"].is_array(),
+            "differing positions become a union"
+        );
         assert_eq!(projected["minItems"], json!(2));
         assert_eq!(projected["maxItems"], json!(2));
         assert!(projected.get("uniqueItems").is_none());
@@ -2241,23 +2255,30 @@ mod tests {
             "properties": {"amount": {"$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json"}}
         });
         let resolve = |id: &str| {
-            (id == "https://finstack_quant.dev/schemas/common/1/decimal.schema.json").then(|| {
-                json!({"$id": id, "type": "string", "pattern": "^-?\\d+$"})
-            })
+            (id == "https://finstack_quant.dev/schemas/common/1/decimal.schema.json")
+                .then(|| json!({"$id": id, "type": "string", "pattern": "^-?\\d+$"}))
         };
         let projected = project_llm(&schema, &resolve, &LlmProfile::default()).expect("projects");
 
-        assert_eq!(projected["properties"]["amount"]["$ref"], json!("#/$defs/Decimal"));
+        assert_eq!(
+            projected["properties"]["amount"]["$ref"],
+            json!("#/$defs/Decimal")
+        );
         assert_eq!(projected["$defs"]["Decimal"]["pattern"], json!("^-?\\d+$"));
-        assert!(projected["$defs"]["Decimal"].get("$id").is_none(), "identity is not carried into a definition");
+        assert!(
+            projected["$defs"]["Decimal"].get("$id").is_none(),
+            "identity is not carried into a definition"
+        );
     }
 
     #[test]
     fn projection_leaves_an_unresolvable_reference_alone() {
         // A missing shared definition must surface as a dangling reference, not
         // as a silently different contract.
-        let schema = json!({"$ref": "https://finstack_quant.dev/schemas/common/1/gone.schema.json"});
-        let projected = project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
+        let schema =
+            json!({"$ref": "https://finstack_quant.dev/schemas/common/1/gone.schema.json"});
+        let projected =
+            project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
         assert_eq!(
             projected["$ref"],
             json!("https://finstack_quant.dev/schemas/common/1/gone.schema.json")
@@ -2277,7 +2298,10 @@ mod tests {
             "properties": {"instrument": {"$ref": "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json"}}
         });
         let resolve = |id: &str| (id.ends_with("instrument.schema.json")).then(|| big.clone());
-        let profile = LlmProfile { max_inline_bytes: 512, ..LlmProfile::default() };
+        let profile = LlmProfile {
+            max_inline_bytes: 512,
+            ..LlmProfile::default()
+        };
         let projected = project_llm(&schema, &resolve, &profile).expect("projects");
 
         let handle = &projected["$defs"]["Instrument"];
@@ -2285,8 +2309,15 @@ mod tests {
             handle[RESOLVES_FROM_KEYWORD],
             json!("https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json")
         );
-        assert_eq!(handle["type"], json!("object"), "a handle keeps the target's own type");
-        assert!(handle.get("properties").is_none(), "the target's internals are not carried");
+        assert_eq!(
+            handle["type"],
+            json!("object"),
+            "a handle keeps the target's own type"
+        );
+        assert!(
+            handle.get("properties").is_none(),
+            "the target's internals are not carried"
+        );
     }
 
     #[test]

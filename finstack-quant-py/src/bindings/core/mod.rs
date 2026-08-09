@@ -43,7 +43,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
 
     schema::register(py, &m)?;
 
-
     let all = PyList::new(
         py,
         [
@@ -58,7 +57,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "credit",
             "rating_scales",
             "table",
-                    // Schema
+            // Schema
             "schema",
         ],
     )?;

@@ -17,8 +17,8 @@ use finstack_quant_statements::evaluator::{
     CapitalStructureWarning, EvalWarning, ResultsMeta, StatementResult,
 };
 use finstack_quant_statements::schema::{
-    financial_model_spec_schema, normalization_config_schema,
-    statement_result_schema, STATEMENTS_SCHEMA_BASE,
+    financial_model_spec_schema, normalization_config_schema, statement_result_schema,
+    STATEMENTS_SCHEMA_BASE,
 };
 use finstack_quant_statements::types::NodeValueType;
 use finstack_quant_statements::FinancialModelSpec;

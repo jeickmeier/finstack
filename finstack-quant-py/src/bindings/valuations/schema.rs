@@ -5,8 +5,8 @@
 //! from Python always describes the exact wire format the installed wheel
 //! accepts. There is no loose data file that can drift from the binary.
 
-use pyo3::exceptions::PyKeyError;
 use crate::bindings::schema_registry::schema_registry_functions;
+use pyo3::exceptions::PyKeyError;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
 use serde_json::Value;

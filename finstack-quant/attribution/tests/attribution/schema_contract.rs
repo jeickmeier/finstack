@@ -181,7 +181,8 @@ fn attribution_schemas_keep_meaningful_nested_payloads() {
     // One-variant marker enums lose schemars' single-branch `oneOf` wrapper in
     // the emitter, so the `const` sits directly on the definition.
     assert!(
-        spec.pointer("/$defs/CreditFactorModelSchema/const").is_some(),
+        spec.pointer("/$defs/CreditFactorModelSchema/const")
+            .is_some(),
         "credit-factor model schema must retain its exact version marker"
     );
     assert!(

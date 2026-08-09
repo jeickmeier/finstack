@@ -157,7 +157,10 @@ fn factor_model_config_schema() -> PyResult<String> {
     schema_json(canonical::factor_model_config_schema().map_err(core_to_py)?)
 }
 
-schema_registry_functions!(finstack_quant_factor_model::schema::ARTIFACTS, "finstack_quant.factor_model.schema");
+schema_registry_functions!(
+    finstack_quant_factor_model::schema::ARTIFACTS,
+    "finstack_quant.factor_model.schema"
+);
 
 /// Register the `finstack_quant.factor_model.schema` Python namespace.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {

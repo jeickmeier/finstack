@@ -117,7 +117,6 @@ impl MarginEnvelope {
     }
 }
 
-
 /// A canonical CSA specification.
 ///
 /// The `csa_spec` branch is the one a caller authors most often; the VM
@@ -146,20 +145,19 @@ fn margin_examples() -> finstack_quant_core::Result<Vec<Value>> {
 /// This lives in the library, not the generator binary, so the generator, the
 /// contract tests and the bindings all render from one definition. Rendering
 /// goes through [`finstack_quant_core::schema::SchemaArtifact::generate`].
-pub const ARTIFACTS: &[finstack_quant_core::schema::SchemaArtifact] =
-    &[
-        finstack_quant_core::schema::SchemaArtifact::new::<MarginEnvelope>(
-            "schemas/margin/1/margin.schema.json",
-            "https://finstack_quant.dev/schemas/margin/1/margin.schema.json",
-            MARGIN_SCHEMA_TITLE,
-            MARGIN_SCHEMA_DESCRIPTION,
-        )
-        .with_kind(finstack_quant_core::schema::SchemaKind::Input)
-        .with_summary(
-            "One of three closed root shapes: an OTC margin spec, a CSA spec, or a margin call.",
-        )
-        .with_examples(margin_examples),
-    ];
+pub const ARTIFACTS: &[finstack_quant_core::schema::SchemaArtifact] = &[
+    finstack_quant_core::schema::SchemaArtifact::new::<MarginEnvelope>(
+        "schemas/margin/1/margin.schema.json",
+        "https://finstack_quant.dev/schemas/margin/1/margin.schema.json",
+        MARGIN_SCHEMA_TITLE,
+        MARGIN_SCHEMA_DESCRIPTION,
+    )
+    .with_kind(finstack_quant_core::schema::SchemaKind::Input)
+    .with_summary(
+        "One of three closed root shapes: an OTC margin spec, a CSA spec, or a margin call.",
+    )
+    .with_examples(margin_examples),
+];
 
 /// Generate the published margin schema exactly as it is checked in.
 ///

@@ -236,9 +236,7 @@ fn market_context_state_schema_permits_explicit_null_hierarchy() {
         panic!("`hierarchy` must be a nullable union, got: {hierarchy}");
     });
     assert!(
-        branches
-            .iter()
-            .any(|branch| branch["type"] == "null"),
+        branches.iter().any(|branch| branch["type"] == "null"),
         "`hierarchy` must admit an explicit null branch, got: {hierarchy}"
     );
 }

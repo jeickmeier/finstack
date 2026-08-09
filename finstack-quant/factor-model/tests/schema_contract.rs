@@ -31,9 +31,6 @@ fn checked_in_schema() -> Value {
     .expect("checked-in factor-model schema parses")
 }
 
-
-
-
 fn validate(schema: &Value, fixture: &Value) -> Result<(), Vec<String>> {
     let validator = jsonschema::validator_for(schema).expect("factor-model schema compiles");
     let errors: Vec<_> = validator
@@ -231,7 +228,10 @@ fn credit_factor_model_schema_rejects_malformed_nested_config() {
 fn credit_factor_model_schema_matches_generated_type_and_metadata() {
     let schema = credit_factor_model_schema().expect("embedded credit factor model schema");
 
-    assert_eq!(schema, &registry_schema(CREDIT_FACTOR_MODEL_SCHEMA_FILENAME));
+    assert_eq!(
+        schema,
+        &registry_schema(CREDIT_FACTOR_MODEL_SCHEMA_FILENAME)
+    );
     assert_eq!(
         schema["$id"],
         format!("{FACTOR_MODEL_SCHEMA_BASE}{CREDIT_FACTOR_MODEL_SCHEMA_FILENAME}")
@@ -293,8 +293,14 @@ fn credit_calibration_schemas_match_generated_types_and_embedded_apis() {
     let inputs =
         credit_calibration_inputs_schema().expect("embedded credit calibration inputs schema");
 
-    assert_eq!(config, &registry_schema(CREDIT_CALIBRATION_CONFIG_SCHEMA_FILENAME));
-    assert_eq!(inputs, &registry_schema(CREDIT_CALIBRATION_INPUTS_SCHEMA_FILENAME));
+    assert_eq!(
+        config,
+        &registry_schema(CREDIT_CALIBRATION_CONFIG_SCHEMA_FILENAME)
+    );
+    assert_eq!(
+        inputs,
+        &registry_schema(CREDIT_CALIBRATION_INPUTS_SCHEMA_FILENAME)
+    );
     assert_eq!(
         config["$id"],
         format!("{FACTOR_MODEL_SCHEMA_BASE}{CREDIT_CALIBRATION_CONFIG_SCHEMA_FILENAME}")

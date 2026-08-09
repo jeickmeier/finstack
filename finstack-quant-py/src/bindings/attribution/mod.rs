@@ -46,7 +46,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "default_waterfall_order",
             "validate_attribution_json",
             "validate_return_contribution_json",
-                    // Schema
+            // Schema
             "schema",
         ],
     )?;

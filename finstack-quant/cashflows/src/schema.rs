@@ -118,8 +118,6 @@ pub fn resources() -> Result<Vec<(String, jsonschema::Resource)>> {
     }
 }
 
-
-
 /// Canonical `FixedCouponSpec`: a 4.25% semi-annual coupon.
 fn coupon_examples() -> finstack_quant_core::Result<Vec<serde_json::Value>> {
     let spec = crate::builder::FixedCouponSpec {
@@ -145,14 +143,10 @@ fn prepayment_examples() -> finstack_quant_core::Result<Vec<serde_json::Value>> 
 
 /// Canonical `FeeSpec` payloads, one per shape.
 fn fee_examples() -> finstack_quant_core::Result<Vec<serde_json::Value>> {
-    let date = finstack_quant_core::dates::Date::from_calendar_date(
-        2024,
-        time::Month::January,
-        15,
-    )
-    .map_err(|error| {
-        finstack_quant_core::Error::Internal(format!("build example fee date: {error}"))
-    })?;
+    let date = finstack_quant_core::dates::Date::from_calendar_date(2024, time::Month::January, 15)
+        .map_err(|error| {
+            finstack_quant_core::Error::Internal(format!("build example fee date: {error}"))
+        })?;
     let fixed = crate::builder::FeeSpec::Fixed {
         date,
         amount: finstack_quant_core::money::Money::new(

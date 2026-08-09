@@ -32,7 +32,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
 
     schema::register(py, &m)?;
 
-
     let all = PyList::new(
         py,
         [
@@ -81,7 +80,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "SaCcrEngine",
             "frtb_sba_charge",
             "saccr_ead",
-                    // Schema
+            // Schema
             "schema",
         ],
     )?;

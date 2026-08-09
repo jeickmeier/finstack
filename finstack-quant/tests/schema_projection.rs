@@ -50,7 +50,10 @@ fn every_artifact_projects_and_becomes_self_contained() {
         after += count_absolute_refs(&projected);
     }
 
-    assert!(before > 1_000, "the corpus really does lean on absolute refs: {before}");
+    assert!(
+        before > 1_000,
+        "the corpus really does lean on absolute refs: {before}"
+    );
     assert_eq!(after, 0, "projection must leave nothing to fetch");
 }
 
@@ -64,7 +67,11 @@ fn projection_is_deterministic() {
         let canonical = artifact.generate().expect("renders");
         let first = project_llm(&canonical, &resolve, &profile).expect("projects");
         let second = project_llm(&canonical, &resolve, &profile).expect("projects");
-        assert_eq!(first, second, "{} projected differently", artifact.relative_path);
+        assert_eq!(
+            first, second,
+            "{} projected differently",
+            artifact.relative_path
+        );
     }
 }
 
@@ -77,7 +84,11 @@ fn currency_collapses_from_a_union_of_consts_to_a_flat_enum() {
 
     let money = artifacts
         .iter()
-        .find(|artifact| artifact.relative_path.ends_with("common/1/money.schema.json"))
+        .find(|artifact| {
+            artifact
+                .relative_path
+                .ends_with("common/1/money.schema.json")
+        })
         .expect("money artifact");
     let canonical = money.generate().expect("renders");
     let projected = project_llm(&canonical, &resolve, &LlmProfile::default()).expect("projects");
@@ -85,10 +96,16 @@ fn currency_collapses_from_a_union_of_consts_to_a_flat_enum() {
     let currency = &projected["$defs"]["Currency"];
     assert!(currency.get("oneOf").is_none(), "the union is gone");
     let values = currency["enum"].as_array().expect("flat enum");
-    assert!(values.len() > 100, "every ISO code survives: {}", values.len());
+    assert!(
+        values.len() > 100,
+        "every ISO code survives: {}",
+        values.len()
+    );
     assert!(values.contains(&Value::String("USD".to_string())));
 
-    let canonical_size = serde_json::to_vec(&canonical["$defs"]["Currency"]).expect("ser").len();
+    let canonical_size = serde_json::to_vec(&canonical["$defs"]["Currency"])
+        .expect("ser")
+        .len();
     let projected_size = serde_json::to_vec(currency).expect("ser").len();
     assert!(
         projected_size * 4 < canonical_size,
@@ -105,7 +122,11 @@ fn an_oversized_reference_becomes_a_handle_rather_than_dominating() {
 
     let bundle = artifacts
         .iter()
-        .find(|artifact| artifact.relative_path.ends_with("portfolio_materialization.schema.json"))
+        .find(|artifact| {
+            artifact
+                .relative_path
+                .ends_with("portfolio_materialization.schema.json")
+        })
         .expect("materialization artifact");
     let projected = project_llm(
         &bundle.generate().expect("renders"),
@@ -115,7 +136,10 @@ fn an_oversized_reference_becomes_a_handle_rather_than_dominating() {
     .expect("projects");
 
     let text = serde_json::to_string(&projected).expect("ser");
-    assert!(text.contains(RESOLVES_FROM_KEYWORD), "the union is referenced by handle");
+    assert!(
+        text.contains(RESOLVES_FROM_KEYWORD),
+        "the union is referenced by handle"
+    );
     assert!(
         text.len() < 64 * 1024,
         "handle substitution keeps the bundle small: {} bytes",
@@ -132,7 +156,11 @@ fn projection_is_not_a_validator() {
 
     let bond = artifacts
         .iter()
-        .find(|artifact| artifact.relative_path.ends_with("fixed_income/bond.schema.json"))
+        .find(|artifact| {
+            artifact
+                .relative_path
+                .ends_with("fixed_income/bond.schema.json")
+        })
         .expect("bond artifact");
     let canonical = bond.generate().expect("renders");
     let projected = project_llm(&canonical, &resolve, &LlmProfile::default()).expect("projects");
@@ -177,17 +205,17 @@ fn every_projected_artifact_is_still_a_valid_schema_document() {
 
     let mut failures = Vec::new();
     for artifact in &artifacts {
-        let projected = project_llm(
-            &artifact.generate().expect("renders"),
-            &resolve,
-            &profile,
-        )
-        .expect("projects");
+        let projected = project_llm(&artifact.generate().expect("renders"), &resolve, &profile)
+            .expect("projects");
         if let Err(error) = jsonschema::validator_for(&projected) {
             failures.push(format!("{}: {error}", artifact.relative_path));
         }
     }
-    assert!(failures.is_empty(), "projected artifacts must compile:\n{}", failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "projected artifacts must compile:\n{}",
+        failures.join("\n")
+    );
 }
 
 #[test]
@@ -198,7 +226,9 @@ fn the_inline_budget_separates_primitives_from_pricing_bags() {
     let (documents, _) = corpus();
     let size = |name: &str| {
         let id = format!("https://finstack_quant.dev/schemas/common/1/{name}.schema.json");
-        serde_json::to_vec(documents.get(&id).expect(name)).expect("ser").len()
+        serde_json::to_vec(documents.get(&id).expect(name))
+            .expect("ser")
+            .len()
     };
     let budget = finstack_quant_core::schema::DEFAULT_MAX_INLINE_BYTES;
 
@@ -225,7 +255,11 @@ fn a_projected_instrument_keeps_its_primitives_and_defers_its_override_bags() {
 
     let forward = artifacts
         .iter()
-        .find(|artifact| artifact.relative_path.ends_with("fx/fx_forward.schema.json"))
+        .find(|artifact| {
+            artifact
+                .relative_path
+                .ends_with("fx/fx_forward.schema.json")
+        })
         .expect("fx_forward");
     let projected = project_llm(
         &forward.generate().expect("renders"),
@@ -236,7 +270,10 @@ fn a_projected_instrument_keeps_its_primitives_and_defers_its_override_bags() {
 
     let defs = projected["$defs"].as_object().expect("definitions");
     let currency = defs.get("Currency").expect("Currency stays inline");
-    assert!(currency["enum"].is_array(), "a payload author needs the codes in front of them");
+    assert!(
+        currency["enum"].is_array(),
+        "a payload author needs the codes in front of them"
+    );
 
     let overrides = defs
         .get("InstrumentPricingOverrides")
@@ -248,10 +285,16 @@ fn a_projected_instrument_keeps_its_primitives_and_defers_its_override_bags() {
         ),
         "the bag is deferred, not carried"
     );
-    assert!(overrides.get("properties").is_none(), "its contents are not inlined");
+    assert!(
+        overrides.get("properties").is_none(),
+        "its contents are not inlined"
+    );
 
     let bytes = serde_json::to_vec(&projected).expect("ser").len();
-    assert!(bytes < 24 * 1024, "an FX forward should be small: {bytes} bytes");
+    assert!(
+        bytes < 24 * 1024,
+        "an FX forward should be small: {bytes} bytes"
+    );
 }
 
 #[test]
@@ -292,8 +335,24 @@ fn every_published_artifact_carries_a_valid_example() {
         }
     }
 
-    assert!(missing.is_empty(), "artifacts without an example:\n{}", missing.join("\n"));
-    assert!(invalid.is_empty(), "examples that do not validate:\n{}", invalid.join("\n"));
-    assert_eq!(artifacts.len(), 109, "the corpus size changed; confirm the new artifact has an example");
-    assert!(payloads >= artifacts.len(), "{payloads} payloads across {} artifacts", artifacts.len());
+    assert!(
+        missing.is_empty(),
+        "artifacts without an example:\n{}",
+        missing.join("\n")
+    );
+    assert!(
+        invalid.is_empty(),
+        "examples that do not validate:\n{}",
+        invalid.join("\n")
+    );
+    assert_eq!(
+        artifacts.len(),
+        109,
+        "the corpus size changed; confirm the new artifact has an example"
+    );
+    assert!(
+        payloads >= artifacts.len(),
+        "{payloads} payloads across {} artifacts",
+        artifacts.len()
+    );
 }
