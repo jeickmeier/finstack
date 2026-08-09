@@ -89,39 +89,6 @@
         }
       ]
     },
-    "BarrierType": {
-      "description": "Barrier monitoring type for default determination.",
-      "oneOf": [
-        {
-          "const": "terminal",
-          "description": "Default only assessed at maturity (classic Merton).",
-          "type": "string"
-        },
-        {
-          "additionalProperties": false,
-          "description": "Continuous barrier monitoring (Black-Cox extension).",
-          "properties": {
-            "first_passage": {
-              "properties": {
-                "barrier_growth_rate": {
-                  "description": "Growth rate of the default barrier over time.",
-                  "format": "double",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "barrier_growth_rate"
-              ],
-              "type": "object"
-            }
-          },
-          "required": [
-            "first_passage"
-          ],
-          "type": "object"
-        }
-      ]
-    },
     "BondQuoteInput": {
       "description": "Quote input for the bond quote engine.\n\nAll spreads are expressed in **decimal** (`0.01 = 100bp`).",
       "oneOf": [
@@ -1360,6 +1327,39 @@
       },
       "type": "object"
     },
+    "MertonBarrierType": {
+      "description": "Barrier monitoring type for default determination.",
+      "oneOf": [
+        {
+          "const": "terminal",
+          "description": "Default only assessed at maturity (classic Merton).",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Continuous barrier monitoring (Black-Cox extension).",
+          "properties": {
+            "first_passage": {
+              "properties": {
+                "barrier_growth_rate": {
+                  "description": "Growth rate of the default barrier over time.",
+                  "format": "double",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "barrier_growth_rate"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "first_passage"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "MertonMcCalibrationSpec": {
       "additionalProperties": false,
       "description": "Calibration settings for MC-to-market matching.\n\nWhen set on [`MertonMcConfig::calibration`], the pricer runs a low-path\nbisection to solve for a structural parameter so that the cash base-case\nMC price matches the target market quote, then re-prices with full paths.",
@@ -1565,7 +1565,7 @@
           "type": "number"
         },
         "barrier_type": {
-          "$ref": "#/$defs/BarrierType"
+          "$ref": "#/$defs/MertonBarrierType"
         },
         "debt_barrier": {
           "format": "double",
@@ -2370,6 +2370,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Instrument-owned market quote and model configuration overrides.",
+  "examples": [
+    {}
+  ],
   "properties": {
     "market_quotes": {
       "$ref": "#/$defs/MarketQuoteOverrides",

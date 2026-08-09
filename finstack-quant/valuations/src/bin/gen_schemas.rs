@@ -1,206 +1,17 @@
 //! Generate every valuations JSON Schema and canonical instrument fixture.
 
 use finstack_quant_core::schema::{
-    deterministic_json_bytes, run_schema_generator, SchemaArtifact, SchemaGenerationCommand,
-    SchemaGenerationMode,
+    deterministic_json_bytes, run_schema_generator, run_schema_index_generator, SchemaArtifact,
+    SchemaGenerationCommand, SchemaGenerationMode,
 };
 use finstack_quant_core::{Error, Result};
 use finstack_quant_valuations::instruments::json_loader::instrument_registry;
-use finstack_quant_valuations::instruments::{
-    InstrumentEnvelope, InstrumentPricingOverrides, MetricPricingOverrides,
-    ScenarioPricingOverrides,
-};
-use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path, PathBuf};
 
 const FIXTURE_ROOT: &str = "tests/instruments/json_examples";
 
-fn instrument_examples() -> Result<Vec<Value>> {
-    let mut examples = Vec::new();
-    for entry in instrument_registry() {
-        let entry_examples = entry.examples().map_err(|error| {
-            Error::Internal(format!(
-                "build canonical {} instrument example: {error}",
-                entry.tag
-            ))
-        })?;
-        examples.extend(entry_examples);
-    }
-    Ok(examples)
-}
 
-fn schema_artifacts() -> Vec<SchemaArtifact> {
-    let mut artifacts = vec![
-        SchemaArtifact::new::<finstack_quant_core::types::Attributes>(
-            "schemas/common/1/attributes.schema.json",
-            concat!(
-                "https://finstack_quant.dev/schemas/common/1/",
-                "attributes.schema.json"
-            ),
-            "Attributes",
-            "User-defined tags and key-value metadata for classification.",
-        ),
-        SchemaArtifact::new::<finstack_quant_core::contract::Diagnostic>(
-            "schemas/common/1/diagnostic.schema.json",
-            concat!(
-                "https://finstack_quant.dev/schemas/common/1/",
-                "diagnostic.schema.json"
-            ),
-            "Diagnostic",
-            "One structured finding emitted while loading a persisted contract.",
-        ),
-        SchemaArtifact::new::<finstack_quant_core::contract::ValidationReport>(
-            "schemas/common/1/validation_report.schema.json",
-            concat!(
-                "https://finstack_quant.dev/schemas/common/1/",
-                "validation_report.schema.json"
-            ),
-            "Validation Report",
-            "Bounded structured diagnostics emitted by persisted-contract validation.",
-        ),
-        SchemaArtifact::new::<finstack_quant_core::dates::BusinessDayConvention>(
-            "schemas/common/1/business_day_convention.schema.json",
-            concat!(
-                "https://finstack_quant.dev/schemas/common/1/",
-                "business_day_convention.schema.json"
-            ),
-            "Business Day Convention",
-            "Business-day adjustment convention.",
-        ),
-        SchemaArtifact::new::<finstack_quant_core::currency::Currency>(
-            "schemas/common/1/currency.schema.json",
-            concat!(
-                "https://finstack_quant.dev/schemas/common/1/",
-                "currency.schema.json"
-            ),
-            "Currency",
-            "ISO 4217 currency code.",
-        ),
-        SchemaArtifact::new::<finstack_quant_core::wire::DateWire>(
-            "schemas/common/1/date.schema.json",
-            concat!(
-                "https://finstack_quant.dev/schemas/common/1/",
-                "date.schema.json"
-            ),
-            "Date",
-            "ISO 8601 calendar date string.",
-        ),
-        SchemaArtifact::new::<finstack_quant_core::dates::DayCount>(
-            "schemas/common/1/day_count.schema.json",
-            concat!(
-                "https://finstack_quant.dev/schemas/common/1/",
-                "day_count.schema.json"
-            ),
-            "Day Count",
-            "Day-count convention.",
-        ),
-        SchemaArtifact::new::<finstack_quant_core::wire::DecimalWire>(
-            "schemas/common/1/decimal.schema.json",
-            concat!(
-                "https://finstack_quant.dev/schemas/common/1/",
-                "decimal.schema.json"
-            ),
-            "Decimal",
-            "Exact decimal encoded as a JSON string.",
-        ),
-        SchemaArtifact::new::<finstack_quant_core::types::InstrumentId>(
-            "schemas/common/1/id.schema.json",
-            concat!(
-                "https://finstack_quant.dev/schemas/common/1/",
-                "id.schema.json"
-            ),
-            "Id",
-            "Opaque string identifier.",
-        ),
-        SchemaArtifact::new::<finstack_quant_core::money::Money>(
-            "schemas/common/1/money.schema.json",
-            concat!(
-                "https://finstack_quant.dev/schemas/common/1/",
-                "money.schema.json"
-            ),
-            "Money",
-            "Currency-tagged monetary amount.",
-        ),
-        SchemaArtifact::new::<InstrumentPricingOverrides>(
-            "schemas/common/1/instrument_pricing_overrides.schema.json",
-            concat!(
-                "https://finstack_quant.dev/schemas/common/1/",
-                "instrument_pricing_overrides.schema.json"
-            ),
-            "Instrument Pricing Overrides",
-            "Instrument-owned market quote and model configuration overrides.",
-        ),
-        SchemaArtifact::new::<MetricPricingOverrides>(
-            "schemas/common/1/metric_pricing_overrides.schema.json",
-            concat!(
-                "https://finstack_quant.dev/schemas/common/1/",
-                "metric_pricing_overrides.schema.json"
-            ),
-            "Metric Pricing Overrides",
-            "Metric-time pricing and finite-difference configuration.",
-        ),
-        SchemaArtifact::new::<ScenarioPricingOverrides>(
-            "schemas/common/1/scenario_pricing_overrides.schema.json",
-            concat!(
-                "https://finstack_quant.dev/schemas/common/1/",
-                "scenario_pricing_overrides.schema.json"
-            ),
-            "Scenario Pricing Overrides",
-            "Scenario-only price and spread shocks.",
-        ),
-        SchemaArtifact::new::<finstack_quant_core::dates::Tenor>(
-            "schemas/common/1/tenor.schema.json",
-            concat!(
-                "https://finstack_quant.dev/schemas/common/1/",
-                "tenor.schema.json"
-            ),
-            "Tenor",
-            "Parsed financial tenor.",
-        ),
-        SchemaArtifact::new::<InstrumentEnvelope>(
-            "schemas/instruments/1/instrument.schema.json",
-            concat!(
-                "https://finstack_quant.dev/schemas/instrument/1/",
-                "instrument.schema.json"
-            ),
-            "Finstack Quant Instrument",
-            "Canonical v1 envelope for every supported financial instrument.",
-        )
-        .with_packager(finstack_quant_valuations::schema::package_valuations_schema)
-        .with_examples(instrument_examples),
-        SchemaArtifact::new::<
-            finstack_quant_valuations::calibration::api::schema::CalibrationEnvelope,
-        >(
-            "schemas/calibration/1/calibration.schema.json",
-            "https://finstack_quant.dev/schemas/calibration/1/calibration.schema.json",
-            "Calibration",
-            "Canonical typed calibration request and result envelope.",
-        )
-        .with_packager(finstack_quant_valuations::schema::package_valuations_schema),
-        SchemaArtifact::new::<finstack_quant_valuations::market::quotes::market_quote::MarketQuote>(
-            "schemas/market/1/market_quote.schema.json",
-            "https://finstack_quant.dev/schemas/market/1/market_quote.schema.json",
-            "Market Quote",
-            "Canonical tagged market quote.",
-        )
-        .with_packager(finstack_quant_valuations::schema::package_valuations_schema),
-        SchemaArtifact::new::<finstack_quant_valuations::results::ValuationResult>(
-            "schemas/results/1/valuation_result.schema.json",
-            "https://finstack_quant.dev/schemas/results/1/valuation_result.schema.json",
-            "Valuation Result",
-            "Canonical valuation result containing PV and typed metrics.",
-        )
-        .with_packager(finstack_quant_valuations::schema::package_valuations_schema),
-    ];
-
-    artifacts.extend(
-        instrument_registry()
-            .into_iter()
-            .map(|entry| entry.artifact),
-    );
-    artifacts
-}
 
 fn fixture_artifacts() -> Result<BTreeMap<PathBuf, Vec<u8>>> {
     let mut expected = BTreeMap::new();
@@ -446,7 +257,13 @@ fn main() -> Result<()> {
     let command = SchemaGenerationCommand::from_env()?;
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let fixtures = fixture_artifacts()?;
-    let schemas = schema_artifacts();
+    let schemas = finstack_quant_valuations::schema::artifacts();
+    run_schema_index_generator(
+        manifest_dir,
+        Path::new("schemas/index.json"),
+        &schemas,
+        &command,
+    )?;
     run_schema_registries(manifest_dir, &command, schemas)?;
     run_fixture_generator(manifest_dir, &command, fixtures)
 }

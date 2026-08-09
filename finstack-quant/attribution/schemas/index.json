@@ -1,0 +1,21 @@
+{
+  "artifacts": [
+    {
+      "$id": "https://finstack_quant.dev/schemas/attribution/1/attribution.schema.json",
+      "bytes": 1032451,
+      "kind": "input",
+      "path": "schemas/attribution/1/attribution.schema.json",
+      "summary": "One multi-period P&L attribution run: positions, markets and method.",
+      "title": "Finstack Quant Attribution Specification"
+    },
+    {
+      "$id": "https://finstack_quant.dev/schemas/attribution/1/attribution_result.schema.json",
+      "bytes": 73565,
+      "kind": "output",
+      "path": "schemas/attribution/1/attribution_result.schema.json",
+      "summary": "Attributed P&L by effect and grouping, with policy stamps.",
+      "title": "Finstack Quant Attribution Result"
+    }
+  ],
+  "schema_index_version": 1
+}

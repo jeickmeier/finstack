@@ -182,6 +182,48 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Canonical typed v1 output from portfolio optimization.",
+  "examples": [
+    {
+      "binding_constraints": [],
+      "constraint_slacks": {
+        "max_weight": 0.4
+      },
+      "current_weights": {
+        "POS_001": 0.55
+      },
+      "implied_quantities": {
+        "POS_001": 600000.0
+      },
+      "is_feasible": true,
+      "metric_values": {
+        "expected_return": 0.0425
+      },
+      "objective_value": 0.0425,
+      "optimal_weights": {
+        "POS_001": 0.6
+      },
+      "schema_version": 1,
+      "status": "optimal",
+      "status_label": "optimal",
+      "trades": [
+        {
+          "current_quantity": 550000.0,
+          "current_weight": 0.55,
+          "delta_quantity": 50000.0,
+          "direction": "buy",
+          "instrument_id": "DEP_1M",
+          "position_id": "POS_001",
+          "target_quantity": 600000.0,
+          "target_weight": 0.6,
+          "trade_type": "existing"
+        }
+      ],
+      "turnover": 0.05,
+      "weight_deltas": {
+        "POS_001": 0.05
+      }
+    }
+  ],
   "properties": {
     "binding_constraints": {
       "description": "Approximately binding constraint names.",

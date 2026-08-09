@@ -2090,6 +2090,21 @@
         }
       ]
     },
+    "MarketDataHierarchy": {
+      "description": "The top-level market data hierarchy containing root nodes.\n\nEach root represents a major asset class or category (e.g., \"Rates\", \"Credit\",\n\"FX\", \"Equity\", \"Volatility\"). The hierarchy is fully serializable and can be\nloaded from JSON configuration files.",
+      "properties": {
+        "roots": {
+          "additionalProperties": {
+            "$ref": "#/$defs/HierarchyNode"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "roots"
+      ],
+      "type": "object"
+    },
     "MarketScalar": {
       "description": "Single market observable that doesn't require a full curve.\n\nRepresents point-in-time market data like spot prices, spreads, or unitless\nparameters. Stored in [`MarketContext`](crate::market_data::context::MarketContext)\nalongside curves for simple lookups.\n\n# Use Cases\n\n- **Spot prices**: Equity spots, commodity prices, FX spots\n- **Recovery rates**: Credit recovery assumptions (unitless)\n- **Correlation parameters**: Equity-FX correlation, basis correlations\n- **Spreads**: Credit spreads, basis spreads (unitless or monetary)\n- **Multipliers**: Beta, vega notionals, adjustment factors\n\n# Examples\n\n```rust\nuse finstack_quant_core::market_data::scalars::MarketScalar;\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::currency::Currency;\n\n// Equity beta (unitless)\nlet beta = MarketScalar::Unitless(1.2);\n\n// Spot price (with currency)\nlet spot = MarketScalar::Price(Money::new(152.75, Currency::USD));\n\nassert!(matches!(beta, MarketScalar::Unitless(_)));\nif let MarketScalar::Price(m) = spot {\n    assert_eq!(m.currency(), Currency::USD);\n}\n```",
       "oneOf": [
@@ -3026,6 +3041,23 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Canonical v1 persisted snapshot of a complete market-data context.",
+  "examples": [
+    {
+      "collateral": {},
+      "credit_indices": [],
+      "curves": [],
+      "dividends": [],
+      "fx": null,
+      "fx_delta_vol_surfaces": [],
+      "hierarchy": null,
+      "inflation_indices": [],
+      "prices": {},
+      "schema_version": 1,
+      "series": [],
+      "surfaces": [],
+      "vol_cubes": []
+    }
+  ],
   "properties": {
     "collateral": {
       "additionalProperties": {
@@ -3074,19 +3106,15 @@
       "type": "array"
     },
     "hierarchy": {
-      "description": "Market data hierarchy snapshot, or `null` when no hierarchy is configured.",
-      "properties": {
-        "roots": {
-          "additionalProperties": {
-            "$ref": "#/$defs/HierarchyNode"
-          },
-          "type": "object"
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MarketDataHierarchy"
+        },
+        {
+          "type": "null"
         }
-      },
-      "required": [
-        "roots"
       ],
-      "type": "object"
+      "description": "Market data hierarchy snapshot, or `null` when no hierarchy is configured.\n\nThe key is mandatory but its value is nullable: `deserialize_with` makes\nserde demand the key, and the struct-level `required` extension keeps it\nmandatory in the schema without stripping the `null` branch."
     },
     "inflation_indices": {
       "description": "Inflation indices",

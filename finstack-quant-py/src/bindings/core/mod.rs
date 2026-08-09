@@ -8,6 +8,7 @@ pub mod market_data;
 mod math;
 pub(crate) mod money;
 mod rating_scales;
+mod schema;
 pub(crate) mod table;
 pub(crate) mod types;
 
@@ -40,6 +41,9 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         py.get_type::<crate::errors::FinstackError>(),
     )?;
 
+    schema::register(py, &m)?;
+
+
     let all = PyList::new(
         py,
         [
@@ -54,6 +58,8 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "credit",
             "rating_scales",
             "table",
+                    // Schema
+            "schema",
         ],
     )?;
     m.setattr("__all__", all)?;

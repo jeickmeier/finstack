@@ -2,6 +2,9 @@
   "$id": "https://finstack_quant.dev/schemas/cashflow/1/amortization_spec.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Cashflow amortization specification.",
+  "examples": [
+    "none"
+  ],
   "oneOf": [
     {
       "const": "none",

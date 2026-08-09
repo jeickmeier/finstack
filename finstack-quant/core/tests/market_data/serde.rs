@@ -201,6 +201,49 @@ fn market_context_requires_hierarchy_key_and_accepts_explicit_null() {
 }
 
 #[test]
+fn market_context_state_schema_permits_explicit_null_hierarchy() {
+    // `hierarchy` must stay in `required` (the v1 shape demands the key) while
+    // still admitting `null`, matching the serde behaviour asserted in
+    // `market_context_requires_hierarchy_key_and_accepts_explicit_null`.
+    let schema = serde_json::to_value(schemars::schema_for!(MarketContextState))
+        .expect("MarketContextState schema serializes");
+
+    // Every declared property is mandatory in the v1 shape, so `required` must
+    // list all of them — a nullable-value field is still a required key.
+    let mut required: Vec<&str> = schema["required"]
+        .as_array()
+        .expect("root schema declares `required`")
+        .iter()
+        .map(|value| value.as_str().expect("required entries are strings"))
+        .collect();
+    let mut properties: Vec<&str> = schema["properties"]
+        .as_object()
+        .expect("root schema declares `properties`")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    required.sort_unstable();
+    properties.sort_unstable();
+    let optional_by_design = ["fx"];
+    properties.retain(|name| !optional_by_design.contains(name));
+    assert_eq!(
+        required, properties,
+        "`required` must cover every mandatory key, not just `hierarchy`"
+    );
+
+    let hierarchy = &schema["properties"]["hierarchy"];
+    let branches = hierarchy["anyOf"].as_array().unwrap_or_else(|| {
+        panic!("`hierarchy` must be a nullable union, got: {hierarchy}");
+    });
+    assert!(
+        branches
+            .iter()
+            .any(|branch| branch["type"] == "null"),
+        "`hierarchy` must admit an explicit null branch, got: {hierarchy}"
+    );
+}
+
+#[test]
 fn market_context_missing_schema_version_is_rejected_by_all_loaders() {
     let mut json = serde_json::to_value(MarketContextState::from(&MarketContext::new()))
         .expect("state serializes");

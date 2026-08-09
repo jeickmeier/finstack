@@ -2,24 +2,26 @@
 
 use std::path::Path;
 
-use finstack_quant_core::market_data::context::MarketContextState;
-use finstack_quant_core::schema::{run_schema_generator, SchemaArtifact, SchemaGenerationCommand};
-
-const ARTIFACTS: &[SchemaArtifact] = &[SchemaArtifact::new::<MarketContextState>(
-    "schemas/market_data/1/market_context_state.schema.json",
-    "https://finstack_quant.dev/schemas/market_data/1/market_context_state.schema.json",
-    "Market Context State",
-    "Canonical v1 persisted snapshot of a complete market-data context.",
-)];
+use finstack_quant_core::schema::{
+    run_schema_generator, run_schema_index_generator, SchemaGenerationCommand, ARTIFACTS,
+};
 
 fn main() {
     let command = SchemaGenerationCommand::from_env()
         .unwrap_or_else(|error| panic!("parse schema generator arguments: {error}"));
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     run_schema_generator(
-        Path::new(env!("CARGO_MANIFEST_DIR")),
+        manifest_dir,
         Path::new("schemas/market_data"),
         ARTIFACTS,
         &command,
     )
     .unwrap_or_else(|error| panic!("generate core schemas: {error}"));
+    run_schema_index_generator(
+        manifest_dir,
+        Path::new("schemas/index.json"),
+        ARTIFACTS,
+        &command,
+    )
+    .unwrap_or_else(|error| panic!("generate core schema index: {error}"));
 }

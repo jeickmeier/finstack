@@ -64,6 +64,87 @@ pub struct InstrumentEnvelope {
     pub instrument: InstrumentJson,
 }
 
+/// One-line summary per instrument tag for the schema index.
+///
+/// Every generated single-instrument artifact otherwise shares one templated
+/// description, which makes the index unable to tell `cms_option` from
+/// `cms_spread_option`. The registry test asserts this covers every tag.
+pub(crate) fn instrument_summary(tag: &str) -> &'static str {
+    match tag {
+        "agency_cmo" => "Agency CMO tranche carved from a collateral pool.",
+        "agency_mbs_passthrough" => "Agency mortgage pass-through priced off a prepayment model.",
+        "agency_tba" => "To-be-announced agency MBS forward trade.",
+        "asian_option" => "Option on an average of observed fixings.",
+        "autocallable" => "Structured note that redeems early when a barrier is met.",
+        "barrier_option" => "Knock-in or knock-out option on a monitored barrier.",
+        "basis_swap" => "Floating-versus-floating swap between two indices or tenors.",
+        "basket" => "Weighted basket of constituents priced as one position.",
+        "bermudan_swaption" => "Bermudan-exercise swaption valued on a short-rate lattice.",
+        "bond" => "Fixed- or floating-rate cash bond with a coupon schedule.",
+        "bond_future" => "Exchange-traded bond future with a deliverable basket and CTD.",
+        "callable_range_accrual" => "Range accrual with issuer call rights.",
+        "cap_floor" => "Strip of caplets or floorlets on a floating index.",
+        "cds_index" => "Standardised CDS index such as CDX or iTraxx.",
+        "cds_option" => "Payer or receiver option on a CDS or CDS index.",
+        "cds_tranche" => "Synthetic index tranche priced with a correlation model.",
+        "cliquet_option" => "Series of forward-starting options with local and global caps.",
+        "cms_option" => "Option on a constant-maturity swap rate.",
+        "cms_spread_option" => "Option on the spread between two CMS rates.",
+        "cms_swap" => "Swap paying a constant-maturity swap rate.",
+        "commodity_asian_option" => "Commodity option on an average settlement price.",
+        "commodity_forward" => "Forward on a commodity reference price.",
+        "commodity_option" => "Option on a commodity forward or future.",
+        "commodity_spread_option" => "Option on the spread between two commodity legs.",
+        "commodity_swap" => "Fixed-versus-floating commodity swap on an average price.",
+        "commodity_swaption" => "Option to enter a commodity swap.",
+        "convertible_bond" => "Corporate bond convertible into a fixed number of shares.",
+        "credit_default_swap" => "Single-name CDS priced on the ISDA standard model.",
+        "deposit" => "Money-market deposit quoted as a simple rate.",
+        "discounted_cash_flow" => "Enterprise DCF valuation with an explicit forecast and terminal value.",
+        "dollar_roll" => "Simultaneous TBA sale and forward repurchase.",
+        "equity" => "Cash equity position.",
+        "equity_index_future" => "Future on an equity index.",
+        "equity_option" => "European or American option on a single equity.",
+        "forward_rate_agreement" => "Single-period forward rate agreement.",
+        "fx_barrier_option" => "FX option with a knock-in or knock-out barrier.",
+        "fx_digital_option" => "FX option paying a fixed amount if in the money.",
+        "fx_forward" => "Outright FX forward.",
+        "fx_option" => "Vanilla European FX option.",
+        "fx_spot" => "Spot foreign-exchange trade.",
+        "fx_swap" => "Near- and far-leg FX swap.",
+        "fx_touch_option" => "FX option paying on barrier touch or no-touch.",
+        "fx_variance_swap" => "Swap on realised FX variance.",
+        "inflation_cap_floor" => "Cap or floor on realised inflation.",
+        "inflation_linked_bond" => "Bond whose principal and coupons index to a price level.",
+        "inflation_swap" => "Zero-coupon inflation swap on a price index.",
+        "interest_rate_future" => "Exchange-traded short-rate future.",
+        "interest_rate_swap" => "Vanilla fixed-versus-floating interest-rate swap.",
+        "ir_future_option" => "Option on a short-rate future, Black or Bachelier quoted.",
+        "levered_real_estate_equity" => "Property equity net of its financing stack.",
+        "lookback_option" => "Option struck on the path maximum or minimum.",
+        "ndf" => "Non-deliverable forward cash-settled against a fixing.",
+        "private_markets_fund" => "Closed-end fund with a commitment schedule and distribution waterfall.",
+        "quanto_option" => "Option on a foreign asset settled in the domestic currency at a fixed rate.",
+        "range_accrual" => "Coupon accruing only on days the index sits inside a range.",
+        "real_estate_asset" => "Direct property asset with rent roll and exit assumptions.",
+        "repo" => "Repurchase agreement against posted collateral.",
+        "revolving_credit" => "Committed revolver with drawn/undrawn balances and commitment fees.",
+        "snowball" => "Path-dependent note whose coupon builds on the previous one.",
+        "structured_credit" => "ABS/CLO/RMBS/CMBS deal: collateral pool, tranches and waterfall.",
+        "swaption" => "European option to enter an interest-rate swap.",
+        "tarn" => "Target-redemption note that terminates once cumulative coupons hit a cap.",
+        "term_loan" => "Amortising leveraged loan with call protection and covenants.",
+        "trs_equity" => "Equity total-return swap versus a funding leg.",
+        "trs_fixed_income_index" => "Total-return swap on a fixed-income index versus a funding leg.",
+        "variance_swap" => "Swap on realised variance against a strike.",
+        "volatility_index_future" => "Future on a volatility index such as VIX.",
+        "volatility_index_option" => "Option on a volatility-index future.",
+        "xccy_swap" => "Cross-currency swap with notional exchange and a basis spread.",
+        "yoy_inflation_swap" => "Year-on-year inflation swap.",
+        _ => "Canonical single-instrument v1 envelope.",
+    }
+}
+
 macro_rules! with_instrument_json_registry {
     ($callback:ident $(, $extra:expr )* $(,)?) => {
         $callback! {
@@ -377,6 +458,8 @@ macro_rules! instrument_registry_entries {
                         "Canonical single-instrument v1 envelope generated from its serde type.",
                     )
                     .with_packager(crate::schema::package_valuations_schema)
+                    .with_kind(finstack_quant_core::schema::SchemaKind::Input)
+                    .with_summary(instrument_summary($tag))
                     .with_examples(examples),
                     fixture_path: concat!("tests/instruments/json_examples/", $tag, ".json"),
                     examples,
@@ -434,6 +517,8 @@ macro_rules! instrument_registry_entries {
                         "Canonical single-instrument v1 envelope generated from its serde type.",
                     )
                     .with_packager(crate::schema::package_valuations_schema)
+                    .with_kind(finstack_quant_core::schema::SchemaKind::Input)
+                    .with_summary(instrument_summary($boxed_tag))
                     .with_examples(examples),
                     fixture_path: concat!("tests/instruments/json_examples/", $boxed_tag, ".json"),
                     examples,
@@ -1686,5 +1771,24 @@ mod tests {
             !err_msg.contains("size limit"),
             "at exact limit the error should be a parse error, not a size-limit error, got: {err_msg}"
         );
+    }
+
+    #[test]
+    fn every_registered_instrument_has_a_distinct_index_summary() {
+        // The fallback arm keeps `instrument_summary` total, which would let a
+        // newly registered instrument slip into the index with generic prose.
+        let fallback = instrument_summary("__unregistered__");
+        let mut seen: std::collections::BTreeMap<&str, &str> = std::collections::BTreeMap::new();
+        for entry in instrument_registry() {
+            let summary = instrument_summary(entry.tag);
+            assert_ne!(
+                summary, fallback,
+                "instrument {} has no index summary",
+                entry.tag
+            );
+            if let Some(other) = seen.insert(summary, entry.tag) {
+                panic!("{} and {} share an index summary", other, entry.tag);
+            }
+        }
     }
 }

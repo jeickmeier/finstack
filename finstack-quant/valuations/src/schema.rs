@@ -504,6 +504,452 @@ fn validate_with(
     }
 }
 
+
+use finstack_quant_core::schema::{SchemaArtifact, SchemaKind};
+use crate::instruments::json_loader::instrument_registry;
+use crate::instruments::{
+    InstrumentEnvelope, InstrumentPricingOverrides, MetricPricingOverrides,
+    ScenarioPricingOverrides,
+};
+
+/// Canonical `Attributes` payloads.
+fn attributes_examples() -> finstack_quant_core::Result<Vec<Value>> {
+    Ok(vec![
+        serde_json::json!({"tags": ["rates", "hedge"], "meta": {"desk": "ny_rates"}}),
+        serde_json::json!({}),
+    ])
+}
+
+/// Canonical `BusinessDayConvention` values.
+fn business_day_convention_examples() -> finstack_quant_core::Result<Vec<Value>> {
+    Ok(vec![
+        Value::String("modified_following".to_string()),
+        Value::String("following".to_string()),
+    ])
+}
+
+/// Canonical ISO 4217 codes.
+fn currency_examples() -> finstack_quant_core::Result<Vec<Value>> {
+    Ok(vec![
+        Value::String("USD".to_string()),
+        Value::String("EUR".to_string()),
+        Value::String("JPY".to_string()),
+    ])
+}
+
+/// Canonical `Date` payloads.
+fn date_examples() -> finstack_quant_core::Result<Vec<Value>> {
+    Ok(vec![
+        Value::String("2024-01-15".to_string()),
+        Value::String("2034-01-15".to_string()),
+    ])
+}
+
+/// Canonical day-count labels.
+fn day_count_examples() -> finstack_quant_core::Result<Vec<Value>> {
+    Ok(vec![
+        Value::String("act_360".to_string()),
+        Value::String("30_360".to_string()),
+        Value::String("act_act_isma".to_string()),
+    ])
+}
+
+/// Canonical identifier payloads.
+///
+/// Ids are opaque strings resolved against whatever market or registry the call
+/// supplies; the examples show the spellings used throughout the fixtures.
+fn id_examples() -> finstack_quant_core::Result<Vec<Value>> {
+    Ok(vec![
+        Value::String("USD-OIS".to_string()),
+        Value::String("US912828XG33".to_string()),
+    ])
+}
+
+/// Canonical `Tenor` payloads.
+fn tenor_examples() -> finstack_quant_core::Result<Vec<Value>> {
+    Ok(vec![
+        serde_json::json!({"count": 3, "unit": "months"}),
+        serde_json::json!({"count": 10, "unit": "years"}),
+    ])
+}
+
+/// Canonical `Diagnostic` payloads.
+fn diagnostic_examples() -> finstack_quant_core::Result<Vec<Value>> {
+    Ok(vec![serde_json::json!({
+        "code": "contract/version_mismatch",
+        "message": "unsupported schema marker",
+        "phase": "version",
+        "severity": "error",
+        "pointer": "/schema"
+    })])
+}
+
+/// Canonical `ValidationReport` payloads.
+fn validation_report_examples() -> finstack_quant_core::Result<Vec<Value>> {
+    Ok(vec![
+        serde_json::json!({"diagnostics": [], "truncated": false}),
+        serde_json::json!({
+            "diagnostics": [{
+                "code": "contract/unknown_field",
+                "message": "unknown field `maturity_date`",
+                "phase": "structure",
+                "severity": "error",
+                "pointer": "/instrument/spec"
+            }],
+            "truncated": false
+        }),
+    ])
+}
+
+/// Canonical pricing-override payloads.
+///
+/// All three override maps default to empty and are omitted when empty, so the
+/// first example is the one almost every payload uses.
+fn empty_override_examples() -> finstack_quant_core::Result<Vec<Value>> {
+    Ok(vec![serde_json::json!({})])
+}
+
+/// Canonical `ScenarioPricingOverrides` payloads.
+fn scenario_override_examples() -> finstack_quant_core::Result<Vec<Value>> {
+    Ok(vec![
+        serde_json::json!({}),
+        serde_json::json!({"scenario_spread_shock_bp": 150.0}),
+    ])
+}
+
+
+/// A canonical minimal calibration request.
+///
+/// Only `plan` is required; `market_data` and `prior_market` are omitted when
+/// empty, so this is the smallest well-formed request shape.
+fn calibration_examples() -> finstack_quant_core::Result<Vec<Value>> {
+    let plan = crate::calibration::api::schema::CalibrationPlan {
+        id: "usd_curves".to_string(),
+        description: Some("Bootstrap the USD OIS discount curve.".to_string()),
+        quote_sets: Default::default(),
+        steps: Vec::new(),
+        settings: Default::default(),
+    };
+    let envelope = crate::calibration::api::schema::CalibrationEnvelope::new(
+        plan,
+        Vec::new(),
+        Vec::new(),
+    );
+    let value = serde_json::to_value(&envelope).map_err(|error| {
+        finstack_quant_core::Error::Internal(format!("serialize calibration example: {error}"))
+    })?;
+    Ok(vec![value])
+}
+
+
+/// Canonical `ValuationResult`: a priced bond with its policy stamps.
+fn valuation_result_examples() -> finstack_quant_core::Result<Vec<Value>> {
+    let as_of = finstack_quant_core::dates::Date::from_calendar_date(
+        2024,
+        time::Month::January,
+        15,
+    )
+    .map_err(|error| {
+        finstack_quant_core::Error::Internal(format!("build example as-of date: {error}"))
+    })?;
+    let value = finstack_quant_core::money::Money::new(
+        1_012_345.67,
+        finstack_quant_core::currency::Currency::USD,
+    );
+    // `stamped` records a wall-clock timestamp, which would make the checked-in
+    // artifact differ on every regeneration; the example carries a fixed meta.
+    let meta = finstack_quant_core::config::ResultsMeta {
+        timestamp: None,
+        ..finstack_quant_core::config::results_meta_now(
+            &finstack_quant_core::config::FinstackConfig::default(),
+        )
+    };
+    let result =
+        crate::results::ValuationResult::stamped_with_meta("US912828XG33", as_of, value, meta);
+    let value = serde_json::to_value(&result).map_err(|error| {
+        finstack_quant_core::Error::Internal(format!("serialize valuation result example: {error}"))
+    })?;
+    Ok(vec![value])
+}
+
+/// Canonical `MarketQuote`: a money-market deposit rate.
+fn market_quote_examples() -> finstack_quant_core::Result<Vec<Value>> {
+    let quote = crate::market::quotes::market_quote::MarketQuote::Rates(
+        crate::market::quotes::rates::RateQuote::Deposit {
+            id: "USD-SOFR-3M-DEPO".into(),
+            index: "USD-SOFR".into(),
+            pillar: crate::market::quotes::ids::Pillar::Tenor(
+                finstack_quant_core::dates::Tenor::parse("3M").map_err(|error| {
+                    finstack_quant_core::Error::Internal(format!(
+                        "parse example pillar tenor: {error}"
+                    ))
+                })?,
+            ),
+            rate: 0.0533,
+        },
+    );
+    let value = serde_json::to_value(&quote).map_err(|error| {
+        finstack_quant_core::Error::Internal(format!("serialize market quote example: {error}"))
+    })?;
+    Ok(vec![value])
+}
+
+
+/// Canonical examples for the instrument umbrella union.
+fn instrument_examples() -> finstack_quant_core::Result<Vec<Value>> {
+    let mut examples = Vec::new();
+    for entry in instrument_registry() {
+        let entry_examples = entry.examples().map_err(|error| {
+            finstack_quant_core::Error::Internal(format!(
+                "build canonical {} instrument example: {error}",
+                entry.tag
+            ))
+        })?;
+        examples.extend(entry_examples);
+    }
+    Ok(examples)
+}
+
+/// Canonical `Decimal` payloads.
+///
+/// Exact decimals are JSON *strings*; emitting a JSON number here is the most
+/// common way to fail an otherwise well-formed payload, so the contract is shown
+/// rather than only described.
+fn decimal_examples() -> finstack_quant_core::Result<Vec<Value>> {
+    Ok(vec![
+        Value::String("1000000".to_string()),
+        Value::String("0.0425".to_string()),
+        Value::String("-1234.56789".to_string()),
+    ])
+}
+
+/// Canonical `Money` payloads, pairing a decimal string with an ISO 4217 code.
+fn money_examples() -> finstack_quant_core::Result<Vec<Value>> {
+    Ok(vec![
+        serde_json::json!({"amount": "1000000", "currency": "USD"}),
+        serde_json::json!({"amount": "-2500.75", "currency": "EUR"}),
+    ])
+}
+
+/// The crate's schema registry as a shared, lazily built slice.
+///
+/// [`artifacts`] builds a fresh `Vec` because the instrument entries are
+/// assembled at runtime; callers that need a borrow with a `'static` lifetime -
+/// the language bindings, for one - use this cached view instead.
+#[must_use]
+pub fn artifacts_slice() -> &'static [SchemaArtifact] {
+    static CACHE: OnceLock<Vec<SchemaArtifact>> = OnceLock::new();
+    CACHE.get_or_init(artifacts)
+}
+
+/// The crate's complete schema registry, sorted by artifact path.
+///
+/// This lives in the library, not the generator binary, so the generator, the
+/// contract tests and the bindings all render from one definition. Render an
+/// entry with [`SchemaArtifact::generate`].
+#[must_use]
+pub fn artifacts() -> Vec<SchemaArtifact> {
+    let mut artifacts = vec![
+        SchemaArtifact::new::<finstack_quant_core::types::Attributes>(
+            "schemas/common/1/attributes.schema.json",
+            concat!(
+                "https://finstack_quant.dev/schemas/common/1/",
+                "attributes.schema.json"
+            ),
+            "Attributes",
+            "User-defined tags and key-value metadata for classification.",
+        )
+        .with_examples(attributes_examples),
+        SchemaArtifact::new::<finstack_quant_core::contract::Diagnostic>(
+            "schemas/common/1/diagnostic.schema.json",
+            concat!(
+                "https://finstack_quant.dev/schemas/common/1/",
+                "diagnostic.schema.json"
+            ),
+            "Diagnostic",
+            "One structured finding emitted while loading a persisted contract.",
+        )
+        .with_examples(diagnostic_examples),
+        SchemaArtifact::new::<finstack_quant_core::contract::ValidationReport>(
+            "schemas/common/1/validation_report.schema.json",
+            concat!(
+                "https://finstack_quant.dev/schemas/common/1/",
+                "validation_report.schema.json"
+            ),
+            "Validation Report",
+            "Bounded structured diagnostics emitted by persisted-contract validation.",
+        )
+        .with_examples(validation_report_examples),
+        SchemaArtifact::new::<finstack_quant_core::dates::BusinessDayConvention>(
+            "schemas/common/1/business_day_convention.schema.json",
+            concat!(
+                "https://finstack_quant.dev/schemas/common/1/",
+                "business_day_convention.schema.json"
+            ),
+            "Business Day Convention",
+            "Business-day adjustment convention.",
+        )
+        .with_examples(business_day_convention_examples),
+        SchemaArtifact::new::<finstack_quant_core::currency::Currency>(
+            "schemas/common/1/currency.schema.json",
+            concat!(
+                "https://finstack_quant.dev/schemas/common/1/",
+                "currency.schema.json"
+            ),
+            "Currency",
+            "ISO 4217 currency code.",
+        )
+        .with_examples(currency_examples),
+        SchemaArtifact::new::<finstack_quant_core::wire::DateWire>(
+            "schemas/common/1/date.schema.json",
+            concat!(
+                "https://finstack_quant.dev/schemas/common/1/",
+                "date.schema.json"
+            ),
+            "Date",
+            "ISO 8601 calendar date string.",
+        )
+        .with_examples(date_examples),
+        SchemaArtifact::new::<finstack_quant_core::dates::DayCount>(
+            "schemas/common/1/day_count.schema.json",
+            concat!(
+                "https://finstack_quant.dev/schemas/common/1/",
+                "day_count.schema.json"
+            ),
+            "Day Count",
+            "Day-count convention.",
+        )
+        .with_examples(day_count_examples),
+        SchemaArtifact::new::<finstack_quant_core::wire::DecimalWire>(
+            "schemas/common/1/decimal.schema.json",
+            concat!(
+                "https://finstack_quant.dev/schemas/common/1/",
+                "decimal.schema.json"
+            ),
+            "Decimal",
+            "Exact decimal encoded as a JSON string.",
+        )
+        .with_examples(decimal_examples),
+        SchemaArtifact::new::<finstack_quant_core::types::InstrumentId>(
+            "schemas/common/1/id.schema.json",
+            concat!(
+                "https://finstack_quant.dev/schemas/common/1/",
+                "id.schema.json"
+            ),
+            "Id",
+            "Opaque string identifier.",
+        )
+        .with_examples(id_examples),
+        SchemaArtifact::new::<finstack_quant_core::money::Money>(
+            "schemas/common/1/money.schema.json",
+            concat!(
+                "https://finstack_quant.dev/schemas/common/1/",
+                "money.schema.json"
+            ),
+            "Money",
+            "Currency-tagged monetary amount.",
+        )
+        .with_examples(money_examples),
+        SchemaArtifact::new::<InstrumentPricingOverrides>(
+            "schemas/common/1/instrument_pricing_overrides.schema.json",
+            concat!(
+                "https://finstack_quant.dev/schemas/common/1/",
+                "instrument_pricing_overrides.schema.json"
+            ),
+            "Instrument Pricing Overrides",
+            "Instrument-owned market quote and model configuration overrides.",
+        )
+        .with_examples(empty_override_examples),
+        SchemaArtifact::new::<MetricPricingOverrides>(
+            "schemas/common/1/metric_pricing_overrides.schema.json",
+            concat!(
+                "https://finstack_quant.dev/schemas/common/1/",
+                "metric_pricing_overrides.schema.json"
+            ),
+            "Metric Pricing Overrides",
+            "Metric-time pricing and finite-difference configuration.",
+        )
+        .with_examples(empty_override_examples),
+        SchemaArtifact::new::<ScenarioPricingOverrides>(
+            "schemas/common/1/scenario_pricing_overrides.schema.json",
+            concat!(
+                "https://finstack_quant.dev/schemas/common/1/",
+                "scenario_pricing_overrides.schema.json"
+            ),
+            "Scenario Pricing Overrides",
+            "Scenario-only price and spread shocks.",
+        )
+        .with_examples(scenario_override_examples),
+        SchemaArtifact::new::<finstack_quant_core::dates::Tenor>(
+            "schemas/common/1/tenor.schema.json",
+            concat!(
+                "https://finstack_quant.dev/schemas/common/1/",
+                "tenor.schema.json"
+            ),
+            "Tenor",
+            "Parsed financial tenor.",
+        )
+        .with_examples(tenor_examples),
+        SchemaArtifact::new::<InstrumentEnvelope>(
+            "schemas/instruments/1/instrument.schema.json",
+            concat!(
+                "https://finstack_quant.dev/schemas/instrument/1/",
+                "instrument.schema.json"
+            ),
+            "Finstack Quant Instrument",
+            "Canonical v1 envelope for every supported financial instrument.",
+        )
+        .with_packager(package_valuations_schema)
+        .with_kind(SchemaKind::Input)
+        .with_summary(
+            "The seventy-branch union of every instrument type. Prefer the per-type schema \
+             beside it: this document is too large to hand to a model.",
+        )
+        .with_examples(instrument_examples),
+        SchemaArtifact::new::<
+            crate::calibration::api::schema::CalibrationEnvelope,
+        >(
+            "schemas/calibration/1/calibration.schema.json",
+            "https://finstack_quant.dev/schemas/calibration/1/calibration.schema.json",
+            "Calibration",
+            "Canonical typed calibration request and result envelope.",
+        )
+        .with_packager(package_valuations_schema)
+        .with_kind(SchemaKind::Input)
+        .with_summary(
+            "Build a market from quotes: a calibration plan, flat market data, and any \
+             pre-built curves or surfaces.",
+        )
+        .with_examples(calibration_examples),
+        SchemaArtifact::new::<crate::market::quotes::market_quote::MarketQuote>(
+            "schemas/market/1/market_quote.schema.json",
+            "https://finstack_quant.dev/schemas/market/1/market_quote.schema.json",
+            "Market Quote",
+            "Canonical tagged market quote.",
+        )
+        .with_packager(package_valuations_schema)
+        .with_summary("One market observation, tagged by asset class.")
+        .with_examples(market_quote_examples),
+        SchemaArtifact::new::<crate::results::ValuationResult>(
+            "schemas/results/1/valuation_result.schema.json",
+            "https://finstack_quant.dev/schemas/results/1/valuation_result.schema.json",
+            "Valuation Result",
+            "Canonical valuation result containing PV and typed metrics.",
+        )
+        .with_packager(package_valuations_schema)
+        .with_kind(SchemaKind::Output)
+        .with_summary("PV plus requested measures, with rounding and FX policy stamps.")
+        .with_examples(valuation_result_examples),
+    ];
+
+    artifacts.extend(
+        instrument_registry()
+            .into_iter()
+            .map(|entry| entry.artifact),
+    );
+    artifacts
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -830,6 +1276,37 @@ mod tests {
         assert!(
             msg.contains("validation failed"),
             "error should mention validation: {msg}"
+        );
+    }
+
+    #[test]
+    fn near_miss_instrument_error_names_the_missing_field() {
+        // Single-instrument schemas used to wrap their payload in a one-branch
+        // `oneOf`, so a validator reported at `/instrument` and attached the
+        // whole instance instead of naming the field. The shared emitter now
+        // collapses that wrapper; this pins the diagnostic that unlocks.
+        let mut payload = first_schema_example(&instrument_schema("bond").expect("bond schema"));
+        payload
+            .pointer_mut("/instrument/spec")
+            .and_then(Value::as_object_mut)
+            .expect("bond spec object")
+            .remove("maturity");
+
+        let message = validate_instrument_envelope_json(&payload)
+            .expect_err("a bond without a maturity must fail")
+            .to_string();
+
+        assert!(
+            message.contains("/instrument/spec"),
+            "error must point at the failing object: {message}"
+        );
+        assert!(
+            message.contains("maturity"),
+            "error must name the missing field: {message}"
+        );
+        assert!(
+            !message.contains("discount_curve_id"),
+            "error must not attach the whole instance: {message}"
         );
     }
 

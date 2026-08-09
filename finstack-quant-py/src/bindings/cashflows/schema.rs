@@ -10,6 +10,7 @@
 //! it mutates a schema in place for the schema-generator binary, and it is not
 //! a schema accessor.
 
+use crate::bindings::schema_registry::schema_registry_functions;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyModule};
 use serde_json::Value;
@@ -77,14 +78,20 @@ fn resources<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
     Ok(mapping)
 }
 
+schema_registry_functions!(finstack_quant_cashflows::schema::ARTIFACTS, "finstack_quant.cashflows.schema");
+
 /// Register the `finstack_quant.cashflows.schema` Python namespace.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let m = PyModule::new(py, "schema")?;
     m.setattr("__doc__", MODULE_DOC)?;
+    add_registry_functions(&m)?;
 
     m.add_function(wrap_pyfunction!(resources, &m)?)?;
 
-    let exports = ["resources"];
+    let exports = [
+        "get",
+        "index",
+        "validate","resources"];
     for name in exports {
         m.getattr(name)?
             .setattr("__module__", "finstack_quant.cashflows.schema")?;

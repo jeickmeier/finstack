@@ -65,6 +65,15 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "One structured finding emitted while loading a persisted contract.",
+  "examples": [
+    {
+      "code": "contract/version_mismatch",
+      "message": "unsupported schema marker",
+      "phase": "version",
+      "pointer": "/schema",
+      "severity": "error"
+    }
+  ],
   "properties": {
     "actual_version": {
       "description": "Version found in the payload, when one was present.",

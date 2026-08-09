@@ -1,0 +1,13 @@
+{
+  "artifacts": [
+    {
+      "$id": "https://finstack_quant.dev/schemas/scenarios/1/scenario.schema.json",
+      "bytes": 97558,
+      "kind": "input",
+      "path": "schemas/scenarios/1/scenario.schema.json",
+      "summary": "Ordered shock and roll operations over market, statement and valuation targets.",
+      "title": "Finstack Quant Scenario Specification"
+    }
+  ],
+  "schema_index_version": 1
+}

@@ -9,6 +9,8 @@ Examples:
 0.0
 """
 
+import sys
+
 from finstack_quant.finstack_quant import margin as _margin
 
 ImMethodology = _margin.ImMethodology
@@ -51,6 +53,12 @@ SaCcrNettingSetConfig = _margin.SaCcrNettingSetConfig
 SaCcrEngine = _margin.SaCcrEngine
 frtb_sba_charge = _margin.frtb_sba_charge
 saccr_ead = _margin.saccr_ead
+schema = _margin.schema
+
+# `schema` is a real submodule, so `import finstack_quant.margin.schema`
+# must work as well as attribute access.
+if "finstack_quant.margin.schema" not in sys.modules:
+    sys.modules["finstack_quant.margin.schema"] = schema
 
 __all__: list[str] = [
     "CONSTANTS",
@@ -93,4 +101,5 @@ __all__: list[str] = [
     "frtb_sba_charge",
     "im_profile_from_simm",
     "saccr_ead",
+    "schema",
 ]

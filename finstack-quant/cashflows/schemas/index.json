@@ -1,0 +1,61 @@
+{
+  "artifacts": [
+    {
+      "$id": "https://finstack_quant.dev/schemas/cashflow/1/amortization_spec.schema.json",
+      "bytes": 4361,
+      "kind": "component",
+      "path": "schemas/cashflow/1/amortization_spec.schema.json",
+      "summary": "How principal is repaid over the schedule.",
+      "title": "AmortizationSpec"
+    },
+    {
+      "$id": "https://finstack_quant.dev/schemas/cashflow/1/coupon_specs.schema.json",
+      "bytes": 10136,
+      "kind": "component",
+      "path": "schemas/cashflow/1/coupon_specs.schema.json",
+      "summary": "Coupon rate, frequency, day count and stub handling for one leg.",
+      "title": "FixedCouponSpec"
+    },
+    {
+      "$id": "https://finstack_quant.dev/schemas/cashflow/1/default_model_spec.schema.json",
+      "bytes": 1932,
+      "kind": "component",
+      "path": "schemas/cashflow/1/default_model_spec.schema.json",
+      "summary": "Hazard or CDR assumption driving credit losses.",
+      "title": "DefaultModelSpec"
+    },
+    {
+      "$id": "https://finstack_quant.dev/schemas/cashflow/1/fee_specs.schema.json",
+      "bytes": 8004,
+      "kind": "component",
+      "path": "schemas/cashflow/1/fee_specs.schema.json",
+      "summary": "Recurring or one-off fees attached to a schedule.",
+      "title": "FeeSpec"
+    },
+    {
+      "$id": "https://finstack_quant.dev/schemas/cashflow/1/prepayment_model_spec.schema.json",
+      "bytes": 2858,
+      "kind": "component",
+      "path": "schemas/cashflow/1/prepayment_model_spec.schema.json",
+      "summary": "CPR, PSA or custom vector driving voluntary prepayments.",
+      "title": "PrepaymentModelSpec"
+    },
+    {
+      "$id": "https://finstack_quant.dev/schemas/cashflow/1/recovery_model_spec.schema.json",
+      "bytes": 747,
+      "kind": "component",
+      "path": "schemas/cashflow/1/recovery_model_spec.schema.json",
+      "summary": "Recovery rate and lag applied to defaulted balances.",
+      "title": "RecoveryModelSpec"
+    },
+    {
+      "$id": "https://finstack_quant.dev/schemas/cashflow/1/schedule_params.schema.json",
+      "bytes": 8158,
+      "kind": "component",
+      "path": "schemas/cashflow/1/schedule_params.schema.json",
+      "summary": "Start, end, frequency, calendar and roll rules for a payment schedule.",
+      "title": "ScheduleParams"
+    }
+  ],
+  "schema_index_version": 1
+}

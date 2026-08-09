@@ -178,14 +178,9 @@
       "type": "object"
     },
     "InstrumentSchema": {
+      "const": "finstack_quant.instrument/1",
       "description": "Canonical schema marker for persisted instrument envelopes.",
-      "oneOf": [
-        {
-          "const": "finstack_quant.instrument/1",
-          "description": "The sole supported instrument contract.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     },
     "SifmaSettlementClass": {
       "description": "SIFMA MBS settlement class.\n\nSIFMA publishes distinct settlement dates for four classes of agency MBS.\nThe class determines which specific settlement date applies within a given\nmonth. See <https://www.sifma.org/resources/general/mbs-notification-and-settlement-dates/>.",
@@ -233,25 +228,21 @@
       ]
     },
     "dollar_roll": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/DollarRoll"
-            },
-            "type": {
-              "const": "dollar_roll",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
+      "additionalProperties": false,
+      "properties": {
+        "spec": {
+          "$ref": "#/$defs/DollarRoll"
+        },
+        "type": {
+          "const": "dollar_roll",
+          "type": "string"
         }
-      ]
+      },
+      "required": [
+        "type",
+        "spec"
+      ],
+      "type": "object"
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/dollar_roll.schema.json",

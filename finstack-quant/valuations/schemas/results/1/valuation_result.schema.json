@@ -269,92 +269,15 @@
       ]
     },
     "NumericMode": {
+      "const": "f64",
       "description": "Numeric engine mode compiled into the crate.\n\nCurrently single-variant (F64); exists as `#[non_exhaustive]` for forward-compatible extension.\n\n# What the stamp asserts (and what it does not)\n\n`F64` asserts that **curve, rate, and analytics arithmetic** (discounting,\ninterpolation, risk metrics, scenario math, FX rates as scalars) runs on\n64-bit IEEE 754 floating point. It does **not** describe the [`Money`]\nlayer: monetary amounts are stored and combined on a Decimal-backed\nrepresentation (`rust_decimal::Decimal`) regardless of this stamp, with\nf64 appearing only at ingest/accessor boundaries. Auditors reading\n`numeric_mode: F64` in [`ResultsMeta`] should therefore interpret it as\n\"non-monetary numerics are f64\", not \"monetary amounts were accumulated\nin floating point\". (Clarified .)\n\n[`Money`]: crate::money::Money",
-      "oneOf": [
-        {
-          "const": "f64",
-          "description": "Floating-point f64 engine for curve/rate/analytics arithmetic.\nMonetary amounts remain Decimal-backed independent of this variant.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     },
     "PositiveF64Wire": {
       "description": "Finite JSON number that is strictly greater than zero.\n\nThis type is used by serde field adapters so runtime deserialization and\ngenerated schemas enforce the same positive-number contract.",
       "exclusiveMinimum": 0.0,
       "format": "double",
       "type": "number"
-    },
-    "PricingMode": {
-      "description": "Pricing mode selection.\n\nChoose based on horizon × dimensionality: `Tree` for SHORT-horizon\nnon-recombining stochastic deals (deterministic, low variance),\n`MonteCarlo` for long-horizon or high-dimensional pools, `Hybrid` to\nfront-load tree precision and tail with MC.\n\n# Tree mode is bounded by construction — read this before selecting it\n\nSC-M25: path-preserving tree pricing keeps `3^n` terminal nodes for `n`\nperiods, checked against `max_tree_paths` (default 100,000). `3^11 =\n177,147`, so **Tree hard-errors for any deal with more than ten periods\nremaining** — which is essentially every real deal, since\n`build_scenario_tree_config` sets `num_periods` to months-to-maturity.\n\nThis type previously documented Tree as \"Default mode\" and all three modes\nas \"first-class supported pricers\". That was not true of Tree at any\nrealistic horizon, and it only escaped notice because the public\n`price_stochastic` entry point overrides the default to Monte Carlo before\nthe mode is ever used.\n\nThe default is therefore [`PricingMode::MonteCarlo`] — the mode that can\nactually price the deals this module is built for. Tree remains available\nand correct for genuinely short horizons; select it explicitly.\n\nTest coverage:\n- **Tree**: `tests/instruments/structured_credit/unit/{stochastic_pricing_tests,stochastic_tranche_pv_tests}`, at horizons within the node bound.\n- **MonteCarlo**: the same suites plus the convergence tests.\n- **Hybrid**: structured-credit pricer integration tests.",
-      "oneOf": [
-        {
-          "const": "tree",
-          "description": "Tree-based pricing (exact, non-recombining).\n\nBounded to roughly ten periods by the `3^n` node count — see the type\ndocs. Not the default for that reason.",
-          "type": "string"
-        },
-        {
-          "additionalProperties": false,
-          "description": "Monte Carlo pricing with specified number of paths.\n\nThe default, because it is the only mode that can price a deal at a\nrealistic horizon.",
-          "properties": {
-            "monte_carlo": {
-              "additionalProperties": false,
-              "properties": {
-                "antithetic": {
-                  "description": "Use antithetic variates for variance reduction",
-                  "type": "boolean"
-                },
-                "num_paths": {
-                  "description": "Number of simulation paths",
-                  "format": "uint",
-                  "minimum": 0,
-                  "type": "integer"
-                }
-              },
-              "required": [
-                "num_paths",
-                "antithetic"
-              ],
-              "type": "object"
-            }
-          },
-          "required": [
-            "monte_carlo"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "Hybrid: tree for short horizons, MC for long",
-          "properties": {
-            "hybrid": {
-              "additionalProperties": false,
-              "properties": {
-                "mc_paths": {
-                  "description": "MC paths for tail",
-                  "format": "uint",
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                "tree_periods": {
-                  "description": "Tree periods before switching to MC",
-                  "format": "uint",
-                  "minimum": 0,
-                  "type": "integer"
-                }
-              },
-              "required": [
-                "tree_periods",
-                "mc_paths"
-              ],
-              "type": "object"
-            }
-          },
-          "required": [
-            "hybrid"
-          ],
-          "type": "object"
-        }
-      ]
     },
     "ResultsMeta": {
       "description": "Metadata bundle that accompanies valuation outputs.\n\nThe metadata is intentionally small so it can be attached to reports and\ndownstream data stores for reproducibility and audit trails.\n\n# Examples\n```rust\nuse finstack_quant_core::config::{results_meta, FinstackConfig, NumericMode};\n\nlet meta = results_meta(&FinstackConfig::default());\nassert_eq!(meta.numeric_mode, NumericMode::F64);\nassert!(meta.timestamp.is_none()); // deterministic by default\n```",
@@ -518,7 +441,7 @@
           "type": "integer"
         },
         "pricing_mode": {
-          "$ref": "#/$defs/PricingMode",
+          "$ref": "#/$defs/StructuredCreditPricingMode",
           "description": "Pricing mode used."
         },
         "pv_confidence_interval": {
@@ -569,6 +492,78 @@
         "tranche_results"
       ],
       "type": "object"
+    },
+    "StructuredCreditPricingMode": {
+      "description": "Pricing mode selection.\n\nChoose based on horizon × dimensionality: `Tree` for SHORT-horizon\nnon-recombining stochastic deals (deterministic, low variance),\n`MonteCarlo` for long-horizon or high-dimensional pools, `Hybrid` to\nfront-load tree precision and tail with MC.\n\n# Tree mode is bounded by construction — read this before selecting it\n\nSC-M25: path-preserving tree pricing keeps `3^n` terminal nodes for `n`\nperiods, checked against `max_tree_paths` (default 100,000). `3^11 =\n177,147`, so **Tree hard-errors for any deal with more than ten periods\nremaining** — which is essentially every real deal, since\n`build_scenario_tree_config` sets `num_periods` to months-to-maturity.\n\nThis type previously documented Tree as \"Default mode\" and all three modes\nas \"first-class supported pricers\". That was not true of Tree at any\nrealistic horizon, and it only escaped notice because the public\n`price_stochastic` entry point overrides the default to Monte Carlo before\nthe mode is ever used.\n\nThe default is therefore [`PricingMode::MonteCarlo`] — the mode that can\nactually price the deals this module is built for. Tree remains available\nand correct for genuinely short horizons; select it explicitly.\n\nTest coverage:\n- **Tree**: `tests/instruments/structured_credit/unit/{stochastic_pricing_tests,stochastic_tranche_pv_tests}`, at horizons within the node bound.\n- **MonteCarlo**: the same suites plus the convergence tests.\n- **Hybrid**: structured-credit pricer integration tests.",
+      "oneOf": [
+        {
+          "const": "tree",
+          "description": "Tree-based pricing (exact, non-recombining).\n\nBounded to roughly ten periods by the `3^n` node count — see the type\ndocs. Not the default for that reason.",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Monte Carlo pricing with specified number of paths.\n\nThe default, because it is the only mode that can price a deal at a\nrealistic horizon.",
+          "properties": {
+            "monte_carlo": {
+              "additionalProperties": false,
+              "properties": {
+                "antithetic": {
+                  "description": "Use antithetic variates for variance reduction",
+                  "type": "boolean"
+                },
+                "num_paths": {
+                  "description": "Number of simulation paths",
+                  "format": "uint",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "num_paths",
+                "antithetic"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "monte_carlo"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Hybrid: tree for short horizons, MC for long",
+          "properties": {
+            "hybrid": {
+              "additionalProperties": false,
+              "properties": {
+                "mc_paths": {
+                  "description": "MC paths for tail",
+                  "format": "uint",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "tree_periods": {
+                  "description": "Tree periods before switching to MC",
+                  "format": "uint",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "tree_periods",
+                "mc_paths"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "hybrid"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "ToleranceConfig": {
       "additionalProperties": false,
@@ -928,6 +923,34 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Canonical valuation result containing PV and typed metrics.",
+  "examples": [
+    {
+      "as_of": "2024-01-15",
+      "covenants": null,
+      "instrument_id": "US912828XG33",
+      "measures": {},
+      "meta": {
+        "fx_policy_applied": null,
+        "numeric_mode": "f64",
+        "rounding": {
+          "ingest_scale_by_currency": {},
+          "mode": "bankers",
+          "output_scale_by_currency": {},
+          "tolerances": {
+            "generic_epsilon": 1e-10,
+            "rate_epsilon": 1e-12
+          },
+          "version": 1
+        },
+        "version": "0.7.0"
+      },
+      "schema_version": 1,
+      "value": {
+        "amount": "1012345.67",
+        "currency": "USD"
+      }
+    }
+  ],
   "properties": {
     "as_of": {
       "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",

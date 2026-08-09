@@ -3,6 +3,18 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "User-defined tags and key-value metadata for classification.",
+  "examples": [
+    {
+      "meta": {
+        "desk": "ny_rates"
+      },
+      "tags": [
+        "rates",
+        "hedge"
+      ]
+    },
+    {}
+  ],
   "properties": {
     "meta": {
       "additionalProperties": {

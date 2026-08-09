@@ -1299,14 +1299,9 @@
       "type": "object"
     },
     "PortfolioMaterializationSchema": {
+      "const": "finstack_quant.portfolio_materialization/1",
       "description": "Sole supported portfolio-materialization contract marker.",
-      "oneOf": [
-        {
-          "const": "finstack_quant.portfolio_materialization/1",
-          "description": "Canonical v1 materialization contract.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     },
     "PositionId": {
       "description": "Position identifier.",
@@ -1350,6 +1345,74 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Strict, versioned, content-addressed portfolio materialization bundle.",
+  "examples": [
+    {
+      "instruments": [
+        {
+          "artifact_id": "sha256:e863a423dd331dbec54247894d660bd1c133cbcefedec64045a785416328fbbf",
+          "content_hash": "sha256:e863a423dd331dbec54247894d660bd1c133cbcefedec64045a785416328fbbf",
+          "dependencies": {
+            "curves": {
+              "credit_curves": [],
+              "discount_curves": [
+                "USD-OIS"
+              ],
+              "forward_curves": [],
+              "inflation_curves": []
+            },
+            "fx_pairs": [],
+            "market_scalar_ids": [],
+            "series_ids": [],
+            "volatility_dependencies": []
+          },
+          "envelope": {
+            "instrument": {
+              "spec": {
+                "attributes": {},
+                "business_day_convention": "modified_following",
+                "calendar_id": null,
+                "day_count": "act_360",
+                "discount_curve_id": "USD-OIS",
+                "id": "DEP_1M",
+                "maturity": "2024-02-01",
+                "notional": {
+                  "amount": "1000000",
+                  "currency": "USD"
+                },
+                "quote_rate": null,
+                "spot_lag_days": null,
+                "start_date": "2024-01-01"
+              },
+              "type": "deposit"
+            },
+            "schema": "finstack_quant.instrument/1"
+          }
+        }
+      ],
+      "portfolio": {
+        "as_of": "2024-01-01",
+        "base_currency": "USD",
+        "entities": {
+          "ACME_CORP": {
+            "id": "ACME_CORP",
+            "name": null
+          }
+        },
+        "id": "EXAMPLE_FUND"
+      },
+      "positions": [
+        {
+          "artifact_id": "sha256:e863a423dd331dbec54247894d660bd1c133cbcefedec64045a785416328fbbf",
+          "entity_id": "ACME_CORP",
+          "id": "POS_001",
+          "instrument_id": "DEP_1M",
+          "quantity": 1.0,
+          "unit": "units"
+        }
+      ],
+      "schema": "finstack_quant.portfolio_materialization/1"
+    }
+  ],
   "properties": {
     "instruments": {
       "description": "Unique strict instrument envelopes referenced by positions.",

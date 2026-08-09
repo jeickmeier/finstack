@@ -1,14 +1,9 @@
 {
   "$defs": {
     "InstrumentSchema": {
+      "const": "finstack_quant.instrument/1",
       "description": "Canonical schema marker for persisted instrument envelopes.",
-      "oneOf": [
-        {
-          "const": "finstack_quant.instrument/1",
-          "description": "The sole supported instrument contract.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     },
     "Tarn": {
       "additionalProperties": false,
@@ -104,25 +99,21 @@
       "type": "object"
     },
     "tarn": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/Tarn"
-            },
-            "type": {
-              "const": "tarn",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
+      "additionalProperties": false,
+      "properties": {
+        "spec": {
+          "$ref": "#/$defs/Tarn"
+        },
+        "type": {
+          "const": "tarn",
+          "type": "string"
         }
-      ]
+      },
+      "required": [
+        "type",
+        "spec"
+      ],
+      "type": "object"
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/tarn.schema.json",

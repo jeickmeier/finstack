@@ -1,19 +1,15 @@
 //! JSON Schema contract tests for scenario envelopes.
 
-use finstack_quant_scenarios::schema::{
-    generated_schema as generate_schema, SCENARIO_SCHEMA_BASE, SCENARIO_SCHEMA_DESCRIPTION,
-    SCENARIO_SCHEMA_FILENAME, SCENARIO_SCHEMA_TITLE,
-};
-use finstack_quant_scenarios::{InstrumentType, ScenarioEnvelope};
+use finstack_quant_scenarios::schema::{SCENARIO_SCHEMA_BASE, SCENARIO_SCHEMA_FILENAME};
+use finstack_quant_scenarios::InstrumentType;
 use serde_json::{json, Value};
 
+/// Render through the registry: only that path applies the packager, the
+/// single-branch-union collapse and examples, which is what is checked in.
 fn generated_schema() -> Value {
-    generate_schema::<ScenarioEnvelope>(
-        SCENARIO_SCHEMA_FILENAME,
-        SCENARIO_SCHEMA_TITLE,
-        SCENARIO_SCHEMA_DESCRIPTION,
-    )
-    .expect("scenario envelope schema generates")
+    finstack_quant_scenarios::schema::ARTIFACTS[0]
+        .generate()
+        .expect("scenario envelope schema generates")
 }
 
 fn checked_in_schema() -> Value {

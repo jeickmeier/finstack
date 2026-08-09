@@ -22,6 +22,9 @@ class Generator:
     binary: str
 
 
+# Written by `run_schema_index_generator` once per crate, alongside the schemas.
+SCHEMA_INDEX_RELATIVE_PATH = Path("schemas/index.json")
+
 GENERATORS = (
     Generator(Path("finstack-quant/core"), "finstack-quant-core", "gen_core_schemas"),
     Generator(Path("finstack-quant/attribution"), "finstack-quant-attribution", "gen_attribution_schemas"),
@@ -174,6 +177,10 @@ def main() -> int:
             if workspace_path in listed:
                 raise ValueError(f"artifact has multiple registry entries: {workspace_path}")
             listed.add(workspace_path)
+        # Every generator also emits one schema index per crate. It is excluded
+        # from `--list`, whose output must stay sorted and cannot place a single
+        # per-crate file correctly against every crate's root directory name.
+        listed.add(generator.crate / SCHEMA_INDEX_RELATIVE_PATH)
 
     actual_schemas = {path.relative_to(ROOT) for path in ROOT.glob("finstack-quant/*/schemas/**/*.schema.json")}
     registered_schemas = {path for path in listed if path.name.endswith(".schema.json")}

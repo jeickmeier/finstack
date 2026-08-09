@@ -19,6 +19,8 @@ pub use crate::models::SABRParameters;
 )]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
+// Distinct from the shared `common_impl::parameters::volatility::VolatilityModel`.
+#[schemars(rename = "SwaptionVolatilityModel")]
 pub enum VolatilityModel {
     /// Black (Lognormal) model (1976)
     #[default]

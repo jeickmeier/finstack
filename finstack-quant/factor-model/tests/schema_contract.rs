@@ -1,30 +1,27 @@
 //! JSON Schema contract tests for factor-model configuration envelopes.
 
-use finstack_quant_factor_model::credit::calibration::{
-    CreditCalibrationConfig, CreditCalibrationInputs,
-};
-use finstack_quant_factor_model::credit::hierarchy::CreditFactorModel;
 use finstack_quant_factor_model::schema::{
     credit_calibration_config_schema, credit_calibration_inputs_schema, credit_factor_model_schema,
-    factor_model_config_schema, CREDIT_CALIBRATION_CONFIG_SCHEMA_DESCRIPTION,
-    CREDIT_CALIBRATION_CONFIG_SCHEMA_FILENAME, CREDIT_CALIBRATION_CONFIG_SCHEMA_TITLE,
-    CREDIT_CALIBRATION_INPUTS_SCHEMA_DESCRIPTION, CREDIT_CALIBRATION_INPUTS_SCHEMA_FILENAME,
-    CREDIT_CALIBRATION_INPUTS_SCHEMA_TITLE, CREDIT_FACTOR_MODEL_SCHEMA_DESCRIPTION,
-    CREDIT_FACTOR_MODEL_SCHEMA_FILENAME, CREDIT_FACTOR_MODEL_SCHEMA_TITLE,
-    FACTOR_MODEL_SCHEMA_BASE, FACTOR_MODEL_SCHEMA_DESCRIPTION, FACTOR_MODEL_SCHEMA_FILENAME,
-    FACTOR_MODEL_SCHEMA_TITLE,
+    factor_model_config_schema, CREDIT_CALIBRATION_CONFIG_SCHEMA_FILENAME,
+    CREDIT_CALIBRATION_INPUTS_SCHEMA_FILENAME, CREDIT_FACTOR_MODEL_SCHEMA_FILENAME,
+    FACTOR_MODEL_SCHEMA_BASE, FACTOR_MODEL_SCHEMA_FILENAME,
 };
 use finstack_quant_factor_model::FactorModelConfigEnvelope;
 use serde_json::{json, Value};
 
+/// Render through the registry: only that path applies the packager, the
+/// single-branch-union collapse and examples, which is what is checked in.
+fn registry_schema(filename: &str) -> Value {
+    finstack_quant_factor_model::schema::ARTIFACTS
+        .iter()
+        .find(|artifact| artifact.relative_path.ends_with(filename))
+        .unwrap_or_else(|| panic!("no registry entry for {filename}"))
+        .generate()
+        .expect("registry artifact renders")
+}
+
 fn generated_schema() -> Value {
-    finstack_quant_core::schema::generated_schema::<FactorModelConfigEnvelope>(
-        FACTOR_MODEL_SCHEMA_BASE,
-        FACTOR_MODEL_SCHEMA_FILENAME,
-        FACTOR_MODEL_SCHEMA_TITLE,
-        FACTOR_MODEL_SCHEMA_DESCRIPTION,
-    )
-    .expect("factor-model envelope schema generates")
+    registry_schema(FACTOR_MODEL_SCHEMA_FILENAME)
 }
 
 fn checked_in_schema() -> Value {
@@ -34,35 +31,8 @@ fn checked_in_schema() -> Value {
     .expect("checked-in factor-model schema parses")
 }
 
-fn generated_credit_factor_model_schema() -> Value {
-    finstack_quant_core::schema::generated_schema::<CreditFactorModel>(
-        FACTOR_MODEL_SCHEMA_BASE,
-        CREDIT_FACTOR_MODEL_SCHEMA_FILENAME,
-        CREDIT_FACTOR_MODEL_SCHEMA_TITLE,
-        CREDIT_FACTOR_MODEL_SCHEMA_DESCRIPTION,
-    )
-    .expect("credit factor model schema generates")
-}
 
-fn generated_credit_calibration_config_schema() -> Value {
-    finstack_quant_core::schema::generated_schema::<CreditCalibrationConfig>(
-        FACTOR_MODEL_SCHEMA_BASE,
-        CREDIT_CALIBRATION_CONFIG_SCHEMA_FILENAME,
-        CREDIT_CALIBRATION_CONFIG_SCHEMA_TITLE,
-        CREDIT_CALIBRATION_CONFIG_SCHEMA_DESCRIPTION,
-    )
-    .expect("credit calibration config schema generates")
-}
 
-fn generated_credit_calibration_inputs_schema() -> Value {
-    finstack_quant_core::schema::generated_schema::<CreditCalibrationInputs>(
-        FACTOR_MODEL_SCHEMA_BASE,
-        CREDIT_CALIBRATION_INPUTS_SCHEMA_FILENAME,
-        CREDIT_CALIBRATION_INPUTS_SCHEMA_TITLE,
-        CREDIT_CALIBRATION_INPUTS_SCHEMA_DESCRIPTION,
-    )
-    .expect("credit calibration inputs schema generates")
-}
 
 fn validate(schema: &Value, fixture: &Value) -> Result<(), Vec<String>> {
     let validator = jsonschema::validator_for(schema).expect("factor-model schema compiles");
@@ -261,13 +231,15 @@ fn credit_factor_model_schema_rejects_malformed_nested_config() {
 fn credit_factor_model_schema_matches_generated_type_and_metadata() {
     let schema = credit_factor_model_schema().expect("embedded credit factor model schema");
 
-    assert_eq!(schema, &generated_credit_factor_model_schema());
+    assert_eq!(schema, &registry_schema(CREDIT_FACTOR_MODEL_SCHEMA_FILENAME));
     assert_eq!(
         schema["$id"],
         format!("{FACTOR_MODEL_SCHEMA_BASE}{CREDIT_FACTOR_MODEL_SCHEMA_FILENAME}")
     );
+    // One-variant marker enums lose schemars' single-branch `oneOf` wrapper in
+    // the emitter, so the `const` sits directly on the definition.
     assert_eq!(
-        schema["$defs"]["CreditFactorModelSchema"]["oneOf"][0]["const"],
+        schema["$defs"]["CreditFactorModelSchema"]["const"],
         "finstack_quant.credit_factor_model/1"
     );
     assert_eq!(schema["additionalProperties"], false);
@@ -321,8 +293,8 @@ fn credit_calibration_schemas_match_generated_types_and_embedded_apis() {
     let inputs =
         credit_calibration_inputs_schema().expect("embedded credit calibration inputs schema");
 
-    assert_eq!(config, &generated_credit_calibration_config_schema());
-    assert_eq!(inputs, &generated_credit_calibration_inputs_schema());
+    assert_eq!(config, &registry_schema(CREDIT_CALIBRATION_CONFIG_SCHEMA_FILENAME));
+    assert_eq!(inputs, &registry_schema(CREDIT_CALIBRATION_INPUTS_SCHEMA_FILENAME));
     assert_eq!(
         config["$id"],
         format!("{FACTOR_MODEL_SCHEMA_BASE}{CREDIT_CALIBRATION_CONFIG_SCHEMA_FILENAME}")

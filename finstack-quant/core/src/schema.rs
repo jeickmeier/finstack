@@ -133,6 +133,32 @@ pub fn generated_schema<T: SerdeSchema>(
     Ok(document)
 }
 
+/// Direction of travel for a generated contract.
+///
+/// A consumer choosing what to send or how to read a reply needs this before it
+/// needs anything else, and it cannot be derived from the schema document.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub enum SchemaKind {
+    /// A root document callers author and submit.
+    Input,
+    /// A root document the library emits and callers read.
+    Output,
+    /// A reusable definition referenced by roots, not submitted on its own.
+    Component,
+}
+
+impl SchemaKind {
+    /// Return the stable snake_case label used in the schema index.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Input => "input",
+            Self::Output => "output",
+            Self::Component => "component",
+        }
+    }
+}
+
 /// One generated JSON Schema artifact owned by a Rust contract type.
 ///
 /// The registry stores only stable metadata and a monomorphized
@@ -147,6 +173,10 @@ pub struct SchemaArtifact {
     pub title: &'static str,
     /// Stable contract description.
     pub description: &'static str,
+    /// One-line summary for the schema index, or empty to reuse `description`.
+    pub summary: &'static str,
+    /// Whether callers author this document, read it, or only reference it.
+    pub kind: SchemaKind,
     generator: fn(&SchemaArtifact) -> Result<Value>,
     examples: fn() -> Result<Vec<Value>>,
     packager: fn(&mut Value) -> Result<()>,
@@ -173,9 +203,50 @@ impl SchemaArtifact {
             id,
             title,
             description,
+            summary: "",
+            kind: SchemaKind::Component,
             generator: generate_artifact::<T>,
             examples: empty_examples,
             packager: no_op_packager,
+        }
+    }
+
+    /// Declare this artifact a root document callers author or read.
+    ///
+    /// Registration defaults to [`SchemaKind::Component`], so only roots need
+    /// to say so.
+    ///
+    /// # Arguments
+    ///
+    /// * `kind` - Direction of travel for this contract.
+    #[must_use]
+    pub const fn with_kind(mut self, kind: SchemaKind) -> Self {
+        self.kind = kind;
+        self
+    }
+
+    /// Attach a one-line summary for the schema index.
+    ///
+    /// Titles alone do not distinguish sibling contracts — every one of the
+    /// seventy instrument artifacts shares a single generated description — so
+    /// the index carries a per-artifact line instead.
+    ///
+    /// # Arguments
+    ///
+    /// * `summary` - One sentence stating what this contract governs.
+    #[must_use]
+    pub const fn with_summary(mut self, summary: &'static str) -> Self {
+        self.summary = summary;
+        self
+    }
+
+    /// Return the index summary, falling back to the contract description.
+    #[must_use]
+    pub const fn index_summary(&self) -> &'static str {
+        if self.summary.is_empty() {
+            self.description
+        } else {
+            self.summary
         }
     }
 
@@ -204,7 +275,18 @@ impl SchemaArtifact {
         self
     }
 
-    fn generate(&self) -> Result<Value> {
+    /// Render this artifact exactly as the checked-in file is written.
+    ///
+    /// This is the single rendering path: registry metadata, the packager, the
+    /// single-branch-union collapse, examples and key sorting all apply. Tests,
+    /// bindings and tools must call this rather than `generated_schema`, which
+    /// produces only the raw derived document and will drift from the artifact.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Internal`] if the schema or its examples cannot be
+    /// built.
+    pub fn generate(&self) -> Result<Value> {
         (self.generator)(self)
     }
 }
@@ -215,6 +297,72 @@ fn empty_examples() -> Result<Vec<Value>> {
 
 fn no_op_packager(_: &mut Value) -> Result<()> {
     Ok(())
+}
+
+/// Keywords that annotate a schema without constraining any instance.
+///
+/// A node carrying only these plus `oneOf` contributes no assertion of its own,
+/// which is what makes collapsing its single branch safe.
+const ANNOTATION_KEYWORDS: &[&str] = &[
+    "$comment",
+    "default",
+    "deprecated",
+    "description",
+    "examples",
+    "readOnly",
+    "title",
+    "writeOnly",
+];
+
+/// Replace every single-branch `oneOf` with the branch itself.
+///
+/// schemars emits a one-variant enum as `{"oneOf": [branch]}`. That is
+/// logically identical to `branch`, but it is not equivalent in *diagnostics*:
+/// a validator reports a failing `oneOf` at the union node, so an error inside
+/// the branch surfaces as "no branch matched" against the whole subtree instead
+/// of pointing at the offending field. Seventy single-instrument schemas wrap
+/// their payload this way, which is why a bond missing `maturity` reports at
+/// `/instrument` with the entire instance attached.
+///
+/// The rewrite only fires when the wrapper carries no assertion of its own -
+/// every sibling key must be in [`ANNOTATION_KEYWORDS`] - so the collapsed node
+/// asserts exactly what the branch asserted. Sibling annotations win over the
+/// branch's, keeping the field-level documentation that the wrapper carries.
+fn collapse_single_branch_unions(value: &mut Value) {
+    match value {
+        Value::Object(object) => {
+            for nested in object.values_mut() {
+                collapse_single_branch_unions(nested);
+            }
+
+            let collapsible = object
+                .get("oneOf")
+                .and_then(Value::as_array)
+                .is_some_and(|branches| branches.len() == 1 && branches[0].is_object())
+                && object
+                    .keys()
+                    .all(|key| key == "oneOf" || ANNOTATION_KEYWORDS.contains(&key.as_str()));
+            if !collapsible {
+                return;
+            }
+
+            let Some(Value::Array(mut branches)) = object.remove("oneOf") else {
+                return;
+            };
+            let Some(Value::Object(branch)) = branches.pop() else {
+                return;
+            };
+            for (key, nested) in branch {
+                object.entry(key).or_insert(nested);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                collapse_single_branch_unions(item);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn generate_artifact<T: SerdeSchema>(artifact: &SchemaArtifact) -> Result<Value> {
@@ -231,6 +379,7 @@ fn generate_artifact<T: SerdeSchema>(artifact: &SchemaArtifact) -> Result<Value>
         artifact.description,
     )?;
     (artifact.packager)(&mut schema)?;
+    collapse_single_branch_unions(&mut schema);
     let examples = (artifact.examples)()?;
     if !examples.is_empty() {
         schema
@@ -449,6 +598,732 @@ pub fn run_schema_generator(
                 println!("removed stale {}", path.display());
             }
             remove_empty_directories(&owned_directory, &owned_directory)?;
+            Ok(())
+        }
+        SchemaGenerationMode::List => Ok(()),
+    }
+}
+
+/// Rustdoc sections that describe the Rust API rather than the wire contract.
+///
+/// Kept out of the projected form: a model filling in a payload gains nothing
+/// from a Rust usage example, and `# Examples` alone accounts for 346 of the
+/// 1,578 headings in the corpus. Domain sections — `# References`,
+/// `# Standards Reference`, `# Market Conventions` and the like — are the
+/// grounding that makes the schema readable, and are deliberately kept.
+const RUSTDOC_SECTIONS_TO_DROP: &[&str] = &[
+    "Arguments",
+    "Errors",
+    "Example",
+    "Examples",
+    "Panics",
+    "Safety",
+    "See Also",
+    "Thread Safety",
+    "Type Parameters",
+];
+
+/// Keywords a projected schema drops because provider subsets ignore or reject them.
+const NON_PORTABLE_KEYWORDS: &[&str] = &[
+    "$comment",
+    "default",
+    "deprecated",
+    "format",
+    "readOnly",
+    "uniqueItems",
+    "writeOnly",
+];
+
+/// Which projection passes to apply.
+///
+/// Every pass defaults on; turn one off to isolate its effect when measuring.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LlmProfile {
+    /// Pull externally referenced documents into `$defs` so nothing is fetched.
+    pub inline_references: bool,
+    /// Rewrite all-string-`const` unions as a flat `enum`.
+    pub flatten_const_unions: bool,
+    /// Strip Rust API prose from `description` text.
+    pub trim_descriptions: bool,
+    /// Close objects, require every declared property, and drop non-portable keywords.
+    pub strict_shape: bool,
+    /// Largest referenced document to inline, in compact bytes.
+    ///
+    /// Inlining is what makes a schema self-contained, but a reference to a
+    /// large document turns a small contract into a large one — a portfolio
+    /// bundle that names the instrument union inherits all seventy branches.
+    /// Anything over this budget becomes a handle instead: an opaque string
+    /// carrying [`RESOLVES_FROM_KEYWORD`] so the caller knows which contract to
+    /// fetch and validate separately.
+    pub max_inline_bytes: usize,
+}
+
+/// Extension keyword naming the contract a handle stands in for.
+pub const RESOLVES_FROM_KEYWORD: &str = "x-finstack-resolves-from";
+
+/// Default ceiling for inlining a referenced document, in compact bytes.
+///
+/// 16 KiB is not a tuning knob; it is the gap in the corpus between the two
+/// kinds of shared document. The largest primitive a payload author needs in
+/// front of them is `day_count` at 13.9 KB (`money` is 11.3 KB, `currency`
+/// 11.2 KB). The smallest bag they almost never fill in is
+/// `metric_pricing_overrides` at 20.2 KB, followed by
+/// `instrument_pricing_overrides` at 55.4 KB — and those two drag in the whole
+/// pricing-model configuration universe behind them.
+///
+/// Measured across all 109 artifacts, moving this ceiling from 64 KiB to
+/// 16 KiB takes the median projected instrument from 80.4 KB to 32.4 KB and
+/// the count fitting in 8k tokens from 32 to 90.
+pub const DEFAULT_MAX_INLINE_BYTES: usize = 16 * 1024;
+
+impl Default for LlmProfile {
+    fn default() -> Self {
+        Self {
+            inline_references: true,
+            flatten_const_unions: true,
+            trim_descriptions: true,
+            strict_shape: true,
+            max_inline_bytes: DEFAULT_MAX_INLINE_BYTES,
+        }
+    }
+}
+
+/// Project a published schema into a form a language model can consume.
+///
+/// The published artifacts are tuned for validation and rustdoc parity. That
+/// makes them correct and unusable as tool schemas: they reference an
+/// unresolvable host, spend roughly half their bytes on Rust prose, and express
+/// every unit enum as a union of `const` branches. This rewrites all three,
+/// plus the shape differences that provider subsets reject.
+///
+/// # This is not a validator
+///
+/// The result is simultaneously **stricter** than the runtime contract (every
+/// property is required, with optionality moved into the type) and **looser**
+/// (tuples become fixed-length arrays, non-portable assertions are dropped).
+/// Validate against the artifact from
+/// [`SchemaArtifact::generate`](SchemaArtifact::generate) — never against this.
+///
+/// # Arguments
+///
+/// * `schema` - A generated artifact, as written to disk.
+/// * `resolve` - Maps an absolute `$id` to that document. Callers that own the
+///   whole corpus can look up their registries; returning `None` leaves the
+///   reference in place rather than failing.
+/// * `profile` - Which passes to run.
+///
+/// # Errors
+///
+/// Returns [`Error::Internal`] if the document is not a JSON object.
+pub fn project_llm(
+    schema: &Value,
+    resolve: &dyn Fn(&str) -> Option<Value>,
+    profile: &LlmProfile,
+) -> Result<Value> {
+    if !schema.is_object() {
+        return Err(Error::Internal(
+            "projected schema must be a JSON object".to_string(),
+        ));
+    }
+    let mut projected = schema.clone();
+
+    if profile.inline_references {
+        inline_external_references(&mut projected, resolve, profile.max_inline_bytes);
+    }
+    if profile.flatten_const_unions {
+        flatten_const_unions(&mut projected);
+    }
+    if profile.trim_descriptions {
+        trim_descriptions(&mut projected);
+    }
+    if profile.strict_shape {
+        apply_strict_shape(&mut projected);
+    }
+
+    sort_json(&mut projected);
+    Ok(projected)
+}
+
+/// Turn an absolute `$id` into a `$defs` key.
+fn definition_name_for(id: &str) -> String {
+    let stem = id
+        .rsplit('/')
+        .next()
+        .unwrap_or(id)
+        .trim_end_matches(".schema.json");
+    let mut name = String::new();
+    let mut capitalize = true;
+    for character in stem.chars() {
+        if character == '_' || character == '-' || character == '.' {
+            capitalize = true;
+        } else if capitalize {
+            name.extend(character.to_uppercase());
+            capitalize = false;
+        } else {
+            name.push(character);
+        }
+    }
+    if name.is_empty() {
+        "External".to_string()
+    } else {
+        name
+    }
+}
+
+/// Collect every absolute `$ref` target in a document.
+fn collect_external_refs(node: &Value, found: &mut BTreeSet<String>) {
+    match node {
+        Value::Object(object) => {
+            if let Some(Value::String(target)) = object.get("$ref") {
+                if !target.starts_with('#') {
+                    found.insert(target.clone());
+                }
+            }
+            for nested in object.values() {
+                collect_external_refs(nested, found);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                collect_external_refs(item, found);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Rewrite absolute `$ref`s to local ones, given the id-to-name mapping.
+fn rewrite_refs(node: &mut Value, names: &BTreeMap<String, String>) {
+    match node {
+        Value::Object(object) => {
+            if let Some(Value::String(target)) = object.get("$ref") {
+                if let Some(name) = names.get(target) {
+                    let local = format!("#/$defs/{name}");
+                    object.insert("$ref".to_string(), Value::String(local));
+                }
+            }
+            for nested in object.values_mut() {
+                rewrite_refs(nested, names);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                rewrite_refs(item, names);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Pull every resolvable external reference into local `$defs`.
+///
+/// Definitions are added once and shared, and each newly inlined document is
+/// scanned in turn, so a chain of references resolves in one pass. Unresolvable
+/// targets are left untouched — a missing shared definition should surface as a
+/// dangling reference, not as a silently different contract.
+fn inline_external_references(
+    schema: &mut Value,
+    resolve: &dyn Fn(&str) -> Option<Value>,
+    max_inline_bytes: usize,
+) {
+    let mut names: BTreeMap<String, String> = BTreeMap::new();
+    let mut bodies: BTreeMap<String, Value> = BTreeMap::new();
+    let mut pending = BTreeSet::new();
+    collect_external_refs(schema, &mut pending);
+
+    while let Some(id) = pending.iter().next().cloned() {
+        pending.remove(&id);
+        if names.contains_key(&id) {
+            continue;
+        }
+        let Some(mut document) = resolve(&id) else {
+            continue;
+        };
+
+        // Too large to carry: stand it in as a handle rather than let one
+        // reference dominate the projected document.
+        let measured = serde_json::to_vec(&document).map(|bytes| bytes.len());
+        if measured.is_ok_and(|size| size > max_inline_bytes) {
+            let summary = document
+                .get("description")
+                .and_then(Value::as_str)
+                .map(str::to_string);
+            let mut handle = Map::new();
+            // Keep the target's own top-level type. Forcing a string here would
+            // be wrong wherever the reference stands for an object, so the
+            // handle stays shape-correct and merely permissive about contents.
+            if let Some(kind) = document.get("type").cloned() {
+                handle.insert("type".to_string(), kind);
+            }
+            if handle.get("type").is_some_and(|kind| kind == "object") {
+                handle.insert("additionalProperties".to_string(), Value::Bool(true));
+            }
+            handle.insert(
+                RESOLVES_FROM_KEYWORD.to_string(),
+                Value::String(id.clone()),
+            );
+            handle.insert(
+                "description".to_string(),
+                Value::String(match summary {
+                    Some(text) => format!(
+                        "{text}\n\nToo large to inline here: build this against `{id}` and \
+                         validate it separately."
+                    ),
+                    None => format!(
+                        "Value matching `{id}`; build and validate it against that contract."
+                    ),
+                }),
+            );
+            let mut candidate = definition_name_for(&id);
+            while bodies.contains_key(&candidate) {
+                candidate.push('_');
+            }
+            names.insert(id, candidate.clone());
+            bodies.insert(candidate, Value::Object(handle));
+            continue;
+        }
+
+        // The inlined body becomes a definition, so document-level identity and
+        // its own examples are dropped; nested `$defs` are hoisted alongside.
+        let mut nested_defs = Map::new();
+        if let Some(object) = document.as_object_mut() {
+            for key in ["$id", "$schema", "examples"] {
+                object.remove(key);
+            }
+            if let Some(Value::Object(defs)) = object.remove("$defs") {
+                nested_defs = defs;
+            }
+        }
+
+        let mut candidate = definition_name_for(&id);
+        while bodies.contains_key(&candidate) {
+            candidate.push('_');
+        }
+        collect_external_refs(&document, &mut pending);
+        for value in nested_defs.values() {
+            collect_external_refs(value, &mut pending);
+        }
+        names.insert(id, candidate.clone());
+        bodies.insert(candidate, document);
+        for (key, value) in nested_defs {
+            bodies.entry(key).or_insert(value);
+        }
+    }
+
+    if bodies.is_empty() {
+        return;
+    }
+    rewrite_refs(schema, &names);
+    for body in bodies.values_mut() {
+        rewrite_refs(body, &names);
+    }
+    let Some(object) = schema.as_object_mut() else {
+        return;
+    };
+    let defs = object
+        .entry("$defs".to_string())
+        .or_insert_with(|| Value::Object(Map::new()));
+    if let Some(defs) = defs.as_object_mut() {
+        for (name, body) in bodies {
+            defs.entry(name).or_insert(body);
+        }
+    }
+}
+
+/// Rewrite `oneOf` unions of string `const`s as a flat `enum`.
+///
+/// schemars emits a unit enum as one branch per variant so each keeps its doc
+/// comment. That is the single largest avoidable cost in the corpus, and a flat
+/// `enum` is what constrained decoding handles natively. Variant documentation
+/// is folded into the parent description when it is short enough to be worth
+/// the tokens.
+fn flatten_const_unions(node: &mut Value) {
+    match node {
+        Value::Object(object) => {
+            for nested in object.values_mut() {
+                flatten_const_unions(nested);
+            }
+
+            let Some(branches) = object.get("oneOf").and_then(Value::as_array) else {
+                return;
+            };
+            if branches.len() < 2 {
+                return;
+            }
+            let mut values = Vec::with_capacity(branches.len());
+            let mut notes = Vec::new();
+            for branch in branches {
+                let Some(branch) = branch.as_object() else {
+                    return;
+                };
+                let Some(Value::String(constant)) = branch.get("const") else {
+                    return;
+                };
+                if branch.keys().any(|key| {
+                    !matches!(key.as_str(), "const" | "type" | "description" | "title")
+                }) {
+                    return;
+                }
+                if let Some(Value::String(note)) = branch.get("description") {
+                    if let Some(first) = note.lines().find(|line| !line.trim().is_empty()) {
+                        notes.push(format!("`{constant}`: {}", first.trim()));
+                    }
+                }
+                values.push(Value::String(constant.clone()));
+            }
+
+            // A long variant gloss costs more than it teaches; ISO currency
+            // codes are the case that made this threshold necessary.
+            const MAX_FOLDED_NOTE_BYTES: usize = 600;
+            let folded = notes.join(" · ");
+            object.remove("oneOf");
+            object.insert("type".to_string(), Value::String("string".to_string()));
+            object.insert("enum".to_string(), Value::Array(values));
+            if !folded.is_empty() && folded.len() <= MAX_FOLDED_NOTE_BYTES {
+                let existing = object
+                    .get("description")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                let combined = if existing.is_empty() {
+                    folded
+                } else {
+                    format!("{existing}\n\n{folded}")
+                };
+                object.insert("description".to_string(), Value::String(combined));
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                flatten_const_unions(item);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Reduce one rustdoc description to the prose a payload author needs.
+fn project_description(text: &str) -> String {
+    let mut output: Vec<String> = Vec::new();
+    let mut in_code_block = false;
+    let mut dropping_section = false;
+
+    for line in text.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("```") {
+            in_code_block = !in_code_block;
+            continue;
+        }
+        if in_code_block {
+            continue;
+        }
+        if let Some(heading) = trimmed.strip_prefix("# ") {
+            dropping_section = RUSTDOC_SECTIONS_TO_DROP.contains(&heading.trim());
+            if dropping_section {
+                continue;
+            }
+        }
+        if dropping_section {
+            continue;
+        }
+        output.push(line.to_string());
+    }
+
+    let joined = output.join("\n");
+    // `[`Type`]` and `[`mod::fn`]` are rustdoc link syntax, not emphasis.
+    let mut cleaned = String::with_capacity(joined.len());
+    let mut rest = joined.as_str();
+    while let Some(start) = rest.find("[`") {
+        cleaned.push_str(&rest[..start]);
+        let after = &rest[start + 2..];
+        match after.find("`]") {
+            Some(end) => {
+                cleaned.push('`');
+                cleaned.push_str(&after[..end]);
+                cleaned.push('`');
+                rest = &after[end + 2..];
+            }
+            None => {
+                cleaned.push_str(&rest[start..]);
+                rest = "";
+            }
+        }
+    }
+    cleaned.push_str(rest);
+
+    cleaned
+        .lines()
+        .map(str::trim_end)
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim()
+        .to_string()
+}
+
+/// Apply [`project_description`] to every `description` in the document.
+fn trim_descriptions(node: &mut Value) {
+    match node {
+        Value::Object(object) => {
+            if let Some(Value::String(text)) = object.get("description") {
+                let projected = project_description(text);
+                if projected.is_empty() {
+                    object.remove("description");
+                } else {
+                    object.insert("description".to_string(), Value::String(projected));
+                }
+            }
+            for (key, nested) in object.iter_mut() {
+                if key != "examples" {
+                    trim_descriptions(nested);
+                }
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                trim_descriptions(item);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Close objects, require every property, and drop non-portable keywords.
+///
+/// Optionality moves from "absent from `required`" into the type as a nullable
+/// union, which is what strict structured-output modes expect. Tuples become
+/// fixed-length arrays because `prefixItems` is outside every provider subset;
+/// the positional meaning survives in the description.
+fn apply_strict_shape(node: &mut Value) {
+    match node {
+        Value::Object(object) => {
+            for keyword in NON_PORTABLE_KEYWORDS {
+                if let Some(default) = object.remove(*keyword) {
+                    if *keyword == "default" {
+                        let note = format!("Defaults to `{default}` when omitted upstream.");
+                        let existing = object
+                            .get("description")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_string();
+                        let combined = if existing.is_empty() {
+                            note
+                        } else {
+                            format!("{existing}\n\n{note}")
+                        };
+                        object.insert("description".to_string(), Value::String(combined));
+                    }
+                }
+            }
+
+            // `type: [T, "null"]` and `anyOf: [T, null]` mean the same thing;
+            // one spelling is easier for a generator to follow.
+            if let Some(Value::Array(types)) = object.get("type") {
+                if types.len() == 2 && types.iter().any(|entry| entry == "null") {
+                    if let Some(concrete) = types.iter().find(|entry| *entry != "null").cloned() {
+                        object.insert("type".to_string(), concrete);
+                    }
+                }
+            }
+
+            if let Some(Value::Array(prefix_items)) = object.remove("prefixItems") {
+                let count = prefix_items.len();
+                // Draft 2020-12 has no array form of `items`, so a tuple becomes
+                // a length-pinned array whose element schema admits every
+                // position. Positional typing is lost; the description keeps it
+                // readable.
+                let element = match prefix_items.first() {
+                    Some(first) if prefix_items.iter().all(|item| item == first) => first.clone(),
+                    Some(_) => {
+                        let mut union = Map::new();
+                        union.insert("anyOf".to_string(), Value::Array(prefix_items));
+                        Value::Object(union)
+                    }
+                    None => Value::Object(Map::new()),
+                };
+                object.insert("items".to_string(), element);
+                object.insert(
+                    "minItems".to_string(),
+                    Value::Number(serde_json::Number::from(count)),
+                );
+                object.insert(
+                    "maxItems".to_string(),
+                    Value::Number(serde_json::Number::from(count)),
+                );
+                let note = format!("Fixed-length array of {count} positional values.");
+                let existing = object
+                    .get("description")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                let combined = if existing.is_empty() {
+                    note
+                } else {
+                    format!("{existing}\n\n{note}")
+                };
+                object.insert("description".to_string(), Value::String(combined));
+            }
+
+            if let Some(Value::Object(properties)) = object.get("properties") {
+                let names: Vec<Value> = properties.keys().cloned().map(Value::String).collect();
+                object.insert(
+                    "additionalProperties".to_string(),
+                    Value::Bool(false),
+                );
+                object.insert("required".to_string(), Value::Array(names));
+            }
+
+            for nested in object.values_mut() {
+                apply_strict_shape(nested);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                apply_strict_shape(item);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Version stamped into every generated schema index.
+pub const SCHEMA_INDEX_VERSION: u64 = 1;
+
+/// Build the schema index document for one crate's registry.
+///
+/// Rows are sorted by artifact path, so the document is stable regardless of
+/// registration order.
+///
+/// # Arguments
+///
+/// * `artifacts` - Complete registry for the owning crate.
+///
+/// # Errors
+///
+/// Returns [`Error::Internal`] if an artifact cannot be generated or rendered.
+fn build_schema_index(artifacts: &[SchemaArtifact]) -> Result<Value> {
+    let mut rows = BTreeMap::new();
+    for artifact in artifacts {
+        let rendered = render_schema(&artifact.generate()?)?;
+        let mut row = Map::new();
+        row.insert("$id".to_string(), Value::String(artifact.id.to_string()));
+        row.insert(
+            "bytes".to_string(),
+            Value::Number(serde_json::Number::from(rendered.len())),
+        );
+        row.insert(
+            "kind".to_string(),
+            Value::String(artifact.kind.as_str().to_string()),
+        );
+        row.insert(
+            "path".to_string(),
+            Value::String(artifact.relative_path.to_string()),
+        );
+        row.insert(
+            "summary".to_string(),
+            Value::String(artifact.index_summary().to_string()),
+        );
+        row.insert(
+            "title".to_string(),
+            Value::String(artifact.title.to_string()),
+        );
+        if rows
+            .insert(artifact.relative_path, Value::Object(row))
+            .is_some()
+        {
+            return Err(Error::Validation(format!(
+                "duplicate schema path in index: {}",
+                artifact.relative_path
+            )));
+        }
+    }
+
+    let mut document = Map::new();
+    document.insert(
+        "artifacts".to_string(),
+        Value::Array(rows.into_values().collect()),
+    );
+    document.insert(
+        "schema_index_version".to_string(),
+        Value::Number(serde_json::Number::from(SCHEMA_INDEX_VERSION)),
+    );
+    Ok(Value::Object(document))
+}
+
+/// Write or verify the schema index for one crate's registry.
+///
+/// The index is what a non-Rust consumer reads first: it names every contract
+/// the crate publishes, whether the caller authors or reads it, and how large
+/// the document is. Call this once per generator with the crate's complete
+/// artifact list, even when the artifacts span several owned roots.
+///
+/// `--write` writes the index and `--check` byte-compares it. `--list`
+/// deliberately does **not** name it: that listing is the *schema artifact*
+/// inventory and is required to be sorted, and one index per crate cannot sit
+/// in sorted position relative to every crate's root directory name. The index
+/// is instead reconstructed from each generator's crate by
+/// `scripts/check_schema_generation.py`, which is what compares the generated
+/// tree against the registry.
+///
+/// # Arguments
+///
+/// * `manifest_dir` - Owning crate's manifest directory.
+/// * `index_relative_path` - Index destination relative to the crate.
+/// * `artifacts` - Complete registry for the owning crate.
+/// * `command` - Parsed generator command selecting the mode and output root.
+///
+/// # Errors
+///
+/// Returns [`Error::Validation`] when the path escapes the crate or the
+/// checked-in index has drifted, and [`Error::Internal`] on IO failure.
+pub fn run_schema_index_generator(
+    manifest_dir: &Path,
+    index_relative_path: &Path,
+    artifacts: &[SchemaArtifact],
+    command: &SchemaGenerationCommand,
+) -> Result<()> {
+    validate_relative_path(index_relative_path, "schema index path")?;
+    if command.mode == SchemaGenerationMode::List {
+        return Ok(());
+    }
+
+    let rendered = render_schema(&build_schema_index(artifacts)?)?;
+    let base = command.output_root.as_deref().unwrap_or(manifest_dir);
+    let path = base.join(index_relative_path);
+
+    match command.mode {
+        SchemaGenerationMode::Check => match std::fs::read(&path) {
+            Ok(actual) if actual == rendered => Ok(()),
+            Ok(_) => Err(Error::Validation(format!(
+                "schema index is not current: changed {}",
+                index_relative_path.display()
+            ))),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                Err(Error::Validation(format!(
+                    "schema index is not current: missing {}",
+                    index_relative_path.display()
+                )))
+            }
+            Err(error) => Err(Error::Internal(format!(
+                "read schema index {}: {error}",
+                path.display()
+            ))),
+        },
+        SchemaGenerationMode::Write => {
+            if std::fs::read(&path).ok().as_deref() == Some(rendered.as_slice()) {
+                return Ok(());
+            }
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).map_err(|error| {
+                    Error::Internal(format!(
+                        "create schema index directory {}: {error}",
+                        parent.display()
+                    ))
+                })?;
+            }
+            std::fs::write(&path, rendered).map_err(|error| {
+                Error::Internal(format!("write schema index {}: {error}", path.display()))
+            })?;
+            println!("updated {}", path.display());
             Ok(())
         }
         SchemaGenerationMode::List => Ok(()),
@@ -909,6 +1784,42 @@ fn prune_unreachable_defs(value: &mut Value) {
     }
 }
 
+
+/// A valid but empty market snapshot.
+///
+/// Deliberately minimal: its job is to show the required-key shape, including
+/// the mandatory `hierarchy` key whose value may be an explicit `null`.
+fn market_context_state_examples() -> Result<Vec<Value>> {
+    let state = crate::market_data::context::MarketContextState::from(
+        &crate::market_data::context::MarketContext::new(),
+    );
+    let value = serde_json::to_value(&state).map_err(|error| {
+        Error::Internal(format!("serialize market context example: {error}"))
+    })?;
+    Ok(vec![value])
+}
+
+/// The core crate's schema registry.
+///
+/// This lives beside the emitter rather than in the generator binary, so the
+/// generator, the contract tests and the bindings all render from one
+/// definition. Render an entry with [`SchemaArtifact::generate`].
+pub const ARTIFACTS: &[SchemaArtifact] =
+    &[
+        SchemaArtifact::new::<crate::market_data::context::MarketContextState>(
+            "schemas/market_data/1/market_context_state.schema.json",
+            "https://finstack_quant.dev/schemas/market_data/1/market_context_state.schema.json",
+            "Market Context State",
+            "Canonical v1 persisted snapshot of a complete market-data context.",
+        )
+        .with_kind(SchemaKind::Input)
+        .with_summary(
+            "Curves, surfaces, prices, series and FX for one valuation date; the market input to \
+             every pricing, scenario and attribution call.",
+        )
+        .with_examples(market_context_state_examples),
+    ];
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1130,5 +2041,268 @@ mod tests {
         assert_eq!(schema["type"], raw["type"]);
         assert_eq!(schema["properties"], raw["properties"]);
         assert_eq!(schema["required"], raw["required"]);
+    }
+
+    const INDEX_PROBE_ARTIFACTS: &[SchemaArtifact] = &[
+        SchemaArtifact::new::<SuffixProbe>(
+            "schemas/probe/1/second.schema.json",
+            "https://finstack_quant.dev/schemas/probe/1/second.schema.json",
+            "Second",
+            "Registered second but sorts first by path.",
+        )
+        .with_kind(SchemaKind::Output),
+        SchemaArtifact::new::<SuffixProbe>(
+            "schemas/probe/1/first.schema.json",
+            "https://finstack_quant.dev/schemas/probe/1/first.schema.json",
+            "First",
+            "Falls back to this description because no summary is set.",
+        )
+        .with_kind(SchemaKind::Input)
+        .with_summary("An explicit one-line summary."),
+    ];
+
+    #[test]
+    fn schema_index_is_sorted_by_path_and_carries_kind_and_summary() {
+        let index = build_schema_index(INDEX_PROBE_ARTIFACTS).expect("index builds");
+        let rows = index["artifacts"].as_array().expect("artifacts array");
+
+        assert_eq!(index["schema_index_version"], json!(SCHEMA_INDEX_VERSION));
+        // Registration order is second-then-first; the index must not depend on it.
+        assert_eq!(rows[0]["path"], json!("schemas/probe/1/first.schema.json"));
+        assert_eq!(rows[1]["path"], json!("schemas/probe/1/second.schema.json"));
+
+        assert_eq!(rows[0]["kind"], json!("input"));
+        assert_eq!(rows[0]["summary"], json!("An explicit one-line summary."));
+        assert_eq!(rows[1]["kind"], json!("output"));
+        assert_eq!(
+            rows[1]["summary"],
+            json!("Registered second but sorts first by path."),
+            "an artifact without a summary must fall back to its description"
+        );
+        assert!(
+            rows[0]["bytes"].as_u64().is_some_and(|bytes| bytes > 0),
+            "each row reports the rendered artifact size"
+        );
+    }
+
+    #[test]
+    fn single_branch_union_collapses_and_keeps_the_wrapper_annotation() {
+        let mut schema = json!({
+            "description": "Field-level documentation.",
+            "oneOf": [{
+                "type": "object",
+                "description": "Branch documentation.",
+                "properties": {"spec": {"type": "string"}},
+                "required": ["spec"],
+                "additionalProperties": false
+            }]
+        });
+        collapse_single_branch_unions(&mut schema);
+
+        assert!(schema.get("oneOf").is_none(), "the wrapper is removed");
+        assert_eq!(schema["type"], json!("object"));
+        assert_eq!(schema["required"], json!(["spec"]));
+        assert_eq!(schema["additionalProperties"], json!(false));
+        assert_eq!(
+            schema["description"],
+            json!("Field-level documentation."),
+            "the wrapper's annotation wins over the branch's"
+        );
+    }
+
+    #[test]
+    fn single_branch_union_is_kept_when_the_wrapper_asserts_anything() {
+        // `type` is an assertion, so dropping the wrapper could change meaning.
+        let mut schema = json!({
+            "type": "object",
+            "oneOf": [{"required": ["spec"]}]
+        });
+        let before = schema.clone();
+        collapse_single_branch_unions(&mut schema);
+        assert_eq!(schema, before);
+    }
+
+    #[test]
+    fn multi_branch_unions_are_untouched() {
+        let mut schema = json!({"oneOf": [{"const": "a"}, {"const": "b"}]});
+        let before = schema.clone();
+        collapse_single_branch_unions(&mut schema);
+        assert_eq!(schema, before);
+    }
+
+    #[test]
+    fn single_branch_unions_collapse_at_every_depth() {
+        let mut schema = json!({
+            "properties": {
+                "outer": {"oneOf": [{"properties": {"inner": {"oneOf": [{"type": "integer"}]}}}]}
+            }
+        });
+        collapse_single_branch_unions(&mut schema);
+        assert_eq!(
+            schema["properties"]["outer"]["properties"]["inner"]["type"],
+            json!("integer")
+        );
+    }
+
+    fn no_resolver(_: &str) -> Option<Value> {
+        None
+    }
+
+    #[test]
+    fn projection_flattens_a_const_union_and_folds_short_variant_notes() {
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "stub": {"oneOf": [
+                    {"const": "short_front", "type": "string", "description": "Short first period."},
+                    {"const": "long_back", "type": "string", "description": "Long final period."}
+                ]}
+            }
+        });
+        let projected = project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
+        let stub = &projected["properties"]["stub"];
+
+        assert_eq!(stub["type"], json!("string"));
+        assert_eq!(stub["enum"], json!(["short_front", "long_back"]));
+        assert!(stub.get("oneOf").is_none());
+        let described = stub["description"].as_str().expect("folded notes");
+        assert!(described.contains("`short_front`: Short first period."), "{described}");
+    }
+
+    #[test]
+    fn projection_keeps_a_union_whose_branches_carry_structure() {
+        // Tagged unions are the contract, not an enum; only all-`const` unions
+        // may collapse.
+        let schema = json!({"oneOf": [
+            {"properties": {"fixed": {"type": "number"}}, "required": ["fixed"]},
+            {"properties": {"floating": {"type": "number"}}, "required": ["floating"]}
+        ]});
+        let projected = project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
+        assert!(projected["oneOf"].is_array());
+        assert!(projected.get("enum").is_none());
+    }
+
+    #[test]
+    fn projection_strips_rust_prose_but_keeps_domain_references() {
+        let description = concat!(
+            "Act/360 day count.\n\n",
+            "# Examples\n```rust\nlet convention = DayCount::Act360;\n```\n\n",
+            "# Standards Reference\nISDA 2006 Definitions, Section 4.16(d).\n\n",
+            "See [`DayCount`] for the full set."
+        );
+        let schema = json!({"type": "string", "description": description});
+        let projected = project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
+        let text = projected["description"].as_str().expect("description survives");
+
+        assert!(text.contains("Act/360 day count."));
+        assert!(text.contains("ISDA 2006 Definitions"), "domain grounding is kept: {text}");
+        assert!(!text.contains("```"), "code fences are dropped: {text}");
+        assert!(!text.contains("let convention"), "Rust examples are dropped: {text}");
+        assert!(text.contains("`DayCount`") && !text.contains("[`DayCount`]"), "links flatten: {text}");
+    }
+
+    #[test]
+    fn projection_closes_objects_and_requires_every_property() {
+        let schema = json!({
+            "type": "object",
+            "properties": {"id": {"type": "string"}, "note": {"type": "string"}},
+            "required": ["id"]
+        });
+        let projected = project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
+
+        assert_eq!(projected["additionalProperties"], json!(false));
+        assert_eq!(projected["required"], json!(["id", "note"]));
+    }
+
+    #[test]
+    fn projection_rewrites_tuples_and_drops_non_portable_keywords() {
+        let schema = json!({
+            "type": "array",
+            "prefixItems": [{"type": "string"}, {"type": "number"}],
+            "uniqueItems": true,
+            "format": "double"
+        });
+        let projected = project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
+
+        assert!(projected.get("prefixItems").is_none());
+        // `items` must stay a schema: draft 2020-12 has no array form.
+        assert!(projected["items"].is_object(), "{}", projected["items"]);
+        assert!(projected["items"]["anyOf"].is_array(), "differing positions become a union");
+        assert_eq!(projected["minItems"], json!(2));
+        assert_eq!(projected["maxItems"], json!(2));
+        assert!(projected.get("uniqueItems").is_none());
+        assert!(projected.get("format").is_none());
+    }
+
+    #[test]
+    fn projection_inlines_a_resolvable_reference() {
+        let schema = json!({
+            "type": "object",
+            "properties": {"amount": {"$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json"}}
+        });
+        let resolve = |id: &str| {
+            (id == "https://finstack_quant.dev/schemas/common/1/decimal.schema.json").then(|| {
+                json!({"$id": id, "type": "string", "pattern": "^-?\\d+$"})
+            })
+        };
+        let projected = project_llm(&schema, &resolve, &LlmProfile::default()).expect("projects");
+
+        assert_eq!(projected["properties"]["amount"]["$ref"], json!("#/$defs/Decimal"));
+        assert_eq!(projected["$defs"]["Decimal"]["pattern"], json!("^-?\\d+$"));
+        assert!(projected["$defs"]["Decimal"].get("$id").is_none(), "identity is not carried into a definition");
+    }
+
+    #[test]
+    fn projection_leaves_an_unresolvable_reference_alone() {
+        // A missing shared definition must surface as a dangling reference, not
+        // as a silently different contract.
+        let schema = json!({"$ref": "https://finstack_quant.dev/schemas/common/1/gone.schema.json"});
+        let projected = project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
+        assert_eq!(
+            projected["$ref"],
+            json!("https://finstack_quant.dev/schemas/common/1/gone.schema.json")
+        );
+    }
+
+    #[test]
+    fn projection_substitutes_a_handle_for_an_oversized_reference() {
+        let big = json!({
+            "$id": "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json",
+            "type": "object",
+            "description": "Every supported instrument.",
+            "properties": {"filler": {"type": "string", "description": "x".repeat(4096)}}
+        });
+        let schema = json!({
+            "type": "object",
+            "properties": {"instrument": {"$ref": "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json"}}
+        });
+        let resolve = |id: &str| (id.ends_with("instrument.schema.json")).then(|| big.clone());
+        let profile = LlmProfile { max_inline_bytes: 512, ..LlmProfile::default() };
+        let projected = project_llm(&schema, &resolve, &profile).expect("projects");
+
+        let handle = &projected["$defs"]["Instrument"];
+        assert_eq!(
+            handle[RESOLVES_FROM_KEYWORD],
+            json!("https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json")
+        );
+        assert_eq!(handle["type"], json!("object"), "a handle keeps the target's own type");
+        assert!(handle.get("properties").is_none(), "the target's internals are not carried");
+    }
+
+    #[test]
+    fn projection_rejects_a_non_object_document() {
+        assert!(project_llm(&json!([1, 2]), &no_resolver, &LlmProfile::default()).is_err());
+    }
+
+    #[test]
+    fn schema_index_defaults_to_component() {
+        const COMPONENT: &[SchemaArtifact] = &[SchemaArtifact::new::<SuffixProbe>(
+            "schemas/probe/1/component.schema.json",
+            "https://finstack_quant.dev/schemas/probe/1/component.schema.json",
+            "Component",
+            "Referenced by roots, never submitted alone.",
+        )];
+        let index = build_schema_index(COMPONENT).expect("index builds");
+        assert_eq!(index["artifacts"][0]["kind"], json!("component"));
     }
 }

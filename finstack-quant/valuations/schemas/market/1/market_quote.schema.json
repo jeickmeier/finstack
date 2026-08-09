@@ -178,6 +178,21 @@
   "$id": "https://finstack_quant.dev/schemas/market/1/market_quote.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Canonical tagged market quote.",
+  "examples": [
+    {
+      "class": "rates",
+      "id": "USD-SOFR-3M-DEPO",
+      "index": "USD-SOFR",
+      "pillar": {
+        "tenor": {
+          "count": 3,
+          "unit": "months"
+        }
+      },
+      "rate": 0.0533,
+      "type": "deposit"
+    }
+  ],
   "oneOf": [
     {
       "description": "Bond instruments",

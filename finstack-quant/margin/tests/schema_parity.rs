@@ -157,9 +157,15 @@ fn margin_schema_preserves_canonical_metadata_and_nested_types() {
             "#/$defs/MarginSchema"
         );
     }
+    // The marker is a one-variant enum, so the emitter collapses schemars'
+    // single-branch `oneOf` wrapper and the `const` sits on the definition.
     assert_eq!(
-        schema["$defs"]["MarginSchema"]["oneOf"][0]["const"],
+        schema["$defs"]["MarginSchema"]["const"],
         "finstack_quant.margin/1"
+    );
+    assert!(
+        schema["$defs"]["MarginSchema"].get("oneOf").is_none(),
+        "a single-branch union must not survive into a published artifact"
     );
     assert_eq!(
         schema["$defs"]["OtcMarginSpec"]["properties"]["csa"]["$ref"],

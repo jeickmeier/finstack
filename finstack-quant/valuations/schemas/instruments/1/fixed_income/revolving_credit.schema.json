@@ -387,60 +387,50 @@
       "type": "object"
     },
     "InstrumentSchema": {
+      "const": "finstack_quant.instrument/1",
       "description": "Canonical schema marker for persisted instrument envelopes.",
-      "oneOf": [
-        {
-          "const": "finstack_quant.instrument/1",
-          "description": "The sole supported instrument contract.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     },
     "InterestRateProcessSpec": {
+      "additionalProperties": false,
       "description": "Interest rate process specification (for floating rates).",
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "description": "Hull-White 1-factor model for short rate.\n\nModels short rate as: dr_t = κ[θ(t) - r_t]dt + σ dW_t",
+      "properties": {
+        "hull_white_1f": {
           "properties": {
-            "hull_white_1f": {
-              "properties": {
-                "initial": {
-                  "description": "Initial short rate used only when `sigma == 0`. For a stochastic\nprocess, the pricer derives the initial rate from the facility's\ndiscount curve at the valuation anchor.",
-                  "format": "double",
-                  "type": "number"
-                },
-                "kappa": {
-                  "description": "Mean reversion speed (κ)",
-                  "format": "double",
-                  "type": "number"
-                },
-                "sigma": {
-                  "description": "Volatility (σ)",
-                  "format": "double",
-                  "type": "number"
-                },
-                "theta": {
-                  "description": "Constant mean reversion level used only when `sigma == 0`. For a\nstochastic process, the pricer fits a time-dependent θ(t) to the\nfacility's discount curve.",
-                  "format": "double",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "kappa",
-                "sigma",
-                "initial",
-                "theta"
-              ],
-              "type": "object"
+            "initial": {
+              "description": "Initial short rate used only when `sigma == 0`. For a stochastic\nprocess, the pricer derives the initial rate from the facility's\ndiscount curve at the valuation anchor.",
+              "format": "double",
+              "type": "number"
+            },
+            "kappa": {
+              "description": "Mean reversion speed (κ)",
+              "format": "double",
+              "type": "number"
+            },
+            "sigma": {
+              "description": "Volatility (σ)",
+              "format": "double",
+              "type": "number"
+            },
+            "theta": {
+              "description": "Constant mean reversion level used only when `sigma == 0`. For a\nstochastic process, the pricer fits a time-dependent θ(t) to the\nfacility's discount curve.",
+              "format": "double",
+              "type": "number"
             }
           },
           "required": [
-            "hull_white_1f"
+            "kappa",
+            "sigma",
+            "initial",
+            "theta"
           ],
           "type": "object"
         }
-      ]
+      },
+      "required": [
+        "hull_white_1f"
+      ],
+      "type": "object"
     },
     "McConfig": {
       "additionalProperties": false,
@@ -833,65 +823,56 @@
       ]
     },
     "UtilizationProcess": {
+      "additionalProperties": false,
       "description": "Utilization process for stochastic draws/repayments.\n\nFor the 80/20 implementation, we support a single mean-reverting process.\nThis can be extended in the future to support other processes (jump-diffusion,\nregime-switching, etc.).",
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "description": "Mean-reverting utilization rate process.\n\nModels utilization as reverting to a long-term target with specified\nspeed and volatility. Uses Ornstein-Uhlenbeck dynamics:\ndU(t) = speed * (target_rate - U(t)) * dt + volatility * dW(t)",
+      "properties": {
+        "mean_reverting": {
           "properties": {
-            "mean_reverting": {
-              "properties": {
-                "speed": {
-                  "description": "Mean reversion speed (annualized).",
-                  "format": "double",
-                  "type": "number"
-                },
-                "target_rate": {
-                  "description": "Target utilization rate (0.0 to 1.0).",
-                  "format": "double",
-                  "type": "number"
-                },
-                "volatility": {
-                  "description": "Volatility of utilization changes (annualized).",
-                  "format": "double",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "target_rate",
-                "speed",
-                "volatility"
-              ],
-              "type": "object"
+            "speed": {
+              "description": "Mean reversion speed (annualized).",
+              "format": "double",
+              "type": "number"
+            },
+            "target_rate": {
+              "description": "Target utilization rate (0.0 to 1.0).",
+              "format": "double",
+              "type": "number"
+            },
+            "volatility": {
+              "description": "Volatility of utilization changes (annualized).",
+              "format": "double",
+              "type": "number"
             }
           },
           "required": [
-            "mean_reverting"
+            "target_rate",
+            "speed",
+            "volatility"
           ],
           "type": "object"
         }
-      ]
+      },
+      "required": [
+        "mean_reverting"
+      ],
+      "type": "object"
     },
     "revolving_credit": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/RevolvingCredit"
-            },
-            "type": {
-              "const": "revolving_credit",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
+      "additionalProperties": false,
+      "properties": {
+        "spec": {
+          "$ref": "#/$defs/RevolvingCredit"
+        },
+        "type": {
+          "const": "revolving_credit",
+          "type": "string"
         }
-      ]
+      },
+      "required": [
+        "type",
+        "spec"
+      ],
+      "type": "object"
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/revolving_credit.schema.json",

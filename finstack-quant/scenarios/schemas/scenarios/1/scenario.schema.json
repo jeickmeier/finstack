@@ -2046,7 +2046,7 @@
     },
     "RateBindingSpec": {
       "additionalProperties": false,
-      "description": "Configuration for rate binding between curves and statement nodes.\n\nSpecifies how to extract a rate from a market curve and link it to a\nstatement forecast node. This enables automatic propagation of market\nrate shocks to financial statement projections.\n\nThe extracted rate is written into the statement model as a decimal scalar\n(for example `0.0525` for 5.25%). `compounding` controls the output quote\nconvention, while `day_count` optionally overrides the curve's native day\ncount when converting `tenor` into a year fraction.\n\nSupported `day_count` override strings include `act/360`,\n`act/365f`, `act/act`, `30/360`, and `30e/360`.\n\n# Examples\n```rust\nuse finstack_quant_scenarios::spec::RateBindingSpec;\nuse finstack_quant_scenarios::spec::Compounding;\n\nlet binding = RateBindingSpec {\n    node_id: \"InterestRate\".into(),\n    curve_id: \"USD_SOFR\".into(),\n    tenor: \"1Y\".into(),\n    compounding: Compounding::Continuous,\n    day_count: None, // Use curve's day count\n};\n```",
+      "description": "Configuration for rate binding between curves and statement nodes.\n\nSpecifies how to extract a rate from a market curve and link it to a\nstatement forecast node. This enables automatic propagation of market\nrate shocks to financial statement projections.\n\nThe extracted rate is written into the statement model as a decimal scalar\n(for example `0.0525` for 5.25%). `compounding` controls the output quote\nconvention, while `day_count` optionally overrides the curve's native day\ncount when converting `tenor` into a year fraction.\n\nPersisted `day_count` override values are the canonical snake_case\n[`DayCount`] labels: `act_360`, `act_365f`, `act_365l`, `nl_365`, `30_360`,\n`30e_360`, `30e_360_isda`, `act_act`, `act_act_isma`, and `bus_252`.\n\n# Examples\n```rust\nuse finstack_quant_scenarios::spec::RateBindingSpec;\nuse finstack_quant_scenarios::spec::Compounding;\n\nlet binding = RateBindingSpec {\n    node_id: \"InterestRate\".into(),\n    curve_id: \"USD_SOFR\".into(),\n    tenor: \"1Y\".into(),\n    compounding: Compounding::Continuous,\n    day_count: None, // Use curve's day count\n};\n```",
       "properties": {
         "compounding": {
           "$ref": "#/$defs/Compounding",
@@ -2101,14 +2101,9 @@
       ]
     },
     "ScenarioSchema": {
+      "const": "finstack_quant.scenario/1",
       "description": "Exact schema marker accepted by [`ScenarioEnvelope`].",
-      "oneOf": [
-        {
-          "const": "finstack_quant.scenario/1",
-          "description": "The sole supported scenario contract.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     },
     "ScenarioSpec": {
       "additionalProperties": false,
@@ -2299,6 +2294,26 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Versioned scenario specification with typed market, instrument, statement, and time-roll operations.",
+  "examples": [
+    {
+      "scenario": {
+        "description": "Parallel shock to the USD discount curve.",
+        "id": "usd_rates_stress",
+        "name": "USD +50bp parallel",
+        "operations": [
+          {
+            "bp": 50.0,
+            "curve_id": "USD-OIS",
+            "curve_kind": "discount",
+            "kind": "curve_parallel_bp"
+          }
+        ],
+        "priority": 0,
+        "resolution_mode": "most_specific_wins"
+      },
+      "schema": "finstack_quant.scenario/1"
+    }
+  ],
   "properties": {
     "scenario": {
       "$ref": "#/$defs/ScenarioSpec",

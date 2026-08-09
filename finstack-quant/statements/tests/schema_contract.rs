@@ -8,7 +8,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, Month, PeriodId};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::ContractDescriptor;
-use finstack_quant_statements::adjustments::types::{CapBaseMode, NormalizationConfig};
+use finstack_quant_statements::adjustments::types::CapBaseMode;
 use finstack_quant_statements::capital_structure::{CapitalStructureCashflows, CashflowBreakdown};
 use finstack_quant_statements::checks::{
     CheckCategory, CheckFinding, CheckReport, CheckResult, CheckSummary, Materiality, Severity,
@@ -17,7 +17,7 @@ use finstack_quant_statements::evaluator::{
     CapitalStructureWarning, EvalWarning, ResultsMeta, StatementResult,
 };
 use finstack_quant_statements::schema::{
-    financial_model_spec_schema, generated_schema, normalization_config_schema,
+    financial_model_spec_schema, normalization_config_schema,
     statement_result_schema, STATEMENTS_SCHEMA_BASE,
 };
 use finstack_quant_statements::types::NodeValueType;
@@ -237,12 +237,18 @@ fn representative_statement_result() -> StatementResult {
     result
 }
 
-fn expected_schema<T: finstack_quant_core::schema::SerdeSchema>(
-    filename: &str,
-    title: &str,
-    description: &str,
-) -> Value {
-    generated_schema::<T>(filename, title, description).expect("generated schema assembles")
+/// Render a checked-in artifact through the registry.
+///
+/// Only the registry path applies the packager, the single-branch-union
+/// collapse and examples, so `generated_schema` would drift from the bytes on
+/// disk.
+fn expected_schema(filename: &str) -> Value {
+    finstack_quant_statements::schema::ARTIFACTS
+        .iter()
+        .find(|artifact| artifact.relative_path.ends_with(filename))
+        .unwrap_or_else(|| panic!("no registry entry for {filename}"))
+        .generate()
+        .expect("registry artifact renders")
 }
 
 #[test]
@@ -399,11 +405,7 @@ fn normalization_config_schema_exposes_base_mode_reported_default() {
 
 #[test]
 fn normalization_config_schema_matches_generated_type() {
-    let expected = expected_schema::<NormalizationConfig>(
-        "normalization_config.schema.json",
-        "NormalizationConfig",
-        "Financial statement normalization policy and adjustment catalog.",
-    );
+    let expected = expected_schema("normalization_config.schema.json");
     assert_eq!(
         normalization_config_schema().expect("normalization schema parses"),
         &expected
@@ -434,16 +436,8 @@ fn normalization_config_schema_rejects_unknown_adjustment_variant() {
 
 #[test]
 fn checked_in_schemas_match_generated_types() {
-    let expected_model = expected_schema::<FinancialModelSpec>(
-        "financial_model_spec.schema.json",
-        "FinancialModelSpec",
-        "Versioned financial statement model specification.",
-    );
-    let expected_result = expected_schema::<StatementResult>(
-        "statement_result.schema.json",
-        "StatementResult",
-        "Versioned financial statement evaluation result.",
-    );
+    let expected_model = expected_schema("financial_model_spec.schema.json");
+    let expected_result = expected_schema("statement_result.schema.json");
 
     assert_eq!(
         financial_model_spec_schema().expect("financial model schema parses"),

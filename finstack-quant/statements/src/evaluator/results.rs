@@ -79,6 +79,9 @@ pub struct StatementResult {
 /// Metadata about evaluation results.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+// Distinct from `finstack_quant_core::config::ResultsMeta`, which stamps a
+// different field set.
+#[schemars(rename = "StatementResultsMeta")]
 pub struct ResultsMeta {
     /// Evaluation time in milliseconds
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -119,6 +122,9 @@ impl Default for ResultsMeta {
 /// Numeric mode used for evaluation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+// Distinct from `finstack_quant_core::config::NumericMode`, which carries a
+// different value set.
+#[schemars(rename = "StatementNumericMode")]
 pub enum NumericMode {
     /// f64 floating-point mode (current default)
     #[default]

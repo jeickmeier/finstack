@@ -10,7 +10,7 @@
 //   import { valuations } from 'finstack-quant-wasm/exports/valuations.js';
 //   import type { CalibrationEnvelope } from 'finstack-quant-wasm';
 //   const envelope: CalibrationEnvelope = {
-//     schema: 'finstack_quant.calibration',
+//     schema: 'finstack_quant.calibration/1',
 //     plan: { id: 'usd_curves', quote_sets: {...}, steps: [...], settings: {} },
 //     market_data: [],   // flat id-addressable quotes/snapshots
 //     prior_market: [],  // optional pre-built curves/surfaces

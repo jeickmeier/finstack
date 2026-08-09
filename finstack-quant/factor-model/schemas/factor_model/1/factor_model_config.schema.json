@@ -1219,14 +1219,9 @@
       "type": "object"
     },
     "FactorModelConfigSchema": {
+      "const": "finstack_quant.factor_model_config/1",
       "description": "Exact schema marker accepted by [`FactorModelConfigEnvelope`].",
-      "oneOf": [
-        {
-          "const": "finstack_quant.factor_model_config/1",
-          "description": "The sole supported factor-model configuration contract.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     },
     "FactorNode": {
       "additionalProperties": false,
@@ -1856,6 +1851,48 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Versioned factor-model configuration with typed factors, covariance, matching, pricing, and risk settings.",
+  "examples": [
+    {
+      "config": {
+        "covariance": {
+          "data": [
+            0.0001
+          ],
+          "factor_ids": [
+            "rates::usd::parallel"
+          ],
+          "n": 1
+        },
+        "factors": [
+          {
+            "description": "Parallel shift of the USD OIS curve.",
+            "factor_type": "rates",
+            "id": "rates::usd::parallel",
+            "market_mapping": {
+              "curve_parallel": {
+                "curve_ids": [
+                  "USD-OIS"
+                ],
+                "units": "rate_bp"
+              }
+            }
+          }
+        ],
+        "matching": {
+          "mapping_table": [
+            {
+              "attribute_filter": {},
+              "dependency_filter": {},
+              "factor_id": "rates::usd::parallel"
+            }
+          ]
+        },
+        "pricing_mode": "delta_based",
+        "risk_measure": "variance"
+      },
+      "schema": "finstack_quant.factor_model_config/1"
+    }
+  ],
   "properties": {
     "config": {
       "$ref": "#/$defs/FactorModelConfig",

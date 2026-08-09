@@ -565,118 +565,6 @@
         }
       ]
     },
-    "AmortizationSpec2": {
-      "description": "Principal amortization schedule specification.\n\nDefines how the loan principal is amortized over its life,\nfrom no amortization (bullet) to custom schedules.",
-      "oneOf": [
-        {
-          "const": "none",
-          "description": "Bullet loan with no scheduled amortization",
-          "type": "string"
-        },
-        {
-          "additionalProperties": false,
-          "description": "Linear amortization between start and end dates",
-          "properties": {
-            "linear": {
-              "additionalProperties": false,
-              "properties": {
-                "end": {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
-                  "description": "Amortization end date (full repayment)"
-                },
-                "start": {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
-                  "description": "Amortization start date"
-                }
-              },
-              "required": [
-                "start",
-                "end"
-              ],
-              "type": "object"
-            }
-          },
-          "required": [
-            "linear"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "Percentage of current outstanding principal per period (geometric decay).\n\nEach period, the amortization amount equals `bp / 10000 × current_outstanding`.\nBecause the percentage is applied to the declining balance, the dollar amount\ndecreases geometrically each period.\n\n**Note**: This is NOT the same as a flat percentage of original notional\n(which would produce equal dollar payments each period).  For example,\n250 bp (2.5%) per quarter applied to $10M produces:\n- Q1: $250,000 (2.5% × $10M)\n- Q2: $243,750 (2.5% × $9.75M)\n- Q3: $237,656 (2.5% × $9.506M)\n- etc.",
-          "properties": {
-            "percent_per_period": {
-              "additionalProperties": false,
-              "properties": {
-                "bp": {
-                  "description": "Percentage in basis points per payment period (applied to current outstanding)",
-                  "format": "int32",
-                  "type": "integer"
-                }
-              },
-              "required": [
-                "bp"
-              ],
-              "type": "object"
-            }
-          },
-          "required": [
-            "percent_per_period"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "Flat dollar amortization each period (percentage of original notional).\n\nEach period, the amortization amount equals `bp / 10000 × original_notional`.\nBecause the percentage is applied to the fixed original balance, the dollar\namount is identical every period (unlike `PercentPerPeriod` which decays).\n\nFor example, 250 bp (2.5%) per quarter applied to $10M produces:\n- Q1: $250,000 (2.5% × $10M)\n- Q2: $250,000 (2.5% × $10M)\n- Q3: $250,000 (2.5% × $10M)\n- etc.",
-          "properties": {
-            "percent_of_original_notional": {
-              "additionalProperties": false,
-              "properties": {
-                "bp": {
-                  "description": "Percentage in basis points per payment period (applied to original notional)",
-                  "format": "int32",
-                  "type": "integer"
-                }
-              },
-              "required": [
-                "bp"
-              ],
-              "type": "object"
-            }
-          },
-          "required": [
-            "percent_of_original_notional"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "Custom amortization schedule with explicit principal payments",
-          "properties": {
-            "custom": {
-              "items": {
-                "maxItems": 2,
-                "minItems": 2,
-                "prefixItems": [
-                  {
-                    "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
-                  },
-                  {
-                    "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
-                  }
-                ],
-                "type": "array"
-              },
-              "type": "array"
-            }
-          },
-          "required": [
-            "custom"
-          ],
-          "type": "object"
-        }
-      ]
-    },
     "AntiDilutionPolicy": {
       "description": "Anti-dilution protection applied to conversion terms.\n\nWhen dilutive events occur (stock splits, below-market issuances, special\ndividends), the conversion ratio is adjusted to protect bondholders from\nvalue erosion.\n\n# Industry Practice\n\nMost convertible bonds use **Weighted Average** anti-dilution, which is\nless protective but more issuer-friendly. **Full Ratchet** is mainly seen\nin private placements and venture-style convertibles.",
       "oneOf": [
@@ -913,41 +801,6 @@
       "type": "object"
     },
     "AssetType": {
-      "description": "Type of asset in the basket",
-      "oneOf": [
-        {
-          "const": "equity",
-          "description": "Equity security",
-          "type": "string"
-        },
-        {
-          "const": "bond",
-          "description": "Fixed income security",
-          "type": "string"
-        },
-        {
-          "const": "etf",
-          "description": "Exchange-traded fund",
-          "type": "string"
-        },
-        {
-          "const": "cash",
-          "description": "Cash or cash equivalent",
-          "type": "string"
-        },
-        {
-          "const": "commodity",
-          "description": "Commodity",
-          "type": "string"
-        },
-        {
-          "const": "derivative",
-          "description": "Derivative instrument",
-          "type": "string"
-        }
-      ]
-    },
-    "AssetType2": {
       "description": "Asset type classification for pool composition (flattened hierarchy)",
       "oneOf": [
         {
@@ -1751,7 +1604,7 @@
           "description": "Barrier level (price that triggers knock-in/out)"
         },
         "barrier_type": {
-          "$ref": "#/$defs/BarrierType2",
+          "$ref": "#/$defs/BarrierType",
           "description": "Barrier type (up/down, in/out)"
         },
         "day_count": {
@@ -1883,7 +1736,7 @@
       ],
       "type": "object"
     },
-    "BarrierType2": {
+    "BarrierType": {
       "description": "Four-state barrier option classification.",
       "oneOf": [
         {
@@ -2142,6 +1995,41 @@
         "pricing_config"
       ],
       "type": "object"
+    },
+    "BasketAssetType": {
+      "description": "Type of asset in the basket",
+      "oneOf": [
+        {
+          "const": "equity",
+          "description": "Equity security",
+          "type": "string"
+        },
+        {
+          "const": "bond",
+          "description": "Fixed income security",
+          "type": "string"
+        },
+        {
+          "const": "etf",
+          "description": "Exchange-traded fund",
+          "type": "string"
+        },
+        {
+          "const": "cash",
+          "description": "Cash or cash equivalent",
+          "type": "string"
+        },
+        {
+          "const": "commodity",
+          "description": "Commodity",
+          "type": "string"
+        },
+        {
+          "const": "derivative",
+          "description": "Derivative instrument",
+          "type": "string"
+        }
+      ]
     },
     "BasketConstituent": {
       "additionalProperties": false,
@@ -5907,7 +5795,7 @@
               "additionalProperties": false,
               "properties": {
                 "asset_type": {
-                  "$ref": "#/$defs/AssetType",
+                  "$ref": "#/$defs/BasketAssetType",
                   "description": "Type of asset for validation"
                 },
                 "price_id": {
@@ -6561,36 +6449,6 @@
       "required": [
         "trigger_level",
         "consequence"
-      ],
-      "type": "object"
-    },
-    "CoverageTrigger2": {
-      "additionalProperties": false,
-      "description": "Coverage trigger definition used for diversion logic (OC/IC thresholds).",
-      "properties": {
-        "ic_trigger": {
-          "description": "IC trigger level (e.g., 1.10 = 110%)",
-          "format": "double",
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "oc_trigger": {
-          "description": "OC trigger level (e.g., 1.15 = 115%)",
-          "format": "double",
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "tranche_id": {
-          "description": "Tranche where test applies",
-          "type": "string"
-        }
-      },
-      "required": [
-        "tranche_id"
       ],
       "type": "object"
     },
@@ -9687,7 +9545,7 @@
           "type": "number"
         },
         "barrier_type": {
-          "$ref": "#/$defs/BarrierType2",
+          "$ref": "#/$defs/BarrierType",
           "description": "Barrier type (up/down, in/out)"
         },
         "base_currency": {
@@ -10600,32 +10458,27 @@
       "type": "object"
     },
     "Hurdle": {
+      "additionalProperties": false,
       "description": "Hurdle types for waterfall tiers.",
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "description": "IRR-based hurdle (annual rate)",
+      "properties": {
+        "irr": {
           "properties": {
-            "irr": {
-              "properties": {
-                "rate": {
-                  "description": "Rate.",
-                  "format": "double",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "rate"
-              ],
-              "type": "object"
+            "rate": {
+              "description": "Rate.",
+              "format": "double",
+              "type": "number"
             }
           },
           "required": [
-            "irr"
+            "rate"
           ],
           "type": "object"
         }
-      ]
+      },
+      "required": [
+        "irr"
+      ],
+      "type": "object"
     },
     "IRSConvention": {
       "description": "Standard interest rate swap conventions by region.\n\n# Market Standards Reference (Post-IBOR Transition)\n\n| Convention | Index | Fixed DC | Float DC | Fixed Freq | Float Freq | Reset Lag |\n|------------|-------|----------|----------|------------|------------|-----------|\n| USD OIS | SOFR | 30/360 | ACT/360 | Semi-annual | Annual | T-2 |\n| EUR OIS | ESTR | 30/360 | ACT/360 | Annual | Annual | T-2 |\n| EUR IBOR | EURIBOR | 30/360 | ACT/360 | Annual | Semi-annual | T-2 |\n| GBP OIS | SONIA | ACT/365F | ACT/365F | Annual | Annual | T-0 |\n| JPY OIS | TONAR | ACT/365F | ACT/365F | Semi-annual | Annual | T-2 |\n\n# OIS Compounding\n\nNote: OIS swaps (SOFR, ESTR, SONIA, TONAR) use **daily compounded** rates\nwith observation shift (typically 2 days lookback). The float frequency\nindicates the payment/reset frequency, not the compounding frequency.\nSee compounding method guidance below for details.\n\n# Sources\n\n- ISDA 2021 IBOR Fallbacks Protocol\n- Bloomberg SWDF function\n- QuantLib OvernightIndexedSwap conventions",
@@ -12497,14 +12350,9 @@
       ]
     },
     "InstrumentSchema": {
+      "const": "finstack_quant.instrument/1",
       "description": "Canonical schema marker for persisted instrument envelopes.",
-      "oneOf": [
-        {
-          "const": "finstack_quant.instrument/1",
-          "description": "The sole supported instrument contract.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     },
     "InterestRateFuture": {
       "additionalProperties": false,
@@ -12623,50 +12471,45 @@
       "type": "object"
     },
     "InterestRateProcessSpec": {
+      "additionalProperties": false,
       "description": "Interest rate process specification (for floating rates).",
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "description": "Hull-White 1-factor model for short rate.\n\nModels short rate as: dr_t = κ[θ(t) - r_t]dt + σ dW_t",
+      "properties": {
+        "hull_white_1f": {
           "properties": {
-            "hull_white_1f": {
-              "properties": {
-                "initial": {
-                  "description": "Initial short rate used only when `sigma == 0`. For a stochastic\nprocess, the pricer derives the initial rate from the facility's\ndiscount curve at the valuation anchor.",
-                  "format": "double",
-                  "type": "number"
-                },
-                "kappa": {
-                  "description": "Mean reversion speed (κ)",
-                  "format": "double",
-                  "type": "number"
-                },
-                "sigma": {
-                  "description": "Volatility (σ)",
-                  "format": "double",
-                  "type": "number"
-                },
-                "theta": {
-                  "description": "Constant mean reversion level used only when `sigma == 0`. For a\nstochastic process, the pricer fits a time-dependent θ(t) to the\nfacility's discount curve.",
-                  "format": "double",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "kappa",
-                "sigma",
-                "initial",
-                "theta"
-              ],
-              "type": "object"
+            "initial": {
+              "description": "Initial short rate used only when `sigma == 0`. For a stochastic\nprocess, the pricer derives the initial rate from the facility's\ndiscount curve at the valuation anchor.",
+              "format": "double",
+              "type": "number"
+            },
+            "kappa": {
+              "description": "Mean reversion speed (κ)",
+              "format": "double",
+              "type": "number"
+            },
+            "sigma": {
+              "description": "Volatility (σ)",
+              "format": "double",
+              "type": "number"
+            },
+            "theta": {
+              "description": "Constant mean reversion level used only when `sigma == 0`. For a\nstochastic process, the pricer fits a time-dependent θ(t) to the\nfacility's discount curve.",
+              "format": "double",
+              "type": "number"
             }
           },
           "required": [
-            "hull_white_1f"
+            "kappa",
+            "sigma",
+            "initial",
+            "theta"
           ],
           "type": "object"
         }
-      ]
+      },
+      "required": [
+        "hull_white_1f"
+      ],
+      "type": "object"
     },
     "InterestRateSwap": {
       "additionalProperties": false,
@@ -12798,7 +12641,7 @@
           "type": "number"
         },
         "vol_model": {
-          "$ref": "#/$defs/VolatilityModel2",
+          "$ref": "#/$defs/SwaptionVolatilityModel",
           "description": "Volatility model the quote refers to. CME SOFR/STIR options are quoted\nin normal (basis-point) vols — use [`VolatilityModel::Normal`] for\nthose. The persisted contract requires this convention explicitly."
         },
         "volatility": {
@@ -14447,6 +14290,140 @@
         }
       ]
     },
+    "PeFundWaterfallSpec": {
+      "additionalProperties": false,
+      "description": "Complete waterfall specification.",
+      "properties": {
+        "catchup_mode": {
+          "$ref": "#/$defs/CatchUpMode",
+          "default": "full",
+          "description": "Catch-up mode"
+        },
+        "clawback": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClawbackSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional clawback specification"
+        },
+        "irr_basis": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "default": "act_365f",
+          "description": "Day count basis for IRR calculations"
+        },
+        "style": {
+          "$ref": "#/$defs/WaterfallStyle",
+          "description": "Allocation style (European vs American)"
+        },
+        "tranches": {
+          "description": "Ordered sequence of waterfall tranches",
+          "items": {
+            "$ref": "#/$defs/PeFundWaterfallTranche"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "style",
+        "tranches"
+      ],
+      "type": "object"
+    },
+    "PeFundWaterfallTranche": {
+      "description": "Individual tranche in the waterfall.",
+      "oneOf": [
+        {
+          "const": "return_of_capital",
+          "description": "Return LP capital contributions before any profit sharing",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Preferred return to LPs at specified IRR",
+          "properties": {
+            "preferred_irr": {
+              "properties": {
+                "irr": {
+                  "description": "Irr.",
+                  "format": "double",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "irr"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "preferred_irr"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Catch-up allocation to GP",
+          "properties": {
+            "catch_up": {
+              "properties": {
+                "gp_share": {
+                  "description": "Gp share.",
+                  "format": "double",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "gp_share"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "catch_up"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Promote tier with hurdle and LP/GP split",
+          "properties": {
+            "promote_tier": {
+              "properties": {
+                "gp_share": {
+                  "description": "Gp share.",
+                  "format": "double",
+                  "type": "number"
+                },
+                "hurdle": {
+                  "$ref": "#/$defs/Hurdle",
+                  "description": "Hurdle."
+                },
+                "lp_share": {
+                  "description": "Lp share.",
+                  "format": "double",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "hurdle",
+                "lp_share",
+                "gp_share"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "promote_tier"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "PikToggle": {
       "additionalProperties": false,
       "description": "Payment-in-kind (PIK) toggle event.\n\nEnables or disables PIK interest at a specified date. When enabled,\na portion of interest may be capitalized rather than paid in cash.",
@@ -14483,7 +14460,7 @@
           "description": "Date on which the pool acquired the asset, if known."
         },
         "asset_type": {
-          "$ref": "#/$defs/AssetType2",
+          "$ref": "#/$defs/AssetType",
           "description": "Economic asset classification used by pool-level assumptions."
         },
         "balance": {
@@ -14823,7 +14800,7 @@
           "description": "Unrealized net asset value attributable to the LP, stated as of the\nfund's valuation date.\n\nHolder-view residual value : the fund's present\nvalue is the PV of LP cashflows strictly after the valuation date plus\nthis NAV. When `None`, the residual value is zero — a fully realized\nfund prices to ~0."
         },
         "waterfall_spec": {
-          "$ref": "#/$defs/WaterfallSpec",
+          "$ref": "#/$defs/PeFundWaterfallSpec",
           "description": "Waterfall specification defining LP/GP allocation tiers."
         }
       },
@@ -17258,7 +17235,7 @@
         "coverage_triggers": {
           "description": "Overcollateralization / interest-coverage triggers evaluated each period.\n\nEach entry names a tranche and the OC and/or IC level that must be\nmaintained for it. When a test fails, the cure amount is diverted from\nthe divertible (subordinated-interest / residual) tier to redeem senior\nnotes. Empty (the default) means no coverage tests run.\n\n# Examples\n\n```\nuse finstack_quant_valuations::instruments::fixed_income::structured_credit::waterfall::CoverageTrigger;\n\n// Class A must maintain 120% OC and 115% IC.\nlet trigger = CoverageTrigger {\n    tranche_id: \"CLASS_A\".to_string(),\n    oc_trigger: Some(1.20),\n    ic_trigger: Some(1.15),\n};\nassert_eq!(trigger.oc_trigger, Some(1.20));\n```\n\nUse the fully-qualified waterfall type here: the public re-export\n`structured_credit::CoverageTrigger` is a different per-tranche\nbreach-state record that shares the name.",
           "items": {
-            "$ref": "#/$defs/CoverageTrigger2"
+            "$ref": "#/$defs/WaterfallCoverageTrigger"
           },
           "type": "array"
         },
@@ -17609,7 +17586,7 @@
           "description": "Complete floating leg of the underlying swap."
         },
         "vol_model": {
-          "$ref": "#/$defs/VolatilityModel2",
+          "$ref": "#/$defs/SwaptionVolatilityModel",
           "description": "Volatility model (Black or Normal)"
         },
         "vol_surface_id": {
@@ -17664,6 +17641,21 @@
         {
           "const": "cash",
           "description": "Cash settlement (receive NPV of swap)",
+          "type": "string"
+        }
+      ]
+    },
+    "SwaptionVolatilityModel": {
+      "description": "Volatility model for pricing",
+      "oneOf": [
+        {
+          "const": "black",
+          "description": "Black (Lognormal) model (1976)",
+          "type": "string"
+        },
+        {
+          "const": "normal",
+          "description": "Bachelier (Normal) model",
           "type": "string"
         }
       ]
@@ -17786,7 +17778,7 @@
       "description": "Term loan instrument with covenant and DDTL support.\n\nRepresents a fully-validated institutional term loan with support for:\n- Fixed or floating interest rates\n- Delayed-draw term loan (DDTL) features\n- Payment-in-kind (PIK) interest\n- Flexible amortization schedules\n- Covenant-driven events (margin step-ups, cash sweeps, PIK toggles)\n- Original issue discount (OID) handling\n- Borrower call schedules\n\n# Construction\n\nCreate via [`TermLoanSpec`] conversion or use the builder pattern:\n\n```\nuse finstack_quant_valuations::instruments::fixed_income::term_loan::spec::TermLoanSpec;\nuse finstack_quant_valuations::instruments::fixed_income::term_loan::TermLoan;\n\n# fn example(spec: TermLoanSpec) -> Result<(), Box<dyn std::error::Error>> {\nlet loan: TermLoan = spec.try_into()?;\n# let _ = loan;\n# Ok(())\n# }\n```\n\n# Cashflow Generation\n\nUses the [`CashflowProvider`](crate::cashflow::traits::CashflowProvider) trait:\n- `dated_cashflows()` returns signed canonical schedule flows (coupons, amortization, redemptions)\n- `cashflow_schedule()` returns the signed canonical schedule with `CFKind` metadata\n\n# Pricing\n\nImplements [`Instrument::value()`](crate::instruments::common_impl::traits::Instrument::value)\nusing deterministic cashflow discounting. PIK interest is capitalized and excluded from PV.\n\n# Invariants\n\n- `issue < maturity`\n- `notional_limit.currency() == currency`\n- All monetary amounts are in the same currency\n- Amortization does not exceed outstanding principal\n\n# Thread Safety\n\nThis type is `Send + Sync` as all fields are thread-safe.",
       "properties": {
         "amortization": {
-          "$ref": "#/$defs/AmortizationSpec2",
+          "$ref": "#/$defs/TermLoanAmortizationSpec",
           "description": "Amortization specification"
         },
         "attributes": {
@@ -17952,6 +17944,118 @@
       ],
       "type": "object"
     },
+    "TermLoanAmortizationSpec": {
+      "description": "Principal amortization schedule specification.\n\nDefines how the loan principal is amortized over its life,\nfrom no amortization (bullet) to custom schedules.",
+      "oneOf": [
+        {
+          "const": "none",
+          "description": "Bullet loan with no scheduled amortization",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Linear amortization between start and end dates",
+          "properties": {
+            "linear": {
+              "additionalProperties": false,
+              "properties": {
+                "end": {
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Amortization end date (full repayment)"
+                },
+                "start": {
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Amortization start date"
+                }
+              },
+              "required": [
+                "start",
+                "end"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "linear"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Percentage of current outstanding principal per period (geometric decay).\n\nEach period, the amortization amount equals `bp / 10000 × current_outstanding`.\nBecause the percentage is applied to the declining balance, the dollar amount\ndecreases geometrically each period.\n\n**Note**: This is NOT the same as a flat percentage of original notional\n(which would produce equal dollar payments each period).  For example,\n250 bp (2.5%) per quarter applied to $10M produces:\n- Q1: $250,000 (2.5% × $10M)\n- Q2: $243,750 (2.5% × $9.75M)\n- Q3: $237,656 (2.5% × $9.506M)\n- etc.",
+          "properties": {
+            "percent_per_period": {
+              "additionalProperties": false,
+              "properties": {
+                "bp": {
+                  "description": "Percentage in basis points per payment period (applied to current outstanding)",
+                  "format": "int32",
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "bp"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "percent_per_period"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Flat dollar amortization each period (percentage of original notional).\n\nEach period, the amortization amount equals `bp / 10000 × original_notional`.\nBecause the percentage is applied to the fixed original balance, the dollar\namount is identical every period (unlike `PercentPerPeriod` which decays).\n\nFor example, 250 bp (2.5%) per quarter applied to $10M produces:\n- Q1: $250,000 (2.5% × $10M)\n- Q2: $250,000 (2.5% × $10M)\n- Q3: $250,000 (2.5% × $10M)\n- etc.",
+          "properties": {
+            "percent_of_original_notional": {
+              "additionalProperties": false,
+              "properties": {
+                "bp": {
+                  "description": "Percentage in basis points per payment period (applied to original notional)",
+                  "format": "int32",
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "bp"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "percent_of_original_notional"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Custom amortization schedule with explicit principal payments",
+          "properties": {
+            "custom": {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+                  },
+                  {
+                    "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "custom"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "TermLoanCovenantEvents": {
       "additionalProperties": false,
       "description": "Covenant-driven events for term loans.\n\nAggregates all covenant-triggered or scheduled events that modify\nloan terms, including margin increases, PIK toggles, cash sweeps,\nand draw restrictions.",
@@ -18089,96 +18193,6 @@
       ]
     },
     "Tranche": {
-      "description": "Individual tranche in the waterfall.",
-      "oneOf": [
-        {
-          "const": "return_of_capital",
-          "description": "Return LP capital contributions before any profit sharing",
-          "type": "string"
-        },
-        {
-          "additionalProperties": false,
-          "description": "Preferred return to LPs at specified IRR",
-          "properties": {
-            "preferred_irr": {
-              "properties": {
-                "irr": {
-                  "description": "Irr.",
-                  "format": "double",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "irr"
-              ],
-              "type": "object"
-            }
-          },
-          "required": [
-            "preferred_irr"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "Catch-up allocation to GP",
-          "properties": {
-            "catch_up": {
-              "properties": {
-                "gp_share": {
-                  "description": "Gp share.",
-                  "format": "double",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "gp_share"
-              ],
-              "type": "object"
-            }
-          },
-          "required": [
-            "catch_up"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "Promote tier with hurdle and LP/GP split",
-          "properties": {
-            "promote_tier": {
-              "properties": {
-                "gp_share": {
-                  "description": "Gp share.",
-                  "format": "double",
-                  "type": "number"
-                },
-                "hurdle": {
-                  "$ref": "#/$defs/Hurdle",
-                  "description": "Hurdle."
-                },
-                "lp_share": {
-                  "description": "Lp share.",
-                  "format": "double",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "hurdle",
-                "lp_share",
-                "gp_share"
-              ],
-              "type": "object"
-            }
-          },
-          "required": [
-            "promote_tier"
-          ],
-          "type": "object"
-        }
-      ]
-    },
-    "Tranche2": {
       "additionalProperties": false,
       "description": "Structured credit tranche with attachment/detachment points",
       "properties": {
@@ -18338,14 +18352,9 @@
       "type": "object"
     },
     "TrancheBehaviorType": {
+      "const": "standard",
       "description": "Tranche behavioral type used by the structured-credit waterfall.",
-      "oneOf": [
-        {
-          "const": "standard",
-          "description": "Standard debt tranche that receives interest and principal payments.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     },
     "TrancheCoupon": {
       "description": "Tranche coupon specification\n\nSupports fixed and floating rate coupons used in standard structured credit instruments.",
@@ -18440,7 +18449,7 @@
         "tranches": {
           "description": "Ordered tranches (typically sorted by payment priority)",
           "items": {
-            "$ref": "#/$defs/Tranche2"
+            "$ref": "#/$defs/Tranche"
           },
           "type": "array"
         }
@@ -18534,44 +18543,39 @@
       ]
     },
     "UtilizationProcess": {
+      "additionalProperties": false,
       "description": "Utilization process for stochastic draws/repayments.\n\nFor the 80/20 implementation, we support a single mean-reverting process.\nThis can be extended in the future to support other processes (jump-diffusion,\nregime-switching, etc.).",
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "description": "Mean-reverting utilization rate process.\n\nModels utilization as reverting to a long-term target with specified\nspeed and volatility. Uses Ornstein-Uhlenbeck dynamics:\ndU(t) = speed * (target_rate - U(t)) * dt + volatility * dW(t)",
+      "properties": {
+        "mean_reverting": {
           "properties": {
-            "mean_reverting": {
-              "properties": {
-                "speed": {
-                  "description": "Mean reversion speed (annualized).",
-                  "format": "double",
-                  "type": "number"
-                },
-                "target_rate": {
-                  "description": "Target utilization rate (0.0 to 1.0).",
-                  "format": "double",
-                  "type": "number"
-                },
-                "volatility": {
-                  "description": "Volatility of utilization changes (annualized).",
-                  "format": "double",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "target_rate",
-                "speed",
-                "volatility"
-              ],
-              "type": "object"
+            "speed": {
+              "description": "Mean reversion speed (annualized).",
+              "format": "double",
+              "type": "number"
+            },
+            "target_rate": {
+              "description": "Target utilization rate (0.0 to 1.0).",
+              "format": "double",
+              "type": "number"
+            },
+            "volatility": {
+              "description": "Volatility of utilization changes (annualized).",
+              "format": "double",
+              "type": "number"
             }
           },
           "required": [
-            "mean_reverting"
+            "target_rate",
+            "speed",
+            "volatility"
           ],
           "type": "object"
         }
-      ]
+      },
+      "required": [
+        "mean_reverting"
+      ],
+      "type": "object"
     },
     "ValuationDiscounts": {
       "additionalProperties": false,
@@ -19019,21 +19023,6 @@
       ],
       "type": "object"
     },
-    "VolatilityModel2": {
-      "description": "Volatility model for pricing",
-      "oneOf": [
-        {
-          "const": "black",
-          "description": "Black (Lognormal) model (1976)",
-          "type": "string"
-        },
-        {
-          "const": "normal",
-          "description": "Bachelier (Normal) model",
-          "type": "string"
-        }
-      ]
-    },
     "Waterfall": {
       "additionalProperties": false,
       "description": "Main waterfall engine with tier-based distribution",
@@ -19056,7 +19045,7 @@
         "coverage_triggers": {
           "description": "Coverage triggers for OC/IC diversion",
           "items": {
-            "$ref": "#/$defs/CoverageTrigger2"
+            "$ref": "#/$defs/WaterfallCoverageTrigger"
           },
           "type": "array"
         },
@@ -19072,6 +19061,36 @@
         "tiers",
         "coverage_triggers",
         "base_currency"
+      ],
+      "type": "object"
+    },
+    "WaterfallCoverageTrigger": {
+      "additionalProperties": false,
+      "description": "Coverage trigger definition used for diversion logic (OC/IC thresholds).",
+      "properties": {
+        "ic_trigger": {
+          "description": "IC trigger level (e.g., 1.10 = 110%)",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "oc_trigger": {
+          "description": "OC trigger level (e.g., 1.15 = 115%)",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "tranche_id": {
+          "description": "Tranche where test applies",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tranche_id"
       ],
       "type": "object"
     },
@@ -19146,50 +19165,6 @@
           "description": "Step-down: switch principal allocation to pro-rata after a date when the\nstep-down trigger passes."
         }
       },
-      "type": "object"
-    },
-    "WaterfallSpec": {
-      "additionalProperties": false,
-      "description": "Complete waterfall specification.",
-      "properties": {
-        "catchup_mode": {
-          "$ref": "#/$defs/CatchUpMode",
-          "default": "full",
-          "description": "Catch-up mode"
-        },
-        "clawback": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ClawbackSpec"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Optional clawback specification"
-        },
-        "irr_basis": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-          "default": "act_365f",
-          "description": "Day count basis for IRR calculations"
-        },
-        "style": {
-          "$ref": "#/$defs/WaterfallStyle",
-          "description": "Allocation style (European vs American)"
-        },
-        "tranches": {
-          "description": "Ordered sequence of waterfall tranches",
-          "items": {
-            "$ref": "#/$defs/Tranche"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "style",
-        "tranches"
-      ],
       "type": "object"
     },
     "WaterfallStyle": {

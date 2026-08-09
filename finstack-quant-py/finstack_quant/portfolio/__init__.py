@@ -62,6 +62,7 @@ Examples:
 from __future__ import annotations
 
 import contextlib
+import sys
 
 from finstack_quant.finstack_quant import portfolio as _portfolio
 
@@ -183,6 +184,12 @@ PortfolioOptimizationSpec = _portfolio.PortfolioOptimizationSpec
 PortfolioOptimizationResult = _portfolio.PortfolioOptimizationResult
 CandidatePosition = _portfolio.CandidatePosition
 TradeUniverse = _portfolio.TradeUniverse
+schema = _portfolio.schema
+
+# `schema` is a real submodule, so `import finstack_quant.portfolio.schema`
+# must work as well as attribute access.
+if "finstack_quant.portfolio.schema" not in sys.modules:
+    sys.modules["finstack_quant.portfolio.schema"] = schema
 
 __all__: list[str] = [
     "CandidatePosition",
@@ -290,6 +297,7 @@ __all__: list[str] = [
     "roll_effective_spread",
     "scenario_pnl",
     "scenario_pnl_batch",
+    "schema",
     "twrr_linked",
     "twrr_modified_dietz",
     "validate_allocation_json",

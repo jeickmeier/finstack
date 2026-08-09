@@ -11,6 +11,8 @@ Examples:
 
 from __future__ import annotations
 
+import sys
+
 from finstack_quant.finstack_quant import scenarios as _scenarios
 
 parse_scenario_spec = _scenarios.parse_scenario_spec
@@ -34,6 +36,12 @@ CurveKind = _scenarios.CurveKind
 TenorMatchMode = _scenarios.TenorMatchMode
 TimeRollMode = _scenarios.TimeRollMode
 Compounding = _scenarios.Compounding
+schema = _scenarios.schema
+
+# `schema` is a real submodule, so `import finstack_quant.scenarios.schema`
+# must work as well as attribute access.
+if "finstack_quant.scenarios.schema" not in sys.modules:
+    sys.modules["finstack_quant.scenarios.schema"] = schema
 
 __all__: list[str] = [
     "Compounding",
@@ -54,5 +62,6 @@ __all__: list[str] = [
     "list_builtin_templates",
     "list_template_components",
     "parse_scenario_spec",
+    "schema",
     "validate_scenario_spec",
 ]

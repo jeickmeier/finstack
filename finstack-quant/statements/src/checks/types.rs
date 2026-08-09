@@ -113,6 +113,9 @@ impl SignConventionPolicy {
     JsonSchema,
 )]
 #[serde(rename_all = "snake_case")]
+// Distinct from `finstack_quant_core::contract::Severity`, which has no `info`
+// level and is published as `common/1/diagnostic.schema.json`.
+#[schemars(rename = "CheckSeverity")]
 pub enum Severity {
     /// Informational finding — no action required.
     #[default]

@@ -382,6 +382,9 @@ pub struct TermLoanCovenantEvents {
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
+// Distinct from `finstack_quant_cashflows::builder::specs::AmortizationSpec`;
+// naming the schema keeps both out of the positional `AmortizationSpec2` slot.
+#[schemars(rename = "TermLoanAmortizationSpec")]
 pub enum AmortizationSpec {
     /// Bullet loan with no scheduled amortization
     None,

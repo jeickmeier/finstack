@@ -6,6 +6,7 @@
 //! accepts. There is no loose data file that can drift from the binary.
 
 use pyo3::exceptions::PyKeyError;
+use crate::bindings::schema_registry::schema_registry_functions;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
 use serde_json::Value;
@@ -268,10 +269,16 @@ fn validate_instrument_type_json(instrument_type: &str, instrument_json: &str) -
     Ok(true)
 }
 
+schema_registry_functions!(
+    finstack_quant_valuations::schema::artifacts_slice(),
+    "finstack_quant.valuations.schema"
+);
+
 /// Register the `finstack_quant.valuations.schema` Python namespace.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let m = PyModule::new(py, "schema")?;
     m.setattr("__doc__", MODULE_DOC)?;
+    add_registry_functions(&m)?;
 
     m.add_function(wrap_pyfunction!(instrument_envelope_schema, &m)?)?;
     m.add_function(wrap_pyfunction!(instrument_schema, &m)?)?;
@@ -281,6 +288,9 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(valuation_result_schema, &m)?)?;
 
     let exports = [
+        "get",
+        "index",
+        "validate",
         "instrument_envelope_schema",
         "instrument_schema",
         "instrument_types",

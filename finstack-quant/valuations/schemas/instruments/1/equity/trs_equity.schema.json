@@ -490,14 +490,9 @@
       "type": "object"
     },
     "InstrumentSchema": {
+      "const": "finstack_quant.instrument/1",
       "description": "Canonical schema marker for persisted instrument envelopes.",
-      "oneOf": [
-        {
-          "const": "finstack_quant.instrument/1",
-          "description": "The sole supported instrument contract.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     },
     "MarginCallTiming": {
       "additionalProperties": false,
@@ -709,25 +704,21 @@
       "type": "object"
     },
     "trs_equity": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/EquityTotalReturnSwap"
-            },
-            "type": {
-              "const": "trs_equity",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
+      "additionalProperties": false,
+      "properties": {
+        "spec": {
+          "$ref": "#/$defs/EquityTotalReturnSwap"
+        },
+        "type": {
+          "const": "trs_equity",
+          "type": "string"
         }
-      ]
+      },
+      "required": [
+        "type",
+        "spec"
+      ],
+      "type": "object"
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/trs_equity.schema.json",

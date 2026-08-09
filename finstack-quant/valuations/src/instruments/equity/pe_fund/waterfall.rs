@@ -61,6 +61,8 @@ pub enum Hurdle {
 /// Individual tranche in the waterfall.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
+// Distinct from the structured-credit capital-structure `Tranche`.
+#[schemars(rename = "PeFundWaterfallTranche")]
 pub enum Tranche {
     /// Return LP capital contributions before any profit sharing
     ReturnOfCapital,
@@ -120,6 +122,8 @@ impl Default for ClawbackSpec {
 /// Complete waterfall specification.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+// Distinct from the statements capital-structure `WaterfallSpec`.
+#[schemars(rename = "PeFundWaterfallSpec")]
 pub struct WaterfallSpec {
     /// Allocation style (European vs American)
     pub style: WaterfallStyle,

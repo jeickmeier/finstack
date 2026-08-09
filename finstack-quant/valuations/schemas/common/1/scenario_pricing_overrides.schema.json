@@ -3,6 +3,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Scenario-only price and spread shocks.",
+  "examples": [
+    {},
+    {
+      "scenario_spread_shock_bp": 150.0
+    }
+  ],
   "properties": {
     "scenario_price_shock_pct": {
       "description": "Scenario price shock as decimal percentage (e.g., -0.05 for -5% price shock).\n\nWhen set, valuation helpers apply it as a multiplier: `price * (1 + shock_pct)`.",

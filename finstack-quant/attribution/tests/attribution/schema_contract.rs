@@ -58,20 +58,14 @@ fn validate_fixture(schema: &Value, fixture: &Value) {
 
 #[test]
 fn checked_in_attribution_schemas_match_derived_types() {
-    let expected_spec = finstack_quant_core::schema::generated_schema::<AttributionEnvelope>(
-        ATTRIBUTION_SCHEMA_BASE,
-        "attribution.schema.json",
-        "Finstack Quant Attribution Specification",
-        "Complete specification for P&L attribution runs with instrument and market snapshots",
-    )
-    .expect("attribution schema generates");
-    let expected_result =
-        finstack_quant_core::schema::generated_schema::<AttributionResultEnvelope>(
-            ATTRIBUTION_SCHEMA_BASE,
-            "attribution_result.schema.json",
-            "Finstack Quant Attribution Result",
-            "Complete result of a P&L attribution run including factor decomposition and metadata",
-        )
+    // Render through the registry, not `generated_schema`: only the registry
+    // path applies the packager, the single-branch-union collapse and examples,
+    // which is what the checked-in bytes contain.
+    let expected_spec = finstack_quant_attribution::schema::ARTIFACTS[0]
+        .generate()
+        .expect("attribution schema generates");
+    let expected_result = finstack_quant_attribution::schema::ARTIFACTS[1]
+        .generate()
         .expect("attribution result schema generates");
 
     assert_eq!(
@@ -184,9 +178,10 @@ fn attribution_schemas_keep_meaningful_nested_payloads() {
             .is_some_and(Value::is_object),
         "optional credit-factor model must retain its typed schema"
     );
+    // One-variant marker enums lose schemars' single-branch `oneOf` wrapper in
+    // the emitter, so the `const` sits directly on the definition.
     assert!(
-        spec.pointer("/$defs/CreditFactorModelSchema/oneOf/0/const")
-            .is_some(),
+        spec.pointer("/$defs/CreditFactorModelSchema/const").is_some(),
         "credit-factor model schema must retain its exact version marker"
     );
     assert!(

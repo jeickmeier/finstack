@@ -29,6 +29,7 @@ table = _core.table
 # Canonical home of the shared exception base (see `finstack_quant.errors`
 # rationale): every named exception in the library inherits from it.
 FinstackError = _core.FinstackError
+schema = _core.schema
 
 _submodules = {
     "currency": currency,
@@ -46,6 +47,7 @@ _submodules = {
     "credit.recovery_waterfall": credit.recovery_waterfall,
     "credit.liability_management": credit.liability_management,
     "rating_scales": rating_scales,
+    "schema": schema,
     "table": table,
 }
 
@@ -64,6 +66,7 @@ __all__: list[str] = [
     "math",
     "money",
     "rating_scales",
+    "schema",
     "table",
     "types",
 ]

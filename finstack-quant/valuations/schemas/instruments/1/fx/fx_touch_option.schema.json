@@ -126,14 +126,9 @@
       "type": "object"
     },
     "InstrumentSchema": {
+      "const": "finstack_quant.instrument/1",
       "description": "Canonical schema marker for persisted instrument envelopes.",
-      "oneOf": [
-        {
-          "const": "finstack_quant.instrument/1",
-          "description": "The sole supported instrument contract.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     },
     "PayoutTiming": {
       "description": "Payout timing for touch options.",
@@ -166,25 +161,21 @@
       ]
     },
     "fx_touch_option": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/FxTouchOption"
-            },
-            "type": {
-              "const": "fx_touch_option",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
+      "additionalProperties": false,
+      "properties": {
+        "spec": {
+          "$ref": "#/$defs/FxTouchOption"
+        },
+        "type": {
+          "const": "fx_touch_option",
+          "type": "string"
         }
-      ]
+      },
+      "required": [
+        "type",
+        "spec"
+      ],
+      "type": "object"
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_touch_option.schema.json",

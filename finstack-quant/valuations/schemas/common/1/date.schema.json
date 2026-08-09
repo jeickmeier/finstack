@@ -2,6 +2,10 @@
   "$id": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "ISO 8601 calendar date string.",
+  "examples": [
+    "2024-01-15",
+    "2034-01-15"
+  ],
   "format": "date",
   "title": "Date",
   "type": "string"

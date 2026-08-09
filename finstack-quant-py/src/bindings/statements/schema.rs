@@ -4,6 +4,7 @@
 //! `include_str!` and cache it in a `OnceLock`, so a schema read from Python
 //! always describes the exact wire format the installed wheel accepts.
 
+use crate::bindings::schema_registry::schema_registry_functions;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
 use serde_json::Value;
@@ -121,16 +122,22 @@ fn statement_result_schema() -> PyResult<String> {
     schema_json(canonical::statement_result_schema().map_err(statements_to_py)?)
 }
 
+schema_registry_functions!(finstack_quant_statements::schema::ARTIFACTS, "finstack_quant.statements.schema");
+
 /// Register the `finstack_quant.statements.schema` Python namespace.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let m = PyModule::new(py, "schema")?;
     m.setattr("__doc__", MODULE_DOC)?;
+    add_registry_functions(&m)?;
 
     m.add_function(wrap_pyfunction!(financial_model_spec_schema, &m)?)?;
     m.add_function(wrap_pyfunction!(normalization_config_schema, &m)?)?;
     m.add_function(wrap_pyfunction!(statement_result_schema, &m)?)?;
 
     let exports = [
+        "get",
+        "index",
+        "validate",
         "financial_model_spec_schema",
         "normalization_config_schema",
         "statement_result_schema",

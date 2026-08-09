@@ -362,14 +362,9 @@
       "type": "object"
     },
     "CalibrationSchema": {
+      "const": "finstack_quant.calibration/1",
       "description": "Exact schema marker accepted by calibration envelopes.",
-      "oneOf": [
-        {
-          "const": "finstack_quant.calibration/1",
-          "description": "The sole supported calibration contract.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     },
     "CalibrationStep": {
       "description": "A single step in the calibration process.\n\nEach step targets the construction or update of a specific market object\n(e.g., a yield curve) using a specified set of quotes.",
@@ -5015,14 +5010,9 @@
       ]
     },
     "SabrInterpolationMethod": {
+      "const": "bilinear",
       "description": "Interpolation method for SABR parameters across the expiry–tenor grid.",
-      "oneOf": [
-        {
-          "const": "bilinear",
-          "description": "Bilinear interpolation in (expiry, tenor) over SABR parameters.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     },
     "SabrParams": {
       "additionalProperties": false,
@@ -5380,14 +5370,9 @@
       ]
     },
     "VolSurfaceModel": {
+      "const": "sabr",
       "description": "Parameters for volatility surface calibration step.",
-      "oneOf": [
-        {
-          "const": "sabr",
-          "description": "Stochastic alpha-beta-rho model.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     },
     "XccyConventionId": {
       "description": "Identifier for cross-currency swap market conventions (e.g., \"EUR/USD-XCCY\").",
@@ -5398,6 +5383,90 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Canonical typed calibration request and result envelope.",
+  "examples": [
+    {
+      "plan": {
+        "description": "Bootstrap the USD OIS discount curve.",
+        "id": "usd_curves",
+        "quote_sets": {},
+        "settings": {
+          "calibration_method": "bootstrap",
+          "compute_diagnostics": false,
+          "discount_curve": {
+            "allow_non_monotonic_final": null,
+            "bootstrap_seed_global_solve": true,
+            "df_hard_max": 1000000.0,
+            "df_hard_min": 1e-12,
+            "extrapolation_policy": "flat_zero",
+            "interp_style": "linear",
+            "jacobian_step_size": 1e-6,
+            "min_scan_grid_points": 20,
+            "min_t_spot": 1e-6,
+            "scan_grid_points": 48,
+            "scan_grid_step": 0.0001,
+            "validation_tolerance": 1e-8,
+            "weighting_scheme": "sqrt_time"
+          },
+          "fail_on_bad_fit": true,
+          "fx": {
+            "cache_capacity": 256,
+            "enable_triangulation": true,
+            "pivot_currency": "USD"
+          },
+          "hazard_curve": {
+            "hazard_hard_max": 10.0,
+            "hazard_hard_min": 0.0,
+            "validation_tolerance": 1e-8,
+            "weighting_scheme": "sqrt_time"
+          },
+          "inflation_curve": {
+            "cpi_hard_max": 10000.0,
+            "cpi_hard_min": 1.0,
+            "validation_tolerance": 1e-8,
+            "weighting_scheme": "sqrt_time"
+          },
+          "rate_bounds": {
+            "max_rate": 0.5,
+            "min_rate": -0.02
+          },
+          "rate_bounds_policy": "auto_currency",
+          "solver": {
+            "bracket_expansion": 2.0,
+            "bracket_max": 1000000.0,
+            "bracket_min": -1000000.0,
+            "initial_bracket_size": null,
+            "max_iterations": 100,
+            "tolerance": 1e-12
+          },
+          "use_parallel": false,
+          "validation": {
+            "allow_negative_rates": false,
+            "butterfly_lower_ratio": 0.9,
+            "butterfly_upper_ratio": 1.1,
+            "check_arbitrage": true,
+            "check_forward_positivity": true,
+            "check_monotonicity": true,
+            "lenient_arbitrage": false,
+            "max_cpi_growth": 0.5,
+            "max_forward_rate": 0.5,
+            "max_fwd_inflation": 0.5,
+            "max_hazard_rate": 0.5,
+            "max_volatility": 5.0,
+            "min_cpi_growth": -0.1,
+            "min_forward_rate": -0.01,
+            "min_fwd_inflation": -0.2,
+            "minimum_lgd_for_hazard_guess": 1e-6,
+            "recovery_rate_abs_tolerance": 1e-12,
+            "tolerance": 1e-10
+          },
+          "validation_mode": "error",
+          "verbose": false
+        },
+        "steps": []
+      },
+      "schema": "finstack_quant.calibration/1"
+    }
+  ],
   "properties": {
     "$schema": {
       "description": "Optional `$schema` URL/path for editor-side JSON Schema discovery.\nIgnored at runtime; serialized when present.",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
 import re
 
@@ -461,6 +462,146 @@ def asymmetric_bounded_adapter_findings(files: list[Path]) -> list[str]:
     return findings
 
 
+def schema_artifacts() -> list[Path]:
+    """Return every checked-in generated JSON Schema artifact, sorted."""
+    return sorted(ROOT.glob("finstack-quant/*/schemas/**/*.schema.json"))
+
+
+def positional_schema_name_findings(artifacts: list[tuple[Path, dict]]) -> list[str]:
+    """Reject `$defs` names that schemars disambiguated with a positional digit.
+
+    Two Rust types sharing a name make schemars emit `Foo` and `Foo2`. Which
+    one gets the suffix depends on visit order, so the name is unstable across
+    unrelated edits and a cached tool schema silently starts describing the
+    other type. Give one of the two an explicit `#[schemars(rename = "...")]`.
+
+    Only a trailing digit whose stem is *also* a definition in the same
+    artifact is a collision, so genuine names such as `Iso4217` or `Sha256`
+    stay legal.
+    """
+    findings: list[str] = []
+    for path, document in artifacts:
+        names = set(document.get("$defs", {}))
+        for name in sorted(names):
+            stem = name.rstrip("0123456789")
+            if stem != name and stem in names:
+                findings.append(
+                    f"{path.relative_to(ROOT)}: positional `$defs` name {name!r} collides "
+                    f"with {stem!r}; rename one with #[schemars(rename = ...)]"
+                )
+    return findings
+
+
+def _accepted_string_values(document: object) -> set[str]:
+    """Collect every string an artifact accepts via `const` or `enum`."""
+    values: set[str] = set()
+    if isinstance(document, dict):
+        constant = document.get("const")
+        if isinstance(constant, str):
+            values.add(constant)
+        enumeration = document.get("enum")
+        if isinstance(enumeration, list):
+            values.update(entry for entry in enumeration if isinstance(entry, str))
+        for value in document.values():
+            values |= _accepted_string_values(value)
+    elif isinstance(document, list):
+        for value in document:
+            values |= _accepted_string_values(value)
+    return values
+
+
+# A backticked literal in a description that matches an accepted value once
+# separators are removed, but is not itself accepted. Case is significant so
+# that prose citing a Rust variant name (`ZSpread` for the wire's `z_spread`)
+# stays legal; only separator spellings are treated as typos.
+_DOC_LITERAL = re.compile(r"`([A-Za-z0-9][A-Za-z0-9_/.\-]{1,40})`")
+
+
+def _fold_separators(value: str) -> str:
+    return re.sub(r"[/_.\-]", "", value)
+
+
+def _misspelled_literals(
+    node: object, accepted: set[str], by_folded: dict[str, str], reported: set[tuple[str, str]]
+) -> None:
+    """Collect backticked literals that differ from an accepted value by separators alone."""
+    if isinstance(node, dict):
+        description = node.get("description")
+        if isinstance(description, str):
+            for literal in _DOC_LITERAL.findall(description):
+                if literal in accepted:
+                    continue
+                match = by_folded.get(_fold_separators(literal))
+                if match is not None and match != literal:
+                    reported.add((literal, match))
+        for value in node.values():
+            _misspelled_literals(value, accepted, by_folded, reported)
+    elif isinstance(node, list):
+        for value in node:
+            _misspelled_literals(value, accepted, by_folded, reported)
+
+
+def undeclared_enum_spelling_findings(artifacts: list[tuple[Path, dict]]) -> list[str]:
+    """Reject descriptions that advertise a value the same artifact rejects.
+
+    A schema whose prose promises `act/360` while its `const` set only holds
+    `act_360` is self-contradicting: a reader — human or model — copies the
+    documented spelling and is rejected at the door.
+    """
+    findings: list[str] = []
+    for path, document in artifacts:
+        accepted = _accepted_string_values(document)
+        by_folded: dict[str, str] = {}
+        for value in sorted(accepted):
+            by_folded.setdefault(_fold_separators(value), value)
+
+        reported: set[tuple[str, str]] = set()
+        _misspelled_literals(document, accepted, by_folded, reported)
+        for literal, match in sorted(reported):
+            findings.append(
+                f"{path.relative_to(ROOT)}: description advertises {literal!r} but the artifact only accepts {match!r}"
+            )
+    return findings
+
+
+def _reference_blind(node: object) -> object:
+    """Structural signature that ignores every `$ref` target.
+
+    Artifacts differ in whether shared definitions are externalized, so the same
+    definition legitimately appears with local and published references. Blanking
+    the target compares meaning rather than reference style.
+    """
+    if isinstance(node, dict):
+        return {key: ("<ref>" if key == "$ref" else _reference_blind(value)) for key, value in node.items()}
+    if isinstance(node, list):
+        return [_reference_blind(value) for value in node]
+    return node
+
+
+def conflicting_schema_definition_findings(artifacts: list[tuple[Path, dict]]) -> list[str]:
+    """Reject one `$defs` name standing for two different types across artifacts.
+
+    A consumer that caches `Severity` from one artifact and applies it to
+    another gets a silently wrong contract.
+    """
+    bodies: dict[str, dict[str, list[str]]] = {}
+    for path, document in artifacts:
+        for name, body in document.get("$defs", {}).items():
+            signature = json.dumps(_reference_blind(body), sort_keys=True, separators=(",", ":"))
+            bodies.setdefault(name, {}).setdefault(signature, []).append(path.relative_to(ROOT).as_posix())
+
+    findings: list[str] = []
+    for name, signatures in sorted(bodies.items()):
+        if len(signatures) < 2:
+            continue
+        owners = "; ".join(sorted(files[0] for files in signatures.values()))
+        findings.append(
+            f"`$defs` name {name!r} describes {len(signatures)} different types "
+            f"({owners}): rename all but one with #[schemars(rename = ...)]"
+        )
+    return findings
+
+
 def is_explicit_rejection_test(contents: str, match: re.Match[str]) -> bool:
     """Return whether a retired spelling is intentionally tested for rejection."""
     line_start = contents.rfind("\n", 0, match.start()) + 1
@@ -518,6 +659,11 @@ def main() -> int:
                 findings.append(
                     f"{relative}:{line_number(contents, match.start())}: {forbidden.label}: {match.group(0)!r}"
                 )
+
+    artifacts = [(path, json.loads(path.read_text(encoding="utf-8"))) for path in schema_artifacts()]
+    findings.extend(positional_schema_name_findings(artifacts))
+    findings.extend(undeclared_enum_spelling_findings(artifacts))
+    findings.extend(conflicting_schema_definition_findings(artifacts))
 
     findings.extend(f"retired path still exists: {path.relative_to(ROOT)}" for path in RETIRED_PATHS if path.exists())
     manifest = (ROOT / "scripts/generated-artifacts.txt").read_text(encoding="utf-8")

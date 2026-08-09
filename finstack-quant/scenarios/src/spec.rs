@@ -876,8 +876,9 @@ pub enum TimeRollMode {
 /// convention, while `day_count` optionally overrides the curve's native day
 /// count when converting `tenor` into a year fraction.
 ///
-/// Supported `day_count` override strings include `act/360`,
-/// `act/365f`, `act/act`, `30/360`, and `30e/360`.
+/// Persisted `day_count` override values are the canonical snake_case
+/// [`DayCount`] labels: `act_360`, `act_365f`, `act_365l`, `nl_365`, `30_360`,
+/// `30e_360`, `30e_360_isda`, `act_act`, `act_act_isma`, and `bus_252`.
 ///
 /// # Examples
 /// ```rust

@@ -509,7 +509,7 @@
           ]
         },
         "severity": {
-          "$ref": "#/$defs/Severity",
+          "$ref": "#/$defs/CheckSeverity",
           "description": "Severity of the finding."
         }
       },
@@ -576,6 +576,26 @@
         "findings"
       ],
       "type": "object"
+    },
+    "CheckSeverity": {
+      "description": "Severity level for a check finding, ordered from least to most severe.",
+      "oneOf": [
+        {
+          "const": "info",
+          "description": "Informational finding — no action required.",
+          "type": "string"
+        },
+        {
+          "const": "warning",
+          "description": "Warning — review recommended.",
+          "type": "string"
+        },
+        {
+          "const": "error",
+          "description": "Error — indicates a likely problem that should be addressed.",
+          "type": "string"
+        }
+      ]
     },
     "CheckSummary": {
       "description": "Aggregate counts for a completed check run.",
@@ -1683,7 +1703,14 @@
         }
       ]
     },
-    "NumericMode": {
+    "SchemaVersion": {
+      "description": "Numeric schema revision for contracts whose sole supported revision is v1.",
+      "format": "uint32",
+      "maximum": 1,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "StatementNumericMode": {
       "description": "Numeric mode used for evaluation.",
       "oneOf": [
         {
@@ -1698,7 +1725,7 @@
         }
       ]
     },
-    "ResultsMeta": {
+    "StatementResultsMeta": {
       "additionalProperties": false,
       "description": "Metadata about evaluation results.",
       "properties": {
@@ -1724,7 +1751,7 @@
           "type": "integer"
         },
         "numeric_mode": {
-          "$ref": "#/$defs/NumericMode",
+          "$ref": "#/$defs/StatementNumericMode",
           "default": "float64",
           "description": "Numeric mode used for evaluation"
         },
@@ -1746,39 +1773,24 @@
         "num_periods"
       ],
       "type": "object"
-    },
-    "SchemaVersion": {
-      "description": "Numeric schema revision for contracts whose sole supported revision is v1.",
-      "format": "uint32",
-      "maximum": 1,
-      "minimum": 1,
-      "type": "integer"
-    },
-    "Severity": {
-      "description": "Severity level for a check finding, ordered from least to most severe.",
-      "oneOf": [
-        {
-          "const": "info",
-          "description": "Informational finding — no action required.",
-          "type": "string"
-        },
-        {
-          "const": "warning",
-          "description": "Warning — review recommended.",
-          "type": "string"
-        },
-        {
-          "const": "error",
-          "description": "Error — indicates a likely problem that should be addressed.",
-          "type": "string"
-        }
-      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/statements/1/statement_result.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Versioned financial statement evaluation result.",
+  "examples": [
+    {
+      "meta": {
+        "num_nodes": 0,
+        "num_periods": 0,
+        "numeric_mode": "float64",
+        "parallel": false
+      },
+      "nodes": {},
+      "schema_version": 1
+    }
+  ],
   "properties": {
     "check_report": {
       "anyOf": [
@@ -1803,7 +1815,7 @@
       "description": "Capital structure cashflows (populated when model has a capital_structure)"
     },
     "meta": {
-      "$ref": "#/$defs/ResultsMeta",
+      "$ref": "#/$defs/StatementResultsMeta",
       "description": "Metadata about the evaluation"
     },
     "monetary_nodes": {

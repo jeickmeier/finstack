@@ -140,6 +140,35 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Financial statement normalization policy and adjustment catalog.",
+  "examples": [
+    {
+      "adjustments": [
+        {
+          "category": "non_recurring",
+          "id": "restructuring",
+          "name": "Restructuring charges",
+          "value": {
+            "amounts": {
+              "2024Q1": 1500000.0,
+              "2024Q2": 1250000.0
+            },
+            "type": "fixed"
+          }
+        },
+        {
+          "category": "synergies",
+          "id": "run_rate_synergies",
+          "name": "Run-rate cost synergies",
+          "value": {
+            "node_id": "revenue",
+            "percentage": 0.02,
+            "type": "percentage_of_node"
+          }
+        }
+      ],
+      "target_node": "ebitda"
+    }
+  ],
   "properties": {
     "adjustments": {
       "description": "List of adjustments to apply",

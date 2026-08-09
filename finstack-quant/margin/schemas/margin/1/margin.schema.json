@@ -1226,14 +1226,9 @@
       ]
     },
     "MarginSchema": {
+      "const": "finstack_quant.margin/1",
       "description": "Typed value of the required margin schema marker.",
-      "oneOf": [
-        {
-          "const": "finstack_quant.margin/1",
-          "description": "The sole pre-release margin contract.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     },
     "MarginTenor": {
       "description": "Margin call frequency.\n\nDetermines how often margin calls are made and collateral is exchanged.\nIndustry standard for OTC derivatives is daily under BCBS-IOSCO rules.",
@@ -1444,5 +1439,52 @@
     }
   ],
   "description": "OTC derivative margin specifications including CSA terms, thresholds, and collateral eligibility. Covers ISDA CSA, BCBS-IOSCO regulatory margin, and CCP clearing requirements.",
+  "examples": [
+    {
+      "csa_spec": {
+        "base_currency": "USD",
+        "calendar_id": "nyse",
+        "call_timing": {
+          "delivery_grace_days": 1,
+          "dispute_resolution_days": 2,
+          "notification_deadline_hours": 13,
+          "response_deadline_hours": 2
+        },
+        "collateral_curve_id": "USD-OIS",
+        "eligible_collateral": {
+          "eligible": [
+            {
+              "asset_class": "cash",
+              "fx_haircut_addon": 0.08,
+              "haircut": 0.0
+            }
+          ],
+          "rehypothecation_allowed": false
+        },
+        "id": "CSA-ACME-2024",
+        "vm_params": {
+          "frequency": "daily",
+          "independent_amount": {
+            "amount": "0",
+            "currency": "USD"
+          },
+          "mta": {
+            "amount": "500000",
+            "currency": "USD"
+          },
+          "rounding": {
+            "amount": "10000",
+            "currency": "USD"
+          },
+          "settlement_lag": 1,
+          "threshold": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        }
+      },
+      "schema": "finstack_quant.margin/1"
+    }
+  ],
   "title": "Finstack Quant Margin Specification"
 }

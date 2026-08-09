@@ -117,17 +117,56 @@ impl MarginEnvelope {
     }
 }
 
-/// Generate the published margin schema from [`MarginEnvelope`].
+
+/// A canonical CSA specification.
+///
+/// The `csa_spec` branch is the one a caller authors most often; the VM
+/// parameters, eligible-collateral schedule and call timing come from their
+/// documented defaults rather than invented numbers.
+fn margin_examples() -> finstack_quant_core::Result<Vec<Value>> {
+    let csa = crate::types::CsaSpec {
+        id: "CSA-ACME-2024".to_string(),
+        base_currency: finstack_quant_core::currency::Currency::USD,
+        calendar_id: "nyse".to_string(),
+        vm_params: Default::default(),
+        im_params: None,
+        eligible_collateral: Default::default(),
+        call_timing: Default::default(),
+        collateral_curve_id: "USD-OIS".into(),
+    };
+    let envelope = MarginEnvelope::csa_spec(csa);
+    let value = serde_json::to_value(&envelope).map_err(|error| {
+        finstack_quant_core::Error::Internal(format!("serialize margin example: {error}"))
+    })?;
+    Ok(vec![value])
+}
+
+/// The crate's complete schema registry.
+///
+/// This lives in the library, not the generator binary, so the generator, the
+/// contract tests and the bindings all render from one definition. Rendering
+/// goes through [`finstack_quant_core::schema::SchemaArtifact::generate`].
+pub const ARTIFACTS: &[finstack_quant_core::schema::SchemaArtifact] =
+    &[
+        finstack_quant_core::schema::SchemaArtifact::new::<MarginEnvelope>(
+            "schemas/margin/1/margin.schema.json",
+            "https://finstack_quant.dev/schemas/margin/1/margin.schema.json",
+            MARGIN_SCHEMA_TITLE,
+            MARGIN_SCHEMA_DESCRIPTION,
+        )
+        .with_kind(finstack_quant_core::schema::SchemaKind::Input)
+        .with_summary(
+            "One of three closed root shapes: an OTC margin spec, a CSA spec, or a margin call.",
+        )
+        .with_examples(margin_examples),
+    ];
+
+/// Generate the published margin schema exactly as it is checked in.
 ///
 /// # Errors
 ///
 /// Returns [`finstack_quant_core::Error::Internal`] if schemars output cannot
 /// be represented as a JSON object.
 pub fn generated_margin_schema() -> finstack_quant_core::Result<Value> {
-    finstack_quant_core::schema::generated_schema::<MarginEnvelope>(
-        MARGIN_SCHEMA_BASE,
-        MARGIN_SCHEMA_FILENAME,
-        MARGIN_SCHEMA_TITLE,
-        MARGIN_SCHEMA_DESCRIPTION,
-    )
+    ARTIFACTS[0].generate()
 }

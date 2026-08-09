@@ -265,6 +265,22 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Configuration for the deterministic credit factor-model calibrator.",
+  "examples": [
+    {
+      "annualization_factor": 12.0,
+      "beta_shrinkage": "none",
+      "covariance_strategy": "diagonal",
+      "hierarchy": {
+        "levels": []
+      },
+      "min_bucket_size_per_level": {
+        "per_level": []
+      },
+      "policy": "globally_off",
+      "use_returns_or_levels": "returns",
+      "vol_model": "sample"
+    }
+  ],
   "properties": {
     "annualization_factor": {
       "description": "Annualization factor for sample variance (default 12.0 ≈ monthly data).",

@@ -154,6 +154,24 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Bounded structured diagnostics emitted by persisted-contract validation.",
+  "examples": [
+    {
+      "diagnostics": [],
+      "truncated": false
+    },
+    {
+      "diagnostics": [
+        {
+          "code": "contract/unknown_field",
+          "message": "unknown field `maturity_date`",
+          "phase": "structure",
+          "pointer": "/instrument/spec",
+          "severity": "error"
+        }
+      ],
+      "truncated": false
+    }
+  ],
   "properties": {
     "diagnostics": {
       "description": "Individual findings retained up to the configured diagnostic limit.",

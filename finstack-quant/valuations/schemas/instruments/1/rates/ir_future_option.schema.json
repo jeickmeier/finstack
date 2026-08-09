@@ -1,14 +1,9 @@
 {
   "$defs": {
     "InstrumentSchema": {
+      "const": "finstack_quant.instrument/1",
       "description": "Canonical schema marker for persisted instrument envelopes.",
-      "oneOf": [
-        {
-          "const": "finstack_quant.instrument/1",
-          "description": "The sole supported instrument contract.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     },
     "IrFutureOption": {
       "additionalProperties": false,
@@ -78,7 +73,7 @@
           "type": "number"
         },
         "vol_model": {
-          "$ref": "#/$defs/VolatilityModel",
+          "$ref": "#/$defs/SwaptionVolatilityModel",
           "description": "Volatility model the quote refers to. CME SOFR/STIR options are quoted\nin normal (basis-point) vols — use [`VolatilityModel::Normal`] for\nthose. The persisted contract requires this convention explicitly."
         },
         "volatility": {
@@ -117,7 +112,7 @@
         }
       ]
     },
-    "VolatilityModel": {
+    "SwaptionVolatilityModel": {
       "description": "Volatility model for pricing",
       "oneOf": [
         {
@@ -133,25 +128,21 @@
       ]
     },
     "ir_future_option": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/IrFutureOption"
-            },
-            "type": {
-              "const": "ir_future_option",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
+      "additionalProperties": false,
+      "properties": {
+        "spec": {
+          "$ref": "#/$defs/IrFutureOption"
+        },
+        "type": {
+          "const": "ir_future_option",
+          "type": "string"
         }
-      ]
+      },
+      "required": [
+        "type",
+        "spec"
+      ],
+      "type": "object"
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/ir_future_option.schema.json",

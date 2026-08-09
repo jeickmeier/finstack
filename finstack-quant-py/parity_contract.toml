@@ -45,6 +45,11 @@ table         = { python = "finstack_quant.core.table",         status = "exists
 types         = { python = "finstack_quant.core.types",         status = "exists" }
 validation    = { python = "finstack_quant.core.validation",    status = "missing" }
 # golden is feature-gated test-only — excluded (see [exclusions])
+schema = { python = "finstack_quant.core.schema", status = "exists", note = "Registry-backed index/get/validate over the crate's published JSON Schemas; no WASM twin." }
+
+[crates.core.module_symbols.schema]
+python_package = "finstack_quant.core.schema"
+public = ["get", "index", "validate"]
 
 # Symbol-level pinning for finstack_quant.core.market_data — every name in
 # `finstack_quant.core.market_data.__all__` must appear here.
@@ -171,6 +176,9 @@ public = [
     "credit_calibration_inputs_schema",
     "credit_factor_model_schema",
     "factor_model_config_schema",
+    "get",
+    "index",
+    "validate",
 ]
 
 # ---------------------------------------------------------------------------
@@ -273,7 +281,7 @@ public = ["aggregate_by_period", "aggregate_cashflows_checked"]
 
 [crates.cashflows.module_symbols.schema]
 python_package = "finstack_quant.cashflows.schema"
-public = ["resources"]
+public = ["get", "index", "resources", "validate"]
 
 # ---------------------------------------------------------------------------
 # WASM cashflows facade subset + symbol-level triplet pinning.
@@ -337,50 +345,55 @@ registry    = { python = "finstack_quant.margin.registry",    status = "missing"
 traits      = { python = "finstack_quant.margin.traits",      status = "missing" }
 types       = { python = "finstack_quant.margin", status = "flattened", note = "CSA, collateral, netting, and enum wrappers exposed flat on finstack_quant.margin" }
 xva         = { python = "finstack_quant.margin", status = "flattened", note = "XVA config/result/netting container wrappers plus MVA (ImDecayProfile, ImProfile, MvaResult, compute_mva, im_profile_from_simm) and compute_bilateral_xva exposed flat on finstack_quant.margin. PathValuer and PathImModel are Rust-only traits (not bindable)." }
+schema = { python = "finstack_quant.margin.schema", status = "exists", note = "Registry-backed index/get/validate over the crate's published JSON Schemas; no WASM twin." }
 
 [crates.margin.symbols]
 public = [
-  "CONSTANTS",
-  "ClearingStatus",
-  "CollateralAssetClass",
-  "CsaSpec",
-  "CsaTerms",
-  "EligibleCollateralSchedule",
-  "ExcessCollateral",
-  "ExposureDiagnostics",
-  "ExposureProfile",
-  "FrtbSensitivities",
-  "FrtbSbaEngine",
-  "FundingConfig",
-  "HaircutImCalculator",
-  "Haircut01",
-  "ImDecayProfile",
-  "ImMethodology",
-  "ImProfile",
-  "ImResult",
-  "MarginCallType",
-  "MarginFundingCost",
-  "MarginTenor",
-  "MarginUtilization",
-  "MvaResult",
-  "NettingSetId",
-  "SaCcrEngine",
-  "SaCcrNettingSetConfig",
-  "SaCcrTrade",
-  "ScheduleImCalculator",
-  "SimmCalculator",
-  "SimmSensitivities",
-  "VmCalculator",
-  "VmResult",
-  "XvaConfig",
-  "XvaNettingSet",
-  "XvaResult",
-  "compute_bilateral_xva",
-  "compute_mva",
-  "frtb_sba_charge",
-  "im_profile_from_simm",
-  "saccr_ead",
+    "CONSTANTS",
+    "ClearingStatus",
+    "CollateralAssetClass",
+    "CsaSpec",
+    "CsaTerms",
+    "EligibleCollateralSchedule",
+    "ExcessCollateral",
+    "ExposureDiagnostics",
+    "ExposureProfile",
+    "FrtbSbaEngine",
+    "FrtbSensitivities",
+    "FundingConfig",
+    "Haircut01",
+    "HaircutImCalculator",
+    "ImDecayProfile",
+    "ImMethodology",
+    "ImProfile",
+    "ImResult",
+    "MarginCallType",
+    "MarginFundingCost",
+    "MarginTenor",
+    "MarginUtilization",
+    "MvaResult",
+    "NettingSetId",
+    "SaCcrEngine",
+    "SaCcrNettingSetConfig",
+    "SaCcrTrade",
+    "ScheduleImCalculator",
+    "SimmCalculator",
+    "SimmSensitivities",
+    "VmCalculator",
+    "VmResult",
+    "XvaConfig",
+    "XvaNettingSet",
+    "XvaResult",
+    "compute_bilateral_xva",
+    "compute_mva",
+    "frtb_sba_charge",
+    "im_profile_from_simm",
+    "saccr_ead",
 ]
+
+[crates.margin.module_symbols.schema]
+python_package = "finstack_quant.margin.schema"
+public = ["get", "index", "validate"]
 
 [wasm_margin_subset]
 status = "explicit_subset"
@@ -518,9 +531,12 @@ public = [
 [crates.valuations.module_symbols.schema]
 python_package = "finstack_quant.valuations.schema"
 public = [
+    "get",
+    "index",
     "instrument_envelope_schema",
     "instrument_schema",
     "instrument_types",
+    "validate",
     "validate_instrument_envelope_json",
     "validate_instrument_type_json",
     "valuation_result_schema",
@@ -639,6 +655,9 @@ python_package = "finstack_quant.attribution"
 visibility = "pub"
 status = "exists"
 
+[crates.attribution.modules]
+schema = { python = "finstack_quant.attribution.schema", status = "exists", note = "Registry-backed index/get/validate over the crate's published JSON Schemas; no WASM twin." }
+
 [crates.attribution.symbols]
 public = [
     "PnlAttribution",
@@ -650,6 +669,10 @@ public = [
     "validate_attribution_json",
     "validate_return_contribution_json",
 ]
+
+[crates.attribution.module_symbols.schema]
+python_package = "finstack_quant.attribution.schema"
+public = ["get", "index", "validate"]
 
 # WASM attribution subset
 #
@@ -709,8 +732,11 @@ utils            = { python = "finstack_quant.statements.utils",             sta
 python_package = "finstack_quant.statements.schema"
 public = [
     "financial_model_spec_schema",
+    "get",
+    "index",
     "normalization_config_schema",
     "statement_result_schema",
+    "validate",
 ]
 
 [crates.statements.module_symbols.monte_carlo]
@@ -1031,119 +1057,124 @@ results      = { python = "finstack_quant.portfolio.results",      status = "mis
 types        = { python = "finstack_quant.portfolio.types",        status = "missing", note = "Bindings are currently exported from finstack_quant.portfolio root" }
 valuation    = { python = "finstack_quant.portfolio.valuation",    status = "missing", note = "Bindings are currently exported from finstack_quant.portfolio root" }
 scenarios    = { python = "finstack_quant.portfolio.scenarios",    status = "missing", note = "Scenario support is exposed via root helpers rather than a dedicated submodule" }
+schema = { python = "finstack_quant.portfolio.schema", status = "exists", note = "Registry-backed index/get/validate over the crate's published JSON Schemas; no WASM twin." }
 
 [crates.portfolio.symbols]
 public = [
-  "CandidatePosition",
-  "Constraint",
-  "ContractLimitExceededError",
-  "ContractValidationError",
-  "CreditVolReport",
-  "DecompositionConfig",
-  "FactorAssignmentReport",
-  "FactorContribution",
-  "FactorContributionDelta",
-  "FactorPnlProfile",
-  "FactorRiskDecomposition",
-  "FinstackError",
-  "FinstackFxError",
-  "FinstackOptimizationError",
-  "FinstackValuationError",
-  "Inequality",
-  "InstrumentArtifactCache",
-  "LevelVolContribution",
-  "MetricExpr",
-  "MalformedContractSchemaError",
-  "MaterializationReport",
-  "MissingMetricPolicy",
-  "MissingContractVersionError",
-  "Objective",
-  "OptimizationStatus",
-  "PerPositionMetric",
-  "Portfolio",
-  "PortfolioAttribution",
-  "PortfolioCashflows",
-  "PortfolioError",
-  "PortfolioMetrics",
-  "PortfolioOptimizationResult",
-  "PortfolioOptimizationSpec",
-  "PortfolioResult",
-  "PortfolioValuation",
-  "PositionAssignment",
-  "PositionBudgetEntry",
-  "PositionEsContribution",
-  "PositionFactorContribution",
-  "PositionFilter",
-  "PositionResidualContribution",
-  "PositionRiskDecomposition",
-  "PositionVarContribution",
-  "PositionVolContribution",
-  "RiskBudgetResult",
-  "RiskDecomposition",
-  "SensitivityMatrix",
-  "StressAttribution",
-  "StressPositionEntry",
-  "StressResult",
-  "TailScenarioBreakdown",
-  "TradeDirection",
-  "TradeSpec",
-  "TradeType",
-  "TradeUniverse",
-  "UnmatchedEntry",
-  "UnsupportedContractVersionError",
-  "VolHorizon",
-  "WeightingScheme",
-  "WhatIfResult",
-  "aggregate_full_cashflows",
-  "aggregate_metrics",
-  "allocate_weights",
-  "almgren_chriss_impact",
-  "amihud_illiquidity",
-  "apply_scenario_and_revalue",
-  "attribute_portfolio_pnl",
-  "brinson_fachler",
-  "build_credit_vol_report",
-  "build_portfolio_from_spec",
-  "build_stress_attribution",
-  "campisi_attribution",
-  "campisi_carino_link",
-  "campisi_carino_link_from_snapshots",
-  "campisi_reconciliation_check",
-  "carino_link",
-  "cell_returns_from_curves",
-  "cell_returns_from_reference",
-  "compute_factor_sensitivities",
-  "compute_pnl_profiles",
-  "days_to_liquidate",
-  "decompose_factor_risk",
-  "evaluate_risk_budget",
-  "excess_returns",
-  "factor_brinson_attribution",
-  "factor_stress",
-  "grid_attribution",
-  "grid_carino_link",
-  "historical_var_decomposition",
-  "kyle_lambda",
-  "liquidity_tier",
-  "lvar_bangia",
-  "mwr_xirr",
-  "optimize_portfolio",
-  "parametric_es_decomposition",
-  "parametric_var_decomposition",
-  "parse_portfolio_spec",
-  "portfolio_result_get_metric",
-  "portfolio_result_total_value",
-  "position_component_var",
-  "position_what_if",
-  "replay_portfolio",
-  "roll_effective_spread",
-  "scenario_pnl",
-  "scenario_pnl_batch",
-  "twrr_linked",
-  "twrr_modified_dietz",
-  "validate_allocation_json",
-  "value_portfolio",
+    "CandidatePosition",
+    "Constraint",
+    "ContractLimitExceededError",
+    "ContractValidationError",
+    "CreditVolReport",
+    "DecompositionConfig",
+    "FactorAssignmentReport",
+    "FactorContribution",
+    "FactorContributionDelta",
+    "FactorPnlProfile",
+    "FactorRiskDecomposition",
+    "FinstackError",
+    "FinstackFxError",
+    "FinstackOptimizationError",
+    "FinstackValuationError",
+    "Inequality",
+    "InstrumentArtifactCache",
+    "LevelVolContribution",
+    "MalformedContractSchemaError",
+    "MaterializationReport",
+    "MetricExpr",
+    "MissingContractVersionError",
+    "MissingMetricPolicy",
+    "Objective",
+    "OptimizationStatus",
+    "PerPositionMetric",
+    "Portfolio",
+    "PortfolioAttribution",
+    "PortfolioCashflows",
+    "PortfolioError",
+    "PortfolioMetrics",
+    "PortfolioOptimizationResult",
+    "PortfolioOptimizationSpec",
+    "PortfolioResult",
+    "PortfolioValuation",
+    "PositionAssignment",
+    "PositionBudgetEntry",
+    "PositionEsContribution",
+    "PositionFactorContribution",
+    "PositionFilter",
+    "PositionResidualContribution",
+    "PositionRiskDecomposition",
+    "PositionVarContribution",
+    "PositionVolContribution",
+    "RiskBudgetResult",
+    "RiskDecomposition",
+    "SensitivityMatrix",
+    "StressAttribution",
+    "StressPositionEntry",
+    "StressResult",
+    "TailScenarioBreakdown",
+    "TradeDirection",
+    "TradeSpec",
+    "TradeType",
+    "TradeUniverse",
+    "UnmatchedEntry",
+    "UnsupportedContractVersionError",
+    "VolHorizon",
+    "WeightingScheme",
+    "WhatIfResult",
+    "aggregate_full_cashflows",
+    "aggregate_metrics",
+    "allocate_weights",
+    "almgren_chriss_impact",
+    "amihud_illiquidity",
+    "apply_scenario_and_revalue",
+    "attribute_portfolio_pnl",
+    "brinson_fachler",
+    "build_credit_vol_report",
+    "build_portfolio_from_spec",
+    "build_stress_attribution",
+    "campisi_attribution",
+    "campisi_carino_link",
+    "campisi_carino_link_from_snapshots",
+    "campisi_reconciliation_check",
+    "carino_link",
+    "cell_returns_from_curves",
+    "cell_returns_from_reference",
+    "compute_factor_sensitivities",
+    "compute_pnl_profiles",
+    "days_to_liquidate",
+    "decompose_factor_risk",
+    "evaluate_risk_budget",
+    "excess_returns",
+    "factor_brinson_attribution",
+    "factor_stress",
+    "grid_attribution",
+    "grid_carino_link",
+    "historical_var_decomposition",
+    "kyle_lambda",
+    "liquidity_tier",
+    "lvar_bangia",
+    "mwr_xirr",
+    "optimize_portfolio",
+    "parametric_es_decomposition",
+    "parametric_var_decomposition",
+    "parse_portfolio_spec",
+    "portfolio_result_get_metric",
+    "portfolio_result_total_value",
+    "position_component_var",
+    "position_what_if",
+    "replay_portfolio",
+    "roll_effective_spread",
+    "scenario_pnl",
+    "scenario_pnl_batch",
+    "twrr_linked",
+    "twrr_modified_dietz",
+    "validate_allocation_json",
+    "value_portfolio",
 ]
+
+[crates.portfolio.module_symbols.schema]
+python_package = "finstack_quant.portfolio.schema"
+public = ["get", "index", "validate"]
 
 # ---------------------------------------------------------------------------
 # WASM portfolio subset
@@ -1393,6 +1424,11 @@ status = "exists"
 adapters  = { python = "finstack_quant.scenarios.adapters",  status = "missing" }
 templates = { python = "finstack_quant.scenarios.templates", status = "missing" }
 utils     = { python = "finstack_quant.scenarios.utils",     status = "missing" }
+schema = { python = "finstack_quant.scenarios.schema", status = "exists", note = "Registry-backed index/get/validate over the crate's published JSON Schemas; no WASM twin." }
+
+[crates.scenarios.module_symbols.schema]
+python_package = "finstack_quant.scenarios.schema"
+public = ["get", "index", "validate"]
 
 # ---------------------------------------------------------------------------
 # Explicit exclusions

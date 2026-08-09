@@ -71,6 +71,8 @@ pub enum AssetDynamics {
     Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
 #[serde(rename_all = "snake_case")]
+// Distinct from the barrier-option `finstack_quant_core::types::BarrierType`.
+#[schemars(rename = "MertonBarrierType")]
 pub enum BarrierType {
     /// Default only assessed at maturity (classic Merton).
     Terminal,

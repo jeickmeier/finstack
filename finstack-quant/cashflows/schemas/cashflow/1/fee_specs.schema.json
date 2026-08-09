@@ -82,6 +82,17 @@
   "$id": "https://finstack_quant.dev/schemas/cashflow/1/fee_specs.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Cashflow fee specification.",
+  "examples": [
+    {
+      "fixed": {
+        "amount": {
+          "amount": "25000",
+          "currency": "USD"
+        },
+        "date": "2024-01-15"
+      }
+    }
+  ],
   "oneOf": [
     {
       "additionalProperties": false,

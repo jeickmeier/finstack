@@ -2,6 +2,11 @@
   "$id": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Exact decimal encoded as a JSON string.",
+  "examples": [
+    "1000000",
+    "0.0425",
+    "-1234.56789"
+  ],
   "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
   "title": "Decimal",
   "type": "string"

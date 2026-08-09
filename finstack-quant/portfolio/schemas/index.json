@@ -1,0 +1,21 @@
+{
+  "artifacts": [
+    {
+      "$id": "https://finstack_quant.dev/schemas/portfolio/1/portfolio_materialization.schema.json",
+      "bytes": 40266,
+      "kind": "input",
+      "path": "schemas/portfolio/1/portfolio_materialization.schema.json",
+      "summary": "Positions, books and their instruments as one content-addressed bundle.",
+      "title": "Portfolio Materialization Envelope"
+    },
+    {
+      "$id": "https://finstack_quant.dev/schemas/portfolio/1/portfolio_optimization_result.schema.json",
+      "bytes": 9121,
+      "kind": "output",
+      "path": "schemas/portfolio/1/portfolio_optimization_result.schema.json",
+      "summary": "Optimizer weights and diagnostics.",
+      "title": "Portfolio Optimization Result"
+    }
+  ],
+  "schema_index_version": 1
+}

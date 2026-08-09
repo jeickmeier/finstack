@@ -304,14 +304,9 @@
       ]
     },
     "InstrumentSchema": {
+      "const": "finstack_quant.instrument/1",
       "description": "Canonical schema marker for persisted instrument envelopes.",
-      "oneOf": [
-        {
-          "const": "finstack_quant.instrument/1",
-          "description": "The sole supported instrument contract.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     },
     "NonNegativeF64Wire": {
       "description": "Finite JSON number greater than or equal to zero.",
@@ -493,7 +488,7 @@
           "description": "Complete floating leg of the underlying swap."
         },
         "vol_model": {
-          "$ref": "#/$defs/VolatilityModel",
+          "$ref": "#/$defs/SwaptionVolatilityModel",
           "description": "Volatility model (Black or Normal)"
         },
         "vol_surface_id": {
@@ -552,7 +547,7 @@
         }
       ]
     },
-    "VolatilityModel": {
+    "SwaptionVolatilityModel": {
       "description": "Volatility model for pricing",
       "oneOf": [
         {
@@ -568,25 +563,21 @@
       ]
     },
     "swaption": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/Swaption"
-            },
-            "type": {
-              "const": "swaption",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
+      "additionalProperties": false,
+      "properties": {
+        "spec": {
+          "$ref": "#/$defs/Swaption"
+        },
+        "type": {
+          "const": "swaption",
+          "type": "string"
         }
-      ]
+      },
+      "required": [
+        "type",
+        "spec"
+      ],
+      "type": "object"
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/swaption.schema.json",

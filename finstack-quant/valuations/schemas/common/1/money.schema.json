@@ -810,6 +810,16 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Currency-tagged monetary amount.",
+  "examples": [
+    {
+      "amount": "1000000",
+      "currency": "USD"
+    },
+    {
+      "amount": "-2500.75",
+      "currency": "EUR"
+    }
+  ],
   "properties": {
     "amount": {
       "$ref": "#/$defs/DecimalWire"

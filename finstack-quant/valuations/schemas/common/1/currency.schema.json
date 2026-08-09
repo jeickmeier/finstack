@@ -2,6 +2,11 @@
   "$id": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "ISO 4217 currency code.",
+  "examples": [
+    "USD",
+    "EUR",
+    "JPY"
+  ],
   "oneOf": [
     {
       "const": "AED",

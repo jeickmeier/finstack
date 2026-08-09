@@ -7,6 +7,7 @@ mod calculators;
 mod im;
 mod metrics;
 mod regulatory;
+mod schema;
 mod sensitivity_frame;
 mod types;
 mod xva;
@@ -28,6 +29,9 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     xva::register(py, &m)?;
     metrics::register(py, &m)?;
     regulatory::register(py, &m)?;
+
+    schema::register(py, &m)?;
+
 
     let all = PyList::new(
         py,
@@ -77,6 +81,8 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "SaCcrEngine",
             "frtb_sba_charge",
             "saccr_ead",
+                    // Schema
+            "schema",
         ],
     )?;
     m.setattr("__all__", all)?;

@@ -6,6 +6,7 @@
 mod dataframe;
 mod entry;
 mod pnl_attribution;
+mod schema;
 
 pub(crate) use pnl_attribution::PyPnlAttribution;
 
@@ -32,6 +33,8 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     )?)?;
     m.add_function(pyo3::wrap_pyfunction!(default_waterfall_order, &m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(default_attribution_metrics, &m)?)?;
+    schema::register(py, &m)?;
+
     let all = PyList::new(
         py,
         [
@@ -43,6 +46,8 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "default_waterfall_order",
             "validate_attribution_json",
             "validate_return_contribution_json",
+                    // Schema
+            "schema",
         ],
     )?;
     m.setattr("__all__", all)?;

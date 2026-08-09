@@ -163,6 +163,25 @@ where
 /// persisted to JSON and reconstructed deterministically.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+// Every key except `fx` is mandatory. `hierarchy` is listed here rather than
+// carrying `#[schemars(required)]` because that attribute also strips the
+// field's `null` branch, which would make the schema reject payloads serde
+// accepts. `market_context_state_schema_permits_explicit_null_hierarchy` keeps
+// this list in step with the field set.
+#[schemars(extend("required" = [
+    "schema_version",
+    "curves",
+    "surfaces",
+    "prices",
+    "series",
+    "inflation_indices",
+    "dividends",
+    "credit_indices",
+    "fx_delta_vol_surfaces",
+    "vol_cubes",
+    "collateral",
+    "hierarchy",
+]))]
 pub struct MarketContextState {
     /// Required schema version. Only version `1` is accepted.
     pub schema_version: SchemaVersion,
@@ -189,8 +208,11 @@ pub struct MarketContextState {
     /// Collateral CSA mappings
     pub collateral: std::collections::BTreeMap<String, String>,
     /// Market data hierarchy snapshot, or `null` when no hierarchy is configured.
+    ///
+    /// The key is mandatory but its value is nullable: `deserialize_with` makes
+    /// serde demand the key, and the struct-level `required` extension keeps it
+    /// mandatory in the schema without stripping the `null` branch.
     #[serde(deserialize_with = "deserialize_required_hierarchy")]
-    #[schemars(required)]
     pub hierarchy: Option<MarketDataHierarchy>,
 }
 

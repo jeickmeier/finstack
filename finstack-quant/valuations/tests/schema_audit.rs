@@ -333,12 +333,17 @@ mod generated_schema_contract {
         resolved
     }
 
+    /// Tagged variants of an instrument payload.
+    ///
+    /// The umbrella union keeps its `oneOf`; a single-instrument schema has one
+    /// variant, whose wrapper the emitter collapses, so the definition *is* the
+    /// variant.
     fn instrument_variants(schema: &Value) -> &[Value] {
         let instrument = resolve_local_ref(schema, &schema["properties"]["instrument"]);
         instrument["oneOf"]
             .as_array()
             .map(Vec::as_slice)
-            .expect("instrument schema should declare derived oneOf variants")
+            .unwrap_or_else(|| std::slice::from_ref(instrument))
     }
 
     fn variant_const<'a>(variant: &'a Value, property: &str) -> Option<&'a str> {
@@ -721,10 +726,16 @@ mod generated_schema_contract {
         for path in schema_files {
             let schema = read_schema(&path);
             let marker = resolve_local_ref(&schema, &schema["properties"]["schema"]);
+            // A one-variant marker enum has its `oneOf` wrapper collapsed, so
+            // the `const` sits on the definition itself.
+            let marker_matches = marker["const"] == "finstack_quant.instrument/1"
+                || marker["oneOf"].as_array().is_some_and(|variants| {
+                    variants
+                        .iter()
+                        .any(|variant| variant["const"] == "finstack_quant.instrument/1")
+                });
             assert!(
-                marker["oneOf"].as_array().is_some_and(|variants| variants
-                    .iter()
-                    .any(|variant| { variant["const"] == "finstack_quant.instrument/1" })),
+                marker_matches,
                 "{} is missing the standard schema const",
                 path.display()
             );

@@ -1,117 +1,5 @@
 {
   "$defs": {
-    "AmortizationSpec": {
-      "description": "Principal amortization schedule specification.\n\nDefines how the loan principal is amortized over its life,\nfrom no amortization (bullet) to custom schedules.",
-      "oneOf": [
-        {
-          "const": "none",
-          "description": "Bullet loan with no scheduled amortization",
-          "type": "string"
-        },
-        {
-          "additionalProperties": false,
-          "description": "Linear amortization between start and end dates",
-          "properties": {
-            "linear": {
-              "additionalProperties": false,
-              "properties": {
-                "end": {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
-                  "description": "Amortization end date (full repayment)"
-                },
-                "start": {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
-                  "description": "Amortization start date"
-                }
-              },
-              "required": [
-                "start",
-                "end"
-              ],
-              "type": "object"
-            }
-          },
-          "required": [
-            "linear"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "Percentage of current outstanding principal per period (geometric decay).\n\nEach period, the amortization amount equals `bp / 10000 × current_outstanding`.\nBecause the percentage is applied to the declining balance, the dollar amount\ndecreases geometrically each period.\n\n**Note**: This is NOT the same as a flat percentage of original notional\n(which would produce equal dollar payments each period).  For example,\n250 bp (2.5%) per quarter applied to $10M produces:\n- Q1: $250,000 (2.5% × $10M)\n- Q2: $243,750 (2.5% × $9.75M)\n- Q3: $237,656 (2.5% × $9.506M)\n- etc.",
-          "properties": {
-            "percent_per_period": {
-              "additionalProperties": false,
-              "properties": {
-                "bp": {
-                  "description": "Percentage in basis points per payment period (applied to current outstanding)",
-                  "format": "int32",
-                  "type": "integer"
-                }
-              },
-              "required": [
-                "bp"
-              ],
-              "type": "object"
-            }
-          },
-          "required": [
-            "percent_per_period"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "Flat dollar amortization each period (percentage of original notional).\n\nEach period, the amortization amount equals `bp / 10000 × original_notional`.\nBecause the percentage is applied to the fixed original balance, the dollar\namount is identical every period (unlike `PercentPerPeriod` which decays).\n\nFor example, 250 bp (2.5%) per quarter applied to $10M produces:\n- Q1: $250,000 (2.5% × $10M)\n- Q2: $250,000 (2.5% × $10M)\n- Q3: $250,000 (2.5% × $10M)\n- etc.",
-          "properties": {
-            "percent_of_original_notional": {
-              "additionalProperties": false,
-              "properties": {
-                "bp": {
-                  "description": "Percentage in basis points per payment period (applied to original notional)",
-                  "format": "int32",
-                  "type": "integer"
-                }
-              },
-              "required": [
-                "bp"
-              ],
-              "type": "object"
-            }
-          },
-          "required": [
-            "percent_of_original_notional"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "Custom amortization schedule with explicit principal payments",
-          "properties": {
-            "custom": {
-              "items": {
-                "maxItems": 2,
-                "minItems": 2,
-                "prefixItems": [
-                  {
-                    "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
-                  },
-                  {
-                    "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
-                  }
-                ],
-                "type": "array"
-              },
-              "type": "array"
-            }
-          },
-          "required": [
-            "custom"
-          ],
-          "type": "object"
-        }
-      ]
-    },
     "CashSweepEvent": {
       "additionalProperties": false,
       "description": "Cash sweep event (mandatory prepayment from excess cash flow).\n\nRepresents scheduled or covenant-triggered prepayment from borrower's\nexcess cash flow, reducing outstanding principal.",
@@ -461,14 +349,9 @@
       "type": "object"
     },
     "InstrumentSchema": {
+      "const": "finstack_quant.instrument/1",
       "description": "Canonical schema marker for persisted instrument envelopes.",
-      "oneOf": [
-        {
-          "const": "finstack_quant.instrument/1",
-          "description": "The sole supported instrument contract.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     },
     "LoanCall": {
       "additionalProperties": false,
@@ -842,7 +725,7 @@
       "description": "Term loan instrument with covenant and DDTL support.\n\nRepresents a fully-validated institutional term loan with support for:\n- Fixed or floating interest rates\n- Delayed-draw term loan (DDTL) features\n- Payment-in-kind (PIK) interest\n- Flexible amortization schedules\n- Covenant-driven events (margin step-ups, cash sweeps, PIK toggles)\n- Original issue discount (OID) handling\n- Borrower call schedules\n\n# Construction\n\nCreate via [`TermLoanSpec`] conversion or use the builder pattern:\n\n```\nuse finstack_quant_valuations::instruments::fixed_income::term_loan::spec::TermLoanSpec;\nuse finstack_quant_valuations::instruments::fixed_income::term_loan::TermLoan;\n\n# fn example(spec: TermLoanSpec) -> Result<(), Box<dyn std::error::Error>> {\nlet loan: TermLoan = spec.try_into()?;\n# let _ = loan;\n# Ok(())\n# }\n```\n\n# Cashflow Generation\n\nUses the [`CashflowProvider`](crate::cashflow::traits::CashflowProvider) trait:\n- `dated_cashflows()` returns signed canonical schedule flows (coupons, amortization, redemptions)\n- `cashflow_schedule()` returns the signed canonical schedule with `CFKind` metadata\n\n# Pricing\n\nImplements [`Instrument::value()`](crate::instruments::common_impl::traits::Instrument::value)\nusing deterministic cashflow discounting. PIK interest is capitalized and excluded from PV.\n\n# Invariants\n\n- `issue < maturity`\n- `notional_limit.currency() == currency`\n- All monetary amounts are in the same currency\n- Amortization does not exceed outstanding principal\n\n# Thread Safety\n\nThis type is `Send + Sync` as all fields are thread-safe.",
       "properties": {
         "amortization": {
-          "$ref": "#/$defs/AmortizationSpec",
+          "$ref": "#/$defs/TermLoanAmortizationSpec",
           "description": "Amortization specification"
         },
         "attributes": {
@@ -1008,6 +891,118 @@
       ],
       "type": "object"
     },
+    "TermLoanAmortizationSpec": {
+      "description": "Principal amortization schedule specification.\n\nDefines how the loan principal is amortized over its life,\nfrom no amortization (bullet) to custom schedules.",
+      "oneOf": [
+        {
+          "const": "none",
+          "description": "Bullet loan with no scheduled amortization",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Linear amortization between start and end dates",
+          "properties": {
+            "linear": {
+              "additionalProperties": false,
+              "properties": {
+                "end": {
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Amortization end date (full repayment)"
+                },
+                "start": {
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Amortization start date"
+                }
+              },
+              "required": [
+                "start",
+                "end"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "linear"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Percentage of current outstanding principal per period (geometric decay).\n\nEach period, the amortization amount equals `bp / 10000 × current_outstanding`.\nBecause the percentage is applied to the declining balance, the dollar amount\ndecreases geometrically each period.\n\n**Note**: This is NOT the same as a flat percentage of original notional\n(which would produce equal dollar payments each period).  For example,\n250 bp (2.5%) per quarter applied to $10M produces:\n- Q1: $250,000 (2.5% × $10M)\n- Q2: $243,750 (2.5% × $9.75M)\n- Q3: $237,656 (2.5% × $9.506M)\n- etc.",
+          "properties": {
+            "percent_per_period": {
+              "additionalProperties": false,
+              "properties": {
+                "bp": {
+                  "description": "Percentage in basis points per payment period (applied to current outstanding)",
+                  "format": "int32",
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "bp"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "percent_per_period"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Flat dollar amortization each period (percentage of original notional).\n\nEach period, the amortization amount equals `bp / 10000 × original_notional`.\nBecause the percentage is applied to the fixed original balance, the dollar\namount is identical every period (unlike `PercentPerPeriod` which decays).\n\nFor example, 250 bp (2.5%) per quarter applied to $10M produces:\n- Q1: $250,000 (2.5% × $10M)\n- Q2: $250,000 (2.5% × $10M)\n- Q3: $250,000 (2.5% × $10M)\n- etc.",
+          "properties": {
+            "percent_of_original_notional": {
+              "additionalProperties": false,
+              "properties": {
+                "bp": {
+                  "description": "Percentage in basis points per payment period (applied to original notional)",
+                  "format": "int32",
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "bp"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "percent_of_original_notional"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Custom amortization schedule with explicit principal payments",
+          "properties": {
+            "custom": {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+                  },
+                  {
+                    "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "custom"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "TermLoanCovenantEvents": {
       "additionalProperties": false,
       "description": "Covenant-driven events for term loans.\n\nAggregates all covenant-triggered or scheduled events that modify\nloan terms, including margin increases, PIK toggles, cash sweeps,\nand draw restrictions.",
@@ -1050,25 +1045,21 @@
       "type": "object"
     },
     "term_loan": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/TermLoan"
-            },
-            "type": {
-              "const": "term_loan",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
+      "additionalProperties": false,
+      "properties": {
+        "spec": {
+          "$ref": "#/$defs/TermLoan"
+        },
+        "type": {
+          "const": "term_loan",
+          "type": "string"
         }
-      ]
+      },
+      "required": [
+        "type",
+        "spec"
+      ],
+      "type": "object"
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/term_loan.schema.json",

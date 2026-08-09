@@ -22,6 +22,7 @@ pub(crate) mod pandas_utils;
 pub(crate) mod pickle_support;
 pub mod portfolio;
 pub mod scenarios;
+pub(crate) mod schema_registry;
 pub mod statements;
 pub mod statements_analytics;
 pub mod valuations;

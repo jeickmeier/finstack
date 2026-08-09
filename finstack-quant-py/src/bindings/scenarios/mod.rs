@@ -7,6 +7,7 @@
 mod engine;
 mod horizon;
 mod operation_spec;
+mod schema;
 
 use pyo3::prelude::*;
 use pyo3::types::PyList;
@@ -382,6 +383,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     horizon::register(py, &m)?;
     operation_spec::register(py, &m)?;
 
+    schema::register(py, &m)?;
     let all = PyList::new(
         py,
         [
@@ -404,6 +406,8 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "TenorMatchMode",
             "TimeRollMode",
             "Compounding",
+            // Schema
+            "schema",
         ],
     )?;
     m.setattr("__all__", all)?;

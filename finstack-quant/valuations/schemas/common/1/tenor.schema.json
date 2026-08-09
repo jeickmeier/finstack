@@ -30,6 +30,16 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Parsed financial tenor.",
+  "examples": [
+    {
+      "count": 3,
+      "unit": "months"
+    },
+    {
+      "count": 10,
+      "unit": "years"
+    }
+  ],
   "properties": {
     "count": {
       "format": "uint32",

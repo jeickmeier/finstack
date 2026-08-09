@@ -741,6 +741,8 @@ dependencies = [
  "finstack-quant-statements",
  "finstack-quant-statements-analytics",
  "finstack-quant-valuations",
+ "jsonschema",
+ "serde_json",
 ]
 
 [[package]]
@@ -938,6 +940,7 @@ name = "finstack-quant-py"
 version = "0.7.0"
 dependencies = [
  "arrow",
+ "finstack-quant",
  "finstack-quant-analytics",
  "finstack-quant-arrow",
  "finstack-quant-attribution",
@@ -954,6 +957,7 @@ dependencies = [
  "finstack-quant-statements-analytics",
  "finstack-quant-valuations",
  "indexmap",
+ "jsonschema",
  "nalgebra",
  "numpy",
  "pyo3",

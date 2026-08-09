@@ -1147,36 +1147,6 @@
       ],
       "type": "object"
     },
-    "CoverageTrigger2": {
-      "additionalProperties": false,
-      "description": "Coverage trigger definition used for diversion logic (OC/IC thresholds).",
-      "properties": {
-        "ic_trigger": {
-          "description": "IC trigger level (e.g., 1.10 = 110%)",
-          "format": "double",
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "oc_trigger": {
-          "description": "OC trigger level (e.g., 1.15 = 115%)",
-          "format": "double",
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "tranche_id": {
-          "description": "Tranche where test applies",
-          "type": "string"
-        }
-      },
-      "required": [
-        "tranche_id"
-      ],
-      "type": "object"
-    },
     "CreditEnhancement": {
       "additionalProperties": false,
       "description": "Credit-enhancement amounts and flags available to a tranche.",
@@ -2240,14 +2210,9 @@
       "type": "object"
     },
     "InstrumentSchema": {
+      "const": "finstack_quant.instrument/1",
       "description": "Canonical schema marker for persisted instrument envelopes.",
-      "oneOf": [
-        {
-          "const": "finstack_quant.instrument/1",
-          "description": "The sole supported instrument contract.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     },
     "InterestRateSwap": {
       "additionalProperties": false,
@@ -3960,7 +3925,7 @@
         "coverage_triggers": {
           "description": "Overcollateralization / interest-coverage triggers evaluated each period.\n\nEach entry names a tranche and the OC and/or IC level that must be\nmaintained for it. When a test fails, the cure amount is diverted from\nthe divertible (subordinated-interest / residual) tier to redeem senior\nnotes. Empty (the default) means no coverage tests run.\n\n# Examples\n\n```\nuse finstack_quant_valuations::instruments::fixed_income::structured_credit::waterfall::CoverageTrigger;\n\n// Class A must maintain 120% OC and 115% IC.\nlet trigger = CoverageTrigger {\n    tranche_id: \"CLASS_A\".to_string(),\n    oc_trigger: Some(1.20),\n    ic_trigger: Some(1.15),\n};\nassert_eq!(trigger.oc_trigger, Some(1.20));\n```\n\nUse the fully-qualified waterfall type here: the public re-export\n`structured_credit::CoverageTrigger` is a different per-tranche\nbreach-state record that shares the name.",
           "items": {
-            "$ref": "#/$defs/CoverageTrigger2"
+            "$ref": "#/$defs/WaterfallCoverageTrigger"
           },
           "type": "array"
         },
@@ -4403,14 +4368,9 @@
       "type": "object"
     },
     "TrancheBehaviorType": {
+      "const": "standard",
       "description": "Tranche behavioral type used by the structured-credit waterfall.",
-      "oneOf": [
-        {
-          "const": "standard",
-          "description": "Standard debt tranche that receives interest and principal payments.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     },
     "TrancheCoupon": {
       "description": "Tranche coupon specification\n\nSupports fixed and floating rate coupons used in standard structured credit instruments.",
@@ -4607,7 +4567,7 @@
         "coverage_triggers": {
           "description": "Coverage triggers for OC/IC diversion",
           "items": {
-            "$ref": "#/$defs/CoverageTrigger2"
+            "$ref": "#/$defs/WaterfallCoverageTrigger"
           },
           "type": "array"
         },
@@ -4623,6 +4583,36 @@
         "tiers",
         "coverage_triggers",
         "base_currency"
+      ],
+      "type": "object"
+    },
+    "WaterfallCoverageTrigger": {
+      "additionalProperties": false,
+      "description": "Coverage trigger definition used for diversion logic (OC/IC thresholds).",
+      "properties": {
+        "ic_trigger": {
+          "description": "IC trigger level (e.g., 1.10 = 110%)",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "oc_trigger": {
+          "description": "OC trigger level (e.g., 1.15 = 115%)",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "tranche_id": {
+          "description": "Tranche where test applies",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tranche_id"
       ],
       "type": "object"
     },
@@ -4744,25 +4734,21 @@
       "type": "object"
     },
     "structured_credit": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/StructuredCredit"
-            },
-            "type": {
-              "const": "structured_credit",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
+      "additionalProperties": false,
+      "properties": {
+        "spec": {
+          "$ref": "#/$defs/StructuredCredit"
+        },
+        "type": {
+          "const": "structured_credit",
+          "type": "string"
         }
-      ]
+      },
+      "required": [
+        "type",
+        "spec"
+      ],
+      "type": "object"
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/structured_credit.schema.json",

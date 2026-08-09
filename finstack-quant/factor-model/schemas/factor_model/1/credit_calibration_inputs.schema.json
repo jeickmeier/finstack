@@ -108,6 +108,80 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Typed issuer histories, tags, generic factor series, anchor date, and overrides for one credit calibration run.",
+  "examples": [
+    {
+      "as_of": "2024-06-01",
+      "as_of_spreads": {
+        "ACME": 122.0,
+        "BOREAS": 97.0,
+        "CYGNUS": 349.0
+      },
+      "generic_factor": {
+        "spec": {
+          "name": "credit_pc1",
+          "series_id": "CREDIT-PC1"
+        },
+        "values": [
+          100.0,
+          104.0,
+          98.0,
+          109.0,
+          106.0,
+          102.0
+        ]
+      },
+      "history_panel": {
+        "dates": [
+          "2024-01-01",
+          "2024-02-01",
+          "2024-03-01",
+          "2024-04-01",
+          "2024-05-01",
+          "2024-06-01"
+        ],
+        "spreads": {
+          "ACME": [
+            120.0,
+            125.0,
+            118.0,
+            130.0,
+            127.0,
+            122.0
+          ],
+          "BOREAS": [
+            95.0,
+            99.0,
+            92.0,
+            104.0,
+            101.0,
+            97.0
+          ],
+          "CYGNUS": [
+            340.0,
+            355.0,
+            331.0,
+            372.0,
+            364.0,
+            349.0
+          ]
+        }
+      },
+      "idiosyncratic_overrides": {},
+      "issuer_tags": {
+        "tags": {
+          "ACME": {
+            "rating": "ig"
+          },
+          "BOREAS": {
+            "rating": "ig"
+          },
+          "CYGNUS": {
+            "rating": "hy"
+          }
+        }
+      }
+    }
+  ],
   "properties": {
     "as_of": {
       "$ref": "#/$defs/DateWire",

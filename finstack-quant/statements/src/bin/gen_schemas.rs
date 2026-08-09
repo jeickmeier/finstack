@@ -2,40 +2,27 @@
 
 use std::path::Path;
 
-use finstack_quant_core::schema::{run_schema_generator, SchemaArtifact, SchemaGenerationCommand};
-use finstack_quant_statements::adjustments::types::NormalizationConfig;
-use finstack_quant_statements::evaluator::StatementResult;
-use finstack_quant_statements::FinancialModelSpec;
-
-const ARTIFACTS: &[SchemaArtifact] = &[
-    SchemaArtifact::new::<FinancialModelSpec>(
-        "schemas/statements/1/financial_model_spec.schema.json",
-        "https://finstack_quant.dev/schemas/statements/1/financial_model_spec.schema.json",
-        "FinancialModelSpec",
-        "Versioned financial statement model specification.",
-    ),
-    SchemaArtifact::new::<StatementResult>(
-        "schemas/statements/1/statement_result.schema.json",
-        "https://finstack_quant.dev/schemas/statements/1/statement_result.schema.json",
-        "StatementResult",
-        "Versioned financial statement evaluation result.",
-    ),
-    SchemaArtifact::new::<NormalizationConfig>(
-        "schemas/statements/1/normalization_config.schema.json",
-        "https://finstack_quant.dev/schemas/statements/1/normalization_config.schema.json",
-        "NormalizationConfig",
-        "Financial statement normalization policy and adjustment catalog.",
-    ),
-];
+use finstack_quant_core::schema::{
+    run_schema_generator, run_schema_index_generator, SchemaGenerationCommand,
+};
+use finstack_quant_statements::schema::ARTIFACTS;
 
 fn main() {
     let command = SchemaGenerationCommand::from_env()
         .unwrap_or_else(|error| panic!("parse schema generator arguments: {error}"));
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     run_schema_generator(
-        Path::new(env!("CARGO_MANIFEST_DIR")),
+        manifest_dir,
         Path::new("schemas/statements"),
         ARTIFACTS,
         &command,
     )
     .unwrap_or_else(|error| panic!("generate statement schemas: {error}"));
+    run_schema_index_generator(
+        manifest_dir,
+        Path::new("schemas/index.json"),
+        ARTIFACTS,
+        &command,
+    )
+    .unwrap_or_else(|error| panic!("generate statement schema index: {error}"));
 }

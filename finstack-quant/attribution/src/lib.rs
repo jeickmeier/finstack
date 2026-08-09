@@ -123,6 +123,7 @@ pub(crate) mod metrics_based;
 pub(crate) mod model_params;
 pub(crate) mod parallel;
 pub(crate) mod return_contribution;
+pub mod schema;
 /// JSON Schema generation helpers for attribution contracts.
 pub(crate) mod spec;
 pub(crate) mod target_currency;

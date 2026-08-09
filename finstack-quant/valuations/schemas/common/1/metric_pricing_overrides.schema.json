@@ -1010,6 +1010,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Metric-time pricing and finite-difference configuration.",
+  "examples": [
+    {}
+  ],
   "properties": {
     "bond_risk_basis": {
       "anyOf": [

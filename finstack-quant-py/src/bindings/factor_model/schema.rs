@@ -4,6 +4,7 @@
 //! `include_str!` and cache it in a `OnceLock`, so a schema read from Python
 //! always describes the exact wire format the installed wheel accepts.
 
+use crate::bindings::schema_registry::schema_registry_functions;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
 use serde_json::Value;
@@ -156,10 +157,13 @@ fn factor_model_config_schema() -> PyResult<String> {
     schema_json(canonical::factor_model_config_schema().map_err(core_to_py)?)
 }
 
+schema_registry_functions!(finstack_quant_factor_model::schema::ARTIFACTS, "finstack_quant.factor_model.schema");
+
 /// Register the `finstack_quant.factor_model.schema` Python namespace.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let m = PyModule::new(py, "schema")?;
     m.setattr("__doc__", MODULE_DOC)?;
+    add_registry_functions(&m)?;
 
     m.add_function(wrap_pyfunction!(credit_calibration_config_schema, &m)?)?;
     m.add_function(wrap_pyfunction!(credit_calibration_inputs_schema, &m)?)?;
@@ -167,6 +171,9 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(factor_model_config_schema, &m)?)?;
 
     let exports = [
+        "get",
+        "index",
+        "validate",
         "credit_calibration_config_schema",
         "credit_calibration_inputs_schema",
         "credit_factor_model_schema",

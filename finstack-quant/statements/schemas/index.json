@@ -1,0 +1,29 @@
+{
+  "artifacts": [
+    {
+      "$id": "https://finstack_quant.dev/schemas/statements/1/financial_model_spec.schema.json",
+      "bytes": 356451,
+      "kind": "input",
+      "path": "schemas/statements/1/financial_model_spec.schema.json",
+      "summary": "Statement model graph: periods, nodes and the Value > Forecast > Formula precedence.",
+      "title": "FinancialModelSpec"
+    },
+    {
+      "$id": "https://finstack_quant.dev/schemas/statements/1/normalization_config.schema.json",
+      "bytes": 5883,
+      "kind": "component",
+      "path": "schemas/statements/1/normalization_config.schema.json",
+      "summary": "Add-back and deduction catalog applied to a target metric such as EBITDA.",
+      "title": "NormalizationConfig"
+    },
+    {
+      "$id": "https://finstack_quant.dev/schemas/statements/1/statement_result.schema.json",
+      "bytes": 61098,
+      "kind": "output",
+      "path": "schemas/statements/1/statement_result.schema.json",
+      "summary": "Evaluated node values per period, with policy stamps.",
+      "title": "StatementResult"
+    }
+  ],
+  "schema_index_version": 1
+}

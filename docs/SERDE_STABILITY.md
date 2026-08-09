@@ -151,9 +151,19 @@ Each schema-owning crate has one sorted registry. A registry entry owns:
 - deterministic examples.
 
 The shared emitter may add `$schema`, `$id`, title, description, and examples.
-It may externalize equivalent `$defs` references and remove definitions that
-become unreachable, but it may not add, remove, or weaken validation
-assertions.
+It may also apply rewrites that leave the asserted contract identical:
+
+- externalize equivalent `$defs` references, and remove definitions that
+  become unreachable as a result;
+- collapse a single-branch `oneOf` into that branch, when the wrapper carries
+  no assertion of its own. schemars emits a one-variant enum this way, and the
+  wrapper is not free: a validator reports a failing `oneOf` at the union node,
+  so an error inside the branch is reported against the whole subtree with the
+  instance attached rather than against the field that failed.
+
+It may not add, remove, or weaken validation assertions. Every rewrite above
+is assertion-preserving by construction and is unit-tested as such; a rewrite
+that cannot be shown equivalent does not belong in the emitter.
 
 Production contract code must not contain manual `JsonSchema`
 implementations, `json_schema!`, `schema_with`, handwritten unions, schema

@@ -2,6 +2,11 @@
   "$id": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Day-count convention.",
+  "examples": [
+    "act_360",
+    "30_360",
+    "act_act_isma"
+  ],
   "oneOf": [
     {
       "const": "act_360",

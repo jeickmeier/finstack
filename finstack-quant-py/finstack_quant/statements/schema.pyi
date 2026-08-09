@@ -22,8 +22,11 @@ from __future__ import annotations
 
 __all__ = [
     "financial_model_spec_schema",
+    "get",
+    "index",
     "normalization_config_schema",
     "statement_result_schema",
+    "validate",
 ]
 
 def financial_model_spec_schema() -> str:
@@ -104,5 +107,103 @@ def statement_result_schema() -> str:
     >>> from finstack_quant.statements import schema
     >>> json.loads(schema.statement_result_schema())["title"]
     'StatementResult'
+
+    """
+
+def index() -> str:
+    """
+    List every JSON Schema this crate publishes.
+
+    Returns
+    -------
+    str
+        Pretty-printed JSON with an ``artifacts`` array. Each row carries
+        ``path``, ``$id``, ``title``, ``summary``, ``bytes`` and ``kind``
+        (``input`` for documents you author, ``output`` for documents the
+        library emits, ``component`` for shared definitions).
+
+    Raises
+    ------
+    ValueError
+        If an artifact cannot be rendered.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.statements import schema
+    >>> json.loads(schema.index())["schema_index_version"]
+    1
+
+    """
+
+def get(selector: str, profile: str = "canonical") -> str:
+    """
+    Fetch one JSON Schema by path, ``$id``, or filename.
+
+    Parameters
+    ----------
+    selector : str
+        A ``path`` or ``$id`` from :func:`index`, or just the trailing
+        filename.
+    profile : str, optional
+        ``"canonical"`` (default) returns the published contract, which is what
+        :func:`validate` checks against. ``"llm"`` returns the projection:
+        self-contained, unit enums flattened, Rust prose stripped, and shaped
+        for structured-output subsets. The projection is deliberately **not** a
+        validator.
+
+    Returns
+    -------
+    str
+        Pretty-printed JSON Schema text.
+
+    Raises
+    ------
+    KeyError
+        If no artifact matches ``selector``.
+    ValueError
+        If ``profile`` is unknown, or the artifact cannot be rendered.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.statements import schema
+    >>> json.loads(schema.get("financial_model_spec.schema.json"))["$schema"]
+    'https://json-schema.org/draft/2020-12/schema'
+
+    """
+
+def validate(selector: str, payload: str) -> str:
+    """
+    Validate a JSON payload against one published schema.
+
+    Parameters
+    ----------
+    selector : str
+        A ``path`` or ``$id`` from :func:`index`, or just the trailing
+        filename.
+    payload : str
+        JSON text to check.
+
+    Returns
+    -------
+    str
+        Pretty-printed JSON array of failures, each with ``pointer`` (a JSON
+        Pointer into the payload) and ``message``. An empty array means the
+        payload validates.
+
+    Raises
+    ------
+    KeyError
+        If no artifact matches ``selector``.
+    ValueError
+        If ``payload`` is not valid JSON, or the schema cannot be built.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.statements import schema
+    >>> json.loads(schema.validate("financial_model_spec.schema.json", "{}")) != []
+    True
 
     """

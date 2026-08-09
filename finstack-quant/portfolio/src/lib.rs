@@ -168,6 +168,7 @@ pub mod book;
 pub mod brinson;
 /// Fluent portfolio construction helpers.
 pub mod builder;
+pub mod schema;
 /// Tabular exports for portfolio results.
 pub(crate) mod dataframe;
 /// Error types for portfolio operations.

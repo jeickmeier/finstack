@@ -792,6 +792,8 @@ impl From<&super::setup::CoverageTestConfig> for CoverageTestRules {
 /// Coverage trigger definition used for diversion logic (OC/IC thresholds).
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+// Distinct from the tranche-level `types::tranches::CoverageTrigger`.
+#[schemars(rename = "WaterfallCoverageTrigger")]
 pub struct CoverageTrigger {
     /// Tranche where test applies
     pub tranche_id: String,

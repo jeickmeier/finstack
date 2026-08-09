@@ -21,6 +21,7 @@ mod optimization_spec;
 mod performance;
 mod pipeline;
 mod replay;
+mod schema;
 mod sensitivity;
 mod spec;
 pub(crate) mod types;
@@ -209,8 +210,11 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         "TradeSpec",
         "PortfolioOptimizationSpec",
         "PortfolioOptimizationResult",
+        // Schema
+        "schema",
     ];
 
+    schema::register(py, &m)?;
     let all = PyList::new(py, exports)?;
     m.setattr("__all__", all)?;
     crate::bindings::module_utils::register_submodule(

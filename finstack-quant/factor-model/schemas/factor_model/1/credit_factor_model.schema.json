@@ -208,14 +208,9 @@
       "type": "object"
     },
     "CreditFactorModelSchema": {
+      "const": "finstack_quant.credit_factor_model/1",
       "description": "Sole supported credit-factor-model contract marker.",
-      "oneOf": [
-        {
-          "const": "finstack_quant.credit_factor_model/1",
-          "description": "Canonical v1 credit factor model.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     },
     "CreditHierarchicalConfig": {
       "additionalProperties": false,
@@ -2308,6 +2303,218 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Fully self-contained credit factor hierarchy model artifact.",
+  "examples": [
+    {
+      "anchor_state": {
+        "by_level": [],
+        "pc": 102.0
+      },
+      "as_of": "2024-06-01",
+      "calibration_window": {
+        "end": "2024-06-01",
+        "start": "2024-01-01"
+      },
+      "config": {
+        "covariance": {
+          "data": [
+            591.6
+          ],
+          "factor_ids": [
+            "credit::generic"
+          ],
+          "n": 1
+        },
+        "factors": [
+          {
+            "factor_type": "credit",
+            "id": "credit::generic",
+            "market_mapping": {
+              "curve_parallel": {
+                "curve_ids": [],
+                "units": "rate_bp"
+              }
+            }
+          }
+        ],
+        "matching": {
+          "credit_hierarchical": {
+            "dependency_filter": {},
+            "hierarchy": {
+              "levels": []
+            },
+            "issuer_betas": [
+              {
+                "adder_at_anchor": 20.0,
+                "adder_vol_annualized": 3.4641016151377544,
+                "adder_vol_source": "from_history",
+                "betas": {
+                  "levels": [],
+                  "pc": 1.0
+                },
+                "fit_quality": null,
+                "issuer_id": "ACME",
+                "mode": "bucket_only",
+                "tags": {
+                  "rating": "ig"
+                }
+              },
+              {
+                "adder_at_anchor": -5.0,
+                "adder_vol_annualized": 2.449489742783178,
+                "adder_vol_source": "from_history",
+                "betas": {
+                  "levels": [],
+                  "pc": 1.0
+                },
+                "fit_quality": null,
+                "issuer_id": "BOREAS",
+                "mode": "bucket_only",
+                "tags": {
+                  "rating": "ig"
+                }
+              },
+              {
+                "adder_at_anchor": 247.0,
+                "adder_vol_annualized": 66.66033303247141,
+                "adder_vol_source": "from_history",
+                "betas": {
+                  "levels": [],
+                  "pc": 1.0
+                },
+                "fit_quality": null,
+                "issuer_id": "CYGNUS",
+                "mode": "bucket_only",
+                "tags": {
+                  "rating": "hy"
+                }
+              }
+            ]
+          }
+        },
+        "pricing_mode": "delta_based",
+        "risk_measure": "variance"
+      },
+      "diagnostics": {
+        "bucket_sizes_per_level": [],
+        "fold_ups": [],
+        "mode_counts": {
+          "bucket_only": 3,
+          "issuer_beta": 0
+        },
+        "tag_taxonomy": {}
+      },
+      "factor_histories": {
+        "dates": [
+          "2024-02-01",
+          "2024-03-01",
+          "2024-04-01",
+          "2024-05-01",
+          "2024-06-01"
+        ],
+        "values": {
+          "credit::generic": [
+            4.0,
+            -6.0,
+            11.0,
+            -3.0,
+            -4.0
+          ]
+        }
+      },
+      "generic_factor": {
+        "name": "credit_pc1",
+        "series_id": "CREDIT-PC1"
+      },
+      "hierarchy": {
+        "levels": []
+      },
+      "issuer_betas": [
+        {
+          "adder_at_anchor": 20.0,
+          "adder_vol_annualized": 3.4641016151377544,
+          "adder_vol_source": "from_history",
+          "betas": {
+            "levels": [],
+            "pc": 1.0
+          },
+          "fit_quality": null,
+          "issuer_id": "ACME",
+          "mode": "bucket_only",
+          "tags": {
+            "rating": "ig"
+          }
+        },
+        {
+          "adder_at_anchor": -5.0,
+          "adder_vol_annualized": 2.449489742783178,
+          "adder_vol_source": "from_history",
+          "betas": {
+            "levels": [],
+            "pc": 1.0
+          },
+          "fit_quality": null,
+          "issuer_id": "BOREAS",
+          "mode": "bucket_only",
+          "tags": {
+            "rating": "ig"
+          }
+        },
+        {
+          "adder_at_anchor": 247.0,
+          "adder_vol_annualized": 66.66033303247141,
+          "adder_vol_source": "from_history",
+          "betas": {
+            "levels": [],
+            "pc": 1.0
+          },
+          "fit_quality": null,
+          "issuer_id": "CYGNUS",
+          "mode": "bucket_only",
+          "tags": {
+            "rating": "hy"
+          }
+        }
+      ],
+      "policy": "globally_off",
+      "schema": "finstack_quant.credit_factor_model/1",
+      "static_correlation": {
+        "data": [
+          [
+            1.0
+          ]
+        ],
+        "factor_ids": [
+          "credit::generic"
+        ]
+      },
+      "vol_state": {
+        "factors": {
+          "credit::generic": {
+            "sample": {
+              "variance": 591.6
+            }
+          }
+        },
+        "idiosyncratic": {
+          "ACME": {
+            "sample": {
+              "variance": 11.999999999999998
+            }
+          },
+          "BOREAS": {
+            "sample": {
+              "variance": 5.999999999999999
+            }
+          },
+          "CYGNUS": {
+            "sample": {
+              "variance": 4443.599999999999
+            }
+          }
+        }
+      }
+    }
+  ],
   "properties": {
     "anchor_state": {
       "$ref": "#/$defs/LevelsAtAnchor",

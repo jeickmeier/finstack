@@ -109,115 +109,78 @@
       ]
     },
     "Hurdle": {
+      "additionalProperties": false,
       "description": "Hurdle types for waterfall tiers.",
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "description": "IRR-based hurdle (annual rate)",
+      "properties": {
+        "irr": {
           "properties": {
-            "irr": {
-              "properties": {
-                "rate": {
-                  "description": "Rate.",
-                  "format": "double",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "rate"
-              ],
-              "type": "object"
+            "rate": {
+              "description": "Rate.",
+              "format": "double",
+              "type": "number"
             }
           },
           "required": [
-            "irr"
+            "rate"
           ],
           "type": "object"
         }
-      ]
-    },
-    "InstrumentSchema": {
-      "description": "Canonical schema marker for persisted instrument envelopes.",
-      "oneOf": [
-        {
-          "const": "finstack_quant.instrument/1",
-          "description": "The sole supported instrument contract.",
-          "type": "string"
-        }
-      ]
-    },
-    "PrivateMarketsFund": {
-      "additionalProperties": false,
-      "description": "Private markets fund investment instrument.\n\nModels a private equity, private credit, or alternative fund with a\ncashflow waterfall that determines LP/GP allocation. Supports NAV\ndiscounting when a `discount_curve_id` is provided, or falls back to\nlast-event date for IRR-only workflows.",
-      "properties": {
-        "attributes": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-          "default": {},
-          "description": "Attributes for scenario selection and tagging."
-        },
-        "currency": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-          "description": "Functional currency of the fund."
-        },
-        "discount_curve_id": {
-          "anyOf": [
-            {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Discount curve identifier for NAV present-value calculations.\n\nWhen `None`, the pricer falls back to the last event date as the\nvaluation date and returns an undiscounted waterfall NAV."
-        },
-        "events": {
-          "description": "Time-ordered list of fund events (contributions, proceeds, distributions).",
-          "items": {
-            "$ref": "#/$defs/FundEvent"
-          },
-          "type": "array"
-        },
-        "id": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-          "description": "Unique instrument identifier."
-        },
-        "instrument_pricing_overrides": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
-          "description": "Pricing overrides for scenario analysis and model configuration."
-        },
-        "metric_pricing_overrides": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
-          "description": "Metric-only pricing controls."
-        },
-        "scenario_pricing_overrides": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
-          "description": "Scenario-only valuation adjustments."
-        },
-        "unrealized_nav": {
-          "anyOf": [
-            {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Unrealized net asset value attributable to the LP, stated as of the\nfund's valuation date.\n\nHolder-view residual value : the fund's present\nvalue is the PV of LP cashflows strictly after the valuation date plus\nthis NAV. When `None`, the residual value is zero — a fully realized\nfund prices to ~0."
-        },
-        "waterfall_spec": {
-          "$ref": "#/$defs/WaterfallSpec",
-          "description": "Waterfall specification defining LP/GP allocation tiers."
-        }
       },
       "required": [
-        "id",
-        "currency",
-        "waterfall_spec",
-        "events"
+        "irr"
       ],
       "type": "object"
     },
-    "Tranche": {
+    "InstrumentSchema": {
+      "const": "finstack_quant.instrument/1",
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "type": "string"
+    },
+    "PeFundWaterfallSpec": {
+      "additionalProperties": false,
+      "description": "Complete waterfall specification.",
+      "properties": {
+        "catchup_mode": {
+          "$ref": "#/$defs/CatchUpMode",
+          "default": "full",
+          "description": "Catch-up mode"
+        },
+        "clawback": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClawbackSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional clawback specification"
+        },
+        "irr_basis": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "default": "act_365f",
+          "description": "Day count basis for IRR calculations"
+        },
+        "style": {
+          "$ref": "#/$defs/WaterfallStyle",
+          "description": "Allocation style (European vs American)"
+        },
+        "tranches": {
+          "description": "Ordered sequence of waterfall tranches",
+          "items": {
+            "$ref": "#/$defs/PeFundWaterfallTranche"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "style",
+        "tranches"
+      ],
+      "type": "object"
+    },
+    "PeFundWaterfallTranche": {
       "description": "Individual tranche in the waterfall.",
       "oneOf": [
         {
@@ -307,47 +270,74 @@
         }
       ]
     },
-    "WaterfallSpec": {
+    "PrivateMarketsFund": {
       "additionalProperties": false,
-      "description": "Complete waterfall specification.",
+      "description": "Private markets fund investment instrument.\n\nModels a private equity, private credit, or alternative fund with a\ncashflow waterfall that determines LP/GP allocation. Supports NAV\ndiscounting when a `discount_curve_id` is provided, or falls back to\nlast-event date for IRR-only workflows.",
       "properties": {
-        "catchup_mode": {
-          "$ref": "#/$defs/CatchUpMode",
-          "default": "full",
-          "description": "Catch-up mode"
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "default": {},
+          "description": "Attributes for scenario selection and tagging."
         },
-        "clawback": {
+        "currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Functional currency of the fund."
+        },
+        "discount_curve_id": {
           "anyOf": [
             {
-              "$ref": "#/$defs/ClawbackSpec"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
             },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "description": "Optional clawback specification"
+          "description": "Discount curve identifier for NAV present-value calculations.\n\nWhen `None`, the pricer falls back to the last event date as the\nvaluation date and returns an undiscounted waterfall NAV."
         },
-        "irr_basis": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-          "default": "act_365f",
-          "description": "Day count basis for IRR calculations"
-        },
-        "style": {
-          "$ref": "#/$defs/WaterfallStyle",
-          "description": "Allocation style (European vs American)"
-        },
-        "tranches": {
-          "description": "Ordered sequence of waterfall tranches",
+        "events": {
+          "description": "Time-ordered list of fund events (contributions, proceeds, distributions).",
           "items": {
-            "$ref": "#/$defs/Tranche"
+            "$ref": "#/$defs/FundEvent"
           },
           "type": "array"
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Pricing overrides for scenario analysis and model configuration."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-only pricing controls."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only valuation adjustments."
+        },
+        "unrealized_nav": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Unrealized net asset value attributable to the LP, stated as of the\nfund's valuation date.\n\nHolder-view residual value : the fund's present\nvalue is the PV of LP cashflows strictly after the valuation date plus\nthis NAV. When `None`, the residual value is zero — a fully realized\nfund prices to ~0."
+        },
+        "waterfall_spec": {
+          "$ref": "#/$defs/PeFundWaterfallSpec",
+          "description": "Waterfall specification defining LP/GP allocation tiers."
         }
       },
       "required": [
-        "style",
-        "tranches"
+        "id",
+        "currency",
+        "waterfall_spec",
+        "events"
       ],
       "type": "object"
     },
@@ -367,25 +357,21 @@
       ]
     },
     "private_markets_fund": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/PrivateMarketsFund"
-            },
-            "type": {
-              "const": "private_markets_fund",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
+      "additionalProperties": false,
+      "properties": {
+        "spec": {
+          "$ref": "#/$defs/PrivateMarketsFund"
+        },
+        "type": {
+          "const": "private_markets_fund",
+          "type": "string"
         }
-      ]
+      },
+      "required": [
+        "type",
+        "spec"
+      ],
+      "type": "object"
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/private_markets_fund.schema.json",

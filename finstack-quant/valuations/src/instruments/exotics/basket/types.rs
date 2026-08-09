@@ -21,6 +21,8 @@ use serde::{Deserialize, Serialize};
 /// Type of asset in the basket
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
+// Distinct from the structured-credit collateral `AssetType`.
+#[schemars(rename = "BasketAssetType")]
 pub enum AssetType {
     /// Equity security
     Equity,
