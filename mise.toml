@@ -114,7 +114,6 @@ depends = [
   "pre-commit-run",
   "gen-check",
   "all-test",
-  "all-doc",
   "rust-audit",
   "rust-publish-checks",
 ]
