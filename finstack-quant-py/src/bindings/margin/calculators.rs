@@ -265,7 +265,7 @@ impl PyImResult {
     /// other methodologies aggregate risk classes with correlations.
     fn to_breakdown_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let mut entries: Vec<(&String, &Money)> = self.inner.breakdown.iter().collect();
-        entries.sort_by(|(left, _), (right, _)| left.cmp(right));
+        entries.sort_by_key(|(risk_class, _)| *risk_class);
 
         let risk_classes: Vec<String> = entries.iter().map(|(key, _)| (*key).clone()).collect();
         let amounts: Vec<f64> = entries.iter().map(|(_, money)| money.amount()).collect();

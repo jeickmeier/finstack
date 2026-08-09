@@ -22,9 +22,91 @@
   library's named exceptions. It derives from `ValueError`, so every existing
   `except ValueError` is unaffected. `CalibrationEnvelopeError` stays outside the
   tree because it is a `RuntimeError` and PyO3 cannot express two bases.
+- **Rust, JSON:** clean-price CDS-option strikes (`CDSOptionStrike::CleanPricePct`),
+  the CDX HY market convention, alongside the existing forward-spread strikes.
+  Price strikes carry `strike_index_factor` (the strike's original index factor
+  `f0`) and are validated as index-only, no-knockout, with an explicit positive
+  coupon, factors in `(0, 1]`, `f <= f0`, and realized loss bounded by the removed
+  original notional. Delta and gamma branch by strike kind: a clean price is not a
+  valid argument to the Black `d₁`, so price strikes use a curve-reprice hedge
+  ratio (option CS01 over underlying spread DV01 under a symmetric ±1 bp par-quote
+  bump with hazard rebootstrap, sticky native strike, sticky surface volatility),
+  and gamma is the change in that delta across the ±5 bp screen bump.
+- **Rust:** a two-factor rates-credit lattice (`models::trees::two_factor_rates_credit`)
+  for callable credit-risky bonds and term loans, with public `ModelConfig` inputs
+  `hazard_volatility`, `hazard_mean_reversion` and `rate_credit_correlation`. One
+  `resolve_rates_credit_config()` owns the public-config to lattice-input mapping
+  for both engines. Correlation feasibility is proved against the per-node Fréchet
+  bounds at calibration time rather than clamped during pricing, and
+  `HazardFloorSaturation` reports how much state-price mass sat on the zero-hazard
+  floor. Mean-reversion speeds above `KAPPA_MAX` are rejected — use `HullWhiteTree`.
+- **Rust:** future floating-coupon resets valued at lattice nodes (`NodeCoupon`).
+  The deterministic projection stays booked as before; the lattice adds only the
+  node-dependent increment, which vanishes identically as `rate_vol → 0`, so an
+  option-free floater's PV is invariant to rate volatility. Caps and floors on a
+  floating leg are therefore priced as the caplet/floorlet strip they are. Call
+  dates strictly inside a future floating period, and future floating PIK, are
+  rejected rather than mispriced.
+- **Rust:** `models::credit::market_anchored`, the shared fractional-to-absolute
+  credit-volatility mapping (credit triangle `s = (1 − R)·λ`), used by both the
+  callable lattice and the revolving-credit CIR path so they cannot drift apart.
+  `CreditVolatilityConversion` carries every input and output together, so a 35%
+  CDS-option quote cannot reach an additive hazard lattice without the 1.05%
+  absolute figure sitting beside it. This is an explicit first-order local
+  mapping, not a calibration.
+- **Rust:** `market::credit_option_vol`, which resolves a CDX/iTraxx option-vol
+  surface point into that additive hazard volatility. The surface is queried
+  strictly at the strike's **native displayed** coordinate — a decimal spread for
+  CDX IG and iTraxx, a clean price in percentage points (`107.0`, never `1.07`
+  and never a spread equivalent) for CDX HY — and the index-derived *fractional*
+  vol is anchored on the *target* curve's own reference hazard, so a single-name
+  bond is never anchored to the index's hazard level. Selectors are `Strike`,
+  `Moneyness` (against the native ATM-forward coordinate) and `Delta`.
 
 ### Changed
 
+- **Breaking (Rust, JSON, Python, WASM):** the CDS-option strike is a typed enum
+  instead of a bare decimal. `CDSOption.strike` and `CDSOptionParams.strike` are
+  now `CDSOptionStrike`, whose canonical JSON is externally tagged, and **the old
+  scalar wire shape is rejected with no compatibility fallback**:
+
+  ```json
+  { "strike": "0.0325" }                      // before — now rejected
+  { "strike": { "spread": "0.0325" } }        // after, forward-spread strike
+  { "strike": { "clean_price_pct": "107.0" } } // after, CDX HY clean-price strike
+  ```
+
+  Persisted `CDSOption` payloads must be migrated; Python and WASM reach CDS
+  options through this JSON, so they are affected identically. `Spread` stays a
+  decimal annual rate (`0.0325` = 325 bp) and `CleanPricePct` is quoted in
+  percentage-price points (`107.0` = fraction `1.07`) — use
+  `clean_price_fraction()` rather than re-dividing by 100. Spread strikes reject
+  `strike_index_factor` as inert. `effective_underlying_cds_coupon` is now
+  fallible, since a clean-price strike can never serve as the running coupon, and
+  `settlement` is explicit on `CDSOptionParams` (default `Cash`).
+- **Breaking (Rust behavior):** the callable rates-credit path reads only
+  `hw1f_sigma` / `hw1f_mean_reversion` and **rejects** the legacy
+  `implied_volatility` / `mean_reversion` channel when its canonical counterpart
+  is absent, so a configuration cannot silently flip pricing regime; `hw1f_*` wins
+  when both are set. Hazard inputs supplied without a `credit_curve_id` are
+  rejected rather than ignored.
+- **Breaking (Rust behavior, PV-affecting):** `RatesCreditConfig::default()` is
+  now deterministic in both factors. The callable-bond path had been inheriting an
+  undeclared `hazard_vol = 0.20` — worth roughly 33% of PV on the reference
+  fixture — from `..Default::default()` construction. Callers that want a
+  stochastic factor must now declare it explicitly, so previously-priced callable
+  credit-risky bonds will change value.
+- **Breaking (Rust behavior):** CDS-option volatility resolution is strict. An
+  instrument-level implied-vol override wins; otherwise the surface is looked up
+  at the native strike coordinate with a required `VolSurfaceAxis::Strike` and
+  `VolQuoteType::BlackLognormal`, and out-of-grid coordinates error instead of
+  clamping to the nearest edge. Delta and gamma screen metrics share this
+  resolver. Valuing a physically-settled option at or after expiry now fails
+  explicitly; the exercise/delivery lifecycle is not modelled.
+- **Fixed (Rust):** bond rate vega bumped `market_quotes.implied_volatility`,
+  which the rates-credit path no longer reads, producing a silently **zero** vega
+  on every credit-risky callable (or an error when `hw1f_sigma` was unset). Vega
+  now bumps whichever channel the instrument's own routing consumes.
 - **Breaking (Python):** 40 `Performance` metrics return a `pandas.Series`
   indexed by ticker (with `.name` set to the metric) instead of `list[float]`;
   `skew_kurt` and `value_at_risk_and_es` return a tuple of two Series. Positional

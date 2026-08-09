@@ -155,18 +155,51 @@ use super::tree_framework::{CachedValues, NodeState, TreeModel, TreeValuator};
 
 /// Maximum allowed mean-reversion speed (κ) for either factor.
 ///
-/// Above this threshold the probability shift `p = ½ + μ√Δt/(2σ)` pushes `p`
-/// far enough from ½ that the conditional variance `σ²Δt·4p(1−p)` becomes
-/// materially understated relative to the target Hull-White variance. At
-/// `κ = 0.15` the worst-case unclamped node sitting 2σ√Δt above the reversion
-/// reference retains ≈ 80 % of the intended conditional variance — a tolerable
-/// discretisation error given the other approximations in a binomial tree. By
-/// `κ = 0.20` that figure drops to ≈ 65 %, and by `κ = 0.30` to ≈ 55 %;
-/// option-value errors become material for callable bond / term-loan pricing.
+/// The probability shift `p = ½ + μ√Δt/(2σ)` pushes `p` away from ½, and the
+/// conditional variance `σ²Δt·4p(1−p)` is understated by exactly that shift.
+/// Writing `d = |x − x_ref|` for a node's displacement from the reversion
+/// reference, the **variance retention** `4p(1−p)` at that node is
 ///
-/// Callers needing accurate mean-reverting optionality above this threshold
-/// should use [`HullWhiteTree`], which uses a trinomial branching scheme that
-/// preserves the conditional variance exactly.
+/// ```text
+/// retention(d) = 1 − (κ·d·√Δt / σ)²
+/// ```
+///
+/// so retention degrades with displacement, not uniformly across the lattice.
+/// Substituting the outermost node's pure-geometry displacement
+/// `d_max = steps·σ√Δt`, every σ and `steps` term cancels and the worst node
+/// on the lattice retains
+///
+/// ```text
+/// retention_min ≤ 1 − (κ·T)²        (zero once κ·T ≥ 1)
+/// ```
+///
+/// This is a **ceiling**, not an equality: the calibrated θ displaces each row
+/// off the symmetric `±k·σ√Δt` geometry, so on a sloped curve the edge node
+/// sits *further* from the reference and realized retention lands at or below
+/// the bound — measurably so, e.g. 0.36 against a 0.44 ceiling at
+/// `κ = 0.15, T = 5, σ_r = 0.012, steps = 40`. The gap narrows as σ or `steps`
+/// grows and the θ term shrinks relative to the lattice width.
+///
+/// **The binding quantity is `κ·T`, not `κ` alone.** At `κ = 0.15` the lattice
+/// edge retains at most 44 % of its intended variance over a 5-year horizon,
+/// and none at all beyond `T = 1/κ ≈ 6.7` years, where
+/// [`RatesCreditTree::mean_reverting_up_prob`] clamps `p` to `0` or `1`: those
+/// nodes become locally deterministic and — being degenerate Bernoulli
+/// marginals carrying no correlation — drop the configured
+/// `rate_credit_correlation` entirely. At `κ = 0.15, T = 10` roughly an eighth
+/// of the lattice's nodes clamp. Callable bonds and term loans routinely run
+/// past that horizon, so `KAPPA_MAX` alone does not bound the error.
+///
+/// This constant is therefore a coarse guard, not a proof of accuracy. Read
+/// [`RatesCreditTree::rate_variance_retention`] and
+/// [`RatesCreditTree::hazard_variance_retention`] after calibration for what
+/// the configured `(κ, σ, T, steps)` actually produced; clamped nodes sit in
+/// the wings and carry little state-price mass, but the diagnostic is what
+/// turns "little" into a number.
+///
+/// Callers needing accurate mean-reverting optionality above this threshold,
+/// or over a horizon where `κ·T` approaches 1, should use [`HullWhiteTree`],
+/// whose trinomial branching preserves the conditional variance exactly.
 ///
 /// [`HullWhiteTree`]: super::hull_white_tree::HullWhiteTree
 pub const KAPPA_MAX: f64 = 0.15;
@@ -376,6 +409,10 @@ pub struct RatesCreditTree {
     hazard_ref: f64,
     /// Hazard floor-saturation diagnostic from the most recent `calibrate()`.
     hazard_floor_saturation: HazardFloorSaturation,
+    /// Rate-factor variance retention from the most recent `calibrate()`.
+    rate_variance_retention: VarianceRetention,
+    /// Hazard-factor variance retention from the most recent `calibrate()`.
+    hazard_variance_retention: VarianceRetention,
 }
 
 /// How much of the calibrated hazard lattice sits on the zero floor.
@@ -411,6 +448,79 @@ impl HazardFloorSaturation {
     /// Whether any node hazard was floored during calibration.
     pub fn is_saturated(&self) -> bool {
         self.max_mass_at_floor > 0.0
+    }
+}
+
+/// How much of a factor's intended conditional variance survives the
+/// mean-reversion probability shift, across the calibrated lattice.
+///
+/// The additive binomial lattice has one free parameter per node, and
+/// [`RatesCreditTree::mean_reverting_up_prob`] spends it on matching the
+/// conditional **mean**. The conditional variance `σ²Δt·4p(1−p)` is therefore
+/// understated wherever `p ≠ ½`, by the exact factor documented on
+/// [`KAPPA_MAX`]: `retention(d) = 1 − (κ·d·√Δt/σ)²` at displacement `d` from
+/// the reversion reference, bottoming out at `1 − (κ·T)²` on the lattice edge.
+///
+/// Curve repricing stays exact regardless — calibration and pricing apply the
+/// identical clamped probability, so the forward and backward recursions remain
+/// exact duals. What degrades is the dispersion that drives **option value**,
+/// which is the whole point of using a lattice for a callable.
+///
+/// Where `p` clamps fully to `0` or `1` the node is locally deterministic and
+/// its Bernoulli marginal is degenerate, so it can express no correlation at
+/// all: `rate_credit_correlation` is silently inoperative there
+/// ([`RatesCreditTree::node_correlation_range`] returns `None` and the
+/// feasibility scan skips it). [`Self::clamped_nodes`] is what makes that
+/// visible.
+///
+/// # Interpreting the numbers
+///
+/// Counts are over lattice **nodes**, not state-price mass. Clamped nodes sit
+/// in the wings and carry exponentially little probability, so a small
+/// `clamped_nodes` share is not itself alarming — it is a signal to check
+/// `min_retention` and, if option value matters at this `(κ, T)`, to move to
+/// [`HullWhiteTree`](super::hull_white_tree::HullWhiteTree).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct VarianceRetention {
+    /// Smallest `4p(1−p)` over every node the pricing induction visits, in
+    /// `[0, 1]`. `1.0` means no mean-reversion distortion anywhere.
+    pub min_retention: f64,
+    /// Step index at which `min_retention` occurs.
+    pub worst_step: usize,
+    /// Nodes whose marginal clamped to `0` or `1` — zero local variance, and
+    /// no expressible correlation.
+    pub clamped_nodes: usize,
+    /// Nodes scanned (every `(step, node)` the backward induction visits).
+    pub total_nodes: usize,
+}
+
+impl Default for VarianceRetention {
+    /// The undistorted limit: full variance everywhere, nothing scanned.
+    fn default() -> Self {
+        Self {
+            min_retention: 1.0,
+            worst_step: 0,
+            clamped_nodes: 0,
+            total_nodes: 0,
+        }
+    }
+}
+
+impl VarianceRetention {
+    /// Whether any node lost its entire conditional variance to the clamp.
+    ///
+    /// True exactly when the configured `κ·T` reached `1` somewhere on the
+    /// lattice. Correlation is inoperative at those nodes.
+    pub fn has_clamped_nodes(&self) -> bool {
+        self.clamped_nodes > 0
+    }
+
+    /// Share of scanned nodes that clamped, in `[0, 1]`.
+    pub fn clamped_share(&self) -> f64 {
+        if self.total_nodes == 0 {
+            return 0.0;
+        }
+        self.clamped_nodes as f64 / self.total_nodes as f64
     }
 }
 
@@ -559,6 +669,8 @@ impl RatesCreditTree {
             rate_ref: 0.0,
             hazard_ref: 0.0,
             hazard_floor_saturation: HazardFloorSaturation::default(),
+            rate_variance_retention: VarianceRetention::default(),
+            hazard_variance_retention: VarianceRetention::default(),
         }
     }
 
@@ -567,6 +679,67 @@ impl RatesCreditTree {
     /// See [`HazardFloorSaturation`] for how to read it.
     pub fn hazard_floor_saturation(&self) -> HazardFloorSaturation {
         self.hazard_floor_saturation
+    }
+
+    /// Rate-factor conditional-variance retention from the most recent
+    /// `calibrate()`.
+    ///
+    /// See [`VarianceRetention`] for how to read it, and [`KAPPA_MAX`] for why
+    /// `κ·T` rather than `κ` is the binding quantity. Returns the undistorted
+    /// default (`min_retention = 1.0`) for an uncalibrated tree or one without
+    /// rate mean reversion.
+    pub fn rate_variance_retention(&self) -> VarianceRetention {
+        self.rate_variance_retention
+    }
+
+    /// Hazard-factor conditional-variance retention from the most recent
+    /// `calibrate()`.
+    ///
+    /// See [`VarianceRetention`]. Returns the undistorted default for an
+    /// uncalibrated tree or one without hazard mean reversion.
+    pub fn hazard_variance_retention(&self) -> VarianceRetention {
+        self.hazard_variance_retention
+    }
+
+    /// Scan one calibrated factor's lattice for conditional-variance loss.
+    ///
+    /// Visits exactly the `(step, node)` pairs the backward induction visits
+    /// (`step in 0..steps`, matching [`Self::scan_correlation_feasibility`] and
+    /// `price_with_node_coupons`), evaluating the same per-node marginal
+    /// probability pricing uses. Without mean reversion every `p` is exactly ½
+    /// and retention is uniformly `1.0`, so the scan is skipped.
+    fn scan_variance_retention(
+        levels: &[Vec<f64>],
+        steps: usize,
+        reference: f64,
+        kappa: f64,
+        sigma: f64,
+        dt: f64,
+    ) -> VarianceRetention {
+        if kappa <= 0.0 || levels.is_empty() {
+            return VarianceRetention::default();
+        }
+        let mut out = VarianceRetention {
+            min_retention: 1.0,
+            worst_step: 0,
+            clamped_nodes: 0,
+            total_nodes: 0,
+        };
+        for (step, row) in levels.iter().enumerate().take(steps) {
+            for &x in row {
+                let p = Self::mean_reverting_up_prob(x, reference, kappa, sigma, dt);
+                let retention = 4.0 * p * (1.0 - p);
+                out.total_nodes += 1;
+                if p <= 0.0 || p >= 1.0 {
+                    out.clamped_nodes += 1;
+                }
+                if retention < out.min_retention {
+                    out.min_retention = retention;
+                    out.worst_step = step;
+                }
+            }
+        }
+        out
     }
 
     /// Node hazard actually used by calibration and pricing.
@@ -679,6 +852,29 @@ impl RatesCreditTree {
         self.calibrated_hazards = calibrated_hazards;
         self.hazard_floor_saturation = saturation;
 
+        // Conditional-variance retention is fully determined once both factors
+        // are calibrated, for the same reason correlation feasibility is: the
+        // per-node marginal depends only on level, kappa, sigma and dt, none of
+        // which pricing touches. Recording it here means a caller can read what
+        // the configured (kappa, sigma, T, steps) actually produced instead of
+        // inferring it from KAPPA_MAX, which bounds kappa but not kappa*T.
+        self.rate_variance_retention = Self::scan_variance_retention(
+            &self.calibrated_rates,
+            steps,
+            self.rate_ref,
+            rate_kappa,
+            rate_vol,
+            dt,
+        );
+        self.hazard_variance_retention = Self::scan_variance_retention(
+            &self.calibrated_hazards,
+            steps,
+            self.hazard_ref,
+            hazard_kappa,
+            hazard_vol,
+            dt,
+        );
+
         // Correlation feasibility is fully determined once both factors are
         // calibrated: each node's marginal up-probability is fixed by its
         // level, mean reversion, volatility, and step size, and the OAS shift
@@ -771,7 +967,12 @@ impl RatesCreditTree {
                         dt,
                     );
                     // A degenerate marginal carries no correlation at all; the
-                    // joint reduces to the independent product there.
+                    // joint reduces to the independent product there. Skipping
+                    // it here is correct — an unattainable correlation is not a
+                    // reason to reject a node that expresses none — but it does
+                    // mean the configured rho is inoperative at that node.
+                    // `VarianceRetention::clamped_nodes` counts exactly these,
+                    // so the loss is reported rather than silent.
                     let Some((node_lo, node_hi)) = Self::node_correlation_range(p_r, p_h) else {
                         continue;
                     };
@@ -2016,6 +2217,155 @@ mod tests {
             violent_saturation.is_saturated() && violent_saturation.max_mass_at_floor > 0.25,
             "an absurd absolute hazard vol must report heavy floor saturation: \
              {violent_saturation:?}"
+        );
+    }
+
+    /// `1 − (κ·T)²` is the lattice-edge variance-retention ceiling, and `κ·T`
+    /// — not `κ` alone — is what binds. Realized retention sits at or below the
+    /// ceiling because the calibrated theta pushes rows further from the
+    /// reversion reference than the symmetric geometry alone would.
+    #[test]
+    fn variance_retention_is_bounded_by_one_minus_kappa_t_squared() {
+        let disc = sloped_discount_curve();
+        let haz = test_hazard_curve();
+
+        for (kappa, ttm) in [(0.05_f64, 5.0_f64), (0.10, 5.0), (0.15, 5.0), (0.10, 8.0)] {
+            let ceiling = 1.0 - (kappa * ttm).powi(2);
+            // The bound holds across volatilities and step counts, and the gap
+            // to it closes as the lattice widens relative to the theta drift.
+            let mut previous_gap = f64::INFINITY;
+            for (steps, rate_vol) in [(40usize, 0.012), (100, 0.012), (200, 0.03)] {
+                let mut tree = RatesCreditTree::new(RatesCreditConfig {
+                    steps,
+                    rate_vol,
+                    rate_mean_reversion: kappa,
+                    ..RatesCreditConfig::default()
+                });
+                tree.calibrate(&disc, &haz, ttm).expect("calibrate");
+                let retention = tree.rate_variance_retention();
+                let label = format!("kappa={kappa}, T={ttm}, steps={steps}, sigma={rate_vol}");
+
+                assert_eq!(
+                    retention.total_nodes,
+                    steps * (steps + 1) / 2,
+                    "{label}: the scan must visit exactly the nodes backward \
+                     induction does"
+                );
+                assert!(
+                    !retention.has_clamped_nodes(),
+                    "{label}: kappa*T = {:.2} < 1 must not clamp: {retention:?}",
+                    kappa * ttm
+                );
+                assert!(
+                    retention.min_retention <= ceiling + 1e-12,
+                    "{label}: min_retention {} must not exceed the \
+                     1 - (kappa*T)^2 ceiling {ceiling}",
+                    retention.min_retention
+                );
+                // Non-trivial: the ceiling would be vacuous if retention sat
+                // near zero regardless.
+                assert!(
+                    retention.min_retention > 0.5 * ceiling,
+                    "{label}: min_retention {} should track the ceiling \
+                     {ceiling}, not collapse",
+                    retention.min_retention
+                );
+
+                let gap = ceiling - retention.min_retention;
+                assert!(
+                    gap <= previous_gap + 1e-9,
+                    "{label}: the gap to the ceiling ({gap}) should not widen \
+                     as the lattice widens (previous {previous_gap})"
+                );
+                previous_gap = gap;
+            }
+        }
+    }
+
+    /// Past `κ·T = 1` the wing marginals clamp: those nodes carry zero
+    /// conditional variance and, being degenerate Bernoullis, express no
+    /// correlation at all. `KAPPA_MAX` does not bound this — only the
+    /// diagnostic reports it.
+    #[test]
+    fn long_horizon_clamping_is_reported_not_silent() {
+        let disc = sloped_discount_curve();
+        let haz = test_hazard_curve();
+
+        // kappa*T = 0.15 * 5 = 0.75 < 1: no clamping.
+        let mut short = RatesCreditTree::new(RatesCreditConfig {
+            steps: 40,
+            rate_vol: 0.012,
+            rate_mean_reversion: KAPPA_MAX,
+            ..RatesCreditConfig::default()
+        });
+        short.calibrate(&disc, &haz, 5.0).expect("calibrate short");
+        assert!(
+            !short.rate_variance_retention().has_clamped_nodes(),
+            "kappa*T = 0.75 must not clamp: {:?}",
+            short.rate_variance_retention()
+        );
+
+        // kappa*T = 0.15 * 10 = 1.5 >= 1: the wings clamp, at a kappa the
+        // KAPPA_MAX guard accepts. This is the gap the diagnostic closes.
+        let mut long = RatesCreditTree::new(RatesCreditConfig {
+            steps: 40,
+            rate_vol: 0.012,
+            rate_mean_reversion: KAPPA_MAX,
+            ..RatesCreditConfig::default()
+        });
+        long.calibrate(&disc, &haz, 10.0).expect("calibrate long");
+        let retention = long.rate_variance_retention();
+        assert!(
+            retention.has_clamped_nodes(),
+            "kappa*T = 1.5 must clamp the lattice wings: {retention:?}"
+        );
+        assert_eq!(
+            retention.min_retention, 0.0,
+            "a clamped marginal has zero conditional variance"
+        );
+        assert!(
+            retention.clamped_share() > 0.0 && retention.clamped_share() < 1.0,
+            "clamping must hit the wings, not the whole lattice: {}",
+            retention.clamped_share()
+        );
+    }
+
+    /// Without mean reversion every marginal is exactly one half, so the
+    /// diagnostic reports the undistorted limit — and does so for the hazard
+    /// factor independently of the rate factor.
+    #[test]
+    fn variance_retention_is_undistorted_without_mean_reversion() {
+        let disc = sloped_discount_curve();
+        let haz = test_hazard_curve();
+
+        let mut tree = RatesCreditTree::new(RatesCreditConfig {
+            steps: 40,
+            rate_vol: 0.012,
+            hazard_vol: 0.01,
+            hazard_mean_reversion: 0.08,
+            ..RatesCreditConfig::default()
+        });
+        tree.calibrate(&disc, &haz, 5.0).expect("calibrate");
+
+        // Rate factor has no mean reversion: undistorted default.
+        assert_eq!(tree.rate_variance_retention(), VarianceRetention::default());
+        // Hazard factor does: it is scanned, and reports real numbers.
+        let hazard = tree.hazard_variance_retention();
+        assert!(hazard.total_nodes > 0, "hazard factor must be scanned");
+        assert!(
+            hazard.min_retention < 1.0 && hazard.min_retention > 0.0,
+            "kappa*T = 0.4 must distort without clamping: {hazard:?}"
+        );
+
+        // An uncalibrated tree reports the undistorted default for both.
+        let fresh = RatesCreditTree::new(RatesCreditConfig::default());
+        assert_eq!(
+            fresh.rate_variance_retention(),
+            VarianceRetention::default()
+        );
+        assert_eq!(
+            fresh.hazard_variance_retention(),
+            VarianceRetention::default()
         );
     }
 
