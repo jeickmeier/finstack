@@ -22,6 +22,7 @@ pub(crate) mod pandas_utils;
 pub(crate) mod pickle_support;
 pub mod portfolio;
 pub mod scenarios;
+pub mod schema;
 pub(crate) mod schema_registry;
 pub mod statements;
 pub mod statements_analytics;
@@ -48,6 +49,7 @@ pub fn register_root(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     statements_analytics::register(py, m)?;
     portfolio::register(py, m)?;
     scenarios::register(py, m)?;
+    schema::register(py, m)?;
 
     let all = PyList::new(
         py,
@@ -66,6 +68,7 @@ pub fn register_root(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
             "statements_analytics",
             "portfolio",
             "scenarios",
+            "schema",
         ],
     )?;
     m.setattr("__all__", all)?;

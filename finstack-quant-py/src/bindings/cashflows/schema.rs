@@ -91,7 +91,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_function(wrap_pyfunction!(resources, &m)?)?;
 
-    let exports = ["get", "index", "validate", "resources"];
+    let exports = ["get", "index", "resources", "validate"];
     for name in exports {
         m.getattr(name)?
             .setattr("__module__", "finstack_quant.cashflows.schema")?;

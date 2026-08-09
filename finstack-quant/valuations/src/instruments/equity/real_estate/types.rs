@@ -193,57 +193,103 @@ pub struct RealEstateAsset {
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RealEstateAssetUnchecked {
+    /// Unique instrument identifier.
     id: InstrumentId,
+    /// Currency for valuation.
     currency: Currency,
+    /// Valuation date (base date for discounting).
     #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     valuation_date: Date,
+    /// Valuation method (DCF or DirectCap).
     valuation_method: RealEstateValuationMethod,
+    /// Optional property type classification (for reporting).
     #[serde(default)]
     property_type: Option<RealEstatePropertyType>,
+    /// Net operating income schedule (date, amount).
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     noi_schedule: Vec<(Date, f64)>,
+    /// Capital expenditure schedule (date, amount). Values are treated as **positive outflows**.
+    ///
+    /// When present, cashflows are valued as `NOI - CapEx` (unlevered net cash flow).
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::optional_dated_f64_values")]
     #[schemars(with = "Option<Vec<(finstack_quant_core::wire::DateWire, f64)>>")]
     capex_schedule: Option<Vec<(Date, f64)>>,
+    /// Discount rate for DCF (annualized).
     #[serde(default)]
     discount_rate: Option<f64>,
+    /// Capitalization rate for direct cap (annualized).
     #[serde(default)]
     cap_rate: Option<f64>,
+    /// Optional stabilized NOI override for direct cap.
     #[serde(default)]
     stabilized_noi: Option<f64>,
+    /// Optional terminal cap rate for DCF (uses last NOI).
     #[serde(default)]
     terminal_cap_rate: Option<f64>,
+    /// Optional terminal growth rate used to project `NOI_{N+1}` for exit valuation.
+    ///
+    /// Market convention for exit-cap terminal value is \(TV = NOI_{N+1} / cap\_rate\_exit\).
+    /// When not provided, defaults to 0 (uses last NOI as-is).
+    /// Validation range is \([-100\%, 20\%]\) to guard against configuration errors.
     #[serde(default)]
     terminal_growth_rate: Option<f64>,
+    /// Optional sale/exit date that truncates the DCF horizon.
+    ///
+    /// When set, DCF only values unlevered flows up to and including `sale_date`.
+    /// Terminal proceeds (if configured) are realized on `sale_date`.
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     sale_date: Option<Date>,
+    /// Optional explicit gross sale price (terminal proceeds), before disposition costs.
+    ///
+    /// When set, this takes precedence over `terminal_cap_rate` for terminal proceeds.
     #[serde(default)]
     sale_price: Option<Money>,
+    /// Optional purchase price (useful for IRR / cap rate metrics).
     #[serde(default)]
     purchase_price: Option<Money>,
+    /// Optional one-time acquisition cost deducted at `as_of` in DCF valuation.
+    ///
+    /// This is intended for closing costs, fees, and other transaction costs.
     #[serde(default)]
     acquisition_cost: Option<f64>,
+    /// Optional detailed acquisition cost line items (positive outflows) deducted at `as_of`.
     #[serde(default)]
     acquisition_costs: Vec<Money>,
+    /// Optional disposition cost percentage applied to terminal value.
+    ///
+    /// A value of `0.02` represents 2% selling costs. Must be in \([0, 1)\).
     #[serde(default)]
     disposition_cost_pct: Option<f64>,
+    /// Optional detailed disposition cost line items (positive outflows) deducted from terminal proceeds.
     #[serde(default)]
     disposition_costs: Vec<Money>,
+    /// Optional appraisal override value.
     #[serde(default)]
     appraisal_value: Option<Money>,
+    /// Day count convention for year fractions.
     day_count: DayCount,
+    /// Discount curve identifier, used for risk attribution only.
+    ///
+    /// DCF valuation always discounts at [`discount_rate`](Self::discount_rate)
+    /// regardless of whether this curve is loaded ; rate
+    /// sensitivity (`Dv01`/`BucketedDv01`) bumps the risk-free component
+    /// inside the rate.
     discount_curve_id: CurveId,
+    /// Attributes for tagging and scenarios.
     #[serde(default)]
     instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
+    /// Metric-only pricing controls.
     #[serde(default)]
     metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
+    /// Scenario-only valuation adjustments.
     #[serde(default)]
     scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
+    /// Attributes for scenario selection and tagging
     #[serde(default)]
     attributes: Attributes,
 }

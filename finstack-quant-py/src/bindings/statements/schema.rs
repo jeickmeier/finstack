@@ -138,12 +138,12 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(statement_result_schema, &m)?)?;
 
     let exports = [
+        "financial_model_spec_schema",
         "get",
         "index",
-        "validate",
-        "financial_model_spec_schema",
         "normalization_config_schema",
         "statement_result_schema",
+        "validate",
     ];
     for name in exports {
         m.getattr(name)?

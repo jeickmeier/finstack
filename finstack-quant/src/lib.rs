@@ -54,61 +54,7 @@ pub use finstack_quant_statements as statements;
 pub use finstack_quant_statements_analytics as statements_analytics;
 pub use finstack_quant_valuations as valuations;
 
-/// The workspace's complete JSON Schema registry.
-///
-/// Each domain crate owns its own `schema::ARTIFACTS`. Only the umbrella sees
-/// all of them at once, which is what a cross-document reference resolver and a
-/// whole-corpus index need.
-pub mod schema {
-    use finstack_quant_core::schema::SchemaArtifact;
-    use serde_json::Value;
-    use std::collections::BTreeMap;
-
-    /// Every published artifact across every domain crate, in registry order.
-    ///
-    /// # Examples
-    /// ```
-    /// let artifacts = finstack_quant::schema::artifacts();
-    /// assert!(artifacts.iter().any(|a| a.relative_path.ends_with("bond.schema.json")));
-    /// ```
-    #[must_use]
-    pub fn artifacts() -> Vec<&'static SchemaArtifact> {
-        let mut all: Vec<&'static SchemaArtifact> = Vec::new();
-        for registry in [
-            finstack_quant_core::schema::ARTIFACTS,
-            finstack_quant_attribution::schema::ARTIFACTS,
-            finstack_quant_cashflows::schema::ARTIFACTS,
-            finstack_quant_factor_model::schema::ARTIFACTS,
-            finstack_quant_margin::schema::ARTIFACTS,
-            finstack_quant_portfolio::schema::ARTIFACTS,
-            finstack_quant_scenarios::schema::ARTIFACTS,
-            finstack_quant_statements::schema::ARTIFACTS,
-            finstack_quant_valuations::schema::artifacts_slice(),
-        ] {
-            all.extend(registry.iter());
-        }
-        all
-    }
-
-    /// Render every artifact once, keyed by `$id`.
-    ///
-    /// Published schemas reference each other by absolute `$id` on a host that
-    /// does not resolve; this is the map that makes those references usable
-    /// in process, for both validation and
-    /// [`project_llm`](finstack_quant_core::schema::project_llm).
-    ///
-    /// # Errors
-    ///
-    /// Returns [`finstack_quant_core::Error::Internal`] if an artifact cannot
-    /// be rendered.
-    pub fn documents_by_id() -> finstack_quant_core::Result<BTreeMap<String, Value>> {
-        let mut documents = BTreeMap::new();
-        for artifact in artifacts() {
-            documents.insert(artifact.id.to_string(), artifact.generate()?);
-        }
-        Ok(documents)
-    }
-}
+pub mod schema;
 
 #[cfg(test)]
 mod umbrella_surface {

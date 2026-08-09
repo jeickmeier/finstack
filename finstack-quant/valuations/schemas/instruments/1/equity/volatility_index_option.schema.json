@@ -66,30 +66,37 @@
       "properties": {
         "attributes": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-          "default": {}
+          "default": {},
+          "description": "Attributes for scenario selection and tagging"
         },
         "contract_specs": {
           "$ref": "#/$defs/VolIndexOptionSpecs",
           "default": {
             "index_id": "VIX",
             "multiplier": 100.0
-          }
+          },
+          "description": "Contract specifications."
         },
         "day_count": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count convention (default: Act365F)."
         },
         "discount_curve_id": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve identifier for present value calculations."
         },
         "exercise_style": {
           "$ref": "#/$defs/ExerciseStyle",
-          "default": "european"
+          "default": "european",
+          "description": "Exercise style (always European for VIX options)."
         },
         "expiry": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Option expiry date."
         },
         "expiry_fixing": {
           "default": null,
+          "description": "Observed volatility-index settlement fixing, required after expiry when\ncash settlement occurs later than expiry.",
           "format": "double",
           "type": [
             "number",
@@ -97,28 +104,34 @@
           ]
         },
         "id": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique identifier."
         },
         "instrument_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
-          "default": {}
+          "default": {},
+          "description": "Attributes for tagging and selection."
         },
         "metric_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
           "default": {
             "mc_seed_scenario": null,
             "theta_period": null
-          }
+          },
+          "description": "Metric-only pricing controls."
         },
         "notional": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional exposure in currency units."
         },
         "option_type": {
-          "$ref": "#/$defs/OptionType"
+          "$ref": "#/$defs/OptionType",
+          "description": "Option type (Call or Put)."
         },
         "scenario_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
-          "default": {}
+          "default": {},
+          "description": "Scenario-only valuation adjustments."
         },
         "settlement_date": {
           "anyOf": [
@@ -129,17 +142,21 @@
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "description": "Settlement date (typically same as expiry for cash-settled)."
         },
         "strike": {
+          "description": "Strike price (in index points, e.g., 20.0).",
           "format": "double",
           "type": "number"
         },
         "vol_index_curve_id": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Volatility index forward curve identifier."
         },
         "vol_of_vol_surface_id": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Vol-of-vol surface identifier for option implied volatility."
         }
       },
       "required": [

@@ -65,10 +65,15 @@ pub struct HierarchyNode {
     /// is the map key (e.g., `{ "Rates": { "children": { "USD": ... } } }`).
     #[serde(skip)]
     name: String,
+    /// Free-form key/value labels on this node, used for selection and
+    /// reporting. Insertion order is preserved.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     tags: IndexMap<String, String>,
+    /// Child nodes, keyed by their name. The key becomes the child's `name`
+    /// during deserialization. Insertion order is preserved.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     children: IndexMap<String, HierarchyNode>,
+    /// Curves attached directly to this node. Serialized as `curves`.
     #[serde(default, rename = "curves", skip_serializing_if = "Vec::is_empty")]
     curve_ids: Vec<CurveId>,
 }
@@ -147,6 +152,8 @@ impl HierarchyNode {
 /// loaded from JSON configuration files.
 #[derive(Debug, Clone, Serialize, Default, schemars::JsonSchema)]
 pub struct MarketDataHierarchy {
+    /// Top-level nodes, keyed by their name. The key becomes each node's
+    /// `name` during deserialization. Insertion order is preserved.
     pub(crate) roots: IndexMap<String, HierarchyNode>,
 }
 

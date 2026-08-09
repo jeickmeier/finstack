@@ -116,11 +116,18 @@ pub struct VolCube {
 #[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct VolCubeWire {
+    /// Identifier the cube is registered and looked up under.
     pub id: String,
+    /// Option expiries in years, strictly increasing. Indexes the first axis.
     pub expiries: Vec<f64>,
+    /// Underlying swap tenors in years, strictly increasing. Indexes the
+    /// second axis.
     pub tenors: Vec<f64>,
+    /// Row-major: params[expiry_idx * n_tenors + tenor_idx]
     pub params: Vec<SabrParams>,
+    /// Row-major: forwards[expiry_idx * n_tenors + tenor_idx]
     pub forwards: Vec<f64>,
+    /// How volatilities are interpolated between the cube's grid points.
     pub interpolation_mode: VolInterpolationMode,
 }
 

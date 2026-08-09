@@ -113,9 +113,14 @@ impl Default for FormatOpts {
 )]
 #[serde(deny_unknown_fields)]
 pub struct Money {
+    /// Monetary amount, carried on the wire as an exact decimal string rather
+    /// than a JSON number so no precision is lost in transit. Rounded to the
+    /// currency's ISO 4217 minor-unit scale.
     #[serde(with = "crate::wire::decimal")]
     #[schemars(with = "crate::wire::DecimalWire")]
     amount: AmountRepr,
+    /// ISO 4217 currency of `amount`. Arithmetic between two `Money` values
+    /// requires this to match; there is no implicit conversion.
     currency: Currency,
 }
 

@@ -133,12 +133,24 @@ fn credit_grades_default_probability(
 /// - `dynamics`: Asset return dynamics specification.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct MertonModel {
+    /// Current firm asset value `V_0`, in the issuer's reporting currency.
+    /// Strictly positive.
     asset_value: f64,
+    /// Asset volatility `sigma_V`, annualized and expressed as a decimal
+    /// fraction (`0.25` is 25%). Strictly positive.
     asset_vol: f64,
+    /// Default barrier `B`, the debt face value the asset value is compared
+    /// against. Strictly positive and in the same currency as `asset_value`.
     debt_barrier: f64,
+    /// Continuously compounded risk-free rate `r`, as a decimal fraction.
     risk_free_rate: f64,
+    /// Continuous payout (dividend) rate on assets, as a decimal fraction.
+    /// Reduces the drift of the asset process under the risk-neutral measure.
     payout_rate: f64,
+    /// Whether default is tested only at maturity or continuously over the
+    /// life of the debt.
     barrier_type: BarrierType,
+    /// Stochastic process governing the asset value.
     dynamics: AssetDynamics,
 }
 

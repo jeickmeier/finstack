@@ -84,21 +84,6 @@ fn corpus() -> &'static std::collections::BTreeMap<String, Value> {
     CACHE.get_or_init(|| finstack_quant::schema::documents_by_id().unwrap_or_default())
 }
 
-fn resolvable_resources() -> &'static [(String, jsonschema::Resource)] {
-    static CACHE: std::sync::OnceLock<Vec<(String, jsonschema::Resource)>> =
-        std::sync::OnceLock::new();
-    CACHE.get_or_init(|| {
-        corpus()
-            .iter()
-            .filter_map(|(id, schema)| {
-                jsonschema::Resource::from_contents(schema.clone())
-                    .ok()
-                    .map(|resource| (id.clone(), resource))
-            })
-            .collect()
-    })
-}
-
 /// Render one artifact in the requested profile.
 ///
 /// `"canonical"` is the published contract and the only form that may be used
@@ -128,6 +113,11 @@ pub(crate) fn render_profile(artifact: &SchemaArtifact, profile: &str) -> Result
 
 /// Validate a payload against one artifact, returning failures as pointer/message pairs.
 ///
+/// Delegates to [`finstack_quant::schema::validate`], which asserts `format`
+/// and drills into `oneOf`/`anyOf` failures so a wrong enum spelling or a
+/// decimal sent as a JSON number is reported at the offending field rather than
+/// at the union above it.
+///
 /// # Errors
 ///
 /// Returns an error string if the artifact cannot be rendered or compiled.
@@ -135,26 +125,12 @@ pub(crate) fn validate_against(
     artifact: &SchemaArtifact,
     payload: &Value,
 ) -> Result<Vec<Value>, String> {
-    let schema = artifact
-        .generate()
-        .map_err(|error| format!("render {}: {error}", artifact.relative_path))?;
-    let validator = jsonschema::options()
-        .with_resources(
-            resolvable_resources()
-                .iter()
-                .map(|(id, resource)| (id.as_str(), resource.clone())),
-        )
-        .build(&schema)
-        .map_err(|error| format!("compile {}: {error}", artifact.relative_path))?;
-    Ok(validator
-        .iter_errors(payload)
-        .map(|error| {
-            serde_json::json!({
-                "pointer": error.instance_path.to_string(),
-                "message": error.to_string(),
-            })
-        })
-        .collect())
+    let failures = finstack_quant::schema::validate(artifact, payload)
+        .map_err(|error| format!("validate {}: {error}", artifact.relative_path))?;
+    match finstack_quant::schema::failures_to_value(&failures) {
+        Value::Array(rows) => Ok(rows),
+        other => Ok(vec![other]),
+    }
 }
 
 /// Generate `index`, `get` and `validate` for one crate's schema namespace.

@@ -822,10 +822,12 @@
   ],
   "properties": {
     "amount": {
-      "$ref": "#/$defs/DecimalWire"
+      "$ref": "#/$defs/DecimalWire",
+      "description": "Monetary amount, carried on the wire as an exact decimal string rather\nthan a JSON number so no precision is lost in transit. Rounded to the\ncurrency's ISO 4217 minor-unit scale."
     },
     "currency": {
-      "$ref": "#/$defs/Currency"
+      "$ref": "#/$defs/Currency",
+      "description": "ISO 4217 currency of `amount`. Arithmetic between two `Money` values\nrequires this to match; there is no implicit conversion."
     }
   },
   "required": [

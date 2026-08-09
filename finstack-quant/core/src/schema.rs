@@ -656,6 +656,14 @@ pub struct LlmProfile {
     /// carrying [`RESOLVES_FROM_KEYWORD`] so the caller knows which contract to
     /// fetch and validate separately.
     pub max_inline_bytes: usize,
+    /// Longest description to keep, in characters. Zero disables the cap.
+    ///
+    /// Rustdoc prose is written for a reader deciding *whether* to use a type;
+    /// a payload author already decided and needs to know only what the field
+    /// means. The leading paragraph carries that, and the elaboration after it
+    /// is the single largest remaining cost once sections and code blocks are
+    /// gone — measured at 53% to 65% of every projected instrument's bytes.
+    pub max_description_chars: usize,
 }
 
 /// Extension keyword naming the contract a handle stands in for.
@@ -676,6 +684,13 @@ pub const RESOLVES_FROM_KEYWORD: &str = "x-finstack-resolves-from";
 /// the count fitting in 8k tokens from 32 to 90.
 pub const DEFAULT_MAX_INLINE_BYTES: usize = 16 * 1024;
 
+/// Default ceiling for one description, in characters.
+///
+/// 240 characters is about two sentences — enough for the summary line plus a
+/// unit or convention note, which is what a payload author acts on. Anything
+/// longer is elaboration a reader can fetch from the canonical artifact.
+pub const DEFAULT_MAX_DESCRIPTION_CHARS: usize = 240;
+
 impl Default for LlmProfile {
     fn default() -> Self {
         Self {
@@ -684,6 +699,7 @@ impl Default for LlmProfile {
             trim_descriptions: true,
             strict_shape: true,
             max_inline_bytes: DEFAULT_MAX_INLINE_BYTES,
+            max_description_chars: DEFAULT_MAX_DESCRIPTION_CHARS,
         }
     }
 }
@@ -730,11 +746,15 @@ pub fn project_llm(
     if profile.inline_references {
         inline_external_references(&mut projected, resolve, profile.max_inline_bytes);
     }
+    if profile.max_inline_bytes > 0 {
+        substitute_oversized_local_definitions(&mut projected, profile.max_inline_bytes);
+        prune_unreachable_definitions(&mut projected);
+    }
     if profile.flatten_const_unions {
         flatten_const_unions(&mut projected);
     }
     if profile.trim_descriptions {
-        trim_descriptions(&mut projected);
+        trim_descriptions(&mut projected, profile.max_description_chars);
     }
     if profile.strict_shape {
         apply_strict_shape(&mut projected);
@@ -927,6 +947,136 @@ fn inline_external_references(
     }
 }
 
+/// Replace locally-defined definitions that exceed the inline budget with handles.
+///
+/// [`inline_external_references`] can only substitute a handle for a document
+/// reached by `$ref`. A container instrument — a basket, a levered equity
+/// wrapper — embeds the *whole* instrument union as local `$defs` instead, so
+/// the budget never applies and one contract carries all seventy branches:
+/// measured at 302 definitions and 393 KB for `basket`. Standing the oversized
+/// definition down to a handle makes its dependents unreachable, which
+/// [`prune_unreachable_definitions`] then removes.
+fn substitute_oversized_local_definitions(schema: &mut Value, max_inline_bytes: usize) {
+    let Some(defs) = schema.get("$defs").and_then(Value::as_object) else {
+        return;
+    };
+    let oversized: Vec<String> = defs
+        .iter()
+        .filter(|(_, body)| {
+            serde_json::to_vec(body).is_ok_and(|bytes| bytes.len() > max_inline_bytes)
+        })
+        .map(|(name, _)| name.clone())
+        .collect();
+    if oversized.is_empty() {
+        return;
+    }
+
+    let Some(defs) = schema.get_mut("$defs").and_then(Value::as_object_mut) else {
+        return;
+    };
+    for name in oversized {
+        let Some(body) = defs.get(&name) else {
+            continue;
+        };
+        let summary = body
+            .get("description")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let mut handle = Map::new();
+        // Keep the definition's own top-level type where it declares one, so
+        // the handle stays shape-correct and is merely permissive about
+        // contents.
+        if let Some(kind) = body.get("type").cloned() {
+            handle.insert("type".to_string(), kind);
+        }
+        if handle.get("type").is_some_and(|kind| kind == "object") {
+            handle.insert("additionalProperties".to_string(), Value::Bool(true));
+        }
+        handle.insert(
+            "description".to_string(),
+            Value::String(match summary {
+                Some(text) => format!(
+                    "{text}\n\nToo large to inline here: build this sub-document on its own \
+                     and validate it against the canonical contract."
+                ),
+                None => format!(
+                    "A `{name}` value. Too large to inline here: build this sub-document on \
+                     its own and validate it against the canonical contract."
+                ),
+            }),
+        );
+        defs.insert(name, Value::Object(handle));
+    }
+}
+
+/// Drop definitions no longer reachable from the document root.
+///
+/// Standing an oversized definition down to a handle severs the only path to
+/// everything it referenced. Those bodies are then pure cost: unreachable from
+/// the root, unusable by a generator, and indistinguishable from the reachable
+/// ones to a reader.
+fn prune_unreachable_definitions(schema: &mut Value) {
+    let Some(defs) = schema.get("$defs").and_then(Value::as_object) else {
+        return;
+    };
+    if defs.is_empty() {
+        return;
+    }
+
+    let mut reachable: BTreeSet<String> = BTreeSet::new();
+    let mut frontier: Vec<String> = Vec::new();
+    let mut from_root = BTreeSet::new();
+    for (key, value) in schema.as_object().into_iter().flatten() {
+        if key != "$defs" {
+            collect_local_definition_refs(value, &mut from_root);
+        }
+    }
+    frontier.extend(from_root);
+
+    while let Some(name) = frontier.pop() {
+        if !reachable.insert(name.clone()) {
+            continue;
+        }
+        if let Some(body) = defs.get(&name) {
+            let mut nested = BTreeSet::new();
+            collect_local_definition_refs(body, &mut nested);
+            frontier.extend(nested);
+        }
+    }
+
+    let Some(defs) = schema.get_mut("$defs").and_then(Value::as_object_mut) else {
+        return;
+    };
+    defs.retain(|name, _| reachable.contains(name));
+    if defs.is_empty() {
+        if let Some(object) = schema.as_object_mut() {
+            object.remove("$defs");
+        }
+    }
+}
+
+/// Collect every `#/$defs/<name>` target named anywhere in a node.
+fn collect_local_definition_refs(node: &Value, found: &mut BTreeSet<String>) {
+    match node {
+        Value::Object(object) => {
+            if let Some(Value::String(target)) = object.get("$ref") {
+                if let Some(name) = target.strip_prefix("#/$defs/") {
+                    found.insert(name.to_string());
+                }
+            }
+            for nested in object.values() {
+                collect_local_definition_refs(nested, found);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                collect_local_definition_refs(item, found);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Rewrite `oneOf` unions of string `const`s as a flat `enum`.
 ///
 /// schemars emits a unit enum as one branch per variant so each keeps its doc
@@ -964,20 +1114,35 @@ fn flatten_const_unions(node: &mut Value) {
                 }
                 if let Some(Value::String(note)) = branch.get("description") {
                     if let Some(first) = note.lines().find(|line| !line.trim().is_empty()) {
-                        notes.push(format!("`{constant}`: {}", first.trim()));
+                        let mut gloss = format!("`{constant}`: {}", first.trim());
+                        // The variant's standards citation is the part that
+                        // tells a payload author whether this is the spelling
+                        // their contract actually calls for, so it rides along
+                        // with the summary rather than being dropped with the
+                        // rest of the body.
+                        let citations = collect_citation_lines(note);
+                        if !citations.is_empty() {
+                            gloss.push_str(" (");
+                            gloss.push_str(&citations.join("; "));
+                            gloss.push(')');
+                        }
+                        notes.push(gloss);
                     }
                 }
                 values.push(Value::String(constant.clone()));
             }
 
             // A long variant gloss costs more than it teaches; ISO currency
-            // codes are the case that made this threshold necessary.
+            // codes are the case that made this threshold necessary. Glosses
+            // carrying a standards citation are exempt: a wrong day count is a
+            // priced error, and the citation is what prevents it.
             const MAX_FOLDED_NOTE_BYTES: usize = 600;
+            let carries_citation = notes.iter().any(|note| mentions_a_standard(note));
             let folded = notes.join(" · ");
             object.remove("oneOf");
             object.insert("type".to_string(), Value::String("string".to_string()));
             object.insert("enum".to_string(), Value::Array(values));
-            if !folded.is_empty() && folded.len() <= MAX_FOLDED_NOTE_BYTES {
+            if !folded.is_empty() && (carries_citation || folded.len() <= MAX_FOLDED_NOTE_BYTES) {
                 let existing = object
                     .get("description")
                     .and_then(Value::as_str)
@@ -998,6 +1163,24 @@ fn flatten_const_unions(node: &mut Value) {
         }
         _ => {}
     }
+}
+
+/// Pull the standards-citation lines out of a rustdoc body, stripped of markup.
+///
+/// Citations are written as Markdown list items under a reference heading, for
+/// example `- **ISDA**: 2006 ISDA Definitions, Section 4.16(d)`. The bullet and
+/// emphasis carry no meaning once the text is folded into a one-line gloss.
+fn collect_citation_lines(text: &str) -> Vec<String> {
+    text.lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with('-') && mentions_a_standard(line))
+        .map(|line| {
+            line.trim_start_matches('-')
+                .trim()
+                .replace("**", "")
+                .replace("Also known as:", "aka")
+        })
+        .collect()
 }
 
 /// Reduce one rustdoc description to the prose a payload author needs.
@@ -1059,11 +1242,11 @@ fn project_description(text: &str) -> String {
 }
 
 /// Apply [`project_description`] to every `description` in the document.
-fn trim_descriptions(node: &mut Value) {
+fn trim_descriptions(node: &mut Value, max_chars: usize) {
     match node {
         Value::Object(object) => {
             if let Some(Value::String(text)) = object.get("description") {
-                let projected = project_description(text);
+                let projected = shorten_description(&project_description(text), max_chars);
                 if projected.is_empty() {
                     object.remove("description");
                 } else {
@@ -1072,17 +1255,156 @@ fn trim_descriptions(node: &mut Value) {
             }
             for (key, nested) in object.iter_mut() {
                 if key != "examples" {
-                    trim_descriptions(nested);
+                    trim_descriptions(nested, max_chars);
                 }
             }
         }
         Value::Array(items) => {
             for item in items {
-                trim_descriptions(item);
+                trim_descriptions(item, max_chars);
             }
         }
         _ => {}
     }
+}
+
+/// Reduce one description to its leading paragraph, within a character budget.
+///
+/// Falls back through three steps: keep the text if it already fits, else keep
+/// the leading paragraph, else keep whole sentences from that paragraph while
+/// they fit. A description that cannot be cut at a sentence boundary is left
+/// whole rather than truncated mid-clause — a half-sentence about a market
+/// convention is worse than a long one.
+fn shorten_description(text: &str, max_chars: usize) -> String {
+    if max_chars == 0 || text.chars().count() <= max_chars {
+        return text.to_string();
+    }
+
+    let (lead, sections) = split_leading_prose(text);
+    let mut kept = shorten_prose(lead, max_chars);
+    for section in sections {
+        // A citation earns its place by being compact. The discriminating
+        // case — which ISDA section each accepted spelling implements — is
+        // folded into the lead prose by `flatten_const_unions` and preserved
+        // there; a long reference block hanging off a single field is
+        // background the caller can read in the canonical artifact.
+        if mentions_a_standard(section) && section.chars().count() <= max_chars {
+            kept.push_str("\n\n");
+            kept.push_str(section.trim_end());
+        }
+    }
+    kept
+}
+
+/// Split a description into its lead prose and its `# Heading` sections.
+fn split_leading_prose(text: &str) -> (&str, Vec<&str>) {
+    let mut boundaries: Vec<usize> = Vec::new();
+    let mut offset = 0;
+    for line in text.split_inclusive('\n') {
+        if line.starts_with("# ") {
+            boundaries.push(offset);
+        }
+        offset += line.len();
+    }
+    let Some(&first) = boundaries.first() else {
+        return (text, Vec::new());
+    };
+    let mut sections = Vec::with_capacity(boundaries.len());
+    for (index, &start) in boundaries.iter().enumerate() {
+        let end = boundaries.get(index + 1).copied().unwrap_or(text.len());
+        sections.push(&text[start..end]);
+    }
+    (&text[..first], sections)
+}
+
+/// Whether a section cites a standards body or market convention.
+///
+/// These citations are what make a wire contract auditable — which ISDA
+/// section a day count implements, which ISO code a value corresponds to — so
+/// they are never treated as elaboration and never dropped for length.
+fn mentions_a_standard(section: &str) -> bool {
+    const BODIES: &[&str] = &[
+        "ISDA", "ISO", "ICMA", "ISMA", "IFRS", "FpML", "SIFMA", "Basel", "AFB", "FINRA", "IMM",
+        "GAAP", "EMIR", "CFTC", "BCBS", "IOSCO",
+    ];
+    BODIES.iter().any(|body| section.contains(body))
+}
+
+/// Reduce free prose to its opening paragraph, plus any paragraph that cites a
+/// standard, within a character budget.
+///
+/// The citation carve-out matters here as much as at section level: folded
+/// enum glosses arrive as a paragraph, not under a heading, and they are where
+/// a flattened unit enum keeps its ISDA and ISO references.
+fn shorten_prose(text: &str, max_chars: usize) -> String {
+    let text = text.trim();
+    if text.chars().count() <= max_chars {
+        return text.to_string();
+    }
+
+    let mut paragraphs = text.split("\n\n");
+    let leading = paragraphs.next().unwrap_or(text).trim();
+    let cited: Vec<&str> = paragraphs
+        .map(str::trim)
+        .filter(|paragraph| !paragraph.is_empty() && mentions_a_standard(paragraph))
+        .collect();
+
+    let head = shorten_paragraph(leading, max_chars);
+    if cited.is_empty() {
+        return head;
+    }
+    let mut kept = head;
+    for paragraph in cited {
+        kept.push_str("\n\n");
+        kept.push_str(paragraph);
+    }
+    kept
+}
+
+/// Reduce one paragraph to whole sentences within a character budget.
+fn shorten_paragraph(leading: &str, max_chars: usize) -> String {
+    if leading.chars().count() <= max_chars {
+        return leading.to_string();
+    }
+
+    let mut kept = String::new();
+    let mut rest = leading;
+    while let Some(end) = sentence_end(rest) {
+        let (sentence, remainder) = rest.split_at(end);
+        if kept.chars().count() + sentence.chars().count() > max_chars {
+            break;
+        }
+        kept.push_str(sentence);
+        rest = remainder;
+    }
+
+    let kept = kept.trim();
+    if kept.is_empty() {
+        leading.to_string()
+    } else {
+        kept.to_string()
+    }
+}
+
+/// Byte offset just past the first sentence terminator followed by a space.
+///
+/// Abbreviations inside these descriptions are written without a following
+/// space (`e.g.` appears mid-clause), so requiring whitespace after the period
+/// avoids cutting one in half.
+fn sentence_end(text: &str) -> Option<usize> {
+    let bytes = text.as_bytes();
+    for (offset, character) in text.char_indices() {
+        if !matches!(character, '.' | '!' | '?') {
+            continue;
+        }
+        let next = offset + character.len_utf8();
+        match bytes.get(next) {
+            None => return Some(text.len()),
+            Some(following) if following.is_ascii_whitespace() => return Some(next + 1),
+            _ => {}
+        }
+    }
+    None
 }
 
 /// Close objects, require every property, and drop non-portable keywords.
@@ -2207,6 +2529,228 @@ mod tests {
         assert!(
             text.contains("`DayCount`") && !text.contains("[`DayCount`]"),
             "links flatten: {text}"
+        );
+    }
+
+    #[test]
+    fn oversized_local_definition_becomes_a_handle_and_its_dependents_are_pruned() {
+        // A container instrument embeds the whole instrument union locally, so
+        // the union definition is the one over budget and everything it
+        // references exists only to serve it.
+        let union_branches: Vec<Value> = (0..200)
+            .map(|index| json!({"$ref": format!("#/$defs/Leaf{index}")}))
+            .collect();
+        let mut defs = Map::new();
+        defs.insert(
+            "InstrumentJson".to_string(),
+            json!({
+                "description": "Any instrument payload.",
+                "type": "object",
+                "oneOf": union_branches,
+            }),
+        );
+        for index in 0..200 {
+            defs.insert(
+                format!("Leaf{index}"),
+                json!({"type": "object", "properties": {"id": {"type": "string"}}}),
+            );
+        }
+        defs.insert(
+            "Kept".to_string(),
+            json!({"type": "string", "description": "Reachable from the root."}),
+        );
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "holding": {"$ref": "#/$defs/InstrumentJson"},
+                "label": {"$ref": "#/$defs/Kept"},
+            },
+            "$defs": Value::Object(defs),
+        });
+
+        // Pinned rather than inherited from the default so the test states the
+        // budget it depends on.
+        let profile = LlmProfile {
+            max_inline_bytes: 2048,
+            ..LlmProfile::default()
+        };
+        let projected = project_llm(&schema, &no_resolver, &profile).expect("projects");
+        let projected_defs = projected["$defs"].as_object().expect("defs survive");
+
+        assert!(
+            projected_defs.contains_key("Kept"),
+            "definitions reachable from the root survive"
+        );
+        assert!(
+            !projected_defs.contains_key("Leaf0"),
+            "definitions reachable only through the handle are pruned"
+        );
+        let handle = &projected_defs["InstrumentJson"];
+        assert!(
+            handle.get("oneOf").is_none(),
+            "the oversized union is stood down to a handle"
+        );
+        assert!(
+            handle["description"]
+                .as_str()
+                .is_some_and(|text| text.contains("Any instrument payload.")),
+            "the handle keeps the original summary: {handle}"
+        );
+        assert!(
+            serde_json::to_vec(&projected).expect("serializes").len()
+                < serde_json::to_vec(&schema).expect("serializes").len() / 4,
+            "the projection is dramatically smaller than the source"
+        );
+    }
+
+    #[test]
+    fn definitions_reachable_only_through_other_definitions_are_kept() {
+        let schema = json!({
+            "type": "object",
+            "properties": {"outer": {"$ref": "#/$defs/Outer"}},
+            "$defs": {
+                "Outer": {"type": "object", "properties": {"inner": {"$ref": "#/$defs/Inner"}}},
+                "Inner": {"type": "string", "description": "Two hops from the root."},
+                "Orphan": {"type": "string", "description": "Referenced by nothing."},
+            },
+        });
+
+        let projected =
+            project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
+        let defs = projected["$defs"].as_object().expect("defs survive");
+
+        assert!(defs.contains_key("Outer"), "direct reference survives");
+        assert!(defs.contains_key("Inner"), "transitive reference survives");
+        assert!(
+            !defs.contains_key("Orphan"),
+            "unreferenced definition is pruned"
+        );
+    }
+
+    #[test]
+    fn short_descriptions_survive_the_character_budget_untouched() {
+        let schema = json!({
+            "type": "string",
+            "description": "Annualized coupon rate as a decimal fraction, not a percentage.",
+        });
+        let projected =
+            project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
+
+        assert_eq!(
+            projected["description"],
+            json!("Annualized coupon rate as a decimal fraction, not a percentage.")
+        );
+    }
+
+    #[test]
+    fn long_description_keeps_its_leading_paragraph_and_drops_elaboration() {
+        let description = concat!(
+            "Notional amount the schedule accrues on.\n\n",
+            "The remaining paragraphs elaborate at length on amortization interactions, ",
+            "sinking-fund mechanics, and the treatment of partial prepayments, none of which ",
+            "a payload author needs in order to fill in a single number for this field, and ",
+            "all of which cost tokens in every projected document that references it.",
+        );
+        let schema = json!({"type": "string", "description": description});
+        let projected =
+            project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
+        let text = projected["description"]
+            .as_str()
+            .expect("description survives");
+
+        assert_eq!(text, "Notional amount the schedule accrues on.");
+    }
+
+    #[test]
+    fn overlong_leading_paragraph_is_cut_on_a_sentence_boundary() {
+        let sentence = "Rates are decimal fractions rather than percentages. ";
+        let description = sentence.repeat(12);
+        let schema = json!({"type": "string", "description": description});
+        let projected =
+            project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
+        let text = projected["description"]
+            .as_str()
+            .expect("description survives");
+
+        assert!(
+            text.chars().count() <= DEFAULT_MAX_DESCRIPTION_CHARS,
+            "budget respected, got {} chars",
+            text.chars().count()
+        );
+        assert!(
+            text.ends_with("percentages."),
+            "cut lands on a sentence boundary: {text}"
+        );
+    }
+
+    #[test]
+    fn a_single_overlong_sentence_is_kept_whole_rather_than_cut_mid_clause() {
+        let description = format!("Day-count basis {} and nothing else", "x".repeat(400));
+        let schema = json!({"type": "string", "description": description});
+        let projected =
+            project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
+
+        assert_eq!(
+            projected["description"].as_str().expect("survives"),
+            description,
+            "no sentence boundary exists, so the text is left intact"
+        );
+    }
+
+    #[test]
+    fn standards_citations_survive_the_character_budget() {
+        // Which ISDA section a convention implements is contract, not prose: a
+        // payload author cannot confirm they picked the right day count without
+        // it, so length alone must never drop it.
+        let description = concat!(
+            "Actual/360 day count convention.\n\n",
+            "Year fraction = (actual days between dates) / 360\n\n",
+            "# Standards Reference\n\n",
+            "- **ISDA**: 2006 ISDA Definitions, Section 4.16(d)\n",
+            "- **ISO 20022**: Day Count Fraction Code \"Actual/360\" (A004)\n\n",
+            "# Usage\n\n",
+            "Standard for USD money market deposits, EUR money market instruments, ",
+            "short-term rate derivatives such as SOFR and \u{20ac}STR, and FX swaps and ",
+            "forwards, across a range of desks that each have their own further ",
+            "conventions layered on top of the basic accrual rule described above.",
+        );
+        let schema = json!({"type": "string", "description": description});
+        let projected =
+            project_llm(&schema, &no_resolver, &LlmProfile::default()).expect("projects");
+        let text = projected["description"]
+            .as_str()
+            .expect("description survives");
+
+        assert!(text.contains("Actual/360 day count convention."));
+        assert!(text.contains("ISDA"), "standards body survives: {text}");
+        assert!(text.contains("4.16(d)"), "section number survives: {text}");
+        assert!(text.contains("A004"), "ISO code survives: {text}");
+        assert!(
+            !text.contains("# Usage"),
+            "elaboration without a citation is dropped: {text}"
+        );
+    }
+
+    #[test]
+    fn zero_budget_disables_description_shortening() {
+        let description = concat!(
+            "Leading summary sentence.\n\n",
+            "Elaboration that a zero budget must preserve verbatim for callers that want ",
+            "the full projected prose rather than the summary alone.",
+        );
+        let schema = json!({"type": "string", "description": description});
+        let profile = LlmProfile {
+            max_description_chars: 0,
+            ..LlmProfile::default()
+        };
+        let projected = project_llm(&schema, &no_resolver, &profile).expect("projects");
+
+        assert!(
+            projected["description"]
+                .as_str()
+                .expect("survives")
+                .contains("Elaboration that a zero budget"),
+            "zero disables the cap"
         );
     }
 

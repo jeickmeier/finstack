@@ -185,6 +185,19 @@ impl crate::instruments::common_impl::traits::Instrument for Bond {
                 .has_non_z_price_driver()
     }
 
+    /// Reject a bond that matures before it is issued.
+    ///
+    /// Neither serde nor JSON Schema relates one date field to another, so an
+    /// inverted term deserializes cleanly and only shows up downstream as a
+    /// negative year fraction.
+    fn validate_invariants(&self) -> finstack_quant_core::Result<()> {
+        crate::instruments::common_impl::validation::validate_date_range_strict(
+            self.issue_date,
+            self.maturity,
+            "bond issue-to-maturity",
+        )
+    }
+
     fn expiry(&self) -> Option<finstack_quant_core::dates::Date> {
         Some(self.maturity)
     }

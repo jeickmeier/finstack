@@ -171,31 +171,75 @@ pub struct EquityTotalReturnSwap {
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct EquityTotalReturnSwapUnchecked {
+    /// Unique instrument identifier.
     id: InstrumentId,
+    /// Notional amount for the swap.
     notional: Money,
+    /// Underlying equity parameters (spot ID, dividend yield, contract size).
     underlying: EquityUnderlyingParams,
+    /// Financing leg specification (curves, spread, day count).
     financing: FinancingLegSpec,
+    /// Schedule specification (payment dates and frequency).
     schedule: TrsScheduleSpec,
+    /// Trade side (receive/pay total return).
     side: TrsSide,
+    /// Optional first-period start level.
+    ///
+    /// Pricing uses this only when the first period is in progress and no
+    /// matching entry exists in `past_fixings`. Future periods use live spot.
     initial_level: Option<f64>,
+    /// Observed underlying levels at past reset (period-start) dates.
+    ///
+    /// For a seasoned TRS valued inside a return period, the total-return leg
+    /// must anchor the current period to the level *observed* at the period
+    /// start so the realized spot move enters the PV (equity delta). Provide
+    /// `(reset_date, level)` pairs for every period-start date on or before
+    /// the valuation date; the first period may use `initial_level` instead.
+    /// Pricing errors when the current period's start level is unavailable.
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     past_fixings: Vec<(Date, f64)>,
+    /// Optional OTC margin specification for VM/IM.
+    ///
+    /// Equity TRS use SIMM equity bucket for margin calculation.
     #[serde(default)]
     margin_spec: Option<OtcMarginSpec>,
+    /// Dividend withholding tax rate for net return calculation.
+    ///
+    /// Specifies the fraction of dividends withheld for tax (e.g., 0.15 for 15% withholding).
+    /// When set to 0.0 (default), the TRS passes through 100% of dividends (gross return).
+    /// When set to a positive value, the dividend return component is reduced:
+    /// ```text
+    /// net_dividend_return = gross_dividend_return × (1 - dividend_tax_rate)
+    /// ```
+    ///
+    /// # Market Context
+    ///
+    /// Withholding tax varies by jurisdiction and investor domicile:
+    /// - US qualified dividends: typically 0% for domestic investors
+    /// - US non-qualified: up to 30% for foreign investors (varies by treaty)
+    /// - European: varies by country (15-30% typical)
     #[serde(default)]
     dividend_tax_rate: f64,
+    /// Optional discrete cash dividends `(ex_date, amount)` for the underlying.
+    ///
+    /// When non-empty, pricing uses explicit period dividend pass-through and does
+    /// not add continuous-yield dividend return to avoid double counting.
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     discrete_dividends: Vec<(Date, f64)>,
+    /// Attributes for scenario selection and tagging.
     #[serde(default)]
     instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
+    /// Metric-only pricing controls.
     #[serde(default)]
     metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
+    /// Scenario-only valuation adjustments.
     #[serde(default)]
     scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
+    /// Attributes for scenario selection and tagging
     attributes: Attributes,
 }
 

@@ -111,16 +111,24 @@ enum MaterializedPositionWire {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct PercentageMaterializedPositionWire {
+    /// Position identifier, unique within the materialized portfolio.
     #[schemars(with = "String")]
     id: PositionId,
+    /// Legal entity or book the position belongs to, used for rollups.
     #[schemars(with = "String")]
     entity_id: EntityId,
+    /// Identifier of the instrument this position holds.
     instrument_id: String,
+    /// Identifier of the compiled artifact the instrument was resolved from.
     artifact_id: String,
+    /// Holding size expressed as a percentage of the referenced notional.
     quantity: PercentageQuantityWire,
+    /// Unit discriminator; always `percentage` for this variant.
     unit: PercentagePositionUnitWire,
+    /// Typed classification tags used for grouping and scenario selection.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     attributes: IndexMap<String, AttributeValue>,
+    /// Free-form metadata carried through unchanged; not interpreted here.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     meta: IndexMap<String, serde_json::Value>,
 }
@@ -128,16 +136,25 @@ struct PercentageMaterializedPositionWire {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct NonPercentageMaterializedPositionWire {
+    /// Position identifier, unique within the materialized portfolio.
     #[schemars(with = "String")]
     id: PositionId,
+    /// Legal entity or book the position belongs to, used for rollups.
     #[schemars(with = "String")]
     entity_id: EntityId,
+    /// Identifier of the instrument this position holds.
     instrument_id: String,
+    /// Identifier of the compiled artifact the instrument was resolved from.
     artifact_id: String,
+    /// Holding size in the unit named by `unit`. Negative values are short
+    /// positions.
     quantity: f64,
+    /// Unit `quantity` is expressed in, such as notional, shares, or contracts.
     unit: NonPercentagePositionUnitWire,
+    /// Typed classification tags used for grouping and scenario selection.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     attributes: IndexMap<String, AttributeValue>,
+    /// Free-form metadata carried through unchanged; not interpreted here.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     meta: IndexMap<String, serde_json::Value>,
 }

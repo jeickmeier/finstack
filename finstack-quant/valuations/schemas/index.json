@@ -2,7 +2,7 @@
   "artifacts": [
     {
       "$id": "https://finstack_quant.dev/schemas/calibration/1/calibration.schema.json",
-      "bytes": 216876,
+      "bytes": 217981,
       "kind": "input",
       "path": "schemas/calibration/1/calibration.schema.json",
       "summary": "Build a market from quotes: a calibration plan, flat market data, and any pre-built curves or surfaces.",
@@ -74,7 +74,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
-      "bytes": 82346,
+      "bytes": 83918,
       "kind": "component",
       "path": "schemas/common/1/instrument_pricing_overrides.schema.json",
       "summary": "Instrument-owned market quote and model configuration overrides.",
@@ -90,7 +90,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-      "bytes": 20084,
+      "bytes": 20440,
       "kind": "component",
       "path": "schemas/common/1/money.schema.json",
       "summary": "Currency-tagged monetary amount.",
@@ -106,7 +106,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
-      "bytes": 1168,
+      "bytes": 1434,
       "kind": "component",
       "path": "schemas/common/1/tenor.schema.json",
       "summary": "Parsed financial tenor.",
@@ -202,7 +202,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/autocallable.schema.json",
-      "bytes": 8605,
+      "bytes": 11907,
       "kind": "input",
       "path": "schemas/instruments/1/equity/autocallable.schema.json",
       "summary": "Structured note that redeems early when a barrier is met.",
@@ -210,7 +210,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/cliquet_option.schema.json",
-      "bytes": 6142,
+      "bytes": 8409,
       "kind": "input",
       "path": "schemas/instruments/1/equity/cliquet_option.schema.json",
       "summary": "Series of forward-starting options with local and global caps.",
@@ -218,7 +218,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/discounted_cash_flow.schema.json",
-      "bytes": 13700,
+      "bytes": 16419,
       "kind": "input",
       "path": "schemas/instruments/1/equity/discounted_cash_flow.schema.json",
       "summary": "Enterprise DCF valuation with an explicit forecast and terminal value.",
@@ -250,7 +250,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/levered_real_estate_equity.schema.json",
-      "bytes": 809265,
+      "bytes": 826665,
       "kind": "input",
       "path": "schemas/instruments/1/equity/levered_real_estate_equity.schema.json",
       "summary": "Property equity net of its financing stack.",
@@ -266,7 +266,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/real_estate_asset.schema.json",
-      "bytes": 9495,
+      "bytes": 12523,
       "kind": "input",
       "path": "schemas/instruments/1/equity/real_estate_asset.schema.json",
       "summary": "Direct property asset with rent roll and exit assumptions.",
@@ -274,7 +274,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/trs_equity.schema.json",
-      "bytes": 35837,
+      "bytes": 38350,
       "kind": "input",
       "path": "schemas/instruments/1/equity/trs_equity.schema.json",
       "summary": "Equity total-return swap versus a funding leg.",
@@ -298,7 +298,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/volatility_index_option.schema.json",
-      "bytes": 7359,
+      "bytes": 8587,
       "kind": "input",
       "path": "schemas/instruments/1/equity/volatility_index_option.schema.json",
       "summary": "Option on a volatility-index future.",
@@ -322,7 +322,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/basket.schema.json",
-      "bytes": 809260,
+      "bytes": 826660,
       "kind": "input",
       "path": "schemas/instruments/1/exotics/basket.schema.json",
       "summary": "Weighted basket of constituents priced as one position.",
@@ -450,7 +450,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_forward.schema.json",
-      "bytes": 6844,
+      "bytes": 6970,
       "kind": "input",
       "path": "schemas/instruments/1/fx/fx_forward.schema.json",
       "summary": "Outright FX forward.",
@@ -466,7 +466,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_spot.schema.json",
-      "bytes": 4995,
+      "bytes": 6834,
       "kind": "input",
       "path": "schemas/instruments/1/fx/fx_spot.schema.json",
       "summary": "Spot foreign-exchange trade.",
@@ -474,7 +474,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_swap.schema.json",
-      "bytes": 5505,
+      "bytes": 5631,
       "kind": "input",
       "path": "schemas/instruments/1/fx/fx_swap.schema.json",
       "summary": "Near- and far-leg FX swap.",
@@ -498,7 +498,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/ndf.schema.json",
-      "bytes": 14100,
+      "bytes": 14226,
       "kind": "input",
       "path": "schemas/instruments/1/fx/ndf.schema.json",
       "summary": "Non-deliverable forward cash-settled against a fixing.",
@@ -506,7 +506,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/quanto_option.schema.json",
-      "bytes": 7851,
+      "bytes": 7977,
       "kind": "input",
       "path": "schemas/instruments/1/fx/quanto_option.schema.json",
       "summary": "Option on a foreign asset settled in the domestic currency at a fixed rate.",
@@ -514,7 +514,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json",
-      "bytes": 887053,
+      "bytes": 904453,
       "kind": "input",
       "path": "schemas/instruments/1/instrument.schema.json",
       "summary": "The seventy-branch union of every instrument type. Prefer the per-type schema beside it: this document is too large to hand to a model.",

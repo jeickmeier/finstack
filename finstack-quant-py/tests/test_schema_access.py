@@ -99,23 +99,39 @@ COMPILED_VS_CHECKED_IN: list[tuple[str, str, str]] = [
     ),
 ]
 
+# Every schema namespace carries the three registry functions (`get`, `index`,
+# `validate`) alongside its own accessors, and lists them in sorted order.
 EXPECTED_EXPORTS: dict[str, list[str]] = {
-    "finstack_quant.cashflows.schema": ["resources"],
+    "finstack_quant.cashflows.schema": [
+        "get",
+        "index",
+        "resources",
+        "validate",
+    ],
     "finstack_quant.factor_model.schema": [
         "credit_calibration_config_schema",
         "credit_calibration_inputs_schema",
         "credit_factor_model_schema",
         "factor_model_config_schema",
+        "get",
+        "index",
+        "validate",
     ],
     "finstack_quant.statements.schema": [
         "financial_model_spec_schema",
+        "get",
+        "index",
         "normalization_config_schema",
         "statement_result_schema",
+        "validate",
     ],
     "finstack_quant.valuations.schema": [
+        "get",
+        "index",
         "instrument_envelope_schema",
         "instrument_schema",
         "instrument_types",
+        "validate",
         "validate_instrument_envelope_json",
         "validate_instrument_type_json",
         "valuation_result_schema",

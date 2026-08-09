@@ -1113,33 +1113,41 @@
       "additionalProperties": false,
       "properties": {
         "artifact_id": {
+          "description": "Identifier of the compiled artifact the instrument was resolved from.",
           "type": "string"
         },
         "attributes": {
           "additionalProperties": {
             "$ref": "#/$defs/AttributeValue"
           },
+          "description": "Typed classification tags used for grouping and scenario selection.",
           "type": "object"
         },
         "entity_id": {
+          "description": "Legal entity or book the position belongs to, used for rollups.",
           "type": "string"
         },
         "id": {
+          "description": "Position identifier, unique within the materialized portfolio.",
           "type": "string"
         },
         "instrument_id": {
+          "description": "Identifier of the instrument this position holds.",
           "type": "string"
         },
         "meta": {
           "additionalProperties": true,
+          "description": "Free-form metadata carried through unchanged; not interpreted here.",
           "type": "object"
         },
         "quantity": {
+          "description": "Holding size in the unit named by `unit`. Negative values are short\npositions.",
           "format": "double",
           "type": "number"
         },
         "unit": {
-          "$ref": "#/$defs/NonPercentagePositionUnitWire"
+          "$ref": "#/$defs/NonPercentagePositionUnitWire",
+          "description": "Unit `quantity` is expressed in, such as notional, shares, or contracts."
         }
       },
       "required": [
@@ -1189,32 +1197,40 @@
       "additionalProperties": false,
       "properties": {
         "artifact_id": {
+          "description": "Identifier of the compiled artifact the instrument was resolved from.",
           "type": "string"
         },
         "attributes": {
           "additionalProperties": {
             "$ref": "#/$defs/AttributeValue"
           },
+          "description": "Typed classification tags used for grouping and scenario selection.",
           "type": "object"
         },
         "entity_id": {
+          "description": "Legal entity or book the position belongs to, used for rollups.",
           "type": "string"
         },
         "id": {
+          "description": "Position identifier, unique within the materialized portfolio.",
           "type": "string"
         },
         "instrument_id": {
+          "description": "Identifier of the instrument this position holds.",
           "type": "string"
         },
         "meta": {
           "additionalProperties": true,
+          "description": "Free-form metadata carried through unchanged; not interpreted here.",
           "type": "object"
         },
         "quantity": {
-          "$ref": "#/$defs/PercentageQuantityWire"
+          "$ref": "#/$defs/PercentageQuantityWire",
+          "description": "Holding size expressed as a percentage of the referenced notional."
         },
         "unit": {
-          "$ref": "#/$defs/PercentagePositionUnitWire"
+          "$ref": "#/$defs/PercentagePositionUnitWire",
+          "description": "Unit discriminator; always `percentage` for this variant."
         }
       },
       "required": [

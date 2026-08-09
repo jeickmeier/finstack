@@ -11,6 +11,7 @@
       "properties": {
         "acquisition_cost": {
           "default": null,
+          "description": "Optional one-time acquisition cost deducted at `as_of` in DCF valuation.\n\nThis is intended for closing costs, fees, and other transaction costs.",
           "format": "double",
           "type": [
             "number",
@@ -19,6 +20,7 @@
         },
         "acquisition_costs": {
           "default": [],
+          "description": "Optional detailed acquisition cost line items (positive outflows) deducted at `as_of`.",
           "items": {
             "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
           },
@@ -33,14 +35,17 @@
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "description": "Optional appraisal override value."
         },
         "attributes": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-          "default": {}
+          "default": {},
+          "description": "Attributes for scenario selection and tagging"
         },
         "cap_rate": {
           "default": null,
+          "description": "Capitalization rate for direct cap (annualized).",
           "format": "double",
           "type": [
             "number",
@@ -49,6 +54,7 @@
         },
         "capex_schedule": {
           "default": null,
+          "description": "Capital expenditure schedule (date, amount). Values are treated as **positive outflows**.\n\nWhen present, cashflows are valued as `NOI - CapEx` (unlevered net cash flow).",
           "items": {
             "maxItems": 2,
             "minItems": 2,
@@ -69,16 +75,20 @@
           ]
         },
         "currency": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Currency for valuation."
         },
         "day_count": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count convention for year fractions."
         },
         "discount_curve_id": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve identifier, used for risk attribution only.\n\nDCF valuation always discounts at [`discount_rate`](Self::discount_rate)\nregardless of whether this curve is loaded ; rate\nsensitivity (`Dv01`/`BucketedDv01`) bumps the risk-free component\ninside the rate."
         },
         "discount_rate": {
           "default": null,
+          "description": "Discount rate for DCF (annualized).",
           "format": "double",
           "type": [
             "number",
@@ -87,6 +97,7 @@
         },
         "disposition_cost_pct": {
           "default": null,
+          "description": "Optional disposition cost percentage applied to terminal value.\n\nA value of `0.02` represents 2% selling costs. Must be in \\([0, 1)\\).",
           "format": "double",
           "type": [
             "number",
@@ -95,26 +106,31 @@
         },
         "disposition_costs": {
           "default": [],
+          "description": "Optional detailed disposition cost line items (positive outflows) deducted from terminal proceeds.",
           "items": {
             "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
           },
           "type": "array"
         },
         "id": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
         },
         "instrument_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
-          "default": {}
+          "default": {},
+          "description": "Attributes for tagging and scenarios."
         },
         "metric_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
           "default": {
             "mc_seed_scenario": null,
             "theta_period": null
-          }
+          },
+          "description": "Metric-only pricing controls."
         },
         "noi_schedule": {
+          "description": "Net operating income schedule (date, amount).",
           "items": {
             "maxItems": 2,
             "minItems": 2,
@@ -140,7 +156,8 @@
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "description": "Optional property type classification (for reporting)."
         },
         "purchase_price": {
           "anyOf": [
@@ -151,7 +168,8 @@
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "description": "Optional purchase price (useful for IRR / cap rate metrics)."
         },
         "sale_date": {
           "anyOf": [
@@ -162,7 +180,8 @@
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "description": "Optional sale/exit date that truncates the DCF horizon.\n\nWhen set, DCF only values unlevered flows up to and including `sale_date`.\nTerminal proceeds (if configured) are realized on `sale_date`."
         },
         "sale_price": {
           "anyOf": [
@@ -173,14 +192,17 @@
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "description": "Optional explicit gross sale price (terminal proceeds), before disposition costs.\n\nWhen set, this takes precedence over `terminal_cap_rate` for terminal proceeds."
         },
         "scenario_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
-          "default": {}
+          "default": {},
+          "description": "Scenario-only valuation adjustments."
         },
         "stabilized_noi": {
           "default": null,
+          "description": "Optional stabilized NOI override for direct cap.",
           "format": "double",
           "type": [
             "number",
@@ -189,6 +211,7 @@
         },
         "terminal_cap_rate": {
           "default": null,
+          "description": "Optional terminal cap rate for DCF (uses last NOI).",
           "format": "double",
           "type": [
             "number",
@@ -197,6 +220,7 @@
         },
         "terminal_growth_rate": {
           "default": null,
+          "description": "Optional terminal growth rate used to project `NOI_{N+1}` for exit valuation.\n\nMarket convention for exit-cap terminal value is \\(TV = NOI_{N+1} / cap\\_rate\\_exit\\).\nWhen not provided, defaults to 0 (uses last NOI as-is).\nValidation range is \\([-100\\%, 20\\%]\\) to guard against configuration errors.",
           "format": "double",
           "type": [
             "number",
@@ -204,10 +228,12 @@
           ]
         },
         "valuation_date": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Valuation date (base date for discounting)."
         },
         "valuation_method": {
-          "$ref": "#/$defs/RealEstateValuationMethod"
+          "$ref": "#/$defs/RealEstateValuationMethod",
+          "description": "Valuation method (DCF or DirectCap)."
         }
       },
       "required": [

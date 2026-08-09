@@ -204,33 +204,51 @@ impl VolIndexOptionSpecs {
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct VolatilityIndexOptionUnchecked {
+    /// Unique identifier.
     id: InstrumentId,
+    /// Notional exposure in currency units.
     notional: Money,
+    /// Strike price (in index points, e.g., 20.0).
     strike: f64,
+    /// Option type (Call or Put).
     option_type: OptionType,
+    /// Exercise style (always European for VIX options).
     #[serde(default)]
     exercise_style: ExerciseStyle,
+    /// Option expiry date.
     #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     expiry: Date,
+    /// Settlement date (typically same as expiry for cash-settled).
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     settlement_date: Option<Date>,
+    /// Observed volatility-index settlement fixing, required after expiry when
+    /// cash settlement occurs later than expiry.
     #[serde(default)]
     expiry_fixing: Option<f64>,
+    /// Contract specifications.
     #[serde(default)]
     contract_specs: VolIndexOptionSpecs,
+    /// Day count convention (default: Act365F).
     day_count: DayCount,
+    /// Discount curve identifier for present value calculations.
     discount_curve_id: CurveId,
+    /// Volatility index forward curve identifier.
     vol_index_curve_id: CurveId,
+    /// Vol-of-vol surface identifier for option implied volatility.
     vol_of_vol_surface_id: CurveId,
+    /// Attributes for tagging and selection.
     #[serde(default)]
     instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
+    /// Metric-only pricing controls.
     #[serde(default)]
     metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
+    /// Scenario-only valuation adjustments.
     #[serde(default)]
     scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
+    /// Attributes for scenario selection and tagging
     #[serde(default)]
     attributes: Attributes,
 }

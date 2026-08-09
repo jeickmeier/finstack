@@ -127,8 +127,10 @@ struct FxSwapUnchecked {
     /// Per-instrument pricing/sensitivity override knobs.
     #[serde(default)]
     instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
+    /// Metric-time pricing configuration.
     #[serde(default)]
     metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
+    /// Scenario-only pricing adjustments.
     #[serde(default)]
     scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging.

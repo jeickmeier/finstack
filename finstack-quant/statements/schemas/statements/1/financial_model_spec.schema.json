@@ -5222,28 +5222,35 @@
       "description": "Merton structural credit model.\n\nModels a firm's equity as a call option on its assets, where default\noccurs when asset value falls below the debt barrier.\n\n# Fields\n\n- `asset_value` (V_0): Current market value of the firm's assets.\n- `asset_vol` (sigma_V): Annualized volatility of asset returns.\n- `debt_barrier` (B): Face value of debt / default point.\n- `risk_free_rate` (r): Continuous risk-free rate.\n- `payout_rate` (q): Continuous dividend / payout yield on assets.\n- `barrier_type`: Terminal or first-passage barrier monitoring.\n- `dynamics`: Asset return dynamics specification.",
       "properties": {
         "asset_value": {
+          "description": "Current firm asset value `V_0`, in the issuer's reporting currency.\nStrictly positive.",
           "format": "double",
           "type": "number"
         },
         "asset_vol": {
+          "description": "Asset volatility `sigma_V`, annualized and expressed as a decimal\nfraction (`0.25` is 25%). Strictly positive.",
           "format": "double",
           "type": "number"
         },
         "barrier_type": {
-          "$ref": "#/$defs/MertonBarrierType"
+          "$ref": "#/$defs/MertonBarrierType",
+          "description": "Whether default is tested only at maturity or continuously over the\nlife of the debt."
         },
         "debt_barrier": {
+          "description": "Default barrier `B`, the debt face value the asset value is compared\nagainst. Strictly positive and in the same currency as `asset_value`.",
           "format": "double",
           "type": "number"
         },
         "dynamics": {
-          "$ref": "#/$defs/AssetDynamics"
+          "$ref": "#/$defs/AssetDynamics",
+          "description": "Stochastic process governing the asset value."
         },
         "payout_rate": {
+          "description": "Continuous payout (dividend) rate on assets, as a decimal fraction.\nReduces the drift of the asset process under the risk-neutral measure.",
           "format": "double",
           "type": "number"
         },
         "risk_free_rate": {
+          "description": "Continuously compounded risk-free rate `r`, as a decimal fraction.",
           "format": "double",
           "type": "number"
         }
@@ -5523,10 +5530,12 @@
       "description": "Currency-tagged monetary amount with safe arithmetic.\n\nValues are stored using a fixed-point representation derived from ISO 4217\ndecimal places.\n\nWhen you need configurable rounding during ingestion, use\n[`Money::new_with_config`].\n\n# Examples\n```rust\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::currency::Currency;\n\nlet notional = Money::new(1_000_000.0, Currency::EUR);\nassert_eq!(notional.currency(), Currency::EUR);\nassert_eq!(notional.amount(), 1_000_000.0);\n```",
       "properties": {
         "amount": {
-          "$ref": "#/$defs/DecimalWire"
+          "$ref": "#/$defs/DecimalWire",
+          "description": "Monetary amount, carried on the wire as an exact decimal string rather\nthan a JSON number so no precision is lost in transit. Rounded to the\ncurrency's ISO 4217 minor-unit scale."
         },
         "currency": {
-          "$ref": "#/$defs/Currency"
+          "$ref": "#/$defs/Currency",
+          "description": "ISO 4217 currency of `amount`. Arithmetic between two `Money` values\nrequires this to match; there is no implicit conversion."
         }
       },
       "required": [
@@ -6180,6 +6189,7 @@
       "description": "A finite, left-continuous piecewise-constant curve.",
       "properties": {
         "times": {
+          "description": "Knot times in years, strictly increasing and starting at exactly zero.\nEach entry is the left edge of the interval its value applies to.",
           "items": {
             "format": "double",
             "type": "number"
@@ -6187,6 +6197,7 @@
           "type": "array"
         },
         "values": {
+          "description": "Curve value on each interval, finite and strictly positive. Same length\nas `times`; `values[i]` applies over `[times[i], times[i + 1])`.",
           "items": {
             "format": "double",
             "type": "number"
@@ -7259,12 +7270,14 @@
       "description": "A parsed tenor representing a time period.\n\nTenors are commonly used in financial markets to specify maturities,\npayment frequencies, and rate fixing periods.\n\n# Examples\n\n```rust\nuse finstack_quant_core::dates::{Tenor, TenorUnit};\n# fn main() -> finstack_quant_core::Result<()> {\n\nlet tenor = Tenor::new(3, TenorUnit::Months);\nassert_eq!(tenor.count(), 3);\nassert_eq!(tenor.unit(), TenorUnit::Months);\n\n// Parse from string\nlet parsed = Tenor::parse(\"6M\")?;\nassert_eq!(parsed.count(), 6);\nassert_eq!(parsed.unit(), TenorUnit::Months);\n# Ok(())\n# }\n```",
       "properties": {
         "count": {
+          "description": "Number of `unit` periods in the tenor. Must be at least 1; `0` is\nrejected because a zero-length period makes schedule generation loop.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         },
         "unit": {
-          "$ref": "#/$defs/TenorUnit"
+          "$ref": "#/$defs/TenorUnit",
+          "description": "Calendar unit the count is expressed in, such as days, weeks, months,\nor years."
         }
       },
       "required": [

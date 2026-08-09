@@ -776,3 +776,55 @@ fn test_amortizing_bond_pv_greater_than_bullet_for_same_yield() {
         pv_bullet
     );
 }
+
+#[test]
+fn bond_maturing_before_issue_is_rejected_by_validation() {
+    // The builder rejects an inverted term at construction, but deserialization
+    // does not go through the builder: neither serde nor JSON Schema relates one
+    // date field to another. `validate_invariants` is what the JSON path relies
+    // on, so it is exercised here against a struct in the state a decoded
+    // payload can reach.
+    let issue = Date::from_calendar_date(2024, Month::January, 15).expect("Valid test date");
+    let maturity = Date::from_calendar_date(2034, Month::January, 15).expect("Valid test date");
+
+    let mut bond = Bond::builder()
+        .id(InstrumentId::new("INVERTED_TERM"))
+        .notional(Money::new(1_000_000.0, Currency::USD))
+        .issue_date(issue)
+        .maturity(maturity)
+        .cashflow_spec(CashflowSpec::default())
+        .discount_curve_id(CurveId::new("USD-OIS"))
+        .attributes(Attributes::new())
+        .build()
+        .expect("builder succeeds for a normal term");
+
+    bond.maturity = Date::from_calendar_date(2020, Month::January, 15).expect("Valid test date");
+
+    let Err(error) = bond.validate_for_pricing() else {
+        panic!("a bond maturing before issue must not validate");
+    };
+    let message = error.to_string();
+    assert!(
+        message.contains("2020-01-15") && message.contains("2024-01-15"),
+        "the error names both dates: {message}"
+    );
+}
+
+#[test]
+fn bond_maturing_after_issue_validates() {
+    let issue = Date::from_calendar_date(2024, Month::January, 15).expect("Valid test date");
+    let maturity = Date::from_calendar_date(2034, Month::January, 15).expect("Valid test date");
+
+    let bond = Bond::builder()
+        .id(InstrumentId::new("NORMAL_TERM"))
+        .notional(Money::new(1_000_000.0, Currency::USD))
+        .issue_date(issue)
+        .maturity(maturity)
+        .cashflow_spec(CashflowSpec::default())
+        .discount_curve_id(CurveId::new("USD-OIS"))
+        .attributes(Attributes::new())
+        .build()
+        .expect("builder succeeds");
+
+    assert!(bond.validate_for_pricing().is_ok());
+}

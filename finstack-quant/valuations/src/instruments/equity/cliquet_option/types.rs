@@ -133,38 +133,75 @@ pub enum CliquetPayoffType {
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct CliquetOptionUnchecked {
+    /// Unique instrument identifier
     id: InstrumentId,
+    /// Underlying asset ticker symbol
     underlying_ticker: String,
+    /// Reset dates for periodic return locking
     #[serde(with = "finstack_quant_core::wire::dates")]
     #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     reset_dates: Vec<Date>,
+    /// Explicit terminal expiry date for the structure.
     #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     expiry: Date,
+    /// Local cap on individual period returns
     local_cap: f64,
+    /// Local floor on individual period returns (default 0.0)
     local_floor: f64,
+    /// Global cap on sum of all period returns
     global_cap: f64,
+    /// Global floor on sum of all period returns (default 0.0)
     global_floor: f64,
+    /// Notional amount
     notional: Money,
+    /// Day count convention
     day_count: finstack_quant_core::dates::DayCount,
+    /// Discount curve ID for present value calculations
     discount_curve_id: CurveId,
+    /// Spot price identifier
     spot_id: PriceId,
+    /// Volatility surface ID
     vol_surface_id: CurveId,
+    /// Optional dividend yield curve ID.
+    ///
+    /// `Some(id)`: lookup MUST succeed (a missing or non-unitless scalar
+    /// returns an error). `None`: no implicit default; treated as zero
+    /// continuous dividend yield. Set explicitly for index underlyings.
     #[serde(default)]
     div_yield_id: Option<CurveId>,
+    /// Strike-set underlying level anchoring the first period's return.
+    ///
+    /// `None` (the default) uses the spot at the valuation date, which is only
+    /// correct for a new trade priced on its strike-set date. **Required for
+    /// seasoned trades** (any reset date strictly before `as_of`): pricing
+    /// errors otherwise. Do not duplicate the strike-set date inside
+    /// `reset_dates` when providing this — reset dates are period-end
+    /// observations.
     #[serde(default)]
     initial_level: Option<f64>,
+    /// Observed underlying fixings for seasoned trades (date, level pairs).
+    ///
+    /// Every reset date strictly before the valuation date must have a
+    /// matching fixing here; pricing errors otherwise. Locked-in period
+    /// returns are computed deterministically from these fixings (with local
+    /// cap/floor applied) and only the remaining future periods are simulated.
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     past_fixings: Vec<(Date, f64)>,
+    /// Pricing overrides (manual price, yield, spread)
     #[serde(default)]
     instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
+    /// Metric-only pricing controls.
     #[serde(default)]
     metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
+    /// Scenario-only valuation adjustments.
     #[serde(default)]
     scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
+    /// Attributes for scenario selection and grouping
     attributes: Attributes,
+    /// Payoff aggregation type (default: Additive)
     #[serde(default)]
     payoff_type: CliquetPayoffType,
 }

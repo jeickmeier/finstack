@@ -174,13 +174,13 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(factor_model_config_schema, &m)?)?;
 
     let exports = [
-        "get",
-        "index",
-        "validate",
         "credit_calibration_config_schema",
         "credit_calibration_inputs_schema",
         "credit_factor_model_schema",
         "factor_model_config_schema",
+        "get",
+        "index",
+        "validate",
     ];
     for name in exports {
         m.getattr(name)?

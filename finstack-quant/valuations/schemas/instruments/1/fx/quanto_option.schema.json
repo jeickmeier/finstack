@@ -103,7 +103,8 @@
           "default": {
             "mc_seed_scenario": null,
             "theta_period": null
-          }
+          },
+          "description": "Metric-time pricing configuration."
         },
         "notional": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
@@ -128,7 +129,8 @@
         },
         "scenario_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
-          "default": {}
+          "default": {},
+          "description": "Scenario-only pricing adjustments."
         },
         "spot_id": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",

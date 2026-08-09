@@ -28,6 +28,7 @@ margin: Any
 monte_carlo: Any
 portfolio: Any
 scenarios: Any
+schema: Any
 statements: Any
 statements_analytics: Any
 valuations: Any

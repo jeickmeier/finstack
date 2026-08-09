@@ -1895,9 +1895,11 @@
           "additionalProperties": {
             "$ref": "#/$defs/HierarchyNode"
           },
+          "description": "Child nodes, keyed by their name. The key becomes the child's `name`\nduring deserialization. Insertion order is preserved.",
           "type": "object"
         },
         "curves": {
+          "description": "Curves attached directly to this node. Serialized as `curves`.",
           "items": {
             "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
           },
@@ -1907,6 +1909,7 @@
           "additionalProperties": {
             "type": "string"
           },
+          "description": "Free-form key/value labels on this node, used for selection and\nreporting. Insertion order is preserved.",
           "type": "object"
         }
       },
@@ -2059,6 +2062,7 @@
           "additionalProperties": {
             "$ref": "#/$defs/HierarchyNode"
           },
+          "description": "Top-level nodes, keyed by their name. The key becomes each node's\n`name` during deserialization. Insertion order is preserved.",
           "type": "object"
         }
       },
@@ -3470,6 +3474,7 @@
           "description": "Generic vol cube.",
           "properties": {
             "expiries": {
+              "description": "Option expiries in years, strictly increasing. Indexes the first axis.",
               "items": {
                 "format": "double",
                 "type": "number"
@@ -3477,6 +3482,7 @@
               "type": "array"
             },
             "forwards": {
+              "description": "Row-major: forwards[expiry_idx * n_tenors + tenor_idx]",
               "items": {
                 "format": "double",
                 "type": "number"
@@ -3484,22 +3490,26 @@
               "type": "array"
             },
             "id": {
+              "description": "Identifier the cube is registered and looked up under.",
               "type": "string"
             },
             "interpolation_mode": {
-              "$ref": "#/$defs/VolInterpolationMode"
+              "$ref": "#/$defs/VolInterpolationMode",
+              "description": "How volatilities are interpolated between the cube's grid points."
             },
             "kind": {
               "const": "vol_cube",
               "type": "string"
             },
             "params": {
+              "description": "Row-major: params[expiry_idx * n_tenors + tenor_idx]",
               "items": {
                 "$ref": "#/$defs/SabrParams"
               },
               "type": "array"
             },
             "tenors": {
+              "description": "Underlying swap tenors in years, strictly increasing. Indexes the\nsecond axis.",
               "items": {
                 "format": "double",
                 "type": "number"

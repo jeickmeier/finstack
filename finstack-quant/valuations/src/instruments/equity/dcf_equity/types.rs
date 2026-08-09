@@ -321,36 +321,81 @@ pub struct DiscountedCashFlow {
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct DiscountedCashFlowUnchecked {
+    /// Unique identifier for the DCF.
     id: InstrumentId,
+    /// Currency for all cashflows.
     currency: Currency,
+    /// Explicit period free cash flows (date, amount pairs).
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     flows: Vec<(Date, f64)>,
+    /// Weighted Average Cost of Capital (discount rate).
     wacc: f64,
+    /// Terminal value specification.
     terminal_value: TerminalValueSpec,
+    /// Net debt (debt - cash) to subtract from enterprise value.
+    ///
+    /// Ignored when [`equity_bridge`](Self::equity_bridge) is `Some`.
     net_debt: f64,
+    /// Valuation date (as-of date for the DCF).
     #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     valuation_date: Date,
+    /// Discount curve identifier, used for risk attribution only.
+    ///
+    /// Discounting always uses [`wacc`](Self::wacc) via `(1 + wacc)^{-t}`
+    /// regardless of whether this curve is loaded (the
+    /// previous behavior silently switched risky flows to risk-free curve
+    /// discounting). Rate sensitivity (`Dv01`/`BucketedDv01`) bumps the
+    /// risk-free component inside the WACC instead.
     discount_curve_id: CurveId,
+    /// Mid-year discounting convention (default: `false` = end-of-period).
+    ///
+    /// When `true`, each flow is discounted at `t` minus half the average
+    /// flow spacing instead of `t` (the classic `t - 0.5` for annual
+    /// grids; half a period for sub-annual grids), reflecting the
+    /// assumption that cash flows arrive mid-period. This is the standard
+    /// convention in IB/PE practice (Koller et al.). Exit-multiple
+    /// terminal values are not shifted (point-in-time sale at the horizon).
     #[serde(default)]
     mid_year_convention: bool,
+    /// Annualized terminal flow used by growth-perpetuity terminal values.
+    ///
+    /// Gordon Growth and H-Model capitalize an *annual* flow with annual
+    /// WACC and growth rates. When the explicit `flows` grid is sub-annual
+    /// (e.g. quarterly), the last flow is a period flow, not an annual one;
+    /// set this to the trailing-twelve-month aggregate of the final
+    /// explicit year so the terminal value is computed on a consistent
+    /// annual basis (Koller et al., Damodaran). When `None`, the last
+    /// explicit flow is used directly (correct for annual grids).
+    ///
+    /// Ignored by `ExitMultiple` terminal values.
     #[serde(default)]
     terminal_flow_override: Option<f64>,
+    /// Structured equity bridge for EV-to-equity conversion.
+    ///
+    /// When present, takes precedence over the flat `net_debt` field.
     #[serde(default)]
     equity_bridge: Option<EquityBridge>,
+    /// Basic shares outstanding for per-share value calculation.
     #[serde(default)]
     shares_outstanding: Option<f64>,
+    /// Dilutive securities (options, warrants, RSUs, convertibles) for treasury stock method.
     #[serde(default)]
     dilution_securities: Vec<DilutionSecurity>,
+    /// Private company valuation discounts (DLOM, DLOC).
     #[serde(default)]
     valuation_discounts: Option<ValuationDiscounts>,
+    /// Attributes for tagging and scenarios.
     #[serde(default)]
     instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
+    /// Metric-only pricing controls.
     #[serde(default)]
     metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
+    /// Scenario-only valuation adjustments.
     #[serde(default)]
     scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
+    /// Attributes for scenario selection and tagging
     attributes: Attributes,
 }
 

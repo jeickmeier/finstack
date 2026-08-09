@@ -42,12 +42,14 @@
   ],
   "properties": {
     "count": {
+      "description": "Number of `unit` periods in the tenor. Must be at least 1; `0` is\nrejected because a zero-length period makes schedule generation loop.",
       "format": "uint32",
       "minimum": 0,
       "type": "integer"
     },
     "unit": {
-      "$ref": "#/$defs/TenorUnit"
+      "$ref": "#/$defs/TenorUnit",
+      "description": "Calendar unit the count is expressed in, such as days, weeks, months,\nor years."
     }
   },
   "required": [

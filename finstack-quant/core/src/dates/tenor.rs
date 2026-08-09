@@ -165,7 +165,11 @@ pub struct Tenor {
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct TenorDe {
+    /// Number of `unit` periods in the tenor. Must be at least 1; `0` is
+    /// rejected because a zero-length period makes schedule generation loop.
     count: u32,
+    /// Calendar unit the count is expressed in, such as days, weeks, months,
+    /// or years.
     unit: TenorUnit,
 }
 

@@ -5,13 +5,16 @@
       "description": "Cliquet option instrument.",
       "properties": {
         "attributes": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and grouping"
         },
         "day_count": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count convention"
         },
         "discount_curve_id": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve ID for present value calculations"
         },
         "div_yield_id": {
           "anyOf": [
@@ -22,24 +25,30 @@
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "description": "Optional dividend yield curve ID.\n\n`Some(id)`: lookup MUST succeed (a missing or non-unitless scalar\nreturns an error). `None`: no implicit default; treated as zero\ncontinuous dividend yield. Set explicitly for index underlyings."
         },
         "expiry": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Explicit terminal expiry date for the structure."
         },
         "global_cap": {
+          "description": "Global cap on sum of all period returns",
           "format": "double",
           "type": "number"
         },
         "global_floor": {
+          "description": "Global floor on sum of all period returns (default 0.0)",
           "format": "double",
           "type": "number"
         },
         "id": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier"
         },
         "initial_level": {
           "default": null,
+          "description": "Strike-set underlying level anchoring the first period's return.\n\n`None` (the default) uses the spot at the valuation date, which is only\ncorrect for a new trade priced on its strike-set date. **Required for\nseasoned trades** (any reset date strictly before `as_of`): pricing\nerrors otherwise. Do not duplicate the strike-set date inside\n`reset_dates` when providing this — reset dates are period-end\nobservations.",
           "format": "double",
           "type": [
             "number",
@@ -48,13 +57,16 @@
         },
         "instrument_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
-          "default": {}
+          "default": {},
+          "description": "Pricing overrides (manual price, yield, spread)"
         },
         "local_cap": {
+          "description": "Local cap on individual period returns",
           "format": "double",
           "type": "number"
         },
         "local_floor": {
+          "description": "Local floor on individual period returns (default 0.0)",
           "format": "double",
           "type": "number"
         },
@@ -63,13 +75,16 @@
           "default": {
             "mc_seed_scenario": null,
             "theta_period": null
-          }
+          },
+          "description": "Metric-only pricing controls."
         },
         "notional": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional amount"
         },
         "past_fixings": {
           "default": [],
+          "description": "Observed underlying fixings for seasoned trades (date, level pairs).\n\nEvery reset date strictly before the valuation date must have a\nmatching fixing here; pricing errors otherwise. Locked-in period\nreturns are computed deterministically from these fixings (with local\ncap/floor applied) and only the remaining future periods are simulated.",
           "items": {
             "maxItems": 2,
             "minItems": 2,
@@ -88,9 +103,11 @@
         },
         "payoff_type": {
           "$ref": "#/$defs/CliquetPayoffType",
-          "default": "additive"
+          "default": "additive",
+          "description": "Payoff aggregation type (default: Additive)"
         },
         "reset_dates": {
+          "description": "Reset dates for periodic return locking",
           "items": {
             "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
           },
@@ -98,16 +115,20 @@
         },
         "scenario_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
-          "default": {}
+          "default": {},
+          "description": "Scenario-only valuation adjustments."
         },
         "spot_id": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Spot price identifier"
         },
         "underlying_ticker": {
+          "description": "Underlying asset ticker symbol",
           "type": "string"
         },
         "vol_surface_id": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Volatility surface ID"
         }
       },
       "required": [

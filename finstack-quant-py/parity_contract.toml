@@ -1463,6 +1463,10 @@ names = [
     "monte_carlo",
     "portfolio",
     "scenarios",
+    # `finstack_quant.schema` binds the umbrella crate's own `schema` module
+    # rather than a domain crate: the merged, domain-labelled index over all
+    # nine per-crate registries. It has no WASM twin.
+    "schema",
     "statements",
     "statements_analytics",
     "valuations",

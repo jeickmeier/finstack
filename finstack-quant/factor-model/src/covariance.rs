@@ -29,9 +29,16 @@ use serde::{Deserialize, Deserializer, Serialize};
 #[derive(Debug, Clone, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FactorCovarianceMatrix {
+    /// Factor identifiers, in the row and column order of `data`.
     factor_ids: Vec<FactorId>,
+    /// Matrix dimension. Equals `factor_ids.len()`.
     n: usize,
+    /// Annualized (co)variances in row-major order, `n * n` entries, each in
+    /// its factors' canonical bump units squared. The matrix is symmetric, so
+    /// `data[i * n + j]` equals `data[j * n + i]`.
     data: Vec<f64>,
+    /// Factor-to-row lookup, rebuilt on deserialization rather than carried on
+    /// the wire.
     #[serde(skip)]
     index: HashMap<FactorId, usize>,
 }
@@ -177,8 +184,12 @@ impl<'de> Deserialize<'de> for FactorCovarianceMatrix {
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
         struct FactorCovarianceMatrixSerde {
+            /// Factor identifiers, in the row and column order of `data`.
             factor_ids: Vec<FactorId>,
+            /// Matrix dimension. Must equal `factor_ids.len()`.
             n: usize,
+            /// Covariances in row-major order, `n * n` entries. The matrix is
+            /// symmetric, so `data[i * n + j]` equals `data[j * n + i]`.
             data: Vec<f64>,
         }
 

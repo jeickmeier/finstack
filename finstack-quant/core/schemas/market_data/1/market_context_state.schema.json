@@ -1921,9 +1921,11 @@
           "additionalProperties": {
             "$ref": "#/$defs/HierarchyNode"
           },
+          "description": "Child nodes, keyed by their name. The key becomes the child's `name`\nduring deserialization. Insertion order is preserved.",
           "type": "object"
         },
         "curves": {
+          "description": "Curves attached directly to this node. Serialized as `curves`.",
           "items": {
             "$ref": "#/$defs/Id"
           },
@@ -1933,6 +1935,7 @@
           "additionalProperties": {
             "type": "string"
           },
+          "description": "Free-form key/value labels on this node, used for selection and\nreporting. Insertion order is preserved.",
           "type": "object"
         }
       },
@@ -2097,6 +2100,7 @@
           "additionalProperties": {
             "$ref": "#/$defs/HierarchyNode"
           },
+          "description": "Top-level nodes, keyed by their name. The key becomes each node's\n`name` during deserialization. Insertion order is preserved.",
           "type": "object"
         }
       },
@@ -2140,10 +2144,12 @@
       "description": "Currency-tagged monetary amount with safe arithmetic.\n\nValues are stored using a fixed-point representation derived from ISO 4217\ndecimal places.\n\nWhen you need configurable rounding during ingestion, use\n[`Money::new_with_config`].\n\n# Examples\n```rust\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::currency::Currency;\n\nlet notional = Money::new(1_000_000.0, Currency::EUR);\nassert_eq!(notional.currency(), Currency::EUR);\nassert_eq!(notional.amount(), 1_000_000.0);\n```",
       "properties": {
         "amount": {
-          "$ref": "#/$defs/DecimalWire"
+          "$ref": "#/$defs/DecimalWire",
+          "description": "Monetary amount, carried on the wire as an exact decimal string rather\nthan a JSON number so no precision is lost in transit. Rounded to the\ncurrency's ISO 4217 minor-unit scale."
         },
         "currency": {
-          "$ref": "#/$defs/Currency"
+          "$ref": "#/$defs/Currency",
+          "description": "ISO 4217 currency of `amount`. Arithmetic between two `Money` values\nrequires this to match; there is no implicit conversion."
         }
       },
       "required": [
@@ -2848,12 +2854,14 @@
       "description": "A parsed tenor representing a time period.\n\nTenors are commonly used in financial markets to specify maturities,\npayment frequencies, and rate fixing periods.\n\n# Examples\n\n```rust\nuse finstack_quant_core::dates::{Tenor, TenorUnit};\n# fn main() -> finstack_quant_core::Result<()> {\n\nlet tenor = Tenor::new(3, TenorUnit::Months);\nassert_eq!(tenor.count(), 3);\nassert_eq!(tenor.unit(), TenorUnit::Months);\n\n// Parse from string\nlet parsed = Tenor::parse(\"6M\")?;\nassert_eq!(parsed.count(), 6);\nassert_eq!(parsed.unit(), TenorUnit::Months);\n# Ok(())\n# }\n```",
       "properties": {
         "count": {
+          "description": "Number of `unit` periods in the tenor. Must be at least 1; `0` is\nrejected because a zero-length period makes schedule generation loop.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         },
         "unit": {
-          "$ref": "#/$defs/TenorUnit"
+          "$ref": "#/$defs/TenorUnit",
+          "description": "Calendar unit the count is expressed in, such as days, weeks, months,\nor years."
         }
       },
       "required": [
@@ -2892,6 +2900,7 @@
       "description": "SABR volatility cube on an expiry x tenor grid.\n\nEach grid node stores a [`SabrParams`] and a forward rate. Interpolation\nbetween nodes is bilinear in parameter space; the implied vol at an\narbitrary (expiry, tenor, strike) is obtained by interpolating parameters\nand then evaluating the Hagan approximation.",
       "properties": {
         "expiries": {
+          "description": "Option expiries in years, strictly increasing. Indexes the first axis.",
           "items": {
             "format": "double",
             "type": "number"
@@ -2899,6 +2908,7 @@
           "type": "array"
         },
         "forwards": {
+          "description": "Row-major: forwards[expiry_idx * n_tenors + tenor_idx]",
           "items": {
             "format": "double",
             "type": "number"
@@ -2906,18 +2916,22 @@
           "type": "array"
         },
         "id": {
+          "description": "Identifier the cube is registered and looked up under.",
           "type": "string"
         },
         "interpolation_mode": {
-          "$ref": "#/$defs/VolInterpolationMode"
+          "$ref": "#/$defs/VolInterpolationMode",
+          "description": "How volatilities are interpolated between the cube's grid points."
         },
         "params": {
+          "description": "Row-major: params[expiry_idx * n_tenors + tenor_idx]",
           "items": {
             "$ref": "#/$defs/SabrParams"
           },
           "type": "array"
         },
         "tenors": {
+          "description": "Underlying swap tenors in years, strictly increasing. Indexes the\nsecond axis.",
           "items": {
             "format": "double",
             "type": "number"

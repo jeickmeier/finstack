@@ -163,7 +163,14 @@ def test_llm_profile_strips_rust_prose_but_keeps_the_values() -> None:
     assert "ISDA" in projected, "domain references are the part worth keeping"
     accepted = json.loads(projected)["enum"]
     assert set(accepted) >= {"act_360", "act_365f", "30_360", "act_act", "bus_252"}
-    assert len(projected) * 10 < len(canonical), f"{len(canonical)} -> {len(projected)}"
+
+    # Each spelling keeps its own citation, so the caller can tell `act_360`
+    # from `act_365f` by the section each implements rather than by guessing.
+    # That grounding is not free: it is why the projection lands around 6x
+    # smaller rather than the 10x achievable by dropping citations with the
+    # rest of the prose.
+    assert "4.16(d)" in projected, "per-variant section numbers survive"
+    assert len(projected) * 5 < len(canonical), f"{len(canonical)} -> {len(projected)}"
 
 
 def test_get_rejects_an_unknown_profile() -> None:

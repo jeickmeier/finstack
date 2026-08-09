@@ -8,7 +8,11 @@ use crate::{Error, Result};
 /// A finite, left-continuous piecewise-constant curve.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct PiecewiseConstantCurve {
+    /// Knot times in years, strictly increasing and starting at exactly zero.
+    /// Each entry is the left edge of the interval its value applies to.
     times: Vec<f64>,
+    /// Curve value on each interval, finite and strictly positive. Same length
+    /// as `times`; `values[i]` applies over `[times[i], times[i + 1])`.
     values: Vec<f64>,
 }
 

@@ -187,41 +187,95 @@ pub struct Autocallable {
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct AutocallableUnchecked {
+    /// Unique instrument identifier
     id: InstrumentId,
+    /// Underlying asset ticker symbol
     underlying_ticker: String,
+    /// Observation dates for autocall and coupon checks.
+    ///
+    /// Barriers are monitored **discretely** at these exact dates only.
+    /// The Monte Carlo time grid is constructed to include these dates precisely.
     #[serde(with = "finstack_quant_core::wire::dates")]
     #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     observation_dates: Vec<Date>,
+    /// Explicit terminal expiry date for the structure.
     #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     expiry: Date,
+    /// Autocall barrier levels (as ratios of initial spot, e.g., 1.0 = 100%).
+    ///
+    /// Each barrier corresponds to the observation date at the same index.
+    /// If spot ≥ barrier × initial_spot on the observation date, the product autocalls.
     autocall_barriers: Vec<f64>,
+    /// Coupon amounts paid if observation barrier is met
     coupons: Vec<f64>,
+    /// Memory ("Phoenix") coupon feature.
+    ///
+    /// When `true`, any coupons from earlier observation dates whose barrier
+    /// was *not* met are accrued ("remembered") and paid in full on the
+    /// observation date that finally triggers the autocall (in addition to
+    /// that date's own coupon). When `false` (the default), only the coupon
+    /// at the autocall date is paid and earlier missed coupons are lost.
+    ///
+    /// This flag must match the term sheet: a Phoenix/memory autocallable
+    /// priced with `memory_coupons = false` is silently underpriced.
     #[serde(default)]
     memory_coupons: bool,
+    /// Final barrier level for final payoff determination
     final_barrier: f64,
+    /// Type of final payoff (capital protection, participation, knock-in put)
     final_payoff_type: FinalPayoffType,
+    /// Participation rate in underlying performance
     participation_rate: f64,
+    /// Cap level for final payoff (maximum return)
     cap_level: f64,
+    /// Notional amount
     notional: Money,
+    /// Day count convention for interest calculations
     day_count: finstack_quant_core::dates::DayCount,
+    /// Discount curve ID for present value calculations
     discount_curve_id: CurveId,
+    /// Spot price identifier for underlying asset
     spot_id: PriceId,
+    /// Volatility surface ID for option pricing
     vol_surface_id: CurveId,
+    /// Optional dividend yield curve ID.
+    ///
+    /// `Some(id)`: lookup MUST succeed (a missing or non-unitless scalar
+    /// returns an error). `None`: no implicit default; treated as zero
+    /// continuous dividend yield. Set explicitly for index underlyings.
     #[serde(default)]
     div_yield_id: Option<CurveId>,
+    /// Initial (strike-set) underlying level S_0 used as the reference for
+    /// barrier and payoff ratios.
+    ///
+    /// `None` (the default) uses the spot at the valuation date, which is only
+    /// correct for a new trade priced on its strike-set date. **Required for
+    /// seasoned trades** (any observation date on or before `as_of`): pricing
+    /// errors if past observation dates exist without it.
     #[serde(default)]
     initial_level: Option<f64>,
+    /// Observed underlying fixings for seasoned trades (date, level pairs).
+    ///
+    /// For a mid-life autocallable, every observation date on or before the
+    /// valuation date must have a matching fixing here; pricing errors
+    /// otherwise. Past fixings are evaluated deterministically (autocall,
+    /// missed memory coupons, discrete knock-in monitoring) and only the
+    /// remaining future observation dates are simulated.
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     past_fixings: Vec<(Date, f64)>,
+    /// Pricing overrides (manual price, yield, spread)
     #[serde(default)]
     instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
+    /// Metric-only pricing controls.
     #[serde(default)]
     metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
+    /// Scenario-only valuation adjustments.
     #[serde(default)]
     scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
+    /// Attributes for scenario selection and grouping
     attributes: Attributes,
 }
 

@@ -494,6 +494,11 @@ impl crate::instruments::common_impl::traits::Instrument for AgencyMbsPassthroug
 
     fn validate_invariants(&self) -> finstack_quant_core::Result<()> {
         self.validate_coupon_consistency()?;
+        crate::instruments::common_impl::validation::validate_date_range_strict(
+            self.issue_date,
+            self.maturity,
+            "MBS issue-to-maturity",
+        )?;
         if let Some(last_paid) = self.last_paid_accrual_end {
             if last_paid < self.issue_date || last_paid > self.maturity {
                 return Err(finstack_quant_core::Error::Validation(format!(

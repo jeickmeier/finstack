@@ -171,27 +171,54 @@ pub struct FxSpot {
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct FxSpotUnchecked {
+    /// Unique identifier for the FX pair
     id: InstrumentId,
+    /// Base currency (the currency being priced)
     base_currency: Currency,
+    /// Quote currency (the currency used for pricing)
     quote_currency: Currency,
+    /// Optional settlement date (T+2 typically for spot)
     #[serde(default, with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     settlement: Option<Date>,
+    /// Optional settlement lag in business days when `settlement` is not provided (default: 2)
     settlement_lag_days: Option<i32>,
+    /// Optional spot rate (if not provided, will look up from market data)
     spot_rate: Option<f64>,
+    /// Optional quote-currency discount curve for PV-ing the settlement
+    /// cashflow. When absent the settlement amount is reported undiscounted
+    /// (a 1–2 day effect for standard spot lags).
     #[serde(default)]
     discount_curve_id: Option<finstack_quant_core::types::CurveId>,
+    /// Notional amount in base currency.
     notional: Money,
+    /// Business day convention to apply when adjusting settlement (default: ModifiedFollowing)
+    ///
+    /// Note: Default changed from `Following` to `ModifiedFollowing` in v0.8.0 to align
+    /// with ISDA standard FX settlement conventions.
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
     business_day_convention: BusinessDayConvention,
+    /// Optional base currency calendar for joint calendar settlement adjustment.
+    ///
+    /// Per market convention, FX settlement uses the joint calendar of both currencies.
+    /// A date is a good business day only if it's valid in both calendars.
     base_calendar_id: Option<String>,
+    /// Optional quote currency calendar for joint calendar settlement adjustment.
+    ///
+    /// Per market convention, FX settlement uses the joint calendar of both currencies.
+    /// A date is a good business day only if it's valid in both calendars.
     quote_calendar_id: Option<String>,
+    /// Per-instrument pricing/sensitivity override knobs.
+    /// Instrument-owned pricing inputs.
     #[serde(default)]
     instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
+    /// Metric-time pricing configuration.
     #[serde(default)]
     metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
+    /// Scenario-only pricing adjustments.
     #[serde(default)]
     scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
+    /// Attributes for scenario selection and tagging
     attributes: Attributes,
 }
 
