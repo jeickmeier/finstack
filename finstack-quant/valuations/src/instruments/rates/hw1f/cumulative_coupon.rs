@@ -1,6 +1,6 @@
 //! Cumulative coupon tracker shared by TARN and Snowball products.
 
-use crate::instruments::rates::exotics_shared::PeriodForwardCoeffs;
+use crate::instruments::rates::hw1f::PeriodForwardCoeffs;
 
 /// One coupon's worth of pre-computed state for a path-dependent rate exotic
 /// that fixes **in advance** (e.g. TARN, Snowball / inverse floater).

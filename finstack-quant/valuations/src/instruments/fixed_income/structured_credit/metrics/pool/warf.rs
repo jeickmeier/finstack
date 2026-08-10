@@ -1,7 +1,7 @@
 //! Weighted Average Rating Factor calculator for CLO
 
 use crate::metrics::MetricContext;
-use finstack_quant_core::types::moodys_warf_factor;
+use finstack_quant_core::types::{moodys_warf_factor, CreditRating};
 
 /// CLO WARF calculator - Moody's methodology
 pub struct CloWarfCalculator;
@@ -21,11 +21,11 @@ impl crate::metrics::MetricCalculator for CloWarfCalculator {
         // OC haircuts, not in the rating-factor average.
         for asset in clo.pool.assets.iter().filter(|a| !a.is_defaulted) {
             let balance = asset.balance.amount();
-            let rating_factor = asset
-                .credit_quality
-                .map(moodys_warf_factor)
-                .transpose()?
-                .unwrap_or(3650.0); // Default to B-/CCC+ equivalent when rating is missing
+            // Assets with no rating use the registry's `NR` (not rated)
+            // factor, so the unrated-collateral policy lives in one place
+            // (the embedded Moody's table) instead of a hardcoded constant.
+            let rating_factor =
+                moodys_warf_factor(asset.credit_quality.unwrap_or(CreditRating::NR))?;
 
             weighted_sum += balance * rating_factor;
             total_balance += balance;

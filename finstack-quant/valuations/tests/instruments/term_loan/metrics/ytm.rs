@@ -242,3 +242,115 @@ fn test_ytm_quoted_price_applies_to_outstanding_not_commitment() {
         "YTM should be near the coupon when quoted at ~par on outstanding, got {ytm}"
     );
 }
+
+/// Regression: the current-period coupon of a seasoned floater in the YTM flow
+/// set must come from the actual historical fixing, not the forward curve.
+/// Solving YTM off the same quoted price with two different fixing histories
+/// must produce different yields (previously the metric schedule ignored
+/// fixings entirely, so both solved identically off forward projections).
+#[test]
+fn test_ytm_current_period_coupon_uses_fixing() {
+    use finstack_quant_cashflows::builder::FloatingRateSpec;
+    use finstack_quant_core::market_data::scalars::ScalarTimeSeries;
+    use finstack_quant_core::market_data::term_structures::ForwardCurve;
+    use finstack_quant_core::math::interp::InterpStyle;
+    use rust_decimal::Decimal;
+
+    let issue = date!(2024 - 01 - 01);
+    let as_of = date!(2025 - 04 - 15);
+
+    let loan_for = || {
+        let mut loan = TermLoan::builder()
+            .id("TL-YTM-FIXING".into())
+            .currency(Currency::USD)
+            .notional_limit(Money::new(10_000_000.0, Currency::USD))
+            .issue_date(issue)
+            .maturity(date!(2026 - 01 - 01))
+            .rate(RateSpec::Floating(FloatingRateSpec {
+                index_id: CurveId::from("USD-SOFR-3M"),
+                spread_bp: Decimal::from(300),
+                gearing: Decimal::ONE,
+                gearing_includes_spread: true,
+                index_floor_bp: None,
+                all_in_floor_bp: None,
+                all_in_cap_bp: None,
+                index_cap_bp: None,
+                overnight_index_constraints: Default::default(),
+                reset_frequency: Tenor::quarterly(),
+                index_tenor: None,
+                reset_lag_days: 0,
+                fixing_calendar_id: None,
+                overnight_compounding: None,
+                overnight_basis: None,
+                fallback: Default::default(),
+            }))
+            .frequency(Tenor::quarterly())
+            .day_count(DayCount::Act360)
+            .business_day_convention(BusinessDayConvention::ModifiedFollowing)
+            .calendar_id_opt(None)
+            .stub(StubKind::None)
+            .discount_curve_id(CurveId::from("USD-OIS"))
+            .amortization(AmortizationSpec::None)
+            .coupon_type(CouponType::Cash)
+            .upfront_fee_opt(None)
+            .ddtl_opt(None)
+            .covenants_opt(None)
+            .attributes(Default::default())
+            .build()
+            .unwrap();
+        loan.instrument_pricing_overrides =
+            InstrumentPricingOverrides::default().with_quoted_clean_price(100.0);
+        loan
+    };
+
+    let market_with_fixing = |rate: f64| {
+        let disc_curve = flat_discount_curve(0.05, as_of, "USD-OIS");
+        let fwd_curve = ForwardCurve::builder("USD-SOFR-3M", 0.25)
+            .base_date(issue)
+            .day_count(DayCount::Act360)
+            .knots([(0.0, 0.05), (5.0, 0.05)])
+            .interp(InterpStyle::Linear)
+            .build()
+            .unwrap();
+        let fixings = ScalarTimeSeries::new(
+            "FIXING:USD-SOFR-3M",
+            vec![
+                (date!(2024 - 01 - 01), rate),
+                (date!(2024 - 04 - 01), rate),
+                (date!(2024 - 07 - 01), rate),
+                (date!(2024 - 10 - 01), rate),
+                (date!(2025 - 01 - 01), rate),
+                (date!(2025 - 04 - 01), rate),
+            ],
+            None,
+        )
+        .unwrap();
+        MarketContext::new()
+            .insert(disc_curve)
+            .insert(fwd_curve)
+            .insert_series(fixings)
+    };
+
+    let ytm_for = |fixing_rate: f64| -> f64 {
+        let result = loan_for()
+            .price_with_metrics(
+                &market_with_fixing(fixing_rate),
+                as_of,
+                &[MetricId::Ytm],
+                finstack_quant_valuations::instruments::PricingOptions::default(),
+            )
+            .expect("seasoned floater with fixings should price");
+        *result.measures.get("ytm").unwrap()
+    };
+
+    // Current period (reset 2025-04-01, pays 2025-07-01): 1% fixing → 4%
+    // all-in coupon vs 5% fixing → 8% all-in. Same quoted price of 100.
+    let ytm_low_fixing = ytm_for(0.01);
+    let ytm_high_fixing = ytm_for(0.05);
+
+    assert!(
+        ytm_low_fixing < ytm_high_fixing - 1e-4,
+        "YTM must reflect the seasoned fixing in the current-period coupon: \
+         low-fixing ytm={ytm_low_fixing}, high-fixing ytm={ytm_high_fixing}"
+    );
+}

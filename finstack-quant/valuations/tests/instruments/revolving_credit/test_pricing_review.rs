@@ -211,7 +211,7 @@ fn test_floating_rcf_dv01_bumps_forward_curve() {
         ))
         .day_count(DayCount::Act360)
         .frequency(Tenor::quarterly())
-        .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0))
+        .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
         .build()
@@ -282,7 +282,7 @@ fn test_upfront_fee_excluded_after_commitment() {
         .day_count(DayCount::Act360)
         .frequency(Tenor::quarterly())
         .fees({
-            let mut fees = RevolvingCreditFees::flat(0.0, 0.0, 0.0);
+            let mut fees = RevolvingCreditFees::flat(0.0, 0.0, 0.0).unwrap();
             fees.upfront_fee = Some(Money::new(100_000.0, Currency::USD));
             fees
         })

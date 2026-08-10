@@ -185,7 +185,7 @@ impl<'a> TsiveriotisZhangEngine<'a> {
 
             let can_convert = self.valuator.conversion_allowed(self.steps, node_spot)?;
 
-            let (ex_coupon_total, ex_coupon_cash) = if can_convert && mandatory {
+            let (mut ex_coupon_total, mut ex_coupon_cash) = if can_convert && mandatory {
                 // Mandatory conversion: holder must convert regardless of optimality.
                 // For PERCS/DECS below the lower strike, this correctly reflects
                 // the holder bearing equity downside risk.
@@ -195,6 +195,21 @@ impl<'a> TsiveriotisZhangEngine<'a> {
             } else {
                 (redemption_val, redemption_val)
             };
+
+            // Put at maturity: an accreting put whose window extends to the
+            // final date lets the holder redeem at the put price instead of
+            // face. The holder maximizes; the put payoff is all-cash. Forced
+            // (mandatory) conversion overrides the put right. An issuer call
+            // at maturity is deliberately ignored: the contractual redemption
+            // at face dominates, so a call cannot reduce the maturity payoff.
+            if !(can_convert && mandatory) {
+                if let Some(put_price) = self.valuator.put_price_at_step(self.steps) {
+                    if ex_coupon_total < put_price {
+                        ex_coupon_total = put_price;
+                        ex_coupon_cash = put_price;
+                    }
+                }
+            }
 
             // Coupon entitlement is independent of the exercise choice under
             // the public contract (there is no coupon-forfeiture flag). Make

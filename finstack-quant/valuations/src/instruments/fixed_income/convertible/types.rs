@@ -220,7 +220,11 @@ pub struct ConvertibleBond {
 /// - **Gamma**: Per unit of spot squared (d²PV/dS²)
 /// - **Vega**: Per 1% absolute volatility move (dPV for +1 vol point)
 /// - **Theta**: Per calendar day (P(t+1d) - P(t), typically negative for long positions)
-/// - **Rho**: Per 1 basis point parallel rate shift (dPV for +1bp)
+/// - **Rho**: Per 1 basis point parallel shift of the **risk-free discount
+///   curve only** (dPV for +1bp). A configured credit curve is held fixed, so
+///   for credit-curve convertibles rho isolates the equity-leg discounting and
+///   drift sensitivity while the implied credit spread narrows by the bump;
+///   the DV01 metric (parallel, all curves) is the full parallel-rate number.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct ConvertibleGreeks {
     /// Instrument price
@@ -571,6 +575,14 @@ impl ConvertibleBond {
             )?;
         }
 
+        if self.conversion_ratio().is_some() && self.effective_conversion_ratio().is_none() {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "convertible bond '{}' anti-dilution adjustments collapse the conversion \
+                 price to numerical zero; check the recorded dilution events",
+                self.id.as_str()
+            )));
+        }
+
         let underlying = self
             .underlying_equity_id
             .as_deref()
@@ -639,7 +651,10 @@ impl ConvertibleBond {
     ///
     /// # Returns
     ///
-    /// The adjusted conversion ratio, or `None` if neither ratio nor price is set.
+    /// The adjusted conversion ratio. Returns `None` when neither ratio nor
+    /// price is set, or when the recorded dilution events collapse the
+    /// adjusted conversion price to numerical zero (below `1e-10`), which
+    /// indicates corrupt event data; `validate` reports this case explicitly.
     // `AntiDilutionPolicy::None` is excluded by the `matches!` early return below.
     #[allow(clippy::unreachable)]
     pub fn effective_conversion_ratio(&self) -> Option<f64> {
@@ -693,9 +708,12 @@ impl ConvertibleBond {
             }
         }
 
-        // Conversion price cannot go below a small epsilon
+        // A conversion price collapsing to (numerical) zero means the dilution
+        // events are corrupt: returning the unadjusted base ratio here would
+        // silently discard the anti-dilution adjustments and misprice the bond.
+        // Return `None` so pricing fails loudly (validation reports the cause).
         if current_cp < 1e-10 {
-            return Some(base_ratio);
+            return None;
         }
 
         Some(notional / current_cp)
@@ -1250,6 +1268,34 @@ mod tests {
             assert_eq!(parsed.is_protected(), adjustment.is_protected());
             assert_eq!(format!("{parsed:?}"), format!("{adjustment:?}"));
         }
+    }
+
+    /// Regression: dilution events that collapse the adjusted conversion price
+    /// to numerical zero previously fell back silently to the unadjusted base
+    /// ratio. `effective_conversion_ratio` now returns `None` and validation
+    /// reports the corrupt events explicitly.
+    #[test]
+    fn validation_rejects_collapsed_anti_dilution_conversion_price() {
+        let mut bond = ConvertibleBond::example().expect("example");
+        bond.conversion.anti_dilution = AntiDilutionPolicy::FullRatchet;
+        bond.conversion.dilution_events = vec![DilutionEvent {
+            date: bond.issue_date,
+            new_issue_price: 1e-12, // ratchets the conversion price to ~zero
+            new_shares_issued: 1.0,
+            shares_outstanding_before: 100.0,
+        }];
+
+        assert!(
+            bond.effective_conversion_ratio().is_none(),
+            "collapsed conversion price must not fall back to the base ratio"
+        );
+        let err = bond
+            .validate_for_pricing()
+            .expect_err("collapsed conversion price must fail validation");
+        assert!(
+            err.to_string().contains("collapse"),
+            "error must explain the anti-dilution collapse; got: {err}"
+        );
     }
 
     #[test]

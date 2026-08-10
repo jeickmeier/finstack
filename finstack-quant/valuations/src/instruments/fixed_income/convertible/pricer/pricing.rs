@@ -121,7 +121,6 @@ fn extract_equity_state(
     bond: &ConvertibleBond,
     ctx: &MarketContext,
     as_of: Date,
-    _accrual_day_count: DayCount,
 ) -> Result<EquityState> {
     let underlying_id = bond
         .underlying_equity_id
@@ -269,8 +268,7 @@ pub(super) fn prepare_for_pricing(
     as_of: Date,
 ) -> Result<PricingInputs> {
     let cashflow_schedule = build_convertible_schedule(bond)?;
-    let day_count = cashflow_schedule.get_day_count();
-    let eq = extract_equity_state(bond, market_context, as_of, day_count)?;
+    let eq = extract_equity_state(bond, market_context, as_of)?;
 
     Ok(PricingInputs {
         cashflow_schedule,
@@ -411,8 +409,18 @@ pub fn price_convertible_bond(
 /// - **Delta**: `(P(S+h) - P(S-h)) / (2h)` where `h = bump_pct * S`
 /// - **Gamma**: `(P(S+h) - 2*P(S) + P(S-h)) / h^2`
 /// - **Vega**: `(P(σ+0.01) - P(σ-0.01)) / (vol_up - vol_down) * 0.01` — per 1% absolute vol move
-/// - **Rho**: `(P(r+1bp) - P(r-1bp)) / 2` — per 1bp parallel curve shift (bp-count)
+/// - **Rho**: `(P(r+1bp) - P(r-1bp)) / 2` — per 1bp parallel shift of the
+///   **risk-free discount curve only**; a configured credit curve is held
+///   fixed (spread implicitly narrows by the bump). Use the DV01 metric
+///   (parallel, all curves) for the full parallel-rate sensitivity.
 /// - **Theta**: `P(t+1d) - P(t)` — change per calendar day
+///
+/// # Volatility convention for delta/gamma
+///
+/// When volatility resolves from a surface, each bumped spot reprice re-reads
+/// the surface at the bumped moneyness (`value_clamped(ttm, S ± h)`), so delta
+/// and gamma embed the smile slope along the spot move (**sticky-strike**
+/// finite differences), not a frozen-vol (sticky-vol) delta.
 ///
 /// # Arguments
 ///

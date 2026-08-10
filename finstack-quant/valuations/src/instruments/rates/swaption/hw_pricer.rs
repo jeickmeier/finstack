@@ -28,7 +28,7 @@
 use crate::instruments::common_impl::helpers::year_fraction;
 use crate::instruments::common_impl::parameters::OptionType;
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::rates::exotics_shared::{
+use crate::instruments::rates::hw1f::{
     resolve_hw1f_params, Hw1fCalibrationFlavor, Hw1fResolveRequest,
 };
 use crate::instruments::rates::swaption::types::Swaption;

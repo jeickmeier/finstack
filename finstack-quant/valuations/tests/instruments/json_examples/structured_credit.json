@@ -76,7 +76,7 @@
             },
             "contractual_payment": null,
             "credit_quality": null,
-            "day_count": "30_360",
+            "day_count": "act_360",
             "id": "COLLATERAL-1",
             "index_id": null,
             "industry": null,

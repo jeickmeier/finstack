@@ -560,7 +560,7 @@ mod tests {
         use finstack_quant_core::dates::{Date, DayCount, Tenor};
         use finstack_quant_core::money::Money;
         use finstack_quant_core::types::{CurveId, InstrumentId};
-        use finstack_quant_valuations::instruments::rates::tarn::Tarn;
+        use finstack_quant_valuations::instruments::exotics::tarn::Tarn;
         use finstack_quant_valuations::instruments::{InstrumentJson, InstrumentPricingOverrides};
         use time::Month;
 
@@ -600,7 +600,7 @@ mod tests {
         use finstack_quant_core::dates::{Date, DayCount, Tenor};
         use finstack_quant_core::money::Money;
         use finstack_quant_core::types::{CurveId, InstrumentId};
-        use finstack_quant_valuations::instruments::rates::snowball::{Snowball, SnowballVariant};
+        use finstack_quant_valuations::instruments::exotics::snowball::{Snowball, SnowballVariant};
         use finstack_quant_valuations::instruments::{InstrumentJson, InstrumentPricingOverrides};
         use time::Month;
 
@@ -644,7 +644,7 @@ mod tests {
         use finstack_quant_core::dates::{Date, DayCount, Tenor};
         use finstack_quant_core::money::Money;
         use finstack_quant_core::types::{CurveId, InstrumentId};
-        use finstack_quant_valuations::instruments::rates::snowball::{Snowball, SnowballVariant};
+        use finstack_quant_valuations::instruments::exotics::snowball::{Snowball, SnowballVariant};
         use finstack_quant_valuations::instruments::{InstrumentJson, InstrumentPricingOverrides};
         use time::Month;
 
@@ -681,9 +681,9 @@ mod tests {
         use finstack_quant_core::dates::{Date, DayCount};
         use finstack_quant_core::money::Money;
         use finstack_quant_core::types::{CurveId, InstrumentId};
-        use finstack_quant_valuations::instruments::rates::callable_range_accrual::CallableRangeAccrual;
-        use finstack_quant_valuations::instruments::rates::exotics_shared::bermudan_call::BermudanCallProvision;
-        use finstack_quant_valuations::instruments::rates::range_accrual::{
+        use finstack_quant_valuations::instruments::exotics::callable_range_accrual::CallableRangeAccrual;
+        use finstack_quant_valuations::instruments::rates::hw1f::bermudan_call::BermudanCallProvision;
+        use finstack_quant_valuations::instruments::exotics::range_accrual::{
             BoundsType, RangeAccrual,
         };
         use finstack_quant_valuations::instruments::{InstrumentJson, InstrumentPricingOverrides};

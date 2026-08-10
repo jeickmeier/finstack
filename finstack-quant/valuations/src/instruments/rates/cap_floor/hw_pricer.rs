@@ -34,7 +34,7 @@ use crate::instruments::rates::cap_floor::pricing::projection::{
     resolve_optioned_caplet_inputs, OptionedCouponProjection,
 };
 use crate::instruments::rates::cap_floor::types::{CapFloor, RateOptionType};
-use crate::instruments::rates::exotics_shared::{
+use crate::instruments::rates::hw1f::{
     resolve_hw1f_params, Hw1fCalibrationFlavor, Hw1fCapletSurfacePoint, Hw1fResolveRequest,
     Hw1fSurfaceCalibration,
 };
@@ -755,7 +755,7 @@ mod tests {
     use crate::instruments::rates::cap_floor::{
         OvernightCouponConvention, OvernightSpreadCompounding,
     };
-    use crate::instruments::rates::exotics_shared::{RateExoticHw1fMcPricer, RateExoticMcConfig};
+    use crate::instruments::rates::hw1f::{RateExoticHw1fMcPricer, RateExoticMcConfig};
     use crate::instruments::rates::irs::FloatingLegCompounding;
     use date_support::date;
     use discount_forward_curve_support::{flat_discount_with_tenor, flat_forward_with_tenor};

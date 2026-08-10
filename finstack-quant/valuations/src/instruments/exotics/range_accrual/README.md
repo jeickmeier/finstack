@@ -49,7 +49,7 @@ The `bounds_type` field controls how bounds are interpreted:
 ## Usage Example
 
 ```rust
-use finstack_quant_valuations::instruments::rates::range_accrual::{RangeAccrual, BoundsType};
+use finstack_quant_valuations::instruments::exotics::range_accrual::{RangeAccrual, BoundsType};
 
 // Equity-linked with relative bounds
 let equity_range = RangeAccrual::example(); // Uses RelativeToInitialSpot

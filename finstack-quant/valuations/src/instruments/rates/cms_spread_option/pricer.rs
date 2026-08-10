@@ -8,7 +8,7 @@
 use crate::instruments::common_impl::pricing::time::relative_df_discount_curve;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::rates::cms_spread_option::{CmsSpreadOption, CmsSpreadOptionType};
-use crate::instruments::rates::exotics_shared::forward_swap_rate::{
+use crate::instruments::rates::hw1f::forward_swap_rate::{
     calculate_forward_swap_rate, ForwardSwapRateInputs,
 };
 use crate::metrics::MetricId;
@@ -158,13 +158,12 @@ impl CmsSpreadOptionPricer {
         // rate is known, so there is no convexity adjustment and the payoff
         // collapses to intrinsic on the observed rates.
         if inst.expiry_date < as_of {
-            let observed =
-                crate::instruments::rates::exotics_shared::fixings::historical_cms_fixing(
-                    market,
-                    &inst.forward_curve_id,
-                    tenor_years,
-                    inst.expiry_date,
-                )?;
+            let observed = crate::instruments::rates::hw1f::fixings::historical_cms_fixing(
+                market,
+                &inst.forward_curve_id,
+                tenor_years,
+                inst.expiry_date,
+            )?;
             return Ok(CmsSpreadLeg {
                 tenor_years,
                 forward_rate: observed,
@@ -188,10 +187,11 @@ impl CmsSpreadOptionPricer {
         // non-USD CMS spreads (e.g. EUR: annual/30360 fixed, annual/Act360
         // float). `resolved_swap_*` falls back to the USD market standard when
         // neither `swap_convention` nor an explicit field is set.
-        let convention = crate::instruments::rates::exotics_shared::forward_swap_rate::resolve_reference_swap_convention(
-            inst.swap_convention,
-            inst.notional.currency(),
-        )?;
+        let convention =
+            crate::instruments::rates::hw1f::forward_swap_rate::resolve_reference_swap_convention(
+                inst.swap_convention,
+                inst.notional.currency(),
+            )?;
         let calendar_id = convention.calendar_id().ok_or_else(|| {
             finstack_quant_core::Error::Validation(
                 "CMS reference-swap convention has no calendar".to_string(),

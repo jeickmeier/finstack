@@ -19,7 +19,7 @@ pub(crate) struct PoolState {
     /// Maturity dates
     pub(crate) maturities: Vec<Date>,
     /// Day count conventions
-    pub(crate) day_counts: Vec<Option<DayCount>>,
+    pub(crate) day_counts: Vec<DayCount>,
     /// Default status
     pub(crate) is_defaulted: Vec<bool>,
     /// SMM overrides
@@ -54,7 +54,7 @@ impl PoolState {
         let mut spread_bp = Vec::with_capacity(n);
         let mut index_ids = Vec::with_capacity(n);
         let mut maturities = Vec::with_capacity(n);
-        let mut day_counts: Vec<Option<DayCount>> = Vec::with_capacity(n);
+        let mut day_counts: Vec<DayCount> = Vec::with_capacity(n);
         let mut is_defaulted = Vec::with_capacity(n);
         let mut smm_overrides = Vec::with_capacity(n);
         let mut mdr_overrides = Vec::with_capacity(n);
@@ -69,7 +69,7 @@ impl PoolState {
             spread_bp.push(asset.spread_bp);
             index_ids.push(asset.index_id.clone());
             maturities.push(asset.maturity);
-            day_counts.push(Some(asset.day_count));
+            day_counts.push(asset.day_count);
             is_defaulted.push(asset.is_defaulted);
             smm_overrides.push(asset.smm_override);
             mdr_overrides.push(asset.mdr_override);

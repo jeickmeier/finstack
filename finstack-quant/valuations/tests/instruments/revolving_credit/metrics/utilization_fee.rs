@@ -25,7 +25,7 @@ fn test_utilization_fee_above_threshold() {
         .base_rate_spec(BaseRateSpec::Fixed { rate: 0.05 })
         .day_count(DayCount::Act360)
         .frequency(Tenor::quarterly())
-        .fees(RevolvingCreditFees::flat(25.0, 0.0, 20.0)) // Utilization fee
+        .fees(RevolvingCreditFees::flat(25.0, 0.0, 20.0).unwrap()) // Utilization fee
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
         .build()

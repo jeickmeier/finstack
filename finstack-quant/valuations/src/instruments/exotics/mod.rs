@@ -11,6 +11,11 @@
 //! - **Barrier Options**: Knock-in/knock-out based on barrier crossing
 //! - **Lookback Options**: Payoff based on path extremum (max or min)
 //! - **Basket Options**: Multi-asset options on weighted basket
+//! - **Range Accruals**: Coupons accruing only while an index stays in a range,
+//!   with an optional issuer call ([`CallableRangeAccrual`])
+//! - **Structured Rate Notes**: TARNs and snowball / inverse floater notes
+//!   priced under Hull-White one-factor Monte Carlo
+//!   ([`crate::instruments::rates::hw1f`])
 //!
 //! # Pricing Models
 //!
@@ -95,11 +100,23 @@ pub mod asian_option;
 pub mod barrier_option;
 /// Basket module - Multi-underlying basket instruments.
 pub mod basket;
+/// Callable range accrual module - Range accrual with Bermudan call.
+pub mod callable_range_accrual;
 /// Lookback option module - Path-dependent lookback options.
 pub mod lookback_option;
+/// Range accrual module.
+pub mod range_accrual;
+/// Snowball / Inverse Floater structured note module.
+pub mod snowball;
+/// TARN (Target Redemption Note) module.
+pub mod tarn;
 
 // Re-export primary types
 pub use asian_option::{AsianOption, AveragingMethod};
 pub use barrier_option::{BarrierOption, BarrierType};
 pub use basket::Basket;
+pub use callable_range_accrual::CallableRangeAccrual;
 pub use lookback_option::{LookbackOption, LookbackType};
+pub use range_accrual::RangeAccrual;
+pub use snowball::{Snowball, SnowballVariant};
+pub use tarn::Tarn;

@@ -12,13 +12,13 @@
 //!
 //! At every step the pricer also accumulates the pathwise money-market
 //! numeraire `B(t) = exp(∫₀ᵗ r ds)` (trapezoidal rule, see
-//! [`crate::instruments::rates::exotics_shared::bank_account`]) and exposes it
+//! [`crate::instruments::rates::hw1f::bank_account`]) and exposes it
 //! to payoffs through `StateKey::BankAccount`. Payoffs must discount
 //! simulated cashflows with this pathwise factor — not the deterministic
 //! time-0 curve DF, which would drop the payoff/numeraire correlation.
 
-use crate::instruments::rates::exotics_shared::bank_account::bank_step_factor;
-use crate::instruments::rates::exotics_shared::mc_config::RateExoticMcConfig;
+use crate::instruments::rates::hw1f::bank_account::bank_step_factor;
+use crate::instruments::rates::hw1f::mc_config::RateExoticMcConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
 use finstack_quant_monte_carlo::discretization::exact_hw1f::ExactHullWhite1F;
@@ -43,7 +43,7 @@ pub struct RateExoticHw1fMcPricer {
     ///
     /// The simulated short rate follows `dr_t = κ·(θ(t) - r_t)·dt + σ·dW_t`.
     /// θ(t) MUST be bootstrapped from the product's discount curve (see
-    /// [`crate::instruments::rates::exotics_shared::calibrate_hw1f_params`])
+    /// [`crate::instruments::rates::hw1f::calibrate_hw1f_params`])
     /// so the simulated short rate reprices the initial curve — a constant θ
     /// makes the process a plain Vasicek that mis-reprices any non-flat curve.
     pub process_params: HullWhite1FParams,

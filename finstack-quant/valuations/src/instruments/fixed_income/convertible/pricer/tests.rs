@@ -717,3 +717,48 @@ fn convertible_recovery_rate_out_of_bounds_errors() {
     let _ = price_convertible_bond(&bond, &market, tree_type, as_of)
         .expect("None recovery_rate must remain valid (defaults to 0.0)");
 }
+
+/// Regression: a put exercisable exactly at maturity must be honored by the
+/// terminal step of the tree. Previously the terminal payoff considered only
+/// conversion vs. face redemption, so a maturity-dated put struck above par
+/// (e.g. an accreting put at 105) was silently dropped and the bond priced
+/// identically to the unputtable bond.
+#[test]
+fn put_at_maturity_floors_terminal_payoff() {
+    use crate::instruments::fixed_income::bond::{CallPut, CallPutSchedule};
+
+    let as_of = Date::from_calendar_date(2025, Month::June, 1).expect("valid date");
+    let market = create_test_market_context();
+    let tree_type = ConvertibleTreeType::Binomial(200);
+
+    // Deep OTM equity so conversion never binds: conversion value = 5 * 10 = 50
+    // against a 1000 face. The bond is a pure debt instrument here.
+    let market = market.insert_price("AAPL", MarketScalar::Unitless(5.0));
+
+    let plain_bond = create_test_bond();
+    let pv_plain = price_convertible_bond(&plain_bond, &market, tree_type, as_of)
+        .expect("plain bond prices")
+        .amount();
+
+    let mut puttable_bond = create_test_bond();
+    let mut schedule = CallPutSchedule::default();
+    schedule.puts.push(CallPut {
+        start_date: puttable_bond.maturity,
+        end_date: puttable_bond.maturity,
+        price_pct_of_par: 105.0, // accreting put above par at maturity
+        make_whole: None,
+    });
+    puttable_bond.call_put = Some(schedule);
+    let pv_puttable = price_convertible_bond(&puttable_bond, &market, tree_type, as_of)
+        .expect("puttable bond prices")
+        .amount();
+
+    // The put lifts the maturity payoff from 1000 to 1050; discounted at the
+    // curve (~1% for ~4.6y) the uplift is close to 50 * DF ≈ 47-48.
+    let uplift = pv_puttable - pv_plain;
+    assert!(
+        uplift > 40.0 && uplift < 50.0,
+        "maturity put at 105 must lift PV by ~PV(50); got uplift {uplift} \
+         (plain {pv_plain}, puttable {pv_puttable})"
+    );
+}

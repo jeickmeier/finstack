@@ -62,7 +62,7 @@ fn test_upfront_fee_sign() {
         .day_count(DayCount::Act360)
         .frequency(Tenor::quarterly())
         .fees({
-            let mut fees = RevolvingCreditFees::flat(0.0, 0.0, 0.0);
+            let mut fees = RevolvingCreditFees::flat(0.0, 0.0, 0.0).unwrap();
             fees.upfront_fee = Some(Money::new(50_000.0, Currency::USD));
             fees
         })
@@ -389,7 +389,7 @@ fn test_utilization_tier() {
         .day_count(DayCount::Act360)
         .frequency(Tenor::quarterly())
         .fees({
-            let mut fees = RevolvingCreditFees::flat(0.0, 0.0, 0.0);
+            let mut fees = RevolvingCreditFees::flat(0.0, 0.0, 0.0).unwrap();
             fees.usage_fee_tiers = usage_tiers.clone();
             fees
         })
@@ -408,7 +408,7 @@ fn test_utilization_tier() {
         .day_count(DayCount::Act360)
         .frequency(Tenor::quarterly())
         .fees({
-            let mut fees = RevolvingCreditFees::flat(0.0, 0.0, 0.0);
+            let mut fees = RevolvingCreditFees::flat(0.0, 0.0, 0.0).unwrap();
             fees.usage_fee_tiers = usage_tiers;
             fees
         })

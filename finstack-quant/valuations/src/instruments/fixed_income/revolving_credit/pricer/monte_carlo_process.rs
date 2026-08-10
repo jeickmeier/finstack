@@ -41,10 +41,12 @@ impl UtilizationParams {
     ///
     /// # Errors
     ///
-    /// Returns [`finstack_quant_core::Error::Validation`] when `kappa` or `sigma` is
-    /// not strictly positive, or when `theta` is outside `[0, 1]`. (Previously
-    /// these were `assert!`s that panicked in library code on invalid MC
-    /// parameters.)
+    /// Returns [`finstack_quant_core::Error::Validation`] when `kappa` is not
+    /// strictly positive, `sigma` is negative, or `theta` is outside `[0, 1]`.
+    /// `sigma == 0` is accepted: the exact OU transition degenerates cleanly
+    /// to the deterministic mean-reversion drift (zero-volatility parity
+    /// mode). (Previously these were `assert!`s that panicked in library code
+    /// on invalid MC parameters.)
     pub fn new(kappa: f64, theta: f64, sigma: f64) -> finstack_quant_core::Result<Self> {
         // Reject non-finite values explicitly (a `<= 0.0` test would let NaN
         // slip through, since all NaN comparisons are false).
@@ -58,9 +60,9 @@ impl UtilizationParams {
                 "utilization target (theta) must be in [0, 1], got {theta}"
             )));
         }
-        if !sigma.is_finite() || sigma <= 0.0 {
+        if !sigma.is_finite() || sigma < 0.0 {
             return Err(finstack_quant_core::Error::Validation(format!(
-                "utilization volatility (sigma) must be positive, got {sigma}"
+                "utilization volatility (sigma) must be non-negative, got {sigma}"
             )));
         }
 
@@ -465,11 +467,17 @@ mod tests {
             matches!(bad_theta, Err(finstack_quant_core::Error::Validation(_))),
             "theta=1.5 should yield a Validation error, got {bad_theta:?}"
         );
-        // Non-positive volatility.
-        let bad_sigma = UtilizationParams::new(0.5, 0.5, 0.0);
+        // Negative volatility.
+        let bad_sigma = UtilizationParams::new(0.5, 0.5, -0.1);
         assert!(
             matches!(bad_sigma, Err(finstack_quant_core::Error::Validation(_))),
-            "sigma=0 should yield a Validation error, got {bad_sigma:?}"
+            "sigma=-0.1 should yield a Validation error, got {bad_sigma:?}"
+        );
+        // Zero volatility is valid: parity mode with deterministic drift.
+        let zero_sigma = UtilizationParams::new(0.5, 0.5, 0.0);
+        assert!(
+            zero_sigma.is_ok(),
+            "sigma=0 (parity mode) should be accepted, got {zero_sigma:?}"
         );
     }
 

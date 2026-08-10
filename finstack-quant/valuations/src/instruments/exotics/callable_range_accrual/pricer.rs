@@ -3,14 +3,14 @@
 use crate::calibration::hull_white::HullWhiteParams;
 use crate::instruments::common_impl::pricing::time::relative_df_discount_curve;
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::rates::callable_range_accrual::CallableRangeAccrual;
-use crate::instruments::rates::exotics_shared::{
+use crate::instruments::exotics::callable_range_accrual::CallableRangeAccrual;
+use crate::instruments::exotics::range_accrual::BoundsType;
+use crate::instruments::rates::hw1f::{
     basis_for_degree, calibrate_hw1f_params, initial_short_rate_from_curve, resolve_hw1f_params,
     ExerciseBoundaryPayoff, Hw1fCalibrationFlavor, Hw1fCapletSurfacePoint, Hw1fResolveRequest,
     Hw1fSurfaceCalibration, Hw1fTermForward, PeriodForwardCoeffs, RateExoticHw1fLsmcPricer,
     RateExoticHw1fMcPricer, RateExoticMcConfig,
 };
-use crate::instruments::rates::range_accrual::BoundsType;
 use crate::metrics::MetricId;
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
@@ -673,8 +673,8 @@ fn zero_estimate(currency: finstack_quant_core::currency::Currency) -> MoneyEsti
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::instruments::rates::exotics_shared::bermudan_call::BermudanCallProvision;
-    use crate::instruments::rates::range_accrual::RangeAccrual;
+    use crate::instruments::exotics::range_accrual::RangeAccrual;
+    use crate::instruments::rates::hw1f::bermudan_call::BermudanCallProvision;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::DayCount;
     use finstack_quant_core::market_data::context::MarketContext;

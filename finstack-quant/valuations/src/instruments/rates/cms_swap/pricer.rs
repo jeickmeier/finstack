@@ -404,7 +404,7 @@ pub(super) fn cms_coupon_rate(
     // phantom P&L. The rate is known, so there is no convexity adjustment and
     // embedded cap/floor optionality collapses to intrinsic (time_to_fixing=0).
     if fixing_date < as_of {
-        let observed = crate::instruments::rates::exotics_shared::fixings::historical_cms_fixing(
+        let observed = crate::instruments::rates::hw1f::fixings::historical_cms_fixing(
             market,
             &inst.forward_curve_id,
             inst.cms_tenor,
@@ -465,10 +465,11 @@ pub(super) fn cms_forward_and_ttf(
     let swap_start = inst.reference_swap_start(fixing_date)?;
     let swap_tenor_months = (inst.cms_tenor * 12.0).round() as i32;
     let swap_end = swap_start.add_months(swap_tenor_months);
-    let convention = crate::instruments::rates::exotics_shared::forward_swap_rate::resolve_reference_swap_convention(
-        inst.swap_convention,
-        inst.notional.currency(),
-    )?;
+    let convention =
+        crate::instruments::rates::hw1f::forward_swap_rate::resolve_reference_swap_convention(
+            inst.swap_convention,
+            inst.notional.currency(),
+        )?;
     let calendar_id = convention.calendar_id().ok_or_else(|| {
         finstack_quant_core::Error::Validation(
             "CMS reference-swap convention has no calendar".to_string(),
@@ -476,8 +477,8 @@ pub(super) fn cms_forward_and_ttf(
     })?;
 
     let (forward_swap_rate, _annuity) =
-        crate::instruments::rates::exotics_shared::forward_swap_rate::calculate_forward_swap_rate(
-            crate::instruments::rates::exotics_shared::forward_swap_rate::ForwardSwapRateInputs {
+        crate::instruments::rates::hw1f::forward_swap_rate::calculate_forward_swap_rate(
+            crate::instruments::rates::hw1f::forward_swap_rate::ForwardSwapRateInputs {
                 market,
                 discount_curve_id: &inst.discount_curve_id,
                 forward_curve_id: &inst.forward_curve_id,

@@ -92,7 +92,12 @@ impl ThresholdKind {
         match self {
             ThresholdKind::Gaussian => standard_normal_inv_cdf(p),
             ThresholdKind::StudentT { degrees_of_freedom } => {
-                student_t_inv_cdf(p, *degrees_of_freedom).unwrap_or(f64::NAN)
+                // `dof > 2` is enforced at construction, so failure here is
+                // unreachable in practice; fall back to the Gaussian barrier
+                // rather than letting NaN silently poison the default
+                // indicator for every name on the path.
+                student_t_inv_cdf(p, *degrees_of_freedom)
+                    .unwrap_or_else(|_| standard_normal_inv_cdf(p))
             }
         }
     }

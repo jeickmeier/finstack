@@ -1,41 +1,11 @@
 {
   "$defs": {
-    "BermudanCallProvision": {
-      "additionalProperties": false,
-      "description": "Bermudan call provision for callable exotics.\n\nAllows the issuer to terminate the note on specified call dates\nat a specified call price (typically par). Currently consumed by the\nCallable Range Accrual note (PRDC is not implemented, and the Snowball\npricer rejects callable provisions).\n\n# Fields\n\n- `call_dates`: Sorted ascending dates on which the issuer may call.\n- `call_price`: Fraction of notional returned at exercise (1.0 = par).\n- `lockout_periods`: Number of initial coupon periods during which\n  the call right cannot be exercised.",
-      "properties": {
-        "call_dates": {
-          "description": "Dates on which the issuer can call (must be sorted ascending).",
-          "items": {
-            "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
-          },
-          "type": "array"
-        },
-        "call_price": {
-          "description": "Call price (fraction of notional, typically 1.0 = par).",
-          "format": "double",
-          "type": "number"
-        },
-        "lockout_periods": {
-          "description": "Lockout period in number of coupon periods before first call.",
-          "format": "uint",
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "call_dates",
-        "call_price",
-        "lockout_periods"
-      ],
-      "type": "object"
-    },
     "BoundsType": {
       "description": "Specifies how the range bounds are interpreted.",
       "oneOf": [
         {
           "const": "absolute",
-          "description": "Bounds are absolute levels (e.g., 4500.0 for SPX, or an absolute rate\nband for a rate-linked note priced via\n[`CallableRangeAccrual`](crate::instruments::rates::callable_range_accrual)).",
+          "description": "Bounds are absolute levels (e.g., 4500.0 for SPX, or an absolute rate\nband for a rate-linked note priced via\n[`CallableRangeAccrual`](crate::instruments::exotics::callable_range_accrual)).",
           "type": "string"
         },
         {
@@ -44,47 +14,6 @@
           "type": "string"
         }
       ]
-    },
-    "CallableRangeAccrual": {
-      "additionalProperties": false,
-      "description": "Callable Range Accrual.\n\nExtends the existing range accrual concept with a Bermudan call provision\nallowing the issuer to terminate early on specified call dates.\n\nThe call decision interacts with the range accrual feature: the issuer\nwill call when the expected future value of remaining range accrual\ncoupons exceeds the call price (par). Pricing requires backward\ninduction (LSMC or HW tree) combined with forward range accrual\ncoupon simulation.\n\n# Pricing\n\n- **LSMC**: Simulate paths with HW1F short rate model. At each call\n  date, compute continuation value via regression. Exercise if\n  call_price < continuation_value.\n- **HW Tree**: Build trinomial tree, attach range accrual cashflows\n  at each node, apply backward induction with call decision.",
-      "properties": {
-        "attributes": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-          "description": "Attributes."
-        },
-        "call_provision": {
-          "$ref": "#/$defs/BermudanCallProvision",
-          "description": "Bermudan call provision."
-        },
-        "id": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-          "description": "Unique instrument identifier."
-        },
-        "instrument_pricing_overrides": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
-          "description": "Pricing overrides.\nInstrument-owned pricing inputs."
-        },
-        "metric_pricing_overrides": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
-          "description": "Metric-time pricing configuration."
-        },
-        "range_accrual": {
-          "$ref": "#/$defs/RangeAccrual",
-          "description": "Underlying range accrual leg."
-        },
-        "scenario_pricing_overrides": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
-          "description": "Scenario-only pricing adjustments."
-        }
-      },
-      "required": [
-        "id",
-        "range_accrual",
-        "call_provision",
-        "attributes"
-      ],
-      "type": "object"
     },
     "CorrelationWire": {
       "description": "Finite correlation coefficient in the closed interval `[-1, 1]`.",
@@ -126,7 +55,7 @@
     },
     "RangeAccrual": {
       "additionalProperties": false,
-      "description": "Range accrual instrument.\n\nRange accrual notes pay coupons that accrue only when a reference rate or asset\nstays within a specified range. The accrual is proportional to the number of\nobservation dates where the underlying is within [lower_bound, upper_bound].\n\n# Bounds Interpretation\n\nThe `bounds_type` field controls how `lower_bound` and `upper_bound` are interpreted:\n- `Absolute`: Bounds are absolute price levels (e.g., 4500.0 for SPX at 4700)\n- `RelativeToInitialSpot`: Bounds are multipliers of the initial spot (e.g., 0.95 = 95%)\n\n# Historical Fixings\n\nFor mid-life valuations, use `past_fixings_in_range` to specify how many past\nobservations were in range. The pricer will add this to expected future fixings.\n\n# Rate-Linked Underlyings: Pricing Routing\n\nThe rate-linked fields (`rate_index_id`, `projection_curve_id`,\n`reference_tenor`) describe the contract but are **not priceable by the\nstandalone `RangeAccrual` pricers**, which support equity/FX (GBM)\nunderlyings only and return a validation error when these fields are set.\nPrice rate-linked range accrual notes through\n[`CallableRangeAccrual`](crate::instruments::rates::callable_range_accrual)\n(with an empty call schedule for a non-callable note), which models the\nreference rate under HW1F and reconstructs the term rate per observation.",
+      "description": "Range accrual instrument.\n\nRange accrual notes pay coupons that accrue only when a reference rate or asset\nstays within a specified range. The accrual is proportional to the number of\nobservation dates where the underlying is within [lower_bound, upper_bound].\n\n# Bounds Interpretation\n\nThe `bounds_type` field controls how `lower_bound` and `upper_bound` are interpreted:\n- `Absolute`: Bounds are absolute price levels (e.g., 4500.0 for SPX at 4700)\n- `RelativeToInitialSpot`: Bounds are multipliers of the initial spot (e.g., 0.95 = 95%)\n\n# Historical Fixings\n\nFor mid-life valuations, use `past_fixings_in_range` to specify how many past\nobservations were in range. The pricer will add this to expected future fixings.\n\n# Rate-Linked Underlyings: Pricing Routing\n\nThe rate-linked fields (`rate_index_id`, `projection_curve_id`,\n`reference_tenor`) describe the contract but are **not priceable by the\nstandalone `RangeAccrual` pricers**, which support equity/FX (GBM)\nunderlyings only and return a validation error when these fields are set.\nPrice rate-linked range accrual notes through\n[`CallableRangeAccrual`](crate::instruments::exotics::callable_range_accrual)\n(with an empty call schedule for a non-callable note), which models the\nreference rate under HW1F and reconstructs the term rate per observation.",
       "properties": {
         "accrual_start_date": {
           "anyOf": [
@@ -312,14 +241,14 @@
       ],
       "type": "object"
     },
-    "callable_range_accrual": {
+    "range_accrual": {
       "additionalProperties": false,
       "properties": {
         "spec": {
-          "$ref": "#/$defs/CallableRangeAccrual"
+          "$ref": "#/$defs/RangeAccrual"
         },
         "type": {
-          "const": "callable_range_accrual",
+          "const": "range_accrual",
           "type": "string"
         }
       },
@@ -330,7 +259,7 @@
       "type": "object"
     }
   },
-  "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/callable_range_accrual.schema.json",
+  "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/range_accrual.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Canonical single-instrument v1 envelope generated from its serde type.",
@@ -339,67 +268,47 @@
       "instrument": {
         "spec": {
           "attributes": {},
-          "call_provision": {
-            "call_dates": [
-              "2026-06-30",
-              "2026-09-30",
-              "2026-12-31"
-            ],
-            "call_price": 1.0,
-            "lockout_periods": 1
+          "bounds_type": "relative_to_initial_spot",
+          "coupon_rate": 0.08,
+          "day_count": "act_365f",
+          "discount_curve_id": "USD-OIS",
+          "div_yield_id": "SPX-DIV",
+          "id": "RANGE-SPX-1Y",
+          "lower_bound": 0.95,
+          "notional": {
+            "amount": "100000",
+            "currency": "USD"
           },
-          "id": "CALLABLE-RA-SOFR-1Y",
-          "range_accrual": {
-            "accrual_start_date": "2025-12-31",
-            "attributes": {},
-            "bounds_type": "absolute",
-            "coupon_rate": 0.065,
-            "day_count": "act_360",
-            "discount_curve_id": "USD-OIS",
-            "div_yield_id": null,
-            "id": "CALLABLE-RA-SOFR-1Y-RANGE",
-            "lower_bound": 0.04,
-            "notional": {
-              "amount": "1000000",
-              "currency": "USD"
-            },
-            "observation_dates": [
-              "2026-01-31",
-              "2026-02-28",
-              "2026-03-31",
-              "2026-04-30",
-              "2026-05-31",
-              "2026-06-30",
-              "2026-07-31",
-              "2026-08-31",
-              "2026-09-30",
-              "2026-10-31",
-              "2026-11-30",
-              "2026-12-31"
-            ],
-            "past_fixings_in_range": null,
-            "payment_date": null,
-            "projection_curve_id": "USD-OIS",
-            "rate_index_id": "SOFR",
-            "reference_tenor": {
-              "count": 3,
-              "unit": "months"
-            },
-            "spot_id": "SOFR-RATE",
-            "total_past_observations": null,
-            "underlying_ticker": "SOFR",
-            "upper_bound": 0.06,
-            "vol_surface_id": "SOFR-VOL"
-          }
+          "observation_dates": [
+            "2024-01-31",
+            "2024-02-29",
+            "2024-03-31",
+            "2024-04-30",
+            "2024-05-31",
+            "2024-06-30",
+            "2024-07-31",
+            "2024-08-31",
+            "2024-09-30",
+            "2024-10-31",
+            "2024-11-30",
+            "2024-12-31"
+          ],
+          "past_fixings_in_range": null,
+          "payment_date": null,
+          "spot_id": "SPX-SPOT",
+          "total_past_observations": null,
+          "underlying_ticker": "SPX",
+          "upper_bound": 1.05,
+          "vol_surface_id": "SPX-VOL"
         },
-        "type": "callable_range_accrual"
+        "type": "range_accrual"
       },
       "schema": "finstack_quant.instrument/1"
     }
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/callable_range_accrual"
+      "$ref": "#/$defs/range_accrual"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"
@@ -409,6 +318,6 @@
     "schema",
     "instrument"
   ],
-  "title": "callable_range_accrual",
+  "title": "range_accrual",
   "type": "object"
 }

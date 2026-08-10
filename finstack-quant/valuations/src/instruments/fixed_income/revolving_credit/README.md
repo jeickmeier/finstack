@@ -39,7 +39,7 @@ let facility = RevolvingCredit::builder()
     })
     .day_count(DayCount::Act360)
     .payment_frequency(Tenor::quarterly())
-    .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0))
+    .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0)?)
     .draw_repay_spec(DrawRepaySpec::Deterministic(vec![
         DrawRepayEvent { date: Date::from_ymd(2025, 3, 1).unwrap(), amount: Money::new(1_000_000.0, Currency::USD), is_draw: true },
         DrawRepayEvent { date: Date::from_ymd(2025, 6, 1).unwrap(), amount: Money::new(500_000.0, Currency::USD), is_draw: false },
@@ -92,7 +92,7 @@ From the lender’s perspective:
 - Principal repayments: positive cashflows
 - Interest and all fees: positive cashflows at period end
 
-Deterministic engine uses intra‑period event slicing to accrue interest/fees on exact drawn balances between events. Stochastic engine uses the average utilization in the period for accruals and posts principal deltas at period end.
+Deterministic engine uses intra‑period event slicing to accrue interest/fees on exact drawn balances between events, and posts principal exactly on contractual draw/repay event dates. Stochastic engine uses the average of start/end utilization in the period for accruals and posts the matching principal delta at the period midpoint — the path only observes utilization at period boundaries, so midpoint booking is the unbiased timing for a change occurring uniformly within the period and keeps the funding leg consistent with the average‑utilization accrual.
 
 Flow ordering at the same date is deterministic: interest/reset → fees → amortization/PIK → notional.
 

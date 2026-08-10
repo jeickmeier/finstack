@@ -2,7 +2,7 @@
 
 use crate::calibration::hull_white::HullWhiteParams;
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::rates::exotics_shared::{
+use crate::instruments::rates::hw1f::{
     resolve_hw1f_params, Hw1fCalibrationFlavor, Hw1fParamSource, Hw1fResolveRequest,
 };
 use crate::instruments::rates::swaption::pricing::BermudanSwaptionTreeValuator;
@@ -644,7 +644,7 @@ impl BermudanSwaptionPricer {
         // `|t| disc.df(t)` unrebased treats curve-base time as as_of time:
         // when `as_of ≠ curve.base_date` the θ(t) calibration, the initial
         // short rate, and the HW1F bond reconstruction `P(t,T)` are all wrong.
-        // Re-base to `as_of` exactly as `exotics_shared::hw1f_curve` does:
+        // Re-base to `as_of` exactly as `hw1f::hw1f_curve` does:
         //
         //   P(as_of, as_of + t) = DF_curve(t_asof + t) / DF_curve(t_asof)
         //

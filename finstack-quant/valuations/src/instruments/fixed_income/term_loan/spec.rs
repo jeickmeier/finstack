@@ -102,10 +102,12 @@ use super::types::RateSpec;
 ///
 /// # Variants
 ///
-/// - `WithheldPct`: Discount as percentage withheld from funded amount
-/// - `WithheldAmount`: Fixed amount withheld from funded proceeds
-/// - `SeparatePct`: Percentage tracked separately, not withheld
-/// - `SeparateAmount`: Fixed amount tracked separately
+/// - `WithheldPct`: Discount as percentage withheld from each funded draw
+/// - `WithheldAmount`: Fixed facility-level amount withheld from funded
+///   proceeds, pro-rated across draws by draw size
+/// - `SeparatePct`: Percentage of each draw tracked separately, not withheld
+/// - `SeparateAmount`: Fixed facility-level amount tracked separately,
+///   pro-rated across draws by draw size
 ///
 /// # Examples
 ///
@@ -124,13 +126,15 @@ use super::types::RateSpec;
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum OidPolicy {
-    /// Discount as percentage (basis points) withheld from funded proceeds
+    /// Discount as percentage (basis points) withheld from each funded draw
     WithheldPct(i32),
-    /// Fixed discount amount withheld from funded proceeds
+    /// Fixed facility-level discount amount withheld from funded proceeds,
+    /// pro-rated across draws by draw size
     WithheldAmount(Money),
-    /// Discount as percentage tracked separately for amortization
+    /// Discount as percentage of each draw tracked separately for amortization
     SeparatePct(i32),
-    /// Fixed discount amount tracked separately for amortization
+    /// Fixed facility-level discount amount tracked separately for
+    /// amortization, pro-rated across draws by draw size
     SeparateAmount(Money),
 }
 
@@ -598,10 +602,14 @@ pub struct TermLoanSpec {
     pub oid_eir: Option<OidEirSpec>,
     /// Optional call schedule (borrower callability)
     pub call_schedule: Option<LoanCallSchedule>,
-    /// Settlement days (T+n). Default is 2 for leveraged loans per LSTA conventions.
+    /// Settlement days (T+n) used as the valuation/accrued anchor. Default is 2.
     ///
-    /// LSTA standard for secondary market loan trades is T+2 (effective since 2023).
-    /// Primary market trades may use different conventions.
+    /// Note: the LSTA target settlement for par/near-par secondary loan trades
+    /// is T+7 (with delayed compensation beyond T+7, and T+20 for distressed),
+    /// under which trade economics accrue to the buyer as if settlement
+    /// occurred at T+7. The T+2 default here is a pricing-anchor choice, not
+    /// an LSTA convention; set `settlement_days: 7` to anchor at the LSTA
+    /// par-trade target.
     #[serde(default = "default_settlement_days")]
     pub settlement_days: u32,
 }

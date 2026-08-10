@@ -15,9 +15,9 @@
 //!
 //! Only **deterministic** facilities expose a single holder-view schedule to
 //! z-bump. A stochastic facility with no credit curve has no deterministic
-//! schedule (its credit dynamics belong on a hazard curve), so it reports an
-//! empty flow set — CS01 reads `0.0` rather than erroring, and a credit curve
-//! should be supplied to obtain hazard-based CS01.
+//! schedule (its credit dynamics belong on a hazard curve), so requesting
+//! CS01 is a validation error — a silent `0.0` would mask unmonitored credit
+//! exposure. Supply a `credit_curve_id` to obtain hazard-based CS01.
 //!
 //! [`RevolvingCreditPricer`]: crate::instruments::fixed_income::revolving_credit::pricer::RevolvingCreditPricer
 //! [`GenericParallelCs01`]: crate::metrics::GenericParallelCs01
@@ -85,9 +85,17 @@ impl ZSpreadCs01 for RevolvingCredit {
                 }
                 flows
             }
-            // Stochastic facilities with no credit curve: no deterministic
-            // schedule to z-bump (see module docs).
-            DrawRepaySpec::Stochastic(_) => Vec::new(),
+            // Stochastic facilities with no credit curve: there is no
+            // deterministic schedule to z-bump, and reporting a silent 0.0
+            // would hide unmonitored credit exposure (see module docs).
+            DrawRepaySpec::Stochastic(_) => {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "RevolvingCredit {}: CS01 for a stochastic facility requires a \
+                     credit_curve_id (hazard-based CS01); the z-spread fallback only \
+                     applies to deterministic draw/repay schedules",
+                    self.id
+                )));
+            }
         };
 
         Ok(ZSpreadCs01Inputs {

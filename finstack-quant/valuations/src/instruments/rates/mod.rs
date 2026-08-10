@@ -11,7 +11,8 @@
 //! - **Money Market**: Deposits, FRAs, repos
 //! - **Futures**: SOFR futures, Eurodollar futures
 //! - **Inflation**: Zero-coupon swaps, YoY swaps, inflation caps/floors
-//! - **Exotics**: Range accruals, Bermudan swaptions
+//! - **Exotics**: Bermudan swaptions (rate-linked notes live in
+//!   [`crate::instruments::exotics`])
 //!
 //! # Pricing Framework
 //!
@@ -99,8 +100,6 @@
 
 /// Basis swap module - Floating vs floating swaps.
 pub mod basis_swap;
-/// Callable range accrual module - Range accrual with Bermudan call.
-pub mod callable_range_accrual;
 /// Cap/floor module - Interest rate caps and floors.
 pub mod cap_floor;
 /// CMS option module - Constant maturity swap options.
@@ -111,10 +110,10 @@ pub mod cms_spread_option;
 pub mod cms_swap;
 /// Deposit module - Money market deposits.
 pub mod deposit;
-/// Shared rates pricing utilities.
-pub mod exotics_shared;
 /// FRA module - Forward rate agreements.
 pub mod fra;
+/// Hull-White one-factor Monte Carlo / LSMC pricing infrastructure.
+pub mod hw1f;
 /// Inflation cap/floor module.
 pub mod inflation_cap_floor;
 /// Inflation swap module.
@@ -125,22 +124,15 @@ pub mod ir_future;
 pub mod ir_future_option;
 /// IRS module - Interest rate swaps.
 pub mod irs;
-/// Range accrual module.
-pub mod range_accrual;
 /// Repo module - Repurchase agreements.
 pub mod repo;
-/// Snowball / Inverse Floater structured note module.
-pub mod snowball;
 /// Swaption module - Options on interest rate swaps.
 pub mod swaption;
-/// TARN (Target Redemption Note) module.
-pub mod tarn;
 /// Cross-currency swap module.
 pub mod xccy_swap;
 
 // Re-export primary types
 pub use basis_swap::BasisSwap;
-pub use callable_range_accrual::CallableRangeAccrual;
 pub use cap_floor::{CapFloor, RateOptionType};
 pub use cms_option::CmsOption;
 pub use cms_spread_option::{CmsSpreadOption, CmsSpreadOptionType};
@@ -152,9 +144,6 @@ pub use inflation_swap::{InflationSwap, YoYInflationSwap};
 pub use ir_future::InterestRateFuture;
 pub use ir_future_option::IrFutureOption;
 pub use irs::InterestRateSwap;
-pub use range_accrual::RangeAccrual;
 pub use repo::{CollateralSpec, CollateralType, Repo, RepoType};
-pub use snowball::{Snowball, SnowballVariant};
 pub use swaption::{BermudanSwaption, Swaption};
-pub use tarn::Tarn;
 pub use xccy_swap::XccySwap;

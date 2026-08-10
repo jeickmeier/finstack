@@ -16,7 +16,7 @@ use std::cell::Cell;
 
 use crate::instruments::fixed_income::convertible::market_inputs::volatility_candidate_ids;
 use crate::instruments::fixed_income::convertible::pricer::{
-    calculate_accrued_interest, price_convertible_bond, ConvertibleTreeType,
+    calculate_accrued_interest, price_convertible_bond, settlement_date, ConvertibleTreeType,
 };
 use crate::instruments::fixed_income::convertible::ConvertibleBond;
 use crate::metrics::{MetricCalculator, MetricContext};
@@ -52,7 +52,10 @@ impl MetricCalculator for ImpliedVolCalculator {
         // commensurate values — mirroring the term-loan `target_price_from_quote_or_model`.
         let target_dirty = quoted_clean * bond.notional.amount() / 100.0 + accrued;
 
-        let tree_type = ConvertibleTreeType::Binomial(100);
+        // Use the same tree discretization as the registry pricer and every
+        // other convertible metric so the solved vol reprices to the quote
+        // on the production tree (no discretization basis baked into the vol).
+        let tree_type = ConvertibleTreeType::default();
 
         let underlying_id = bond.underlying_equity_id.as_deref().ok_or_else(|| {
             finstack_quant_core::Error::internal(
@@ -73,6 +76,19 @@ impl MetricCalculator for ImpliedVolCalculator {
 
         let base_market = context.curves.as_ref();
 
+        // The quoted clean price is a *settlement-date* price, so the model PV
+        // (computed at `as_of`) is forward-valued to settlement before comparison
+        // — identical to the OAS objective. With the default
+        // `settlement_days = None`, settle == as_of and this factor is 1.0.
+        let settle = settlement_date(bond, as_of);
+        let settle_df = if settle > as_of {
+            base_market
+                .get_discount(bond.discount_curve_id.as_str())?
+                .df_between_dates(as_of, settle)?
+        } else {
+            1.0
+        };
+
         // Validate the unbumped pricing path before entering the solver so that
         // missing equity / vol / curve inputs surface their real error messages
         // rather than appearing as opaque solver convergence failures.
@@ -91,7 +107,7 @@ impl MetricCalculator for ImpliedVolCalculator {
                 .clone()
                 .insert_price(&vol_id, MarketScalar::Unitless(vol));
             match price_convertible_bond(bond, &bumped, tree_type, as_of) {
-                Ok(pv) => pv.amount() - target_dirty,
+                Ok(pv) => pv.amount() / settle_df - target_dirty,
                 Err(e) => {
                     record_err(e);
                     f64::NAN
@@ -260,5 +276,61 @@ mod tests {
             "Implied vol should be in (1%, 300%) range; got {ivol}"
         );
         assert!(ivol.is_finite(), "Implied vol must be finite; got {ivol}");
+    }
+
+    /// Regression: the quoted clean price is a settlement-date price, so the
+    /// solver objective must forward-value the model PV to settlement (divide
+    /// by DF(as_of → settle)) exactly like the OAS objective. Before the fix,
+    /// bonds with `settlement_days` set solved against a target mismatched by
+    /// the settlement discount factor. Verified by round-trip: repricing with
+    /// the solved vol and forward-valuing must recover the dirty target.
+    #[test]
+    fn implied_vol_forward_values_to_settlement_date() {
+        use crate::instruments::fixed_income::convertible::pricer::{
+            calculate_accrued_interest, price_convertible_bond, settlement_date,
+            ConvertibleTreeType,
+        };
+
+        let notional = 1_000.0;
+        let quoted_clean_pct = 180.0;
+        let mut bond = make_bond_with_quote(notional, quoted_clean_pct);
+        bond.settlement_days = Some(2); // T+2, US corporate convention
+        let as_of = Date::from_calendar_date(2025, Month::June, 2).expect("valid date");
+        let market = make_market(as_of);
+
+        let instrument: Arc<dyn Instrument> = Arc::new(bond.clone());
+        let base_value = instrument.value(&market, as_of).expect("base value");
+        let mut ctx = MetricContext::new(
+            instrument,
+            Arc::new(market.clone()),
+            as_of,
+            base_value,
+            Arc::new(FinstackConfig::default()),
+        );
+        let ivol = super::ImpliedVolCalculator
+            .calculate(&mut ctx)
+            .expect("implied vol should converge with settlement lag");
+
+        // Round-trip: reprice at the solved vol, forward-value to settlement,
+        // and compare against the dirty target implied by the quote.
+        let settle = settlement_date(&bond, as_of);
+        assert!(settle > as_of, "T+2 settlement must roll forward");
+        let settle_df = market
+            .get_discount("USD-OIS")
+            .expect("curve")
+            .df_between_dates(as_of, settle)
+            .expect("df");
+        let accrued = calculate_accrued_interest(&bond, as_of).expect("accrued");
+        let target_dirty = quoted_clean_pct * notional / 100.0 + accrued;
+
+        let repriced = market.insert_price("AAPL-VOL", MarketScalar::Unitless(ivol));
+        let pv = price_convertible_bond(&bond, &repriced, ConvertibleTreeType::default(), as_of)
+            .expect("reprice at solved vol");
+        let recovered = pv.amount() / settle_df;
+        assert!(
+            (recovered - target_dirty).abs() < 1e-3,
+            "round-trip at solved vol must recover the settlement-date dirty target: \
+             got {recovered}, want {target_dirty}"
+        );
     }
 }

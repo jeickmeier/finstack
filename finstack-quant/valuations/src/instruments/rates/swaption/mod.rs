@@ -148,9 +148,7 @@ pub(crate) fn hw1f_swaption_surface_calibration(
     vol_surface_id: &str,
     max_expiry: Option<f64>,
     fixed_frequency: finstack_quant_core::dates::Tenor,
-) -> finstack_quant_core::Result<
-    crate::instruments::rates::exotics_shared::Hw1fSurfaceCalibration<'_>,
-> {
+) -> finstack_quant_core::Result<crate::instruments::rates::hw1f::Hw1fSurfaceCalibration<'_>> {
     use crate::calibration::hull_white::SwapFrequency;
 
     let frequency = match fixed_frequency.months() {
@@ -166,7 +164,7 @@ pub(crate) fn hw1f_swaption_surface_calibration(
     };
 
     Ok(
-        crate::instruments::rates::exotics_shared::Hw1fSurfaceCalibration::Swaption {
+        crate::instruments::rates::hw1f::Hw1fSurfaceCalibration::Swaption {
             vol_surface_id,
             max_expiry,
             frequency,
@@ -178,7 +176,7 @@ pub(crate) fn hw1f_swaption_surface_calibration(
 mod calibration_frequency_tests {
     use super::*;
     use crate::calibration::hull_white::SwapFrequency;
-    use crate::instruments::rates::exotics_shared::Hw1fSurfaceCalibration;
+    use crate::instruments::rates::hw1f::Hw1fSurfaceCalibration;
     use finstack_quant_core::dates::{Tenor, TenorUnit};
 
     fn frequency_for(tenor: Tenor) -> SwapFrequency {

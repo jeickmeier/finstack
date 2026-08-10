@@ -199,11 +199,10 @@ pub use fixed_income::{
 
 // Rates
 pub use rates::{
-    BasisSwap, BermudanSwaption, CallableRangeAccrual, CapFloor, CmsOption, CmsSpreadOption,
-    CmsSpreadOptionType, CmsSwap, CollateralSpec, CollateralType, Deposit, ForwardRateAgreement,
-    InflationCapFloor, InflationCapFloorType, InflationSwap, InterestRateFuture, InterestRateSwap,
-    IrFutureOption, RangeAccrual, RateOptionType, Repo, RepoType, Snowball, SnowballVariant,
-    Swaption, Tarn, XccySwap, YoYInflationSwap,
+    BasisSwap, BermudanSwaption, CapFloor, CmsOption, CmsSpreadOption, CmsSpreadOptionType,
+    CmsSwap, CollateralSpec, CollateralType, Deposit, ForwardRateAgreement, InflationCapFloor,
+    InflationCapFloorType, InflationSwap, InterestRateFuture, InterestRateSwap, IrFutureOption,
+    RateOptionType, Repo, RepoType, Swaption, XccySwap, YoYInflationSwap,
 };
 
 // Credit Derivatives
@@ -233,7 +232,8 @@ pub use commodity::{
 
 // Exotics
 pub use exotics::{
-    AsianOption, AveragingMethod, BarrierOption, BarrierType, Basket, LookbackOption, LookbackType,
+    AsianOption, AveragingMethod, BarrierOption, BarrierType, Basket, CallableRangeAccrual,
+    LookbackOption, LookbackType, RangeAccrual, Snowball, SnowballVariant, Tarn,
 };
 
 // === Common Functionality ===

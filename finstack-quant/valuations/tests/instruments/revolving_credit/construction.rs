@@ -44,7 +44,7 @@ fn test_builder_fixed_rate_facility() {
         .base_rate_spec(BaseRateSpec::Fixed { rate: 0.05 }) // 5%
         .day_count(DayCount::Act360)
         .frequency(Tenor::quarterly())
-        .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0))
+        .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
         .build();
@@ -74,7 +74,7 @@ fn test_builder_floating_rate_facility() {
         )))
         .day_count(DayCount::Act360)
         .frequency(Tenor::quarterly())
-        .fees(RevolvingCreditFees::flat(30.0, 15.0, 8.0))
+        .fees(RevolvingCreditFees::flat(30.0, 15.0, 8.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
         .build();
@@ -142,7 +142,7 @@ fn test_validation_maturity_after_commitment() {
         .base_rate_spec(BaseRateSpec::Fixed { rate: 0.05 })
         .day_count(DayCount::Act360)
         .frequency(Tenor::quarterly())
-        .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0))
+        .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
         .build();
@@ -163,7 +163,7 @@ fn test_validation_drawn_within_commitment() {
         .base_rate_spec(BaseRateSpec::Fixed { rate: 0.05 })
         .day_count(DayCount::Act360)
         .frequency(Tenor::quarterly())
-        .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0))
+        .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
         .build();

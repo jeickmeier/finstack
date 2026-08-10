@@ -27,11 +27,11 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
 use finstack_quant_monte_carlo::process::ou::HullWhite1FParams;
 use finstack_quant_monte_carlo::traits::{PathState, Payoff};
-use finstack_quant_valuations::instruments::rates::exotics_shared::exercise::{
+use finstack_quant_valuations::instruments::rates::hw1f::exercise::{
     standard_basis, ExerciseBoundaryPayoff,
 };
-use finstack_quant_valuations::instruments::rates::exotics_shared::hw1f_lsmc::RateExoticHw1fLsmcPricer;
-use finstack_quant_valuations::instruments::rates::exotics_shared::mc_config::RateExoticMcConfig;
+use finstack_quant_valuations::instruments::rates::hw1f::hw1f_lsmc::RateExoticHw1fLsmcPricer;
+use finstack_quant_valuations::instruments::rates::hw1f::mc_config::RateExoticMcConfig;
 
 /// Simplified swaption-proxy payoff: records no path-dependent cashflows
 /// (deterministic PV = 0) and exposes a receiver-style intrinsic via the

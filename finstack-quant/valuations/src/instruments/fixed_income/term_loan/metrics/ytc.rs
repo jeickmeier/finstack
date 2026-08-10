@@ -9,69 +9,55 @@ use crate::metrics::{MetricCalculator, MetricContext};
 use finstack_quant_core::money::Money;
 
 use super::irr_helpers::{
-    cached_full_schedule, outstanding_before, settlement_discount_factor, solve_irr_to_exercise,
-    target_price_from_quote_or_model,
+    cached_full_schedule, exercisable_call_candidates, outstanding_before,
+    settlement_discount_factor, solve_irr_to_exercise, target_price_from_quote_or_model,
 };
 
 /// Yield-to-call calculator for callable term loans.
 ///
-/// For loans with call schedules, solves for IRR to the first valid call date.
-/// Redemption amount equals pre-exercise outstanding principal times the call price.
+/// Solves for IRR to the earliest exercisable call candidate — the first
+/// coupon date after settlement when a standing provision is already
+/// effective, or the first future-dated provision otherwise. Redemption
+/// equals pre-exercise outstanding principal times the call price.
 pub(crate) struct YtcCalculator;
 
 impl MetricCalculator for YtcCalculator {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
-        let loan: &TermLoan = context.instrument_as()?;
         let as_of = context.as_of;
 
-        // No exercisable calls → fallback to YTM.
+        // Use the cached internal schedule (rebuilt only if absent).
+        let schedule = cached_full_schedule(context)?;
+
+        let loan: &TermLoan = context.instrument_as()?;
+        let settle_df = settlement_discount_factor(loan, &context.curves, as_of)?;
+        let currency = loan.currency;
+
+        // Earliest exercisable candidate (standing or future-dated provision).
         // MakeWhole calls are excluded: by design the borrower pays at least
         // the continuation value, making the option non-economic.
-        let first_call = match &loan.call_schedule {
-            Some(cs) => cs
-                .calls
-                .iter()
-                .filter(|c| {
-                    c.date >= as_of
-                        && c.date <= loan.maturity
-                        && !matches!(c.call_type, crate::instruments::fixed_income::term_loan::LoanCallType::MakeWhole { .. })
-                })
-                .min_by_key(|c| c.date)
-                .cloned(),
-            None => None,
-        };
-
-        let Some(call) = first_call else {
-            // use YTM calculator already registered
+        let candidates = exercisable_call_candidates(loan, &schedule, as_of)?;
+        let Some((call_date, price_pct)) = candidates.into_iter().next() else {
+            // No exercisable calls → fallback to YTM.
             return crate::instruments::fixed_income::term_loan::metrics::ytm::YtmCalculator
                 .calculate(context);
         };
 
-        // Resolve scalar fields off `loan` before re-borrowing context for the cache.
-        let settle_df = settlement_discount_factor(loan, &context.curves, as_of)?;
-        let currency = loan.currency;
-
-        // Use the cached internal schedule (rebuilt only if absent).
-        let schedule = cached_full_schedule(context)?;
         let target_price = {
             let loan: &TermLoan = context.instrument_as()?;
             target_price_from_quote_or_model(loan, &schedule, as_of, context.base_value, settle_df)?
         };
 
-        // Use pre-exercise outstanding (< call.date) for redemption calculation.
+        // Use pre-exercise outstanding (< call_date) for redemption calculation.
         // outstanding_by_date returns balances AFTER each date, so < gives the
         // balance before any events on the call date.
         let out_path = schedule.outstanding_by_date()?;
-        let outstanding = outstanding_before(&out_path, call.date, currency);
+        let outstanding = outstanding_before(&out_path, call_date, currency);
 
         // Redemption = outstanding * call price (as percentage of par)
-        let redemption = Money::new(
-            outstanding.amount() * (call.price_pct_of_par / 100.0),
-            currency,
-        );
+        let redemption = Money::new(outstanding.amount() * (price_pct / 100.0), currency);
 
         // Re-fetch the loan reference (cache write path released the borrow).
         let loan: &TermLoan = context.instrument_as()?;
-        solve_irr_to_exercise(loan, &schedule, as_of, target_price, call.date, redemption)
+        solve_irr_to_exercise(loan, &schedule, as_of, target_price, call_date, redemption)
     }
 }

@@ -6,7 +6,7 @@
 //! `priceInstrument` / `priceInstrumentWithMetrics` pipeline.
 
 use crate::utils::{to_js_err, to_js_value};
-use finstack_quant_valuations::instruments::rates::exotics_shared::coupon_profiles;
+use finstack_quant_valuations::instruments::rates::hw1f::coupon_profiles;
 use wasm_bindgen::prelude::*;
 
 /// Simulated TARN coupon profile along a deterministic floating-rate path.
@@ -23,7 +23,7 @@ use wasm_bindgen::prelude::*;
 ///
 /// Each period's coupon is `max(fixed_rate - L_i, coupon_floor) * day_count_fraction`.
 /// Payments accumulate in a
-/// [`CumulativeCouponTracker`](finstack_quant_valuations::instruments::rates::exotics_shared::cumulative_coupon::CumulativeCouponTracker) configured with
+/// [`CumulativeCouponTracker`](finstack_quant_valuations::instruments::rates::hw1f::cumulative_coupon::CumulativeCouponTracker) configured with
 /// `target_coupon`; once cumulative hits the target, the final coupon is
 /// capped and the instrument is considered redeemed.
 ///

@@ -250,7 +250,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/levered_real_estate_equity.schema.json",
-      "bytes": 828462,
+      "bytes": 829366,
       "kind": "input",
       "path": "schemas/instruments/1/equity/levered_real_estate_equity.schema.json",
       "summary": "Property equity net of its financing stack.",
@@ -322,11 +322,19 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/basket.schema.json",
-      "bytes": 828457,
+      "bytes": 829361,
       "kind": "input",
       "path": "schemas/instruments/1/exotics/basket.schema.json",
       "summary": "Weighted basket of constituents priced as one position.",
       "title": "basket"
+    },
+    {
+      "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/callable_range_accrual.schema.json",
+      "bytes": 16556,
+      "kind": "input",
+      "path": "schemas/instruments/1/exotics/callable_range_accrual.schema.json",
+      "summary": "Range accrual with issuer call rights.",
+      "title": "callable_range_accrual"
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/lookback_option.schema.json",
@@ -335,6 +343,30 @@
       "path": "schemas/instruments/1/exotics/lookback_option.schema.json",
       "summary": "Option struck on the path maximum or minimum.",
       "title": "lookback_option"
+    },
+    {
+      "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/range_accrual.schema.json",
+      "bytes": 12079,
+      "kind": "input",
+      "path": "schemas/instruments/1/exotics/range_accrual.schema.json",
+      "summary": "Coupon accruing only on days the index sits inside a range.",
+      "title": "range_accrual"
+    },
+    {
+      "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/snowball.schema.json",
+      "bytes": 8903,
+      "kind": "input",
+      "path": "schemas/instruments/1/exotics/snowball.schema.json",
+      "summary": "Path-dependent note whose coupon builds on the previous one.",
+      "title": "snowball"
+    },
+    {
+      "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/tarn.schema.json",
+      "bytes": 6306,
+      "kind": "input",
+      "path": "schemas/instruments/1/exotics/tarn.schema.json",
+      "summary": "Target-redemption note that terminates once cumulative coupons hit a cap.",
+      "title": "tarn"
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/agency_cmo.schema.json",
@@ -402,7 +434,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/revolving_credit.schema.json",
-      "bytes": 44876,
+      "bytes": 45315,
       "kind": "input",
       "path": "schemas/instruments/1/fixed_income/revolving_credit.schema.json",
       "summary": "Committed revolver with drawn/undrawn balances and commitment fees.",
@@ -410,7 +442,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/structured_credit.schema.json",
-      "bytes": 188616,
+      "bytes": 188617,
       "kind": "input",
       "path": "schemas/instruments/1/fixed_income/structured_credit.schema.json",
       "summary": "ABS/CLO/RMBS/CMBS deal: collateral pool, tranches and waterfall.",
@@ -418,7 +450,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/term_loan.schema.json",
-      "bytes": 56968,
+      "bytes": 57364,
       "kind": "input",
       "path": "schemas/instruments/1/fixed_income/term_loan.schema.json",
       "summary": "Amortising leveraged loan with call protection and covenants.",
@@ -514,7 +546,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json",
-      "bytes": 906250,
+      "bytes": 907155,
       "kind": "input",
       "path": "schemas/instruments/1/instrument.schema.json",
       "summary": "The seventy-branch union of every instrument type. Prefer the per-type schema beside it: this document is too large to hand to a model.",
@@ -535,14 +567,6 @@
       "path": "schemas/instruments/1/rates/bermudan_swaption.schema.json",
       "summary": "Bermudan-exercise swaption valued on a short-rate lattice.",
       "title": "bermudan_swaption"
-    },
-    {
-      "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/callable_range_accrual.schema.json",
-      "bytes": 16550,
-      "kind": "input",
-      "path": "schemas/instruments/1/rates/callable_range_accrual.schema.json",
-      "summary": "Range accrual with issuer call rights.",
-      "title": "callable_range_accrual"
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/cap_floor.schema.json",
@@ -633,14 +657,6 @@
       "title": "ir_future_option"
     },
     {
-      "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/range_accrual.schema.json",
-      "bytes": 12073,
-      "kind": "input",
-      "path": "schemas/instruments/1/rates/range_accrual.schema.json",
-      "summary": "Coupon accruing only on days the index sits inside a range.",
-      "title": "range_accrual"
-    },
-    {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/repo.schema.json",
       "bytes": 20265,
       "kind": "input",
@@ -649,28 +665,12 @@
       "title": "repo"
     },
     {
-      "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/snowball.schema.json",
-      "bytes": 8901,
-      "kind": "input",
-      "path": "schemas/instruments/1/rates/snowball.schema.json",
-      "summary": "Path-dependent note whose coupon builds on the previous one.",
-      "title": "snowball"
-    },
-    {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/swaption.schema.json",
       "bytes": 32059,
       "kind": "input",
       "path": "schemas/instruments/1/rates/swaption.schema.json",
       "summary": "European option to enter an interest-rate swap.",
       "title": "swaption"
-    },
-    {
-      "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/tarn.schema.json",
-      "bytes": 6304,
-      "kind": "input",
-      "path": "schemas/instruments/1/rates/tarn.schema.json",
-      "summary": "Target-redemption note that terminates once cumulative coupons hit a cap.",
-      "title": "tarn"
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/xccy_swap.schema.json",

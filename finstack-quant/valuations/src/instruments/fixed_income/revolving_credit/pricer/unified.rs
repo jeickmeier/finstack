@@ -644,15 +644,22 @@ impl RevolvingCreditPricer {
     ) -> Result<Vec<f64>> {
         use finstack_quant_core::dates::DayCountContext;
 
-        // First, compute cumulative hazard at each payment date
+        // First, compute cumulative hazard at each payment date.
+        //
+        // Trapezoidal integration of the hazard path: the left-Riemann sum
+        // used previously carried an O(dt) bias systematically correlated
+        // with the direction of spread moves along the path (survival
+        // overstated when spreads rise). Trapezoidal matches the
+        // second-order accuracy of the recovery-leg integration.
         let mut cumulative_hazards = Vec::with_capacity(time_points.len());
         let mut cumulative_hazard = 0.0;
         cumulative_hazards.push(0.0); // At commitment date
 
+        let loss_given_default = (1.0 - recovery_rate).max(1e-6);
         for i in 0..(credit_spreads.len() - 1) {
             let dt = time_points[i + 1] - time_points[i];
-            let hazard_rate = credit_spreads[i] / (1.0 - recovery_rate).max(1e-6);
-            cumulative_hazard += hazard_rate * dt;
+            let hazard_avg = 0.5 * (credit_spreads[i] + credit_spreads[i + 1]) / loss_given_default;
+            cumulative_hazard += hazard_avg * dt;
             cumulative_hazards.push(cumulative_hazard);
         }
 
@@ -1214,6 +1221,45 @@ mod tests {
         for &s in &survivals {
             assert!(s > 0.0 && s <= 1.0);
         }
+    }
+
+    #[test]
+    fn dynamic_survival_uses_trapezoidal_hazard_integration() {
+        // A rising spread path distinguishes trapezoidal integration from the
+        // left-Riemann sum (which would understate cumulative hazard and
+        // overstate survival). Pin the exact trapezoid value.
+        let dc = DayCount::Act365F;
+        let start = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
+        let mid = Date::from_calendar_date(2025, Month::July, 1).expect("valid date");
+        let end = Date::from_calendar_date(2026, Month::January, 1).expect("valid date");
+        let t_mid = dc
+            .year_fraction(start, mid, Default::default())
+            .expect("year fraction");
+        let t_end = dc
+            .year_fraction(start, end, Default::default())
+            .expect("year fraction");
+
+        let times = vec![0.0, t_mid, t_end];
+        let spreads = vec![0.01, 0.03, 0.05];
+        let recovery = 0.0; // hazard = spread
+
+        let survivals = RevolvingCreditPricer::compute_dynamic_survival_at_dates(
+            &spreads,
+            &times,
+            &[end],
+            recovery,
+            start,
+            dc,
+        )
+        .expect("should succeed");
+
+        let expected_hazard = 0.5 * (0.01 + 0.03) * t_mid + 0.5 * (0.03 + 0.05) * (t_end - t_mid);
+        let expected = (-expected_hazard).exp();
+        assert!(
+            (survivals[0] - expected).abs() < 1e-12,
+            "trapezoidal survival mismatch: got {}, expected {expected}",
+            survivals[0]
+        );
     }
 
     #[test]

@@ -3,17 +3,17 @@
 use crate::calibration::hull_white::HullWhiteParams;
 use crate::instruments::common_impl::pricing::time::relative_df_discount_curve;
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::rates::exotics_shared::cumulative_coupon::CouponEvent;
-use crate::instruments::rates::exotics_shared::hw1f_curve::{
+use crate::instruments::exotics::snowball::{Snowball, SnowballVariant};
+use crate::instruments::rates::hw1f::cumulative_coupon::CouponEvent;
+use crate::instruments::rates::hw1f::hw1f_curve::{
     calibrate_hw1f_params, initial_short_rate_from_curve, Hw1fTermForward, PeriodForwardCoeffs,
 };
-use crate::instruments::rates::exotics_shared::hw1f_mc::RateExoticHw1fMcPricer;
-use crate::instruments::rates::exotics_shared::mc_config::RateExoticMcConfig;
-use crate::instruments::rates::exotics_shared::{
+use crate::instruments::rates::hw1f::hw1f_mc::RateExoticHw1fMcPricer;
+use crate::instruments::rates::hw1f::mc_config::RateExoticMcConfig;
+use crate::instruments::rates::hw1f::{
     resolve_hw1f_params, Hw1fCalibrationFlavor, Hw1fCapletSurfacePoint, Hw1fResolveRequest,
     Hw1fSurfaceCalibration,
 };
-use crate::instruments::rates::snowball::{Snowball, SnowballVariant};
 use crate::metrics::MetricId;
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
@@ -260,7 +260,7 @@ impl SnowballDiscountingPricer {
 
             let projection_start = start.max(as_of);
             let floating_rate =
-                crate::instruments::rates::exotics_shared::forward_swap_rate::term_fixing_on_date(
+                crate::instruments::rates::hw1f::forward_swap_rate::term_fixing_on_date(
                     forward_curve.as_ref(),
                     projection_start,
                 )?;
@@ -698,7 +698,7 @@ fn coupon_events(
 ) -> Result<Vec<CouponEvent>> {
     let discount_curve = market.get_discount(inst.discount_curve_id.as_ref())?;
     let forward_curve = market.get_forward(inst.floating_index_id.as_ref())?;
-    crate::instruments::rates::exotics_shared::forward_swap_rate::validate_term_curve_tenor(
+    crate::instruments::rates::hw1f::forward_swap_rate::validate_term_curve_tenor(
         forward_curve.as_ref(),
         inst.floating_tenor,
         inst.id.as_str(),
@@ -741,18 +741,17 @@ fn coupon_events(
             let discount_forward =
                 (discount_curve.df(discount_time) / discount_curve.df(discount_time + tenor) - 1.0)
                     / tenor;
-            let basis =
-                crate::instruments::rates::exotics_shared::forward_swap_rate::term_fixing_on_date(
-                    forward_curve.as_ref(),
-                    start,
-                )? - discount_forward;
+            let basis = crate::instruments::rates::hw1f::forward_swap_rate::term_fixing_on_date(
+                forward_curve.as_ref(),
+                start,
+            )? - discount_forward;
             (coeffs.with_additive_spread(basis), true)
         } else {
             // At inception the first fixing is projected from the explicit
             // projection curve. Do not substitute the discount-curve short
             // rate, which would remove the index/discount basis.
             let seasoned_rate =
-                crate::instruments::rates::exotics_shared::forward_swap_rate::term_fixing_on_date(
+                crate::instruments::rates::hw1f::forward_swap_rate::term_fixing_on_date(
                     forward_curve.as_ref(),
                     start,
                 )?;
@@ -826,7 +825,7 @@ fn deterministic_estimate(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::instruments::rates::exotics_shared::bermudan_call::BermudanCallProvision;
+    use crate::instruments::rates::hw1f::bermudan_call::BermudanCallProvision;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::{Date, DayCount, Tenor};
     use finstack_quant_core::market_data::context::MarketContext;

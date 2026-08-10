@@ -194,7 +194,7 @@ impl RevolvingCredit {
             overnight_basis: None,
             fallback: Default::default(),
         });
-        let fees = RevolvingCreditFees::flat(25.0, 10.0, 5.0);
+        let fees = RevolvingCreditFees::flat(25.0, 10.0, 5.0)?;
         let draw_repay = DrawRepaySpec::Deterministic(vec![
             DrawRepayEvent {
                 date: date!(2024 - 03 - 01),
@@ -303,24 +303,37 @@ impl RevolvingCreditFees {
     ///
     /// Convenience constructor for simple fee structures without utilization tiers.
     ///
-    /// # Panics (debug builds only)
+    /// # Arguments
     ///
-    /// Asserts that all fee inputs are finite. Pass `NaN` or `Inf` in debug
-    /// builds to surface the error early; in release builds non-finite inputs
-    /// produce `Decimal::ZERO` (better than a panic in a long-running process).
-    pub fn flat(commitment_fee_bp: f64, usage_fee_bp: f64, facility_fee_bp: f64) -> Self {
-        debug_assert!(
-            commitment_fee_bp.is_finite(),
-            "RevolvingCreditFees::flat: commitment_fee_bp is not finite ({commitment_fee_bp})"
-        );
-        debug_assert!(
-            usage_fee_bp.is_finite(),
-            "RevolvingCreditFees::flat: usage_fee_bp is not finite ({usage_fee_bp})"
-        );
-        debug_assert!(
-            facility_fee_bp.is_finite(),
-            "RevolvingCreditFees::flat: facility_fee_bp is not finite ({facility_fee_bp})"
-        );
+    /// * `commitment_fee_bp` - Annual commitment fee on the undrawn amount, in
+    ///   basis points (e.g. `25.0` for 25bp). Must be finite; values `<= 0`
+    ///   produce no commitment fee tier.
+    /// * `usage_fee_bp` - Annual usage fee on the drawn amount, in basis
+    ///   points. Must be finite; values `<= 0` produce no usage fee tier.
+    /// * `facility_fee_bp` - Annual facility fee on the total commitment, in
+    ///   basis points. Must be finite.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`finstack_quant_core::Error::Validation`] when any fee input
+    /// is not finite (previously non-finite inputs silently produced a zero
+    /// fee in release builds, masking data-quality errors).
+    pub fn flat(
+        commitment_fee_bp: f64,
+        usage_fee_bp: f64,
+        facility_fee_bp: f64,
+    ) -> finstack_quant_core::Result<Self> {
+        for (name, bp) in [
+            ("commitment_fee_bp", commitment_fee_bp),
+            ("usage_fee_bp", usage_fee_bp),
+            ("facility_fee_bp", facility_fee_bp),
+        ] {
+            if !bp.is_finite() {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "RevolvingCreditFees::flat: {name} must be finite, got {bp}"
+                )));
+            }
+        }
         let make_tier = |bp: f64| -> Vec<FeeTier> {
             if bp > 0.0 {
                 vec![FeeTier {
@@ -332,12 +345,12 @@ impl RevolvingCreditFees {
             }
         };
 
-        Self {
+        Ok(Self {
             upfront_fee: None,
             commitment_fee_tiers: make_tier(commitment_fee_bp),
             usage_fee_tiers: make_tier(usage_fee_bp),
             facility_fee_bp,
-        }
+        })
     }
 
     /// Create fees with flat (non-tiered) commitment and usage fees using typed bp.
@@ -448,14 +461,20 @@ pub struct StochasticUtilizationSpec {
     /// Number of Monte Carlo paths to simulate.
     pub num_paths: usize,
 
-    /// Random seed for reproducibility (None for non-deterministic).
+    /// Random seed for reproducibility. Simulation is always deterministic:
+    /// `None` falls back to a fixed default seed (42). Because the seed is
+    /// fixed, bump-and-reprice sensitivities (DV01/CS01/Theta) reuse the same
+    /// random variates for base and bumped valuations — common random
+    /// numbers — so finite-difference Greeks are free of Monte Carlo noise.
     pub seed: Option<u64>,
 
     /// Use antithetic variance reduction when simulating paths (default: false).
+    /// Mutually exclusive with `use_sobol_qmc`; validation rejects the combination.
     #[serde(default)]
     pub antithetic: bool,
 
     /// Use Sobol quasi-Monte Carlo RNG instead of Philox (default: false).
+    /// Mutually exclusive with `antithetic`; validation rejects the combination.
     #[serde(default)]
     pub use_sobol_qmc: bool,
 
@@ -642,6 +661,18 @@ pub enum InterestRateProcessSpec {
     /// Hull-White 1-factor model for short rate.
     ///
     /// Models short rate as: dr_t = κ[θ(t) - r_t]dt + σ dW_t
+    ///
+    /// Two calibration modes, selected by `sigma`:
+    /// - `sigma > 0` (stochastic): the pricer fits a time-dependent θ(t) to
+    ///   the facility's discount curve and reads the initial short rate from
+    ///   that curve; the supplied `initial`/`theta` are ignored.
+    /// - `sigma == 0` (deterministic parity mode): the supplied constant
+    ///   `initial` and `theta` are used verbatim, with no curve fitting.
+    ///
+    /// Consequently the σ → 0 limit of the stochastic mode does **not**
+    /// converge to the σ = 0 branch unless the supplied `initial`/`theta`
+    /// are themselves curve-consistent. When running a volatility ladder
+    /// down to zero, keep σ strictly positive for curve-fitted dynamics.
     #[serde(rename = "hull_white_1f")]
     HullWhite1F {
         /// Mean reversion speed (κ)
@@ -672,6 +703,15 @@ pub enum UtilizationProcess {
     /// Models utilization as reverting to a long-term target with specified
     /// speed and volatility. Uses Ornstein-Uhlenbeck dynamics:
     /// dU(t) = speed * (target_rate - U(t)) * dt + volatility * dW(t)
+    ///
+    /// The simulated process is a **clamped** OU: each step uses the exact OU
+    /// transition and is then clamped to `[0, 1]`. When `target_rate` is well
+    /// inside the interval and `volatility` is moderate the clamp fires only
+    /// on rare tail excursions, but with `target_rate` near 0 or 1 and/or
+    /// high `volatility` the clamp binds frequently and biases the simulated
+    /// mean toward the interior. Keep the stationary standard deviation
+    /// `volatility / sqrt(2 * speed)` small relative to the distance from
+    /// `target_rate` to the nearest boundary.
     MeanReverting {
         /// Target utilization rate (0.0 to 1.0).
         target_rate: f64,
@@ -888,6 +928,15 @@ impl RevolvingCredit {
                         "RevolvingCredit stochastic num_paths must be at least 2, got {}",
                         spec.num_paths
                     )
+                })?;
+                // Antithetic pairing is defined for pseudorandom draws only;
+                // negating Sobol points destroys the low-discrepancy
+                // structure. Reject the combination rather than silently
+                // dropping the antithetic flag.
+                validation::require_with(!(spec.antithetic && spec.use_sobol_qmc), || {
+                    "RevolvingCredit stochastic spec cannot combine antithetic \
+                     variance reduction with Sobol QMC; disable one of the two flags"
+                        .to_string()
                 })?;
                 match &spec.utilization_process {
                     UtilizationProcess::MeanReverting {

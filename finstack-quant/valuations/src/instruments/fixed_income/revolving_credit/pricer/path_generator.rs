@@ -26,9 +26,7 @@ use crate::instruments::fixed_income::revolving_credit::pricer::monte_carlo_proc
     CreditSpreadParams, InterestRateSpec, RevolvingCreditProcess, RevolvingCreditProcessParams,
     UtilizationParams,
 };
-use crate::instruments::rates::exotics_shared::{
-    calibrate_hw1f_params, initial_short_rate_from_curve,
-};
+use crate::instruments::rates::hw1f::{calibrate_hw1f_params, initial_short_rate_from_curve};
 use finstack_quant_monte_carlo::process::ou::HullWhite1FParams;
 use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_monte_carlo::rng::sobol::SobolRng;
@@ -102,9 +100,11 @@ pub fn generate_three_factor_paths(
             speed,
             volatility,
         } => {
-            // Handle zero volatility case (for deterministic/parity testing)
+            // Zero (or effectively-zero) volatility is parity mode: pass a
+            // true σ = 0 so the utilization diffusion term vanishes exactly
+            // rather than substituting a tiny placeholder volatility.
             let is_zero = volatility.abs() < 1e-8;
-            let vol = if is_zero { 1e-10 } else { *volatility };
+            let vol = if is_zero { 0.0 } else { *volatility };
             (UtilizationParams::new(*speed, *target_rate, vol)?, is_zero)
         }
     };
@@ -263,7 +263,9 @@ pub fn generate_three_factor_paths(
     let mut paths = Vec::with_capacity(num_paths);
     let seed = stoch_spec.seed.unwrap_or(42);
     let use_sobol = stoch_spec.use_sobol_qmc;
-    let use_antithetic = stoch_spec.antithetic && !use_sobol; // Antithetic not compatible with Sobol
+    // Antithetic is incompatible with Sobol QMC; `RevolvingCredit::validate()`
+    // rejects the combination, and this guard covers direct callers.
+    let use_antithetic = stoch_spec.antithetic && !use_sobol;
 
     // Reusable scratch buffer (used by the serial Sobol path; the parallel
     // Philox path allocates per-thread inside the rayon closure).

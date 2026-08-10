@@ -1,7 +1,7 @@
 //! Discretization scheme for revolving credit multi-factor process.
 //!
 //! Handles three correlated factors:
-//! - Utilization: Euler-Maruyama (OU process)
+//! - Utilization: exact OU transition, clamped to [0, 1]
 //! - Short rate: ExactHullWhite1F (for floating) or constant (for fixed)
 //! - Credit spread: QeCir (CIR process)
 //!
@@ -16,7 +16,7 @@ use finstack_quant_monte_carlo::traits::Discretization;
 /// Discretization scheme for revolving credit process.
 ///
 /// Uses specialized schemes for each component:
-/// - Utilization: Euler-Maruyama (OU can use exact, but simpler to use Euler)
+/// - Utilization: exact OU transition, clamped to [0, 1]
 /// - Short rate: ExactHullWhite1F for floating rates
 /// - Credit spread: QeCir for CIR process
 ///
@@ -120,9 +120,12 @@ impl Discretization<RevolvingCreditProcess> for RevolvingCreditDiscretization {
             sigma * ((1.0 - (-2.0 * kappa * dt).exp()) / (2.0 * kappa)).sqrt()
         };
         x[0] = theta + (x[0] - theta) * exp_kappa_dt + util_std * z_corr[0];
-        // Defensive only: utilization is a fraction in [0, 1]. The exact
-        // transition already carries the correct moments, so this clamp fires
-        // only on rare tail excursions and no longer biases the mean.
+        // Utilization is a fraction in [0, 1], so the effective process is a
+        // *clamped* OU. With θ well inside the interval and moderate σ the
+        // exact transition already carries the correct moments and the clamp
+        // fires only on rare tail excursions; with θ near a boundary or high
+        // σ the clamp binds often and biases the simulated mean toward the
+        // interior (documented on `UtilizationProcess::MeanReverting`).
         x[0] = x[0].clamp(0.0, 1.0);
 
         // Step 2: Short rate

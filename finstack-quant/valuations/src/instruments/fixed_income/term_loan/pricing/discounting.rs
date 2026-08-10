@@ -204,13 +204,14 @@ impl TermLoanDiscountingPricer {
 
         let schedule = Self::pricing_schedule(loan, market, as_of)?;
 
-        // Filter flows: exclude PIK (capitalized interest) and past flows from PV.
+        // Filter flows: exclude PIK (capitalized interest) and settled flows from PV.
         // PIK increases outstanding and is repaid via principal redemption.
-        // Past flows (before settlement_date) have already settled and must not be discounted.
+        // Flows on or before settlement_date have already settled and must not be
+        // discounted (every consumer anchors discounting strictly after settlement).
         let flows: Vec<(finstack_quant_core::dates::Date, Money)> = schedule
             .get_flows()
             .iter()
-            .filter(|cf| cf.kind != CFKind::Pik && cf.date >= settlement_date)
+            .filter(|cf| cf.kind != CFKind::Pik && cf.date > settlement_date)
             .map(|cf| (cf.date, cf.amount))
             .collect();
 
@@ -247,6 +248,27 @@ impl TermLoanDiscountingPricer {
 
         if loan.issue_date >= as_of {
             return Ok(());
+        }
+
+        // Seasoned floating PIK cannot be repaired by rescaling: capitalized
+        // amounts fixed in the past compound into the outstanding path and the
+        // final redemption, which this post-hoc pass does not rebuild. Failing
+        // loudly beats silently pricing known principal off today's forwards.
+        let has_seasoned_pik = schedule.get_flows().iter().any(|flow| {
+            flow.kind == CFKind::Pik
+                && flow
+                    .accrual
+                    .map_or(flow.date <= as_of, |accrual| accrual.start < as_of)
+        });
+        if has_seasoned_pik {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "TermLoan '{}' capitalizes floating-rate interest (PIK) in periods \
+                 whose resets are already fixed. Deterministic repricing cannot \
+                 restate the capitalized principal from historical fixings; price \
+                 the loan as of a date on or before its first floating PIK accrual \
+                 or model the seasoned balance with an updated notional.",
+                loan.id
+            )));
         }
 
         let has_past_reset = schedule.get_flows().iter().any(|flow| {
@@ -562,6 +584,34 @@ mod tests {
                 "past period rate should use fixing: got {rate}, expected {fixing_rate_expected}"
             );
         }
+    }
+
+    #[test]
+    fn seasoned_floating_pik_is_rejected() {
+        // Capitalized floating interest fixed in the past compounds into the
+        // outstanding path; the post-hoc fixing pass cannot restate it, so the
+        // pricer must fail loudly instead of pricing known principal off
+        // today's forwards.
+        let as_of = date(2025, 4, 15);
+        let mut loan = floating_loan_for_fixings();
+        loan.coupon_type = CouponType::Pik;
+        let market = market_with_fixings(as_of);
+
+        let err = TermLoanDiscountingPricer::pricing_schedule(&loan, &market, as_of)
+            .expect_err("seasoned floating PIK must be rejected");
+        assert!(err.to_string().contains("PIK"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn future_floating_pik_still_prices() {
+        // At issue nothing is seasoned: floating PIK projection is legitimate.
+        let as_of = date(2024, 1, 1);
+        let mut loan = floating_loan_for_fixings();
+        loan.coupon_type = CouponType::Pik;
+        let market = market_with_fixings(as_of);
+
+        TermLoanDiscountingPricer::pricing_schedule(&loan, &market, as_of)
+            .expect("floating PIK with no seasoned periods must price");
     }
 
     #[test]

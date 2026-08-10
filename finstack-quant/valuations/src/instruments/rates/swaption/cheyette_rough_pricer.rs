@@ -478,7 +478,7 @@ impl BermudanSwaptionCheyetteRoughPricer {
         // ~monthly steps as a floor).
         let min_steps_between = (self.config.num_steps / (live_exercise_times.len() + 1)).max(1);
         let (time_grid, exercise_step_indices) =
-            crate::instruments::rates::exotics_shared::hw1f_mc::build_event_aligned_grid(
+            crate::instruments::rates::hw1f::hw1f_mc::build_event_aligned_grid(
                 &live_exercise_times,
                 ttm,
                 min_steps_between,
@@ -991,7 +991,7 @@ mod tests {
     /// the old uniform 100-step grid would have moved by days are exact here.
     #[test]
     fn exercise_dates_land_exactly_on_grid_nodes() {
-        use crate::instruments::rates::exotics_shared::hw1f_mc::build_event_aligned_grid;
+        use crate::instruments::rates::hw1f::hw1f_mc::build_event_aligned_grid;
 
         let exercise_times = [1.37, 2.000_001, 3.5];
         let (grid, indices) = build_event_aligned_grid(&exercise_times, 5.0, 10).expect("grid");

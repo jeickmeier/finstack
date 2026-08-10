@@ -168,10 +168,12 @@ impl MetricCalculator for DiscountMarginCalculator {
 
         let dm = solver.solve(objective, contractual_margin)?;
 
-        // Validate DM is within reasonable bounds (±2000 bp).
-        if dm.abs() > 0.20 {
+        // Validate DM is within sanity bounds (±5000 bp). Distressed loans in
+        // the 60s-70s legitimately solve to DMs well above 2000 bp; the bound
+        // only guards against solver divergence, not stressed-but-real levels.
+        if dm.abs() > 0.50 {
             return Err(finstack_quant_core::Error::Validation(format!(
-                "Discount margin {} bp exceeds reasonable bounds (±2000 bp)",
+                "Discount margin {} bp exceeds sanity bounds (±5000 bp)",
                 dm * 1e4
             )));
         }

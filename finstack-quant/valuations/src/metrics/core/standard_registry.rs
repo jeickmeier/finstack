@@ -210,10 +210,10 @@ fn register_exotic_instrument_metrics(registry: &mut MetricRegistry) {
     crate::instruments::exotics::barrier_option::metrics::register_barrier_option_metrics(registry);
     crate::instruments::equity::cliquet_option::metrics::register_cliquet_option_metrics(registry);
     crate::instruments::fx::quanto_option::metrics::register_quanto_option_metrics(registry);
-    crate::instruments::rates::range_accrual::metrics::register_range_accrual_metrics(registry);
-    crate::instruments::rates::tarn::metrics::register_tarn_metrics(registry);
-    crate::instruments::rates::snowball::metrics::register_snowball_metrics(registry);
-    crate::instruments::rates::callable_range_accrual::metrics::register_callable_range_accrual_metrics(registry);
+    crate::instruments::exotics::range_accrual::metrics::register_range_accrual_metrics(registry);
+    crate::instruments::exotics::tarn::metrics::register_tarn_metrics(registry);
+    crate::instruments::exotics::snowball::metrics::register_snowball_metrics(registry);
+    crate::instruments::exotics::callable_range_accrual::metrics::register_callable_range_accrual_metrics(registry);
 }
 
 fn register_universal_metrics(registry: &mut MetricRegistry) {

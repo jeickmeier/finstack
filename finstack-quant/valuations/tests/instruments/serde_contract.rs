@@ -131,24 +131,24 @@ serde_contract!(
 );
 serde_contract!(
     serde_callable_range_accrual,
-    finstack_quant_valuations::instruments::rates::callable_range_accrual::CallableRangeAccrual,
-    finstack_quant_valuations::instruments::rates::callable_range_accrual::CallableRangeAccrual::example(
+    finstack_quant_valuations::instruments::exotics::callable_range_accrual::CallableRangeAccrual,
+    finstack_quant_valuations::instruments::exotics::callable_range_accrual::CallableRangeAccrual::example(
     )
 );
 serde_contract!(
     serde_range_accrual,
-    finstack_quant_valuations::instruments::rates::range_accrual::RangeAccrual,
-    finstack_quant_valuations::instruments::rates::range_accrual::RangeAccrual::example()
+    finstack_quant_valuations::instruments::exotics::range_accrual::RangeAccrual,
+    finstack_quant_valuations::instruments::exotics::range_accrual::RangeAccrual::example()
 );
 serde_contract!(
     serde_tarn,
-    finstack_quant_valuations::instruments::rates::tarn::Tarn,
-    finstack_quant_valuations::instruments::rates::tarn::Tarn::example()
+    finstack_quant_valuations::instruments::exotics::tarn::Tarn,
+    finstack_quant_valuations::instruments::exotics::tarn::Tarn::example()
 );
 serde_contract!(
     serde_snowball,
-    finstack_quant_valuations::instruments::rates::snowball::Snowball,
-    finstack_quant_valuations::instruments::rates::snowball::Snowball::example_snowball()
+    finstack_quant_valuations::instruments::exotics::snowball::Snowball,
+    finstack_quant_valuations::instruments::exotics::snowball::Snowball::example_snowball()
 );
 serde_contract!(
     serde_xccy_swap,

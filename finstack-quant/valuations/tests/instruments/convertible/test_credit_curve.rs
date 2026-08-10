@@ -177,7 +177,7 @@ fn test_cs01_nonzero_with_credit_curve() {
 }
 
 #[test]
-fn test_cs01_zero_without_credit_curve() {
+fn test_cs01_zspread_fallback_without_credit_curve() {
     let bond = create_standard_convertible(); // no credit_curve_id
     let market = create_market_context();
 
@@ -192,10 +192,18 @@ fn test_cs01_zero_without_credit_curve() {
 
     let cs01 = *result.measures.get("cs01").expect("CS01 should be present");
 
-    // Without a separate credit curve, CS01 should be zero
+    // Without a separate credit curve, CS01 falls back to the z-spread bump
+    // method (market convention): a 1bp shock on the cash-component (risky)
+    // discounting only. It must be negative and non-trivial for a long
+    // convertible, not a silent zero.
     assert!(
-        cs01.abs() < 1e-10,
-        "CS01 should be zero without credit curve: got {}",
+        cs01 < 0.0,
+        "z-spread fallback CS01 should be negative for a long convertible: got {}",
+        cs01
+    );
+    assert!(
+        cs01.abs() > 0.001,
+        "z-spread fallback CS01 magnitude should be meaningful: got {}",
         cs01
     );
 }

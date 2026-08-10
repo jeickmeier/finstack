@@ -123,38 +123,38 @@ pub(crate) fn register_exotic_pricers(registry: &mut PricerRegistry) {
     registry.register(
         InstrumentType::RangeAccrual,
         ModelKey::StaticReplication,
-        crate::instruments::rates::range_accrual::pricer::RangeAccrualStaticReplicationPricer,
+        crate::instruments::exotics::range_accrual::pricer::RangeAccrualStaticReplicationPricer,
     );
     registry.register(
         InstrumentType::RangeAccrual,
         ModelKey::MonteCarloGBM,
-        crate::instruments::rates::range_accrual::pricer::RangeAccrualMcPricer::default(),
+        crate::instruments::exotics::range_accrual::pricer::RangeAccrualMcPricer::default(),
     );
 
     // TARN - Hull-White 1F Monte Carlo
     registry.register(
         InstrumentType::Tarn,
         ModelKey::MonteCarloHullWhite1F,
-        crate::instruments::rates::tarn::TarnPricer::default(),
+        crate::instruments::exotics::tarn::TarnPricer::default(),
     );
 
     // Snowball / Inverse Floater
     registry.register(
         InstrumentType::Snowball,
         ModelKey::MonteCarloHullWhite1F,
-        crate::instruments::rates::snowball::SnowballHw1fMcPricer::default(),
+        crate::instruments::exotics::snowball::SnowballHw1fMcPricer::default(),
     );
     registry.register(
         InstrumentType::Snowball,
         ModelKey::Discounting,
-        crate::instruments::rates::snowball::SnowballDiscountingPricer,
+        crate::instruments::exotics::snowball::SnowballDiscountingPricer,
     );
 
     // Callable Range Accrual - Hull-White 1F LSMC
     registry.register(
         InstrumentType::CallableRangeAccrual,
         ModelKey::MonteCarloHullWhite1F,
-        crate::instruments::rates::callable_range_accrual::CallableRangeAccrualPricer::default(),
+        crate::instruments::exotics::callable_range_accrual::CallableRangeAccrualPricer::default(),
     );
 
     // Bermudan Swaption LSMC (Hull-White 1F Monte Carlo).

@@ -6,9 +6,11 @@
 //! correct treatment at exercise boundaries:
 //! - Coupons/fees (all variants: `Fee`, `CommitmentFee`, `UsageFee`, `FacilityFee`):
 //!   included up to AND including the exercise date
-//! - Amortization/Notional: included only BEFORE the exercise date (implicitly
-//!   captured in the pre-exercise outstanding used for the redemption leg)
-//! - PIK and negative Notional (funding): always excluded
+//! - Amortization/Notional (including negative funding legs): included only
+//!   BEFORE the exercise date (the pre-exercise outstanding used for the
+//!   redemption leg captures exercise-date amortization; draws on or after
+//!   exercise are cancelled by the prepayment)
+//! - PIK: always excluded (capitalization, not cash)
 
 use std::sync::Arc;
 
@@ -20,19 +22,24 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 
-/// Return the term loan's full internal cashflow schedule, populating the
-/// shared `MetricContext` cache on first access.
+/// Return the term loan's full internal cashflow schedule — with historical
+/// fixings applied to seasoned floating periods — populating the shared
+/// `MetricContext` cache on first access.
 ///
 /// Multiple yield/spread metrics on the same loan call this; the cache avoids
-/// rebuilding the (potentially large) DDTL/PIK schedule per metric. The
-/// downcast is performed internally so callers don't need to thread an
-/// immutable `&TermLoan` borrow through the `&mut MetricContext` access.
+/// rebuilding the (potentially large) DDTL/PIK schedule per metric. Using the
+/// pricer's `pricing_schedule` (rather than the raw generated schedule) keeps
+/// every IRR flow set and settlement accrued consistent with the base PV: the
+/// current-period coupon of a seasoned floater reflects its actual fixing, not
+/// today's forward projection. The downcast is performed internally so callers
+/// don't need to thread an immutable `&TermLoan` borrow through the
+/// `&mut MetricContext` access.
 pub(super) fn cached_full_schedule(
     context: &mut MetricContext,
 ) -> finstack_quant_core::Result<Arc<CashFlowSchedule>> {
     if context.internal_schedule.is_none() {
         // Clone the instrument Arc so we can drop the context borrow before
-        // calling generate_cashflows, then re-borrow context to write the cache.
+        // building the schedule, then re-borrow context to write the cache.
         let inst = Arc::clone(&context.instrument);
         let loan = inst.as_any().downcast_ref::<TermLoan>().ok_or_else(|| {
             finstack_quant_core::InputError::NotFound {
@@ -43,11 +50,12 @@ pub(super) fn cached_full_schedule(
                 ),
             }
         })?;
-        let schedule = crate::instruments::fixed_income::term_loan::cashflows::generate_cashflows(
-            loan,
-            &context.curves,
-            context.as_of,
-        )?;
+        let schedule =
+            crate::instruments::fixed_income::term_loan::pricing::TermLoanDiscountingPricer::pricing_schedule(
+                loan,
+                &context.curves,
+                context.as_of,
+            )?;
         context.internal_schedule = Some(Arc::new(schedule));
     }
     let arc = context
@@ -144,10 +152,15 @@ pub(super) fn target_price_from_quote_or_model(
 /// - **Coupons and fees** (`Fixed`, `FloatReset`, `Stub`, `Fee`, `CommitmentFee`,
 ///   `UsageFee`, `FacilityFee`): included up to AND including `exercise_date` --
 ///   the holder receives accrued interest and fee payments on the exercise date.
-/// - **Amortization** and positive **Notional** (redemptions): included only
-///   BEFORE `exercise_date`.  At the exercise date, amortization is implicitly
-///   captured in the pre-exercise outstanding used for the redemption parameter.
-/// - **PIK** and negative **Notional** (funding legs): always excluded.
+/// - **Amortization** and **Notional** (redemptions and funding legs): included
+///   only BEFORE `exercise_date`. Negative Notional flows are the holder's
+///   future DDTL funding outflows; they must be in the flow set because the
+///   redemption parameter is the pre-exercise outstanding, which includes the
+///   balances those draws create. At the exercise date itself, amortization
+///   and scheduled redemptions are implicitly captured in the pre-exercise
+///   outstanding used for the redemption parameter, and any draw on or after
+///   exercise is cancelled by the prepayment.
+/// - **PIK**: always excluded (capitalization, not cash).
 ///
 /// # Arguments
 ///
@@ -200,20 +213,19 @@ pub(super) fn solve_irr_to_exercise(
             | CFKind::FacilityFee => {
                 flows.push((cf.date, cf.amount.amount()));
             }
-            // Amortization: include only BEFORE exercise date.
-            // At exercise date, amort is implicitly captured in the pre-amort
-            // outstanding used for the redemption calculation.
-            CFKind::Amortization if cf.date < exercise_date => {
+            // Principal flows strictly BEFORE the exercise date:
+            // - Amortization: repayments received by the holder.
+            // - Notional: positive scheduled redemptions AND negative funding
+            //   legs (future DDTL draws the holder must fund). Excluding the
+            //   funding legs while crediting the redemption of the balances
+            //   they create would overstate the yield.
+            // At the exercise date, the explicit redemption parameter replaces
+            // scheduled Amortization/Notional to avoid double-counting, and
+            // draws on or after exercise are cancelled by the prepayment.
+            CFKind::Amortization | CFKind::Notional if cf.date < exercise_date => {
                 flows.push((cf.date, cf.amount.amount()));
             }
-            // Positive Notional (redemptions): include only BEFORE exercise date.
-            // At exercise date, the explicit redemption parameter replaces any
-            // scheduled Notional to avoid double-counting.
-            CFKind::Notional if cf.date < exercise_date && cf.amount.amount() > 0.0 => {
-                flows.push((cf.date, cf.amount.amount()));
-            }
-            // Exclude: PIK, negative Notional (funding), exercise-date
-            // Amortization/Notional
+            // Exclude: PIK, exercise-date Amortization/Notional
             _ => {}
         }
     }
@@ -252,6 +264,95 @@ pub(super) fn solve_irr_to_date(
         exercise_date,
         outstanding,
     )
+}
+
+/// Exercisable call candidates as `(exercise_date, price_pct_of_par)` pairs.
+///
+/// A loan call entry is an effective-dated **standing** provision: it stays
+/// exercisable until the next entry replaces it. Two families of candidates
+/// result:
+///
+/// - **Future-dated provisions** (`call.date > as_of`): candidate at the
+///   provision's own effective date, the standard yield-to-call convention.
+/// - **The active standing provision** (last entry with `date <= as_of`): the
+///   loan is callable *today* at that price — the normal state of a seasoned
+///   leveraged loan past its soft-call window. Its candidate exercise date is
+///   the first coupon date strictly after settlement (the market convention
+///   for evaluating an immediately exercisable prepayment), matching the tree
+///   engine's treatment of past-dated provisions as active from step 0.
+///
+/// `MakeWhole` provisions are skipped in both families: the borrower pays at
+/// least the continuation value, so the option is non-economic.
+///
+/// # Arguments
+///
+/// * `loan` - Term loan whose `call_schedule` is resolved; entries after
+///   `loan.maturity` are ignored.
+/// * `schedule` - Full internal cashflow schedule used to locate the first
+///   coupon date after settlement for the standing-call candidate.
+/// * `as_of` - Valuation date separating standing from future provisions.
+///
+/// Returns an empty vector when the loan has no exercisable calls.
+pub(super) fn exercisable_call_candidates(
+    loan: &TermLoan,
+    schedule: &CashFlowSchedule,
+    as_of: Date,
+) -> finstack_quant_core::Result<Vec<(Date, f64)>> {
+    use crate::instruments::fixed_income::term_loan::LoanCallType;
+
+    let Some(cs) = &loan.call_schedule else {
+        return Ok(Vec::new());
+    };
+
+    let mut candidates: Vec<(Date, f64)> = cs
+        .calls
+        .iter()
+        .filter(|c| {
+            c.date > as_of
+                && c.date <= loan.maturity
+                && !matches!(c.call_type, LoanCallType::MakeWhole { .. })
+        })
+        .map(|c| (c.date, c.price_pct_of_par))
+        .collect();
+
+    // Active standing provision: only relevant when some entry is already
+    // effective (`date <= as_of`). The candidate exercise date is the first
+    // coupon date after settlement; the price is the provision active AT that
+    // exercise date (a later entry may have replaced the one active today).
+    // If the active entry is MakeWhole the loan is not economically callable.
+    if cs.calls.iter().any(|c| c.date <= as_of) {
+        let settlement = loan.settlement_date(as_of)?;
+        let first_coupon_after_settlement = schedule
+            .get_flows()
+            .iter()
+            .filter(|cf| {
+                matches!(
+                    cf.kind,
+                    finstack_quant_core::cashflow::CFKind::Fixed
+                        | finstack_quant_core::cashflow::CFKind::FloatReset
+                        | finstack_quant_core::cashflow::CFKind::Stub
+                )
+            })
+            .map(|cf| cf.date)
+            .filter(|date| *date > settlement)
+            .min();
+        if let Some(exercise) = first_coupon_after_settlement {
+            let active = cs
+                .calls
+                .iter()
+                .filter(|c| c.date <= exercise)
+                .next_back()
+                .filter(|c| !matches!(c.call_type, LoanCallType::MakeWhole { .. }));
+            if let Some(call) = active {
+                if exercise < loan.maturity && !candidates.iter().any(|(d, _)| *d == exercise) {
+                    candidates.push((exercise, call.price_pct_of_par));
+                }
+            }
+        }
+    }
+
+    candidates.sort_by(|a, b| a.0.cmp(&b.0));
+    Ok(candidates)
 }
 
 /// Look up outstanding BEFORE a target date from the outstanding path.

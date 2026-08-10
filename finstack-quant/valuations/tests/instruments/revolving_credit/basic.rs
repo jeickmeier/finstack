@@ -44,7 +44,7 @@ fn test_revolving_credit_basic_pricing() {
         .day_count(DayCount::Act360)
         .frequency(Tenor::quarterly())
         .fees({
-            let mut fees = RevolvingCreditFees::flat(25.0, 10.0, 5.0);
+            let mut fees = RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap();
             fees.upfront_fee = Some(Money::new(50_000.0, Currency::USD));
             fees
         })
@@ -91,7 +91,7 @@ fn test_revolving_credit_with_draws_and_repayments() {
         .base_rate_spec(BaseRateSpec::Fixed { rate: 0.04 })
         .day_count(DayCount::Act360)
         .frequency(Tenor::quarterly())
-        .fees(RevolvingCreditFees::flat(20.0, 0.0, 0.0))
+        .fees(RevolvingCreditFees::flat(20.0, 0.0, 0.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![
             DrawRepayEvent {
                 date: date!(2025 - 04 - 01),
@@ -138,7 +138,7 @@ fn test_revolving_credit_utilization_metrics() {
         .base_rate_spec(BaseRateSpec::Fixed { rate: 0.05 })
         .day_count(DayCount::Act360)
         .frequency(Tenor::quarterly())
-        .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0))
+        .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
         .build()
@@ -195,7 +195,7 @@ fn test_revolving_credit_standard_metrics() {
         .base_rate_spec(BaseRateSpec::Fixed { rate: 0.06 })
         .day_count(DayCount::Act360)
         .frequency(Tenor::quarterly())
-        .fees(RevolvingCreditFees::flat(30.0, 15.0, 10.0))
+        .fees(RevolvingCreditFees::flat(30.0, 15.0, 10.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
         .credit_curve_id("BORROWER-A".into())
@@ -299,7 +299,7 @@ fn test_revolving_credit_cs01_z_spread_fallback_without_credit_curve() {
         .base_rate_spec(BaseRateSpec::Fixed { rate: 0.06 })
         .day_count(DayCount::Act360)
         .frequency(Tenor::quarterly())
-        .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0))
+        .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
         // No credit_curve_id → z-spread fallback path.
@@ -335,6 +335,62 @@ fn test_revolving_credit_cs01_z_spread_fallback_without_credit_curve() {
 }
 
 #[test]
+fn test_revolving_credit_cs01_stochastic_without_credit_curve_errors() {
+    // A stochastic facility with no credit curve has no deterministic schedule
+    // to z-bump. CS01 must be a loud validation error, not a silent 0.0 that
+    // masks unmonitored credit exposure.
+    use finstack_quant_valuations::instruments::fixed_income::revolving_credit::{
+        StochasticUtilizationSpec, UtilizationProcess,
+    };
+
+    let val_date = date!(2025 - 01 - 01);
+    let facility = RevolvingCredit::builder()
+        .id("RC-ZS-STOCH".into())
+        .commitment_amount(Money::new(20_000_000.0, Currency::USD))
+        .drawn_amount(Money::new(10_000_000.0, Currency::USD))
+        .commitment_date(val_date)
+        .maturity(date!(2028 - 01 - 01))
+        .base_rate_spec(BaseRateSpec::Fixed { rate: 0.06 })
+        .day_count(DayCount::Act360)
+        .frequency(Tenor::quarterly())
+        .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap())
+        .draw_repay_spec(DrawRepaySpec::Stochastic(Box::new(
+            StochasticUtilizationSpec {
+                utilization_process: UtilizationProcess::MeanReverting {
+                    target_rate: 0.5,
+                    speed: 1.0,
+                    volatility: 0.1,
+                },
+                num_paths: 16,
+                seed: Some(42),
+                antithetic: false,
+                use_sobol_qmc: false,
+                mc_config: None,
+            },
+        )))
+        .discount_curve_id("USD-OIS".into())
+        // No credit_curve_id → CS01 must error, not read 0.0.
+        .build()
+        .unwrap();
+
+    let disc_curve = build_flat_discount_curve(0.04, val_date, "USD-OIS");
+    let market = MarketContext::new().insert(disc_curve);
+
+    let err = facility
+        .price_with_metrics(
+            &market,
+            val_date,
+            &[MetricId::Cs01],
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .expect_err("stochastic CS01 without a credit curve must fail loudly");
+    assert!(
+        err.to_string().contains("credit_curve_id"),
+        "error should direct the user to supply a credit curve, got: {err}"
+    );
+}
+
+#[test]
 fn test_revolving_credit_bucketed_dv01() {
     let val_date = date!(2025 - 01 - 01);
     let commitment_date = date!(2025 - 01 - 01);
@@ -349,7 +405,7 @@ fn test_revolving_credit_bucketed_dv01() {
         .base_rate_spec(BaseRateSpec::Fixed { rate: 0.055 })
         .day_count(DayCount::Act360)
         .frequency(Tenor::quarterly())
-        .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0))
+        .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
         .build()
@@ -583,7 +639,7 @@ fn test_deterministic_with_credit_risk() {
         .base_rate_spec(BaseRateSpec::Fixed { rate: 0.05 })
         .day_count(DayCount::Act365F)
         .frequency(Tenor::quarterly())
-        .fees(RevolvingCreditFees::flat(50.0, 0.0, 0.0)) // 50bp commitment fee
+        .fees(RevolvingCreditFees::flat(50.0, 0.0, 0.0).unwrap()) // 50bp commitment fee
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
         .credit_curve_id(finstack_quant_core::types::CurveId::from("BORROWER-A")) // Add credit risk
@@ -601,7 +657,7 @@ fn test_deterministic_with_credit_risk() {
         .base_rate_spec(BaseRateSpec::Fixed { rate: 0.05 })
         .day_count(DayCount::Act365F)
         .frequency(Tenor::quarterly())
-        .fees(RevolvingCreditFees::flat(50.0, 0.0, 0.0))
+        .fees(RevolvingCreditFees::flat(50.0, 0.0, 0.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
         // No hazard curve - risk-free pricing
@@ -682,7 +738,7 @@ fn test_deterministic_stochastic_convergence_with_credit_risk() {
         .base_rate_spec(BaseRateSpec::Fixed { rate: 0.055 }) // 5.5% fixed
         .day_count(DayCount::Act365F)
         .frequency(Tenor::quarterly())
-        .fees(RevolvingCreditFees::flat(50.0, 0.0, 0.0))
+        .fees(RevolvingCreditFees::flat(50.0, 0.0, 0.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
         .credit_curve_id(finstack_quant_core::types::CurveId::from("BORROWER-A"))
@@ -729,7 +785,7 @@ fn test_deterministic_stochastic_convergence_with_credit_risk() {
         .base_rate_spec(BaseRateSpec::Fixed { rate: 0.055 })
         .day_count(DayCount::Act365F)
         .frequency(Tenor::quarterly())
-        .fees(RevolvingCreditFees::flat(50.0, 0.0, 0.0))
+        .fees(RevolvingCreditFees::flat(50.0, 0.0, 0.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Stochastic(Box::new(stoch_spec)))
         .discount_curve_id("USD-OIS".into())
         .recovery_rate(0.4)

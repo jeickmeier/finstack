@@ -13,7 +13,7 @@
 //!
 //! * [`calibrated_theta_reprices_sloped_curve`] is the **core M6 regression**.
 //!   It builds the process through the *production* entry points the fixed
-//!   pricers use — `exotics_shared::hw1f_curve::calibrate_hw1f_params` (the
+//!   pricers use — `hw1f::hw1f_curve::calibrate_hw1f_params` (the
 //!   θ(t) bootstrap) and `initial_short_rate_from_curve` (`r0 = f(0,0)`) — and
 //!   asserts the simulated ZCB prices reproduce the input discount factors. On
 //!   the parent commit the pricers used flat `θ = r0`, so this assertion fails
@@ -40,7 +40,7 @@ use finstack_quant_monte_carlo::process::ou::{
 use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_monte_carlo::time_grid::TimeGrid;
 use finstack_quant_monte_carlo::traits::{Discretization, RandomStream};
-use finstack_quant_valuations::instruments::rates::exotics_shared::{
+use finstack_quant_valuations::instruments::rates::hw1f::{
     calibrate_hw1f_params, initial_short_rate_from_curve,
 };
 use time::Month;
@@ -49,7 +49,7 @@ use time::Month;
 /// time grid, using the supplied HW1F params and the exact stepper. Returns
 /// `(mc_discount_factor, standard_error)` per maturity.
 ///
-/// This deliberately mirrors `RateExoticHw1fMcPricer::price` (exotics_shared/
+/// This deliberately mirrors `RateExoticHw1fMcPricer::price` (hw1f/
 /// hw1f_mc.rs): exact HW1F discretization, Philox substreams, no antithetic.
 /// The path integral `∫r dt` is accumulated with the trapezoidal rule.
 fn simulate_zcb_prices(
@@ -239,7 +239,7 @@ fn calibrated_theta_reprices_sloped_curve() {
     let maturities = [1.0_f64, 2.0, 3.0, 5.0];
     let curve_dfs: Vec<f64> = maturities.iter().map(|&m| sloped_discount_fn(m)).collect();
 
-    // --- Production M6 entry points (exotics_shared::hw1f_curve) -------------
+    // --- Production M6 entry points (hw1f::hw1f_curve) -------------
     let curve = sloped_discount_curve(as_of);
     let hw = finstack_quant_valuations::calibration::hull_white::HullWhiteParams::new(kappa, sigma)
         .expect("valid HW params");

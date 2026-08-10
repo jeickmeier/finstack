@@ -1,7 +1,10 @@
-//! Golden tests for waterfall engine using real-world CLO/CMBS scenarios.
+//! Golden tests for the waterfall engine using representative CLO/CMBS
+//! structures (synthetic deals with market-typical tiers: senior fees,
+//! sequential interest, coverage-test diversion, principal, equity residual).
 //!
-//! These tests replicate known waterfall distributions from actual deal prospectuses
-//! to ensure accuracy and correctness of the waterfall engine.
+//! Expected distributions are hand-computed from the tier definitions, so
+//! these tests pin the engine's allocation arithmetic and cash conservation.
+//! They are not benchmarked against an external deal prospectus.
 //!
 //! # Tolerance Standards
 //!
@@ -453,7 +456,7 @@ fn test_golden_cmbs_sequential_pay() {
         0.0,
         70.0,
         TrancheSeniority::Senior,
-        Money::new(300_000_000.0, currency),
+        Money::new(350_000_000.0, currency),
         TrancheCoupon::Fixed { rate: 0.04 },
         Date::from_calendar_date(2034, time::Month::January, 1).unwrap(),
     )
@@ -475,7 +478,7 @@ fn test_golden_cmbs_sequential_pay() {
         85.0,
         100.0,
         TrancheSeniority::Subordinated,
-        Money::new(50_000_000.0, currency),
+        Money::new(75_000_000.0, currency),
         TrancheCoupon::Fixed { rate: 0.05 },
         Date::from_calendar_date(2034, time::Month::January, 1).unwrap(),
     )

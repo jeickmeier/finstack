@@ -57,7 +57,10 @@ impl MetricCalculator for OasCalculator {
         // commensurate values — mirroring the term-loan `target_price_from_quote_or_model`.
         let target_dirty = quoted_clean * bond.notional.amount() / 100.0 + accrued;
 
-        let tree_type = ConvertibleTreeType::Binomial(100);
+        // Use the same tree discretization as the registry pricer and every
+        // other convertible metric so the solved OAS reprices to the quote
+        // on the production tree (no discretization basis baked into the spread).
+        let tree_type = ConvertibleTreeType::default();
         let base_market = context.curves.as_ref();
 
         // The quoted clean price is a *settlement-date* price, so the model PV

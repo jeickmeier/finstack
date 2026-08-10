@@ -1,10 +1,12 @@
 //! YTM metric for term loans via IRR solving.
 //!
-//! Yield-to-maturity is computed using the signed canonical schedule (excluding
-//! funding legs) with an initial price leg at `as_of` equal to the negative base PV.
-//! Uses the same IRR engine and day-count as the loan for consistency.
+//! Yield-to-maturity is computed from the fixings-applied pricing schedule's
+//! cash-settlement flows (including future DDTL funding legs, excluding PIK
+//! capitalization) with an initial price leg at settlement equal to the
+//! forward-valued base PV. Uses the same IRR engine and day-count as the loan
+//! for consistency.
 
-use crate::cashflow::traits::CashflowProvider;
+use crate::cashflow::primitives::is_cash_settlement_kind;
 use crate::instruments::TermLoan;
 use crate::metrics::{MetricCalculator, MetricContext};
 use finstack_quant_core::money::Money;
@@ -15,8 +17,9 @@ use super::irr_helpers::{
 
 /// Yield-to-maturity calculator for term loans.
 ///
-/// Solves for the IRR using signed canonical schedule flows (coupons, amortization, redemptions only)
-/// plus an initial price leg at as_of.
+/// Solves for the IRR using the fixings-applied schedule's cash-settlement
+/// flows (coupons, fees, amortization, redemptions, and future funding legs)
+/// plus an initial price leg at the settlement date.
 pub(crate) struct YtmCalculator;
 
 impl MetricCalculator for YtmCalculator {
@@ -31,9 +34,15 @@ impl MetricCalculator for YtmCalculator {
         // Compute settlement date using loan calendar/business-day conventions.
         let settlement_date = loan.settlement_date(as_of)?;
 
-        // Use signed canonical schedule (via CashflowProvider::dated_cashflows)
-        // This filters to contractual inflows: coupons, amortization, positive redemptions
-        let holder_flows = loan.dated_cashflows(&context.curves, as_of)?;
+        // Signed cash-settlement flows from the cached (fixings-applied)
+        // schedule: coupons, fees, amortization, redemptions, and future
+        // funding legs (negative Notional). PIK capitalization is excluded.
+        let holder_flows: Vec<(finstack_quant_core::dates::Date, Money)> = schedule
+            .get_flows()
+            .iter()
+            .filter(|cf| is_cash_settlement_kind(cf.kind))
+            .map(|cf| (cf.date, cf.amount))
+            .collect();
 
         let mut flows: Vec<(finstack_quant_core::dates::Date, Money)> =
             Vec::with_capacity(holder_flows.len() + 1);

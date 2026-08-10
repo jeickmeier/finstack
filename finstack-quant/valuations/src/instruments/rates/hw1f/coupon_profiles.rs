@@ -10,7 +10,7 @@
 //! conversion and error mapping, while all coupon math and input validation
 //! live in this module.
 
-use crate::instruments::rates::exotics_shared::cumulative_coupon::CumulativeCouponTracker;
+use crate::instruments::rates::hw1f::cumulative_coupon::CumulativeCouponTracker;
 
 /// Result of a TARN coupon-profile simulation along a deterministic path.
 #[derive(Debug, Clone, PartialEq)]

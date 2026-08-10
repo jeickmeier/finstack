@@ -296,10 +296,13 @@ pub struct TermLoan {
     /// Optional call schedule (borrower callability)
     pub call_schedule: Option<LoanCallSchedule>,
 
-    /// Settlement days (T+n). Default is 2 for leveraged loans per LSTA conventions.
+    /// Settlement days (T+n) used as the valuation/accrued anchor. Default is 2.
     ///
-    /// LSTA standard for secondary market loan trades is T+2 (effective since 2023).
-    /// Primary market trades may use different conventions.
+    /// Note: the LSTA target settlement for par/near-par secondary loan trades
+    /// is T+7 (with delayed compensation beyond T+7, and T+20 for distressed).
+    /// The T+2 default here is a pricing-anchor choice, not an LSTA
+    /// convention; set `settlement_days: 7` to anchor at the LSTA par-trade
+    /// target.
     #[builder(default = 2)]
     #[serde(default = "default_settlement_days")]
     pub settlement_days: u32,
@@ -1238,7 +1241,7 @@ impl finstack_quant_covenants::InstrumentMutator for TermLoan {
                 spec.spread_bp += rust_decimal::Decimal::new(bp_increase as i64, 0);
             }
         }
-        Ok(())
+        self.validate()
     }
 
     fn set_cash_sweep(&mut self, percentage: f64) -> finstack_quant_core::Result<()> {
@@ -1260,8 +1263,10 @@ impl finstack_quant_covenants::InstrumentMutator for TermLoan {
     }
 
     fn set_maturity(&mut self, new_maturity: Date) -> finstack_quant_core::Result<()> {
+        // Re-validate: shortening or extending maturity can strand
+        // amortization, call, covenant, or DDTL dates outside the loan life.
         self.maturity = new_maturity;
-        Ok(())
+        self.validate()
     }
 }
 

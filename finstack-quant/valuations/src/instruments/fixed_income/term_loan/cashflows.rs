@@ -50,15 +50,26 @@ pub(crate) fn generate_cashflows(
 
     // DDTL draws or upfront funding
     if let Some(ddtl) = &loan.ddtl {
-        for ev in &ddtl.draws {
-            if ev.date < ddtl.availability_start || ev.date > ddtl.availability_end {
-                continue;
-            }
-            if let Some(ds) = draw_stop {
-                if ev.date >= ds {
-                    continue;
-                }
-            }
+        let valid_draws: Vec<&super::spec::DrawEvent> = ddtl
+            .draws
+            .iter()
+            .filter(|ev| {
+                ev.date >= ddtl.availability_start
+                    && ev.date <= ddtl.availability_end
+                    && draw_stop.is_none_or(|ds| ev.date < ds)
+            })
+            .collect();
+        // Fixed-amount OID policies apply ONCE per facility, pro-rated across
+        // the valid draws by draw size. Applying the full amount to every draw
+        // would withhold (or charge) N× the contractual OID on a multi-draw
+        // facility.
+        let total_drawn: f64 = valid_draws.iter().map(|ev| ev.amount.amount()).sum();
+        for ev in valid_draws {
+            let draw_share = if total_drawn > 0.0 {
+                ev.amount.amount() / total_drawn
+            } else {
+                0.0
+            };
 
             // Apply OID policy to determine cash inflow
             let mut cash_inflow = ev.amount;
@@ -70,7 +81,9 @@ pub(crate) fn generate_cashflows(
                             Money::new(ev.amount.amount() * (1.0 - pct), ev.amount.currency());
                     }
                     super::spec::OidPolicy::WithheldAmount(m) => {
-                        cash_inflow = ev.amount.checked_sub(*m)?;
+                        cash_inflow = ev
+                            .amount
+                            .checked_sub(Money::new(m.amount() * draw_share, m.currency()))?;
                     }
                     super::spec::OidPolicy::SeparatePct(bp) => {
                         let pct = f64::from(*bp) * 1e-4;
@@ -83,10 +96,11 @@ pub(crate) fn generate_cashflows(
                         }
                     }
                     super::spec::OidPolicy::SeparateAmount(m) => {
-                        if m.amount() > 0.0 {
+                        let fee_amt = Money::new(m.amount() * draw_share, m.currency());
+                        if fee_amt.amount() > 0.0 {
                             fees.push(FeeSpec::Fixed {
                                 date: ev.date,
-                                amount: *m,
+                                amount: fee_amt,
                             });
                         }
                     }

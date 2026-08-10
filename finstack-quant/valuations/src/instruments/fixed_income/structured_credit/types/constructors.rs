@@ -136,7 +136,9 @@ impl StructuredCredit {
             Money::new(100_000_000.0, Currency::USD),
             0.07,
             legal,
-            DayCount::Thirty360,
+            // ACT/360 matches the CLO/leveraged-loan market convention and
+            // the deal-level day count assigned in `raw_cashflow_schedule`.
+            DayCount::Act360,
         ));
         let tranche = Tranche::new(
             "CLONOTES-A",

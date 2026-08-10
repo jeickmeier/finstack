@@ -556,9 +556,7 @@ impl SwaptionLsmcPricer {
     fn accumulate_bank_factors(rate_path: &[f64], time_grid: &TimeGrid) -> Vec<f64> {
         // Shared trapezoidal accumulation, also used by the HW1F exotic
         // MC/LSMC harnesses so every short-rate MC discounts consistently.
-        crate::instruments::rates::exotics_shared::bank_account::accumulate_bank_factors(
-            rate_path, time_grid,
-        )
+        crate::instruments::rates::hw1f::bank_account::accumulate_bank_factors(rate_path, time_grid)
     }
 
     /// Perform backward induction for swaptions using a time grid.

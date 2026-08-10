@@ -17,6 +17,7 @@
 
 use crate::cashflow::builder::specs::DefaultCurve;
 use crate::cashflow::builder::DefaultModelSpec;
+use crate::instruments::fixed_income::structured_credit::assumptions::embedded_registry_or_panic;
 use crate::instruments::fixed_income::structured_credit::StructuredCredit;
 use crate::metrics::{MetricCalculator, MetricContext};
 use finstack_quant_core::Result;
@@ -24,16 +25,17 @@ use finstack_quant_core::Result;
 /// Standard default bump: 1bp (0.0001) of annual CDR
 const DEFAULT_BUMP_CDR: f64 = 0.0001;
 
-/// SDA peak annual CDR at 100% speed (month 30–60 plateau).
-const SDA_PEAK_CDR: f64 = 0.006;
-
 /// Build up/down bumped specs and the achieved bump width in annual-CDR terms.
 fn bumped_default_specs(spec: &DefaultModelSpec) -> (DefaultModelSpec, DefaultModelSpec, f64) {
     match &spec.curve {
         Some(DefaultCurve::Sda { speed_multiplier }) => {
             // The SDA curve derives CDR from `speed_multiplier` alone; bump the
-            // multiplier so the peak CDR moves by 1bp: Δmult = bump / 0.006.
-            let mult_bump = DEFAULT_BUMP_CDR / SDA_PEAK_CDR;
+            // multiplier so the peak CDR moves by 1bp: Δmult = bump / peak.
+            // Peak CDR comes from the same registry the curve itself uses
+            // (0.60% at 100% SDA with the standard values), so the bump
+            // scaling cannot drift from the simulated curve.
+            let sda_peak_cdr = embedded_registry_or_panic().sda_curve().peak_cdr;
+            let mult_bump = DEFAULT_BUMP_CDR / sda_peak_cdr;
             let mult_up = speed_multiplier + mult_bump;
             let mult_down = (speed_multiplier - mult_bump).max(0.0);
             let up = DefaultModelSpec {
@@ -48,7 +50,7 @@ fn bumped_default_specs(spec: &DefaultModelSpec) -> (DefaultModelSpec, DefaultMo
                     speed_multiplier: mult_down,
                 }),
             };
-            let achieved = (mult_up - mult_down) * SDA_PEAK_CDR;
+            let achieved = (mult_up - mult_down) * sda_peak_cdr;
             (up, down, achieved)
         }
         // Constant / no curve read `cdr` directly.

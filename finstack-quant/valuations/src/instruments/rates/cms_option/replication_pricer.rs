@@ -367,13 +367,12 @@ impl CmsReplicationPricer {
             // cap/floor pricer) — never on a rate re-projected from the live
             // curve, which books phantom P&L.
             if fixing_date < as_of {
-                let observed =
-                    crate::instruments::rates::exotics_shared::fixings::historical_cms_fixing(
-                        curves,
-                        &inst.forward_curve_id,
-                        inst.cms_tenor,
-                        fixing_date,
-                    )?;
+                let observed = crate::instruments::rates::hw1f::fixings::historical_cms_fixing(
+                    curves,
+                    &inst.forward_curve_id,
+                    inst.cms_tenor,
+                    fixing_date,
+                )?;
                 let df_pay =
                     relative_df_discount_curve(discount_curve.as_ref(), as_of, payment_date)?;
                 let intrinsic = match inst.option_type {
@@ -445,17 +444,18 @@ impl CmsReplicationPricer {
         start: Date,
         end: Date,
     ) -> Result<(f64, f64)> {
-        let convention = crate::instruments::rates::exotics_shared::forward_swap_rate::resolve_reference_swap_convention(
-            inst.swap_convention,
-            inst.notional.currency(),
-        )?;
+        let convention =
+            crate::instruments::rates::hw1f::forward_swap_rate::resolve_reference_swap_convention(
+                inst.swap_convention,
+                inst.notional.currency(),
+            )?;
         let calendar_id = convention.calendar_id().ok_or_else(|| {
             finstack_quant_core::Error::Validation(
                 "CMS reference-swap convention has no calendar".to_string(),
             )
         })?;
-        crate::instruments::rates::exotics_shared::forward_swap_rate::calculate_forward_swap_rate(
-            crate::instruments::rates::exotics_shared::forward_swap_rate::ForwardSwapRateInputs {
+        crate::instruments::rates::hw1f::forward_swap_rate::calculate_forward_swap_rate(
+            crate::instruments::rates::hw1f::forward_swap_rate::ForwardSwapRateInputs {
                 market,
                 discount_curve_id: &inst.discount_curve_id,
                 forward_curve_id: &inst.forward_curve_id,

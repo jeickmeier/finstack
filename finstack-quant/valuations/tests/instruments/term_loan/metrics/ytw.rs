@@ -7,7 +7,8 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_valuations::instruments::fixed_income::term_loan::{
-    AmortizationSpec, LoanCall, LoanCallSchedule, LoanCallType, RateSpec, TermLoan,
+    AmortizationSpec, CommitmentFeeBase, DdtlSpec, DrawEvent, LoanCall, LoanCallSchedule,
+    LoanCallType, RateSpec, TermLoan,
 };
 use finstack_quant_valuations::instruments::{Instrument, InstrumentPricingOverrides};
 use finstack_quant_valuations::metrics::MetricId;
@@ -148,6 +149,148 @@ fn test_ytw_callable_amortizing_loan_coupon_on_call_date() {
     assert!(
         (ytw - expected_min).abs() < 1e-6,
         "YTW ({ytw}) should approximately equal min(YTM, YTC) = {expected_min}"
+    );
+}
+
+/// Regression: a non-callable DDTL loan with FUTURE draws must have YTW equal
+/// to YTM. `solve_irr_to_exercise` previously excluded the negative funding
+/// legs while still crediting the redemption of the balances those draws
+/// create, so YTW received coupons and principal the holder never paid for.
+#[test]
+fn test_ytw_matches_ytm_for_noncallable_ddtl_with_future_draws() {
+    let as_of = date!(2025 - 01 - 01);
+    let ddtl = DdtlSpec {
+        commitment_limit: Money::new(10_000_000.0, Currency::USD),
+        availability_start: date!(2025 - 01 - 01),
+        availability_end: date!(2025 - 12 - 31),
+        draws: vec![
+            DrawEvent {
+                date: date!(2025 - 03 - 15),
+                amount: Money::new(6_000_000.0, Currency::USD),
+            },
+            DrawEvent {
+                date: date!(2025 - 09 - 15),
+                amount: Money::new(4_000_000.0, Currency::USD),
+            },
+        ],
+        commitment_step_downs: vec![],
+        usage_fee_bp: 0,
+        commitment_fee_bp: 0,
+        fee_base: CommitmentFeeBase::Undrawn,
+        oid_policy: None,
+    };
+
+    let loan = TermLoan::builder()
+        .id("TL-YTW-DDTL-FUNDING".into())
+        .currency(Currency::USD)
+        .notional_limit(Money::new(10_000_000.0, Currency::USD))
+        .issue_date(as_of)
+        .maturity(date!(2030 - 01 - 01))
+        .rate(RateSpec::Fixed { rate_bp: 600 })
+        .frequency(Tenor::quarterly())
+        .day_count(DayCount::Act360)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
+        .calendar_id_opt(None)
+        .stub(StubKind::None)
+        .discount_curve_id(CurveId::from("USD-OIS"))
+        .amortization(AmortizationSpec::None)
+        .coupon_type(CouponType::Cash)
+        .upfront_fee_opt(None)
+        .ddtl_opt(Some(ddtl))
+        .covenants_opt(None)
+        .attributes(Default::default())
+        .build()
+        .unwrap();
+
+    let disc_curve = flat_discount_curve(0.05, as_of, "USD-OIS");
+    let market = MarketContext::new().insert(disc_curve);
+
+    let result = loan
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Ytm, MetricId::Ytw],
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .expect("pricing should succeed");
+
+    let ytm = *result.measures.get("ytm").unwrap();
+    let ytw = *result.measures.get("ytw").unwrap();
+
+    assert!(ytm.is_finite(), "YTM = {ytm}");
+    assert!(
+        (ytw - ytm).abs() < 1e-6,
+        "Non-callable DDTL loan must have YTW == YTM: ytw={ytw}, ytm={ytm}"
+    );
+}
+
+/// Regression: a seasoned loan whose only call provision is PAST-dated is a
+/// STANDING provision — callable today at that price. Quoted above par, its
+/// yield-to-worst must reflect an immediate call at the next coupon date and
+/// come in below YTM (previously past-dated provisions were dropped and YTW
+/// silently collapsed to YTM).
+#[test]
+fn test_ytw_includes_standing_call_for_seasoned_callable_loan() {
+    let as_of = date!(2025 - 06 - 15);
+    let mut loan = TermLoan::builder()
+        .id("TL-YTW-STANDING-CALL".into())
+        .currency(Currency::USD)
+        .notional_limit(Money::new(10_000_000.0, Currency::USD))
+        .issue_date(date!(2024 - 01 - 01))
+        .maturity(date!(2030 - 01 - 01))
+        .rate(RateSpec::Fixed { rate_bp: 600 })
+        .frequency(Tenor::semi_annual())
+        .day_count(DayCount::Act360)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
+        .calendar_id_opt(None)
+        .stub(StubKind::None)
+        .discount_curve_id(CurveId::from("USD-OIS"))
+        .amortization(AmortizationSpec::None)
+        .coupon_type(CouponType::Cash)
+        .upfront_fee_opt(None)
+        .ddtl_opt(None)
+        .covenants_opt(None)
+        .attributes(Default::default())
+        .build()
+        .unwrap();
+
+    // Soft-call protection expired 2024-07-01: standing par call ever since.
+    loan.call_schedule = Some(LoanCallSchedule {
+        calls: vec![LoanCall {
+            date: date!(2024 - 07 - 01),
+            price_pct_of_par: 100.0,
+            call_type: LoanCallType::Hard,
+        }],
+    });
+    loan.instrument_pricing_overrides =
+        InstrumentPricingOverrides::default().with_quoted_clean_price(101.0);
+
+    let disc_curve = flat_discount_curve(0.05, as_of, "USD-OIS");
+    let market = MarketContext::new().insert(disc_curve);
+
+    let result = loan
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Ytm, MetricId::Ytw, MetricId::custom("ytc")],
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .expect("pricing should succeed");
+
+    let ytm = *result.measures.get("ytm").unwrap();
+    let ytc = *result.measures.get("ytc").unwrap();
+    let ytw = *result.measures.get("ytw").unwrap();
+
+    // Paying 101 for a loan callable at par imminently: the worst yield is the
+    // near-term call, far below the hold-to-maturity yield.
+    assert!(
+        ytw < ytm - 1e-3,
+        "Standing par call must pull YTW below YTM for a premium-priced loan: \
+         ytw={ytw}, ytm={ytm}"
+    );
+    assert!(
+        ytw <= ytc + 1e-12,
+        "YTW ({ytw}) must not exceed YTC ({ytc})"
     );
 }
 

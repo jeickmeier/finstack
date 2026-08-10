@@ -607,16 +607,19 @@ fn test_oc_test_infinity_ratio_zero_debt() {
     )
     .unwrap();
 
-    let senior = Tranche::new(
+    // Fully paid-down senior: consistent original structure (90% of the
+    // stack) whose CURRENT balance is zero, so the OC denominator is zero.
+    let mut senior = Tranche::new(
         "SENIOR",
         10.0,
         100.0,
         TrancheSeniority::Senior,
-        Money::new(0.0, Currency::USD), // Zero balance
+        Money::new(99_999_999.0, Currency::USD),
         TrancheCoupon::Fixed { rate: 0.05 },
         maturity_date(),
     )
     .unwrap();
+    senior.current_balance = Money::new(0.0, Currency::USD);
 
     let tranches = TrancheStructure::new(vec![equity, senior]).unwrap();
 

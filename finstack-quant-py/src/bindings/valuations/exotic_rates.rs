@@ -6,10 +6,10 @@
 //!
 //! * [`tarn_coupon_profile`] — TARN coupon accrual with target-redemption
 //!   knockout, using the shared
-//!   [`CumulativeCouponTracker`](finstack_quant_valuations::instruments::rates::exotics_shared::cumulative_coupon::CumulativeCouponTracker).
+//!   [`CumulativeCouponTracker`](finstack_quant_valuations::instruments::rates::hw1f::cumulative_coupon::CumulativeCouponTracker).
 //! * [`snowball_coupon_profile`] — snowball / inverse-floater coupon
 //!   schedule, mirroring the formula in
-//!   [`Snowball::compute_coupon`](finstack_quant_valuations::instruments::rates::snowball::Snowball::compute_coupon).
+//!   [`Snowball::compute_coupon`](finstack_quant_valuations::instruments::exotics::snowball::Snowball::compute_coupon).
 //! * [`cms_spread_option_intrinsic`] — intrinsic value of a CMS spread
 //!   option (no convexity / correlation / vol adjustments).
 //! * [`callable_range_accrual_accrued`] — accrued coupon on a range
@@ -22,7 +22,7 @@
 //! ``price_instrument`` / ``price_instrument_with_metrics`` pipeline.
 
 use crate::errors::display_to_py;
-use finstack_quant_valuations::instruments::rates::exotics_shared::coupon_profiles;
+use finstack_quant_valuations::instruments::rates::hw1f::coupon_profiles;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 

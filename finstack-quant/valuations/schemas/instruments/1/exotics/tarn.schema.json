@@ -116,7 +116,7 @@
       "type": "object"
     }
   },
-  "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/tarn.schema.json",
+  "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/tarn.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Canonical single-instrument v1 envelope generated from its serde type.",

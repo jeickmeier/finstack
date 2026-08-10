@@ -145,8 +145,13 @@ pub fn calculate_tranche_oas(
         .max()
         .unwrap_or(as_of);
     let num_months = as_of.months_until(maturity) as usize + 12;
-    // Match the path's one-month-forward units so
-    // `exp(-beta * (r - base_rate)) == 1` at t = 0.
+    // Base rate for the rate-dependent prepayment response. This is
+    // deliberately the FIRST ONE-MONTH FORWARD, not the spot zero rate: the
+    // simulated short-rate path is expressed in one-month-forward units, so
+    // anchoring the response at the same unit makes
+    // `exp(-beta * (r - base_rate)) == 1` at t = 0 (no prepayment shock on
+    // the valuation date). Using the spot zero (0 by construction at t = 0)
+    // would inject a spurious level shift equal to the first forward.
     let base_rate = monthly_forwards(disc.as_ref(), 1)
         .first()
         .copied()

@@ -15,8 +15,8 @@
 //! - Historical fixings for mid-life valuations (via `past_fixings_in_range`)
 
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::rates::range_accrual::monte_carlo::RangeAccrualPayoff;
-use crate::instruments::rates::range_accrual::types::RangeAccrual;
+use crate::instruments::exotics::range_accrual::monte_carlo::RangeAccrualPayoff;
+use crate::instruments::exotics::range_accrual::types::RangeAccrual;
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
@@ -551,7 +551,7 @@ pub fn npv_analytic(inst: &RangeAccrual, curves: &MarketContext, as_of: Date) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::instruments::rates::range_accrual::types::RangeAccrual;
+    use crate::instruments::exotics::range_accrual::types::RangeAccrual;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::market_data::scalars::MarketScalar;
     use finstack_quant_core::market_data::surfaces::VolSurface;

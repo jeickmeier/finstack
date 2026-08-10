@@ -25,7 +25,7 @@ use finstack_quant_core::types::{CurveId, IndexId, InstrumentId, PriceId, Rate};
 pub enum BoundsType {
     /// Bounds are absolute levels (e.g., 4500.0 for SPX, or an absolute rate
     /// band for a rate-linked note priced via
-    /// [`CallableRangeAccrual`](crate::instruments::rates::callable_range_accrual)).
+    /// [`CallableRangeAccrual`](crate::instruments::exotics::callable_range_accrual)).
     #[default]
     Absolute,
     /// Bounds are relative to initial spot (e.g., 0.95 = 95% of initial).
@@ -81,7 +81,7 @@ impl std::str::FromStr for BoundsType {
 /// standalone `RangeAccrual` pricers**, which support equity/FX (GBM)
 /// underlyings only and return a validation error when these fields are set.
 /// Price rate-linked range accrual notes through
-/// [`CallableRangeAccrual`](crate::instruments::rates::callable_range_accrual)
+/// [`CallableRangeAccrual`](crate::instruments::exotics::callable_range_accrual)
 /// (with an empty call schedule for a non-callable note), which models the
 /// reference rate under HW1F and reconstructs the term rate per observation.
 #[derive(
@@ -468,7 +468,7 @@ impl crate::instruments::common_impl::traits::Instrument for RangeAccrual {
         as_of: finstack_quant_core::dates::Date,
     ) -> finstack_quant_core::Result<finstack_quant_core::money::Money> {
         self.validate()?;
-        crate::instruments::rates::range_accrual::pricer::compute_pv(self, market, as_of)
+        crate::instruments::exotics::range_accrual::pricer::compute_pv(self, market, as_of)
     }
 
     fn effective_start_date(&self) -> Option<Date> {

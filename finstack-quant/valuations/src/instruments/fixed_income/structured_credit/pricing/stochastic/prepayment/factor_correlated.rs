@@ -117,9 +117,13 @@ impl StochasticPrepayment for FactorCorrelatedPrepay {
     fn expected_smm(&self, seasoning: u32) -> f64 {
         let base_cpr = self.base_cpr_at_seasoning(seasoning);
 
-        // For log-normal shock, E[exp(β × Z × σ)] = exp(0.5 × β² × σ²)
-        // But for correlation purposes, we use the base CPR
-        clamped_cpr_to_smm(base_cpr)
+        // Jensen correction for the lognormal factor shock:
+        // E[exp(β × Z × σ)] = exp(0.5 × β² × σ²) for Z ~ N(0,1), so the
+        // unconditional mean CPR is base × that factor. Matches the
+        // Richard-Roll model's `expected_smm` so the reported expectation
+        // is consistent with the simulated mean.
+        let jensen = (0.5 * (self.factor_loading * self.cpr_volatility).powi(2)).exp();
+        clamped_cpr_to_smm((base_cpr * jensen).clamp(0.0, 1.0))
     }
 
     fn factor_loading(&self) -> f64 {

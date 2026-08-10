@@ -19,17 +19,68 @@ pub(crate) struct PoolFlowRequest<'a, 's> {
     pub(super) context: &'a MarketContext,
 }
 
+/// Monthly-equivalent rate averaged over the months of one payment period.
+///
+/// Seasoning-ramped curves (PSA/SDA) change month to month, so for
+/// non-monthly payment frequencies sampling only the END-of-period month and
+/// compounding it across the whole period overstates ramp-phase speeds (the
+/// end-of-period rate is the highest within the period on an upward ramp).
+/// Instead, compound the per-month survival across every month the period
+/// covers and convert back to a monthly-equivalent rate; the downstream
+/// `powf(months_per_period)` in `calculate_pool_flows_with_rates` then
+/// recovers the exact multi-month period rate.
+///
+/// Falls back to the end-of-period sample for monthly periods (where it is
+/// exact) and for non-integer month counts (irregular stubs).
+///
+/// # Arguments
+///
+/// * `pay_date` - Payment date of the period, forwarded to `rate_at` for
+///   date-based rate overrides.
+/// * `seasoning_end` - Pool seasoning in months at the END of the period.
+/// * `months_per_period` - Number of months the payment period spans.
+/// * `rate_at` - Monthly rate (SMM or MDR, decimal) at a given payment date
+///   and seasoning month.
+fn period_averaged_monthly_rate(
+    pay_date: Date,
+    seasoning_end: u32,
+    months_per_period: f64,
+    rate_at: impl Fn(Date, u32) -> Result<f64>,
+) -> Result<f64> {
+    let k = months_per_period.round();
+    if k <= 1.0 || (months_per_period - k).abs() > 1e-9 {
+        return rate_at(pay_date, seasoning_end);
+    }
+    let k = k as u32;
+    let mut survival = 1.0_f64;
+    for m in 0..k {
+        let seasoning = seasoning_end.saturating_sub(k - 1 - m);
+        survival *= 1.0 - rate_at(pay_date, seasoning)?.clamp(0.0, 1.0);
+    }
+    Ok(1.0 - survival.max(0.0).powf(1.0 / f64::from(k)))
+}
+
 /// Deterministic pool-flow source using the instrument's base credit model.
 pub(crate) struct DeterministicPoolFlowSource;
 
 impl PoolFlowSource for DeterministicPoolFlowSource {
     fn calculate_pool_flows(&mut self, request: PoolFlowRequest<'_, '_>) -> Result<PoolFlows> {
-        let smm = request
-            .instrument
-            .calculate_prepayment_rate(request.pay_date, request.seasoning_months)?;
-        let mdr = request
-            .instrument
-            .calculate_default_rate(request.pay_date, request.seasoning_months)?;
+        let smm = period_averaged_monthly_rate(
+            request.pay_date,
+            request.seasoning_months,
+            request.months_per_period,
+            |date, seasoning| {
+                request
+                    .instrument
+                    .calculate_prepayment_rate(date, seasoning)
+            },
+        )?;
+        let mdr = period_averaged_monthly_rate(
+            request.pay_date,
+            request.seasoning_months,
+            request.months_per_period,
+            |date, seasoning| request.instrument.calculate_default_rate(date, seasoning),
+        )?;
         calculate_pool_flows_with_rates(RatedPoolFlowRequest {
             state: request.state,
             pay_date: request.pay_date,
@@ -121,12 +172,22 @@ impl PoolFlowSource for OasPathFlowSource {
                 .and_then(|p| p.get(month).copied())
                 .unwrap_or(0.0);
         }
-        let base_smm = request
-            .instrument
-            .calculate_prepayment_rate(request.pay_date, request.seasoning_months)?;
-        let base_mdr = request
-            .instrument
-            .calculate_default_rate(request.pay_date, request.seasoning_months)?;
+        let base_smm = period_averaged_monthly_rate(
+            request.pay_date,
+            request.seasoning_months,
+            request.months_per_period,
+            |date, seasoning| {
+                request
+                    .instrument
+                    .calculate_prepayment_rate(date, seasoning)
+            },
+        )?;
+        let base_mdr = period_averaged_monthly_rate(
+            request.pay_date,
+            request.seasoning_months,
+            request.months_per_period,
+            |date, seasoning| request.instrument.calculate_default_rate(date, seasoning),
+        )?;
 
         let mut smm = base_smm;
         let mut mdr = base_mdr;

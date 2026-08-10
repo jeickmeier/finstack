@@ -3,19 +3,17 @@
 use crate::calibration::hull_white::HullWhiteParams;
 use crate::instruments::common_impl::pricing::time::relative_df_discount_curve;
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::rates::exotics_shared::cumulative_coupon::{
-    CouponEvent, CumulativeCouponTracker,
-};
-use crate::instruments::rates::exotics_shared::hw1f_curve::{
+use crate::instruments::exotics::tarn::Tarn;
+use crate::instruments::rates::hw1f::cumulative_coupon::{CouponEvent, CumulativeCouponTracker};
+use crate::instruments::rates::hw1f::hw1f_curve::{
     calibrate_hw1f_params, initial_short_rate_from_curve, Hw1fTermForward, PeriodForwardCoeffs,
 };
-use crate::instruments::rates::exotics_shared::hw1f_mc::RateExoticHw1fMcPricer;
-use crate::instruments::rates::exotics_shared::mc_config::RateExoticMcConfig;
-use crate::instruments::rates::exotics_shared::{
+use crate::instruments::rates::hw1f::hw1f_mc::RateExoticHw1fMcPricer;
+use crate::instruments::rates::hw1f::mc_config::RateExoticMcConfig;
+use crate::instruments::rates::hw1f::{
     resolve_hw1f_params, Hw1fCalibrationFlavor, Hw1fCapletSurfacePoint, Hw1fResolveRequest,
     Hw1fSurfaceCalibration,
 };
-use crate::instruments::rates::tarn::Tarn;
 use crate::metrics::MetricId;
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
@@ -318,7 +316,7 @@ impl TarnPricer {
         }
         let discount_curve = market.get_discount(inst.discount_curve_id.as_ref())?;
         let forward_curve = market.get_forward(inst.floating_index_id.as_ref())?;
-        crate::instruments::rates::exotics_shared::forward_swap_rate::validate_term_curve_tenor(
+        crate::instruments::rates::hw1f::forward_swap_rate::validate_term_curve_tenor(
             forward_curve.as_ref(),
             inst.floating_tenor,
             inst.id.as_str(),
@@ -394,7 +392,7 @@ impl TarnPricer {
                     / discount_curve.df(discount_time + tenor)
                     - 1.0)
                     / tenor;
-                let basis = crate::instruments::rates::exotics_shared::forward_swap_rate::term_fixing_on_date(
+                let basis = crate::instruments::rates::hw1f::forward_swap_rate::term_fixing_on_date(
                     forward_curve.as_ref(),
                     start,
                 )? - discount_forward;
@@ -410,10 +408,11 @@ impl TarnPricer {
                 // historical observation. Use the projection curve for that
                 // fixing; discount-curve reconstruction alone would erase the
                 // projection/discount basis precisely at inception.
-                let projected_rate = crate::instruments::rates::exotics_shared::forward_swap_rate::term_fixing_on_date(
-                    forward_curve.as_ref(),
-                    start,
-                )?;
+                let projected_rate =
+                    crate::instruments::rates::hw1f::forward_swap_rate::term_fixing_on_date(
+                        forward_curve.as_ref(),
+                        start,
+                    )?;
                 PeriodForwardCoeffs::from_flat_rate(projected_rate, accrual_fraction)
             };
 

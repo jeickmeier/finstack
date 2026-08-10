@@ -594,12 +594,14 @@ fn test_coverage_trigger_is_cured() {
 // Helper Functions
 
 fn create_tranche(id: &str, attach: f64, detach: f64, seniority: TrancheSeniority) -> Tranche {
+    // Balance proportional to declared thickness (1% = $1M) so structures
+    // built from these tranches satisfy the thickness/balance reconciliation.
     Tranche::new(
         id,
         attach,
         detach,
         seniority,
-        Money::new(10_000_000.0, Currency::USD),
+        Money::new((detach - attach) * 1_000_000.0, Currency::USD),
         TrancheCoupon::Fixed { rate: 0.05 },
         maturity_date(),
     )

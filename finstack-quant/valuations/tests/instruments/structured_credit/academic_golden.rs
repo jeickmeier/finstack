@@ -1,10 +1,12 @@
 //! Academic and industry-standard golden tests for structured credit.
 //!
-//! These tests validate our implementations against known reference values from:
-//! - PSA standard curve (Public Securities Association, 1985)
-//! - SDA standard curve (Standard Default Assumption)
-//! - Moody's WARF rating factors
-//! - Fabozzi "Fixed Income Mathematics" reference calculations
+//! The PSA curve values (0.2% CPR per month ramping to 6% at month 30) and
+//! the CPR↔SMM / CDR↔MDR conversion identities are checked against the
+//! published formulas directly. The WARF portfolio tests weight the rating
+//! factors from the library's embedded Moody's table
+//! (`finstack_quant_core::types::moodys_warf_factor`); they validate the
+//! weighting methodology, not the table itself, which is asserted against
+//! published Moody's factor values in `finstack-quant/core` tests.
 //!
 //! # References
 //!

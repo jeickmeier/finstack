@@ -85,15 +85,14 @@ impl MetricCalculator for WalCalculator {
             );
         }
 
-        // Final fallback: use aggregate positive flows only.
-        // This path is less accurate because interest and principal are not distinguished.
-        if let Some(flows) = context.cashflows.as_ref() {
-            return weighted_average_life_from_principal(flows.iter().copied(), context.as_of);
-        }
-
+        // WAL is defined on principal flows only. Aggregate positive flows
+        // (interest + principal, undifferentiated) would silently produce a
+        // wrong average life, so error instead of degrading.
         Err(finstack_quant_core::Error::from(
             finstack_quant_core::InputError::NotFound {
-                id: "detailed_tranche_cashflows".to_string(),
+                id: "detailed_tranche_cashflows or tagged_cashflows (WAL requires \
+                     principal-classified flows)"
+                    .to_string(),
             },
         ))
     }

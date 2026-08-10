@@ -10,43 +10,31 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::money::Money;
 
 use super::irr_helpers::{
-    cached_full_schedule, outstanding_before, settlement_discount_factor, solve_irr_to_exercise,
-    target_price_from_quote_or_model,
+    cached_full_schedule, exercisable_call_candidates, outstanding_before,
+    settlement_discount_factor, solve_irr_to_exercise, target_price_from_quote_or_model,
 };
 
 /// Yield-to-worst calculator for callable term loans.
 ///
-/// Solves for the worst (minimum) yield across all call dates and maturity.
+/// Solves for the worst (minimum) yield across all exercisable call
+/// candidates (including a standing, already-effective provision evaluated at
+/// the first coupon date after settlement) and final maturity.
 pub(crate) struct YtwCalculator;
 
 impl MetricCalculator for YtwCalculator {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
-        // Snapshot scalar fields off the loan before borrowing the cached schedule.
-        let (currency, maturity, settle_df, candidate_calls) = {
-            let loan: &TermLoan = context.instrument_as()?;
-            let settle_df = settlement_discount_factor(loan, &context.curves, context.as_of)?;
-            let calls: Vec<_> = if let Some(cs) = &loan.call_schedule {
-                cs.calls
-                    .iter()
-                    .filter(|c| {
-                        c.date >= context.as_of
-                            && c.date <= loan.maturity
-                            && !matches!(
-                                c.call_type,
-                                crate::instruments::fixed_income::term_loan::LoanCallType::MakeWhole { .. }
-                            )
-                    })
-                    .map(|c| (c.date, c.price_pct_of_par))
-                    .collect()
-            } else {
-                Vec::new()
-            };
-            (loan.currency, loan.maturity, settle_df, calls)
-        };
         let as_of = context.as_of;
 
         // Use the cached internal schedule (reused across all candidates).
         let schedule = cached_full_schedule(context)?;
+
+        // Snapshot scalar fields off the loan after populating the cache.
+        let (currency, maturity, settle_df, candidate_calls) = {
+            let loan: &TermLoan = context.instrument_as()?;
+            let settle_df = settlement_discount_factor(loan, &context.curves, as_of)?;
+            let calls = exercisable_call_candidates(loan, &schedule, as_of)?;
+            (loan.currency, loan.maturity, settle_df, calls)
+        };
         let dirty_now = {
             let loan: &TermLoan = context.instrument_as()?;
             target_price_from_quote_or_model(loan, &schedule, as_of, context.base_value, settle_df)?

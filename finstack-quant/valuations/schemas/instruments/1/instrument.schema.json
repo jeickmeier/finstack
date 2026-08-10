@@ -2588,7 +2588,7 @@
       "oneOf": [
         {
           "const": "absolute",
-          "description": "Bounds are absolute levels (e.g., 4500.0 for SPX, or an absolute rate\nband for a rate-linked note priced via\n[`CallableRangeAccrual`](crate::instruments::rates::callable_range_accrual)).",
+          "description": "Bounds are absolute levels (e.g., 4500.0 for SPX, or an absolute rate\nband for a rate-linked note priced via\n[`CallableRangeAccrual`](crate::instruments::exotics::callable_range_accrual)).",
           "type": "string"
         },
         {
@@ -12842,7 +12842,7 @@
               "type": "null"
             }
           ],
-          "description": "Optional explicit exit/sale date. Defaults to the last NOI date on/after `as_of`."
+          "description": "Optional explicit exit/sale date. Defaults to the asset's valuation\nhorizon: `asset.sale_date` when set, else the last NOI date on/after `as_of`."
         },
         "financing": {
           "description": "Financing instruments (borrower liabilities), valued from lender perspective.\n\nPV convention nets these from the asset PV.",
@@ -13710,11 +13710,11 @@
       "type": "object"
     },
     "OidPolicy": {
-      "description": "Original Issue Discount (OID) policy for term loan origination.\n\nOID represents the discount from par value at loan origination. The policy\ndetermines how the discount is handled: withheld from proceeds or tracked separately.\n\n# Industry Practice\n\nOID is common in institutional term loans and private credit, particularly for:\n- Leveraged buyout financing (LBO loans)\n- Distressed refinancings\n- High-yield institutional term loans\n\nTypical OID ranges from 1-5% (100-500 bp) of par value.\n\n# Accounting Treatment\n\nOID affects accounting under GAAP/IFRS:\n- **Withheld**: Reduces initial cash proceeds, increases effective yield\n- **Separate**: May be accounted as upfront fee or amortized discount\n\nFor effective interest rate (EIR) amortization schedules, see [`OidEirSpec`].\n\n# Variants\n\n- `WithheldPct`: Discount as percentage withheld from funded amount\n- `WithheldAmount`: Fixed amount withheld from funded proceeds\n- `SeparatePct`: Percentage tracked separately, not withheld\n- `SeparateAmount`: Fixed amount tracked separately\n\n# Examples\n\n```text\nuse finstack_quant_valuations::instruments::fixed_income::term_loan::spec::OidPolicy;\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::currency::Currency;\n\n// 2% OID withheld from proceeds\nlet oid = OidPolicy::WithheldPct(200);  // 200 bp = 2%\n\n// $50,000 fixed OID\nlet oid_fixed = OidPolicy::WithheldAmount(Money::new(50_000.0, Currency::USD));\n```",
+      "description": "Original Issue Discount (OID) policy for term loan origination.\n\nOID represents the discount from par value at loan origination. The policy\ndetermines how the discount is handled: withheld from proceeds or tracked separately.\n\n# Industry Practice\n\nOID is common in institutional term loans and private credit, particularly for:\n- Leveraged buyout financing (LBO loans)\n- Distressed refinancings\n- High-yield institutional term loans\n\nTypical OID ranges from 1-5% (100-500 bp) of par value.\n\n# Accounting Treatment\n\nOID affects accounting under GAAP/IFRS:\n- **Withheld**: Reduces initial cash proceeds, increases effective yield\n- **Separate**: May be accounted as upfront fee or amortized discount\n\nFor effective interest rate (EIR) amortization schedules, see [`OidEirSpec`].\n\n# Variants\n\n- `WithheldPct`: Discount as percentage withheld from each funded draw\n- `WithheldAmount`: Fixed facility-level amount withheld from funded\n  proceeds, pro-rated across draws by draw size\n- `SeparatePct`: Percentage of each draw tracked separately, not withheld\n- `SeparateAmount`: Fixed facility-level amount tracked separately,\n  pro-rated across draws by draw size\n\n# Examples\n\n```text\nuse finstack_quant_valuations::instruments::fixed_income::term_loan::spec::OidPolicy;\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::currency::Currency;\n\n// 2% OID withheld from proceeds\nlet oid = OidPolicy::WithheldPct(200);  // 200 bp = 2%\n\n// $50,000 fixed OID\nlet oid_fixed = OidPolicy::WithheldAmount(Money::new(50_000.0, Currency::USD));\n```",
       "oneOf": [
         {
           "additionalProperties": false,
-          "description": "Discount as percentage (basis points) withheld from funded proceeds",
+          "description": "Discount as percentage (basis points) withheld from each funded draw",
           "properties": {
             "withheld_pct": {
               "format": "int32",
@@ -13728,7 +13728,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Fixed discount amount withheld from funded proceeds",
+          "description": "Fixed facility-level discount amount withheld from funded proceeds,\npro-rated across draws by draw size",
           "properties": {
             "withheld_amount": {
               "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
@@ -13741,7 +13741,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Discount as percentage tracked separately for amortization",
+          "description": "Discount as percentage of each draw tracked separately for amortization",
           "properties": {
             "separate_pct": {
               "format": "int32",
@@ -13755,7 +13755,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Fixed discount amount tracked separately for amortization",
+          "description": "Fixed facility-level discount amount tracked separately for\namortization, pro-rated across draws by draw size",
           "properties": {
             "separate_amount": {
               "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
@@ -15184,7 +15184,7 @@
     },
     "RangeAccrual": {
       "additionalProperties": false,
-      "description": "Range accrual instrument.\n\nRange accrual notes pay coupons that accrue only when a reference rate or asset\nstays within a specified range. The accrual is proportional to the number of\nobservation dates where the underlying is within [lower_bound, upper_bound].\n\n# Bounds Interpretation\n\nThe `bounds_type` field controls how `lower_bound` and `upper_bound` are interpreted:\n- `Absolute`: Bounds are absolute price levels (e.g., 4500.0 for SPX at 4700)\n- `RelativeToInitialSpot`: Bounds are multipliers of the initial spot (e.g., 0.95 = 95%)\n\n# Historical Fixings\n\nFor mid-life valuations, use `past_fixings_in_range` to specify how many past\nobservations were in range. The pricer will add this to expected future fixings.\n\n# Rate-Linked Underlyings: Pricing Routing\n\nThe rate-linked fields (`rate_index_id`, `projection_curve_id`,\n`reference_tenor`) describe the contract but are **not priceable by the\nstandalone `RangeAccrual` pricers**, which support equity/FX (GBM)\nunderlyings only and return a validation error when these fields are set.\nPrice rate-linked range accrual notes through\n[`CallableRangeAccrual`](crate::instruments::rates::callable_range_accrual)\n(with an empty call schedule for a non-callable note), which models the\nreference rate under HW1F and reconstructs the term rate per observation.",
+      "description": "Range accrual instrument.\n\nRange accrual notes pay coupons that accrue only when a reference rate or asset\nstays within a specified range. The accrual is proportional to the number of\nobservation dates where the underlying is within [lower_bound, upper_bound].\n\n# Bounds Interpretation\n\nThe `bounds_type` field controls how `lower_bound` and `upper_bound` are interpreted:\n- `Absolute`: Bounds are absolute price levels (e.g., 4500.0 for SPX at 4700)\n- `RelativeToInitialSpot`: Bounds are multipliers of the initial spot (e.g., 0.95 = 95%)\n\n# Historical Fixings\n\nFor mid-life valuations, use `past_fixings_in_range` to specify how many past\nobservations were in range. The pricer will add this to expected future fixings.\n\n# Rate-Linked Underlyings: Pricing Routing\n\nThe rate-linked fields (`rate_index_id`, `projection_curve_id`,\n`reference_tenor`) describe the contract but are **not priceable by the\nstandalone `RangeAccrual` pricers**, which support equity/FX (GBM)\nunderlyings only and return a validation error when these fields are set.\nPrice rate-linked range accrual notes through\n[`CallableRangeAccrual`](crate::instruments::exotics::callable_range_accrual)\n(with an empty call schedule for a non-callable note), which models the\nreference rate under HW1F and reconstructs the term rate per observation.",
       "properties": {
         "accrual_start_date": {
           "anyOf": [
@@ -17268,7 +17268,7 @@
       "properties": {
         "antithetic": {
           "default": false,
-          "description": "Use antithetic variance reduction when simulating paths (default: false).",
+          "description": "Use antithetic variance reduction when simulating paths (default: false).\nMutually exclusive with `use_sobol_qmc`; validation rejects the combination.",
           "type": "boolean"
         },
         "mc_config": {
@@ -17289,7 +17289,7 @@
           "type": "integer"
         },
         "seed": {
-          "description": "Random seed for reproducibility (None for non-deterministic).",
+          "description": "Random seed for reproducibility. Simulation is always deterministic:\n`None` falls back to a fixed default seed (42). Because the seed is\nfixed, bump-and-reprice sensitivities (DV01/CS01/Theta) reuse the same\nrandom variates for base and bumped valuations — common random\nnumbers — so finite-difference Greeks are free of Monte Carlo noise.",
           "format": "uint64",
           "minimum": 0,
           "type": [
@@ -17299,7 +17299,7 @@
         },
         "use_sobol_qmc": {
           "default": false,
-          "description": "Use Sobol quasi-Monte Carlo RNG instead of Philox (default: false).",
+          "description": "Use Sobol quasi-Monte Carlo RNG instead of Philox (default: false).\nMutually exclusive with `antithetic`; validation rejects the combination.",
           "type": "boolean"
         },
         "utilization_process": {
@@ -18033,7 +18033,7 @@
         },
         "settlement_days": {
           "default": 2,
-          "description": "Settlement days (T+n). Default is 2 for leveraged loans per LSTA conventions.\n\nLSTA standard for secondary market loan trades is T+2 (effective since 2023).\nPrimary market trades may use different conventions.",
+          "description": "Settlement days (T+n) used as the valuation/accrued anchor. Default is 2.\n\nNote: the LSTA target settlement for par/near-par secondary loan trades\nis T+7 (with delayed compensation beyond T+7, and T+20 for distressed).\nThe T+2 default here is a pricing-anchor choice, not an LSTA\nconvention; set `settlement_days: 7` to anchor at the LSTA par-trade\ntarget.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -22252,7 +22252,7 @@
                 },
                 "contractual_payment": null,
                 "credit_quality": null,
-                "day_count": "30_360",
+                "day_count": "act_360",
                 "id": "COLLATERAL-1",
                 "index_id": null,
                 "industry": null,

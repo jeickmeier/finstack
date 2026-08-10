@@ -252,7 +252,7 @@ proptest! {
             .base_rate_spec(BaseRateSpec::Fixed { rate: 0.05 })
             .day_count(DayCount::Act360)
             .frequency(Tenor::quarterly())
-            .fees(RevolvingCreditFees::flat(commitment_fee_bp, usage_fee_bp, facility_fee_bp))
+            .fees(RevolvingCreditFees::flat(commitment_fee_bp, usage_fee_bp, facility_fee_bp).unwrap())
             .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
             .discount_curve_id("USD-OIS".into())
             .build()

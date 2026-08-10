@@ -494,13 +494,22 @@ pub fn calculate_tranche_cs01(
     Ok(bumped_pv.total() - base_pv.total())
 }
 
-/// Calculate a z-spread-equivalent discount margin for a floating-rate tranche.
+/// Calculate the discount margin (curve DM) for a floating-rate tranche.
 ///
-/// The tranche's contractual cashflows are projected once without changing its
-/// coupon projection. The solver then applies a constant additive spread to the
-/// discount curve until those cashflows reproduce `target_pv`. The result is
-/// therefore a z-spread-equivalent discount margin, not the tranche's
-/// contractual quoted margin.
+/// Follows the workspace's canonical FRN discount-margin convention (see the
+/// bond `DiscountMarginCalculator`, Fabozzi / Bloomberg YAS): the tranche's
+/// contractual cashflows are projected once — floating coupons off the index
+/// forward curve at the contractual quoted margin, unchanged by the DM — and
+/// the solver then applies a constant additive spread to the DEAL DISCOUNT
+/// CURVE until those cashflows reproduce `target_pv`.
+///
+/// This is a **curve DM**: when the deal's discount curve differs from the
+/// tranche's projection index curve, the solved DM includes that basis, so it
+/// is not the pure spread-over-index quote a dealer run shows. On a
+/// consistent curve setup where the discount curve equals the index curve, a
+/// tranche priced at par solves to (approximately) its contractual quoted
+/// margin. Discounting uses the continuous-compounding spread kernel shared
+/// with the tranche Z-spread solver.
 ///
 /// The returned decimal is zero when `target_pv` equals the model PV. A richer
 /// (higher) target PV produces a negative margin; a cheaper (lower) target PV
@@ -520,7 +529,7 @@ pub fn calculate_tranche_cs01(
 ///
 /// # Returns
 ///
-/// Z-spread-equivalent discount margin in decimal units (`0.0125` = 125 bp).
+/// Curve discount margin in decimal units (`0.0125` = 125 bp).
 ///
 /// # Errors
 ///

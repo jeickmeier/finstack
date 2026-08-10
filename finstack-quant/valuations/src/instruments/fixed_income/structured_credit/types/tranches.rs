@@ -814,6 +814,36 @@ impl TrancheStructure {
             return Err(finstack_quant_core::InputError::Invalid.into());
         }
 
+        // Reconcile declared tranche thickness against the actual balance
+        // share of the capital structure. The waterfall allocates cash and
+        // losses off balances while attachment/detachment points are consumed
+        // by the stochastic pricer's reporting (thickness, loss multiple), so
+        // a deal whose declared points do not match its balances would price
+        // and report inconsistently. The tolerance allows the rounded
+        // percentages deals quote (e.g. 63.5% for 63.478...%) while rejecting
+        // structurally inconsistent inputs.
+        const THICKNESS_TOLERANCE_PCT: f64 = 0.5;
+        let total_balance: f64 = tranches.iter().map(|t| t.original_balance.amount()).sum();
+        if total_balance > 0.0 {
+            for tranche in tranches {
+                let balance_share_pct = tranche.original_balance.amount() / total_balance * 100.0;
+                let thickness_pct = tranche.detachment_point - tranche.attachment_point;
+                if (balance_share_pct - thickness_pct).abs() > THICKNESS_TOLERANCE_PCT {
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "tranche '{}' declares attachment/detachment [{}, {}] \
+                         (thickness {:.4}%) but its balance is {:.4}% of the \
+                         capital structure; declared points must match balance \
+                         shares within {THICKNESS_TOLERANCE_PCT}%",
+                        tranche.id,
+                        tranche.attachment_point,
+                        tranche.detachment_point,
+                        thickness_pct,
+                        balance_share_pct,
+                    )));
+                }
+            }
+        }
+
         // Check currency consistency
         let base_currency = tranches[0].original_balance.currency();
         for tranche in tranches {

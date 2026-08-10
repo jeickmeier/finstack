@@ -11,7 +11,7 @@ use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_valuations::instruments::fixed_income::term_loan::{
-    AmortizationSpec, RateSpec, TermLoan,
+    AmortizationSpec, CommitmentFeeBase, DdtlSpec, DrawEvent, OidPolicy, RateSpec, TermLoan,
 };
 use time::macros::date;
 
@@ -94,6 +94,90 @@ fn test_pik_interest_capitalization() {
     // Assert
     assert!(!cashflows.is_empty());
     // PIK interest capitalizes, so fewer cash payments expected
+}
+
+/// Regression: a fixed-amount OID (`WithheldAmount`) applies ONCE per
+/// facility, pro-rated across draws by draw size. Previously the full amount
+/// was withheld from EVERY draw, over-withholding N× the contractual OID on a
+/// multi-draw DDTL.
+#[test]
+fn test_fixed_amount_oid_prorated_across_draws() {
+    let issue = date!(2025 - 01 - 01);
+    let draw_1_date = date!(2025 - 02 - 15);
+    let draw_2_date = date!(2025 - 05 - 15);
+    let oid = 300_000.0;
+
+    let ddtl = DdtlSpec {
+        commitment_limit: Money::new(10_000_000.0, Currency::USD),
+        availability_start: issue,
+        availability_end: date!(2025 - 12 - 31),
+        draws: vec![
+            DrawEvent {
+                date: draw_1_date,
+                amount: Money::new(6_000_000.0, Currency::USD),
+            },
+            DrawEvent {
+                date: draw_2_date,
+                amount: Money::new(4_000_000.0, Currency::USD),
+            },
+        ],
+        commitment_step_downs: vec![],
+        usage_fee_bp: 0,
+        commitment_fee_bp: 0,
+        fee_base: CommitmentFeeBase::Undrawn,
+        oid_policy: Some(OidPolicy::WithheldAmount(Money::new(oid, Currency::USD))),
+    };
+
+    let loan = TermLoan::builder()
+        .id("TL-CF-OID-PRORATA".into())
+        .currency(Currency::USD)
+        .notional_limit(Money::new(10_000_000.0, Currency::USD))
+        .issue_date(issue)
+        .maturity(date!(2030 - 01 - 01))
+        .rate(RateSpec::Fixed { rate_bp: 600 })
+        .frequency(Tenor::quarterly())
+        .day_count(DayCount::Act360)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
+        .calendar_id_opt(None)
+        .stub(StubKind::None)
+        .discount_curve_id(CurveId::from("USD-OIS"))
+        .amortization(AmortizationSpec::None)
+        .coupon_type(CouponType::Cash)
+        .upfront_fee_opt(None)
+        .ddtl_opt(Some(ddtl))
+        .covenants_opt(None)
+        .attributes(Default::default())
+        .build()
+        .unwrap();
+
+    let market = build_market_context();
+    let flows = loan.dated_cashflows(&market, issue).unwrap();
+
+    // Draw dates fall mid-quarter, so the only flows on those dates are the
+    // funding legs. Pro-rata OID: 300k × 6/10 = 180k, 300k × 4/10 = 120k.
+    let funding_at = |date: time::Date| -> f64 {
+        flows
+            .iter()
+            .filter(|(d, _)| *d == date)
+            .map(|(_, m)| m.amount())
+            .sum()
+    };
+    let funding_1 = funding_at(draw_1_date);
+    let funding_2 = funding_at(draw_2_date);
+
+    assert!(
+        (funding_1.abs() - (6_000_000.0 - 180_000.0)).abs() < 1e-6,
+        "first draw must fund 6mm less its pro-rata 180k OID share, got {funding_1}"
+    );
+    assert!(
+        (funding_2.abs() - (4_000_000.0 - 120_000.0)).abs() < 1e-6,
+        "second draw must fund 4mm less its pro-rata 120k OID share, got {funding_2}"
+    );
+    // Total withheld equals the contractual OID exactly once.
+    assert!(
+        (funding_1.abs() + funding_2.abs() - (10_000_000.0 - oid)).abs() < 1e-6,
+        "total funded must be commitment minus ONE facility-level OID"
+    );
 }
 
 /// Property test: PercentPerPeriod with bp such that total amortization would exceed

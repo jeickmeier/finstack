@@ -1313,11 +1313,15 @@ fn calculate_payment_amount(
                 })
             })?;
             let tranche = &tranches.tranches[idx];
-            // Use current tranche balance when available
+            // Use current tranche balance when available. Floor at zero so a
+            // rounding-induced negative balance can never produce a negative
+            // interest claim (which would distort IC coverage tests).
             let balance = tranche_balances
                 .and_then(|b| b.get(tranche_id.as_str()))
                 .copied()
-                .unwrap_or(tranche.current_balance);
+                .unwrap_or(tranche.current_balance)
+                .amount()
+                .max(0.0);
             let rate = shifted_tranche_rate(
                 tranche,
                 period_start,
@@ -1335,10 +1339,7 @@ fn calculate_payment_amount(
                 .and_then(|d| d.get(tranche_id.as_str()))
                 .map(|m| m.amount())
                 .unwrap_or(0.0);
-            (
-                balance.amount() * rate * accrual_fraction + carried,
-                *rounding,
-            )
+            (balance * rate * accrual_fraction + carried, *rounding)
         }
 
         PaymentCalculation::CappedTrancheInterest {
@@ -1352,10 +1353,13 @@ fn calculate_payment_amount(
                 })
             })?;
             let tranche = &tranches.tranches[idx];
+            // Floored at zero for the same reason as `TrancheInterest`.
             let balance = tranche_balances
                 .and_then(|b| b.get(tranche_id.as_str()))
                 .copied()
-                .unwrap_or(tranche.current_balance);
+                .unwrap_or(tranche.current_balance)
+                .amount()
+                .max(0.0);
             // Available-funds cap: the effective coupon cannot exceed `cap_rate`.
             // The cap applies AFTER the rate-path shift, matching the engine's
             // interest-due kernel (the cap tracks the shifted net WAC).
@@ -1377,10 +1381,7 @@ fn calculate_payment_amount(
                 .and_then(|d| d.get(tranche_id.as_str()))
                 .map(|m| m.amount())
                 .unwrap_or(0.0);
-            (
-                balance.amount() * rate * accrual_fraction + carried,
-                *rounding,
-            )
+            (balance * rate * accrual_fraction + carried, *rounding)
         }
 
         PaymentCalculation::TranchePrincipal {
@@ -1551,10 +1552,11 @@ mod ic_diversion_tests {
         }
 
         // Two tranches: a senior CLASS_A and a subordinated CLASS_B.
+        // Attachment points match the 100M/30M balance split (76.9/23.1).
         let class_a = Tranche::new(
             "CLASS_A",
             0.0,
-            70.0,
+            76.9,
             TrancheSeniority::Senior,
             Money::new(100_000_000.0, currency),
             TrancheCoupon::Fixed { rate: 0.05 },
@@ -1563,7 +1565,7 @@ mod ic_diversion_tests {
         .unwrap();
         let class_b = Tranche::new(
             "CLASS_B",
-            70.0,
+            76.9,
             100.0,
             TrancheSeniority::Subordinated,
             Money::new(30_000_000.0, currency),
@@ -2272,10 +2274,11 @@ mod ic_diversion_tests {
         let currency = Currency::USD;
         let pool = AssetPool::new("POOL", DealType::Clo, currency);
         let maturity = Date::from_calendar_date(2031, Month::January, 1).expect("date");
+        // Attachment points match the 100k/5k balance split (95.2/4.8).
         let class_a = Tranche::new(
             "CLASS_A",
             0.0,
-            90.0,
+            95.2,
             TrancheSeniority::Senior,
             Money::new(100_000.0, currency),
             TrancheCoupon::Fixed { rate: 0.04 },
@@ -2284,7 +2287,7 @@ mod ic_diversion_tests {
         .expect("class A");
         let class_b = Tranche::new(
             "CLASS_B",
-            90.0,
+            95.2,
             100.0,
             TrancheSeniority::Subordinated,
             Money::new(5_000.0, currency),

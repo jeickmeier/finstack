@@ -40,7 +40,7 @@
 //! setups with `num_paths ≳ 10⁴` and the default basis, but grows with richer
 //! bases and fewer paths.
 //!
-//! Setting [`RateExoticMcConfig::oos_lsmc`](crate::instruments::rates::exotics_shared::mc_config::RateExoticMcConfig::oos_lsmc)
+//! Setting [`RateExoticMcConfig::oos_lsmc`](crate::instruments::rates::hw1f::mc_config::RateExoticMcConfig::oos_lsmc)
 //! to `true` switches to a split-sample estimator: even-indexed raw streams
 //! drive the regression, odd-indexed streams are priced under that fitted
 //! policy. The pricing half evaluates an out-of-sample (sub-optimal but
@@ -49,9 +49,9 @@
 //! Standard error rises by roughly √2 because only half the paths drive the
 //! aggregation; combine the two bounds for an unbiased bracket.
 
-use crate::instruments::rates::exotics_shared::bank_account::bank_step_factor;
-use crate::instruments::rates::exotics_shared::exercise::ExerciseBoundaryPayoff;
-use crate::instruments::rates::exotics_shared::mc_config::RateExoticMcConfig;
+use crate::instruments::rates::hw1f::bank_account::bank_step_factor;
+use crate::instruments::rates::hw1f::exercise::ExerciseBoundaryPayoff;
+use crate::instruments::rates::hw1f::mc_config::RateExoticMcConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
 use finstack_quant_monte_carlo::discretization::exact_hw1f::ExactHullWhite1F;
@@ -70,7 +70,7 @@ pub struct RateExoticHw1fLsmcPricer {
     ///
     /// The simulated short rate follows `dr_t = κ·(θ(t) - r_t)·dt + σ·dW_t`.
     /// θ(t) MUST be bootstrapped from the product's discount curve (see
-    /// [`crate::instruments::rates::exotics_shared::calibrate_hw1f_params`])
+    /// [`crate::instruments::rates::hw1f::calibrate_hw1f_params`])
     /// so the simulated short rate reprices the initial curve — a constant θ
     /// makes the process a plain Vasicek that mis-reprices any non-flat curve.
     pub process_params: HullWhite1FParams,
@@ -439,7 +439,7 @@ fn build_grid_with_exercise_map(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::instruments::rates::exotics_shared::standard_basis;
+    use crate::instruments::rates::hw1f::standard_basis;
     use finstack_quant_core::money::Money;
     use finstack_quant_monte_carlo::traits::Payoff;
 

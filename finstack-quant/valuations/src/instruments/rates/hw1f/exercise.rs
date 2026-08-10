@@ -5,7 +5,7 @@ use finstack_quant_core::money::Money;
 use finstack_quant_monte_carlo::traits::Payoff;
 
 /// Additional contract a `Payoff` must implement to be priced via LSMC
-/// in [`crate::instruments::rates::exotics_shared::hw1f_lsmc::RateExoticHw1fLsmcPricer`].
+/// in [`crate::instruments::rates::hw1f::hw1f_lsmc::RateExoticHw1fLsmcPricer`].
 ///
 /// The harness handles path simulation, discounting, and backward regression;
 /// each product implements the three product-specific hooks below.
@@ -103,7 +103,7 @@ pub fn extended_basis(t_years: f64, short_rate: f64) -> Vec<f64> {
 /// keeps `mc_basis_degree` a live configuration surface for payoffs built on
 /// the shared HW1F LSMC harness.
 ///
-/// [`RateExoticMcConfig::basis_degree`]: crate::instruments::rates::exotics_shared::mc_config::RateExoticMcConfig::basis_degree
+/// [`RateExoticMcConfig::basis_degree`]: crate::instruments::rates::hw1f::mc_config::RateExoticMcConfig::basis_degree
 ///
 /// # Arguments
 ///

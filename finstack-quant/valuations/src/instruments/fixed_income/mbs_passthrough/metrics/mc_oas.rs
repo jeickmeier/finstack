@@ -38,9 +38,7 @@
 use crate::calibration::hull_white::HullWhiteParams;
 use crate::instruments::fixed_income::mbs_passthrough::pricer::first_unpaid_accrual_start;
 use crate::instruments::fixed_income::mbs_passthrough::AgencyMbsPassthrough;
-use crate::instruments::rates::exotics_shared::{
-    calibrate_hw1f_params, initial_short_rate_from_curve,
-};
+use crate::instruments::rates::hw1f::{calibrate_hw1f_params, initial_short_rate_from_curve};
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::solver::{BrentSolver, Solver};

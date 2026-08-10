@@ -747,7 +747,7 @@
       "properties": {
         "antithetic": {
           "default": false,
-          "description": "Use antithetic variance reduction when simulating paths (default: false).",
+          "description": "Use antithetic variance reduction when simulating paths (default: false).\nMutually exclusive with `use_sobol_qmc`; validation rejects the combination.",
           "type": "boolean"
         },
         "mc_config": {
@@ -768,7 +768,7 @@
           "type": "integer"
         },
         "seed": {
-          "description": "Random seed for reproducibility (None for non-deterministic).",
+          "description": "Random seed for reproducibility. Simulation is always deterministic:\n`None` falls back to a fixed default seed (42). Because the seed is\nfixed, bump-and-reprice sensitivities (DV01/CS01/Theta) reuse the same\nrandom variates for base and bumped valuations — common random\nnumbers — so finite-difference Greeks are free of Monte Carlo noise.",
           "format": "uint64",
           "minimum": 0,
           "type": [
@@ -778,7 +778,7 @@
         },
         "use_sobol_qmc": {
           "default": false,
-          "description": "Use Sobol quasi-Monte Carlo RNG instead of Philox (default: false).",
+          "description": "Use Sobol quasi-Monte Carlo RNG instead of Philox (default: false).\nMutually exclusive with `antithetic`; validation rejects the combination.",
           "type": "boolean"
         },
         "utilization_process": {

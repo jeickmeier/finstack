@@ -71,13 +71,12 @@ pub(super) fn calculate_pool_flows_with_rates(
     let mut total_default = Money::new(0.0, base_currency);
     let mut total_recovery = Money::new(0.0, base_currency);
 
-    // Period-rate approximation for non-monthly payment frequencies: the
-    // monthly SMM/MDR are sourced once per payment period at END-of-period
-    // seasoning and compounded across the whole period. During a seasoning
-    // ramp (PSA/SDA) the end-of-period rate is the highest within the period,
-    // so ramp-phase speeds are slightly overstated for quarterly/semi-annual
-    // deals (exact for monthly pay and for seasoning past the ramp).
-    // Averaging the monthly rates within the period would remove the bias.
+    // Compound the monthly-equivalent SMM/MDR across the payment period.
+    // For seasoning-ramped curves (PSA/SDA) on non-monthly frequencies, the
+    // deterministic/OAS sources pre-average the per-month rates within the
+    // period (`period_averaged_monthly_rate`), so this compounding recovers
+    // the exact multi-month period rate rather than overstating ramp-phase
+    // speeds from an end-of-period sample.
     let global_period_smm = 1.0 - (1.0 - request.rates.smm).powf(request.months_per_period);
     let global_period_mdr = 1.0 - (1.0 - request.rates.mdr).powf(request.months_per_period);
 
@@ -208,9 +207,11 @@ pub(super) fn calculate_pool_flows_with_rates(
         // Mid-period maturities accrue interest only through maturity.
         let interest_end = state.pool_state.maturities[i].min(request.pay_date);
 
-        let accrual_factor = state.pool_state.day_counts[i]
-            .unwrap_or(DayCount::Act360)
-            .year_fraction(request.prev_date, interest_end, DayCountContext::default())?;
+        let accrual_factor = state.pool_state.day_counts[i].year_fraction(
+            request.prev_date,
+            interest_end,
+            DayCountContext::default(),
+        )?;
 
         // Defaults in a period are modeled as a rate `period_mdr` (a fraction
         // of the balance), with no explicit intra-period default date. Under

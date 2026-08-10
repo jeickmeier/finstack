@@ -776,6 +776,15 @@ impl<'a> CashflowEngine<'a> {
             // Handle principal flows from utilization changes. Interest uses
             // average start/end utilization, so book the matching funding leg
             // at the period midpoint rather than deferring it to period end.
+            //
+            // Convention: the simulated path only observes utilization at
+            // period boundaries, so the exact timing of the change within the
+            // period is unknown. Midpoint booking is the unbiased choice for
+            // a change occurring uniformly within the period and keeps the
+            // funding leg aligned with the average-utilization interest
+            // accrual above. This intentionally differs from the
+            // deterministic engine, which posts principal exactly on
+            // contractual draw/repay event dates.
             let utilization_change = utilization_end - prev_utilization;
             let principal_date =
                 period_start + time::Duration::days((period_end - period_start).whole_days() / 2);

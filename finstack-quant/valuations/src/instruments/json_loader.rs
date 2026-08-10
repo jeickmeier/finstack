@@ -213,9 +213,9 @@ macro_rules! with_instrument_json_registry {
             plain: CommoditySpreadOption(CommoditySpreadOption) => "commodity_spread_option" @ "commodity" = CommoditySpreadOption::example();
             plain: Autocallable(Autocallable) => "autocallable" @ "equity" = Autocallable::example();
             plain: CliquetOption(CliquetOption) => "cliquet_option" @ "equity" = CliquetOption::example();
-            plain: RangeAccrual(RangeAccrual) => "range_accrual" @ "rates" = infallible_example(RangeAccrual::example());
-            plain: Tarn(Tarn) => "tarn" @ "rates" = infallible_example(Tarn::example());
-            plain: Snowball(Snowball) => "snowball" @ "rates" = infallible_example(Snowball::example_snowball());
+            plain: RangeAccrual(RangeAccrual) => "range_accrual" @ "exotics" = infallible_example(RangeAccrual::example());
+            plain: Tarn(Tarn) => "tarn" @ "exotics" = infallible_example(Tarn::example());
+            plain: Snowball(Snowball) => "snowball" @ "exotics" = infallible_example(Snowball::example_snowball());
             plain: CmsSpreadOption(CmsSpreadOption) => "cms_spread_option" @ "rates" = infallible_example(CmsSpreadOption::example());
             plain: TrsEquity(EquityTotalReturnSwap) => "trs_equity" @ "equity" = EquityTotalReturnSwap::example();
             plain: TrsFixedIncomeIndex(FIIndexTotalReturnSwap) => "trs_fixed_income_index" @ "fixed_income" = FIIndexTotalReturnSwap::example();
@@ -223,7 +223,7 @@ macro_rules! with_instrument_json_registry {
             plain: PrivateMarketsFund(PrivateMarketsFund) => "private_markets_fund" @ "equity" = PrivateMarketsFund::example();
             plain: RealEstateAsset(RealEstateAsset) => "real_estate_asset" @ "equity" = RealEstateAsset::example();
             plain: DiscountedCashFlow(DiscountedCashFlow) => "discounted_cash_flow" @ "equity" = DiscountedCashFlow::example();
-            boxed: CallableRangeAccrual(CallableRangeAccrual) => "callable_range_accrual" @ "rates" = infallible_example(CallableRangeAccrual::example());
+            boxed: CallableRangeAccrual(CallableRangeAccrual) => "callable_range_accrual" @ "exotics" = infallible_example(CallableRangeAccrual::example());
             boxed: BondFuture(BondFuture) => "bond_future" @ "fixed_income" = BondFuture::example();
             boxed: StructuredCredit(StructuredCredit) => "structured_credit" @ "fixed_income" = infallible_example(StructuredCredit::example());
             boxed: LeveredRealEstateEquity(crate::instruments::equity::real_estate::LeveredRealEstateEquity) => "levered_real_estate_equity" @ "equity" = crate::instruments::equity::real_estate::LeveredRealEstateEquity::example();
