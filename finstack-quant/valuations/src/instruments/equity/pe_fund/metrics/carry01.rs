@@ -1,15 +1,18 @@
 //! Carry01 calculator for PrivateMarketsFund.
 //!
-//! Computes Carry01 (GP carry sensitivity) using finite differences.
-//! Carry01 is the derivative dPV/ds of LP value with respect to the GP share
-//! (per unit share), consistent with the workspace Dv01 convention.
+//! Computes Carry01 (GP carry sensitivity) using finite differences:
+//! the LP position's PV change for a 1bp move in the GP share.
 //!
 //! # Formula
 //! ```text
-//! Carry01 = (PV(GP_share + h) - PV(GP_share - h)) / (2h)
+//! Carry01 = (PV(GP_share + h) - PV(GP_share - h)) / 2
 //! ```
-//! Where the FD bump h is 1bp (0.0001); dividing by the bump yields the
-//! derivative, not a per-1bp PV change.
+//! Where the FD bump h is 1bp (0.0001). The central difference is divided
+//! by 2 (not 2h), so the result is the PV change *per 1bp move*, in
+//! currency units, consistent with the workspace `Dv01` convention. When a
+//! GP share sits at a boundary (0 or 1) so one direction cannot be bumped,
+//! a one-sided difference against the unbumped base value is used instead
+//! of silently halving the sensitivity with a clamped no-op bump.
 //!
 //! # Note
 //! GP carry is determined by the waterfall allocation (promote tiers, catch-up).
@@ -17,12 +20,47 @@
 //! and measures the impact on LP valuation (lower carry = higher LP value).
 
 use crate::instruments::common_impl::traits::Instrument;
+use crate::instruments::equity::pe_fund::waterfall::{Tranche, WaterfallSpec};
 use crate::instruments::equity::pe_fund::PrivateMarketsFund;
 use crate::metrics::{MetricCalculator, MetricContext};
 use finstack_quant_core::Result;
 
 /// Standard carry bump: 1bp (0.0001 = 0.01%)
 const CARRY_BUMP: f64 = 0.0001;
+
+/// Return a copy of the spec with GP shares in catch-up and promote tranches
+/// shifted by `delta` (promote LP shares renormalized to sum to 1.0).
+fn bumped_spec(spec: &WaterfallSpec, delta: f64) -> WaterfallSpec {
+    let mut bumped = spec.clone();
+    for tranche in &mut bumped.tranches {
+        match tranche {
+            Tranche::CatchUp { gp_share } => {
+                *gp_share += delta;
+            }
+            Tranche::PromoteTier {
+                lp_share, gp_share, ..
+            } => {
+                *gp_share += delta;
+                *lp_share = 1.0 - *gp_share;
+            }
+            _ => {
+                // ReturnOfCapital, PreferredIrr don't affect carry directly
+            }
+        }
+    }
+    bumped
+}
+
+/// Whether every carry-bearing GP share in the spec can absorb `delta`
+/// without leaving `[0, 1]`.
+fn can_bump(spec: &WaterfallSpec, delta: f64) -> bool {
+    spec.tranches.iter().all(|t| match t {
+        Tranche::CatchUp { gp_share } | Tranche::PromoteTier { gp_share, .. } => {
+            (0.0..=1.0).contains(&(gp_share + delta))
+        }
+        _ => true,
+    })
+}
 
 /// Carry01 calculator for PrivateMarketsFund.
 pub(crate) struct Carry01Calculator;
@@ -32,60 +70,35 @@ impl MetricCalculator for Carry01Calculator {
         let fund: &PrivateMarketsFund = context.instrument_as()?;
         let as_of = context.as_of;
 
-        use crate::instruments::equity::pe_fund::waterfall::Tranche;
+        let pv_for = |spec: WaterfallSpec| -> Result<f64> {
+            let mut bumped_fund = fund.clone();
+            bumped_fund.waterfall_spec = spec;
+            Ok(bumped_fund.value(context.curves.as_ref(), as_of)?.amount())
+        };
 
-        // Bump GP share up in all promote tiers and catch-up tranches
-        let mut spec_up = fund.waterfall_spec.clone();
-        for tranche in &mut spec_up.tranches {
-            match tranche {
-                Tranche::CatchUp { gp_share } => {
-                    *gp_share = (*gp_share + CARRY_BUMP).clamp(0.0, 1.0);
-                }
-                Tranche::PromoteTier {
-                    lp_share, gp_share, ..
-                } => {
-                    // Adjust GP share and renormalize LP share to sum to 1.0
-                    let new_gp = (*gp_share + CARRY_BUMP).clamp(0.0, 1.0);
-                    let new_lp = (1.0 - new_gp).max(0.0);
-                    *gp_share = new_gp;
-                    *lp_share = new_lp;
-                }
-                _ => {
-                    // ReturnOfCapital, PreferredIrr don't affect carry directly
-                }
+        let can_up = can_bump(&fund.waterfall_spec, CARRY_BUMP);
+        let can_down = can_bump(&fund.waterfall_spec, -CARRY_BUMP);
+
+        // Higher GP carry means less for LPs, so PV_up < PV_down typically.
+        // Return the PV change for a +1bp GP share move.
+        let carry01 = match (can_up, can_down) {
+            (true, true) => {
+                let pv_up = pv_for(bumped_spec(&fund.waterfall_spec, CARRY_BUMP))?;
+                let pv_down = pv_for(bumped_spec(&fund.waterfall_spec, -CARRY_BUMP))?;
+                (pv_up - pv_down) / 2.0
             }
-        }
-
-        let mut fund_up = fund.clone();
-        fund_up.waterfall_spec = spec_up;
-        let pv_up = fund_up.value(context.curves.as_ref(), as_of)?.amount();
-
-        // Bump GP share down in all promote tiers and catch-up tranches
-        let mut spec_down = fund.waterfall_spec.clone();
-        for tranche in &mut spec_down.tranches {
-            match tranche {
-                Tranche::CatchUp { gp_share } => {
-                    *gp_share = (*gp_share - CARRY_BUMP).clamp(0.0, 1.0);
-                }
-                Tranche::PromoteTier {
-                    lp_share, gp_share, ..
-                } => {
-                    let new_gp = (*gp_share - CARRY_BUMP).clamp(0.0, 1.0);
-                    let new_lp = (1.0 - new_gp).max(0.0);
-                    *gp_share = new_gp;
-                    *lp_share = new_lp;
-                }
-                _ => {}
+            (true, false) => {
+                let pv_up = pv_for(bumped_spec(&fund.waterfall_spec, CARRY_BUMP))?;
+                pv_up - context.base_value.amount()
             }
-        }
-
-        let mut fund_down = fund.clone();
-        fund_down.waterfall_spec = spec_down;
-        let pv_down = fund_down.value(context.curves.as_ref(), as_of)?.amount();
-
-        // Scenarios are ±1bp; return the PV change for one basis point.
-        // Higher GP carry means less for LPs, so PV_up < PV_down typically
-        let carry01 = (pv_up - pv_down) / 2.0;
+            (false, true) => {
+                let pv_down = pv_for(bumped_spec(&fund.waterfall_spec, -CARRY_BUMP))?;
+                context.base_value.amount() - pv_down
+            }
+            // Shares pinned at opposite boundaries across tranches: no
+            // consistent bump direction exists.
+            (false, false) => 0.0,
+        };
 
         Ok(carry01)
     }

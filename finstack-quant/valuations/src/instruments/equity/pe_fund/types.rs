@@ -50,6 +50,13 @@ pub struct PrivateMarketsFund {
     /// value is the PV of LP cashflows strictly after the valuation date plus
     /// this NAV. When `None`, the residual value is zero — a fully realized
     /// fund prices to ~0.
+    ///
+    /// **Do not combine a NAV mark with forecast distribution events after
+    /// the valuation date.** The NAV mark already embeds the value of the
+    /// fund's future realizations, so supplying both double counts them:
+    /// model either realized history + NAV mark (marked fund), or realized
+    /// history + projected future events with no NAV (cashflow projection).
+    /// The NAV is added undiscounted, taken as stated at the valuation date.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unrealized_nav: Option<Money>,

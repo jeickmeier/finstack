@@ -14470,7 +14470,7 @@
             "catch_up": {
               "properties": {
                 "gp_share": {
-                  "description": "Gp share.",
+                  "description": "GP share of each catch-up dollar, in `[0, 1]`. In\n[`CatchUpMode::Partial`] this caps the GP's take per dollar; in\n[`CatchUpMode::Full`] the GP takes 100% of catch-up dollars and\nthis value is only the fallback target share when no promote tier\nfollows.",
                   "format": "double",
                   "type": "number"
                 }
@@ -14488,21 +14488,21 @@
         },
         {
           "additionalProperties": false,
-          "description": "Promote tier with hurdle and LP/GP split",
+          "description": "Promote tier with hurdle and LP/GP split.\n\n**Hard-hurdle gating semantics**: before the split activates, the LP\nis paid at 100% until the LP-net IRR reaches this tier's `hurdle`;\nonly cash above the hurdle is split `lp_share`/`gp_share` (cascading\nto the next tier once the next tier's hurdle is reached). If a\n[`Tranche::CatchUp`] precedes a promote tier whose hurdle sits above\nthe preferred return, the LP-100% infill between the catch-up and the\nhurdle dilutes the GP's realized share back below the catch-up\ntarget. LPAs where all post-catch-up dollars split continuously at\n`lp_share`/`gp_share` should set this tier's hurdle equal to the\npreceding preferred return (or `0.0` when there is no gap to fill),\nso the LP-100% infill is empty.",
           "properties": {
             "promote_tier": {
               "properties": {
                 "gp_share": {
-                  "description": "Gp share.",
+                  "description": "GP share of each split dollar, in `[0, 1]`; must sum to 1 with\n`lp_share`.",
                   "format": "double",
                   "type": "number"
                 },
                 "hurdle": {
                   "$ref": "#/$defs/Hurdle",
-                  "description": "Hurdle."
+                  "description": "IRR hurdle the LP must reach (at 100% payout) before this tier's\nsplit activates."
                 },
                 "lp_share": {
-                  "description": "Lp share.",
+                  "description": "LP share of each split dollar, in `[0, 1]`; must sum to 1 with\n`gp_share`.",
                   "format": "double",
                   "type": "number"
                 }
@@ -14895,7 +14895,7 @@
               "type": "null"
             }
           ],
-          "description": "Unrealized net asset value attributable to the LP, stated as of the\nfund's valuation date.\n\nHolder-view residual value : the fund's present\nvalue is the PV of LP cashflows strictly after the valuation date plus\nthis NAV. When `None`, the residual value is zero — a fully realized\nfund prices to ~0."
+          "description": "Unrealized net asset value attributable to the LP, stated as of the\nfund's valuation date.\n\nHolder-view residual value : the fund's present\nvalue is the PV of LP cashflows strictly after the valuation date plus\nthis NAV. When `None`, the residual value is zero — a fully realized\nfund prices to ~0.\n\n**Do not combine a NAV mark with forecast distribution events after\nthe valuation date.** The NAV mark already embeds the value of the\nfund's future realizations, so supplying both double counts them:\nmodel either realized history + NAV mark (marked fund), or realized\nhistory + projected future events with no NAV (cashflow projection).\nThe NAV is added undiscounted, taken as stated at the valuation date."
         },
         "waterfall_spec": {
           "$ref": "#/$defs/PeFundWaterfallSpec",
@@ -19320,7 +19320,7 @@
         },
         {
           "const": "american",
-          "description": "American style: allocate per deal, then aggregate",
+          "description": "American style: chronological fund-level allocation with per-deal\ntagging of `Proceeds` rows. Balances (unreturned capital, GP carry)\nare threaded fund-wide, so deal-level carve-out economics are not\nmodeled; fund-level distributions are allocated untagged.",
           "type": "string"
         }
       ]

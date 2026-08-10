@@ -60,7 +60,11 @@ pub(crate) fn compute_pv(
     let future_pv = if let Some(ref discount_curve_id) = fund.discount_curve_id {
         use finstack_quant_core::cashflow::Discountable;
         let disc = curves.get_discount(discount_curve_id.as_str())?;
-        future_flows.npv(disc.as_ref(), disc.base_date())?
+        // Anchor the NPV at `as_of` — the same date used to select the
+        // future flows — so cutoff and discount anchor cannot diverge when a
+        // caller passes an `as_of` different from the curve's base date.
+        // (`resolve_as_of` makes them coincide on the framework path.)
+        future_flows.npv(disc.as_ref(), as_of)?
     } else {
         let total: f64 = future_flows.iter().map(|(_, m)| m.amount()).sum();
         Money::new(total, fund.currency)

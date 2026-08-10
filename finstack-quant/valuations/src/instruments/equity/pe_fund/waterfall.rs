@@ -11,7 +11,6 @@ use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::math::solver::BrentSolver;
 use finstack_quant_core::money::Money;
 
-use finstack_quant_core::HashMap;
 use indexmap::IndexMap;
 use smallvec::SmallVec;
 use std::cmp::Ordering;
@@ -29,7 +28,10 @@ pub enum WaterfallStyle {
     /// European style: aggregate all events at fund level
     #[default]
     European,
-    /// American style: allocate per deal, then aggregate
+    /// American style: chronological fund-level allocation with per-deal
+    /// tagging of `Proceeds` rows. Balances (unreturned capital, GP carry)
+    /// are threaded fund-wide, so deal-level carve-out economics are not
+    /// modeled; fund-level distributions are allocated untagged.
     American,
 }
 
@@ -73,16 +75,35 @@ pub enum Tranche {
     },
     /// Catch-up allocation to GP
     CatchUp {
-        /// Gp share.
+        /// GP share of each catch-up dollar, in `[0, 1]`. In
+        /// [`CatchUpMode::Partial`] this caps the GP's take per dollar; in
+        /// [`CatchUpMode::Full`] the GP takes 100% of catch-up dollars and
+        /// this value is only the fallback target share when no promote tier
+        /// follows.
         gp_share: f64,
     },
-    /// Promote tier with hurdle and LP/GP split
+    /// Promote tier with hurdle and LP/GP split.
+    ///
+    /// **Hard-hurdle gating semantics**: before the split activates, the LP
+    /// is paid at 100% until the LP-net IRR reaches this tier's `hurdle`;
+    /// only cash above the hurdle is split `lp_share`/`gp_share` (cascading
+    /// to the next tier once the next tier's hurdle is reached). If a
+    /// [`Tranche::CatchUp`] precedes a promote tier whose hurdle sits above
+    /// the preferred return, the LP-100% infill between the catch-up and the
+    /// hurdle dilutes the GP's realized share back below the catch-up
+    /// target. LPAs where all post-catch-up dollars split continuously at
+    /// `lp_share`/`gp_share` should set this tier's hurdle equal to the
+    /// preceding preferred return (or `0.0` when there is no gap to fill),
+    /// so the LP-100% infill is empty.
     PromoteTier {
-        /// Hurdle.
+        /// IRR hurdle the LP must reach (at 100% payout) before this tier's
+        /// split activates.
         hurdle: Hurdle,
-        /// Lp share.
+        /// LP share of each split dollar, in `[0, 1]`; must sum to 1 with
+        /// `gp_share`.
         lp_share: f64,
-        /// Gp share.
+        /// GP share of each split dollar, in `[0, 1]`; must sum to 1 with
+        /// `lp_share`.
         gp_share: f64,
     },
 }
@@ -153,31 +174,71 @@ impl WaterfallSpec {
     }
 
     /// Validate the waterfall specification.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the spec has no tranches, a promote tier's
+    /// LP/GP shares are non-finite, negative, or do not sum to 1.0, a
+    /// preferred-return or promote-tier hurdle rate is non-finite, a
+    /// catch-up GP share is outside `[0, 1]`, or a clawback holdback
+    /// percentage is outside `[0, 1]`.
     pub fn validate(&self) -> finstack_quant_core::Result<()> {
         validation::require_or(
             !self.tranches.is_empty(),
             finstack_quant_core::InputError::TooFewPoints,
         )?;
 
-        // Validate promote tier splits sum to 1.0
         for tranche in &self.tranches {
-            if let Tranche::PromoteTier {
-                lp_share, gp_share, ..
-            } = tranche
-            {
-                let sum = lp_share + gp_share;
-                validation::require_or(
-                    (sum - 1.0).abs() <= 1e-6,
-                    finstack_quant_core::InputError::Invalid,
-                )?;
-                validation::require_or(
-                    lp_share.is_finite() && gp_share.is_finite(),
-                    finstack_quant_core::InputError::Invalid,
-                )?;
-                validation::require_or(
-                    *lp_share >= 0.0 && *gp_share >= 0.0,
-                    finstack_quant_core::InputError::NegativeValue,
-                )?;
+            match tranche {
+                Tranche::ReturnOfCapital => {}
+                Tranche::PreferredIrr { irr } => {
+                    if !irr.is_finite() {
+                        return Err(finstack_quant_core::Error::Validation(format!(
+                            "preferred return IRR must be finite, got {irr}"
+                        )));
+                    }
+                }
+                Tranche::CatchUp { gp_share } => {
+                    if !gp_share.is_finite() || !(0.0..=1.0).contains(gp_share) {
+                        return Err(finstack_quant_core::Error::Validation(format!(
+                            "catch-up GP share must be in [0, 1], got {gp_share}"
+                        )));
+                    }
+                }
+                Tranche::PromoteTier {
+                    hurdle: Hurdle::Irr { rate },
+                    lp_share,
+                    gp_share,
+                } => {
+                    if !rate.is_finite() {
+                        return Err(finstack_quant_core::Error::Validation(format!(
+                            "promote tier hurdle IRR must be finite, got {rate}"
+                        )));
+                    }
+                    let sum = lp_share + gp_share;
+                    validation::require_or(
+                        lp_share.is_finite() && gp_share.is_finite(),
+                        finstack_quant_core::InputError::Invalid,
+                    )?;
+                    validation::require_or(
+                        (sum - 1.0).abs() <= 1e-6,
+                        finstack_quant_core::InputError::Invalid,
+                    )?;
+                    validation::require_or(
+                        *lp_share >= 0.0 && *gp_share >= 0.0,
+                        finstack_quant_core::InputError::NegativeValue,
+                    )?;
+                }
+            }
+        }
+
+        if let Some(clawback) = &self.clawback {
+            if let Some(holdback_pct) = clawback.holdback_pct {
+                if !holdback_pct.is_finite() || !(0.0..=1.0).contains(&holdback_pct) {
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "clawback holdback percentage must be in [0, 1], got {holdback_pct}"
+                    )));
+                }
             }
         }
 
@@ -236,19 +297,44 @@ impl WaterfallSpecBuilder {
         self
     }
 
-    /// preferred irr.
+    /// Append a preferred-return tranche.
+    ///
+    /// # Arguments
+    ///
+    /// * `irr` - Annual preferred-return hurdle as a decimal rate (`0.08` =
+    ///   8%), compounded per the spec's `irr_basis` day count. Must be finite;
+    ///   `build()` rejects non-finite rates.
     pub fn preferred_irr(mut self, irr: f64) -> Self {
         self.tranches.push(Tranche::PreferredIrr { irr });
         self
     }
 
-    /// catchup.
+    /// Append a GP catch-up tranche.
+    ///
+    /// # Arguments
+    ///
+    /// * `gp_share` - GP share of each catch-up dollar as a decimal in
+    ///   `[0, 1]` (see [`Tranche::CatchUp`] for mode-dependent semantics);
+    ///   `build()` rejects values outside that range.
     pub fn catchup(mut self, gp_share: f64) -> Self {
         self.tranches.push(Tranche::CatchUp { gp_share });
         self
     }
 
-    /// promote tier.
+    /// Append a promote tier with an IRR hurdle and LP/GP split.
+    ///
+    /// See [`Tranche::PromoteTier`] for the hard-hurdle gating semantics:
+    /// the LP is paid at 100% until `hurdle_irr` is reached, then cash
+    /// splits `lp_share`/`gp_share`.
+    ///
+    /// # Arguments
+    ///
+    /// * `hurdle_irr` - Annual IRR hurdle as a decimal rate (`0.12` = 12%)
+    ///   the LP must reach before the split activates. Must be finite.
+    /// * `lp_share` - LP share of each split dollar, in `[0, 1]`; must sum
+    ///   to 1 with `gp_share`.
+    /// * `gp_share` - GP share of each split dollar, in `[0, 1]`; must sum
+    ///   to 1 with `lp_share`.
     pub fn promote_tier(mut self, hurdle_irr: f64, lp_share: f64, gp_share: f64) -> Self {
         self.tranches.push(Tranche::PromoteTier {
             hurdle: Hurdle::Irr { rate: hurdle_irr },
@@ -543,9 +629,14 @@ impl<'a> EquityWaterfallEngine<'a> {
 
     /// Run the waterfall allocation on the given events.
     pub fn run(&self, events: &[FundEvent]) -> finstack_quant_core::Result<AllocationLedger> {
-        // Validate and sort events
+        // Validate and sort events. Same-date ties order contributions before
+        // distributions/proceeds (the standard treatment: capital called on a
+        // date is at risk before cash distributed on that date), so the
+        // allocation is deterministic regardless of caller input order. The
+        // sort is stable, so same-date events of the same kind keep input
+        // order.
         let mut sorted_events = events.to_vec();
-        sorted_events.sort_by_key(|event| event.date);
+        sorted_events.sort_by_key(|event| (event.date, event.kind != FundEventKind::Contribution));
 
         // Currency-safety: the waterfall performs raw f64 arithmetic across event
         // amounts, so every event must share a single currency. Reject mixed
@@ -642,65 +733,41 @@ impl<'a> EquityWaterfallEngine<'a> {
         Ok(())
     }
 
-    /// Run American-style waterfall (deal-by-deal).
+    /// Run American-style waterfall (deal-tagged, chronological).
+    ///
+    /// Every distribution-type event is allocated through the waterfall in
+    /// strict chronological order — deal-tagged `Proceeds` have their ledger
+    /// rows tagged with the deal id, while fund-level `Distribution` events
+    /// (and `Proceeds` without a `deal_id`) are allocated untagged at fund
+    /// level. No event is ever dropped: silently discarding fund-level cash
+    /// would understate LP economics with no diagnostic. Contributions
+    /// increase the LP's unreturned-capital balance as of their event date,
+    /// so a distribution never returns capital that has not yet been called.
+    ///
+    /// LP/GP balances are threaded fund-wide across deals (return of capital
+    /// draws on the total unreturned balance, not a per-deal balance), so the
+    /// per-deal tagging is a reporting dimension; deal-level carve-out
+    /// economics are not modeled.
     fn run_american(
         &self,
         events: &[FundEvent],
         ledger_rows: &mut Vec<AllocationRow>,
     ) -> finstack_quant_core::Result<()> {
-        // Group events by deal_id
-        let mut deals: HashMap<String, Vec<&FundEvent>> = HashMap::default();
-        let mut fund_contributions = Vec::new();
-
-        for event in events {
-            match (&event.deal_id, event.kind) {
-                (Some(deal_id), FundEventKind::Proceeds) => {
-                    deals.entry(deal_id.to_owned()).or_default().push(event);
-                }
-                (_, FundEventKind::Contribution) => {
-                    fund_contributions.push(event);
-                }
-                _ => {
-                    // Fund-level distributions go to fund level
-                    fund_contributions.push(event);
-                }
-            }
-        }
-
-        // Process each deal separately
-        let mut total_lp_unreturned = fund_contributions
-            .iter()
-            .filter(|e| e.kind == FundEventKind::Contribution)
-            .map(|e| e.amount.amount())
-            .sum::<f64>();
-
-        let mut total_gp_carry = 0.0;
+        let mut lp_unreturned = 0.0;
+        let mut gp_carry_cum = 0.0;
         let currency = events
             .first()
             .ok_or(finstack_quant_core::InputError::TooFewPoints)?
             .amount
             .currency();
 
-        // Iterate deals in a deterministic, economically meaningful order: by each
-        // deal's earliest event date, then `deal_id` as a stable tie-break. HashMap
-        // iteration order is hash-arbitrary; because LP/GP balances are threaded
-        // across deals sequentially, the processing order changes the allocations,
-        // so we must not depend on it.
-        let mut ordered_deals: Vec<(&String, &Vec<&FundEvent>)> = deals.iter().collect();
-        ordered_deals.sort_by(|a, b| {
-            let a_first = a.1.first().map(|e| e.date);
-            let b_first = b.1.first().map(|e| e.date);
-            a_first.cmp(&b_first).then_with(|| a.0.cmp(b.0))
-        });
-
-        for (deal_id, deal_events) in ordered_deals {
-            // For each deal, allocate proceeds through the waterfall
-            for event in deal_events {
+        for event in events {
+            if event.kind == FundEventKind::Distribution || event.kind == FundEventKind::Proceeds {
                 let lp_distributed_so_far: f64 = ledger_rows.iter().map(|r| r.to_lp.amount()).sum();
                 let allocations = self.allocate_distribution(AllocationParams {
                     total_amount: event.amount,
-                    initial_lp_unreturned: total_lp_unreturned,
-                    initial_gp_carry: total_gp_carry,
+                    initial_lp_unreturned: lp_unreturned,
+                    initial_gp_carry: gp_carry_cum,
                     lp_distributed_cum_before: lp_distributed_so_far,
                     all_events: events,
                     prior_rows: ledger_rows,
@@ -709,11 +776,13 @@ impl<'a> EquityWaterfallEngine<'a> {
                 })?;
 
                 for mut alloc in allocations {
-                    alloc.deal_id = Some(Arc::from(deal_id.clone()));
-                    total_lp_unreturned = alloc.lp_unreturned.amount();
-                    total_gp_carry = alloc.gp_carry_cum.amount();
+                    alloc.deal_id = event.deal_id.as_deref().map(Arc::from);
+                    lp_unreturned = alloc.lp_unreturned.amount();
+                    gp_carry_cum = alloc.gp_carry_cum.amount();
                     ledger_rows.push(alloc);
                 }
+            } else if event.kind == FundEventKind::Contribution {
+                lp_unreturned += event.amount.amount();
             }
         }
 
@@ -977,11 +1046,13 @@ impl<'a> EquityWaterfallEngine<'a> {
     ///
     /// Gross fund events overstate the LP's receipts by the GP carry, which
     /// inflates the LP IRR and deflates preferred-return entitlements.
-    /// Contributions strictly before `allocation_date` enter as negative
-    /// flows; persisted `to_lp` allocations up to and including
-    /// `allocation_date` enter as positive flows. Allocations from earlier
-    /// tranches within the *current* distribution call are not yet persisted
-    /// and are handled by the caller via `lp_allocated_in_call_so_far`.
+    /// Contributions up to and including `allocation_date` enter as negative
+    /// flows (same-date contributions are processed before distributions, so
+    /// capital called on the allocation date is already at risk); persisted
+    /// `to_lp` allocations up to and including `allocation_date` enter as
+    /// positive flows. Allocations from earlier tranches within the *current*
+    /// distribution call are not yet persisted and are handled by the caller
+    /// via `lp_allocated_in_call_so_far`.
     fn lp_net_history(
         &self,
         all_events: &[FundEvent],
@@ -990,7 +1061,7 @@ impl<'a> EquityWaterfallEngine<'a> {
     ) -> Vec<(Date, Money)> {
         let mut flows: Vec<(Date, Money)> = Vec::new();
         for event in all_events {
-            if event.kind == FundEventKind::Contribution && event.date < allocation_date {
+            if event.kind == FundEventKind::Contribution && event.date <= allocation_date {
                 flows.push((
                     event.date,
                     Money::new(-event.amount.amount(), event.amount.currency()),
@@ -2247,28 +2318,185 @@ mod tests {
     }
 
     #[test]
-    fn solver_failure_propagation() {
-        // Use NaN IRR to force solver failure (cannot solve for target)
+    fn non_finite_preferred_irr_rejected_at_build() {
+        // Bad hurdle inputs must fail loudly at construction, not mid-solve.
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let result = WaterfallSpec::builder().preferred_irr(bad).build();
+            assert!(
+                matches!(result, Err(finstack_quant_core::Error::Validation(_))),
+                "non-finite preferred IRR {bad} must be rejected at build"
+            );
+        }
+    }
+
+    #[test]
+    fn out_of_range_catchup_share_rejected_at_build() {
+        for bad in [-0.1, 1.5, f64::NAN] {
+            let result = WaterfallSpec::builder()
+                .return_of_capital()
+                .catchup(bad)
+                .promote_tier(0.0, 0.8, 0.2)
+                .build();
+            assert!(
+                matches!(result, Err(finstack_quant_core::Error::Validation(_))),
+                "catch-up GP share {bad} must be rejected at build"
+            );
+        }
+    }
+
+    #[test]
+    fn out_of_range_holdback_pct_rejected_at_build() {
+        for bad in [-0.1, 1.5, f64::NAN] {
+            let result = WaterfallSpec::builder()
+                .return_of_capital()
+                .promote_tier(0.0, 0.8, 0.2)
+                .clawback(ClawbackSpec {
+                    enable: true,
+                    holdback_pct: Some(bad),
+                    settle_on: ClawbackSettle::FundEnd,
+                })
+                .build();
+            assert!(
+                matches!(result, Err(finstack_quant_core::Error::Validation(_))),
+                "holdback percentage {bad} must be rejected at build"
+            );
+        }
+    }
+
+    #[test]
+    fn american_allocates_fund_level_distributions() {
+        // Regression: fund-level `Distribution` events (no deal_id) in an
+        // American-style fund must flow through the waterfall, not be
+        // silently dropped.
         let spec = WaterfallSpec::builder()
-            .preferred_irr(f64::NAN)
+            .style(WaterfallStyle::American)
+            .return_of_capital()
+            .promote_tier(0.0, 0.8, 0.2)
             .build()
-            .expect("Valid spec");
+            .expect("spec builds");
 
         let events = vec![
-            FundEvent::contribution(test_date(2020, 1, 1), Money::new(100.0, test_currency())),
-            FundEvent::contribution(test_date(2020, 6, 1), Money::new(100.0, test_currency())),
-            FundEvent::distribution(test_date(2021, 1, 1), Money::new(300.0, test_currency())),
+            FundEvent::contribution(
+                test_date(2020, 1, 1),
+                Money::new(1_000_000.0, test_currency()),
+            ),
+            FundEvent::distribution(
+                test_date(2022, 1, 1),
+                Money::new(1_500_000.0, test_currency()),
+            ),
         ];
 
         let engine = EquityWaterfallEngine::new(&spec);
-        let result = engine.run(&events);
+        let ledger = engine.run(&events).expect("runs");
 
-        assert!(result.is_err());
-        match result {
-            Err(finstack_quant_core::Error::Calibration { message, .. }) => {
-                assert_eq!(message, "Failed to solve for preferred return amount");
-            }
-            _ => panic!("Expected Calibration error, got {:?}", result),
-        }
+        let total_alloc: f64 = ledger
+            .rows
+            .iter()
+            .map(|r| r.to_lp.amount() + r.to_gp.amount())
+            .sum();
+        assert!(
+            (total_alloc - 1_500_000.0).abs() < 1e-6,
+            "fund-level distribution must be fully allocated, got {total_alloc}"
+        );
+        // Fund-level rows are untagged.
+        assert!(ledger.rows.iter().all(|r| r.deal_id.is_none()));
+    }
+
+    #[test]
+    fn american_interleaves_deal_and_fund_level_events_chronologically() {
+        let spec = WaterfallSpec::builder()
+            .style(WaterfallStyle::American)
+            .return_of_capital()
+            .promote_tier(0.0, 0.8, 0.2)
+            .build()
+            .expect("spec builds");
+
+        let events = vec![
+            FundEvent::contribution(
+                test_date(2020, 1, 1),
+                Money::new(2_000_000.0, test_currency()),
+            ),
+            FundEvent::distribution(
+                test_date(2021, 6, 1),
+                Money::new(500_000.0, test_currency()),
+            ),
+            FundEvent::proceeds(
+                test_date(2021, 1, 1),
+                Money::new(1_000_000.0, test_currency()),
+                "DEAL-1",
+            ),
+        ];
+
+        let engine = EquityWaterfallEngine::new(&spec);
+        let ledger = engine.run(&events).expect("runs");
+
+        // Total cash conservation across deal and fund-level events.
+        let total_alloc: f64 = ledger
+            .rows
+            .iter()
+            .map(|r| r.to_lp.amount() + r.to_gp.amount())
+            .sum();
+        assert!((total_alloc - 1_500_000.0).abs() < 1e-6);
+
+        // The earlier deal proceeds are allocated before the later
+        // fund-level distribution, and only deal rows carry the tag.
+        let first_row = ledger.rows.first().expect("rows");
+        assert_eq!(first_row.deal_id.as_deref(), Some("DEAL-1"));
+        assert!(ledger
+            .rows
+            .iter()
+            .filter(|r| r.date == test_date(2021, 6, 1))
+            .all(|r| r.deal_id.is_none()));
+    }
+
+    #[test]
+    fn same_date_events_are_order_invariant() {
+        // A same-date contribution and distribution must produce the same
+        // economics regardless of caller input order: contributions are
+        // canonically processed first.
+        let spec = WaterfallSpec::builder()
+            .return_of_capital()
+            .promote_tier(0.0, 0.8, 0.2)
+            .build()
+            .expect("spec builds");
+
+        let contribution = FundEvent::contribution(
+            test_date(2020, 1, 1),
+            Money::new(1_000_000.0, test_currency()),
+        );
+        let same_day_call = FundEvent::contribution(
+            test_date(2022, 1, 1),
+            Money::new(500_000.0, test_currency()),
+        );
+        let distribution = FundEvent::distribution(
+            test_date(2022, 1, 1),
+            Money::new(1_200_000.0, test_currency()),
+        );
+
+        let engine = EquityWaterfallEngine::new(&spec);
+        let ledger_a = engine
+            .run(&[
+                contribution.clone(),
+                same_day_call.clone(),
+                distribution.clone(),
+            ])
+            .expect("runs");
+        let ledger_b = engine
+            .run(&[contribution, distribution, same_day_call])
+            .expect("runs");
+        assert_eq!(ledger_a.rows, ledger_b.rows);
+
+        // Same-day called capital is at risk before the distribution: the
+        // return-of-capital tier covers the full 1.5M of contributions.
+        let roc_lp: f64 = ledger_a
+            .rows
+            .iter()
+            .filter(|r| r.tranche.contains("Return of Capital"))
+            .map(|r| r.to_lp.amount())
+            .sum();
+        assert!(
+            (roc_lp - 1_200_000.0).abs() < 1e-6,
+            "distribution should be consumed by RoC against 1.5M unreturned, got {roc_lp}"
+        );
     }
 }
