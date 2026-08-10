@@ -139,6 +139,79 @@ pub(crate) fn evaluate_function(
             Ok(acc)
         }
 
+        // Element-wise math helpers. Semantics are shared with the core
+        // vector evaluator: `round`/`clamp` delegate to the
+        // `finstack_quant_core::math` helpers, the rest are plain IEEE 754
+        // `f64` operations, so the two layers cannot drift.
+        Function::Pow => {
+            require_args("pow", args, 2, node_id)?;
+            let base = evaluate_expr(&args[0], context, node_id)?;
+            let exponent = evaluate_expr(&args[1], context, node_id)?;
+            Ok(base.powf(exponent))
+        }
+
+        Function::Round => {
+            if args.is_empty() || args.len() > 2 {
+                return Err(eval_error(
+                    node_id,
+                    "round() requires 1 or 2 arguments (value, [digits])",
+                ));
+            }
+            let value = evaluate_expr(&args[0], context, node_id)?;
+            let digits = if args.len() == 2 {
+                crate::evaluator::formula::evaluate_integer_arg(
+                    "round", &args[1], context, node_id,
+                )?
+            } else {
+                0
+            };
+            Ok(finstack_quant_core::math::round_half_away(value, digits))
+        }
+
+        Function::Floor => {
+            require_args("floor", args, 1, node_id)?;
+            Ok(evaluate_expr(&args[0], context, node_id)?.floor())
+        }
+
+        Function::Ceil => {
+            require_args("ceil", args, 1, node_id)?;
+            Ok(evaluate_expr(&args[0], context, node_id)?.ceil())
+        }
+
+        Function::Ln => {
+            require_args("ln", args, 1, node_id)?;
+            Ok(evaluate_expr(&args[0], context, node_id)?.ln())
+        }
+
+        Function::Exp => {
+            require_args("exp", args, 1, node_id)?;
+            Ok(evaluate_expr(&args[0], context, node_id)?.exp())
+        }
+
+        Function::Log10 => {
+            require_args("log10", args, 1, node_id)?;
+            Ok(evaluate_expr(&args[0], context, node_id)?.log10())
+        }
+
+        Function::Sqrt => {
+            require_args("sqrt", args, 1, node_id)?;
+            Ok(evaluate_expr(&args[0], context, node_id)?.sqrt())
+        }
+
+        Function::Clamp => {
+            require_args("clamp", args, 3, node_id)?;
+            let value = evaluate_expr(&args[0], context, node_id)?;
+            let lo = evaluate_expr(&args[1], context, node_id)?;
+            let hi = evaluate_expr(&args[2], context, node_id)?;
+            Ok(finstack_quant_core::math::clamp_or_nan(value, lo, hi))
+        }
+
+        Function::IsMissing => {
+            require_args("is_missing", args, 1, node_id)?;
+            let value = evaluate_expr(&args[0], context, node_id)?;
+            Ok(if value.is_finite() { 0.0 } else { 1.0 })
+        }
+
         Function::Annualize => eval_annualize(args, context, node_id),
         Function::AnnualizeRate => eval_annualize_rate(args, context, node_id),
 

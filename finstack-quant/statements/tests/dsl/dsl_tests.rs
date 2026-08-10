@@ -261,6 +261,16 @@ fn function_names_arities_and_core_mappings_stay_in_sync() {
             2,
             Function::GrowthRate,
         ),
+        ("pow(growth, 2)", "pow", 2, Function::Pow),
+        ("round(revenue, 2)", "round", 2, Function::Round),
+        ("floor(revenue)", "floor", 1, Function::Floor),
+        ("ceil(revenue)", "ceil", 1, Function::Ceil),
+        ("ln(revenue)", "ln", 1, Function::Ln),
+        ("exp(growth)", "exp", 1, Function::Exp),
+        ("log10(revenue)", "log10", 1, Function::Log10),
+        ("sqrt(revenue)", "sqrt", 1, Function::Sqrt),
+        ("clamp(margin, 0, 1)", "clamp", 3, Function::Clamp),
+        ("is_missing(revenue)", "is_missing", 1, Function::IsMissing),
     ];
 
     for (formula, expected_name, expected_arity, expected_function) in cases {
@@ -362,6 +372,20 @@ fn malformed_and_unsupported_formulas_fail_at_the_public_boundary() {
         "abs(revenue, 1)",
         "sign()",
         "growth_rate(revenue, 1, 2)",
+        "pow(revenue)",
+        "pow(revenue, 2, 3)",
+        "round()",
+        "round(revenue, 2, 3)",
+        "floor(revenue, 1)",
+        "ceil()",
+        "ln(revenue, 1)",
+        "exp()",
+        "log10(revenue, 1)",
+        "sqrt()",
+        "clamp(revenue, 0)",
+        "clamp(revenue, 0, 1, 2)",
+        "is_missing()",
+        "is_missing(revenue, 1)",
     ];
 
     for formula in compile_failures {

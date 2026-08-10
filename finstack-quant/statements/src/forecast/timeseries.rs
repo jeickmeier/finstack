@@ -67,6 +67,10 @@ fn parse_historical_series(historical: &[serde_json::Value], context: &str) -> R
 /// * `method` - "linear", "exponential", "moving_average" (default: "linear")
 /// * `alpha` - Smoothing factor for exponential method (0-1, required for exponential)
 /// * `beta` - Trend smoothing factor for exponential method (0-1, required for exponential)
+/// * `phi` - Optional trend-damping factor for the exponential method, in
+///   (0, 1]; default 1.0 (classic undamped Holt). Values below 1 damp the
+///   trend so long-horizon forecasts level off instead of extrapolating
+///   linearly. Only valid with `method = "exponential"`.
 /// * `window` - Window size for moving average (required for moving_average)
 pub(super) fn timeseries_forecast(
     _base_value: f64,
@@ -99,6 +103,15 @@ pub(super) fn timeseries_forecast(
         .get("method")
         .and_then(|v| v.as_str())
         .unwrap_or("linear");
+
+    // `phi` (trend damping) only has meaning for exponential smoothing; a
+    // damping factor silently ignored on another method would be a no-op typo.
+    if params.contains_key("phi") && method != "exponential" {
+        return Err(Error::forecast(format!(
+            "'phi' is only valid with method = \"exponential\", but method is \"{method}\". \
+             Remove 'phi' or switch the method."
+        )));
+    }
 
     let mut result = IndexMap::new();
 
@@ -167,10 +180,41 @@ pub(super) fn timeseries_forecast(
                 )));
             }
 
-            let (level, trend) = double_exponential_smoothing(&hist_data, alpha, beta);
+            // Optional trend damping (damped Holt, Hyndman & Athanasopoulos §8.2).
+            // phi = 1.0 (default) is classic Holt; phi < 1 damps the trend so
+            // long-horizon forecasts converge to level + phi/(1-phi) * trend
+            // instead of extrapolating linearly forever.
+            let phi = match params.get("phi") {
+                None => 1.0,
+                Some(value) => {
+                    let phi = value.as_f64().ok_or_else(|| {
+                        Error::forecast(format!(
+                            "'phi' must be a number in (0, 1], got {value}. \
+                             Typical damping values: 0.8 to 0.98; phi = 1.0 is undamped Holt."
+                        ))
+                    })?;
+                    if !phi.is_finite() || phi <= 0.0 || phi > 1.0 {
+                        return Err(Error::forecast(format!(
+                            "phi must be in the half-open interval (0, 1], got {phi}. \
+                             phi=1 is classic (undamped) Holt; smaller values damp the trend \
+                             harder. Typical values: 0.8 to 0.98."
+                        )));
+                    }
+                    phi
+                }
+            };
 
-            for (i, period_id) in forecast_periods.iter().enumerate() {
-                let value = level + trend * (i + 1) as f64;
+            let (level, trend) = double_exponential_smoothing(&hist_data, alpha, beta, phi);
+
+            // Damped forecast function: ŷ_{t+h} = ℓ + (φ + φ² + … + φ^h)·b.
+            // With φ = 1 the damped sum accumulates exactly 1.0 per step, so
+            // it equals h and reproduces classic Holt bit-for-bit.
+            let mut damped_sum = 0.0;
+            let mut phi_pow = 1.0;
+            for period_id in forecast_periods {
+                phi_pow *= phi;
+                damped_sum += phi_pow;
+                let value = level + trend * damped_sum;
                 if !value.is_finite() {
                     return Err(Error::forecast(format!(
                         "Exponential smoothing produced a non-finite value at period {:?}",
@@ -308,8 +352,14 @@ fn calculate_linear_trend(data: &[f64]) -> (f64, f64) {
     (slope, intercept)
 }
 
-/// Double exponential smoothing (Holt's method)
-fn double_exponential_smoothing(data: &[f64], alpha: f64, beta: f64) -> (f64, f64) {
+/// Double exponential smoothing (Holt's method), optionally damped.
+///
+/// With `phi = 1.0` this is classic Holt; with `phi < 1.0` the trend is
+/// damped in both the smoothing recurrences and the forecast function
+/// (Hyndman & Athanasopoulos, "Forecasting: Principles and Practice", §8.2):
+/// `ℓ_t = α·y_t + (1−α)(ℓ_{t−1} + φ·b_{t−1})`,
+/// `b_t = β(ℓ_t − ℓ_{t−1}) + (1−β)·φ·b_{t−1}`.
+fn double_exponential_smoothing(data: &[f64], alpha: f64, beta: f64, phi: f64) -> (f64, f64) {
     if data.is_empty() {
         return (0.0, 0.0);
     }
@@ -324,8 +374,8 @@ fn double_exponential_smoothing(data: &[f64], alpha: f64, beta: f64) -> (f64, f6
 
     for &value in data.iter().skip(1) {
         let prev_level = level;
-        level = alpha * value + (1.0 - alpha) * (level + trend);
-        trend = beta * (level - prev_level) + (1.0 - beta) * trend;
+        level = alpha * value + (1.0 - alpha) * (level + phi * trend);
+        trend = beta * (level - prev_level) + (1.0 - beta) * phi * trend;
     }
 
     (level, trend)
@@ -802,11 +852,105 @@ mod tests {
     #[test]
     fn test_exponential_smoothing() {
         let data = vec![100.0, 110.0, 120.0, 130.0];
-        let (level, trend) = double_exponential_smoothing(&data, 0.5, 0.5);
+        let (level, trend) = double_exponential_smoothing(&data, 0.5, 0.5, 1.0);
 
         // Should detect upward trend
         assert!(level > 120.0);
         assert!(trend > 0.0);
+    }
+
+    fn holt_params(phi: Option<f64>) -> IndexMap<String, serde_json::Value> {
+        let mut params = indexmap::indexmap! {
+            "historical".to_string() => serde_json::json!([100.0, 110.0, 120.0, 130.0]),
+            "method".to_string() => serde_json::json!("exponential"),
+            "alpha".to_string() => serde_json::json!(0.3),
+            "beta".to_string() => serde_json::json!(0.1),
+        };
+        if let Some(phi) = phi {
+            params.insert("phi".to_string(), serde_json::json!(phi));
+        }
+        params
+    }
+
+    /// `phi = 1.0` must reproduce classic (undamped) Holt exactly — both the
+    /// smoothing recurrences and the forecast function reduce to the
+    /// pre-damping behavior.
+    #[test]
+    fn damped_holt_with_phi_one_matches_classic_holt() {
+        let periods = vec![
+            PeriodId::quarter(2025, 1),
+            PeriodId::quarter(2025, 2),
+            PeriodId::quarter(2025, 3),
+        ];
+        let undamped =
+            timeseries_forecast(0.0, &periods, &holt_params(None)).expect("classic Holt");
+        let phi_one =
+            timeseries_forecast(0.0, &periods, &holt_params(Some(1.0))).expect("phi = 1.0 Holt");
+        for pid in &periods {
+            assert!(
+                (undamped[pid] - phi_one[pid]).abs() < 1e-12,
+                "phi = 1.0 must be byte-identical to classic Holt at {pid:?}"
+            );
+        }
+    }
+
+    /// With `phi < 1` the h-step forecast is `ℓ + (φ + … + φ^h)·b`, which is
+    /// bounded above by the asymptote `ℓ + φ/(1−φ)·b` — the trend levels off
+    /// instead of extrapolating linearly.
+    #[test]
+    fn damped_holt_levels_off_at_asymptote() {
+        let phi = 0.8;
+        let periods: Vec<PeriodId> = (0..20)
+            .map(|i| PeriodId::quarter(2025 + i / 4, (i % 4 + 1) as u8))
+            .collect();
+        let damped =
+            timeseries_forecast(0.0, &periods, &holt_params(Some(phi))).expect("damped Holt");
+        let undamped =
+            timeseries_forecast(0.0, &periods, &holt_params(None)).expect("classic Holt");
+
+        // Recompute the asymptote from the damped smoothing state.
+        let (level, trend) =
+            double_exponential_smoothing(&[100.0, 110.0, 120.0, 130.0], 0.3, 0.1, phi);
+        let asymptote = level + trend * phi / (1.0 - phi);
+
+        let last = periods[periods.len() - 1];
+        assert!(
+            damped[&last] < undamped[&last],
+            "damping must pull long-horizon forecasts below the linear extrapolation"
+        );
+        assert!(
+            damped[&last] <= asymptote + 1e-9,
+            "damped forecast {:.6} must stay below its asymptote {asymptote:.6}",
+            damped[&last]
+        );
+        // The 20-step forecast should be close to (but not beyond) the asymptote.
+        assert!(
+            (asymptote - damped[&last]) / asymptote.abs() < 0.05,
+            "20-step damped forecast should approach the asymptote"
+        );
+    }
+
+    #[test]
+    fn damped_holt_rejects_out_of_range_phi() {
+        let periods = vec![PeriodId::quarter(2025, 1)];
+        for phi in [0.0, -0.5, 1.5, f64::INFINITY] {
+            let err = timeseries_forecast(0.0, &periods, &holt_params(Some(phi)))
+                .expect_err("out-of-range phi must be rejected");
+            assert!(err.to_string().contains("phi"), "{err}");
+        }
+    }
+
+    #[test]
+    fn phi_rejected_for_non_exponential_methods() {
+        let periods = vec![PeriodId::quarter(2025, 1)];
+        let params = indexmap::indexmap! {
+            "historical".to_string() => serde_json::json!([100.0, 110.0, 120.0]),
+            "method".to_string() => serde_json::json!("linear"),
+            "phi".to_string() => serde_json::json!(0.9),
+        };
+        let err = timeseries_forecast(0.0, &periods, &params)
+            .expect_err("phi on a non-exponential method must be rejected");
+        assert!(err.to_string().contains("only valid with method"), "{err}");
     }
 
     #[test]

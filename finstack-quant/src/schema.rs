@@ -262,6 +262,11 @@ impl Failure {
 
 /// Render a slice of failures as a JSON array.
 ///
+/// # Arguments
+///
+/// * `failures` - Validation failures to render; each becomes a
+///   `{pointer, message}` object in the returned array, preserving order.
+///
 /// # Examples
 /// ```
 /// use serde_json::json;

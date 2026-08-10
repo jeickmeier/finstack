@@ -633,6 +633,86 @@ class ForecastMethod:
         """
         ...
 
+    @staticmethod
+    def fade_to_target() -> ForecastMethod:
+        """
+        Glide from the base value to a ``target`` level over the forecast
+        horizon.
+
+        Shapes (``shape`` parameter, default ``"linear"``): ``"linear"``
+        reaches the target exactly at the final period; ``"geometric"`` is
+        constant compound growth (CAGR-to-terminal, requires base and target
+        non-zero with the same sign); ``"exponential"`` decays the remaining
+        gap by half every ``half_life`` periods and never quite reaches the
+        target. The workhorse for fading margins/ratios to a long-run
+        assumption (NIM normalization, cost-income convergence, ROE fade).
+
+        Returns
+        -------
+        ForecastMethod
+            Fade-to-target forecast method.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import ForecastMethod
+        >>> ForecastMethod.fade_to_target() == ForecastMethod.fade_to_target()
+        True
+
+        """
+        ...
+
+    @staticmethod
+    def mean_reverting() -> ForecastMethod:
+        """
+        Mean-reverting AR(1) path:
+        ``v[t] = v[t-1] + reversion_speed * (long_run_mean - v[t-1]) + std_dev * z[t]``.
+
+        ``long_run_mean`` and ``std_dev`` are in the node's own units;
+        ``reversion_speed`` is the fraction of the gap closed each period, in
+        ``(0, 1]``. ``z[t]`` is a deterministic standard-normal draw derived
+        from the configured seed. Use for autocorrelated series that revert
+        toward a through-the-cycle level (spreads, charge-off rates, NIM).
+
+        Returns
+        -------
+        ForecastMethod
+            Mean-reverting forecast method.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import ForecastMethod
+        >>> ForecastMethod.mean_reverting() == ForecastMethod.mean_reverting()
+        True
+
+        """
+        ...
+
+    @staticmethod
+    def bootstrap() -> ForecastMethod:
+        """
+        Historical bootstrap: resample observed per-period changes with
+        replacement (deterministic with seed).
+
+        ``mode = "growth"`` (default) resamples period-over-period growth
+        rates from a strictly positive ``historical`` series and compounds
+        them; ``mode = "diff"`` resamples additive level changes and works
+        for series that cross zero. Reproduces the empirical distribution of
+        changes — including fat tails — without a normality assumption.
+
+        Returns
+        -------
+        ForecastMethod
+            Bootstrap forecast method.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import ForecastMethod
+        >>> ForecastMethod.bootstrap() == ForecastMethod.bootstrap()
+        True
+
+        """
+        ...
+
     def __eq__(self, other: object) -> bool:
         """Return whether two forecast method tokens are equal."""
         ...
@@ -670,8 +750,12 @@ class ForecastSpec:
         params_json:
             JSON object of method-specific parameters (``rate``, ``curve``,
             ``mean``, ``std_dev``, ``seed``, ``overrides``, ``season_length``,
-            ...). Rates are decimal fractions per period. ``None`` means no
-            parameters, which is only valid for ``forward_fill``.
+            ``target``, ``shape``, ``half_life``, ``long_run_mean``,
+            ``reversion_speed``, ``historical``, ``mode``, ``phi``, ...).
+            Rates are decimal fractions per period. Every method also accepts
+            optional ``min`` / ``max`` bounds that clamp generated values to a
+            band (in the node's own units). ``None`` means no parameters,
+            which is only valid for ``forward_fill``.
 
         Raises
         ------
@@ -815,6 +899,111 @@ class ForecastSpec:
         --------
         >>> from finstack_quant.statements import ForecastSpec
         >>> spec = ForecastSpec.lognormal(0.0, 0.1, 7)
+        >>> ForecastSpec.from_json(spec.to_json()).to_json() == spec.to_json()
+        True
+
+        """
+        ...
+
+    @staticmethod
+    def fade_to_target(target: float) -> ForecastSpec:
+        """
+        Linear fade-to-target spec:
+        ``v[t] = base + (target - base) * t / N``.
+
+        Values glide from the last observed value to ``target`` in equal
+        steps, reaching it exactly at the final forecast period. For the
+        ``"geometric"`` (CAGR-to-terminal) or ``"exponential"`` (half-life)
+        shapes, construct ``ForecastSpec(ForecastMethod.fade_to_target(),
+        params_json)`` with ``shape`` and, for exponential, ``half_life``.
+
+        Parameters
+        ----------
+        target:
+            Terminal level in the node's own units (a currency amount for
+            monetary nodes, a decimal ratio for scalar nodes such as margins).
+
+        Returns
+        -------
+        ForecastSpec
+            A linear fade-to-target forecast specification.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import ForecastSpec
+        >>> spec = ForecastSpec.fade_to_target(0.02)
+        >>> ForecastSpec.from_json(spec.to_json()).to_json() == spec.to_json()
+        True
+
+        """
+        ...
+
+    @staticmethod
+    def mean_reverting(long_run_mean: float, reversion_speed: float, std_dev: float, seed: int) -> ForecastSpec:
+        """
+        Mean-reverting AR(1) spec:
+        ``v[t] = v[t-1] + reversion_speed * (long_run_mean - v[t-1]) + std_dev * z[t]``.
+
+        Parameters
+        ----------
+        long_run_mean:
+            Level the series reverts toward, in the node's own units
+            (currency amount for monetary nodes, decimal ratio for scalars).
+        reversion_speed:
+            Fraction of the gap closed each period, in ``(0, 1]``; 1.0
+            reverts fully every period, values near 0 revert slowly.
+        std_dev:
+            Per-period additive shock volatility in the node's own units;
+            must be non-negative. Zero gives deterministic geometric decay of
+            the gap.
+        seed:
+            Seed for the deterministic standard-normal draws. The evaluator
+            mixes a stable hash of the node id into it, so two nodes sharing
+            a seed still receive independent shocks.
+
+        Returns
+        -------
+        ForecastSpec
+            A mean-reverting forecast specification.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import ForecastSpec
+        >>> spec = ForecastSpec.mean_reverting(0.05, 0.25, 0.01, 7)
+        >>> ForecastSpec.from_json(spec.to_json()).to_json() == spec.to_json()
+        True
+
+        """
+        ...
+
+    @staticmethod
+    def bootstrap(historical: list[float], seed: int) -> ForecastSpec:
+        """
+        Growth-mode bootstrap spec: resample historical growth rates and
+        compound them from the base value.
+
+        The history must be strictly positive in growth mode. For additive
+        resampling of level changes (series that cross zero), construct
+        ``ForecastSpec(ForecastMethod.bootstrap(), params_json)`` with
+        ``mode = "diff"``.
+
+        Parameters
+        ----------
+        historical:
+            At least 2 historical values in the node's own units, oldest
+            first; consecutive pairs define the resampled growth rates.
+        seed:
+            Seed for the deterministic resampling draws.
+
+        Returns
+        -------
+        ForecastSpec
+            A growth-mode bootstrap forecast specification.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import ForecastSpec
+        >>> spec = ForecastSpec.bootstrap([100.0, 105.0, 110.0], 7)
         >>> ForecastSpec.from_json(spec.to_json()).to_json() == spec.to_json()
         True
 

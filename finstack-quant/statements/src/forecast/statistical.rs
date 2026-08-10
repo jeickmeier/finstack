@@ -373,6 +373,327 @@ pub(crate) fn lognormal_forecast_with_stream(
     Ok(results)
 }
 
+/// Parameters for the mean-reverting AR(1) forecast.
+struct MeanRevertingParams {
+    long_run_mean: f64,
+    reversion_speed: f64,
+    std_dev: f64,
+    seed: u64,
+}
+
+/// Extract and validate mean-reverting AR(1) parameters from the params map.
+fn extract_mean_reverting_params(
+    params: &IndexMap<String, serde_json::Value>,
+) -> Result<MeanRevertingParams> {
+    let long_run_mean = params
+        .get("long_run_mean")
+        .and_then(|v| v.as_f64())
+        .ok_or_else(|| {
+            Error::forecast(
+                "Missing or invalid 'long_run_mean' parameter for MeanReverting forecast. \
+                 Expected a finite number (the level the series reverts toward).",
+            )
+        })?;
+    let reversion_speed = params
+        .get("reversion_speed")
+        .and_then(|v| v.as_f64())
+        .ok_or_else(|| {
+            Error::forecast(
+                "Missing or invalid 'reversion_speed' parameter for MeanReverting forecast. \
+                 Expected a number in (0, 1] (fraction of the gap closed each period).",
+            )
+        })?;
+    let std_dev = params
+        .get("std_dev")
+        .and_then(|v| v.as_f64())
+        .ok_or_else(|| {
+            Error::forecast(
+                "Missing or invalid 'std_dev' parameter for MeanReverting forecast. \
+                 Expected a non-negative number (per-period shock volatility).",
+            )
+        })?;
+    let seed = params
+        .get("seed")
+        .and_then(parse_seed_json)
+        .ok_or_else(|| {
+            Error::forecast(
+                "Missing or invalid 'seed' parameter for MeanReverting forecast. \
+                 A non-negative integer seed is required for deterministic sampling (e.g., 42).",
+            )
+        })?;
+
+    if !long_run_mean.is_finite() {
+        return Err(Error::forecast(format!(
+            "MeanReverting 'long_run_mean' must be finite, got {long_run_mean}"
+        )));
+    }
+    if !reversion_speed.is_finite() || reversion_speed <= 0.0 || reversion_speed > 1.0 {
+        return Err(Error::forecast(format!(
+            "MeanReverting 'reversion_speed' must be in (0, 1], got {reversion_speed}. \
+             1.0 reverts fully to the long-run mean each period; values near 0 revert slowly."
+        )));
+    }
+    if !std_dev.is_finite() || std_dev < 0.0 {
+        return Err(Error::forecast(format!(
+            "MeanReverting 'std_dev' must be a non-negative finite number, got {std_dev}"
+        )));
+    }
+
+    Ok(MeanRevertingParams {
+        long_run_mean,
+        reversion_speed,
+        std_dev,
+        seed,
+    })
+}
+
+/// Mean-reverting AR(1) forecast (deterministic with seed).
+///
+/// Produces an Ornstein–Uhlenbeck-style discrete path starting from
+/// `base_value`:
+/// `value[t] = value[t-1] + reversion_speed * (long_run_mean - value[t-1]) + std_dev * z[t]`.
+///
+/// Use this for autocorrelated series that revert toward a through-the-cycle
+/// level — credit spreads, charge-off rates, net interest margins.
+///
+/// # Arguments
+///
+/// * `base_value` - Starting level for the mean-reverting walk; must be finite
+/// * `forecast_periods` - Periods to simulate
+/// * `params` - JSON parameter map containing `long_run_mean` (level the
+///   series reverts toward, node units), `reversion_speed` (fraction of the
+///   gap closed per period, in `(0, 1]`), `std_dev` (per-period additive
+///   shock volatility, non-negative), and `seed` (integer-like, required for
+///   deterministic sampling)
+///
+/// # Returns
+///
+/// Returns one simulated scalar per forecast period forming a path.
+///
+/// # Errors
+///
+/// Returns an error if the parameter map is incomplete or out of range, if
+/// `base_value` is non-finite, or if simulation produces a non-finite value.
+///
+/// # References
+///
+/// - Monte Carlo simulation practice: `docs/REFERENCES.md#glasserman-2004-monte-carlo`
+pub(super) fn mean_reverting_forecast(
+    base_value: f64,
+    forecast_periods: &[PeriodId],
+    params: &IndexMap<String, serde_json::Value>,
+) -> Result<IndexMap<PeriodId, f64>> {
+    mean_reverting_forecast_with_stream(base_value, forecast_periods, params, None)
+}
+
+pub(crate) fn mean_reverting_forecast_with_stream(
+    base_value: f64,
+    forecast_periods: &[PeriodId],
+    params: &IndexMap<String, serde_json::Value>,
+    stream_id: Option<u64>,
+) -> Result<IndexMap<PeriodId, f64>> {
+    let p = extract_mean_reverting_params(params)?;
+
+    if !base_value.is_finite() {
+        return Err(Error::forecast(format!(
+            "MeanReverting forecast requires a finite base_value, got {base_value}"
+        )));
+    }
+
+    let mut rng = build_rng(p.seed, stream_id);
+    let mut results = IndexMap::new();
+    let mut prev = base_value;
+
+    for period_id in forecast_periods {
+        let z = rng.normal(0.0, 1.0);
+        let value = prev + p.reversion_speed * (p.long_run_mean - prev) + p.std_dev * z;
+        if !value.is_finite() {
+            return Err(Error::forecast(format!(
+                "MeanReverting forecast produced a non-finite value at period {:?}",
+                period_id
+            )));
+        }
+        results.insert(*period_id, value);
+        prev = value;
+    }
+
+    Ok(results)
+}
+
+/// Bootstrap resampling mode: what the historical series is resampled as.
+enum BootstrapMode {
+    /// Resample period-over-period growth rates and compound multiplicatively.
+    Growth,
+    /// Resample additive level changes.
+    Diff,
+}
+
+/// Parameters for the historical-bootstrap forecast.
+struct BootstrapParams {
+    /// Resampled per-step increments: growth rates or level diffs.
+    increments: Vec<f64>,
+    mode: BootstrapMode,
+    seed: u64,
+}
+
+/// Extract and validate bootstrap parameters from the params map.
+fn extract_bootstrap_params(
+    params: &IndexMap<String, serde_json::Value>,
+) -> Result<BootstrapParams> {
+    let historical = params
+        .get("historical")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| {
+            Error::forecast(
+                "Missing or invalid 'historical' parameter for Bootstrap forecast. \
+                 Expected an array of at least 2 numbers (oldest first).",
+            )
+        })?;
+    if historical.len() < 2 {
+        return Err(Error::forecast(format!(
+            "Bootstrap forecast needs at least 2 historical values to derive increments, \
+             got {}. Provide more history in the 'historical' parameter.",
+            historical.len()
+        )));
+    }
+    let mut hist = Vec::with_capacity(historical.len());
+    for (idx, value) in historical.iter().enumerate() {
+        let number = value.as_f64().filter(|n| n.is_finite()).ok_or_else(|| {
+            Error::forecast(format!(
+                "Bootstrap historical value at index {idx} must be a finite number, got {value}"
+            ))
+        })?;
+        hist.push(number);
+    }
+
+    let mode = match params.get("mode") {
+        None => BootstrapMode::Growth,
+        Some(value) => match value.as_str() {
+            Some("growth") => BootstrapMode::Growth,
+            Some("diff") => BootstrapMode::Diff,
+            _ => {
+                return Err(Error::forecast(format!(
+                    "Bootstrap 'mode' must be \"growth\" or \"diff\", got {value}"
+                )));
+            }
+        },
+    };
+
+    let seed = params
+        .get("seed")
+        .and_then(parse_seed_json)
+        .ok_or_else(|| {
+            Error::forecast(
+                "Missing or invalid 'seed' parameter for Bootstrap forecast. \
+                 A non-negative integer seed is required for deterministic resampling (e.g., 42).",
+            )
+        })?;
+
+    let increments = match mode {
+        BootstrapMode::Growth => {
+            if hist.iter().any(|&h| h <= 0.0) {
+                return Err(Error::forecast(
+                    "Bootstrap growth mode requires strictly positive historical values \
+                     (growth rates are derived from consecutive ratios). Use mode = \"diff\" \
+                     for series that touch zero or change sign."
+                        .to_string(),
+                ));
+            }
+            hist.windows(2).map(|w| w[1] / w[0] - 1.0).collect()
+        }
+        BootstrapMode::Diff => hist.windows(2).map(|w| w[1] - w[0]).collect(),
+    };
+
+    Ok(BootstrapParams {
+        increments,
+        mode,
+        seed,
+    })
+}
+
+/// Historical bootstrap forecast (deterministic with seed).
+///
+/// Resamples per-period increments observed in a historical series (i.i.d.,
+/// with replacement) and applies them sequentially from `base_value`:
+///
+/// - `mode = "growth"` (default): increments are period-over-period growth
+///   rates `h[i]/h[i-1] - 1`; the path compounds
+///   `value[t] = value[t-1] * (1 + g*)`. Requires strictly positive history.
+/// - `mode = "diff"`: increments are additive level changes `h[i] - h[i-1]`;
+///   the path accumulates `value[t] = value[t-1] + d*`. Works for series
+///   that cross zero.
+///
+/// Unlike the parametric Normal/LogNormal methods, the bootstrap reproduces
+/// the empirical distribution of observed changes — including fat tails —
+/// without a normality assumption.
+///
+/// # Arguments
+///
+/// * `base_value` - Starting level for the resampled path; must be finite
+/// * `forecast_periods` - Periods to simulate
+/// * `params` - JSON parameter map containing `historical` (array of at
+///   least 2 finite numbers in the node's own units, oldest first), optional
+///   `mode` (`"growth"` default or `"diff"`), and `seed` (integer-like,
+///   required for deterministic resampling)
+///
+/// # Returns
+///
+/// Returns one simulated scalar per forecast period forming a path.
+///
+/// # Errors
+///
+/// Returns an error if the parameter map is incomplete or malformed, if the
+/// history is too short or non-finite, if growth mode is requested with
+/// non-positive history, or if the path produces a non-finite value.
+pub(super) fn bootstrap_forecast(
+    base_value: f64,
+    forecast_periods: &[PeriodId],
+    params: &IndexMap<String, serde_json::Value>,
+) -> Result<IndexMap<PeriodId, f64>> {
+    bootstrap_forecast_with_stream(base_value, forecast_periods, params, None)
+}
+
+pub(crate) fn bootstrap_forecast_with_stream(
+    base_value: f64,
+    forecast_periods: &[PeriodId],
+    params: &IndexMap<String, serde_json::Value>,
+    stream_id: Option<u64>,
+) -> Result<IndexMap<PeriodId, f64>> {
+    let p = extract_bootstrap_params(params)?;
+
+    if !base_value.is_finite() {
+        return Err(Error::forecast(format!(
+            "Bootstrap forecast requires a finite base_value, got {base_value}"
+        )));
+    }
+
+    let mut rng = build_rng(p.seed, stream_id);
+    let mut results = IndexMap::new();
+    let mut prev = base_value;
+    let n = p.increments.len();
+
+    for period_id in forecast_periods {
+        // Uniform in [0, 1) scaled to an index; the min() guards the
+        // (unreachable in exact arithmetic) u == 1.0 edge.
+        let idx = ((rng.uniform() * n as f64) as usize).min(n - 1);
+        let value = match p.mode {
+            BootstrapMode::Growth => prev * (1.0 + p.increments[idx]),
+            BootstrapMode::Diff => prev + p.increments[idx],
+        };
+        if !value.is_finite() {
+            return Err(Error::forecast(format!(
+                "Bootstrap forecast produced a non-finite value at period {:?}. \
+                 Consider fewer periods or less extreme historical increments.",
+                period_id
+            )));
+        }
+        results.insert(*period_id, value);
+        prev = value;
+    }
+
+    Ok(results)
+}
+
 /// Store standard-normal Z scores for independent Monte Carlo forecasts so peers can
 /// correlate in a later [`crate::evaluator::forecast_eval::evaluate_forecast`] pass.
 ///
@@ -460,6 +781,33 @@ pub(crate) fn record_independent_z_scores_for_mc(
                 }
             }
         }
+        ForecastMethod::MeanReverting => {
+            let p = extract_mean_reverting_params(params)?;
+            if !base_value.is_finite() {
+                return Err(Error::forecast(format!(
+                    "Monte Carlo Z-score recording for '{node_id}' requires a finite \
+                     base_value, got {base_value}"
+                )));
+            }
+            let entry = mc_z_cache.entry(node_id.clone()).or_default();
+            let mut prev = base_value;
+            for pid in forecast_periods {
+                let v = *values.get(pid).ok_or_else(|| {
+                    Error::forecast(format!(
+                        "Monte Carlo forecast missing value for period {:?}",
+                        pid
+                    ))
+                })?;
+                // Inverts v_t = v_{t-1} + κ(θ − v_{t-1}) + σ·z_t.
+                let z = if p.std_dev == 0.0 {
+                    0.0
+                } else {
+                    (v - prev - p.reversion_speed * (p.long_run_mean - prev)) / p.std_dev
+                };
+                entry.insert(*pid, z);
+                prev = v;
+            }
+        }
         _ => {}
     }
     Ok(())
@@ -467,7 +815,7 @@ pub(crate) fn record_independent_z_scores_for_mc(
 
 /// Inputs for [`monte_carlo_correlated_series`].
 pub(crate) struct CorrelatedMonteCarloSeries<'a> {
-    /// Forecast method (Normal or LogNormal only).
+    /// Forecast method (Normal, LogNormal, or MeanReverting only).
     pub method: ForecastMethod,
     /// Method parameters.
     pub params: &'a IndexMap<String, serde_json::Value>,
@@ -481,12 +829,13 @@ pub(crate) struct CorrelatedMonteCarloSeries<'a> {
     pub mc_z_cache: &'a IndexMap<NodeId, IndexMap<PeriodId, f64>>,
 }
 
-/// Correlated Normal / LogNormal series for Monte Carlo.
+/// Correlated Normal / LogNormal / MeanReverting series for Monte Carlo.
 ///
 /// The shock `z_t = ρ·z_peer + sqrt(1-ρ²)·z_indep` is applied in the **same
 /// recurrence** as the independent forecast paths
-/// ([`normal_forecast_with_stream`], [`lognormal_forecast_with_stream`]) so
-/// correlated and uncorrelated outputs live on the same process:
+/// ([`normal_forecast_with_stream`], [`lognormal_forecast_with_stream`],
+/// [`mean_reverting_forecast_with_stream`]) so correlated and uncorrelated
+/// outputs live on the same process:
 ///
 /// - Normal: additive random walk `v_t = v_{t-1} + mean + std_dev * z_t`
 ///   anchored at `base_value`.
@@ -495,6 +844,8 @@ pub(crate) struct CorrelatedMonteCarloSeries<'a> {
 /// - LogNormal zero-base fallback (`base_value == 0.0`): i.i.d.
 ///   `exp((mean - 0.5*std_dev²) + std_dev * z_t)`. Negative and non-finite
 ///   bases are rejected.
+/// - MeanReverting: AR(1)
+///   `v_t = v_{t-1} + reversion_speed·(long_run_mean - v_{t-1}) + std_dev * z_t`.
 ///
 /// Matches the shock convention recorded by
 /// [`record_independent_z_scores_for_mc`] so linear correlation of the
@@ -560,18 +911,35 @@ pub(crate) fn monte_carlo_correlated_series(
         )));
     }
 
-    let p = match method {
-        ForecastMethod::Normal => extract_distribution_params(params, "Normal")?,
-        ForecastMethod::LogNormal => extract_distribution_params(params, "LogNormal")?,
+    /// Per-method recurrence parameters for the correlated path.
+    enum Kernel {
+        Normal(DistributionParams),
+        LogNormal(DistributionParams),
+        MeanReverting(MeanRevertingParams),
+    }
+
+    let kernel = match method {
+        ForecastMethod::Normal => Kernel::Normal(extract_distribution_params(params, "Normal")?),
+        ForecastMethod::LogNormal => {
+            Kernel::LogNormal(extract_distribution_params(params, "LogNormal")?)
+        }
+        ForecastMethod::MeanReverting => {
+            Kernel::MeanReverting(extract_mean_reverting_params(params)?)
+        }
         _ => {
             return Err(Error::forecast(
-                "Monte Carlo correlation is only supported for Normal and LogNormal forecasts"
+                "Monte Carlo correlation is only supported for Normal, LogNormal, and \
+                 MeanReverting forecasts"
                     .to_string(),
             ));
         }
     };
+    let seed = match &kernel {
+        Kernel::Normal(p) | Kernel::LogNormal(p) => p.seed,
+        Kernel::MeanReverting(p) => p.seed,
+    };
 
-    let mut rng = Pcg64Rng::new_with_stream(p.seed ^ stable_hash_u64(node_id), seed_offset);
+    let mut rng = Pcg64Rng::new_with_stream(seed ^ stable_hash_u64(node_id), seed_offset);
     let mut values = IndexMap::new();
     let mut z_out = IndexMap::new();
     let mut prev = base_value;
@@ -598,9 +966,9 @@ pub(crate) fn monte_carlo_correlated_series(
         let z = rho * z_peer + indep_weight * z_indep;
         z_out.insert(*period_id, z);
 
-        let value = match method {
-            ForecastMethod::Normal => prev + p.mean + p.std_dev * z,
-            ForecastMethod::LogNormal if use_path => {
+        let value = match &kernel {
+            Kernel::Normal(p) => prev + p.mean + p.std_dev * z,
+            Kernel::LogNormal(p) if use_path => {
                 let log_return = (p.mean - 0.5 * p.std_dev * p.std_dev) + p.std_dev * z;
                 if log_return.abs() > EXP_CLAMP {
                     tracing::warn!(
@@ -611,7 +979,7 @@ pub(crate) fn monte_carlo_correlated_series(
                 }
                 prev * log_return.clamp(-EXP_CLAMP, EXP_CLAMP).exp()
             }
-            ForecastMethod::LogNormal => {
+            Kernel::LogNormal(p) => {
                 // base_value = 0 fallback: i.i.d. exp((mean − σ²/2) + σz),
                 // same Itô-corrected drift convention as the geometric path.
                 let normal_value = (p.mean - 0.5 * p.std_dev * p.std_dev) + p.std_dev * z;
@@ -624,11 +992,8 @@ pub(crate) fn monte_carlo_correlated_series(
                 }
                 normal_value.clamp(-EXP_CLAMP, EXP_CLAMP).exp()
             }
-            _ => {
-                return Err(Error::forecast(
-                    "Monte Carlo correlation is only supported for Normal and LogNormal forecasts"
-                        .to_string(),
-                ));
+            Kernel::MeanReverting(p) => {
+                prev + p.reversion_speed * (p.long_run_mean - prev) + p.std_dev * z
             }
         };
 
@@ -639,7 +1004,12 @@ pub(crate) fn monte_carlo_correlated_series(
             )));
         }
         values.insert(*period_id, value);
-        if use_path || matches!(method, ForecastMethod::Normal) {
+        if use_path
+            || matches!(
+                method,
+                ForecastMethod::Normal | ForecastMethod::MeanReverting
+            )
+        {
             prev = value;
         }
     }
@@ -919,6 +1289,259 @@ mod tests {
             err.to_string().contains("negative") || err.to_string().contains("non-negative"),
             "error should flag the negative base: {err}"
         );
+    }
+
+    fn mean_reverting_params() -> IndexMap<String, serde_json::Value> {
+        let mut params = IndexMap::new();
+        params.insert("long_run_mean".to_string(), serde_json::json!(0.05));
+        params.insert("reversion_speed".to_string(), serde_json::json!(0.25));
+        params.insert("std_dev".to_string(), serde_json::json!(0.01));
+        params.insert("seed".to_string(), serde_json::json!(42));
+        params
+    }
+
+    #[test]
+    fn mean_reverting_is_deterministic_per_seed() {
+        let periods = vec![PeriodId::quarter(2025, 1), PeriodId::quarter(2025, 2)];
+        let params = mean_reverting_params();
+        let a = mean_reverting_forecast(0.10, &periods, &params).expect("forecast");
+        let b = mean_reverting_forecast(0.10, &periods, &params).expect("forecast");
+        assert_eq!(a, b);
+
+        let mut other_seed = params;
+        other_seed.insert("seed".to_string(), serde_json::json!(43));
+        let c = mean_reverting_forecast(0.10, &periods, &other_seed).expect("forecast");
+        assert_ne!(a[&periods[0]], c[&periods[0]]);
+    }
+
+    /// With `std_dev = 0` the AR(1) recurrence is deterministic geometric
+    /// decay of the gap: `gap_t = (1 - κ)^t · gap_0`.
+    #[test]
+    fn mean_reverting_zero_vol_decays_gap_geometrically() {
+        let periods: Vec<PeriodId> = (1..=4).map(|q| PeriodId::quarter(2025, q)).collect();
+        let mut params = mean_reverting_params();
+        params.insert("std_dev".to_string(), serde_json::json!(0.0));
+
+        let results = mean_reverting_forecast(0.10, &periods, &params).expect("forecast");
+        let theta = 0.05;
+        let kappa: f64 = 0.25;
+        for (i, pid) in periods.iter().enumerate() {
+            let expected = theta + (0.10 - theta) * (1.0 - kappa).powi(i as i32 + 1);
+            assert!(
+                (results[pid] - expected).abs() < 1e-12,
+                "period {i}: expected {expected}, got {}",
+                results[pid]
+            );
+        }
+    }
+
+    #[test]
+    fn mean_reverting_rejects_out_of_range_reversion_speed() {
+        let periods = vec![PeriodId::quarter(2025, 1)];
+        for speed in [0.0, -0.5, 1.5, f64::NAN] {
+            let mut params = mean_reverting_params();
+            params.insert("reversion_speed".to_string(), serde_json::json!(speed));
+            let err = mean_reverting_forecast(0.10, &periods, &params)
+                .expect_err("out-of-range reversion_speed");
+            assert!(err.to_string().contains("reversion_speed"), "{err}");
+        }
+    }
+
+    #[test]
+    fn mean_reverting_rejects_missing_parameters_and_bad_base() {
+        let periods = vec![PeriodId::quarter(2025, 1)];
+        for missing in ["long_run_mean", "reversion_speed", "std_dev", "seed"] {
+            let mut params = mean_reverting_params();
+            params.shift_remove(missing);
+            assert!(
+                mean_reverting_forecast(0.10, &periods, &params).is_err(),
+                "missing '{missing}' must be rejected"
+            );
+        }
+        assert!(mean_reverting_forecast(f64::NAN, &periods, &mean_reverting_params()).is_err());
+    }
+
+    /// The Z-score recorder must invert the AR(1) recurrence exactly: the
+    /// recorded shocks must reproduce the raw normals the generator drew.
+    #[test]
+    fn mean_reverting_z_recording_inverts_the_generator() {
+        let periods = vec![PeriodId::quarter(2025, 1), PeriodId::quarter(2025, 2)];
+        let params = mean_reverting_params();
+        let node = NodeId::new("nim");
+
+        let values = mean_reverting_forecast_with_stream(0.10, &periods, &params, Some(5))
+            .expect("forecast");
+        let mut cache: IndexMap<NodeId, IndexMap<PeriodId, f64>> = IndexMap::new();
+        record_independent_z_scores_for_mc(
+            ForecastMethod::MeanReverting,
+            &params,
+            &periods,
+            &values,
+            0.10,
+            &node,
+            &mut cache,
+        )
+        .expect("record z-scores");
+
+        let mut rng = build_rng(42, Some(5));
+        for pid in &periods {
+            let expected_z = rng.normal(0.0, 1.0);
+            let recorded_z = cache[&node][pid];
+            assert!(
+                (recorded_z - expected_z).abs() < 1e-12,
+                "recorded z {recorded_z} must invert the generator's draw {expected_z}"
+            );
+        }
+    }
+
+    /// With ρ = ±1 the correlated series' shocks must equal (mirror) the
+    /// peer's Z-scores exactly, applied through the AR(1) recurrence.
+    #[test]
+    fn mean_reverting_correlated_series_mixes_peer_shocks() {
+        let periods = vec![PeriodId::quarter(2025, 1), PeriodId::quarter(2025, 2)];
+        let peer_z = [0.7, -1.2];
+        let mut cache: IndexMap<NodeId, IndexMap<PeriodId, f64>> = IndexMap::new();
+        let entry = cache.entry(NodeId::new("peer")).or_default();
+        for (pid, z) in periods.iter().zip(peer_z) {
+            entry.insert(*pid, z);
+        }
+
+        for rho in [1.0, -1.0] {
+            let mut params = mean_reverting_params();
+            params.insert("correlation_with".to_string(), serde_json::json!("peer"));
+            params.insert("correlation".to_string(), serde_json::json!(rho));
+
+            let (values, z_out) = monte_carlo_correlated_series(CorrelatedMonteCarloSeries {
+                method: ForecastMethod::MeanReverting,
+                params: &params,
+                base_value: 0.10,
+                forecast_periods: &periods,
+                seed_offset: 1,
+                node_id: "node",
+                peer_id: "peer",
+                rho,
+                mc_z_cache: &cache,
+            })
+            .expect("correlated series");
+
+            let theta = 0.05;
+            let kappa = 0.25;
+            let sigma = 0.01;
+            let mut prev = 0.10;
+            for (pid, z_peer) in periods.iter().zip(peer_z) {
+                let z = rho * z_peer;
+                assert!((z_out[pid] - z).abs() < 1e-12);
+                let expected = prev + kappa * (theta - prev) + sigma * z;
+                assert!(
+                    (values[pid] - expected).abs() < 1e-12,
+                    "rho = {rho}: expected {expected}, got {}",
+                    values[pid]
+                );
+                prev = expected;
+            }
+        }
+    }
+
+    fn bootstrap_params() -> IndexMap<String, serde_json::Value> {
+        let mut params = IndexMap::new();
+        params.insert(
+            "historical".to_string(),
+            serde_json::json!([100.0, 105.0, 99.75, 109.725]),
+        );
+        params.insert("seed".to_string(), serde_json::json!(42));
+        params
+    }
+
+    #[test]
+    fn bootstrap_is_deterministic_per_seed() {
+        let periods = vec![PeriodId::quarter(2025, 1), PeriodId::quarter(2025, 2)];
+        let params = bootstrap_params();
+        let a = bootstrap_forecast(100.0, &periods, &params).expect("forecast");
+        let b = bootstrap_forecast(100.0, &periods, &params).expect("forecast");
+        assert_eq!(a, b);
+
+        let mut other_seed = params;
+        other_seed.insert("seed".to_string(), serde_json::json!(43));
+        let c = bootstrap_forecast(100.0, &periods, &other_seed).expect("forecast");
+        assert_ne!(a, c);
+    }
+
+    /// Growth mode resamples the observed rates {+5%, -5%, +10%}; every step
+    /// must compound one of exactly those rates and stay positive.
+    #[test]
+    fn bootstrap_growth_mode_resamples_observed_rates() {
+        let periods: Vec<PeriodId> = (1..=4).map(|q| PeriodId::quarter(2025, q)).collect();
+        let results = bootstrap_forecast(100.0, &periods, &bootstrap_params()).expect("forecast");
+
+        let observed_rates = [0.05, -0.05, 0.10];
+        let mut prev = 100.0;
+        for pid in &periods {
+            let value = results[pid];
+            assert!(value > 0.0);
+            let rate = value / prev - 1.0;
+            assert!(
+                observed_rates.iter().any(|r| (rate - r).abs() < 1e-9),
+                "step rate {rate} is not one of the observed rates"
+            );
+            prev = value;
+        }
+    }
+
+    /// Diff mode resamples level changes {+5, -5.25, +9.975} and works for
+    /// sign-crossing series that growth mode must reject.
+    #[test]
+    fn bootstrap_diff_mode_handles_sign_crossing_history() {
+        let periods: Vec<PeriodId> = (1..=4).map(|q| PeriodId::quarter(2025, q)).collect();
+        let mut params = IndexMap::new();
+        params.insert(
+            "historical".to_string(),
+            serde_json::json!([-10.0, 5.0, -2.0, 8.0]),
+        );
+        params.insert("mode".to_string(), serde_json::json!("diff"));
+        params.insert("seed".to_string(), serde_json::json!(7));
+
+        let results = bootstrap_forecast(0.0, &periods, &params).expect("forecast");
+        let observed_diffs = [15.0, -7.0, 10.0];
+        let mut prev = 0.0;
+        for pid in &periods {
+            let diff = results[pid] - prev;
+            assert!(
+                observed_diffs.iter().any(|d| (diff - d).abs() < 1e-9),
+                "step diff {diff} is not one of the observed diffs"
+            );
+            prev = results[pid];
+        }
+    }
+
+    #[test]
+    fn bootstrap_growth_mode_rejects_non_positive_history() {
+        let periods = vec![PeriodId::quarter(2025, 1)];
+        let mut params = bootstrap_params();
+        params.insert(
+            "historical".to_string(),
+            serde_json::json!([100.0, 0.0, 50.0]),
+        );
+        let err = bootstrap_forecast(100.0, &periods, &params)
+            .expect_err("non-positive history in growth mode");
+        assert!(err.to_string().contains("diff"), "{err}");
+    }
+
+    #[test]
+    fn bootstrap_rejects_short_history_bad_mode_and_missing_seed() {
+        let periods = vec![PeriodId::quarter(2025, 1)];
+
+        let mut params = bootstrap_params();
+        params.insert("historical".to_string(), serde_json::json!([100.0]));
+        assert!(bootstrap_forecast(100.0, &periods, &params).is_err());
+
+        let mut params = bootstrap_params();
+        params.insert("mode".to_string(), serde_json::json!("block"));
+        let err = bootstrap_forecast(100.0, &periods, &params).expect_err("bad mode");
+        assert!(err.to_string().contains("mode"), "{err}");
+
+        let mut params = bootstrap_params();
+        params.shift_remove("seed");
+        assert!(bootstrap_forecast(100.0, &periods, &params).is_err());
     }
 
     #[test]

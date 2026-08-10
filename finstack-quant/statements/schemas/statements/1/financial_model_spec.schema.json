@@ -4245,6 +4245,21 @@
           "const": "seasonal",
           "description": "Seasonal pattern (additive/multiplicative)",
           "type": "string"
+        },
+        {
+          "const": "fade_to_target",
+          "description": "Glide from the base value to a target level: linear, geometric\n(CAGR-to-terminal), or exponential (half-life) shape",
+          "type": "string"
+        },
+        {
+          "const": "mean_reverting",
+          "description": "Mean-reverting AR(1) path:\n`v[t] = v[t-1] + reversion_speed * (long_run_mean - v[t-1]) + std_dev * z[t]`",
+          "type": "string"
+        },
+        {
+          "const": "bootstrap",
+          "description": "Resample historical growth rates or level diffs (deterministic with seed)",
+          "type": "string"
         }
       ]
     },

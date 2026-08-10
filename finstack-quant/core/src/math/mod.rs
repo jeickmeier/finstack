@@ -90,6 +90,84 @@
 /// but small enough to catch actual zeros vs meaningful small values).
 pub const ZERO_TOLERANCE: f64 = 1e-10;
 
+/// Round to `digits` decimal places with ties rounding half away from zero
+/// (Excel convention): `round_half_away(2.5, 0)` is 3.0 and
+/// `round_half_away(-2.5, 0)` is -3.0.
+///
+/// This is the shared implementation behind the expression-language `round`
+/// function; the core vector evaluator and the statements scalar evaluator
+/// both delegate here so their semantics cannot drift.
+///
+/// # Arguments
+///
+/// * `x` - Value to round; non-finite inputs (NaN, ±inf) pass through
+///   unchanged.
+/// * `digits` - Number of decimal places to keep. `0` rounds to an integer;
+///   negative values round to the left of the decimal point
+///   (`round_half_away(1234.0, -2)` is 1200.0).
+///
+/// # Examples
+///
+/// ```rust
+/// use finstack_quant_core::math::round_half_away;
+///
+/// assert_eq!(round_half_away(2.5, 0), 3.0);
+/// assert_eq!(round_half_away(-2.5, 0), -3.0);
+/// assert_eq!(round_half_away(3.14159, 2), 3.14);
+/// assert_eq!(round_half_away(1234.0, -2), 1200.0);
+/// ```
+#[must_use]
+pub fn round_half_away(x: f64, digits: i32) -> f64 {
+    if !x.is_finite() {
+        return x;
+    }
+    if digits == 0 {
+        return x.round();
+    }
+    let scale = 10f64.powi(digits);
+    let scaled = x * scale;
+    if !scaled.is_finite() {
+        // Scaling overflowed (huge x with large positive digits); the input
+        // is already exact at this precision.
+        return x;
+    }
+    scaled.round() / scale
+}
+
+/// Clamp `x` to the inclusive range `[lo, hi]`, returning NaN instead of
+/// panicking on invalid input.
+///
+/// This is the shared implementation behind the expression-language `clamp`
+/// function. Unlike [`f64::clamp`], which panics when `lo > hi`, this
+/// returns NaN for an inverted range and propagates NaN from any argument,
+/// so untrusted formula input can never abort the process.
+///
+/// # Arguments
+///
+/// * `x` - Value to restrict to the range; returned unchanged when already
+///   inside `[lo, hi]`, otherwise replaced by the nearer bound.
+/// * `lo` - Inclusive lower bound; must be `<= hi` for a non-NaN result.
+/// * `hi` - Inclusive upper bound; must be `>= lo` for a non-NaN result.
+///
+/// # Examples
+///
+/// ```rust
+/// use finstack_quant_core::math::clamp_or_nan;
+///
+/// assert_eq!(clamp_or_nan(5.0, 0.0, 10.0), 5.0);
+/// assert_eq!(clamp_or_nan(-1.0, 0.0, 10.0), 0.0);
+/// assert_eq!(clamp_or_nan(11.0, 0.0, 10.0), 10.0);
+/// assert!(clamp_or_nan(5.0, 10.0, 0.0).is_nan()); // inverted range
+/// assert!(clamp_or_nan(f64::NAN, 0.0, 10.0).is_nan());
+/// ```
+#[must_use]
+pub fn clamp_or_nan(x: f64, lo: f64, hi: f64) -> f64 {
+    if x.is_nan() || lo.is_nan() || hi.is_nan() || lo > hi {
+        return f64::NAN;
+    }
+    x.min(hi).max(lo)
+}
+
 pub mod characteristic_function;
 pub mod compounding;
 /// Consecutive streak counter for return series analysis.

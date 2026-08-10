@@ -1063,7 +1063,7 @@ impl crate::cashflow::traits::CashflowScheduleSource for DiscountedCashFlow {
     /// [`Instrument::base_value`], which typically derives most of its PV
     /// from the terminal value. The `Act365F` day count below is schedule
     /// metadata only; pricing discounts on ACT/365.25 (see
-    /// [`Self::year_fraction`]).
+    /// `Self::year_fraction`).
     fn raw_cashflow_schedule(
         &self,
         _curves: &MarketContext,

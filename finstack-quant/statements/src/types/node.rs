@@ -320,6 +320,85 @@ impl ForecastSpec {
             params,
         }
     }
+
+    /// Create a linear fade-to-target forecast.
+    ///
+    /// Values glide from the last observed value to `target` in equal steps,
+    /// reaching the target exactly at the final forecast period:
+    /// `v[t] = base + (target - base) * t / N`. Use raw
+    /// [`ForecastSpec`] params (`shape` = `"geometric"` / `"exponential"`,
+    /// `half_life`) for the non-linear shapes.
+    ///
+    /// # Arguments
+    /// * `target` - Terminal level in the node's own units (a currency amount
+    ///   for monetary nodes, a decimal ratio for scalar nodes such as margins)
+    pub fn fade_to_target(target: f64) -> Self {
+        let mut params = IndexMap::new();
+        params.insert("target".into(), serde_json::json!(target));
+        Self {
+            method: ForecastMethod::FadeToTarget,
+            params,
+        }
+    }
+
+    /// Create a mean-reverting AR(1) forecast.
+    ///
+    /// Forecasted values follow
+    /// `v[t] = v[t-1] + reversion_speed * (long_run_mean - v[t-1]) + std_dev * z[t]`,
+    /// where `z[t]` is a deterministic standard-normal draw derived from
+    /// `seed`. Use this for autocorrelated series such as spreads, charge-off
+    /// rates, or net interest margins that revert toward a through-the-cycle
+    /// level.
+    ///
+    /// # Arguments
+    /// * `long_run_mean` - Level the series reverts toward, in the node's own
+    ///   units (currency amount for monetary nodes, decimal ratio for scalars)
+    /// * `reversion_speed` - Fraction of the gap closed each period, in
+    ///   `(0, 1]`; 1.0 reverts fully every period
+    /// * `std_dev` - Per-period additive shock volatility in the node's own
+    ///   units; must be non-negative
+    /// * `seed` - Random seed for deterministic results
+    ///
+    /// # References
+    ///
+    /// - Monte Carlo simulation practice: `docs/REFERENCES.md#glasserman-2004-monte-carlo`
+    pub fn mean_reverting(
+        long_run_mean: f64,
+        reversion_speed: f64,
+        std_dev: f64,
+        seed: u64,
+    ) -> Self {
+        let mut params = IndexMap::new();
+        params.insert("long_run_mean".into(), serde_json::json!(long_run_mean));
+        params.insert("reversion_speed".into(), serde_json::json!(reversion_speed));
+        params.insert("std_dev".into(), serde_json::json!(std_dev));
+        params.insert("seed".into(), serde_json::json!(seed));
+        Self {
+            method: ForecastMethod::MeanReverting,
+            params,
+        }
+    }
+
+    /// Create a historical-bootstrap forecast in growth mode.
+    ///
+    /// Resamples period-over-period growth rates from `historical` (which must
+    /// be strictly positive in growth mode) and compounds them from the base
+    /// value. Set `"mode": "diff"` via raw [`ForecastSpec`] params to resample
+    /// additive level changes instead (works for series crossing zero).
+    ///
+    /// # Arguments
+    /// * `historical` - At least 2 historical values in the node's own units,
+    ///   oldest first; consecutive pairs define the resampled growth rates
+    /// * `seed` - Random seed for deterministic resampling
+    pub fn bootstrap(historical: Vec<f64>, seed: u64) -> Self {
+        let mut params = IndexMap::new();
+        params.insert("historical".into(), serde_json::json!(historical));
+        params.insert("seed".into(), serde_json::json!(seed));
+        Self {
+            method: ForecastMethod::Bootstrap,
+            params,
+        }
+    }
 }
 
 /// Available forecast methods.
@@ -349,6 +428,17 @@ pub enum ForecastMethod {
 
     /// Seasonal pattern (additive/multiplicative)
     Seasonal,
+
+    /// Glide from the base value to a target level: linear, geometric
+    /// (CAGR-to-terminal), or exponential (half-life) shape
+    FadeToTarget,
+
+    /// Mean-reverting AR(1) path:
+    /// `v[t] = v[t-1] + reversion_speed * (long_run_mean - v[t-1]) + std_dev * z[t]`
+    MeanReverting,
+
+    /// Resample historical growth rates or level diffs (deterministic with seed)
+    Bootstrap,
 }
 
 /// Seasonal decomposition mode.

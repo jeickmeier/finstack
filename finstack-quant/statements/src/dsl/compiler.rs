@@ -261,13 +261,22 @@ fn infer_call_dimension(
         "abs" | "lag" | "shift" | "cumsum" | "cummin" | "cummax" | "rolling_mean"
         | "rolling_sum" | "rolling_min" | "rolling_max" | "mean" | "sum" | "min" | "max"
         | "median" | "rolling_median" | "diff" | "std" | "rolling_std" | "ewm_mean" | "ewm_std"
-        | "ttm" | "ltm" | "ytd" | "qtd" | "fiscal_ytd" | "annualize" | "coalesce" => {
+        | "ttm" | "ltm" | "ytd" | "qtd" | "fiscal_ytd" | "annualize" | "coalesce" | "clamp" => {
             combine_arg_dimensions(func, arg_dims)
         }
+        // Dimension-preserving in the *first* argument only. `floor`/`ceil`
+        // preserve their single argument's units; for `round`, the trailing
+        // `digits` argument is a dimensionless count, so folding it with
+        // `combine_arg_dimensions` would wrongly reject `round(usd_amount, 2)`
+        // as a monetary/scalar mix.
+        "round" | "floor" | "ceil" => Ok(arg_dims.first().copied().unwrap_or(Dimension::Unknown)),
         // Genuinely scalar: ratios, counts, signs, and rates carry no currency
-        // unit regardless of input.
+        // unit regardless of input. Transcendentals (`pow`, `ln`, `exp`,
+        // `log10`, `sqrt`) only make dimensional sense on scalars, and the
+        // missing-value predicate returns a 0/1 flag.
         "sign" | "pct_change" | "cumprod" | "rolling_count" | "rank" | "quantile"
-        | "annualize_rate" | "growth_rate" => Ok(Dimension::Scalar),
+        | "annualize_rate" | "growth_rate" | "pow" | "ln" | "exp" | "log10" | "sqrt"
+        | "is_missing" => Ok(Dimension::Scalar),
         // Everything else defers to `Unknown`. This deliberately includes the
         // variance family (`var` / `rolling_var` / `ewm_var`), which yields
         // squared units that this three-valued dimension system (Unknown /
@@ -373,6 +382,16 @@ fn compile_function_call(func_name: &str, args: &[StmtExpr]) -> Result<Expr> {
         "abs" => Some(Function::Abs),
         "sign" => Some(Function::Sign),
         "growth_rate" => Some(Function::GrowthRate),
+        "pow" => Some(Function::Pow),
+        "round" => Some(Function::Round),
+        "floor" => Some(Function::Floor),
+        "ceil" => Some(Function::Ceil),
+        "ln" => Some(Function::Ln),
+        "exp" => Some(Function::Exp),
+        "log10" => Some(Function::Log10),
+        "sqrt" => Some(Function::Sqrt),
+        "clamp" => Some(Function::Clamp),
+        "is_missing" => Some(Function::IsMissing),
         _ => None,
     };
 
@@ -387,12 +406,41 @@ fn compile_function_call(func_name: &str, args: &[StmtExpr]) -> Result<Expr> {
                     )));
                 }
             }
-            Function::Abs | Function::Sign => {
+            Function::Abs
+            | Function::Sign
+            | Function::Floor
+            | Function::Ceil
+            | Function::Ln
+            | Function::Exp
+            | Function::Log10
+            | Function::Sqrt
+            | Function::IsMissing => {
                 if compiled_args.len() != 1 {
                     return Err(crate::error::Error::eval(format!(
                         "{:?} requires exactly 1 argument",
                         f
                     )));
+                }
+            }
+            Function::Pow => {
+                if compiled_args.len() != 2 {
+                    return Err(crate::error::Error::eval(
+                        "pow() requires exactly 2 arguments (base, exponent)",
+                    ));
+                }
+            }
+            Function::Round => {
+                if compiled_args.is_empty() || compiled_args.len() > 2 {
+                    return Err(crate::error::Error::eval(
+                        "round() requires 1 or 2 arguments (value, [digits])",
+                    ));
+                }
+            }
+            Function::Clamp => {
+                if compiled_args.len() != 3 {
+                    return Err(crate::error::Error::eval(
+                        "clamp() requires exactly 3 arguments (value, lo, hi)",
+                    ));
                 }
             }
             Function::Ttm => {
@@ -518,7 +566,8 @@ fn compile_function_call(func_name: &str, args: &[StmtExpr]) -> Result<Expr> {
         Err(crate::error::Error::eval(format!(
             "Function '{}' is not supported. \
              Supported functions include: lag, diff, pct_change, rolling_*, ewm_*, std, var, median, \
-             sum, mean, min, max, ttm/ltm, ytd, qtd, fiscal_ytd, annualize, growth_rate, abs, sign, coalesce",
+             sum, mean, min, max, ttm/ltm, ytd, qtd, fiscal_ytd, annualize, growth_rate, abs, sign, coalesce, \
+             pow, round, floor, ceil, ln, exp, log10, sqrt, clamp, is_missing",
             func_name
         )))
     }
@@ -631,6 +680,53 @@ mod tests {
             let ast = parse_formula(formula).expect("should parse");
             assert!(compile(&ast).is_err(), "should reject: {formula}");
         }
+    }
+
+    /// Element-wise math helpers compile with the expected arities, and the
+    /// dimension checker treats `round`'s `digits` argument as a unit-free
+    /// count while still folding `clamp`'s bounds with its value.
+    #[test]
+    fn elementwise_math_arities_and_dimensions() {
+        for formula in [
+            "pow(1 + growth, 4)",
+            "round(revenue, 2)",
+            "round(revenue)",
+            "floor(revenue)",
+            "ceil(revenue)",
+            "ln(revenue)",
+            "exp(growth)",
+            "log10(revenue)",
+            "sqrt(revenue)",
+            "clamp(margin, 0, 1)",
+            "is_missing(revenue)",
+        ] {
+            let ast = parse_formula(formula).expect("should parse");
+            assert!(compile(&ast).is_ok(), "should compile: {formula}");
+        }
+
+        let usd = NodeValueType::Monetary {
+            currency: finstack_quant_core::currency::Currency::USD,
+        };
+        let eur = NodeValueType::Monetary {
+            currency: finstack_quant_core::currency::Currency::EUR,
+        };
+        let mut node_types = IndexMap::new();
+        node_types.insert(NodeId::new("usd_amount"), usd);
+        node_types.insert(NodeId::new("eur_amount"), eur);
+
+        // `round(monetary, digits)` must not be rejected as a monetary/scalar
+        // mix: the digits argument is a dimensionless count.
+        let ast = parse_formula("round(usd_amount, 2) + usd_amount").expect("should parse");
+        assert!(validate_dimensions(&ast, &node_types).is_ok());
+
+        // `clamp` folds value and bounds: mixing currencies is an error.
+        let ast = parse_formula("clamp(usd_amount, eur_amount, usd_amount)").expect("should parse");
+        assert!(validate_dimensions(&ast, &node_types).is_err());
+
+        // ...while same-currency bounds are fine and preserve the unit.
+        let ast = parse_formula("clamp(usd_amount, 0 * usd_amount, usd_amount) + usd_amount")
+            .expect("should parse");
+        assert!(validate_dimensions(&ast, &node_types).is_ok());
     }
 
     // Regression (C8): `min`/`max` now compile to a single n-ary

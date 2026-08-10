@@ -1,7 +1,7 @@
 //! Exponentially-weighted moving statistics: `ewm_mean`, `ewm_std`, `ewm_var`.
 //!
-//! All three functions share the same "collect chronological values for a
-//! column" preamble and pandas-compatible semantics (`adjust=False`,
+//! All three functions share the same "collect chronological values for the
+//! series expression" preamble and pandas-compatible semantics (`adjust=False`,
 //! `ignore_na=False`): a NaN observation is skipped, but the decay weight
 //! still advances across the gap, exactly as pandas weights observations by
 //! absolute position. Splitting them out of `formula.rs` keeps the main
@@ -9,7 +9,9 @@
 
 use crate::error::Result;
 use crate::evaluator::context::EvaluationContext;
-use crate::evaluator::formula::{eval_error, evaluate_expr, require_args};
+use crate::evaluator::formula::{
+    collect_expression_values_sorted, eval_error, evaluate_expr, require_args,
+};
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_core::expr::{Expr, ExprNode, Function};
 use finstack_quant_core::math::ZERO_TOLERANCE;
@@ -110,20 +112,29 @@ fn validate_alpha(alpha: f64, func_name: &str, node_id: Option<&str>) -> Result<
     Ok(())
 }
 
-/// Extract the column-reference argument or fail with a standard error.
-fn column_ref_or_err<'a>(
-    args: &'a [Expr],
-    func_name: &str,
+/// Collect the chronological series for an EWM function's first argument.
+///
+/// A bare column reference takes the fast path (`collect_column_series`,
+/// which reads historical results directly). Any other expression is
+/// re-evaluated once per period at or before the current one via
+/// [`collect_expression_values_sorted`]. Both paths keep NaN slots so the
+/// positional decay (pandas `ignore_na=False`) still advances across gaps,
+/// and both trim trailing non-finite slots, which scale every weight
+/// uniformly and cancel out of the normalized moments.
+fn collect_series(
+    expr: &Expr,
+    context: &EvaluationContext,
     node_id: Option<&str>,
-) -> Result<&'a str> {
-    if let ExprNode::Column(name) = &args[0].node {
-        Ok(name.as_str())
-    } else {
-        Err(eval_error(
-            node_id,
-            format!("{func_name}() requires a column reference"),
-        ))
+) -> Result<Vec<(PeriodId, f64)>> {
+    if let ExprNode::Column(name) = &expr.node {
+        return Ok(collect_column_series(name.as_str(), context));
     }
+    let sorted = collect_expression_values_sorted(expr, context, node_id)?;
+    let mut values: Vec<(PeriodId, f64)> = sorted.iter().map(|(p, v)| (*p, *v)).collect();
+    while values.last().is_some_and(|(_, v)| !v.is_finite()) {
+        values.pop();
+    }
+    Ok(values)
 }
 
 pub(crate) fn eval_ewm_mean(
@@ -136,8 +147,7 @@ pub(crate) fn eval_ewm_mean(
     let alpha = evaluate_expr(&args[1], context, node_id)?;
     validate_alpha(alpha, "ewm_mean", node_id)?;
 
-    let node_name = column_ref_or_err(args, "ewm_mean", node_id)?;
-    let values = collect_column_series(node_name, context);
+    let values = collect_series(&args[0], context, node_id)?;
 
     match ewm_weighted_moments(&values, alpha) {
         Some((mean, _, _, _)) => Ok(mean),
@@ -182,8 +192,7 @@ pub(crate) fn eval_ewm_std_or_var(
         true
     };
 
-    let node_name = column_ref_or_err(args, "ewm_std/var", node_id)?;
-    let values = collect_column_series(node_name, context);
+    let values = collect_series(&args[0], context, node_id)?;
 
     let Some((_, biased_var, sum_w2, n_obs)) = ewm_weighted_moments(&values, alpha) else {
         return Ok(f64::NAN);
@@ -203,7 +212,7 @@ pub(crate) fn eval_ewm_std_or_var(
             // the biased variance but say so rather than silently mislabeling
             // the estimator.
             tracing::warn!(
-                node = node_name,
+                node = node_id,
                 sum_w2,
                 "{func}() unbiased correction skipped: 1 - sum of squared weights is \
                  ~0 (weight concentrated on a single observation); returning the \

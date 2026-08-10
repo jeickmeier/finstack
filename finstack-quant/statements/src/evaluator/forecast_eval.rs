@@ -75,9 +75,11 @@ pub(crate) fn evaluate_forecast(
 
     // Apply forecast method
     let forecast_results = if let Some(offset) = seed_offset {
-        match mc_z_cache.as_mut() {
+        let mut series = match mc_z_cache.as_mut() {
             Some(cache) => match forecast_spec.method {
-                ForecastMethod::Normal | ForecastMethod::LogNormal => {
+                ForecastMethod::Normal
+                | ForecastMethod::LogNormal
+                | ForecastMethod::MeanReverting => {
                     if let Some((peer, rho)) = parse_correlation_params(&forecast_spec.params)? {
                         if model.get_node(peer.as_str()).is_none() {
                             return Err(Error::forecast(format!(
@@ -136,7 +138,12 @@ pub(crate) fn evaluate_forecast(
                 offset,
                 node_spec.node_id.as_str(),
             )?,
-        }
+        };
+        // Bounds are applied after Z-score recording so correlation shocks
+        // always invert the unclamped recurrence; the single-run path below
+        // clamps inside `apply_forecast_for_node`.
+        forecast::apply_bounds(&forecast_spec.params, &mut series)?;
+        series
     } else {
         forecast::apply_forecast_for_node(
             forecast_spec,

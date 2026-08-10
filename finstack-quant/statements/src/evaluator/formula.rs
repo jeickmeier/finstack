@@ -750,6 +750,175 @@ mod tests {
     }
 
     #[test]
+    fn ewm_accepts_arbitrary_expressions() {
+        // ewm is linear in its input, so ewm_mean(2 * series) must equal
+        // 2 * ewm_mean(series) — and, more importantly, an expression argument
+        // must evaluate at all rather than erroring with "requires a column
+        // reference".
+        let p1 = PeriodId::quarter(2025, 1);
+        let p2 = PeriodId::quarter(2025, 2);
+        let p3 = PeriodId::quarter(2025, 3);
+
+        let mut context = build_context_with_history(p3, "series", vec![(p1, 1.0), (p2, 2.0)], 3.0);
+        let column_mean = evaluate_function(
+            &Function::EwmMean,
+            &[Expr::column("series"), Expr::literal(0.5)],
+            &mut context,
+            Some("ewm_mean"),
+        )
+        .expect("column ewm_mean");
+
+        let mut context = build_context_with_history(p3, "series", vec![(p1, 1.0), (p2, 2.0)], 3.0);
+        let doubled = Expr::bin_op(
+            finstack_quant_core::expr::BinOp::Mul,
+            Expr::column("series"),
+            Expr::literal(2.0),
+        );
+        let expr_mean = evaluate_function(
+            &Function::EwmMean,
+            &[doubled.clone(), Expr::literal(0.5)],
+            &mut context,
+            Some("ewm_mean"),
+        )
+        .expect("expression ewm_mean");
+        assert!(
+            (expr_mean - 2.0 * column_mean).abs() < 1e-12,
+            "got {expr_mean}"
+        );
+
+        // ewm_std scales linearly with the input too: std(2x) = 2·std(x).
+        let mut context = build_context_with_history(p3, "series", vec![(p1, 1.0), (p2, 2.0)], 3.0);
+        let column_std = evaluate_function(
+            &Function::EwmStd,
+            &[Expr::column("series"), Expr::literal(0.5)],
+            &mut context,
+            Some("ewm_std"),
+        )
+        .expect("column ewm_std");
+        let mut context = build_context_with_history(p3, "series", vec![(p1, 1.0), (p2, 2.0)], 3.0);
+        let expr_std = evaluate_function(
+            &Function::EwmStd,
+            &[doubled, Expr::literal(0.5)],
+            &mut context,
+            Some("ewm_std"),
+        )
+        .expect("expression ewm_std");
+        assert!(
+            (expr_std - 2.0 * column_std).abs() < 1e-12,
+            "got {expr_std}"
+        );
+    }
+
+    #[test]
+    fn elementwise_math_functions_match_shared_semantics() {
+        let p1 = PeriodId::quarter(2025, 1);
+        let p2 = PeriodId::quarter(2025, 2);
+        let mut context = build_context_with_history(p2, "x", vec![(p1, 1.0)], 2.5);
+
+        let eval = |func: Function, args: &[Expr], context: &mut EvaluationContext| {
+            evaluate_function(&func, args, context, Some("elementwise")).expect("should evaluate")
+        };
+
+        // pow
+        let v = eval(
+            Function::Pow,
+            &[Expr::column("x"), Expr::literal(2.0)],
+            &mut context,
+        );
+        assert!((v - 6.25).abs() < 1e-12);
+        let v = eval(
+            Function::Pow,
+            &[Expr::literal(-1.0), Expr::literal(0.5)],
+            &mut context,
+        );
+        assert!(v.is_nan());
+
+        // round: ties away from zero, optional digits (negative allowed)
+        let v = eval(Function::Round, &[Expr::column("x")], &mut context);
+        assert_eq!(v, 3.0);
+        let v = eval(
+            Function::Round,
+            &[Expr::literal(-2.5), Expr::literal(0.0)],
+            &mut context,
+        );
+        assert_eq!(v, -3.0);
+        let v = eval(
+            Function::Round,
+            &[Expr::literal(2.34567), Expr::literal(2.0)],
+            &mut context,
+        );
+        assert!((v - 2.35).abs() < 1e-12);
+        let v = eval(
+            Function::Round,
+            &[Expr::literal(1250.0), Expr::literal(-2.0)],
+            &mut context,
+        );
+        assert_eq!(v, 1300.0);
+        // Fractional digits are rejected with an error (statements-layer
+        // convention for integer arguments, like lag/shift).
+        let err = evaluate_function(
+            &Function::Round,
+            &[Expr::literal(1.0), Expr::literal(1.5)],
+            &mut context,
+            Some("elementwise"),
+        )
+        .expect_err("fractional digits must error");
+        assert!(err.to_string().contains("integer"), "got: {err}");
+
+        // floor / ceil
+        assert_eq!(
+            eval(Function::Floor, &[Expr::literal(1.7)], &mut context),
+            1.0
+        );
+        assert_eq!(
+            eval(Function::Ceil, &[Expr::literal(1.2)], &mut context),
+            2.0
+        );
+
+        // ln / exp / log10 / sqrt (IEEE semantics)
+        assert_eq!(eval(Function::Ln, &[Expr::literal(1.0)], &mut context), 0.0);
+        assert!(eval(Function::Ln, &[Expr::literal(-1.0)], &mut context).is_nan());
+        let v = eval(Function::Exp, &[Expr::literal(1.0)], &mut context);
+        assert!((v - std::f64::consts::E).abs() < 1e-12);
+        let v = eval(Function::Log10, &[Expr::literal(100.0)], &mut context);
+        assert!((v - 2.0).abs() < 1e-12);
+        assert_eq!(
+            eval(Function::Sqrt, &[Expr::literal(4.0)], &mut context),
+            2.0
+        );
+        assert!(eval(Function::Sqrt, &[Expr::literal(-4.0)], &mut context).is_nan());
+
+        // clamp: inclusive bounds, NaN-safe, inverted range → NaN (no panic)
+        let clamp_args =
+            |x: f64, lo: f64, hi: f64| [Expr::literal(x), Expr::literal(lo), Expr::literal(hi)];
+        assert_eq!(
+            eval(Function::Clamp, &clamp_args(5.0, 0.0, 10.0), &mut context),
+            5.0
+        );
+        assert_eq!(
+            eval(Function::Clamp, &clamp_args(-5.0, 0.0, 10.0), &mut context),
+            0.0
+        );
+        assert_eq!(
+            eval(Function::Clamp, &clamp_args(15.0, 0.0, 10.0), &mut context),
+            10.0
+        );
+        assert!(eval(Function::Clamp, &clamp_args(5.0, 10.0, 0.0), &mut context).is_nan());
+
+        // is_missing: non-finite (NaN or ±inf) → 1, finite → 0
+        assert_eq!(
+            eval(Function::IsMissing, &[Expr::literal(1.0)], &mut context),
+            0.0
+        );
+        let div_by_zero = Expr::bin_op(
+            finstack_quant_core::expr::BinOp::Div,
+            Expr::literal(1.0),
+            Expr::literal(0.0),
+        );
+        assert_eq!(eval(Function::IsMissing, &[div_by_zero], &mut context), 1.0);
+    }
+
+    #[test]
     fn rolling_mean_returns_nan_until_window_full() {
         // pandas parity: rolling(window=4) uses min_periods=window by default,
         // so a 3-observation history yields NaN — not a silent 3-point mean

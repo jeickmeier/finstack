@@ -102,6 +102,16 @@ fn test_function_enum_serde() {
         Function::RollingCount,
         Function::EwmStd,
         Function::EwmVar,
+        Function::Pow,
+        Function::Round,
+        Function::Floor,
+        Function::Ceil,
+        Function::Ln,
+        Function::Exp,
+        Function::Log10,
+        Function::Sqrt,
+        Function::Clamp,
+        Function::IsMissing,
     ];
 
     for func in functions {

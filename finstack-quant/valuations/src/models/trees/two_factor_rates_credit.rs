@@ -183,7 +183,7 @@ use super::tree_framework::{CachedValues, NodeState, TreeModel, TreeValuator};
 /// **The binding quantity is `κ·T`, not `κ` alone.** At `κ = 0.15` the lattice
 /// edge retains at most 44 % of its intended variance over a 5-year horizon,
 /// and none at all beyond `T = 1/κ ≈ 6.7` years, where
-/// [`RatesCreditTree::mean_reverting_up_prob`] clamps `p` to `0` or `1`: those
+/// `RatesCreditTree::mean_reverting_up_prob` clamps `p` to `0` or `1`: those
 /// nodes become locally deterministic and — being degenerate Bernoulli
 /// marginals carrying no correlation — drop the configured
 /// `rate_credit_correlation` entirely. At `κ = 0.15, T = 10` roughly an eighth
@@ -455,7 +455,7 @@ impl HazardFloorSaturation {
 /// mean-reversion probability shift, across the calibrated lattice.
 ///
 /// The additive binomial lattice has one free parameter per node, and
-/// [`RatesCreditTree::mean_reverting_up_prob`] spends it on matching the
+/// `RatesCreditTree::mean_reverting_up_prob` spends it on matching the
 /// conditional **mean**. The conditional variance `σ²Δt·4p(1−p)` is therefore
 /// understated wherever `p ≠ ½`, by the exact factor documented on
 /// [`KAPPA_MAX`]: `retention(d) = 1 − (κ·d·√Δt/σ)²` at displacement `d` from
@@ -469,7 +469,7 @@ impl HazardFloorSaturation {
 /// Where `p` clamps fully to `0` or `1` the node is locally deterministic and
 /// its Bernoulli marginal is degenerate, so it can express no correlation at
 /// all: `rate_credit_correlation` is silently inoperative there
-/// ([`RatesCreditTree::node_correlation_range`] returns `None` and the
+/// (`RatesCreditTree::node_correlation_range` returns `None` and the
 /// feasibility scan skips it). [`Self::clamped_nodes`] is what makes that
 /// visible.
 ///

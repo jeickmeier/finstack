@@ -25,6 +25,12 @@
 //! | `if(condition, then_expr, else_expr)` | 3 | Conditional expression; non-zero values are truthy. |
 //! | `min(a, b, ...)`, `max(a, b, ...)` | 2+ | Pairwise min/max lowered to nested conditionals. NaN comparison behavior follows IEEE 754. |
 //! | `abs(expr)`, `sign(expr)` | 1 | Absolute value and sign indicator (`-1`, `0`, `1`, or NaN). |
+//! | `pow(base, exp)` | 2 | Exponentiation with IEEE 754 semantics (`pow(-1, 0.5)` is NaN, `pow(0, -1)` is +inf). |
+//! | `round(expr[, digits])` | 1-2 | Round to `digits` decimal places (default 0), ties half away from zero (Excel convention). Negative `digits` rounds to tens/hundreds. Non-finite values pass through. |
+//! | `floor(expr)`, `ceil(expr)` | 1 | Largest/smallest integer at or below/above the value. |
+//! | `ln(expr)`, `exp(expr)`, `log10(expr)`, `sqrt(expr)` | 1 | Natural log, exponential, base-10 log, and square root with IEEE 754 semantics (`ln(0)` is -inf; `ln`/`sqrt` of negatives are NaN). |
+//! | `clamp(expr, lo, hi)` | 3 | Clamp to the inclusive range `[lo, hi]`. NaN in any argument or `lo > hi` returns NaN. |
+//! | `is_missing(expr)` | 1 | `1` when the value is non-finite (NaN or ±inf), `0` otherwise — the same "finite" convention as `coalesce`. |
 //! | `sum(...)`, `mean(...)` | 1+ | Aggregate finite argument values; non-finite values are skipped. |
 //! | `coalesce(expr, default, ...)` | 2+ | First finite argument, or NaN when every argument is non-finite. |
 //! | `lag(expr, n)`, `shift(expr, n)` | 2 | Historical offset lookup. `lag` requires a non-negative offset; `shift` accepts signed offsets. |
@@ -34,8 +40,8 @@
 //! | `rolling_mean(expr, window[, min_periods])`, `rolling_sum(expr, window[, min_periods])`, `rolling_std(expr, window[, min_periods])`, `rolling_var(expr, window[, min_periods])`, `rolling_median(expr, window[, min_periods])`, `rolling_min(expr, window[, min_periods])`, `rolling_max(expr, window[, min_periods])`, `rolling_count(expr, window[, min_periods])` | 2-3 | Rolling-window aggregate over finite observations. `min_periods` defaults to `window` (pandas parity): a window with fewer finite observations returns NaN. Pass a smaller `min_periods` for expanding-until-full behavior. |
 //! | `std(expr)`, `var(expr)`, `median(expr)` | 1 | Historical distribution statistic over finite observations available through the current period. |
 //! | `rank(expr[, ascending])`, `quantile(expr, q)` | 1-2 | Historical rank and linear quantile over finite observations. |
-//! | `ewm_mean(column, alpha)` | 2 | Exponentially weighted moving mean for a column reference (pandas `adjust=False, ignore_na=False`: decay advances across NaN gaps). Requires `0 < alpha <= 1`. |
-//! | `ewm_std(column, alpha[, unbiased])`, `ewm_var(column, alpha[, unbiased])` | 2-3 | Exponentially weighted variance or standard deviation (pandas `adjust=False, ignore_na=False`). The optional `unbiased` flag is pandas' `bias` toggle: nonzero (default) applies the `bias=False` correction, `0` returns the biased variance. Requires `0 < alpha <= 1`. |
+//! | `ewm_mean(expr, alpha)` | 2 | Exponentially weighted moving mean over the expression's historical series (pandas `adjust=False, ignore_na=False`: decay advances across NaN gaps). Requires `0 < alpha <= 1`. |
+//! | `ewm_std(expr, alpha[, unbiased])`, `ewm_var(expr, alpha[, unbiased])` | 2-3 | Exponentially weighted variance or standard deviation (pandas `adjust=False, ignore_na=False`). The optional `unbiased` flag is pandas' `bias` toggle: nonzero (default) applies the `bias=False` correction, `0` returns the biased variance. Requires `0 < alpha <= 1`. |
 //! | `ttm(expr)`, `ltm(expr)` | 1 | Trailing-twelve-month sum. Quarterly models require 4 quarters; monthly models require 12 months. |
 //! | `ytd(expr)` | 1 | Calendar year-to-date finite sum. |
 //! | `qtd(expr)` | 1 | Quarter-to-date finite sum for monthly models. |

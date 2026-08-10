@@ -1228,14 +1228,14 @@ mod tests {
         // A rising spread path distinguishes trapezoidal integration from the
         // left-Riemann sum (which would understate cumulative hazard and
         // overstate survival). Pin the exact trapezoid value.
-        let dc = DayCount::Act365F;
+        let day_count = DayCount::Act365F;
         let start = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
         let mid = Date::from_calendar_date(2025, Month::July, 1).expect("valid date");
         let end = Date::from_calendar_date(2026, Month::January, 1).expect("valid date");
-        let t_mid = dc
+        let t_mid = day_count
             .year_fraction(start, mid, Default::default())
             .expect("year fraction");
-        let t_end = dc
+        let t_end = day_count
             .year_fraction(start, end, Default::default())
             .expect("year fraction");
 
@@ -1249,7 +1249,7 @@ mod tests {
             &[end],
             recovery,
             start,
-            dc,
+            day_count,
         )
         .expect("should succeed");
 

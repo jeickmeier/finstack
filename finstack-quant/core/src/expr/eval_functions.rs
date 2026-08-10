@@ -782,6 +782,109 @@ impl CompiledExpr {
         }
     }
 
+    /// Apply a unary scalar map over the first argument series.
+    fn eval_unary_map(arg_results: &[&[f64]], f: impl Fn(f64) -> f64) -> Vec<f64> {
+        arg_results
+            .first()
+            .map(|base| base.iter().map(|&v| f(v)).collect())
+            .unwrap_or_default()
+    }
+
+    pub(super) fn eval_pow(&self, arg_results: &[&[f64]]) -> Vec<f64> {
+        let (Some(base), Some(exponent)) = (arg_results.first(), arg_results.get(1)) else {
+            return arg_results
+                .first()
+                .map(|b| vec![f64::NAN; b.len()])
+                .unwrap_or_default();
+        };
+        (0..base.len())
+            .map(|i| match exponent.get(i) {
+                Some(&e) => base[i].powf(e),
+                None => f64::NAN,
+            })
+            .collect()
+    }
+
+    /// Evaluate `round(x[, digits])` with ties rounding half away from zero.
+    ///
+    /// `digits` (optional, default 0) must be a constant integral scalar;
+    /// a non-constant series is a validation error (matching the
+    /// window/step-argument convention) and a non-integral or out-of-range
+    /// constant yields all-NaN output.
+    pub(super) fn eval_round(&self, arg_results: &[&[f64]]) -> crate::Result<Vec<f64>> {
+        let digits = match arg_results.get(1) {
+            Some(series) if !series.is_empty() => {
+                let first = series[0];
+                if series.iter().any(|v| v.to_bits() != first.to_bits()) {
+                    return Err(crate::Error::Validation(
+                        "round() digits argument must be a constant scalar (literal); got a non-constant series".to_string(),
+                    ));
+                }
+                if !first.is_finite()
+                    || first.fract() != 0.0
+                    || first < i32::MIN as f64
+                    || first > i32::MAX as f64
+                {
+                    None
+                } else {
+                    Some(first as i32)
+                }
+            }
+            _ => Some(0),
+        };
+        let Some(digits) = digits else {
+            return Ok(Self::eval_unary_map(arg_results, |_| f64::NAN));
+        };
+        Ok(Self::eval_unary_map(arg_results, |v| {
+            crate::math::round_half_away(v, digits)
+        }))
+    }
+
+    pub(super) fn eval_floor(&self, arg_results: &[&[f64]]) -> Vec<f64> {
+        Self::eval_unary_map(arg_results, f64::floor)
+    }
+
+    pub(super) fn eval_ceil(&self, arg_results: &[&[f64]]) -> Vec<f64> {
+        Self::eval_unary_map(arg_results, f64::ceil)
+    }
+
+    pub(super) fn eval_ln(&self, arg_results: &[&[f64]]) -> Vec<f64> {
+        Self::eval_unary_map(arg_results, f64::ln)
+    }
+
+    pub(super) fn eval_exp(&self, arg_results: &[&[f64]]) -> Vec<f64> {
+        Self::eval_unary_map(arg_results, f64::exp)
+    }
+
+    pub(super) fn eval_log10(&self, arg_results: &[&[f64]]) -> Vec<f64> {
+        Self::eval_unary_map(arg_results, f64::log10)
+    }
+
+    pub(super) fn eval_sqrt(&self, arg_results: &[&[f64]]) -> Vec<f64> {
+        Self::eval_unary_map(arg_results, f64::sqrt)
+    }
+
+    pub(super) fn eval_clamp(&self, arg_results: &[&[f64]]) -> Vec<f64> {
+        let (Some(base), Some(lo), Some(hi)) =
+            (arg_results.first(), arg_results.get(1), arg_results.get(2))
+        else {
+            return arg_results
+                .first()
+                .map(|b| vec![f64::NAN; b.len()])
+                .unwrap_or_default();
+        };
+        (0..base.len())
+            .map(|i| match (lo.get(i), hi.get(i)) {
+                (Some(&l), Some(&h)) => crate::math::clamp_or_nan(base[i], l, h),
+                _ => f64::NAN,
+            })
+            .collect()
+    }
+
+    pub(super) fn eval_is_missing(&self, arg_results: &[&[f64]]) -> Vec<f64> {
+        Self::eval_unary_map(arg_results, |v| if v.is_finite() { 0.0 } else { 1.0 })
+    }
+
     pub(super) fn eval_rank(&self, arg_results: &[&[f64]]) -> Vec<f64> {
         let len = arg_results.first().map(|a| a.len()).unwrap_or(0);
         if !arg_results.is_empty() {
@@ -1031,6 +1134,16 @@ impl CompiledExpr {
             Function::EwmVar => Ok(self.eval_ewm_var(arg_results)),
             Function::Abs => Ok(self.eval_abs(arg_results)),
             Function::Sign => Ok(self.eval_sign(arg_results)),
+            Function::Pow => Ok(self.eval_pow(arg_results)),
+            Function::Round => self.eval_round(arg_results),
+            Function::Floor => Ok(self.eval_floor(arg_results)),
+            Function::Ceil => Ok(self.eval_ceil(arg_results)),
+            Function::Ln => Ok(self.eval_ln(arg_results)),
+            Function::Exp => Ok(self.eval_exp(arg_results)),
+            Function::Log10 => Ok(self.eval_log10(arg_results)),
+            Function::Sqrt => Ok(self.eval_sqrt(arg_results)),
+            Function::Clamp => Ok(self.eval_clamp(arg_results)),
+            Function::IsMissing => Ok(self.eval_is_missing(arg_results)),
             Function::Sum
             | Function::Mean
             | Function::Ttm
