@@ -20,14 +20,10 @@
 //!   roughly constant in absolute terms (e.g., a retailer's Q4 EBITDA uplift
 //!   is always ~$5 M). Use `multiplicative` when the swing scales with the
 //!   level (e.g., Q4 revenue is always ~20 % above trend). Multiplicative mode
-//!   divides by the trend component; where a trend value is near zero the
-//!   corresponding detrended ratio falls back to the identity (`1.0`) rather
-//!   than dividing by ~0, and index normalization is skipped when the mean
-//!   index itself is near zero. This keeps a series that crosses zero (e.g.
-//!   EBITDA turning from loss to profit) from producing infinities, at the cost
-//!   of a slightly biased seasonal index near the crossing — prefer `additive`
-//!   for series that cross zero. For most credit metrics that are expected to
-//!   stay positive, multiplicative is the safer default.
+//!   divides by the trend component, so it is rejected with an error when the
+//!   trend crosses or touches zero (e.g. EBITDA turning from loss to profit) —
+//!   use `additive` for such series. For most credit metrics that are expected
+//!   to stay positive, multiplicative is the safer default.
 //!
 //! Unsupported parameters such as `season_start` are rejected explicitly so
 //! schema typos and unsupported calendar shifts do not become silent no-ops.
@@ -344,11 +340,12 @@ fn double_exponential_smoothing(data: &[f64], alpha: f64, beta: f64) -> (f64, f6
 ///
 /// * `historical` - Array of historical values (need 2+ seasons, required)
 /// * `season_length` - Length of seasonal cycle (required)
-/// * `growth` - Total compound growth rate applied to the trend component
-///   (default: 0.0). When `growth == 0.0` the trend is held flat at its last
-///   historical value. This is a **total** rate, not an additional rate on
-///   top of the historical trend slope—the decomposition already captures the
-///   historical trajectory in the trend component.
+/// * `growth` - **Per-period** compound growth rate applied to the trend
+///   component (default: 0.0): forecast period `i` uses
+///   `last_trend * (1 + growth)^(i + 1)`. When `growth == 0.0` the trend is
+///   held flat at its last historical value. This rate **replaces** the
+///   historical trend slope rather than adding to it—the decomposition
+///   already captures the historical trajectory in the trend component.
 /// * `mode` - SeasonalMode enum: "additive" or "multiplicative" (required)
 ///
 /// Unsupported calendar-shift parameters such as `season_start` are rejected;
@@ -450,7 +447,7 @@ fn seasonal_forecast_with_decomposition(
     })?;
 
     // Decompose the series using the requested seasonal semantics.
-    let (trend, seasonal, _residual) = decompose_series_with_mode(&hist_data, season_length, mode);
+    let (trend, seasonal, _residual) = decompose_series_with_mode(&hist_data, season_length, mode)?;
 
     // Get growth rate for trend projection
     let growth = params.get("growth").and_then(|v| v.as_f64()).unwrap_or(0.0);
@@ -503,17 +500,18 @@ fn seasonal_forecast_with_decomposition(
 #[cfg(test)]
 fn decompose_series(data: &[f64], season_length: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     decompose_series_with_mode(data, season_length, SeasonalMode::Additive)
+        .expect("additive decomposition is infallible")
 }
 
 fn decompose_series_with_mode(
     data: &[f64],
     season_length: usize,
     mode: SeasonalMode,
-) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>)> {
     let trend = calculate_trend_component(data, season_length);
 
     match mode {
-        SeasonalMode::Additive => decompose_additive(data, season_length, trend),
+        SeasonalMode::Additive => Ok(decompose_additive(data, season_length, trend)),
         SeasonalMode::Multiplicative => decompose_multiplicative(data, season_length, trend),
     }
 }
@@ -663,21 +661,28 @@ fn decompose_multiplicative(
     data: &[f64],
     season_length: usize,
     trend: Vec<f64>,
-) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>)> {
     // See `decompose_additive` — same modulo-zero / divide-by-zero risk if a
     // future caller bypasses the public-API guards. Multiplicative residuals
     // default to 1.0 (the identity) when there is nothing to decompose.
     debug_assert!(season_length > 0, "season_length must be > 0");
     if season_length == 0 {
-        return (trend, Vec::new(), vec![1.0; data.len()]);
+        return Ok((trend, Vec::new(), vec![1.0; data.len()]));
     }
     let n = data.len();
 
-    let detrended: Vec<f64> = data
-        .iter()
-        .zip(&trend)
-        .map(|(d, t)| if t.abs() < ZERO_TOLERANCE { 1.0 } else { d / t })
-        .collect();
+    // A multiplicative decomposition divides by the trend, so it is undefined
+    // where the trend crosses or touches zero. Substituting an identity ratio
+    // there would silently bias every seasonal factor, so fail loudly instead.
+    if trend.iter().any(|t| t.abs() < ZERO_TOLERANCE) {
+        return Err(Error::forecast(
+            "Multiplicative seasonal decomposition is undefined for series whose trend \
+             crosses or touches zero (the seasonal ratio divides by the trend). \
+             Use mode 'additive' for series that change sign or hover near zero.",
+        ));
+    }
+
+    let detrended: Vec<f64> = data.iter().zip(&trend).map(|(d, t)| d / t).collect();
 
     let mut seasonal = vec![1.0; season_length];
     for (season, seasonal_val) in seasonal.iter_mut().enumerate().take(season_length) {
@@ -708,13 +713,23 @@ fn decompose_multiplicative(
         let season_idx = i % season_length;
         let denom = trend[i] * seasonal[season_idx];
         residual[i] = if denom.abs() < ZERO_TOLERANCE {
+            // Trend is non-zero (validated above), so this only triggers when
+            // a seasonal factor collapses to ~0. Surface the identity
+            // substitution rather than silently masking the model fit.
+            tracing::warn!(
+                index = i,
+                seasonal_factor = seasonal[season_idx],
+                "Multiplicative residual denominator is near zero (seasonal factor ~0); \
+                 substituting the identity residual 1.0, which masks fit quality at \
+                 this observation"
+            );
             1.0
         } else {
             data[i] / denom
         };
     }
 
-    (trend, seasonal, residual)
+    Ok((trend, seasonal, residual))
 }
 
 #[cfg(test)]
@@ -953,5 +968,28 @@ mod tests {
         assert!((q2 / q1 - 0.8).abs() < 0.05, "q2/q1={}", q2 / q1);
         assert!((q3 / q1 - 1.2).abs() < 0.05, "q3/q1={}", q3 / q1);
         assert!((q4 / q1 - 0.9).abs() < 0.05, "q4/q1={}", q4 / q1);
+    }
+
+    #[test]
+    fn multiplicative_mode_rejects_zero_crossing_trend() {
+        // A sign-alternating series centred on zero has a zero trend; the
+        // multiplicative ratio is undefined there and must fail loudly
+        // instead of silently substituting identity factors.
+        let params = indexmap! {
+            "historical".into() => serde_json::json!([
+                -10.0, 10.0, -10.0, 10.0,
+                -10.0, 10.0, -10.0, 10.0
+            ]),
+            "season_length".into() => serde_json::json!(4),
+            "mode".into() => serde_json::json!("multiplicative"),
+        };
+        let periods = vec![PeriodId::quarter(2025, 1)];
+
+        let err = seasonal_forecast(10.0, &periods, &params)
+            .expect_err("zero-crossing trend must be rejected in multiplicative mode");
+        assert!(
+            err.to_string().contains("additive"),
+            "error should point the user at additive mode: {err}"
+        );
     }
 }

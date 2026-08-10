@@ -332,6 +332,25 @@ impl FinancialModelSpec {
             if let Some(waterfall) = &cs.waterfall {
                 waterfall.validate()?;
             }
+            // Period-flow classification infers expense vs income for two-leg
+            // instruments from the sign of the net flow, which assumes the
+            // issuer pays fixed (`PayReceive::Pay`). A `Receive` swap would
+            // silently invert that classification, so reject it loudly until
+            // the sign convention is threaded through (INVARIANTS.md §3).
+            for debt in &cs.debt_instruments {
+                if let FinancialStatementInstrument::InterestRateSwap(swap) = &debt.spec {
+                    if swap.side == finstack_quant_valuations::instruments::PayReceive::Receive {
+                        return Err(Error::build(format!(
+                            "Interest rate swap '{}' has side `Receive`, which the \
+                             capital-structure flow classification does not support: \
+                             two-leg expense/income signs assume the issuer pays fixed \
+                             (`Pay`). Model the position as a `Pay` swap with inverted \
+                             legs instead.",
+                            debt.id
+                        )));
+                    }
+                }
+            }
         }
 
         match crate::evaluator::DependencyGraph::from_model(self) {
@@ -549,6 +568,54 @@ mod period_timeline_tests {
             err.to_string().contains("increasing"),
             "expected the ordering diagnostic: {err}"
         );
+    }
+
+    /// A `Receive` swap inverts the expense/income classification the flow
+    /// engine infers from net-flow signs, so it must be rejected at build.
+    #[test]
+    fn receive_swap_in_capital_structure_is_rejected() {
+        use finstack_quant_valuations::instruments::PayReceive;
+
+        let mut swap = InterestRateSwap::example_standard().expect("example swap");
+        swap.side = PayReceive::Receive;
+        let mut model = model_with_periods(vec![period(PeriodId::quarter(2024, 1), true)]);
+        model.capital_structure = Some(CapitalStructureSpec {
+            debt_instruments: vec![DebtInstrumentSpec {
+                id: "IRS-RCV".to_string(),
+                spec: FinancialStatementInstrument::InterestRateSwap(swap),
+            }],
+            meta: IndexMap::new(),
+            reporting_currency: None,
+            fx_policy: None,
+            waterfall: None,
+        });
+        let err = model
+            .validate_semantics()
+            .expect_err("a Receive swap must be rejected");
+        assert!(
+            err.to_string().contains("Receive"),
+            "expected the Receive-side diagnostic: {err}"
+        );
+    }
+
+    /// The supported `Pay` side must continue to pass validation.
+    #[test]
+    fn pay_swap_in_capital_structure_is_accepted() {
+        let swap = InterestRateSwap::example_standard().expect("example swap");
+        let mut model = model_with_periods(vec![period(PeriodId::quarter(2024, 1), true)]);
+        model.capital_structure = Some(CapitalStructureSpec {
+            debt_instruments: vec![DebtInstrumentSpec {
+                id: "IRS-PAY".to_string(),
+                spec: FinancialStatementInstrument::InterestRateSwap(swap),
+            }],
+            meta: IndexMap::new(),
+            reporting_currency: None,
+            fx_policy: None,
+            waterfall: None,
+        });
+        model
+            .validate_semantics()
+            .expect("a Pay swap is supported and must pass");
     }
 
     #[test]

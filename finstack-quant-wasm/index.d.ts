@@ -6300,7 +6300,7 @@ export interface ValuationsNamespace {
    *
    * Each period's coupon is `max(fixed_rate - L_i, coupon_floor) * day_count_fraction`.
    * Payments accumulate in a
-   * [`CumulativeCouponTracker`](finstack_quant_valuations::instruments::rates::exotics_shared::cumulative_coupon::CumulativeCouponTracker) configured with
+   * [`CumulativeCouponTracker`](finstack_quant_valuations::instruments::rates::hw1f::cumulative_coupon::CumulativeCouponTracker) configured with
    * `target_coupon`; once cumulative hits the target, the final coupon is
    * capped and the instrument is considered redeemed.
    * @returns Returns the result using the declared TypeScript shape.
@@ -6861,10 +6861,10 @@ export interface StatementsAnalyticsNamespace {
   creditAssessmentReport(resultsJson: string, asOf: string): string;
   /**
    * Compute a credit assessment from statement results (JSON in/out).
+   * @returns Returns the requested string representation or JSON payload.
    * @param resultsJson - Canonical JSON payload representing the results consumed by this API.
    * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
    * @throws Error - Rejects malformed `results_json`, an `as_of` value that is not a valid statement period identifier, or failure to serialize the assessment.
-   * @returns Returns the requested string representation or JSON payload.
    */
   creditAssessment(resultsJson: string, asOf: string): string;
   /**

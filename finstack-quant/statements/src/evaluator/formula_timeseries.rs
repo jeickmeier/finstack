@@ -246,7 +246,10 @@ pub(crate) fn eval_growth_rate(
             "growth_rate() periods must be a positive integer",
         ));
     }
-    if periods_raw.fract() != 0.0 {
+    // Tolerance-based integrality check: a periods count computed from other
+    // nodes can carry representation noise (e.g. 3.9999999999999996), which an
+    // exact `fract() != 0.0` test would spuriously reject.
+    if (periods_raw - periods_raw.round()).abs() > ZERO_TOLERANCE {
         return Err(eval_error(
             node_id,
             "growth_rate() periods must be a positive integer",
@@ -258,7 +261,7 @@ pub(crate) fn eval_growth_rate(
             "growth_rate() periods value is too large",
         ));
     }
-    let periods = periods_raw as i32;
+    let periods = periods_raw.round() as i32;
 
     if let ExprNode::Column(node_name) = &args[0].node {
         let current_value = context.get_value(node_name)?;

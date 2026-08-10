@@ -197,6 +197,18 @@ pub(crate) fn eval_ewm_std_or_var(
         let denom = 1.0 - sum_w2;
         if denom.abs() > ZERO_TOLERANCE {
             ewm_var /= denom;
+        } else {
+            // Σŵ² ≈ 1 means effectively all weight sits on one observation
+            // (alpha ≈ 1), where the unbiased correction is undefined. Return
+            // the biased variance but say so rather than silently mislabeling
+            // the estimator.
+            tracing::warn!(
+                node = node_name,
+                sum_w2,
+                "{func}() unbiased correction skipped: 1 - sum of squared weights is \
+                 ~0 (weight concentrated on a single observation); returning the \
+                 biased estimate"
+            );
         }
     }
 

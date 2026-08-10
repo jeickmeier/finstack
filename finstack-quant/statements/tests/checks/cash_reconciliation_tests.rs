@@ -300,3 +300,141 @@ fn nan_cash_balance_warns_and_skips() {
         result.findings
     );
 }
+
+#[test]
+fn nan_component_warns_instead_of_silently_skipping() {
+    use finstack_quant_statements::checks::Severity;
+
+    // All three component nodes are configured, but CFO is NaN in Q2. The
+    // component identity cannot be evaluated — that skip must be surfaced,
+    // not silent.
+    let model = ModelBuilder::new("test")
+        .periods("2025Q1..Q2", None)
+        .unwrap()
+        .value(
+            "cash",
+            &[
+                (q(1), AmountOrScalar::scalar(100.0)),
+                (q(2), AmountOrScalar::scalar(150.0)),
+            ],
+        )
+        .value(
+            "total_cf",
+            &[
+                (q(1), AmountOrScalar::scalar(0.0)),
+                (q(2), AmountOrScalar::scalar(50.0)),
+            ],
+        )
+        .value(
+            "cfo",
+            &[
+                (q(1), AmountOrScalar::scalar(0.0)),
+                (q(2), AmountOrScalar::scalar(80.0)),
+            ],
+        )
+        .value(
+            "cfi",
+            &[
+                (q(1), AmountOrScalar::scalar(0.0)),
+                (q(2), AmountOrScalar::scalar(-20.0)),
+            ],
+        )
+        .value(
+            "cff",
+            &[
+                (q(1), AmountOrScalar::scalar(0.0)),
+                (q(2), AmountOrScalar::scalar(-10.0)),
+            ],
+        )
+        .build()
+        .unwrap();
+
+    let mut evaluator = Evaluator::new();
+    let mut results = evaluator.evaluate(&model).unwrap();
+    results
+        .nodes
+        .entry("cfo".to_string())
+        .or_default()
+        .insert(q(2), f64::NAN);
+
+    let check = CashReconciliation {
+        cash_balance_node: NodeId::new("cash"),
+        total_cash_flow_node: NodeId::new("total_cf"),
+        cfo_node: Some(NodeId::new("cfo")),
+        cfi_node: Some(NodeId::new("cfi")),
+        cff_node: Some(NodeId::new("cff")),
+        tolerance: None,
+    };
+
+    let ctx = CheckContext::new(&model, &results);
+    let result = check.execute(&ctx).unwrap();
+
+    assert!(
+        result
+            .findings
+            .iter()
+            .any(|f| f.severity == Severity::Warning
+                && f.message.contains("component")
+                && f.message.contains("cfo")),
+        "a NaN component must produce a skip warning naming the node: {:?}",
+        result.findings
+    );
+}
+
+#[test]
+fn partial_component_configuration_warns() {
+    use finstack_quant_statements::checks::Severity;
+
+    // Configuring only CFO (without CFI/CFF) silently disabled the component
+    // identity before; it must now surface a configuration warning.
+    let model = ModelBuilder::new("test")
+        .periods("2025Q1..Q2", None)
+        .unwrap()
+        .value(
+            "cash",
+            &[
+                (q(1), AmountOrScalar::scalar(100.0)),
+                (q(2), AmountOrScalar::scalar(150.0)),
+            ],
+        )
+        .value(
+            "total_cf",
+            &[
+                (q(1), AmountOrScalar::scalar(0.0)),
+                (q(2), AmountOrScalar::scalar(50.0)),
+            ],
+        )
+        .value(
+            "cfo",
+            &[
+                (q(1), AmountOrScalar::scalar(0.0)),
+                (q(2), AmountOrScalar::scalar(50.0)),
+            ],
+        )
+        .build()
+        .unwrap();
+
+    let mut evaluator = Evaluator::new();
+    let results = evaluator.evaluate(&model).unwrap();
+
+    let check = CashReconciliation {
+        cash_balance_node: NodeId::new("cash"),
+        total_cash_flow_node: NodeId::new("total_cf"),
+        cfo_node: Some(NodeId::new("cfo")),
+        cfi_node: None,
+        cff_node: None,
+        tolerance: None,
+    };
+
+    let ctx = CheckContext::new(&model, &results);
+    let result = check.execute(&ctx).unwrap();
+
+    assert!(
+        result
+            .findings
+            .iter()
+            .any(|f| f.severity == Severity::Warning && f.message.contains("1 of the three")),
+        "partial CFO/CFI/CFF configuration must warn: {:?}",
+        result.findings
+    );
+}

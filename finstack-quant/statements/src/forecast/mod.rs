@@ -265,7 +265,12 @@ fn mix_node_seed(
     let mut params = params.clone();
     if let Some(seed_val) = params.get_mut("seed") {
         if let Some(seed) = parse_seed(seed_val) {
-            let effective_seed = seed ^ hash_node(node_id);
+            // SplitMix64-style combine: a plain XOR can cancel bits when the
+            // user seed and node hash overlap (worst case yielding seed 0);
+            // multiply-add by the golden-ratio constant decorrelates them.
+            let effective_seed = seed
+                .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                .wrapping_add(hash_node(node_id));
             *seed_val = serde_json::json!(effective_seed);
         }
     }

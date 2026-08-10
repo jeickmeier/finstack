@@ -841,6 +841,16 @@ pub fn execute_waterfall(
         // `opening - principal` would silently wipe a revolver's new draws.
         let post_pay_amount =
             opening_balance.amount() + net_new_funding.amount() - principal_payment.amount();
+        // A materially negative balance means principal exceeded the payable
+        // balance — an upstream accounting bug the dust floor must not mask.
+        // The cap in (a) makes this unreachable today; keep it as a loud
+        // invariant guard rather than letting the floor absorb it.
+        if post_pay_amount < -0.005 {
+            return Err(crate::error::Error::capital_structure(format!(
+                "Post-payment balance for instrument '{instrument_id}' is negative \
+                 ({post_pay_amount}): principal payment exceeded the payable balance."
+            )));
+        }
         // Dust floor: collapse sub-cent residuals on full paydown. Currency
         // agnostic fallback; modelers in JPY should override via explicit
         // rounding upstream.

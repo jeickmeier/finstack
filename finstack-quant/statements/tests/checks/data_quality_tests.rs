@@ -257,6 +257,51 @@ fn sign_convention_clean() {
     assert!(result.findings.is_empty());
 }
 
+#[test]
+fn sign_convention_nan_is_surfaced_not_silently_passed() {
+    // NaN compares false against both `< 0.0` and `> 0.0`, so without an
+    // explicit guard a non-finite value would satisfy either expectation.
+    let model = ModelBuilder::new("test")
+        .periods("2025Q1..Q1", None)
+        .unwrap()
+        .value("revenue", &[(q(1), AmountOrScalar::scalar(100.0))])
+        .value("expense", &[(q(1), AmountOrScalar::scalar(-50.0))])
+        .build()
+        .unwrap();
+
+    let mut evaluator = Evaluator::new();
+    let mut results = evaluator.evaluate(&model).unwrap();
+    results
+        .nodes
+        .entry("revenue".to_string())
+        .or_default()
+        .insert(q(1), f64::NAN);
+    results
+        .nodes
+        .entry("expense".to_string())
+        .or_default()
+        .insert(q(1), f64::NAN);
+
+    let check = SignConventionCheck {
+        positive_nodes: vec![NodeId::new("revenue")],
+        negative_nodes: vec![NodeId::new("expense")],
+    };
+
+    let ctx = CheckContext::new(&model, &results);
+    let result = check.execute(&ctx).unwrap();
+
+    assert!(result.passed); // advisory: warnings only
+    assert_eq!(result.findings.len(), 2);
+    for finding in &result.findings {
+        assert_eq!(finding.severity, Severity::Warning);
+        assert!(
+            finding.message.contains("non-finite"),
+            "expected a non-finite diagnostic: {}",
+            finding.message
+        );
+    }
+}
+
 // NonFiniteCheck
 
 #[test]

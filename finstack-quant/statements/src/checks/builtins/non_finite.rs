@@ -8,9 +8,9 @@ use crate::Result;
 
 /// Detects NaN or infinite values in node results.
 ///
-/// **Advisory-only**: findings are `Severity::Warning`, so
-/// `CheckResult::passed` is always `true`; the check surfaces non-finite
-/// cells without failing a pipeline gate.
+/// **Gating**: findings are `Severity::Error`, so any non-finite cell sets
+/// `CheckResult::passed` to `false` and fails a pipeline gate. Non-finite
+/// values poison every downstream calculation, so they are never advisory.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NonFiniteCheck {
     /// Specific nodes to check; if empty, all nodes in results are inspected.

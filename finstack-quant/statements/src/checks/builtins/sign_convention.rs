@@ -36,12 +36,30 @@ impl Check for SignConventionCheck {
     fn execute(&self, context: &CheckContext) -> Result<CheckResult> {
         let mut findings = Vec::new();
 
+        // NaN compares false against both `< 0.0` and `> 0.0`, so a non-finite
+        // value would silently satisfy either sign expectation. Surface it as
+        // its own finding instead of letting it pass.
+        let non_finite_finding = |node: &NodeId, pid, val: f64| CheckFinding {
+            check_id: "sign_convention".to_string(),
+            severity: Severity::Warning,
+            message: format!(
+                "Node '{}' has non-finite value ({val}) in period {pid}; \
+                 its sign convention cannot be verified",
+                node.as_str()
+            ),
+            period: Some(pid),
+            materiality: None,
+            nodes: vec![node.clone()],
+        };
+
         for period in &context.model.periods {
             let pid = &period.id;
 
             for node in &self.positive_nodes {
                 if let Some(val) = get_node_value(context.results, node, pid) {
-                    if val < 0.0 {
+                    if !val.is_finite() {
+                        findings.push(non_finite_finding(node, *pid, val));
+                    } else if val < 0.0 {
                         findings.push(CheckFinding {
                             check_id: self.id().to_string(),
                             severity: Severity::Warning,
@@ -60,7 +78,9 @@ impl Check for SignConventionCheck {
 
             for node in &self.negative_nodes {
                 if let Some(val) = get_node_value(context.results, node, pid) {
-                    if val > 0.0 {
+                    if !val.is_finite() {
+                        findings.push(non_finite_finding(node, *pid, val));
+                    } else if val > 0.0 {
                         findings.push(CheckFinding {
                             check_id: self.id().to_string(),
                             severity: Severity::Warning,

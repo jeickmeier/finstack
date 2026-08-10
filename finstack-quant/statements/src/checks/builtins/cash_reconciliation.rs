@@ -46,6 +46,31 @@ impl Check for CashReconciliation {
         let mut findings = Vec::new();
         let periods = &context.model.periods;
 
+        // The component identity needs all three of CFO/CFI/CFF; configuring
+        // only some of them is almost certainly a suite-authoring mistake, and
+        // silently skipping the identity would hide it.
+        let configured = [&self.cfo_node, &self.cfi_node, &self.cff_node]
+            .iter()
+            .filter(|node| node.is_some())
+            .count();
+        if configured > 0 && configured < 3 {
+            findings.push(CheckFinding {
+                check_id: self.id().to_string(),
+                severity: Severity::Warning,
+                message: format!(
+                    "Cash flow component check skipped: only {configured} of the three \
+                     CFO/CFI/CFF nodes are configured. Configure all three (or none) — \
+                     the identity CFO + CFI + CFF = TotalCF cannot be evaluated partially."
+                ),
+                period: None,
+                materiality: None,
+                nodes: [&self.cfo_node, &self.cfi_node, &self.cff_node]
+                    .iter()
+                    .filter_map(|node| (*node).clone())
+                    .collect(),
+            });
+        }
+
         for i in 1..periods.len() {
             let prev_pid = &periods[i - 1].id;
             let curr_pid = &periods[i].id;
@@ -157,6 +182,34 @@ impl Check for CashReconciliation {
                 let cfo = get_finite_node_value(context.results, cfo_node, curr_pid);
                 let cfi = get_finite_node_value(context.results, cfi_node, curr_pid);
                 let cff = get_finite_node_value(context.results, cff_node, curr_pid);
+
+                // A missing or non-finite component would silently disable
+                // the identity exactly when it matters most; surface the skip.
+                if cfo.is_none() || cfi.is_none() || cff.is_none() {
+                    let mut missing: Vec<String> = Vec::new();
+                    if cfo.is_none() {
+                        missing.push(cfo_node.to_string());
+                    }
+                    if cfi.is_none() {
+                        missing.push(cfi_node.to_string());
+                    }
+                    if cff.is_none() {
+                        missing.push(cff_node.to_string());
+                    }
+                    findings.push(CheckFinding {
+                        check_id: self.id().to_string(),
+                        severity: Severity::Warning,
+                        message: format!(
+                            "Cash flow component check skipped for {curr_pid}: missing or \
+                             non-finite component values [{}]. The identity \
+                             CFO + CFI + CFF = TotalCF cannot be evaluated.",
+                            missing.join(", ")
+                        ),
+                        period: Some(*curr_pid),
+                        materiality: None,
+                        nodes: vec![cfo_node.clone(), cfi_node.clone(), cff_node.clone()],
+                    });
+                }
 
                 if let (Some(cfo_val), Some(cfi_val), Some(cff_val)) = (cfo, cfi, cff) {
                     let component_sum = cfo_val + cfi_val + cff_val;
