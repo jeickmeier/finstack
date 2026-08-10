@@ -2,6 +2,10 @@
 //!
 //! These are *not* curve DV01 metrics. They are bump-and-reprice sensitivities for
 //! real estate deal inputs like cap rates and appraisal discount rates.
+//!
+//! **Units**: each metric returns the central-difference derivative `dV/dr`
+//! per **unit** of rate (1.0 = 100% = 10,000bp), computed with a 1bp bump.
+//! Divide by 10,000 for a per-bp value change.
 
 use crate::instruments::equity::real_estate::{LeveredRealEstateEquity, RealEstateAsset};
 use crate::instruments::Instrument;
@@ -10,6 +14,9 @@ use finstack_quant_core::Error as CoreError;
 
 const DEFAULT_BUMP_ABS: f64 = 1e-4; // 1bp in fractional terms
 
+/// Central-difference `dV/dcap` per unit of cap rate (1.0 = 10,000bp).
+///
+/// DirectCap bumps `cap_rate`; DCF bumps `terminal_cap_rate`.
 #[derive(Debug, Clone, Copy)]
 pub(super) struct CapRateSensitivity {
     /// Absolute bump size (e.g., 1bp = 1e-4).
@@ -157,6 +164,8 @@ impl MetricCalculator for CapRateSensitivity {
     }
 }
 
+/// Central-difference `dV/dr` of the DCF `discount_rate`, per unit of rate
+/// (1.0 = 10,000bp).
 #[derive(Debug, Clone, Copy)]
 pub(super) struct DiscountRateSensitivity {
     /// Absolute bump size (e.g., 1bp = 1e-4).
@@ -172,7 +181,6 @@ impl Default for DiscountRateSensitivity {
 }
 
 impl DiscountRateSensitivity {
-    /// DCF valuations always discount at `discount_rate`
     /// DCF valuations always discount at `discount_rate`, so the only
     /// precondition is that the rate is set.
     fn ensure_dcf_rate_present(a: &RealEstateAsset) -> finstack_quant_core::Result<()> {

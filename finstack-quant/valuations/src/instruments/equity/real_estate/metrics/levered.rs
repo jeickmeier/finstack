@@ -88,70 +88,97 @@ impl MetricCalculator for LoanToValue {
     }
 }
 
-/// Minimum DSCR over the NOI dates in the asset schedule: NOI / (cash interest + fees + principal).
+/// True when a cashflow kind counts as *scheduled* debt service.
 ///
-/// This is a simplified DSCR proxy computed on NOI dates. It is intended for screening and
-/// covenant-like reporting, not legal covenant calculation.
+/// Market DSCR uses NOI over scheduled debt service: cash interest, fees, and
+/// (unless interest-only) scheduled amortization. Balloon/funding `Notional`
+/// legs, PIK accruals, prepayments, and revolver movements are excluded.
+fn is_scheduled_debt_service(
+    kind: finstack_quant_core::cashflow::CFKind,
+    interest_only: bool,
+) -> bool {
+    use finstack_quant_core::cashflow::CFKind;
+    match kind {
+        CFKind::Notional
+        | CFKind::Pik
+        | CFKind::PrePayment
+        | CFKind::RevolvingDraw
+        | CFKind::RevolvingRepayment => false,
+        CFKind::Amortization => !interest_only,
+        _ => true,
+    }
+}
+
+fn min_dscr(
+    context: &MetricContext,
+    interest_only: bool,
+    metric_name: &str,
+) -> finstack_quant_core::Result<f64> {
+    let inst = context
+        .instrument
+        .as_any()
+        .downcast_ref::<LeveredRealEstateEquity>()
+        .ok_or_else(|| CoreError::Validation(format!("{metric_name}: type mismatch")))?;
+
+    let as_of = context.as_of;
+    let exit = inst.resolve_exit_date(as_of)?;
+
+    let noi = inst.asset.noi_flows(as_of)?;
+    if noi.is_empty() {
+        return Err(CoreError::Validation(format!(
+            "{metric_name}: missing NOI flows"
+        )));
+    }
+
+    let schedules = inst.financing_schedules_supported(&context.curves, as_of)?;
+
+    let mut min_dscr = f64::INFINITY;
+    let mut prev = as_of;
+    for (d, noi_amt) in noi {
+        if d > exit {
+            break;
+        }
+        let mut debt_service = 0.0;
+        for sched in &schedules {
+            debt_service += sched
+                .get_flows()
+                .iter()
+                .filter(|cf| cf.date > prev && cf.date <= d)
+                // Lender outflows (e.g., funding legs, revolver draws) are
+                // borrower receipts, never debt service.
+                .filter(|cf| cf.amount.amount() > 0.0)
+                .filter(|cf| is_scheduled_debt_service(cf.kind, interest_only))
+                .map(|cf| cf.amount.amount())
+                .sum::<f64>();
+        }
+
+        if debt_service > 0.0 {
+            min_dscr = min_dscr.min(noi_amt / debt_service);
+        }
+        prev = d;
+    }
+
+    if !min_dscr.is_finite() {
+        return Err(CoreError::Validation(format!(
+            "{metric_name}: could not compute (no qualifying debt service)"
+        )));
+    }
+    Ok(min_dscr)
+}
+
+/// Minimum DSCR over the NOI dates in the asset schedule:
+/// NOI / (cash interest + fees + scheduled amortization).
+///
+/// Balloon principal at maturity, prepayments, and revolver movements are
+/// excluded — DSCR measures coverage of *scheduled* debt service only.
+/// This is a simplified DSCR proxy computed on NOI dates. It is intended for
+/// screening and covenant-like reporting, not legal covenant calculation.
 #[derive(Debug, Default)]
 pub(super) struct DscrMin;
 
 impl MetricCalculator for DscrMin {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
-        let inst = context
-            .instrument
-            .as_any()
-            .downcast_ref::<LeveredRealEstateEquity>()
-            .ok_or_else(|| CoreError::Validation("DscrMin: type mismatch".into()))?;
-
-        let as_of = context.as_of;
-        let exit = inst.clone().resolve_exit_date(as_of)?;
-
-        let noi = inst.asset.noi_flows(as_of)?;
-        if noi.is_empty() {
-            return Err(CoreError::Validation("DscrMin: missing NOI flows".into()));
-        }
-
-        let schedules = inst.financing_schedules_supported(&context.curves, as_of)?;
-
-        let mut min_dscr = f64::INFINITY;
-        let mut prev = as_of;
-        for (d, noi_amt) in noi {
-            if d > exit {
-                break;
-            }
-            let mut debt_service = 0.0;
-            for sched in &schedules {
-                debt_service += sched
-                    .get_flows()
-                    .iter()
-                    .filter(|cf| cf.date > prev && cf.date <= d)
-                    .filter(|cf| {
-                        // Exclude borrower funding legs (negative Notional from lender perspective).
-                        if matches!(cf.kind, finstack_quant_core::cashflow::CFKind::Notional)
-                            && cf.amount.amount() < 0.0
-                        {
-                            return false;
-                        }
-                        // Exclude PIK.
-                        !matches!(cf.kind, finstack_quant_core::cashflow::CFKind::Pik)
-                    })
-                    // Borrower debt service is negative of lender inflows. We want a positive service amount.
-                    .map(|cf| cf.amount.amount().abs())
-                    .sum::<f64>();
-            }
-
-            if debt_service > 0.0 {
-                min_dscr = min_dscr.min(noi_amt / debt_service);
-            }
-            prev = d;
-        }
-
-        if !min_dscr.is_finite() {
-            return Err(CoreError::Validation(
-                "DscrMin: could not compute (no debt service)".into(),
-            ));
-        }
-        Ok(min_dscr)
+        min_dscr(context, false, "DscrMin")
     }
 }
 
@@ -162,65 +189,7 @@ pub(super) struct DscrMinInterestOnly;
 
 impl MetricCalculator for DscrMinInterestOnly {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
-        let inst = context
-            .instrument
-            .as_any()
-            .downcast_ref::<LeveredRealEstateEquity>()
-            .ok_or_else(|| CoreError::Validation("DscrMinInterestOnly: type mismatch".into()))?;
-
-        let as_of = context.as_of;
-        let exit = inst.clone().resolve_exit_date(as_of)?;
-
-        let noi = inst.asset.noi_flows(as_of)?;
-        if noi.is_empty() {
-            return Err(CoreError::Validation(
-                "DscrMinInterestOnly: missing NOI flows".into(),
-            ));
-        }
-
-        let schedules = inst.financing_schedules_supported(&context.curves, as_of)?;
-
-        let mut min_dscr = f64::INFINITY;
-        let mut prev = as_of;
-        for (d, noi_amt) in noi {
-            if d > exit {
-                break;
-            }
-            let mut debt_service = 0.0;
-            for sched in &schedules {
-                debt_service += sched
-                    .get_flows()
-                    .iter()
-                    .filter(|cf| cf.date > prev && cf.date <= d)
-                    .filter(|cf| {
-                        if matches!(cf.kind, finstack_quant_core::cashflow::CFKind::Pik) {
-                            return false;
-                        }
-                        !matches!(
-                            cf.kind,
-                            finstack_quant_core::cashflow::CFKind::Notional
-                                | finstack_quant_core::cashflow::CFKind::Amortization
-                                | finstack_quant_core::cashflow::CFKind::PrePayment
-                                | finstack_quant_core::cashflow::CFKind::RevolvingRepayment
-                        )
-                    })
-                    // Borrower debt service is negative of lender inflows. We want a positive service amount.
-                    .map(|cf| cf.amount.amount().abs())
-                    .sum::<f64>();
-            }
-
-            if debt_service > 0.0 {
-                min_dscr = min_dscr.min(noi_amt / debt_service);
-            }
-            prev = d;
-        }
-
-        if !min_dscr.is_finite() {
-            return Err(CoreError::Validation(
-                "DscrMinInterestOnly: could not compute (no qualifying debt service)".into(),
-            ));
-        }
-        Ok(min_dscr)
+        min_dscr(context, true, "DscrMinInterestOnly")
     }
 }
 
@@ -253,22 +222,36 @@ impl MetricCalculator for LoanToValueAtOrigination {
         }
 
         let schedules = inst.financing_schedules_supported(&context.curves, context.as_of)?;
+        // Origination draw = lender outflows (negative Notional/RevolvingDraw)
+        // on the first draw date on/after as_of, per financing instrument.
+        // Matching only flows dated exactly at as_of would silently return 0
+        // LTV whenever funding settles after the valuation date.
         let mut drawn = 0.0;
         for sched in &schedules {
-            for cf in sched.get_flows() {
-                if cf.date != context.as_of {
-                    continue;
-                }
-                let is_draw = matches!(
-                    cf.kind,
-                    finstack_quant_core::cashflow::CFKind::Notional
-                        | finstack_quant_core::cashflow::CFKind::RevolvingDraw
-                );
-                if is_draw && cf.amount.amount() < 0.0 {
-                    // Lender outflow is borrower draw.
-                    drawn += -cf.amount.amount();
-                }
+            let draws: Vec<_> = sched
+                .get_flows()
+                .iter()
+                .filter(|cf| cf.date >= context.as_of)
+                .filter(|cf| {
+                    matches!(
+                        cf.kind,
+                        finstack_quant_core::cashflow::CFKind::Notional
+                            | finstack_quant_core::cashflow::CFKind::RevolvingDraw
+                    ) && cf.amount.amount() < 0.0
+                })
+                .collect();
+            if let Some(first_date) = draws.iter().map(|cf| cf.date).min() {
+                drawn += draws
+                    .iter()
+                    .filter(|cf| cf.date == first_date)
+                    .map(|cf| -cf.amount.amount())
+                    .sum::<f64>();
             }
+        }
+        if drawn <= 0.0 {
+            return Err(CoreError::Validation(
+                "LoanToValueAtOrigination: no financing draw found on/after as_of".into(),
+            ));
         }
 
         Ok(drawn / purchase.amount())

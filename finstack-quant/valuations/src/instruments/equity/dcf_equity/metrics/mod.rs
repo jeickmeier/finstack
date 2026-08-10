@@ -79,30 +79,42 @@ impl MetricCalculator for TerminalValuePVCalculator {
 /// Calculator for Equity Price Per Share metric.
 ///
 /// Returns equity value / diluted shares using the treasury stock method.
-/// Returns `NaN` if `shares_outstanding` is not set.
+/// Errors if `shares_outstanding` is not set (or diluted shares is
+/// non-positive) rather than emitting a silent `NaN` that would poison
+/// downstream aggregations.
 struct EquityPricePerShareCalculator;
 
 impl MetricCalculator for EquityPricePerShareCalculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
         let dcf = downcast_dcf(context)?;
         let equity = dcf.value(context.curves.as_ref(), context.as_of)?;
-        Ok(dcf
-            .equity_value_per_share(equity.amount())
-            .unwrap_or(f64::NAN))
+        dcf.equity_value_per_share(equity.amount()).ok_or_else(|| {
+            finstack_quant_core::Error::Validation(format!(
+                "DCF '{}' EquityPricePerShare requires shares_outstanding to be set \
+                 and diluted shares to be positive",
+                dcf.id.as_str()
+            ))
+        })
     }
 }
 
 /// Calculator for diluted share count metric.
 ///
 /// Returns diluted shares via treasury stock method.
-/// Returns `NaN` if `shares_outstanding` is not set.
+/// Errors if `shares_outstanding` is not set rather than emitting a silent
+/// `NaN` that would poison downstream aggregations.
 struct EquitySharesCalculator;
 
 impl MetricCalculator for EquitySharesCalculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
         let dcf = downcast_dcf(context)?;
         let equity = dcf.value(context.curves.as_ref(), context.as_of)?;
-        Ok(dcf.diluted_shares(equity.amount()).unwrap_or(f64::NAN))
+        dcf.diluted_shares(equity.amount()).ok_or_else(|| {
+            finstack_quant_core::Error::Validation(format!(
+                "DCF '{}' EquityShares requires shares_outstanding to be set",
+                dcf.id.as_str()
+            ))
+        })
     }
 }
 

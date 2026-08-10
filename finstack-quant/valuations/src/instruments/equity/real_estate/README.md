@@ -19,6 +19,8 @@ If you want a first-class “deal wrapper” around the asset + financing, use:
 
 ## Key conventions
 
+- **Annual NOI schedule**: `noi_schedule` entries must be **annual** NOI amounts. Cap-rate formulas (direct cap, exit-cap terminal value, going-in cap rate) apply a quoted annual cap rate to a single schedule entry; sub-annual schedules would understate those values.
+- **Valuation horizon**: when `sale_date` is set, DCF valuation, the cashflow schedule, and all return metrics truncate flows at `sale_date` and realize terminal proceeds there. Otherwise the horizon is the last NOI date on/after `as_of`. Flows dated exactly on `as_of` are included undiscounted.
 - **Discounting**:
   - DCF always discounts at the property `discount_rate`; `discount_curve_id` is for risk attribution only. DV01 bumps the risk-free component inside the rate.
   - Otherwise, DCF discounts using **annual discrete compounding**: \( PV = CF / (1 + r)^t \) using `day_count`.
@@ -51,6 +53,10 @@ The real estate module registers these custom metric IDs (via `MetricId::custom(
 - `real_estate::unlevered_cash_on_cash_first` (requires `purchase_price`)
 - `real_estate::cap_rate_sensitivity` (finite-difference; DirectCap uses `cap_rate`, DCF uses `terminal_cap_rate` when applicable)
 - `real_estate::discount_rate_sensitivity` (finite-difference bump of `discount_rate`; DCF always discounts at the property rate)
+
+Both sensitivities return `dV/dr` per **unit** of rate (1.0 = 10,000bp), computed with a 1bp central difference; divide by 10,000 for a per-bp value change.
+
+DSCR metrics (`dscr_min`, `dscr_min_interest_only`) measure NOI over **scheduled** debt service (cash interest + fees, plus scheduled amortization for `dscr_min`); balloon principal at maturity, prepayments, and revolver movements are excluded.
 
 For `LeveredRealEstateEquity`:
 

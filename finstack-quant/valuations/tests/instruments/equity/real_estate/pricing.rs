@@ -711,3 +711,271 @@ fn test_levered_real_estate_sensitivities_metrics_compute() {
         assert!(v.is_finite(), "metric {} should be finite", m.as_str());
     }
 }
+
+fn build_mid_sale_dcf_asset() -> RealEstateAsset {
+    let as_of = date(2025, 1, 1);
+    let noi1 = date(2026, 1, 1);
+    let noi2 = date(2027, 1, 1);
+    let noi3 = date(2028, 1, 1);
+
+    RealEstateAsset::builder()
+        .id(InstrumentId::new("RE-MID-SALE"))
+        .currency(Currency::USD)
+        .valuation_date(as_of)
+        .valuation_method(RealEstateValuationMethod::Dcf)
+        .noi_schedule(vec![(noi1, 100.0), (noi2, 100.0), (noi3, 100.0)])
+        .purchase_price_opt(Some(Money::new(1_000.0, Currency::USD)))
+        .discount_rate_opt(Some(0.10))
+        .terminal_cap_rate_opt(Some(0.10))
+        .sale_date_opt(Some(noi2))
+        .day_count(DayCount::Act365F)
+        .discount_curve_id(CurveId::new("USD-OIS"))
+        .attributes(Attributes::new())
+        .build()
+        .expect("asset build")
+}
+
+/// With `sale_date` set mid-schedule, the cashflow schedule must not include
+/// NOI after the sale, and terminal proceeds must land on `sale_date` —
+/// matching the DCF PV horizon.
+#[test]
+fn test_real_estate_cashflow_schedule_truncates_at_sale_date() {
+    use finstack_quant_cashflows::CashflowProvider;
+
+    let as_of = date(2025, 1, 1);
+    let noi1 = date(2026, 1, 1);
+    let sale_date = date(2027, 1, 1);
+
+    let asset = build_mid_sale_dcf_asset();
+    let schedule = asset
+        .cashflow_schedule(&MarketContext::new(), as_of)
+        .expect("schedule");
+
+    let flows = schedule.get_flows();
+    let last_date = flows.iter().map(|cf| cf.date).max().expect("flows");
+    assert_eq!(
+        last_date, sale_date,
+        "no flows may occur after sale_date; got {last_date}"
+    );
+    assert_eq!(flows[0].date, noi1);
+    // At sale_date: NOI (100) + terminal proceeds (NOI_N / cap = 100/0.10 = 1000).
+    let at_sale: f64 = flows
+        .iter()
+        .filter(|cf| cf.date == sale_date)
+        .map(|cf| cf.amount.amount())
+        .sum();
+    assert!(
+        (at_sale - 1_100.0).abs() < 1e-9,
+        "sale-date flows should be NOI + terminal proceeds, got {at_sale}"
+    );
+}
+
+/// Unlevered return metrics must use the same holding period as the DCF PV:
+/// NOI after `sale_date` is not received by the seller.
+#[test]
+fn test_real_estate_unlevered_metrics_truncate_at_sale_date() {
+    use finstack_quant_valuations::metrics::MetricId;
+
+    let as_of = date(2025, 1, 1);
+    let asset = build_mid_sale_dcf_asset();
+
+    let metrics = [MetricId::custom("real_estate::unlevered_multiple")];
+    let result = asset
+        .price_with_metrics(
+            &MarketContext::new(),
+            as_of,
+            &metrics,
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .expect("price_with_metrics");
+
+    let multiple = *result
+        .measures
+        .get(&MetricId::custom("real_estate::unlevered_multiple"))
+        .expect("unlevered multiple present");
+
+    // Inflows: NOI1 (100) + NOI2 (100) + terminal (100/0.10 = 1000) = 1200.
+    // Outflow: purchase (1000). NOI3 (post-sale) must be excluded.
+    assert!(
+        (multiple - 1.2).abs() < 1e-10,
+        "multiple should exclude post-sale NOI, got {multiple}"
+    );
+}
+
+/// When `exit_date` is not set on the levered wrapper, it must default to the
+/// asset's `sale_date` (the asset PV horizon), not the last NOI date.
+#[test]
+fn test_levered_exit_defaults_to_asset_sale_date() {
+    use finstack_quant_cashflows::CashflowProvider;
+
+    let as_of = date(2025, 1, 1);
+    let sale_date = date(2027, 1, 1);
+
+    let levered = LeveredRealEstateEquity::builder()
+        .id(InstrumentId::new("RE-EQ-MID-SALE"))
+        .currency(Currency::USD)
+        .asset(build_mid_sale_dcf_asset())
+        .discount_curve_id(CurveId::new("USD-OIS"))
+        .attributes(Attributes::new())
+        .build()
+        .expect("levered build");
+
+    let schedule = levered
+        .cashflow_schedule(&MarketContext::new(), as_of)
+        .expect("equity schedule");
+    let last_date = schedule
+        .get_flows()
+        .iter()
+        .map(|cf| cf.date)
+        .max()
+        .expect("flows");
+    assert_eq!(
+        last_date, sale_date,
+        "levered exit must default to asset sale_date"
+    );
+}
+
+/// DSCR measures scheduled debt service only: the balloon principal repayment
+/// at loan maturity must not crater `dscr_min`.
+#[test]
+fn test_dscr_min_excludes_balloon_principal_at_maturity() {
+    use finstack_quant_valuations::metrics::MetricId;
+
+    let as_of = date(2025, 1, 1);
+    let noi1 = date(2026, 1, 1);
+    let noi2 = date(2027, 1, 1);
+
+    let asset = RealEstateAsset::builder()
+        .id(InstrumentId::new("RE-ASSET-DSCR"))
+        .currency(Currency::USD)
+        .valuation_date(as_of)
+        .valuation_method(RealEstateValuationMethod::Dcf)
+        .noi_schedule(vec![(noi1, 120.0), (noi2, 120.0)])
+        .purchase_price_opt(Some(Money::new(1_000.0, Currency::USD)))
+        .discount_rate_opt(Some(0.10))
+        .terminal_cap_rate_opt(Some(0.10))
+        .day_count(DayCount::Act365F)
+        .discount_curve_id(CurveId::new("USD-OIS"))
+        .attributes(Attributes::new())
+        .build()
+        .expect("asset build");
+
+    // Bullet loan maturing at the exit date: 700 notional repaid at noi2.
+    let loan = TermLoan::builder()
+        .id("TL-RE-DSCR".into())
+        .currency(Currency::USD)
+        .notional_limit(Money::new(700.0, Currency::USD))
+        .issue_date(as_of)
+        .maturity(noi2)
+        .rate(RateSpec::Fixed { rate_bp: 600 }) // 6% => ~42/yr interest
+        .frequency(Tenor::annual())
+        .day_count(DayCount::Act360)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
+        .calendar_id_opt(None)
+        .stub(StubKind::None)
+        .discount_curve_id(CurveId::from("USD-OIS"))
+        .amortization(AmortizationSpec::None)
+        .coupon_type(CouponType::Cash)
+        .upfront_fee_opt(None)
+        .ddtl_opt(None)
+        .covenants_opt(None)
+        .instrument_pricing_overrides(Default::default())
+        .attributes(Default::default())
+        .build()
+        .expect("loan build");
+
+    let levered = LeveredRealEstateEquity::builder()
+        .id(InstrumentId::new("RE-EQ-DSCR"))
+        .currency(Currency::USD)
+        .asset(asset)
+        .financing(vec![InstrumentJson::TermLoan(loan)])
+        .exit_date_opt(Some(noi2))
+        .discount_curve_id(CurveId::new("USD-OIS"))
+        .attributes(Attributes::new())
+        .build()
+        .expect("levered build");
+
+    let market = MarketContext::new().insert(build_flat_discount_curve("USD-OIS", as_of, 0.05));
+
+    let metrics = [MetricId::custom("real_estate::dscr_min")];
+    let result = levered
+        .price_with_metrics(
+            &market,
+            as_of,
+            &metrics,
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .expect("price_with_metrics");
+
+    let dscr = *result
+        .measures
+        .get(&MetricId::custom("real_estate::dscr_min"))
+        .expect("dscr_min present");
+
+    // NOI 120 vs ~42-44 annual interest => DSCR well above 1. If the 700
+    // balloon were counted as debt service, DSCR would be ~120/742 ≈ 0.16.
+    assert!(
+        dscr > 1.5,
+        "dscr_min must exclude the balloon principal; got {dscr}"
+    );
+}
+
+#[test]
+fn test_real_estate_validate_rejects_bad_cost_inputs() {
+    let as_of = date(2025, 1, 1);
+    let noi1 = date(2026, 1, 1);
+
+    let base = RealEstateAsset::builder()
+        .id(InstrumentId::new("RE-VALIDATE-COSTS"))
+        .currency(Currency::USD)
+        .valuation_date(as_of)
+        .valuation_method(RealEstateValuationMethod::Dcf)
+        .noi_schedule(vec![(noi1, 100.0)])
+        .discount_rate_opt(Some(0.10))
+        .terminal_cap_rate_opt(Some(0.10))
+        .day_count(DayCount::Act365F)
+        .discount_curve_id(CurveId::new("USD-OIS"))
+        .attributes(Attributes::new())
+        .build()
+        .expect("asset build");
+
+    let mut negative_scalar = base.clone();
+    negative_scalar.acquisition_cost = Some(-10.0);
+    assert!(negative_scalar.validate().is_err());
+
+    let mut negative_line_item = base.clone();
+    negative_line_item.acquisition_costs = vec![Money::new(-10.0, Currency::USD)];
+    assert!(negative_line_item.validate().is_err());
+
+    let mut negative_disposition = base.clone();
+    negative_disposition.disposition_costs = vec![Money::new(-10.0, Currency::USD)];
+    assert!(negative_disposition.validate().is_err());
+
+    let mut nan_stabilized = base;
+    nan_stabilized.stabilized_noi = Some(f64::NAN);
+    assert!(nan_stabilized.validate().is_err());
+}
+
+/// DirectCap with an appraisal override no longer requires `cap_rate` —
+/// pricing short-circuits to the appraisal, matching the DCF exemption.
+#[test]
+fn test_real_estate_direct_cap_appraisal_without_cap_rate() {
+    let as_of = date(2025, 1, 1);
+    let noi1 = date(2026, 1, 1);
+
+    let asset = RealEstateAsset::builder()
+        .id(InstrumentId::new("RE-CAP-APPRAISAL"))
+        .currency(Currency::USD)
+        .valuation_date(as_of)
+        .valuation_method(RealEstateValuationMethod::DirectCap)
+        .noi_schedule(vec![(noi1, 100.0)])
+        .appraisal_value_opt(Some(Money::new(1_500.0, Currency::USD)))
+        .day_count(DayCount::Act365F)
+        .discount_curve_id(CurveId::new("USD-OIS"))
+        .attributes(Attributes::new())
+        .build()
+        .expect("appraisal-only DirectCap should build");
+
+    let pv = asset.value(&MarketContext::new(), as_of).expect("npv");
+    assert_eq!(pv.amount(), 1_500.0);
+}

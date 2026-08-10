@@ -74,6 +74,12 @@ pub struct RealEstateAsset {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub property_type: Option<RealEstatePropertyType>,
     /// Net operating income schedule (date, amount).
+    ///
+    /// Entries must be **annual** NOI amounts: cap-rate formulas (direct cap,
+    /// exit-cap terminal value, going-in cap rate) apply a quoted annual cap
+    /// rate to a single schedule entry, so a monthly or quarterly schedule
+    /// would understate those values by 12x/4x. Flows dated exactly on the
+    /// valuation `as_of` are included in PV undiscounted (t = 0).
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub noi_schedule: Vec<(Date, f64)>,
@@ -104,7 +110,10 @@ pub struct RealEstateAsset {
     /// Optional terminal growth rate used to project `NOI_{N+1}` for exit valuation.
     ///
     /// Market convention for exit-cap terminal value is \(TV = NOI_{N+1} / cap\_rate\_exit\).
-    /// When not provided, defaults to 0 (uses last NOI as-is).
+    /// When not provided, defaults to 0 (uses last NOI as-is, i.e. a trailing-NOI
+    /// terminal value). Exactly **one** period of growth is applied to the last
+    /// NOI on/before the exit date — it is not compounded over any gap between
+    /// the last scheduled NOI and a later `sale_date`.
     /// Validation range is \([-100\%, 20\%]\) to guard against configuration errors.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -157,9 +166,8 @@ pub struct RealEstateAsset {
     /// Discount curve identifier, used for risk attribution only.
     ///
     /// DCF valuation always discounts at [`discount_rate`](Self::discount_rate)
-    /// regardless of whether this curve is loaded ; rate
-    /// sensitivity (`Dv01`/`BucketedDv01`) bumps the risk-free component
-    /// inside the rate.
+    /// regardless of whether this curve is loaded; rate sensitivity
+    /// (`Dv01`/`BucketedDv01`) bumps the risk-free component inside the rate.
     pub discount_curve_id: CurveId,
     /// Attributes for tagging and scenarios.
     #[builder(default)]
@@ -343,14 +351,19 @@ impl RealEstateAsset {
     /// - `capex_schedule` (when set) is unsorted, contains non-finite values,
     ///   or contains negative amounts (values are magnitude-positive outflows;
     ///   the pricer applies the outflow sign)
-    /// - `discount_rate`, `cap_rate`, `terminal_cap_rate` are set but non-finite
+    /// - `discount_rate`, `cap_rate`, `terminal_cap_rate`, `stabilized_noi`
+    ///   are set but non-finite
     /// - `cap_rate` or `terminal_cap_rate` are ≤ 0 (would divide-by-zero or
     ///   produce negative valuations)
     /// - `terminal_growth_rate` is set but outside `[-1.0, 0.20]` (sanity band:
     ///   prevents `1 + g <= 0` and unreasonably high terminal growth)
     /// - `disposition_cost_pct` is set but outside `[0.0, 1.0)`
-    /// - `valuation_method == DirectCap` but neither `cap_rate` nor a way to
-    ///   derive cap (sale_price + NOI) is set
+    /// - `acquisition_cost` is set but non-finite or negative, or any
+    ///   `acquisition_costs` / `disposition_costs` line item is non-finite or
+    ///   negative (all cost inputs are magnitude-positive outflows; the pricer
+    ///   applies the outflow sign)
+    /// - `valuation_method == DirectCap` without `cap_rate` (unless an
+    ///   `appraisal_value` short-circuits pricing)
     /// - `valuation_method == Dcf` without `discount_rate` (unless an
     ///   `appraisal_value` short-circuits pricing) — DCF always discounts at
     ///   the property rate
@@ -458,16 +471,53 @@ impl RealEstateAsset {
                 )));
             }
         }
-        if let Some(day_count) = self.disposition_cost_pct {
-            if !day_count.is_finite() || !(0.0..1.0).contains(&day_count) {
+        if let Some(pct) = self.disposition_cost_pct {
+            if !pct.is_finite() || !(0.0..1.0).contains(&pct) {
                 return Err(finstack_quant_core::Error::Validation(format!(
                     "RealEstateAsset '{}' disposition_cost_pct must be in [0.0, 1.0), got {}",
                     self.id.as_str(),
-                    day_count
+                    pct
                 )));
             }
         }
+        if let Some(noi) = self.stabilized_noi {
+            if !noi.is_finite() {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "RealEstateAsset '{}' stabilized_noi must be finite, got {}",
+                    self.id.as_str(),
+                    noi
+                )));
+            }
+        }
+        if let Some(cost) = self.acquisition_cost {
+            if !cost.is_finite() || cost < 0.0 {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "RealEstateAsset '{}' acquisition_cost must be a finite, non-negative \
+                     outflow magnitude, got {}",
+                    self.id.as_str(),
+                    cost
+                )));
+            }
+        }
+        for (label, items) in [
+            ("acquisition_costs", &self.acquisition_costs),
+            ("disposition_costs", &self.disposition_costs),
+        ] {
+            for (i, money) in items.iter().enumerate() {
+                if !money.amount().is_finite() || money.amount() < 0.0 {
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "RealEstateAsset '{}' {}[{}] must be a finite, non-negative outflow \
+                         magnitude, got {}",
+                        self.id.as_str(),
+                        label,
+                        i,
+                        money.amount()
+                    )));
+                }
+            }
+        }
         if matches!(self.valuation_method, RealEstateValuationMethod::DirectCap)
+            && self.appraisal_value.is_none()
             && self.cap_rate.is_none()
         {
             return Err(finstack_quant_core::Error::Validation(format!(
@@ -558,7 +608,8 @@ impl RealEstateAsset {
         pricer::first_noi(self, as_of)
     }
 
-    /// Unlevered net cash flows (NOI - CapEx) on/after `as_of`.
+    /// Unlevered net cash flows (NOI - CapEx) on/after `as_of`, truncated at
+    /// the valuation horizon (`sale_date` when set, else the last NOI date).
     pub(crate) fn unlevered_flows(
         &self,
         as_of: Date,

@@ -29,11 +29,23 @@ pub(crate) struct DcfPricer;
 pub(crate) fn compute_pv(
     dcf: &DiscountedCashFlow,
     _market: &MarketContext,
-    _as_of: Date,
+    as_of: Date,
 ) -> finstack_quant_core::Result<Money> {
     // DCF is anchored to `dcf.valuation_date`; the trait-level `as_of` is
     // intentionally ignored to keep discount timing deterministic for a
-    // configured valuation scenario.
+    // configured valuation scenario. Warn loudly when they differ so a
+    // portfolio run cannot silently mix stale DCF marks with live marks.
+    if as_of != dcf.valuation_date {
+        tracing::warn!(
+            inst_id = %dcf.id,
+            %as_of,
+            valuation_date = %dcf.valuation_date,
+            "DCF priced as_of {} but is anchored to its configured valuation_date {}; \
+             the PV reflects valuation_date and is not rolled forward",
+            as_of,
+            dcf.valuation_date
+        );
+    }
     let equity_value = pv_with_rf_bump(dcf, &|_| 0.0)?;
     Ok(Money::new(equity_value, dcf.currency))
 }
@@ -57,9 +69,7 @@ pub(crate) fn pv_with_rf_bump(
     let bump_term = bump_at(t_term);
 
     // Terminal value capitalized at the bumped WACC (validates WACC > g).
-    let mut dcf_term = dcf.clone();
-    dcf_term.wacc = dcf.wacc + bump_term;
-    let terminal_value = dcf_term.calculate_terminal_value()?;
+    let terminal_value = dcf.terminal_value_at_wacc(dcf.wacc + bump_term)?;
     let pv_terminal = terminal_value / (1.0 + dcf.wacc + bump_term).powf(t_term);
 
     let pv_explicit: f64 = dcf

@@ -31,7 +31,7 @@ pub(crate) fn compute_pv(
 }
 
 /// Asset value with the risk-free component of the discount rate bumped per
-/// tenor .
+/// tenor.
 ///
 /// Appraisal-value and direct-cap valuations carry no discount-rate input,
 /// so they are constant under the bump (zero rf DV01).
@@ -92,21 +92,9 @@ pub(crate) fn pv_with_rf_bump_dcf(
         ));
     }
 
-    let horizon = if let Some(sale_date) = asset.sale_date {
-        if sale_date < as_of {
-            return Err(CoreError::Validation(
-                "sale_date must be on/after as_of".into(),
-            ));
-        }
-        sale_date
-    } else {
-        last_noi(asset, as_of)?.0
-    };
+    let horizon = horizon_date(asset, as_of)?;
 
-    let flows = future_unlevered_flows(asset, as_of)?
-        .into_iter()
-        .filter(|(date, _)| *date <= horizon)
-        .collect::<Vec<_>>();
+    let flows = unlevered_flows(asset, as_of)?;
 
     let terminal_at_horizon = sale_proceeds_at(asset, as_of, horizon)?;
     if flows.is_empty() && terminal_at_horizon.is_none() {
@@ -161,6 +149,24 @@ pub(crate) fn compute_npv_direct_cap(
     Ok(noi / cap_rate)
 }
 
+/// Valuation horizon: `sale_date` when set (must be on/after `as_of`),
+/// otherwise the last NOI date on/after `as_of`. Cashflows after the horizon
+/// are outside the holding period and must not be valued or reported.
+pub(crate) fn horizon_date(
+    asset: &RealEstateAsset,
+    as_of: Date,
+) -> finstack_quant_core::Result<Date> {
+    if let Some(sale_date) = asset.sale_date {
+        if sale_date < as_of {
+            return Err(CoreError::Validation(
+                "sale_date must be on/after as_of".into(),
+            ));
+        }
+        return Ok(sale_date);
+    }
+    Ok(last_noi(asset, as_of)?.0)
+}
+
 pub(crate) fn future_noi_flows(
     asset: &RealEstateAsset,
     as_of: Date,
@@ -180,10 +186,15 @@ pub(crate) fn future_noi_flows(
     Ok(flows)
 }
 
-pub(crate) fn future_unlevered_flows(
+/// Unlevered net cash flows (NOI - CapEx) on/after `as_of`, truncated at the
+/// valuation horizon (`sale_date` when set, else the last NOI date). This is
+/// the holding-period view used by DCF valuation, cashflow schedules, and
+/// return metrics, so all three agree on the horizon.
+pub(crate) fn unlevered_flows(
     asset: &RealEstateAsset,
     as_of: Date,
 ) -> finstack_quant_core::Result<Vec<(Date, f64)>> {
+    let horizon = horizon_date(asset, as_of)?;
     let mut noi = future_noi_flows(asset, as_of)?;
     let mut capex: Vec<(Date, f64)> = asset
         .capex_schedule
@@ -211,6 +222,7 @@ pub(crate) fn future_unlevered_flows(
         }
         merged.push((date, amount));
     }
+    merged.retain(|(date, _)| *date <= horizon);
     Ok(merged)
 }
 
@@ -315,13 +327,6 @@ pub(crate) fn last_noi(
         .ok_or_else(|| CoreError::Validation("NOI schedule is empty".into()))
 }
 
-pub(crate) fn unlevered_flows(
-    asset: &RealEstateAsset,
-    as_of: Date,
-) -> finstack_quant_core::Result<Vec<(Date, f64)>> {
-    future_unlevered_flows(asset, as_of)
-}
-
 pub(crate) fn noi_flows(
     asset: &RealEstateAsset,
     as_of: Date,
@@ -333,8 +338,7 @@ pub(crate) fn terminal_sale_proceeds(
     asset: &RealEstateAsset,
     as_of: Date,
 ) -> finstack_quant_core::Result<Option<(Date, f64)>> {
-    let terminal_date = asset.sale_date.unwrap_or(last_noi(asset, as_of)?.0);
-    sale_proceeds_at(asset, as_of, terminal_date)
+    sale_proceeds_at(asset, as_of, horizon_date(asset, as_of)?)
 }
 
 fn year_fraction(

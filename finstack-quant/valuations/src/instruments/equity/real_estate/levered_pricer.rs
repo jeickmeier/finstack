@@ -50,6 +50,9 @@ pub(crate) fn validate_currency(inst: &LeveredRealEstateEquity) -> finstack_quan
     Ok(())
 }
 
+/// Exit date for levered metrics: explicit `exit_date` when set, otherwise the
+/// asset's valuation horizon (`sale_date` when set, else the last NOI date),
+/// so levered metrics use the same holding period as the asset PV.
 pub(crate) fn resolve_exit_date(
     inst: &LeveredRealEstateEquity,
     as_of: Date,
@@ -57,11 +60,7 @@ pub(crate) fn resolve_exit_date(
     if let Some(d) = inst.exit_date {
         return Ok(d);
     }
-    let flows = inst.asset.unlevered_flows(as_of)?;
-    flows
-        .last()
-        .map(|(d, _)| *d)
-        .ok_or_else(|| CoreError::Validation("Missing cashflows for exit date".into()))
+    super::pricer::horizon_date(&inst.asset, as_of)
 }
 
 pub(crate) fn asset_sale_proceeds_at(

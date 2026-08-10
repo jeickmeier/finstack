@@ -22,6 +22,16 @@ use finstack_quant_core::Error as CoreError;
 /// `(1.03)/0.001 ≈ 1030×`, vs `(1.03)/0.05 ≈ 21×` for a healthy spread.
 const GORDON_GROWTH_NEAR_SINGULARITY_THRESHOLD: f64 = 0.001;
 
+/// Average flow spacing (in years) below which the explicit grid is treated
+/// as sub-annual. Growth-perpetuity terminal values (Gordon, H-Model)
+/// capitalize an *annual* flow; capitalizing a sub-annual period flow
+/// silently understates the terminal value by roughly the number of periods
+/// per year (e.g. ~4x for a quarterly grid), so validation requires
+/// [`DiscountedCashFlow::terminal_flow_override`] in that case. 0.75 years
+/// keeps annual grids (with calendar jitter) valid while catching
+/// semi-annual, quarterly, and monthly grids.
+const SUB_ANNUAL_GRID_SPACING_THRESHOLD_YEARS: f64 = 0.75;
+
 /// Terminal value calculation method for DCF.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -436,9 +446,15 @@ impl DiscountedCashFlow {
     /// Returns an error if:
     /// - `wacc` is non-finite or `wacc <= -1.0` (would yield `(1+wacc) <= 0`,
     ///   producing infinite / NaN present values)
-    /// - `wacc` is outside the conservative sanity band `(-0.5, 1.0)` — this
-    ///   catches typical typos (e.g. `wacc = 10` instead of `0.10`) before
-    ///   they silently drive valuations to ~0
+    /// - `wacc` is outside the conservative sanity band: at or below `-0.5`
+    ///   (−50%), or at or above `1.0` (100%) — the latter catches typical
+    ///   typos (e.g. `wacc = 10` instead of `0.10`) before they silently
+    ///   drive valuations to ~0
+    /// - the terminal value is a growth perpetuity (`GordonGrowth`/`HModel`),
+    ///   the explicit flow grid is sub-annual (average spacing below 0.75
+    ///   years), and `terminal_flow_override` is not set — capitalizing a
+    ///   period flow as an annual flow would silently understate the
+    ///   terminal value
     /// - `net_debt` is non-finite
     /// - any explicit `flows` amount is non-finite
     /// - `flows` are not sorted by date (strictly increasing)
@@ -469,9 +485,17 @@ impl DiscountedCashFlow {
                 self.wacc
             )));
         }
-        if !(-0.5..1.0).contains(&self.wacc) {
+        if self.wacc <= -0.5 {
             return Err(CoreError::Validation(format!(
-                "DCF '{}' wacc = {} is outside the sanity band (-0.5, 1.0); \
+                "DCF '{}' wacc = {} is at or below the sanity floor -0.5 (-50%); \
+                 typical WACC is 0.05 - 0.20 (5% - 20%)",
+                self.id.as_str(),
+                self.wacc
+            )));
+        }
+        if self.wacc >= 1.0 {
+            return Err(CoreError::Validation(format!(
+                "DCF '{}' wacc = {} is at or above the sanity ceiling 1.0 (100%); \
                  typical WACC is 0.05 - 0.20 (5% - 20%). Did you mean {}?",
                 self.id.as_str(),
                 self.wacc,
@@ -557,6 +581,26 @@ impl DiscountedCashFlow {
             }
         }
         self.validate_terminal_value_spec()?;
+        if matches!(
+            self.terminal_value,
+            TerminalValueSpec::GordonGrowth { .. } | TerminalValueSpec::HModel { .. }
+        ) && self.terminal_flow_override.is_none()
+        {
+            if let Some(spacing) = self.average_flow_spacing_years() {
+                if spacing < SUB_ANNUAL_GRID_SPACING_THRESHOLD_YEARS {
+                    return Err(CoreError::Validation(format!(
+                        "DCF '{}' has a sub-annual flow grid (average spacing {:.2}y) with a \
+                         growth-perpetuity terminal value and no terminal_flow_override; the \
+                         last period flow would be capitalized as an annual flow, understating \
+                         the terminal value by ~{:.0}x. Set terminal_flow_override to the \
+                         trailing-twelve-month aggregate of the final explicit year",
+                        self.id.as_str(),
+                        spacing,
+                        1.0 / spacing
+                    )));
+                }
+            }
+        }
         Ok(())
     }
 
@@ -683,6 +727,17 @@ impl DiscountedCashFlow {
     ///   >= stable_growth_rate; half_life_years must be > 0.
     /// - `ExitMultiple`: never fails (does not depend on flows).
     pub fn calculate_terminal_value(&self) -> finstack_quant_core::Result<f64> {
+        self.terminal_value_at_wacc(self.wacc)
+    }
+
+    /// Terminal value (undiscounted) capitalized at an explicit `wacc`
+    /// (absolute decimal rate) instead of [`Self::wacc`].
+    ///
+    /// Used by rate-sensitivity bumps (`pv_with_rf_bump`) so the risk-free
+    /// component bump flows through the perpetuity capitalization without
+    /// cloning the instrument. Enforces the same `wacc > g` guards as
+    /// [`Self::calculate_terminal_value`].
+    pub(crate) fn terminal_value_at_wacc(&self, wacc: f64) -> finstack_quant_core::Result<f64> {
         match &self.terminal_value {
             TerminalValueSpec::GordonGrowth { growth_rate } => {
                 let (_, last_fcf) = self.flows.last().ok_or_else(|| {
@@ -693,19 +748,19 @@ impl DiscountedCashFlow {
                 let g = *growth_rate;
                 // Fail-closed: NaN parameters compare as None and must
                 // error rather than silently producing NaN values.
-                if self.wacc.partial_cmp(&g) != Some(std::cmp::Ordering::Greater) {
+                if wacc.partial_cmp(&g) != Some(std::cmp::Ordering::Greater) {
                     return Err(CoreError::Validation(format!(
                         "Gordon Growth requires WACC ({:.6}) > growth_rate ({:.6})",
-                        self.wacc, g
+                        wacc, g
                     )));
                 }
                 // Warn on near-singularity: the multiplier (1 + g) / (WACC − g)
                 // blows up as the spread closes. A 1 bp WACC/g typo at spread
                 // ≈ 10 bp swings TV by ~10×; trader/analyst should see this.
-                let spread = self.wacc - g;
+                let spread = wacc - g;
                 if spread < GORDON_GROWTH_NEAR_SINGULARITY_THRESHOLD {
                     tracing::warn!(
-                        wacc = self.wacc,
+                        wacc,
                         growth_rate = g,
                         wacc_minus_g = spread,
                         "Gordon Growth: WACC − g = {:.4} bp is within near-singularity \
@@ -738,10 +793,10 @@ impl DiscountedCashFlow {
                 // Fail-closed guards: NaN parameters compare as None and
                 // must error instead of silently passing.
                 use std::cmp::Ordering;
-                if self.wacc.partial_cmp(&g_s) != Some(Ordering::Greater) {
+                if wacc.partial_cmp(&g_s) != Some(Ordering::Greater) {
                     return Err(CoreError::Validation(format!(
                         "H-Model requires WACC ({:.6}) > stable_growth_rate ({:.6})",
-                        self.wacc, g_s
+                        wacc, g_s
                     )));
                 }
                 if !matches!(
@@ -761,9 +816,9 @@ impl DiscountedCashFlow {
                 }
                 let terminal_flow = self.terminal_flow_override.unwrap_or(*last_fcf);
                 // Standard Gordon Growth stable-state value
-                let stable_tv = terminal_flow * (1.0 + g_s) / (self.wacc - g_s);
+                let stable_tv = terminal_flow * (1.0 + g_s) / (wacc - g_s);
                 // Growth premium from the H-model (Damodaran)
-                let growth_premium = terminal_flow * h * (g_h - g_s) / (self.wacc - g_s);
+                let growth_premium = terminal_flow * h * (g_h - g_s) / (wacc - g_s);
                 Ok(stable_tv + growth_premium)
             }
         }
@@ -854,26 +909,48 @@ impl DiscountedCashFlow {
     /// calculated on the fair market value that shareholders actually receive,
     /// which is the standard private-company valuation convention.
     ///
+    /// In an implied-valuation setting the price is circular (the price used
+    /// for ITM classification and buyback depends on the diluted share count
+    /// it produces), so the calculation iterates
+    /// `price → diluted shares → price` to a self-consistent fixed point:
+    /// the returned count satisfies `price = equity_value / diluted` with
+    /// dilution evaluated at that same price.
+    ///
     /// Returns `None` if `shares_outstanding` is not set.
     pub fn diluted_shares(&self, equity_value: f64) -> Option<f64> {
         let basic = self.shares_outstanding?;
         if basic <= 0.0 {
             return Some(basic);
         }
-        let price_per_share = equity_value / basic;
+        let mut price_per_share = equity_value / basic;
         if price_per_share <= 0.0 {
             return Some(basic);
         }
         let mut diluted = basic;
+        for _ in 0..64 {
+            let next = self.diluted_shares_at_price(basic, price_per_share);
+            let converged = (next - diluted).abs() <= 1e-12 * basic;
+            diluted = next;
+            price_per_share = equity_value / diluted;
+            if converged {
+                break;
+            }
+        }
+        Some(diluted)
+    }
+
+    /// Treasury-stock-method diluted share count at a given price per share:
+    /// each ITM security's exercise proceeds repurchase shares at that price.
+    fn diluted_shares_at_price(&self, basic: f64, price_per_share: f64) -> f64 {
+        let mut diluted = basic;
         for sec in &self.dilution_securities {
             if sec.exercise_price < price_per_share && sec.quantity > 0.0 {
-                // Treasury stock method: proceeds buy back shares at current price
                 let proceeds = sec.quantity * sec.exercise_price;
                 let shares_repurchased = proceeds / price_per_share;
                 diluted += sec.quantity - shares_repurchased;
             }
         }
-        Some(diluted)
+        diluted
     }
 
     /// Equity value per diluted share.
@@ -930,12 +1007,19 @@ impl DiscountedCashFlow {
     /// frequency is unknown and the conventional annual half-year (0.5)
     /// is used, matching the historical behavior.
     pub(crate) fn mid_year_shift(&self) -> f64 {
+        self.average_flow_spacing_years()
+            .map_or(0.5, |spacing| 0.5 * spacing)
+    }
+
+    /// Average spacing of the explicit flow grid in years
+    /// (`(t_n - t_1) / (n - 1)`), or `None` with fewer than two flows
+    /// (grid frequency unknown).
+    fn average_flow_spacing_years(&self) -> Option<f64> {
         match (self.flows.first(), self.flows.last()) {
             (Some((first, _)), Some((last, _))) if self.flows.len() >= 2 => {
-                let span = self.year_fraction(*first, *last);
-                0.5 * span / (self.flows.len() - 1) as f64
+                Some(self.year_fraction(*first, *last) / (self.flows.len() - 1) as f64)
             }
-            _ => 0.5,
+            _ => None,
         }
     }
 }
@@ -969,6 +1053,17 @@ impl Instrument for DiscountedCashFlow {
     crate::impl_focused_pricing_overrides!();
 }
 impl crate::cashflow::traits::CashflowScheduleSource for DiscountedCashFlow {
+    /// Projected cash-flow schedule containing only the explicit `flows` on
+    /// or after `as_of`.
+    ///
+    /// The terminal value is intentionally excluded: it is a capitalized
+    /// perpetuity (or point-in-time sale proxy), not a contractual cash
+    /// flow, so it belongs in valuation output, not a cash ladder. As a
+    /// consequence, discounting this schedule does **not** reconcile to
+    /// [`Instrument::base_value`], which typically derives most of its PV
+    /// from the terminal value. The `Act365F` day count below is schedule
+    /// metadata only; pricing discounts on ACT/365.25 (see
+    /// [`Self::year_fraction`]).
     fn raw_cashflow_schedule(
         &self,
         _curves: &MarketContext,
@@ -1061,11 +1156,27 @@ mod tests {
 
     #[test]
     fn validate_rejects_wacc_above_sanity_band() {
-        // 10 (1000%) is a typical typo for 0.10; the sanity band catches it.
+        // 10 (1000%) is a typical typo for 0.10; the sanity ceiling catches it.
         let mut dcf = build_simple_dcf_gordon();
         dcf.wacc = 10.0;
         let err = dcf.validate().expect_err("wacc=10 must error");
-        assert!(err.to_string().contains("sanity band"));
+        assert!(err.to_string().contains("sanity ceiling"));
+        assert!(err.to_string().contains("Did you mean 0.1?"));
+
+        // The ceiling is inclusive: exactly 1.0 (100%) is rejected.
+        dcf.wacc = 1.0;
+        assert!(dcf.validate().is_err(), "wacc=1.0 must error");
+    }
+
+    #[test]
+    fn validate_rejects_wacc_at_or_below_sanity_floor() {
+        // The floor is inclusive: exactly -0.5 (-50%) is rejected, and the
+        // message does not suggest a nonsensical /100 correction.
+        let mut dcf = build_simple_dcf_gordon();
+        dcf.wacc = -0.5;
+        let err = dcf.validate().expect_err("wacc=-0.5 must error");
+        assert!(err.to_string().contains("sanity floor"));
+        assert!(!err.to_string().contains("Did you mean"));
     }
 
     #[test]
@@ -1147,6 +1258,52 @@ mod tests {
             multiple: 10.0,
         };
         assert!(dcf.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_rejects_sub_annual_grid_growth_perpetuity_without_override() {
+        // Quarterly grid + Gordon Growth without terminal_flow_override would
+        // capitalize a period flow as an annual flow (~4x TV understatement).
+        let mut dcf = build_simple_dcf_gordon();
+        dcf.flows = vec![
+            (
+                Date::from_calendar_date(2025, Month::March, 31).unwrap(),
+                100.0,
+            ),
+            (
+                Date::from_calendar_date(2025, Month::June, 30).unwrap(),
+                100.0,
+            ),
+            (
+                Date::from_calendar_date(2025, Month::September, 30).unwrap(),
+                100.0,
+            ),
+            (
+                Date::from_calendar_date(2025, Month::December, 31).unwrap(),
+                100.0,
+            ),
+        ];
+        let err = dcf
+            .validate()
+            .expect_err("quarterly Gordon grid must error");
+        assert!(err.to_string().contains("terminal_flow_override"));
+
+        // Setting the override (TTM aggregate) makes the DCF valid.
+        dcf.terminal_flow_override = Some(400.0);
+        assert!(dcf.validate().is_ok());
+
+        // ExitMultiple terminal values do not capitalize a flow; no override
+        // is needed on a sub-annual grid.
+        dcf.terminal_flow_override = None;
+        dcf.terminal_value = TerminalValueSpec::ExitMultiple {
+            terminal_metric: 100.0,
+            multiple: 8.0,
+        };
+        assert!(dcf.validate().is_ok());
+
+        // Annual grids remain valid without an override.
+        let dcf_annual = build_simple_dcf_gordon();
+        assert!(dcf_annual.validate().is_ok());
     }
 
     #[test]
@@ -1893,18 +2050,28 @@ mod tests {
 
         let diluted = dcf.diluted_shares(equity).expect("diluted shares");
 
-        // Only the in-the-money options should dilute
-        // incremental = 20 - (20 * 5.0) / pps
-        let expected_incremental = 20.0 - (20.0 * 5.0) / pps;
-        let expected_diluted = 100.0 + expected_incremental;
+        // Only the in-the-money options dilute. TSM iterates to the
+        // self-consistent diluted price p = E/d, so the fixed point solves
+        //   d = basic + q - q * X * d / E
+        // => d = (basic + q) / (1 + q * X / E)
+        let expected_diluted = (100.0 + 20.0) / (1.0 + 20.0 * 5.0 / equity);
 
         let diff = (diluted - expected_diluted).abs();
         assert!(
-            diff < 0.01,
-            "diluted shares mismatch: got {:.4}, expected {:.4}, diff {:.4}",
+            diff < 1e-6,
+            "diluted shares mismatch: got {:.6}, expected {:.6}, diff {:.6}",
             diluted,
             expected_diluted,
             diff
+        );
+
+        // Self-consistency: dilution evaluated at the converged diluted
+        // price must reproduce the converged share count.
+        let converged_price = equity / diluted;
+        let reproduced = dcf.diluted_shares_at_price(100.0, converged_price);
+        assert!(
+            (reproduced - diluted).abs() < 1e-6,
+            "fixed point not self-consistent: {reproduced} vs {diluted}"
         );
 
         // Per-share value should be less than undiluted price
@@ -2101,6 +2268,45 @@ mod tests {
             expected_pv_terminal,
             diff
         );
+    }
+
+    /// Per-share metrics must fail loudly (not emit NaN) when
+    /// `shares_outstanding` is unset, and compute when it is set.
+    #[test]
+    fn per_share_metrics_error_without_shares_outstanding() {
+        let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
+        let mut registry = crate::metrics::standard_registry().clone();
+        crate::instruments::equity::dcf_equity::metrics::register_dcf_metrics(&mut registry);
+
+        // Without shares_outstanding: both metrics error with a clear message.
+        let mut dcf = build_simple_dcf_gordon();
+        dcf.valuation_date = as_of;
+        let mut mctx = build_metric_context(dcf, MarketContext::new(), as_of);
+        for metric in [MetricId::EquityShares, MetricId::EquityPricePerShare] {
+            let err = registry
+                .compute(std::slice::from_ref(&metric), &mut mctx)
+                .expect_err("per-share metric must error without shares_outstanding");
+            assert!(
+                err.to_string().contains("shares_outstanding"),
+                "error should name shares_outstanding, got: {err}"
+            );
+        }
+
+        // With shares_outstanding: both metrics compute finite values.
+        let mut dcf = build_simple_dcf_gordon();
+        dcf.valuation_date = as_of;
+        dcf.shares_outstanding = Some(100.0);
+        let mut mctx = build_metric_context(dcf, MarketContext::new(), as_of);
+        let results = registry
+            .compute(
+                &[MetricId::EquityShares, MetricId::EquityPricePerShare],
+                &mut mctx,
+            )
+            .expect("per-share metrics should compute with shares set");
+        for metric in [MetricId::EquityShares, MetricId::EquityPricePerShare] {
+            let value = *results.get(&metric).expect("metric present");
+            assert!(value.is_finite() && value > 0.0, "{metric:?} = {value}");
+        }
     }
 
     //  Builder pattern tests
