@@ -143,6 +143,33 @@ fn error_message(error: JsValue) -> String {
         .into()
 }
 
+/// Assert a pricing return is a structured JS object (never a JSON string and
+/// never an ES2015 `Map`) and decode it for value assertions.
+///
+/// `JSON.stringify` on a `Map` yields `{}`, so round-tripping through
+/// `js_sys::JSON::stringify` catches the Map regression that plain property
+/// reads would silently pass.
+fn valuation_object(result: JsValue) -> serde_json::Value {
+    assert!(
+        result.is_object(),
+        "pricing bindings must return a structured object, not a JSON string"
+    );
+    assert!(
+        !result.is_instance_of::<js_sys::Map>(),
+        "pricing bindings must not return an ES2015 Map"
+    );
+    let stringified: String = js_sys::JSON::stringify(&result)
+        .expect("valuation object must be JSON-stringifiable")
+        .into();
+    let parsed: serde_json::Value =
+        serde_json::from_str(&stringified).expect("stringified valuation object parses");
+    assert!(
+        parsed.is_object() && parsed.get("instrument_id").is_some(),
+        "round-tripped valuation object must retain its fields: {stringified}"
+    );
+    parsed
+}
+
 #[wasm_bindgen_test]
 fn list_standard_metrics_returns_non_empty_array() {
     let result = list_standard_metrics().unwrap();
@@ -165,9 +192,8 @@ fn price_instrument_with_metrics_returns_result() {
         None,
     )
     .unwrap();
-    assert!(!result.is_empty());
-    let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
-    assert!(parsed.is_object());
+    let parsed = valuation_object(result);
+    assert!(parsed["measures"].get("dirty_price").is_some());
 }
 
 #[wasm_bindgen_test]
@@ -185,9 +211,8 @@ fn price_instrument_with_metrics_accepts_pricing_options() {
         None,
     )
     .unwrap();
-    assert!(!result.is_empty());
-    let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
-    assert!(parsed.is_object());
+    let parsed = valuation_object(result);
+    assert!(parsed["measures"].get("dirty_price").is_some());
 }
 
 #[wasm_bindgen_test]
@@ -204,7 +229,7 @@ fn registered_term_loan_metrics_cross_wasm_json_boundary() {
         None,
     )
     .expect("registered custom metrics");
-    let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+    let parsed = valuation_object(result);
     assert!(parsed["measures"].get("all_in_rate").is_some());
     assert!(parsed["measures"].get("yt2y").is_some());
 }
@@ -321,7 +346,7 @@ fn price_instrument_structured_credit_stochastic_returns_details() {
         Some("structured_credit_stochastic".to_string()),
     )
     .expect("price");
-    let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+    let parsed = valuation_object(result);
     assert_eq!(parsed["details"]["type"], "structured_credit_stochastic");
     let tranches = parsed["details"]["data"]["tranche_results"]
         .as_array()
@@ -348,7 +373,7 @@ fn price_instrument_structured_credit_waterfall_rules() {
         Some("structured_credit_stochastic".to_string()),
     )
     .expect("price");
-    let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+    let parsed = valuation_object(result);
     assert_eq!(parsed["details"]["type"], "structured_credit_stochastic");
 }
 

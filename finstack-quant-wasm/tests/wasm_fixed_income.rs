@@ -42,8 +42,20 @@ fn market_context_json() -> String {
 }
 
 /// Strip the wall-clock `meta.timestamp` before comparing two results.
-fn without_timestamp(result_json: &str) -> serde_json::Value {
-    let mut value: serde_json::Value = serde_json::from_str(result_json).unwrap();
+/// Decode a `priceInstrument` return (a structured JS object, not a JSON
+/// string) and drop the wall-clock stamp so two runs are comparable.
+///
+/// Round-tripping via `JSON.stringify` also catches an ES2015 `Map`
+/// regression: a `Map` stringifies to `{}` and would lose every field.
+fn without_timestamp(result: &wasm_bindgen::JsValue) -> serde_json::Value {
+    let text: String = js_sys::JSON::stringify(result)
+        .expect("valuation result must be JSON.stringify-able")
+        .into();
+    let mut value: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert!(
+        value.get("instrument_id").is_some(),
+        "valuation object must retain its fields: {text}"
+    );
     if let Some(meta) = value.get_mut("meta").and_then(|m| m.as_object_mut()) {
         meta.remove("timestamp");
     }
@@ -165,7 +177,7 @@ fn term_loan_example_round_trips_and_prices() {
     let market = market_context_json();
     let priced = price_instrument(&json, &market, "2024-06-30", Some("default".to_string()))
         .expect("price loan");
-    let result: serde_json::Value = serde_json::from_str(&priced).unwrap();
+    let result = without_timestamp(&priced);
     assert_eq!(result["instrument_id"], "TERM-LOAN-USD-5Y");
 }
 

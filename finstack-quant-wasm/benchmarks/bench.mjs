@@ -643,10 +643,10 @@ async function main() {
     w.blackScholesCall(100, 100, 0.05, 0.0, 0.2, 1.0);
   });
 
-  const csaCanonical = w.csaUsdRegulatory();
+  const csaCanonical = w.csaUsdRegulatoryJson();
 
-  bench('margin', 'csaUsdRegulatory', 2000, () => {
-    w.csaUsdRegulatory();
+  bench('margin', 'csaUsdRegulatoryJson', 2000, () => {
+    w.csaUsdRegulatoryJson();
   });
 
   bench('margin', 'validateCsaJson', 2000, () => {
@@ -671,8 +671,8 @@ async function main() {
     w.backtestForecast(actualSeries, forecastSeries);
   });
 
-  bench('portfolio', 'parsePortfolioSpec', 4000, () => {
-    w.parsePortfolioSpec(PORTFOLIO_SPEC_JSON);
+  bench('portfolio', 'parsePortfolioSpecJson', 4000, () => {
+    w.parsePortfolioSpecJson(PORTFOLIO_SPEC_JSON);
   });
 
   bench('portfolio', 'portfolioResultTotalValue', 8000, () => {
@@ -888,12 +888,12 @@ async function main() {
     w.priceAmericanPut(100, 100, 0.05, 0.0, 0.2, 1.0, 50000, 42n, 50, 'USD');
   });
 
-  bench('margin', 'csaEurRegulatory', 2000, () => {
-    w.csaEurRegulatory();
+  bench('margin', 'csaEurRegulatoryJson', 2000, () => {
+    w.csaEurRegulatoryJson();
   });
 
   benchTry('margin', 'calculateVm', 3000, () => {
-    w.calculateVm(csaCanonical, 1000000.0, 800000.0, 'USD', 2024, 6, 15);
+    w.calculateVm(csaCanonical, 1000000.0, 800000.0, 'USD', '2024-06-15');
   });
 
   benchTry('statements_analytics', 'runVariance', 800, () => {
@@ -906,7 +906,11 @@ async function main() {
 
   let sensitivityResultJson = '';
   try {
-    sensitivityResultJson = w.runSensitivity(FINANCIAL_MODEL_JSON, SENSITIVITY_CONFIG_JSON);
+    // `runSensitivity` returns a structured object; `generateTornadoEntries`
+    // still takes the sensitivity result as JSON.
+    sensitivityResultJson = JSON.stringify(
+      w.runSensitivity(FINANCIAL_MODEL_JSON, SENSITIVITY_CONFIG_JSON)
+    );
   } catch (e) {
     console.warn(
       `[bench skip] statements_analytics / generateTornadoEntries (no sensitivity result): ${
@@ -948,8 +952,8 @@ async function main() {
     w.explainFormula(FINANCIAL_MODEL_JSON, STATEMENT_RESULT_BASE_JSON, 'revenue', '2025Q1');
   });
 
-  benchTry('portfolio', 'buildPortfolioFromSpec', 3000, () => {
-    w.buildPortfolioFromSpec(PORTFOLIO_SPEC_JSON);
+  benchTry('portfolio', 'buildPortfolioFromSpecJson', 3000, () => {
+    w.buildPortfolioFromSpecJson(PORTFOLIO_SPEC_JSON);
   });
 
   benchTry('portfolio', 'portfolioResultGetMetric', 6000, () => {
@@ -976,11 +980,10 @@ async function main() {
   }
 
   try {
-    sampleValuationJson = w.priceInstrument(
-      INSTRUMENT_JSON,
-      MARKET_CONTEXT_JSON,
-      '2024-01-02',
-      'discounting'
+    // `priceInstrument` returns a structured object; the validator below takes
+    // the wire string, so stringify once outside the timed loop.
+    sampleValuationJson = JSON.stringify(
+      w.priceInstrument(INSTRUMENT_JSON, MARKET_CONTEXT_JSON, '2024-01-02', 'discounting')
     );
   } catch (e) {
     console.warn(`[bench skip] valuations / price paths: ${e instanceof Error ? e.message : e}`);

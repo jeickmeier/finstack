@@ -5,12 +5,33 @@
 //! JS surface (under `valuations.credit.*`) is unchanged — wasm-bindgen
 //! exports are flat by `js_name`, so this is a pure source reorganisation.
 
-use crate::utils::{check_js_safe_count, to_js_err};
+use crate::utils::{check_js_safe_count, parse_iso_date, to_js_err};
+use finstack_quant_core::math::random::Pcg64Rng;
 use finstack_quant_valuations::models::credit::{
-    CreditState, CreditStateVariable, DynamicRecoverySpec, EndogenousHazardSpec, MertonModel,
-    OptimalToggle, ThresholdDirection, ToggleExerciseModel,
+    AssetDynamics, BarrierType, CreditState, CreditStateVariable, DynamicRecoverySpec,
+    EndogenousHazardSpec, MertonModel, OptimalToggle, ThresholdDirection, ToggleExerciseModel,
 };
+use js_sys::Float64Array;
+use serde::Serialize;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
+
+/// JSON envelope for [`finstack_quant_valuations::models::credit::SimulatedPaths`].
+#[derive(Serialize)]
+struct MertonSimulatedPathsJson<'a> {
+    times: &'a [f64],
+    asset_values: &'a [f64],
+    num_paths: usize,
+    num_steps: usize,
+}
+
+fn parse_f64_tenors(value: JsValue) -> Result<Vec<f64>, JsValue> {
+    if value.is_instance_of::<Float64Array>() {
+        Ok(Float64Array::new(&value).to_vec())
+    } else {
+        serde_wasm_bindgen::from_value(value).map_err(to_js_err)
+    }
+}
 
 /// Build a structural Merton model JSON payload.
 ///
@@ -120,6 +141,241 @@ pub fn merton_implied_spread(
 ) -> Result<f64, JsValue> {
     let model: MertonModel = serde_json::from_str(model_json).map_err(to_js_err)?;
     model.implied_spread(horizon, recovery).map_err(to_js_err)
+}
+
+/// Build a Merton model JSON payload from observable equity inputs (KMV
+/// calibration).
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if equity, volatility, debt, rate, or maturity
+/// inputs are invalid, or if the model cannot be serialized to JSON.
+/// @param equity_value - Current market value of equity in the firm's monetary units.
+/// @param equity_vol - Annualized equity-return volatility expressed as a decimal.
+/// @param total_debt - Total debt face value used as the structural default barrier.
+/// @param risk_free_rate - Annualized risk-free rate expressed as a decimal, such as 0.05 for 5%.
+/// @param payout_rate - Continuous dividend or payout yield on assets, expressed as a decimal.
+/// @param maturity - Calibration horizon in years; must be positive and finite.
+#[wasm_bindgen(js_name = mertonFromEquityJson)]
+pub fn merton_from_equity_json(
+    equity_value: f64,
+    equity_vol: f64,
+    total_debt: f64,
+    risk_free_rate: f64,
+    payout_rate: f64,
+    maturity: f64,
+) -> Result<String, JsValue> {
+    let model = MertonModel::from_equity(
+        equity_value,
+        equity_vol,
+        total_debt,
+        risk_free_rate,
+        payout_rate,
+        maturity,
+    )
+    .map_err(to_js_err)?;
+    serde_json::to_string(&model).map_err(to_js_err)
+}
+
+/// Build a Merton model JSON payload from a target CDS par spread.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if spread, recovery, debt, rate, maturity,
+/// asset value, or payout inputs are invalid, or if the model cannot be
+/// serialized to JSON.
+/// @param cds_spread_bp - Target CDS par spread in basis points.
+/// @param recovery - Recovery rate at default expressed as a fraction from 0 through 1.
+/// @param total_debt - Total debt face value in the firm's monetary units.
+/// @param risk_free_rate - Annualized risk-free rate expressed as a decimal, such as 0.05 for 5%.
+/// @param maturity - Calibration horizon in years; must be positive and finite.
+/// @param asset_value - Assumed initial firm asset value in monetary units.
+/// @param payout_rate - Continuous payout rate on assets, expressed as a decimal.
+#[wasm_bindgen(js_name = mertonFromCdsSpreadJson)]
+pub fn merton_from_cds_spread_json(
+    cds_spread_bp: f64,
+    recovery: f64,
+    total_debt: f64,
+    risk_free_rate: f64,
+    maturity: f64,
+    asset_value: f64,
+    payout_rate: f64,
+) -> Result<String, JsValue> {
+    let model = MertonModel::from_cds_spread(
+        cds_spread_bp,
+        recovery,
+        total_debt,
+        risk_free_rate,
+        maturity,
+        asset_value,
+        payout_rate,
+    )
+    .map_err(to_js_err)?;
+    serde_json::to_string(&model).map_err(to_js_err)
+}
+
+/// Build a Merton model JSON payload calibrated to a target cumulative default
+/// probability.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if asset value, volatility, rate, target PD,
+/// or maturity inputs are invalid, or if the model cannot be serialized to JSON.
+/// @param asset_value - Current fair value of the firm's assets in monetary units.
+/// @param asset_vol - Annualized volatility of firm-asset returns, expressed as a decimal.
+/// @param risk_free_rate - Annualized risk-free rate expressed as a decimal, such as 0.05 for 5%.
+/// @param target_pd - Target cumulative default probability in `[0, 1]`.
+/// @param maturity - Calibration horizon in years; must be positive and finite.
+#[wasm_bindgen(js_name = mertonFromTargetPdJson)]
+pub fn merton_from_target_pd_json(
+    asset_value: f64,
+    asset_vol: f64,
+    risk_free_rate: f64,
+    target_pd: f64,
+    maturity: f64,
+) -> Result<String, JsValue> {
+    let model =
+        MertonModel::from_target_pd(asset_value, asset_vol, risk_free_rate, target_pd, maturity)
+            .map_err(to_js_err)?;
+    serde_json::to_string(&model).map_err(to_js_err)
+}
+
+/// Build a Merton model JSON payload with explicit barrier and asset-dynamics
+/// specifications.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if model inputs are invalid, if
+/// `barrier_type_json` or `dynamics_json` does not deserialize, or if the model
+/// cannot be serialized to JSON.
+/// @param asset_value - Current fair value of the firm's assets in monetary units.
+/// @param asset_vol - Annualized volatility of firm-asset returns, expressed as a decimal.
+/// @param debt_barrier - Positive debt face value defining the structural-model default barrier.
+/// @param risk_free_rate - Annualized risk-free rate expressed as a decimal, such as 0.05 for 5%.
+/// @param payout_rate - Continuous payout rate on assets, expressed as a decimal.
+/// @param barrier_type_json - Serialized `BarrierType` JSON (terminal or first-passage).
+/// @param dynamics_json - Serialized `AssetDynamics` JSON (GBM, jump-diffusion, or CreditGrades).
+#[wasm_bindgen(js_name = mertonModelWithDynamicsJson)]
+pub fn merton_model_with_dynamics_json(
+    asset_value: f64,
+    asset_vol: f64,
+    debt_barrier: f64,
+    risk_free_rate: f64,
+    payout_rate: f64,
+    barrier_type_json: &str,
+    dynamics_json: &str,
+) -> Result<String, JsValue> {
+    let barrier_type: BarrierType = serde_json::from_str(barrier_type_json).map_err(to_js_err)?;
+    let dynamics: AssetDynamics = serde_json::from_str(dynamics_json).map_err(to_js_err)?;
+    let model = MertonModel::new_with_dynamics(
+        asset_value,
+        asset_vol,
+        debt_barrier,
+        risk_free_rate,
+        payout_rate,
+        barrier_type,
+        dynamics,
+    )
+    .map_err(to_js_err)?;
+    serde_json::to_string(&model).map_err(to_js_err)
+}
+
+/// Compute implied equity value and equity volatility from a Merton model JSON
+/// payload.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `model_json` is malformed, if `horizon` is
+/// non-positive or non-finite, or if the inversion is numerically ill-conditioned.
+/// @param model_json - Serialized Merton structural-credit model produced by this API's model builder.
+/// @param horizon - Forward-looking model horizon measured in years.
+/// @returns A `Float64Array` of length 2: `[equityValue, equityVolatility]`.
+#[wasm_bindgen(js_name = mertonTryImpliedEquity)]
+pub fn merton_try_implied_equity(model_json: &str, horizon: f64) -> Result<Float64Array, JsValue> {
+    let (equity, equity_vol) = merton_try_implied_equity_pair(model_json, horizon)?;
+    let arr = Float64Array::new_with_length(2);
+    arr.set_index(0, equity);
+    arr.set_index(1, equity_vol);
+    Ok(arr)
+}
+
+fn merton_try_implied_equity_pair(model_json: &str, horizon: f64) -> Result<(f64, f64), JsValue> {
+    let model: MertonModel = serde_json::from_str(model_json).map_err(to_js_err)?;
+    model.try_implied_equity(horizon).map_err(to_js_err)
+}
+
+/// Bootstrap a hazard-curve JSON payload from structural default probabilities.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `model_json` is malformed, if `base_date`
+/// is not a valid ISO-8601 calendar date (`YYYY-MM-DD`), if `tenors` is empty
+/// or contains non-positive values, if the implied survival curve is
+/// non-monotonic, or if the hazard curve cannot be serialized to JSON.
+/// @param model_json - Serialized Merton structural-credit model produced by this API's model builder.
+/// @param id - Hazard-curve identifier string.
+/// @param base_date - Valuation date in ISO-8601 form, such as `"2025-01-15"`.
+/// @param tenors - Tenor grid in years as a `number[]` or `Float64Array`.
+/// @param recovery - Recovery rate at default expressed as a fraction from 0 through 1.
+#[wasm_bindgen(js_name = mertonToHazardCurveJson)]
+pub fn merton_to_hazard_curve_json(
+    model_json: &str,
+    id: &str,
+    base_date: &str,
+    tenors: JsValue,
+    recovery: f64,
+) -> Result<String, JsValue> {
+    let model: MertonModel = serde_json::from_str(model_json).map_err(to_js_err)?;
+    let base = parse_iso_date(base_date)?;
+    let tenor_vec = parse_f64_tenors(tenors)?;
+    let curve = model
+        .to_hazard_curve(id, base, &tenor_vec, recovery)
+        .map_err(to_js_err)?;
+    serde_json::to_string(&curve).map_err(to_js_err)
+}
+
+/// Simulate firm-asset paths and return a JSON payload with the time grid and
+/// row-major asset values.
+///
+/// `num_paths` and `num_steps` must fit JavaScript's safe integer range
+/// (`Number.MAX_SAFE_INTEGER`, `2^53 - 1`): counts marshal across the wasm
+/// boundary as IEEE-754 doubles, so a larger value would round silently rather
+/// than fail loudly.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `model_json` is malformed, if path or step
+/// counts exceed the safe-integer range, if `num_steps` is zero, if `horizon`
+/// is non-positive or non-finite, or if the result cannot be serialized to JSON.
+/// @param model_json - Serialized Merton structural-credit model produced by this API's model builder.
+/// @param num_paths - Number of Monte Carlo paths to simulate.
+/// @param num_steps - Number of time steps per path; must be at least 1.
+/// @param horizon - Simulation horizon in years; must be positive and finite.
+/// @param seed - RNG seed for reproducible draws (`Pcg64Rng`).
+/// @param antithetic - When `true`, use antithetic variates for variance reduction.
+#[wasm_bindgen(js_name = mertonSimulatePathsJson)]
+pub fn merton_simulate_paths_json(
+    model_json: &str,
+    num_paths: usize,
+    num_steps: usize,
+    horizon: f64,
+    seed: u64,
+    antithetic: bool,
+) -> Result<String, JsValue> {
+    check_js_safe_count(num_paths, "num_paths")?;
+    check_js_safe_count(num_steps, "num_steps")?;
+    let model: MertonModel = serde_json::from_str(model_json).map_err(to_js_err)?;
+    let mut rng = Pcg64Rng::new(seed);
+    let paths = model
+        .simulate_paths(num_paths, num_steps, horizon, &mut rng, antithetic)
+        .map_err(to_js_err)?;
+    let payload = MertonSimulatedPathsJson {
+        times: &paths.times,
+        asset_values: &paths.asset_values,
+        num_paths: paths.num_paths,
+        num_steps: paths.num_steps,
+    };
+    serde_json::to_string(&payload).map_err(to_js_err)
 }
 
 /// Evaluate a `DynamicRecoverySpec` JSON payload at a given accreted
@@ -327,6 +583,38 @@ mod tests {
         assert!(
             (spread_wasm - spread_native).abs() < 1e-12,
             "WASM spread ({spread_wasm}) must match native ({spread_native})"
+        );
+    }
+
+    #[test]
+    fn merton_from_equity_roundtrips() {
+        let m_known = MertonModel::new(100.0, 0.20, 80.0, 0.05).expect("merton");
+        let (equity, equity_vol) = m_known.try_implied_equity(1.0).expect("equity");
+        let json = merton_from_equity_json(equity, equity_vol, 80.0, 0.05, 0.0, 1.0).expect("json");
+        let m_cal: MertonModel = serde_json::from_str(&json).expect("deserialize");
+        assert!(
+            (m_cal.asset_value() - m_known.asset_value()).abs() < 1e-6,
+            "asset value roundtrip"
+        );
+        assert!(
+            (m_cal.asset_vol() - m_known.asset_vol()).abs() < 1e-6,
+            "asset vol roundtrip"
+        );
+    }
+
+    #[test]
+    fn merton_try_implied_equity_matches_native() {
+        let json = merton_model_json(100.0, 0.20, 80.0, 0.05).expect("merton json");
+        let (equity_wasm, vol_wasm) = merton_try_implied_equity_pair(&json, 1.0).expect("equity");
+        let model = MertonModel::new(100.0, 0.20, 80.0, 0.05).expect("merton");
+        let (equity_native, vol_native) = model.try_implied_equity(1.0).expect("native");
+        assert!(
+            (equity_wasm - equity_native).abs() < 1e-12,
+            "WASM equity ({equity_wasm}) must match native ({equity_native})"
+        );
+        assert!(
+            (vol_wasm - vol_native).abs() < 1e-12,
+            "WASM equity vol ({vol_wasm}) must match native ({vol_native})"
         );
     }
 

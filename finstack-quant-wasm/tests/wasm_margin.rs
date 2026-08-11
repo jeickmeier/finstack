@@ -9,8 +9,8 @@ use wasm_bindgen_test::*;
 
 #[wasm_bindgen_test]
 fn calculate_vm_usd_regulatory() {
-    let csa_json = csa_usd_regulatory().unwrap();
-    let result = calculate_vm(&csa_json, 1_000_000.0, 500_000.0, "USD", 2024, 6, 15).unwrap();
+    let csa_json = csa_usd_regulatory_json().unwrap();
+    let result = calculate_vm(&csa_json, 1_000_000.0, 500_000.0, "USD", "2024-06-15").unwrap();
     let obj: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
     assert!(obj["gross_exposure"].as_f64().is_some());
     assert!(obj["net_exposure"].as_f64().is_some());
@@ -22,16 +22,16 @@ fn calculate_vm_usd_regulatory() {
 
 #[wasm_bindgen_test]
 fn calculate_vm_eur_regulatory() {
-    let csa_json = csa_eur_regulatory().unwrap();
-    let result = calculate_vm(&csa_json, 500_000.0, 600_000.0, "EUR", 2024, 3, 1).unwrap();
+    let csa_json = csa_eur_regulatory_json().unwrap();
+    let result = calculate_vm(&csa_json, 500_000.0, 600_000.0, "EUR", "2024-03-01").unwrap();
     let obj: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
     assert!(obj["gross_exposure"].as_f64().is_some());
 }
 
 #[wasm_bindgen_test]
 fn calculate_vm_zero_exposure() {
-    let csa_json = csa_usd_regulatory().unwrap();
-    let result = calculate_vm(&csa_json, 0.0, 0.0, "USD", 2024, 1, 15).unwrap();
+    let csa_json = csa_usd_regulatory_json().unwrap();
+    let result = calculate_vm(&csa_json, 0.0, 0.0, "USD", "2024-01-15").unwrap();
     let obj: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
     assert!((obj["gross_exposure"].as_f64().unwrap()).abs() < 1e-10);
 }

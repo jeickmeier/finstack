@@ -247,7 +247,7 @@ pub fn default_waterfall_order() -> Result<JsValue, JsValue> {
         .into_iter()
         .map(|factor| factor.as_str().to_owned())
         .collect();
-    serde_wasm_bindgen::to_value(&factors).map_err(to_js_err)
+    crate::utils::to_js_value(&factors)
 }
 
 /// Return the default metric IDs used by metrics-based attribution.
@@ -262,5 +262,5 @@ pub fn default_attribution_metrics() -> Result<JsValue, JsValue> {
         .into_iter()
         .map(|m| m.to_string())
         .collect();
-    serde_wasm_bindgen::to_value(&metrics).map_err(to_js_err)
+    crate::utils::to_js_value(&metrics)
 }

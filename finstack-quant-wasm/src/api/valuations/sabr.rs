@@ -224,8 +224,11 @@ impl JsSabrSmile {
     /// supplied strike, is outside the model domain, or the Hagan expansion
     /// produces an invalid volatility.
     #[wasm_bindgen(js_name = generateSmile)]
-    pub fn generate_smile(&self, strikes: Vec<f64>) -> Result<Vec<f64>, JsValue> {
-        self.inner.generate_smile(&strikes).map_err(to_js_err)
+    pub fn generate_smile(&self, strikes: Vec<f64>) -> Result<Box<[f64]>, JsValue> {
+        self.inner
+            .generate_smile(&strikes)
+            .map(Vec::into_boxed_slice)
+            .map_err(to_js_err)
     }
 
     /// Butterfly + monotonicity arbitrage diagnostics.
@@ -444,7 +447,7 @@ mod tests {
         // weakly identified on this near-symmetric strike set.
         let calibrator = JsSabrCalibrator::new().with_tolerance(1e-6);
         let fitted = calibrator
-            .calibrate(0.03, strikes, vols, 1.0, 0.5)
+            .calibrate(0.03, strikes, vols.into_vec(), 1.0, 0.5)
             .expect("calibrate");
         assert!((fitted.beta() - 0.5).abs() < 1e-12);
         assert!(fitted.alpha() > 0.0);
@@ -459,7 +462,7 @@ mod tests {
         let vols = smile.generate_smile(strikes.clone()).expect("smile");
 
         let fitted = JsSabrCalibrator::new()
-            .calibrate_auto_shift(forward, strikes, vols, 1.0, 0.5)
+            .calibrate_auto_shift(forward, strikes, vols.into_vec(), 1.0, 0.5)
             .expect("calibrate_auto_shift");
         let shift = fitted
             .shift()

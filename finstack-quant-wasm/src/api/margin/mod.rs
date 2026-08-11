@@ -5,7 +5,7 @@
 //! consumers.
 
 use crate::api::core::market_data::{JsDiscountCurve, JsHazardCurve};
-use crate::utils::{to_js_err, to_js_value};
+use crate::utils::{parse_iso_date, to_js_err, to_js_value};
 use wasm_bindgen::prelude::*;
 
 fn serialize_csa(csa: &finstack_quant_margin::CsaSpec) -> Result<String, JsValue> {
@@ -20,8 +20,8 @@ fn serialize_csa(csa: &finstack_quant_margin::CsaSpec) -> Result<String, JsValue
 ///
 /// Rejects if the embedded margin registry cannot be loaded or the resulting
 /// CSA cannot be serialized to JSON.
-#[wasm_bindgen(js_name = csaUsdRegulatory)]
-pub fn csa_usd_regulatory() -> Result<String, JsValue> {
+#[wasm_bindgen(js_name = csaUsdRegulatoryJson)]
+pub fn csa_usd_regulatory_json() -> Result<String, JsValue> {
     let csa = finstack_quant_margin::CsaSpec::usd_regulatory().map_err(to_js_err)?;
     serialize_csa(&csa)
 }
@@ -32,8 +32,8 @@ pub fn csa_usd_regulatory() -> Result<String, JsValue> {
 ///
 /// Rejects if the embedded margin registry cannot be loaded or the resulting
 /// CSA cannot be serialized to JSON.
-#[wasm_bindgen(js_name = csaEurRegulatory)]
-pub fn csa_eur_regulatory() -> Result<String, JsValue> {
+#[wasm_bindgen(js_name = csaEurRegulatoryJson)]
+pub fn csa_eur_regulatory_json() -> Result<String, JsValue> {
     let csa = finstack_quant_margin::CsaSpec::eur_regulatory().map_err(to_js_err)?;
     serialize_csa(&csa)
 }
@@ -65,9 +65,7 @@ pub fn validate_csa_json(json: &str) -> Result<String, JsValue> {
 /// * `exposure` - Current mark-to-market exposure amount
 /// * `posted_collateral` - Currently posted collateral amount
 /// * `currency` - ISO currency code (e.g. "USD")
-/// * `year` - Calculation year
-/// * `month` - Calculation month (1-12)
-/// * `day` - Calendar day number within the selected month of the VM calculation date.
+/// * `as_of` - ISO-8601 VM calculation date (e.g. `"2026-01-02"`)
 ///
 /// # Errors
 ///
@@ -79,18 +77,14 @@ pub fn validate_csa_json(json: &str) -> Result<String, JsValue> {
 /// @param exposure - Current mark-to-market exposure in the supplied currency units.
 /// @param posted_collateral - Collateral already posted in the supplied currency units.
 /// @param currency - ISO-4217 currency code shared by exposure and collateral amounts.
-/// @param year - Calendar year of the VM calculation date.
-/// @param month - Calendar month from 1 through 12 of the VM calculation date.
-/// @param day - Calendar day number within the selected month of the VM calculation date.
+/// @param as_of - ISO-8601 VM calculation date.
 #[wasm_bindgen(js_name = calculateVm)]
 pub fn calculate_vm(
     csa_json: &str,
     exposure: f64,
     posted_collateral: f64,
     currency: &str,
-    year: i32,
-    month: u8,
-    day: u8,
+    as_of: &str,
 ) -> Result<JsValue, JsValue> {
     let csa: finstack_quant_margin::CsaSpec = serde_json::from_str(csa_json).map_err(to_js_err)?;
     let ccy: finstack_quant_core::currency::Currency = currency.parse().map_err(to_js_err)?;
@@ -98,9 +92,7 @@ pub fn calculate_vm(
         .map_err(|e| to_js_err(format!("invalid exposure: {e}")))?;
     let posted = finstack_quant_core::money::Money::try_new(posted_collateral, ccy)
         .map_err(|e| to_js_err(format!("invalid posted_collateral: {e}")))?;
-    let m = time::Month::try_from(month).map_err(to_js_err)?;
-    let as_of =
-        finstack_quant_core::dates::Date::from_calendar_date(year, m, day).map_err(to_js_err)?;
+    let as_of = parse_iso_date(as_of)?;
 
     let calc = finstack_quant_margin::VmCalculator::new(csa);
     let result = calc.calculate(exp, posted, as_of).map_err(to_js_err)?;
@@ -212,7 +204,7 @@ mod tests {
 
     #[test]
     fn csa_usd_regulatory_json_shape() {
-        let Ok(json) = csa_usd_regulatory() else {
+        let Ok(json) = csa_usd_regulatory_json() else {
             panic!("csa_usd_regulatory should succeed");
         };
         assert_csa_json_shape(&json, "USD");
@@ -220,7 +212,7 @@ mod tests {
 
     #[test]
     fn csa_eur_regulatory_json_shape() {
-        let Ok(json) = csa_eur_regulatory() else {
+        let Ok(json) = csa_eur_regulatory_json() else {
             panic!("csa_eur_regulatory should succeed");
         };
         assert_csa_json_shape(&json, "EUR");
@@ -228,7 +220,7 @@ mod tests {
 
     #[test]
     fn validate_csa_json_round_trips_usd_regulatory() {
-        let Ok(original) = csa_usd_regulatory() else {
+        let Ok(original) = csa_usd_regulatory_json() else {
             panic!("csa_usd_regulatory should succeed");
         };
         let Ok(parsed_once) = serde_json::from_str::<finstack_quant_margin::CsaSpec>(&original)

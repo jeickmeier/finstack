@@ -37,11 +37,12 @@
 // allowance — keep the binding layer consistent.
 #![allow(clippy::result_large_err)]
 
-use crate::utils::{structured_js_error, to_js_err};
+use crate::utils::{structured_js_error, to_js_err, to_js_value};
 use finstack_quant_valuations::calibration::api::engine::{self, ExecuteError};
 use finstack_quant_valuations::calibration::api::errors::EnvelopeError;
 #[cfg(test)]
 use finstack_quant_valuations::calibration::api::schema::CalibrationEnvelope;
+use finstack_quant_valuations::calibration::api::schema::CalibrationResultEnvelope;
 use finstack_quant_valuations::calibration::api::validate;
 use wasm_bindgen::prelude::*;
 
@@ -70,26 +71,21 @@ pub fn validate_calibration_json(json: &str) -> Result<String, JsValue> {
 
 /// Native-testable core of [`calibrate`].
 ///
-/// Returns the serialized `CalibrationResultEnvelope`, or an [`ExecuteError`]
-/// (which carries the structured `EnvelopeError` payload when the failure is
+/// Returns the `CalibrationResultEnvelope`, or an [`ExecuteError`] (which
+/// carries the structured `EnvelopeError` payload when the failure is
 /// envelope-related).
-fn calibrate_inner(envelope_json: &str) -> Result<String, ExecuteError> {
+fn calibrate_inner(envelope_json: &str) -> Result<CalibrationResultEnvelope, ExecuteError> {
     let envelope = validate::parse_envelope(envelope_json)?;
-    let result = engine::execute_with_diagnostics(&envelope)?;
-    // Serializing a freshly built result envelope cannot realistically fail;
-    // surface any failure as an internal error rather than discarding it.
-    serde_json::to_string(&result).map_err(|e| {
-        ExecuteError::Other(finstack_quant_core::Error::Internal(format!(
-            "failed to serialize calibration result: {e}"
-        )))
-    })
+    engine::execute_with_diagnostics(&envelope)
 }
 
-/// Execute a calibration plan and return the full result envelope as JSON.
+/// Execute a calibration plan and return the full result envelope.
 ///
 /// Accepts a serialized `CalibrationEnvelope` (plan + quote sets + optional
-/// flat `market_data` / `prior_market` lists) and returns a serialized
-/// `CalibrationResultEnvelope`.
+/// flat `market_data` / `prior_market` lists) and returns a plain JavaScript
+/// `CalibrationResultEnvelope` object — the shape `index.d.ts` has always
+/// declared. Re-ingest a sub-document (e.g. `result.result.final_market`) with
+/// `JSON.stringify`.
 /// @param envelope_json - CalibrationEnvelope JSON containing targets, parameters, bounds, and dependencies.
 ///
 /// # Errors
@@ -97,15 +93,16 @@ fn calibrate_inner(envelope_json: &str) -> Result<String, ExecuteError> {
 /// Throws a JavaScript exception if `envelopeJson` is malformed or violates
 /// the calibration schema or static plan contract, market context construction
 /// or a calibration step fails, a solver does not converge, or the result
-/// envelope cannot be serialized.
+/// envelope cannot be converted to a JavaScript value.
 #[wasm_bindgen(js_name = calibrate)]
-pub fn calibrate(envelope_json: &str) -> Result<String, JsValue> {
-    calibrate_inner(envelope_json).map_err(execute_error_to_js)
+pub fn calibrate(envelope_json: &str) -> Result<JsValue, JsValue> {
+    let result = calibrate_inner(envelope_json).map_err(execute_error_to_js)?;
+    to_js_value(&result)
 }
 
 /// Pre-flight envelope validation without invoking the solver.
 ///
-/// Returns a JSON-serialized `ValidationReport` listing every error found
+/// Returns a JSON-serialized `CalibrationValidationReport` listing every error found
 /// plus the dependency graph. Microseconds.
 /// @param envelope_json - CalibrationEnvelope JSON containing targets, parameters, bounds, and dependencies.
 ///
@@ -223,10 +220,13 @@ mod tests {
 
     #[test]
     fn calibrate_empty_plan_succeeds() {
+        // Drives the native-testable core: the `#[wasm_bindgen]` wrapper only
+        // adds the `JsValue` conversion, which aborts on non-wasm32 targets.
         let json = empty_envelope_json();
-        let result_json = calibrate(&json).expect("execute");
-        let parsed: serde_json::Value = serde_json::from_str(&result_json).expect("json");
+        let result = calibrate_inner(&json).expect("execute");
+        let parsed = serde_json::to_value(&result).expect("json");
         assert!(parsed.is_object());
+        assert!(parsed.get("result").is_some());
     }
 
     #[test]

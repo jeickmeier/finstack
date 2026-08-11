@@ -77,7 +77,10 @@ const projectionGrid: Float64Array | null = forwardFromTyped.projectionGrid;
 const expiries: Float64Array = fxVolFromTyped.expiries;
 const pillarVols: Float64Array = fxVolFromArrays.pillarVols(0);
 const factorReturns = analytics.constrainedLeastSquares([1], 1, [0.01], [1]);
-const factorAttributionJson: string = portfolio.factorBrinsonAttribution('{}', factorReturns);
+const factorAttribution: Record<string, unknown> = portfolio.factorBrinsonAttribution(
+  '{}',
+  factorReturns
+);
 
 const owned: WasmOwned[] = [
   discountFromArray,
@@ -94,7 +97,7 @@ owned.forEach((value) => value.free());
 void projectionGrid;
 void expiries;
 void pillarVols;
-void factorAttributionJson;
+void factorAttribution;
 void materializationParseNanos;
 void materializationTimingAvailable;
 void materializationDependencies;

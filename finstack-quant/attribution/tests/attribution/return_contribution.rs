@@ -101,7 +101,8 @@ fn return_contribution_rejects_mixed_benchmark_fields() {
         ]
     });
 
-    let err = attribute_return_contribution_json(&spec.to_string()).expect_err("mixed benchmark fields");
+    let err =
+        attribute_return_contribution_json(&spec.to_string()).expect_err("mixed benchmark fields");
     assert!(err.to_string().contains("benchmark"));
 }
 

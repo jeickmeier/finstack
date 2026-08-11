@@ -9,60 +9,60 @@ use wasm_bindgen::prelude::*;
 
 /// Percentile rank of `value` within `data` on a 0-1 scale.
 ///
-/// Returns `null` when `data` is empty rather than a synthetic 0.5.
+/// Returns `undefined` when `data` is empty rather than a synthetic 0.5.
 ///
 /// # Errors
 ///
 /// Rejects when `data` is not a numeric JavaScript array or the finite rank
 /// cannot be serialized. Empty/non-finite peer data or a non-finite `value`
-/// return `null` rather than rejecting.
+/// return `undefined` rather than rejecting.
 /// @param value - Subject-company metric value to rank against the peer sample.
 /// @param data - Non-empty numeric observation array used by the requested statistic.
 #[wasm_bindgen(js_name = percentileRank)]
-pub fn percentile_rank(value: f64, data: JsValue) -> Result<JsValue, JsValue> {
+pub fn percentile_rank(value: f64, data: JsValue) -> Result<Option<JsValue>, JsValue> {
     let d: Vec<f64> = serde_wasm_bindgen::from_value(data).map_err(to_js_err)?;
     match fc::percentile_rank(&d, value) {
-        Some(rank) => serde_wasm_bindgen::to_value(&rank).map_err(to_js_err),
-        None => Ok(JsValue::NULL),
+        Some(rank) => crate::utils::to_js_value(&rank).map(Some),
+        None => Ok(None),
     }
 }
 
 /// Z-score of `value` within `data`.
 ///
-/// Returns `null` when fewer than two observations are provided or the
+/// Returns `undefined` when fewer than two observations are provided or the
 /// peer variance is zero, instead of a synthetic zero.
 ///
 /// # Errors
 ///
 /// Rejects when `data` is not a numeric JavaScript array or the computed score
 /// cannot be serialized. Insufficient data, zero variance, or a non-finite
-/// `value` return `null` rather than rejecting.
+/// `value` return `undefined` rather than rejecting.
 /// @param value - Subject-company metric value to standardize against the peer sample.
 /// @param data - Non-empty numeric observation array used by the requested statistic.
 #[wasm_bindgen(js_name = zScore)]
-pub fn z_score(value: f64, data: JsValue) -> Result<JsValue, JsValue> {
+pub fn z_score(value: f64, data: JsValue) -> Result<Option<JsValue>, JsValue> {
     let d: Vec<f64> = serde_wasm_bindgen::from_value(data).map_err(to_js_err)?;
     match fc::z_score(&d, value) {
-        Some(z) => serde_wasm_bindgen::to_value(&z).map_err(to_js_err),
-        None => Ok(JsValue::NULL),
+        Some(z) => crate::utils::to_js_value(&z).map(Some),
+        None => Ok(None),
     }
 }
 
 /// Descriptive statistics over a peer distribution.
 ///
-/// Returns `null` (matching the other comps helpers) when `data` is empty.
+/// Returns `undefined` (matching the other comps helpers) when `data` is empty.
 ///
 /// # Errors
 ///
 /// Rejects when `data` is not a numeric JavaScript array or the statistics
-/// cannot be serialized. No finite observations return `null`.
+/// cannot be serialized. No finite observations return `undefined`.
 /// @param data - Non-empty numeric observation array used by the requested statistic.
 #[wasm_bindgen(js_name = peerStats)]
-pub fn peer_stats(data: JsValue) -> Result<JsValue, JsValue> {
+pub fn peer_stats(data: JsValue) -> Result<Option<JsValue>, JsValue> {
     let d: Vec<f64> = serde_wasm_bindgen::from_value(data).map_err(to_js_err)?;
     match fc::peer_stats(&d) {
-        Some(stats) => serde_wasm_bindgen::to_value(&stats).map_err(to_js_err),
-        None => Ok(JsValue::NULL),
+        Some(stats) => crate::utils::to_js_value(&stats).map(Some),
+        None => Ok(None),
     }
 }
 
@@ -72,7 +72,7 @@ pub fn peer_stats(data: JsValue) -> Result<JsValue, JsValue> {
 ///
 /// Rejects when `x_values` or `y_values` is not a numeric JavaScript array, or
 /// the regression result cannot be serialized. Fewer than three paired values
-/// or an unidentifiable fit returns `null`.
+/// or an unidentifiable fit returns `undefined`.
 /// @param x_values - Comparable-company independent-variable values aligned with y_values.
 /// @param y_values - Comparable-company dependent-variable values aligned with x_values.
 /// @param subject_x - Subject company's independent-variable value for the fitted regression.
@@ -83,12 +83,12 @@ pub fn regression_fair_value(
     y_values: JsValue,
     subject_x: f64,
     subject_y: f64,
-) -> Result<JsValue, JsValue> {
+) -> Result<Option<JsValue>, JsValue> {
     let x: Vec<f64> = serde_wasm_bindgen::from_value(x_values).map_err(to_js_err)?;
     let y: Vec<f64> = serde_wasm_bindgen::from_value(y_values).map_err(to_js_err)?;
     match fc::regression_fair_value(&x, &y, subject_x, subject_y) {
-        Some(result) => serde_wasm_bindgen::to_value(&result).map_err(to_js_err),
-        None => Ok(JsValue::NULL),
+        Some(result) => crate::utils::to_js_value(&result).map(Some),
+        None => Ok(None),
     }
 }
 
@@ -99,18 +99,21 @@ pub fn regression_fair_value(
 /// Rejects when `company_metrics` is not a string-to-number JavaScript object,
 /// `multiple` is not a supported canonical identifier, or the computed value
 /// cannot be serialized. Missing or non-finite inputs and non-positive
-/// denominators return `null`.
+/// denominators return `undefined`.
 /// @param company_metrics - Company financial-metric object supplying numerator and denominator inputs.
 /// @param multiple - Supported valuation multiple identifier, such as EV/EBITDA or P/E.
 #[wasm_bindgen(js_name = computeMultiple)]
-pub fn compute_multiple(company_metrics: JsValue, multiple: &str) -> Result<JsValue, JsValue> {
+pub fn compute_multiple(
+    company_metrics: JsValue,
+    multiple: &str,
+) -> Result<Option<JsValue>, JsValue> {
     let metrics_map: std::collections::BTreeMap<String, f64> =
         serde_wasm_bindgen::from_value(company_metrics).map_err(to_js_err)?;
     let metrics = fc::CompanyMetrics::from_flat_metrics("subject", metrics_map);
     let multiple = multiple.parse::<fc::Multiple>().map_err(to_js_err)?;
     match fc::compute_multiple(&metrics, multiple) {
-        Some(result) => serde_wasm_bindgen::to_value(&result).map_err(to_js_err),
-        None => Ok(JsValue::NULL),
+        Some(result) => crate::utils::to_js_value(&result).map(Some),
+        None => Ok(None),
     }
 }
 
@@ -129,5 +132,5 @@ pub fn score_relative_value(peer_set: JsValue, dimensions: JsValue) -> Result<Js
     let dims: Vec<fc::ScoringDimension> =
         serde_wasm_bindgen::from_value(dimensions).map_err(to_js_err)?;
     let result = fc::score_relative_value(&ps, &dims).map_err(to_js_err)?;
-    serde_wasm_bindgen::to_value(&result).map_err(to_js_err)
+    crate::utils::to_js_value(&result)
 }

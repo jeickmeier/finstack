@@ -92,7 +92,8 @@ fn allocate_weights_accepts_singular_psd_covariance() {
         "money_decimal_places": 2
     });
 
-    let out = allocate_weights_json(&spec.to_string()).expect("rank-one PSD covariance should be valid");
+    let out =
+        allocate_weights_json(&spec.to_string()).expect("rank-one PSD covariance should be valid");
     let result: Value = serde_json::from_str(&out).expect("risk budget JSON");
     assert!(
         (result["allocations"][0]["weight"]
@@ -159,6 +160,7 @@ fn single_strategy_risk_budget_still_validates_budget() {
         "strategies": [{"id": "only", "risk_budget": 0.5}],
         "covariance": [[0.04]]
     });
-    let err = allocate_weights_json(&wrong_sum.to_string()).expect_err("risk budget must sum to one");
+    let err =
+        allocate_weights_json(&wrong_sum.to_string()).expect_err("risk budget must sum to one");
     assert!(err.to_string().contains("sum"));
 }

@@ -136,7 +136,7 @@ fn fx_delta_vol_surface_basic_accessors_and_implied_vol() {
 
     assert_eq!(surface.id(), "EURUSD-DELTA-VOL");
     assert_eq!(surface.num_expiries(), 3);
-    assert_eq!(surface.expiries(), vec![0.25, 0.5, 1.0]);
+    assert_eq!(surface.expiries().as_ref(), [0.25, 0.5, 1.0]);
 
     let pillar = surface.pillar_vols(0).unwrap();
     assert!((pillar[0] - 0.08).abs() < 1e-12);

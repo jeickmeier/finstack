@@ -178,8 +178,7 @@ impl MetricCalculator for CarryAccruedCalculator {
         Ok(ledger
             .rows
             .iter()
-            .filter(|r| r.date <= context.as_of)
-            .next_back()
+            .rfind(|r| r.date <= context.as_of)
             .map(|r| r.gp_carry_cum.amount())
             .unwrap_or(0.0))
     }

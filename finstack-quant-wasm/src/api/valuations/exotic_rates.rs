@@ -85,7 +85,7 @@ pub fn snowball_coupon_profile(
     floating_fixings: Vec<f64>,
     floor: f64,
     cap: f64,
-) -> Result<Vec<f64>, JsValue> {
+) -> Result<Box<[f64]>, JsValue> {
     coupon_profiles::snowball_coupon_profile(
         initial_coupon,
         fixed_rate,
@@ -93,6 +93,7 @@ pub fn snowball_coupon_profile(
         floor,
         cap,
     )
+    .map(Vec::into_boxed_slice)
     .map_err(to_js_err)
 }
 
@@ -115,7 +116,7 @@ pub fn inverse_floater_coupon_profile(
     floor: f64,
     cap: f64,
     leverage: f64,
-) -> Result<Vec<f64>, JsValue> {
+) -> Result<Box<[f64]>, JsValue> {
     coupon_profiles::inverse_floater_coupon_profile(
         fixed_rate,
         &floating_fixings,
@@ -123,6 +124,7 @@ pub fn inverse_floater_coupon_profile(
         cap,
         leverage,
     )
+    .map(Vec::into_boxed_slice)
     .map_err(to_js_err)
 }
 

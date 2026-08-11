@@ -55,7 +55,41 @@ previous string output is available by calling `.to_json()` on the result.
 - All 19 raw `serde_wasm_bindgen::to_value` call sites now route through
   `crate::utils::to_js_value`. Rust maps previously arrived as ES `Map`s in
   those returns, which `JSON.stringify` silently drops; they are now plain
-  objects, matching `index.d.ts` and the Python dict shapes.
+  objects, matching `index.d.ts` and the Python dict shapes. `mise run
+  wasm-lint` now fails if the raw serializer reappears.
+- 47 exports converted from JSON strings to structured objects: the four
+  `priceInstrument*` entry points and `calibrate`; 31 portfolio exports
+  (valuation, aggregation, attribution, optimization, risk decomposition,
+  liquidity); `covenants.evaluateEngine`; `statements.evaluateModel`,
+  `evaluateModelWithMarket`, `runMonteCarlo`; six statements-analytics
+  analyses; and `scenarios.computeHorizonReturn`.
+- Wire surfaces that keep returning strings gained honest names: the seven
+  covenant functions, five statements validators, two margin CSA specs, and
+  `parsePortfolioSpec`/`buildPortfolioFromSpec` are now `*Json`.
+- Prose-returning exports are now `*Text`: `parseFormulaText`,
+  `plSummaryReportText`, `creditAssessmentReportText`. They previously shared
+  the `Result<String, JsValue>` signature with ~130 real JSON exports, so
+  callers had no way to tell prose from a parseable document.
+- Numeric vectors cross as `Float64Array` instead of boxed-`Number` arrays
+  (`correlationBounds`, `jointProbabilities`, `nearestCorrelation`,
+  `generateSmile`, the two coupon profiles, `expiries`, `pillarVols`). Three
+  of these were already *declared* `Float64Array` in `index.d.ts` and had been
+  lying about their runtime type.
+- `Portfolio.toSpecJson` → `toJson`; `margin.calculateVm` takes an ISO-8601
+  date string instead of three integers; the comps functions and
+  `portfolioResultGetMetric` return `undefined` rather than `null` for absent
+  values.
+- The JS facade is a pure namespace re-export again — `exports/valuations.js`
+  no longer `JSON.parse`s `calibrate` while leaving its sibling `dryRun` alone.
+
+### Known gap
+
+Some entry points still return bare JSON strings under unsuffixed names in
+*both* Python and WASM (parts of statements-analytics, factor-model, and the
+scenario spec builders). They are consistent with each other but not with the
+contract; converting one side alone would create the cross-language divergence
+this work removes, so they are listed as paired follow-ups in
+`.claude/skills/finstack-consistency-reviewer/conventions.md`.
 
 ### Added
 

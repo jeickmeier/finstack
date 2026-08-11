@@ -63,7 +63,7 @@ const cashflowSpec = JSON.stringify({
 });
 
 const EXPORTED_KEYS = [
-  'accruedInterestJson',
+  'accruedInterest',
   'buildCashflowScheduleJson',
   'datedFlowsJson',
   'validateCashflowScheduleJson',
@@ -94,7 +94,7 @@ test('cashflows end-to-end build/validate/flows/accrual from JSON spec', () => {
   const flows = JSON.parse(cashflows.datedFlowsJson(scheduleJson));
   assert.equal(flows.length, schedule.flows.length);
 
-  const accrued = cashflows.accruedInterestJson(scheduleJson, '2025-02-28', null);
+  const accrued = cashflows.accruedInterest(scheduleJson, '2025-02-28', null);
   assert.equal(typeof accrued, 'number');
   assert.ok(Number.isFinite(accrued));
   assert.ok(accrued > 0);
