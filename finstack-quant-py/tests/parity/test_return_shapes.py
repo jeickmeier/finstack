@@ -82,9 +82,7 @@ def _resolve(module_name: str, attr: str) -> Any:
     ENTRY_SHAPES,
     ids=[f"{m.rsplit('.', 1)[-1]}.{a}" for m, a, _ in ENTRY_SHAPES],
 )
-def test_entry_point_is_not_a_bare_json_string(
-    module_name: str, attr: str, shape: str
-) -> None:
+def test_entry_point_is_not_a_bare_json_string(module_name: str, attr: str, shape: str) -> None:
     """A computation entry point must not return a bare JSON string.
 
     Only ``*_json``-suffixed wire surfaces may do that. This is the rule that
@@ -92,7 +90,7 @@ def test_entry_point_is_not_a_bare_json_string(
     """
     _resolve(module_name, attr)
     if shape == "json":
-        assert attr.endswith("_json") or attr.endswith("_from_spec"), (
+        assert attr.endswith(("_json", "_from_spec")), (
             f"{module_name}.{attr} returns a JSON string but its name does not "
             "mark it as a wire surface; rename it with a '_json' suffix"
         )
@@ -150,8 +148,7 @@ def test_result_class_has_typed_getters(module_name: str, class_name: str) -> No
     getters = [
         name
         for name, value in vars(cls).items()
-        if not name.startswith("_")
-        and type(value).__name__ in {"getset_descriptor", "property"}
+        if not name.startswith("_") and type(value).__name__ in {"getset_descriptor", "property"}
     ]
     assert getters, (
         f"{class_name} exposes no typed getters; it is a JSON blob wearing a "
@@ -167,9 +164,5 @@ def test_statement_result_uses_orient_parameter() -> None:
     """
     cls = _resolve("finstack_quant.statements", "StatementResult")
     assert hasattr(cls, "to_dataframe"), "StatementResult is missing to_dataframe()"
-    assert not hasattr(cls, "to_pandas_long"), (
-        "to_pandas_long survived the merge into to_dataframe(orient=...)"
-    )
-    assert not hasattr(cls, "to_pandas_wide"), (
-        "to_pandas_wide survived the merge into to_dataframe(orient=...)"
-    )
+    assert not hasattr(cls, "to_pandas_long"), "to_pandas_long survived the merge into to_dataframe(orient=...)"
+    assert not hasattr(cls, "to_pandas_wide"), "to_pandas_wide survived the merge into to_dataframe(orient=...)"

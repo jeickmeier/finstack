@@ -168,12 +168,6 @@ pub(crate) struct PyMertonModel {
     pub(crate) inner: MertonModel,
 }
 
-impl PyMertonModel {
-    pub(crate) fn from_inner(inner: MertonModel) -> Self {
-        Self { inner }
-    }
-}
-
 #[pymethods]
 impl PyMertonModel {
     /// Construct a Merton structural credit model from firm asset inputs.
@@ -593,12 +587,6 @@ pub(crate) struct PyDynamicRecoverySpec {
     pub(crate) inner: DynamicRecoverySpec,
 }
 
-impl PyDynamicRecoverySpec {
-    pub(crate) fn from_inner(inner: DynamicRecoverySpec) -> Self {
-        Self { inner }
-    }
-}
-
 #[pymethods]
 impl PyDynamicRecoverySpec {
     #[staticmethod]
@@ -669,12 +657,6 @@ impl PyDynamicRecoverySpec {
 #[derive(Clone)]
 pub(crate) struct PyEndogenousHazardSpec {
     pub(crate) inner: EndogenousHazardSpec,
-}
-
-impl PyEndogenousHazardSpec {
-    pub(crate) fn from_inner(inner: EndogenousHazardSpec) -> Self {
-        Self { inner }
-    }
 }
 
 #[pymethods]
@@ -848,12 +830,6 @@ impl PyCreditState {
 #[derive(Clone)]
 pub(crate) struct PyToggleExerciseModel {
     pub(crate) inner: ToggleExerciseModel,
-}
-
-impl PyToggleExerciseModel {
-    pub(crate) fn from_inner(inner: ToggleExerciseModel) -> Self {
-        Self { inner }
-    }
 }
 
 #[pymethods]

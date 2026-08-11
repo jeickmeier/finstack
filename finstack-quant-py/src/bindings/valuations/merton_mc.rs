@@ -104,12 +104,6 @@ pub(crate) struct PyPikSchedule {
     pub(crate) inner: PikSchedule,
 }
 
-impl PyPikSchedule {
-    pub(crate) fn from_inner(inner: PikSchedule) -> Self {
-        Self { inner }
-    }
-}
-
 #[pymethods]
 impl PyPikSchedule {
     /// Apply the same PIK mode at every coupon date.
@@ -185,12 +179,6 @@ impl PyPikSchedule {
 #[derive(Clone, Copy)]
 pub(crate) struct PyBarrierCrossing {
     pub(crate) inner: BarrierCrossing,
-}
-
-impl PyBarrierCrossing {
-    pub(crate) fn from_inner(inner: BarrierCrossing) -> Self {
-        Self { inner }
-    }
 }
 
 #[pymethods]
@@ -378,12 +366,6 @@ impl PyMertonMcResult {
 #[derive(Clone)]
 pub(crate) struct PyMertonMcConfig {
     pub(crate) inner: MertonMcConfig,
-}
-
-impl PyMertonMcConfig {
-    pub(crate) fn from_inner(inner: MertonMcConfig) -> Self {
-        Self { inner }
-    }
 }
 
 #[pymethods]

@@ -285,9 +285,7 @@ class TestDateAcceptanceIsUniform:
         from finstack_quant.cashflows import accrued_interest
 
         schedule = self._schedule()
-        assert accrued_interest(schedule, "2025-02-28") == accrued_interest(
-            schedule, datetime.date(2025, 2, 28)
-        )
+        assert accrued_interest(schedule, "2025-02-28") == accrued_interest(schedule, datetime.date(2025, 2, 28))
 
     def test_covenants_evaluate_engine(self) -> None:
         from finstack_quant import covenants
@@ -315,9 +313,7 @@ class TestDateAcceptanceIsUniform:
         from finstack_quant.cashflows import accrued_interest
 
         schedule = self._schedule()
-        assert accrued_interest(schedule, pd.Timestamp("2025-02-28")) == (
-            accrued_interest(schedule, "2025-02-28")
-        )
+        assert accrued_interest(schedule, pd.Timestamp("2025-02-28")) == (accrued_interest(schedule, "2025-02-28"))
 
     def test_factor_model_decompose_levels(self) -> None:
         """A third, structurally different entry point: takes a `time::Date`.

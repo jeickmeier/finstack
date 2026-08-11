@@ -33,14 +33,14 @@ def test_from_equity_recovers_known_values() -> None:
 
 def test_try_implied_equity_rejects_non_positive_horizon() -> None:
     model = MertonModel(100.0, 0.20, 80.0, 0.05)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="horizon must be > 0"):
         model.try_implied_equity(0.0)
 
 
 def test_from_equity_rejects_invalid_inputs() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="must be positive"):
         MertonModel.from_equity(0.0, 0.30, 80.0, 0.05, 0.0, 1.0)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="must be non-negative"):
         MertonModel.from_equity(25.0, -0.30, 80.0, 0.05, 0.0, 1.0)
 
 
