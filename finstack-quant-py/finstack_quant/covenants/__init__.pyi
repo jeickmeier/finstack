@@ -82,6 +82,23 @@ class CovenantReport:
         ------
         ValueError
             If ``json`` is malformed or omits required fields.
+
+        Examples
+        --------
+        >>> import json
+        >>> from finstack_quant.covenants import CovenantReport
+        >>> report = CovenantReport.from_json(
+        ...     json.dumps({
+        ...         "covenant_type": "Debt/EBITDA <= 5.00x",
+        ...         "passed": False,
+        ...         "actual_value": 5.5,
+        ...         "threshold": 5.0,
+        ...         "details": "Exceeded",
+        ...         "headroom": -0.5,
+        ...     })
+        ... )
+        >>> CovenantReport.from_json(report.to_json()).headroom
+        -0.5
         """
         ...
 
@@ -131,6 +148,10 @@ class CovenantReport:
         Returns
         -------
         bool
+            ``True`` when the tested metric satisfied its threshold. Because an
+            untested covenant also reports ``True``, read it together with
+            :attr:`actual_value`, which is ``None`` exactly when no numeric
+            test ran.
         """
         ...
 
@@ -167,6 +188,10 @@ class CovenantReport:
         Returns
         -------
         str | None
+            Free text such as ``"Covenant inactive"``, ``"Waived by lender
+            agreement"``, or ``"In cure period"``. ``None`` for a plain numeric
+            result whose evaluator supplied no commentary, so absence carries
+            no meaning of its own.
         """
         ...
 
@@ -191,6 +216,10 @@ class CovenantReport:
         Returns
         -------
         dict[str, Any]
+            Keys ``numeric_mode``, ``rounding``, ``fx_policy_applied`` and
+            ``version``; ``fx_policy_applied`` is ``None`` when the evaluation
+            stayed in one currency. Reproducing a report requires re-running
+            under the same ``rounding`` context.
         """
         ...
 

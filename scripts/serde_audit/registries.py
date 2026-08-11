@@ -40,7 +40,11 @@ ONE_WAY_EXCEPTIONS = (
             "BenchmarkRelativeContribution",
         ),
         "attribution-report",
-        "Canonical emitted attribution report rows; no supported inbound wire format.",
+        "Emitted attribution report rows. These gained `Deserialize` so the "
+        "Python `ReturnContributionResult.from_json` round-trip works; they "
+        "still carry no `JsonSchema` because the schema registry publishes the "
+        "spec side, not the result side.",
+        frozenset({"JsonSchema"}),
     ),
     *_exception(
         "factor-model",
@@ -94,7 +98,7 @@ ONE_WAY_EXCEPTIONS = (
     *_exception(
         "valuations",
         "src/calibration/api/validate.rs",
-        ("ValidationReport", "DependencyGraph", "DependencyNode"),
+        ("CalibrationValidationReport", "DependencyGraph", "DependencyNode"),
         "validation-report",
         "Transient calibration validation view, regenerated from the input envelope.",
     ),
@@ -380,7 +384,7 @@ RUNTIME_RESULT_EXCEPTIONS = (
     *_runtime_exception(
         "valuations",
         "src/instruments/fixed_income/cmo/waterfall.rs",
-        ("WaterfallPeriodResult",),
+        ("CmoWaterfallPeriodResult",),
     ),
     *_runtime_exception(
         "valuations",
@@ -413,7 +417,7 @@ RUNTIME_RESULT_EXCEPTIONS = (
     *_runtime_exception(
         "valuations",
         "src/models/trees/short_rate_tree/tree.rs",
-        ("CalibrationResult",),
+        ("TreeCalibrationResult",),
     ),
     *_runtime_exception(
         "valuations",

@@ -80,6 +80,7 @@ impl PyPikMode {
     }
 
     /// Serialize this PIK mode to compact JSON.
+    #[allow(clippy::wrong_self_convention)]
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
     }
@@ -208,6 +209,7 @@ impl PyBarrierCrossing {
     }
 
     /// Serialize this barrier-crossing policy to compact JSON.
+    #[allow(clippy::wrong_self_convention)]
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
     }
@@ -477,7 +479,7 @@ impl PyMertonMcConfig {
     /// * `r` - Dynamic recovery specification evaluated at accreted notional.
     fn dynamic_recovery(&self, r: PyRef<'_, PyDynamicRecoverySpec>) -> Self {
         Self {
-            inner: self.inner.clone().dynamic_recovery(r.inner.clone()),
+            inner: self.inner.clone().dynamic_recovery(r.inner),
         }
     }
 

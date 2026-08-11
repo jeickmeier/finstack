@@ -46,10 +46,10 @@ if "finstack_quant.scenarios.schema" not in sys.modules:
     sys.modules["finstack_quant.scenarios.schema"] = schema
 
 __all__: list[str] = [
-    "Compounding",
-    "CurveKind",
     "ApplicationReport",
     "ApplicationResult",
+    "Compounding",
+    "CurveKind",
     "HorizonResult",
     "OperationSpec",
     "RateBindingSpec",

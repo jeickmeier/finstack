@@ -365,7 +365,10 @@ class Bond:
         >>> from finstack_quant.core.money import Money
         >>> from finstack_quant.core.types import Rate
         >>> from finstack_quant.valuations.instruments import (
-        ...     Bond, MertonMcConfig, PikMode, PikSchedule,
+        ...     Bond,
+        ...     MertonMcConfig,
+        ...     PikMode,
+        ...     PikSchedule,
         ... )
         >>> from finstack_quant.valuations.models.credit import MertonModel
         >>> bond = Bond.fixed(
@@ -377,12 +380,7 @@ class Bond:
         ...     "USD-OIS",
         ... )
         >>> merton = MertonModel(100.0, 0.25, 80.0, 0.04)
-        >>> config = (
-        ...     MertonMcConfig(merton)
-        ...     .pik_schedule(PikSchedule.uniform(PikMode.pik()))
-        ...     .num_paths(256)
-        ...     .seed(42)
-        ... )
+        >>> config = MertonMcConfig(merton).pik_schedule(PikSchedule.uniform(PikMode.pik())).num_paths(256).seed(42)
         >>> result = bond.price_merton_mc(config, 0.04, datetime.date(2024, 1, 1))
         >>> result.num_paths
         256
@@ -409,7 +407,16 @@ class BarrierCrossing:
         Returns
         -------
         BarrierCrossing
-            Discrete barrier-crossing policy.
+            Discrete policy: default is declared only when an asset value
+            sampled on the simulation grid sits below the barrier. Fast, but it
+            misses excursions between steps and so understates default risk on
+            coarse grids. The default for terminal-barrier models.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import BarrierCrossing
+        >>> BarrierCrossing.discrete().to_json()
+        '"discrete"'
         """
         ...
 
@@ -421,7 +428,16 @@ class BarrierCrossing:
         Returns
         -------
         BarrierCrossing
-            Brownian-bridge barrier-crossing policy.
+            Brownian-bridge policy: between two surviving grid points it draws
+            against the analytic crossing probability, which removes the
+            discretisation bias. The default for first-passage models and the
+            more expensive of the two.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import BarrierCrossing
+        >>> BarrierCrossing.brownian_bridge().to_json()
+        '"brownian_bridge"'
         """
         ...
 
@@ -444,6 +460,12 @@ class BarrierCrossing:
         ------
         ValueError
             If ``json`` is not valid JSON for a barrier-crossing policy.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import BarrierCrossing
+        >>> BarrierCrossing.from_json('"discrete"').to_json()
+        '"discrete"'
         """
         ...
 
@@ -505,7 +527,9 @@ class MertonMcConfig:
         Parameters
         ----------
         n : int
-            Path count.
+            Total paths to retain. With antithetic variates on, the mirrors
+            count toward ``n`` rather than doubling it, so the engine draws
+            only ``ceil(n / 2)`` independent normals.
 
         Returns
         -------
@@ -594,9 +618,7 @@ class MertonMcConfig:
         """
         ...
 
-    def endogenous_hazard(
-        self, h: EndogenousHazardSpec
-    ) -> MertonMcConfig:
+    def endogenous_hazard(self, h: EndogenousHazardSpec) -> MertonMcConfig:
         """
         Set an endogenous hazard model.
 
@@ -663,6 +685,14 @@ class MertonMcConfig:
         ------
         ValueError
             If ``json`` is not valid JSON for a Merton MC configuration.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import MertonMcConfig
+        >>> from finstack_quant.valuations.models.credit import MertonModel
+        >>> config = MertonMcConfig(MertonModel(100.0, 0.25, 80.0, 0.04)).num_paths(256).seed(42)
+        >>> MertonMcConfig.from_json(config.to_json()).to_json() == config.to_json()
+        True
         """
         ...
 
@@ -689,52 +719,146 @@ class MertonMcResult:
 
     @property
     def clean_price_pct(self) -> float:
-        """Clean price as a percentage of par."""
+        """
+        Clean price as a percentage of par.
+
+        Returns
+        -------
+        float
+            Mean discounted path value divided by notional, times 100, so
+            ``98.7`` means 98.7% of par. Quoted on the same discount basis the
+            configuration supplied.
+        """
         ...
 
     @property
     def dirty_price_pct(self) -> float:
-        """Dirty price as a percentage of par."""
+        """
+        Dirty price as a percentage of par.
+
+        Returns
+        -------
+        float
+            Always equal to :attr:`clean_price_pct`: the Monte Carlo engine
+            works in continuous time and never separates accrued interest. Use
+            the pricer's metrics pipeline for a genuine clean/dirty split.
+        """
         ...
 
     @property
     def expected_loss(self) -> float:
-        """Expected loss as a fraction of PIK-aware risk-free PV."""
+        """
+        Expected loss as a fraction of PIK-aware risk-free PV.
+
+        Returns
+        -------
+        float
+            ``1 - mean_mc_pv / risk_free_pv``, so ``0.03`` is a 3% credit
+            haircut. The benchmark PV accretes notional under the configured
+            PIK schedule, and the value turns negative when the simulated PV
+            exceeds that benchmark.
+        """
         ...
 
     @property
     def unexpected_loss(self) -> float:
-        """Unexpected loss (std dev of path PVs / notional)."""
+        """
+        Unexpected loss (std dev of path PVs / notional).
+
+        Returns
+        -------
+        float
+            Dispersion of the loss distribution as a fraction of par, not a
+            percentage: ``0.05`` here is comparable to 5 points on
+            :attr:`clean_price_pct`.
+        """
         ...
 
     @property
     def expected_shortfall_95(self) -> float:
-        """Expected shortfall at the 95% confidence level."""
+        """
+        Expected shortfall at the 95% confidence level.
+
+        Returns
+        -------
+        float
+            Mean of the worst 5% of path PVs, expressed as a percentage of par
+            like :attr:`clean_price_pct`. It is a price level rather than a
+            loss, so lower is worse and it never exceeds the clean price.
+        """
         ...
 
     @property
     def average_pik_fraction(self) -> float:
-        """Average PIK fraction across coupon dates and paths."""
+        """
+        Average PIK fraction across coupon dates and paths.
+
+        Returns
+        -------
+        float
+            PIK elections divided by simulated coupon periods, in ``[0, 1]``.
+            Counts whole elections, so a 50/50 split coupon still registers as
+            one election. Identical to
+            ``path_statistics.pik_exercise_rate``.
+        """
         ...
 
     @property
     def effective_spread_bp(self) -> float:
-        """Effective spread in basis points versus risk-free PV."""
+        """
+        Effective spread in basis points versus risk-free PV.
+
+        Returns
+        -------
+        float
+            Constant continuous spread ``s`` solving ``risk_free_pv`` with each
+            discount factor scaled by ``exp(-s * t)`` equal to the mean
+            simulated PV. Solved on whichever discount basis priced the bond,
+            so curve shape stays out of the spread.
+        """
         ...
 
     @property
     def path_statistics(self) -> PathStatistics:
-        """Path-level simulation statistics."""
+        """
+        Path-level simulation statistics.
+
+        Returns
+        -------
+        PathStatistics
+            Default frequency, timing, recovery, and PIK-election diagnostics
+            for the same run that produced these prices.
+        """
         ...
 
     @property
     def num_paths(self) -> int:
-        """Number of Monte Carlo paths used."""
+        """
+        Number of Monte Carlo paths used.
+
+        Returns
+        -------
+        int
+            Paths actually retained, matching the configured
+            ``MertonMcConfig.num_paths``. Antithetic mirrors count toward this
+            total instead of doubling it.
+        """
         ...
 
     @property
     def standard_error(self) -> float:
-        """Standard error of the clean price (percentage of par)."""
+        """
+        Standard error of the clean price (percentage of par).
+
+        Returns
+        -------
+        float
+            Sampling error of :attr:`clean_price_pct` in the same
+            percent-of-par units, so 1.96 of these brackets a 95% interval
+            either side of the price. With antithetic variates the estimate
+            comes from pair averages, which keeps the negatively correlated
+            legs from understating it.
+        """
         ...
 
 class PathStatistics:
@@ -749,27 +873,74 @@ class PathStatistics:
 
     @property
     def default_rate(self) -> float:
-        """Fraction of paths that defaulted."""
+        """
+        Fraction of paths that defaulted.
+
+        Returns
+        -------
+        float
+            Defaulted paths divided by simulated paths, in ``[0, 1]``. This is
+            a cumulative default probability to maturity, not an annualised
+            hazard rate.
+        """
         ...
 
     @property
     def avg_default_time(self) -> float:
-        """Average default time in years among defaulted paths."""
+        """
+        Average default time in years among defaulted paths.
+
+        Returns
+        -------
+        float
+            Mean time from the valuation date to the barrier crossing,
+            averaged over defaulted paths only. Exactly ``0.0`` when no path
+            defaulted, so check :attr:`default_rate` before reading it.
+        """
         ...
 
     @property
     def avg_terminal_notional(self) -> float:
-        """Average terminal notional reflecting PIK accretion."""
+        """
+        Average terminal notional reflecting PIK accretion.
+
+        Returns
+        -------
+        float
+            Currency-unit notional at maturity averaged over surviving paths,
+            so it exceeds the issued notional whenever coupons were PIKed.
+            Falls back to the issued notional when every path defaulted.
+        """
         ...
 
     @property
     def avg_recovery_pct(self) -> float:
-        """Average recovery percentage among defaulted paths."""
+        """
+        Average recovery percentage among defaulted paths.
+
+        Returns
+        -------
+        float
+            Decimal fraction despite the ``_pct`` name: ``0.40`` means 40%
+            recovery on the notional accreted up to the default time,
+            averaged over defaulted paths. Exactly ``0.0`` when no path
+            defaulted.
+        """
         ...
 
     @property
     def pik_exercise_rate(self) -> float:
-        """Fraction of coupon dates where PIK was elected."""
+        """
+        Fraction of coupon dates where PIK was elected.
+
+        Returns
+        -------
+        float
+            Same quantity as ``MertonMcResult.average_pik_fraction``, in
+            ``[0, 1]``: a uniform cash schedule pins it to ``0.0`` and a
+            uniform PIK schedule to ``1.0``, so only toggle and split
+            schedules put it in between.
+        """
         ...
 
 class PikMode:
@@ -785,12 +956,40 @@ class PikMode:
 
     @staticmethod
     def cash() -> PikMode:
-        """Coupon paid entirely in cash."""
+        """
+        Coupon paid entirely in cash.
+
+        Returns
+        -------
+        PikMode
+            Cash mode, the default a schedule falls back to before its first
+            step and whenever a toggle model is missing.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import PikMode
+        >>> PikMode.cash().to_json()
+        '"cash"'
+        """
         ...
 
     @staticmethod
     def pik() -> PikMode:
-        """Coupon accreted to notional."""
+        """
+        Coupon accreted to notional.
+
+        Returns
+        -------
+        PikMode
+            Payment-in-kind mode: the coupon pays no cash and instead raises
+            the notional that later coupons and recovery are computed on.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import PikMode
+        >>> PikMode.pik().to_json()
+        '"pik"'
+        """
         ...
 
     @staticmethod
@@ -808,13 +1007,36 @@ class PikMode:
         Returns
         -------
         PikMode
-            Split PIK mode.
+            Split PIK mode. The two fractions must be non-negative and sum to
+            one; the engine rejects anything else when the bond is priced, not
+            when this mode is built.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import PikMode
+        >>> PikMode.split(0.5, 0.5).to_json()
+        '{"split":{"cash_fraction":0.5,"pik_fraction":0.5}}'
         """
         ...
 
     @staticmethod
     def toggle() -> PikMode:
-        """Defer to the toggle exercise model on the config."""
+        """
+        Defer to the toggle exercise model on the config.
+
+        Returns
+        -------
+        PikMode
+            Toggle mode, which decides cash versus PIK per path from
+            ``MertonMcConfig.toggle_model``. Without that model set the coupon
+            silently falls back to cash.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import PikMode
+        >>> PikMode.toggle().to_json()
+        '"toggle"'
+        """
         ...
 
     @staticmethod
@@ -836,6 +1058,12 @@ class PikMode:
         ------
         ValueError
             If ``json`` is not valid JSON for a PIK mode.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import PikMode
+        >>> PikMode.from_json('"pik"').to_json()
+        '"pik"'
         """
         ...
 
@@ -874,7 +1102,14 @@ class PikSchedule:
         Returns
         -------
         PikSchedule
-            Uniform schedule.
+            Uniform schedule; every coupon date resolves to ``mode`` for the
+            whole life of the bond.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import PikMode, PikSchedule
+        >>> PikSchedule.uniform(PikMode.pik()).mode_at(1.0).to_json()
+        '"pik"'
         """
         ...
 
@@ -891,12 +1126,21 @@ class PikSchedule:
         Returns
         -------
         PikSchedule
-            Stepped schedule.
+            Stepped schedule in which each entry stays in force from its year
+            fraction until the next one. Coupons before the first step fall
+            back to cash, so start the list at ``0.0`` to control them.
 
         Raises
         ------
         ValueError
             If ``steps`` cannot be parsed or fails validation at pricing time.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import PikMode, PikSchedule
+        >>> schedule = PikSchedule.stepped([(0.0, PikMode.pik()), (2.0, PikMode.cash())])
+        >>> schedule.mode_at(2.5).to_json()
+        '"cash"'
         """
         ...
 
@@ -935,6 +1179,12 @@ class PikSchedule:
         ------
         ValueError
             If ``json`` is not valid JSON for a PIK schedule.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import PikMode, PikSchedule
+        >>> PikSchedule.from_json('{"stepped":[[0.0,"pik"],[2.0,"cash"]]}').mode_at(0.5).to_json()
+        '"pik"'
         """
         ...
 

@@ -191,6 +191,31 @@ Document any places where divergence from the dominant pattern is intentional:
   collapsing it would force an `as_of: Date` parameter onto the public
   `im_profile_from_simm` and cascade into its binding, stub, and tests. The
   other three margin pairs were collapsed.
+- **`validateMaterializationJson` (WASM) returns an object despite its `Json`
+  suffix**: it is pinned by `dts_contract.rs` and by a cache shim in
+  `exports/portfolio.js`, so renaming it is its own decision rather than part
+  of the sweep.
+
+## Known Remaining Gap: paired conversions still owed
+
+These entry points return a bare JSON string under a name with **no** `_json`
+suffix in **both** Python and WASM. They are therefore consistent with each
+other but not with the contract. Converting either side alone would
+*manufacture* the cross-language divergence this contract exists to remove, so
+they must be done as paired changes:
+
+| Domain | Entry points |
+|--------|-------------|
+| statements_analytics | `run_checks`, `run_three_statement_checks`, `run_credit_underwriting_checks`, `generate_tornado_entries` |
+| attribution | `attribute_pnl_from_spec` |
+| features | `transform_panel` (the typed twin `transform_panel_spec` is already public in Rust) |
+| scenarios | `parse_scenario_spec`, `compose_scenarios`, `build_scenario_spec`, `build_from_template`, `build_template_component`, `list_builtin_template_metadata` |
+| factor_model | `covariance_at`, `factor_model_at` |
+
+The scenarios group is arguably fine as-is — those emit spec *documents* meant
+for re-ingest, so they are wire surfaces and only need `_json`/`Json` suffixes.
+The statements_analytics and factor_model groups are genuine computation
+results and want typed returns on both sides.
 
 ### Error & Module Structure
 - `error/mod.rs` in core: Uses subdirectory because error module has `inputs.rs` and `suggestions.rs` submodules (justified by size). Valuations uses flat `error.rs` as a re-export facade.

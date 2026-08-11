@@ -250,9 +250,7 @@ class AssetDynamics:
         Examples
         --------
         >>> from finstack_quant.valuations.models.credit import AssetDynamics
-        >>> restored = AssetDynamics.from_json(
-        ...     AssetDynamics.geometric_brownian().to_json()
-        ... )
+        >>> restored = AssetDynamics.from_json(AssetDynamics.geometric_brownian().to_json())
         >>> restored.to_json()
         '"geometric_brownian"'
 
@@ -316,7 +314,10 @@ class SimulatedPaths:
         Returns
         -------
         int
-            Path count.
+            Exactly the count requested from ``simulate_paths``. Antithetic
+            mirrors are included in this total rather than doubling it, so the
+            row count of :attr:`asset_values` is always
+            ``num_paths * (num_steps + 1)``.
         """
         ...
 
@@ -328,7 +329,9 @@ class SimulatedPaths:
         Returns
         -------
         int
-            Step count.
+            Count of simulation increments, at least ``1``. The grid in
+            :attr:`times` holds one more point than this because it includes
+            ``t = 0``, and each step spans ``horizon / num_steps`` years.
         """
         ...
 
@@ -518,9 +521,7 @@ class MertonModel:
         Examples
         --------
         >>> from finstack_quant.valuations.models.credit import MertonModel
-        >>> model = MertonModel.from_cds_spread(
-        ...     150.0, 0.40, 80.0, 0.04, 5.0, 100.0, 0.0
-        ... )
+        >>> model = MertonModel.from_cds_spread(150.0, 0.40, 80.0, 0.04, 5.0, 100.0, 0.0)
         >>> model.asset_vol > 0
         True
 

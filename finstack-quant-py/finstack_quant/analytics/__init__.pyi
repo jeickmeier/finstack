@@ -89,6 +89,18 @@ class PeriodStats:
         -------
         PeriodStats
             Parsed ``PeriodStats`` instance.
+
+        Examples
+        --------
+        >>> from datetime import date
+        >>> from finstack_quant.analytics import PeriodStats, Performance
+        >>> dates = [date(2024, month, 1) for month in range(1, 7)]
+        >>> perf = Performance.from_returns_arrays(
+        ...     dates, [[0.10, -0.05, 0.02, 0.0, 0.03, -0.01]], ["FUND"], frequency="monthly"
+        ... )
+        >>> stats = perf.period_stats(0, aggregation_frequency="monthly")
+        >>> PeriodStats.from_json(stats.to_json()).win_rate
+        0.5
         """
         ...
 
@@ -275,6 +287,22 @@ class BetaResult:
         -------
         BetaResult
             Parsed ``BetaResult`` instance.
+
+        Examples
+        --------
+        >>> from datetime import date, timedelta
+        >>> from finstack_quant.analytics import BetaResult, Performance
+        >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(6)]
+        >>> benchmark = [-0.02, -0.01, 0.0, 0.01, 0.02, 0.03]
+        >>> perf = Performance.from_returns_arrays(
+        ...     dates,
+        ...     [[2.0 * value for value in benchmark], benchmark],
+        ...     ["FUND", "BENCH"],
+        ...     benchmark_ticker="BENCH",
+        ...     frequency="monthly",
+        ... )
+        >>> BetaResult.from_json(perf.beta()[0].to_json()).beta
+        2.0
         """
         ...
 
@@ -392,6 +420,22 @@ class GreeksResult:
         -------
         GreeksResult
             Parsed ``GreeksResult`` instance.
+
+        Examples
+        --------
+        >>> from datetime import date, timedelta
+        >>> from finstack_quant.analytics import GreeksResult, Performance
+        >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(6)]
+        >>> benchmark = [-0.02, -0.01, 0.0, 0.01, 0.02, 0.03]
+        >>> perf = Performance.from_returns_arrays(
+        ...     dates,
+        ...     [[2.0 * value for value in benchmark], benchmark],
+        ...     ["FUND", "BENCH"],
+        ...     benchmark_ticker="BENCH",
+        ...     frequency="monthly",
+        ... )
+        >>> round(GreeksResult.from_json(perf.greeks()[0].to_json()).alpha, 12)
+        0.0
         """
         ...
 
@@ -510,6 +554,23 @@ class RollingGreeks:
         -------
         RollingGreeks
             Parsed ``RollingGreeks`` instance.
+
+        Examples
+        --------
+        >>> from datetime import date, timedelta
+        >>> from finstack_quant.analytics import RollingGreeks, Performance
+        >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(6)]
+        >>> benchmark = [-0.02, -0.01, 0.0, 0.01, 0.02, 0.03]
+        >>> perf = Performance.from_returns_arrays(
+        ...     dates,
+        ...     [[2.0 * value for value in benchmark], benchmark],
+        ...     ["FUND", "BENCH"],
+        ...     benchmark_ticker="BENCH",
+        ...     frequency="monthly",
+        ... )
+        >>> rolling = RollingGreeks.from_json(perf.rolling_greeks(0, window=3).to_json())
+        >>> len(rolling.dates) == len(rolling.betas)
+        True
         """
         ...
 
@@ -601,6 +662,19 @@ class MultiFactorResult:
         -------
         MultiFactorResult
             Parsed ``MultiFactorResult`` instance.
+
+        Examples
+        --------
+        >>> from datetime import date, timedelta
+        >>> from finstack_quant.analytics import MultiFactorResult, Performance
+        >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(6)]
+        >>> factor = [-0.02, -0.01, 0.0, 0.01, 0.02, 0.03]
+        >>> perf = Performance.from_returns_arrays(
+        ...     dates, [[2.0 * value for value in factor]], ["FUND"], frequency="monthly"
+        ... )
+        >>> fitted = MultiFactorResult.from_json(perf.multi_factor_greeks(0, [factor]).to_json())
+        >>> round(float(fitted.betas[0]), 1)
+        2.0
         """
         ...
 
@@ -738,6 +812,16 @@ class DrawdownEpisode:
         -------
         DrawdownEpisode
             Parsed ``DrawdownEpisode`` instance.
+
+        Examples
+        --------
+        >>> from datetime import date, timedelta
+        >>> from finstack_quant.analytics import DrawdownEpisode, Performance
+        >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(5)]
+        >>> perf = Performance.from_arrays(dates, [[100.0, 90.0, 95.0, 80.0, 100.0]], ["FUND"])
+        >>> episode = perf.drawdown_details(0, n=1)[0]
+        >>> round(DrawdownEpisode.from_json(episode.to_json()).max_drawdown, 1)
+        -0.2
         """
         ...
 
@@ -859,6 +943,16 @@ class LookbackReturns:
         -------
         LookbackReturns
             Parsed ``LookbackReturns`` instance.
+
+        Examples
+        --------
+        >>> from datetime import date, timedelta
+        >>> from finstack_quant.analytics import LookbackReturns, Performance
+        >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(5)]
+        >>> perf = Performance.from_arrays(dates, [[100.0, 90.0, 95.0, 80.0, 100.0]], ["FUND"])
+        >>> lookback = perf.lookback_returns(date(2024, 1, 5))
+        >>> len(LookbackReturns.from_json(lookback.to_json()).mtd)
+        1
         """
         ...
 
@@ -976,6 +1070,16 @@ class DatedSeries:
         -------
         DatedSeries
             Parsed ``DatedSeries`` instance, including its metric label.
+
+        Examples
+        --------
+        >>> from datetime import date, timedelta
+        >>> from finstack_quant.analytics import DatedSeries, Performance
+        >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(5)]
+        >>> perf = Performance.from_arrays(dates, [[100.0, 90.0, 95.0, 80.0, 100.0]], ["FUND"])
+        >>> series = DatedSeries.from_json(perf.rolling_returns(0, window=2).to_json())
+        >>> series.value_column
+        'return'
         """
         ...
 

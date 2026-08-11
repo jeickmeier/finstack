@@ -16,6 +16,7 @@ Examples
 from __future__ import annotations
 
 from datetime import date
+from typing import Literal
 
 import pandas as pd
 
@@ -2507,34 +2508,35 @@ class StatementResult:
         """
         ...
 
-    def to_pandas_long(self) -> pd.DataFrame:
+    def to_dataframe(self, orient: Literal["long", "wide"] = "long") -> pd.DataFrame:
         """
-        Export results as a pandas DataFrame in long (tidy) form.
+        Export results as a pandas DataFrame.
 
-        Columns: ``node_id``, ``period``, ``value``, ``value_money``,
-        ``currency``, ``value_type``. The monetary columns are populated for
-        nodes carrying currency information and are otherwise null.
-        ``value_money`` is a float64 mirror of the monetary amount (f64, not
-        fixed-point Decimal, precision); use ``to_json()`` or ``get_money()``
-        when full fixed-point precision is required.
+        Parameters
+        ----------
+        orient : {"long", "wide"}, default "long"
+            ``"long"`` yields one row per (node, period) with columns
+            ``node_id``, ``period``, ``value``, ``value_money``, ``currency``,
+            ``value_type``. ``"wide"`` yields node identifiers as rows and
+            period identifiers as columns.
+
+        Notes
+        -----
+        In long form the monetary columns are populated for nodes carrying
+        currency information and are otherwise null. ``value_money`` is a
+        float64 mirror of the monetary amount (f64, not fixed-point Decimal,
+        precision); use ``to_json()`` or ``get_money()`` when full fixed-point
+        precision is required.
 
         Returns
         -------
         pd.DataFrame
-            Long-format frame with one row per (node, period) pair.
-        """
-        ...
+            Long- or wide-format frame.
 
-    def to_pandas_wide(self) -> pd.DataFrame:
-        """
-        Export results as a pandas DataFrame in wide form.
-
-        Rows are node identifiers, columns are period identifiers.
-
-        Returns
-        -------
-        pd.DataFrame
-            Wide-format frame with node ids as index.
+        Raises
+        ------
+        ValueError
+            If ``orient`` is not ``"long"`` or ``"wide"``.
         """
         ...
 
@@ -2544,11 +2546,11 @@ class StatementResult:
 
         Returns an `ArrowTable` implementing ``__arrow_c_stream__``; pass it
         to ``pyarrow.table(...)``, ``polars.DataFrame(...)``, or DuckDB.
-        Column values and monetary-mirror semantics match `to_pandas_long`,
+        Column values and monetary-mirror semantics match ``to_dataframe("long")``,
         plus column roles and table metadata are preserved as Arrow
         field/schema metadata. One column name differs: the period column
         here is ``period_id`` (the table envelope's native name), whereas
-        `to_pandas_long` renames it to ``period``.
+        ``to_dataframe("long")`` renames it to ``period``.
 
         Returns
         -------
@@ -2562,7 +2564,7 @@ class StatementResult:
         Export the wide-format table via Arrow (zero-copy for consumers).
 
         Rows are periods (column ``period_id``), one ``float64`` column per
-        node, matching `to_pandas_wide` before its transpose.
+        node, matching ``to_dataframe("wide")`` before its transpose.
 
         Returns
         -------

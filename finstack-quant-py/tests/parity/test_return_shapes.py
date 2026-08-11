@@ -166,3 +166,35 @@ def test_statement_result_uses_orient_parameter() -> None:
     assert hasattr(cls, "to_dataframe"), "StatementResult is missing to_dataframe()"
     assert not hasattr(cls, "to_pandas_long"), "to_pandas_long survived the merge into to_dataframe(orient=...)"
     assert not hasattr(cls, "to_pandas_wide"), "to_pandas_wide survived the merge into to_dataframe(orient=...)"
+
+
+def test_json_round_trip_survives_non_finite_values() -> None:
+    """A result whose ratio is ``+inf`` must still round-trip.
+
+    ``serde_json`` writes non-finite floats as JSON ``null`` and then refuses
+    to read ``null`` back as a float, so metrics documented to reach ``+inf``
+    (a profit factor with wins and no losses) used to lose their value — and
+    take ``pickle`` down with them, since ``__reduce__`` rebuilds via
+    ``from_json``.
+    """
+    import datetime as dt
+    import pickle
+
+    import pandas as pd
+
+    analytics = importlib.import_module("finstack_quant.analytics")
+
+    # An all-positive series has wins and no losses, so the ratio denominators
+    # are zero and payoff_ratio / profit_factor / cpc_ratio are all +inf.
+    index = [dt.date(2024, 1, day) for day in range(1, 6)]
+    returns = pd.DataFrame({"asset": [0.01, 0.02, 0.03, 0.01, 0.02]}, index=index)
+    stats = analytics.Performance.from_returns(returns).period_stats(0)
+
+    assert stats.payoff_ratio == float("inf"), "fixture no longer exercises the +inf path"
+
+    restored = analytics.PeriodStats.from_json(stats.to_json())
+    assert restored.payoff_ratio == float("inf")
+    assert restored.profit_factor == float("inf")
+
+    # Round-tripping our own object, matching tests/test_pickle_roundtrip.py.
+    assert pickle.loads(pickle.dumps(stats)).payoff_ratio == float("inf")  # noqa: S301

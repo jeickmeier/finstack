@@ -69,6 +69,13 @@ class MoneyEstimate:
         -------
         MoneyEstimate
             Parsed ``MoneyEstimate`` instance.
+
+        Examples
+        --------
+        >>> from finstack_quant.monte_carlo import EuropeanPricer, MoneyEstimate
+        >>> priced = EuropeanPricer(10_000, seed=42).price_call(100, 100, 0.05, 0.0, 0.2, 1.0)
+        >>> MoneyEstimate.from_json(priced.to_json()).num_paths
+        10000
         """
         ...
 
@@ -314,6 +321,13 @@ class Estimate:
         -------
         Estimate
             Parsed ``Estimate`` instance.
+
+        Examples
+        --------
+        >>> from finstack_quant.monte_carlo import Estimate
+        >>> payload = '{"mean":1.5,"stderr":0.02,"ci_95":[1.46,1.54],"num_paths":10000,"num_simulated_paths":10000}'
+        >>> Estimate.from_json(payload).ci_lower
+        1.46
         """
         ...
 
@@ -718,6 +732,13 @@ class GbmPathSummary:
         -------
         GbmPathSummary
             Parsed ``GbmPathSummary`` instance.
+
+        Examples
+        --------
+        >>> from finstack_quant.monte_carlo import GbmPathSummary, simulate_gbm_paths
+        >>> paths = simulate_gbm_paths(100, 0.05, 0.0, 0.2, 1.0, 2, 3, seed=7)
+        >>> GbmPathSummary.from_json(paths.to_json()).times
+        [0.0, 0.5, 1.0]
         """
         ...
 

@@ -65,6 +65,7 @@ impl PyBarrierType {
     }
 
     /// Serialize this barrier type to compact JSON.
+    #[allow(clippy::wrong_self_convention)]
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
     }
@@ -147,6 +148,7 @@ impl PyAssetDynamics {
     }
 
     /// Serialize these asset dynamics to compact JSON.
+    #[allow(clippy::wrong_self_convention)]
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
     }
