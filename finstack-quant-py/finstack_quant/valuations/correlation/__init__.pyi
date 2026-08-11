@@ -474,6 +474,38 @@ class CreditExposure:
         """
         ...
 
+    @staticmethod
+    def from_json(json: str) -> CreditExposure:
+        """
+        Deserialize a `CreditExposure` from JSON produced by :meth:`to_json`.
+
+        Completes the wire round-trip, which is also what makes this type
+        picklable.
+
+        Parameters
+        ----------
+        json : str
+            Canonical JSON produced by :meth:`to_json`.
+
+        Returns
+        -------
+        CreditExposure
+            Validated exposure reconstructed from the canonical JSON payload.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.correlation import CreditExposure
+        >>> exposure = CreditExposure("ACME", 1_000_000.0, 0.02, 0.6, [0.3])
+        >>> CreditExposure.from_json(exposure.to_json()).id
+        'ACME'
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or does not match the serialized schema.
+        """
+        ...
+
 class PortfolioLossConfig:
     """
     Settings for deterministic portfolio credit-loss simulation.
@@ -569,6 +601,38 @@ class PortfolioLossConfig:
         -------
         str
             Canonical JSON representation of this `PortfolioLossConfig`, suitable for a matching `from_json` call.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> PortfolioLossConfig:
+        """
+        Deserialize a `PortfolioLossConfig` from JSON produced by :meth:`to_json`.
+
+        Completes the wire round-trip, which is also what makes this type
+        picklable.
+
+        Parameters
+        ----------
+        json : str
+            Canonical JSON produced by :meth:`to_json`.
+
+        Returns
+        -------
+        PortfolioLossConfig
+            Validated configuration reconstructed from the canonical JSON payload.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.correlation import CopulaSpec, PortfolioLossConfig
+        >>> config = PortfolioLossConfig(1000, 42, 0.99, CopulaSpec.gaussian())
+        >>> PortfolioLossConfig.from_json(config.to_json()).num_paths
+        1000
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or does not match the serialized schema.
         """
         ...
 
@@ -746,6 +810,45 @@ class PortfolioLossResult:
         -------
         str
             Canonical JSON representation of this `PortfolioLossResult`, suitable for a matching `from_json` call.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> PortfolioLossResult:
+        """
+        Deserialize a `PortfolioLossResult` from JSON produced by :meth:`to_json`.
+
+        Completes the wire round-trip, which is also what makes this type
+        picklable.
+
+        Parameters
+        ----------
+        json : str
+            Canonical JSON produced by :meth:`to_json`.
+
+        Returns
+        -------
+        PortfolioLossResult
+            Validated result reconstructed from the canonical JSON payload.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.correlation import (
+        ...     CopulaSpec,
+        ...     CreditExposure,
+        ...     PortfolioLossConfig,
+        ...     PortfolioLossResult,
+        ...     simulate_portfolio_loss,
+        ... )
+        >>> config = PortfolioLossConfig(1000, 42, 0.99, CopulaSpec.gaussian())
+        >>> result = simulate_portfolio_loss([CreditExposure("A", 1e6, 0.02, 0.6, [0.3])], config)
+        >>> PortfolioLossResult.from_json(result.to_json()).expected_loss
+        14400.0
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or does not match the serialized schema.
         """
         ...
 
@@ -946,6 +1049,46 @@ class TrancheLossStatistics:
         -------
         str
             Canonical JSON representation of this `TrancheLossStatistics`, suitable for a matching `from_json` call.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> TrancheLossStatistics:
+        """
+        Deserialize a `TrancheLossStatistics` from JSON produced by :meth:`to_json`.
+
+        Completes the wire round-trip, which is also what makes this type
+        picklable.
+
+        Parameters
+        ----------
+        json : str
+            Canonical JSON produced by :meth:`to_json`.
+
+        Returns
+        -------
+        TrancheLossStatistics
+            Validated tranche statistics reconstructed from the canonical JSON payload.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.correlation import (
+        ...     CopulaSpec,
+        ...     CreditExposure,
+        ...     PortfolioLossConfig,
+        ...     TrancheLossStatistics,
+        ...     simulate_portfolio_loss,
+        ... )
+        >>> config = PortfolioLossConfig(1000, 42, 0.99, CopulaSpec.gaussian())
+        >>> result = simulate_portfolio_loss([CreditExposure("A", 1e6, 0.02, 0.6, [0.3])], config)
+        >>> stats = result.tranche_loss_statistics(0.0, 0.03, 1e6)
+        >>> TrancheLossStatistics.from_json(stats.to_json()).detachment
+        0.03
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or does not match the serialized schema.
         """
         ...
 

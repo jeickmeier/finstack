@@ -18,6 +18,8 @@ from typing import Any, Literal
 
 from finstack_quant.attribution import PnlAttribution
 from finstack_quant.core.dates import DayCount
+from finstack_quant.core.market_data import MarketContext
+from finstack_quant.statements import FinancialModelSpec
 
 __all__ = [
     "parse_scenario_spec",
@@ -32,6 +34,8 @@ __all__ = [
     "apply_scenario",
     "apply_scenario_to_market",
     "compute_horizon_return",
+    "ApplicationReport",
+    "ApplicationResult",
     "HorizonResult",
     "OperationSpec",
     "RateBindingSpec",
@@ -293,12 +297,284 @@ def build_template_component(template_id: str, component_id: str) -> str:
     """
     ...
 
+# Scenario application
+
+class ApplicationReport:
+    """
+    Report describing what a scenario application changed.
+
+    Exposed as the :attr:`ApplicationResult.report` attribute of the result
+    returned by :func:`apply_scenario` and :func:`apply_scenario_to_market`,
+    and as the second element of the tuples returned by
+    :func:`finstack_quant.portfolio.scenario_pnl` and
+    :func:`finstack_quant.portfolio.apply_scenario_and_revalue`.
+
+    Examples
+    --------
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.scenarios import apply_scenario_to_market, compose_scenarios
+    >>> report = apply_scenario_to_market(compose_scenarios("[]"), MarketContext(), "2025-01-15").report
+    >>> (report.operations_applied, report.user_operations, report.warnings)
+    (0, 0, [])
+    """
+
+    @property
+    def operations_applied(self) -> int:
+        """
+        Number of effects successfully applied to the execution context.
+
+        Returns
+        -------
+        int
+            Count of applied effects. One user-level operation can expand into
+            several effects, so this is always ``>=`` :attr:`user_operations`.
+        """
+        ...
+
+    @property
+    def user_operations(self) -> int:
+        """
+        Number of user-provided operations before hierarchy expansion.
+
+        Returns
+        -------
+        int
+            Count of operations as written in the ``ScenarioSpec``.
+        """
+        ...
+
+    @property
+    def expanded_operations(self) -> int:
+        """
+        Number of operations the engine attempted after hierarchy expansion.
+
+        Returns
+        -------
+        int
+            Count of post-expansion operations, which may exceed
+            :attr:`user_operations` when an operation fans out over a
+            hierarchy.
+        """
+        ...
+
+    @property
+    def warnings(self) -> list[str]:
+        """
+        Non-fatal warnings raised while applying the scenario.
+
+        Returns
+        -------
+        list[str]
+            Rendered warning messages, in the order the engine emitted them.
+            Empty when the scenario applied cleanly.
+        """
+        ...
+
+    @property
+    def meta(self) -> dict[str, Any] | None:
+        """
+        Audit stamp: numeric mode, rounding context, and FX policy in force.
+
+        Returns
+        -------
+        dict[str, Any] or None
+            Policy stamp with ``numeric_mode``, ``rounding``,
+            ``fx_policy_applied``, and ``version`` keys, or ``None`` when the
+            engine recorded no stamp.
+        """
+        ...
+
+    @property
+    def changes(self) -> dict[str, Any]:
+        """
+        Metadata describing exactly which market state the effects changed.
+
+        Returns
+        -------
+        dict[str, Any]
+            Invalidation record with ``market_targets``,
+            ``changed_instrument_indices``, ``as_of_changed``,
+            ``portfolio_shape_changed``, and ``all_dirty`` keys, used
+            downstream for precise cache invalidation.
+        """
+        ...
+
+    @property
+    def time_roll(self) -> dict[str, Any] | None:
+        """
+        Roll-forward report, present only when the scenario contained a
+        ``time_roll_forward`` operation.
+
+        Returns
+        -------
+        dict[str, Any] or None
+            Roll details, or ``None`` when the scenario performed no time roll.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the report counters as a single-row pandas DataFrame.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row holding the operation counters and the serialized
+            ``changes``/``warnings`` fields.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize this report to canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON representation, suitable for a matching
+            :meth:`from_json` call.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> ApplicationReport:
+        """
+        Deserialize an ``ApplicationReport`` from JSON.
+
+        Parameters
+        ----------
+        json : str
+            Canonical payload produced by :meth:`to_json`.
+
+        Returns
+        -------
+        ApplicationReport
+            Validated instance reconstructed from the canonical JSON payload.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed or does not match the serialized
+            ``ApplicationReport`` schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.scenarios import ApplicationReport
+        >>> try:
+        ...     ApplicationReport.from_json("{}")
+        ... except ValueError as exc:
+        ...     "missing field" in str(exc)
+        True
+        """
+        ...
+
+class ApplicationResult:
+    """
+    Result of applying a scenario: the mutated market, the mutated model (when
+    one was supplied), and the application report.
+
+    Returned by :func:`apply_scenario` and :func:`apply_scenario_to_market`.
+
+    Examples
+    --------
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.scenarios import apply_scenario_to_market, compose_scenarios
+    >>> applied = apply_scenario_to_market(compose_scenarios("[]"), MarketContext(), "2025-01-15")
+    >>> (type(applied.market).__name__, applied.model, applied.report.operations_applied)
+    ('MarketContext', None, 0)
+    """
+
+    @property
+    def market(self) -> MarketContext:
+        """
+        The mutated market context.
+
+        Returns
+        -------
+        MarketContext
+            The market after every scenario effect was applied.
+        """
+        ...
+
+    @property
+    def model(self) -> FinancialModelSpec | None:
+        """
+        The mutated financial model, or ``None`` when no model was supplied.
+
+        Returns
+        -------
+        FinancialModelSpec or None
+            Always ``None`` for :func:`apply_scenario_to_market`.
+        """
+        ...
+
+    @property
+    def report(self) -> ApplicationReport:
+        """
+        What the scenario changed.
+
+        Returns
+        -------
+        ApplicationReport
+            Operation counters, warnings, invalidation metadata, and the
+            policy stamp.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize this result to canonical JSON.
+
+        Emits the canonical ``ApplicationEnvelope`` shape, with ``market`` and
+        ``model`` as nested objects alongside the report fields.
+
+        Returns
+        -------
+        str
+            Canonical JSON representation, suitable for a matching
+            :meth:`from_json` call.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> ApplicationResult:
+        """
+        Deserialize an ``ApplicationResult`` from JSON.
+
+        Parameters
+        ----------
+        json : str
+            Canonical ``ApplicationEnvelope`` payload produced by
+            :meth:`to_json`; the market, model, and report are rebuilt from it.
+
+        Returns
+        -------
+        ApplicationResult
+            Validated instance reconstructed from the canonical JSON payload.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed or does not match the serialized
+            ``ApplicationEnvelope`` schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.scenarios import ApplicationResult
+        >>> try:
+        ...     ApplicationResult.from_json("{}")
+        ... except ValueError as exc:
+        ...     "missing field" in str(exc)
+        True
+        """
+        ...
+
 def apply_scenario(
     scenario_json: str,
     market: Any,
     model: Any,
     as_of: datetime.date | str,
-) -> dict[str, Any]:
+) -> ApplicationResult:
     """
     Apply a scenario to both market data and a financial model.
 
@@ -315,13 +591,21 @@ def apply_scenario(
 
     Returns
     -------
-    dict[str, Any]
-        Dict with ``market_json``, ``model_json``, ``operations_applied`` (``int``),
-        ``user_operations`` (``int``), ``expanded_operations`` (``int``),
-        ``warnings`` (``list[str]``, rendered Display form), and
-        ``warnings_json`` (``str``, JSON-encoded list of structured ``Warning``
-        records — parse with ``json.loads(...)`` for programmatic
-        ``kind``-based dispatch).
+    ApplicationResult
+        Typed result exposing :attr:`~ApplicationResult.market`
+        (``MarketContext``), :attr:`~ApplicationResult.model`
+        (``FinancialModelSpec``), and :attr:`~ApplicationResult.report`
+        (:class:`ApplicationReport`). Call ``.to_json()`` for the canonical
+        JSON envelope.
+
+    Notes
+    -----
+    This entry point supplies no instrument portfolio and no holiday calendar
+    to the engine, so instrument-scoped operations
+    (``instrument_price_pct_by_*``, ``instrument_spread_bp_by_*``,
+    ``asset_correlation_pts``, ``prepay_default_correlation_pts``) are inert
+    and produce a warning, and ``time_roll_forward`` in ``business_days`` mode
+    adjusts without holiday information.
 
     Raises
     ------
@@ -338,7 +622,7 @@ def apply_scenario(
     ...     '"is_actual":false}],"nodes":{}}'
     ... )
     >>> applied = apply_scenario(compose_scenarios("[]"), MarketContext(), model, "2025-01-15")
-    >>> applied["operations_applied"]
+    >>> applied.report.operations_applied
     0
     """
     ...
@@ -347,7 +631,7 @@ def apply_scenario_to_market(
     scenario_json: str,
     market: Any,
     as_of: datetime.date | str,
-) -> dict[str, Any]:
+) -> ApplicationResult:
     """
     Apply a scenario to market data only (no model mutations returned).
 
@@ -362,10 +646,15 @@ def apply_scenario_to_market(
 
     Returns
     -------
-    dict[str, Any]
-        Dict with ``market_json``, ``operations_applied``, ``user_operations``,
-        ``expanded_operations``, ``warnings`` (``list[str]``), and
-        ``warnings_json`` (``str``, JSON-encoded list of structured warnings).
+    ApplicationResult
+        Typed result whose :attr:`~ApplicationResult.model` attribute is
+        ``None``.
+
+    Notes
+    -----
+    As with :func:`apply_scenario`, no instrument portfolio or holiday
+    calendar is supplied: instrument-scoped operations are inert (with a
+    warning) and business-day time rolls adjust without holiday information.
 
     Raises
     ------
@@ -377,7 +666,7 @@ def apply_scenario_to_market(
     >>> from finstack_quant.core.market_data import MarketContext
     >>> from finstack_quant.scenarios import apply_scenario_to_market, compose_scenarios
     >>> applied = apply_scenario_to_market(compose_scenarios("[]"), MarketContext(), "2025-01-15")
-    >>> applied["operations_applied"]
+    >>> applied.report.operations_applied
     0
     """
     ...

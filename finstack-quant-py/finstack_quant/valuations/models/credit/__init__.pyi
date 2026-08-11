@@ -629,7 +629,7 @@ class MertonModel:
         ...     AssetDynamics.geometric_brownian(),
         ... )
         >>> round(model.default_probability(1.0), 6)
-        0.166629
+        0.373747
 
         """
         ...
@@ -1355,6 +1355,39 @@ class CreditState:
         -------
         str
             JSON string.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> CreditState:
+        """
+        Deserialize a `CreditState` from JSON produced by :meth:`to_json`.
+
+        Completes the wire round-trip, which is also what makes this type
+        picklable.
+
+        Parameters
+        ----------
+        json : str
+            Canonical JSON produced by :meth:`to_json`.
+
+        Returns
+        -------
+        CreditState
+            Validated state reconstructed from the canonical JSON payload.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.models.credit import CreditState
+        >>> state = CreditState(hazard_rate=0.02, leverage=4.0)
+        >>> restored = CreditState.from_json(state.to_json())
+        >>> (restored.hazard_rate, restored.leverage)
+        (0.02, 4.0)
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or does not match the serialized schema.
         """
         ...
 

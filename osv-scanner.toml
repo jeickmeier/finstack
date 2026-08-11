@@ -8,8 +8,3 @@
 id = "RUSTSEC-2024-0436"
 reason = "paste crate is unmaintained. Transitive via nalgebra/simba; no safe upgrade path published by the advisory. Mirrored in deny.toml."
 ignoreUntil = 2026-10-19
-
-[[IgnoredVulns]]
-id = "RUSTSEC-2026-0235"
-reason = "rkyv 0.7.46 is an unused optional dependency of rust_decimal (feature not enabled). rust_decimal pins ^0.7.46 and the 0.7 series is unsupported; no lockfile upgrade path until upstream drops it (paupino/rust-decimal#818/#819). Not linked into any workspace binary. Mirrored in deny.toml."
-ignoreUntil = 2026-11-05

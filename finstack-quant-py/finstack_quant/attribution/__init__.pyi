@@ -23,6 +23,7 @@ import pandas as pd
 
 __all__ = [
     "PnlAttribution",
+    "ReturnContributionResult",
     "attribute_pnl",
     "attribute_pnl_from_spec",
     "attribute_return_contribution",
@@ -588,6 +589,171 @@ class PnlAttribution:
         """
         ...
 
+# Return Contribution
+
+class ReturnContributionResult:
+    """
+    Return-contribution attribution result.
+
+    Returned by :func:`attribute_return_contribution`. Decomposes a portfolio
+    return into per-instrument, per-group, and per-factor contributions, with
+    an optional Brinson-Fachler benchmark-relative block.
+
+    Examples
+    --------
+    >>> from finstack_quant.attribution import ReturnContributionResult
+    >>> try:
+    ...     ReturnContributionResult.from_json("{}")
+    ... except ValueError as exc:
+    ...     "missing field" in str(exc)
+    True
+    """
+
+    @property
+    def portfolio_return(self) -> float:
+        """
+        Total portfolio return, equal to the summed instrument contributions.
+
+        Returns
+        -------
+        float
+            Period return as a decimal fraction (``0.01`` is 1%). Equal to the
+            sum of the ``contribution`` field across
+            :attr:`instrument_contribution`.
+        """
+        ...
+
+    @property
+    def instrument_contribution(self) -> list[dict[str, Any]]:
+        """
+        Per-instrument contribution rows.
+
+        Returns
+        -------
+        list[dict[str, Any]]
+            One record per instrument with ``id``, ``weight``, ``return``,
+            ``contribution``, and ``active_contribution`` keys.
+        """
+        ...
+
+    @property
+    def group_contribution(self) -> dict[str, Any]:
+        """
+        Contributions keyed by group dimension.
+
+        Returns
+        -------
+        dict[str, Any]
+            Maps each group dimension name (for example ``"sector"``) to its
+            list of bucket records, each with a ``key`` bucket label and the
+            summed ``contribution`` of the instruments in that bucket.
+        """
+        ...
+
+    @property
+    def factor_contribution(self) -> list[dict[str, Any]]:
+        """
+        Factor contribution rows.
+
+        Returns
+        -------
+        list[dict[str, Any]]
+        """
+        ...
+
+    @property
+    def benchmark_relative(self) -> dict[str, Any] | None:
+        """
+        Brinson-Fachler benchmark-relative block.
+
+        Returns
+        -------
+        dict[str, Any] or None
+            ``None`` unless benchmark inputs were supplied on the spec.
+        """
+        ...
+
+    @property
+    def warnings(self) -> list[str]:
+        """
+        Diagnostic warnings.
+
+        Returns
+        -------
+        list[str]
+            For example leveraged weights from a near-flat net-market-value
+            book.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Per-instrument contributions as a pandas DataFrame.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per instrument with ``id``, ``weight``, ``return``,
+            ``contribution``, and ``active_contribution`` columns.
+        """
+        ...
+
+    def to_series(self) -> pd.Series:
+        """
+        Per-instrument contributions as a pandas Series indexed by instrument id.
+
+        Returns
+        -------
+        pd.Series
+            Named ``contribution``.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to a compact JSON string.
+
+        Returns
+        -------
+        str
+            Canonical JSON representation, suitable for a matching
+            :meth:`from_json` call.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> ReturnContributionResult:
+        """
+        Deserialize from a JSON string.
+
+        Parameters
+        ----------
+        json : str
+            JSON produced by :meth:`to_json`.
+
+        Returns
+        -------
+        ReturnContributionResult
+            Validated instance reconstructed from the canonical JSON payload.
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or does not match the result schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.attribution import ReturnContributionResult
+        >>> try:
+        ...     ReturnContributionResult.from_json("{}")
+        ... except ValueError as exc:
+        ...     "missing field" in str(exc)
+        True
+        """
+        ...
+
+# Entry Points
+
 def attribute_pnl(
     instrument_json: str,
     market_t0_json: str,
@@ -597,14 +763,14 @@ def attribute_pnl(
     method: str | dict[str, Any],
     config: dict[str, Any] | None = None,
     full_cross_attribution: bool | None = None,
-) -> str:
+) -> PnlAttribution:
     """
     Run P&L attribution for a single instrument.
 
     This is the main entry point. Accepts the instrument, two market
     snapshots, valuation dates, and a method descriptor and returns the
-    canonical JSON form of the attribution. Use
-    ``PnlAttribution.from_json(...)`` when you want the richer wrapper.
+    typed attribution result. Use :func:`attribute_pnl_from_spec` when you
+    want the raw JSON envelope round-trip instead.
 
     Parameters
     ----------
@@ -632,8 +798,9 @@ def attribute_pnl(
 
     Returns
     -------
-    str
-        Compact JSON ``PnlAttribution`` payload.
+    PnlAttribution
+        Typed attribution result. Use ``.to_json()`` for the wire form and
+        ``.to_dataframe()`` for a pandas view.
 
     Examples
     --------
@@ -700,7 +867,7 @@ def attribute_pnl_from_spec(spec_json: str) -> str:
     """
     ...
 
-def attribute_return_contribution(spec_json: str) -> str:
+def attribute_return_contribution(spec_json: str) -> ReturnContributionResult:
     """
     Compute single-period return contribution attribution.
 
@@ -711,8 +878,10 @@ def attribute_return_contribution(spec_json: str) -> str:
 
     Returns
     -------
-    str
-        JSON-serialized return contribution result.
+    ReturnContributionResult
+        Typed result. Use ``.to_json()`` for the wire form,
+        ``.to_dataframe()`` for per-instrument rows, and ``.to_series()`` for
+        contributions indexed by instrument id.
 
     Examples
     --------
@@ -724,7 +893,7 @@ def attribute_return_contribution(spec_json: str) -> str:
     ...     "factors": [],
     ...     "positions": [{"id": "A", "market_value": 100.0, "return": 0.02, "groups": {}}],
     ... }
-    >>> json.loads(attribute_return_contribution(json.dumps(spec)))["portfolio_return"]
+    >>> attribute_return_contribution(json.dumps(spec)).portfolio_return
     0.02
 
     Raises

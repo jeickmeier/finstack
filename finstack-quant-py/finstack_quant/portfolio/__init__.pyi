@@ -22,6 +22,7 @@ from finstack_quant.core.market_data import DiscountCurve, MarketContext
 from finstack_quant.core.money import Money
 from finstack_quant.core.table import ArrowTable
 from finstack_quant.factor_model.credit import CreditFactorModel
+from finstack_quant.scenarios import ApplicationReport
 
 __all__ = [
     "ContractLimitExceededError",
@@ -41,6 +42,7 @@ __all__ = [
     "PortfolioMetrics",
     "PortfolioResult",
     "PortfolioValuation",
+    "ScenarioPnl",
     "UnsupportedContractVersionError",
     "aggregate_full_cashflows",
     "aggregate_metrics",
@@ -228,7 +230,7 @@ class UnsupportedContractVersionError(ContractValidationError):
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import UnsupportedContractVersionError
+    >>> from finstack_quant.portfolio import ContractValidationError, UnsupportedContractVersionError
     >>> issubclass(UnsupportedContractVersionError, ContractValidationError)
     True
     """
@@ -239,7 +241,7 @@ class MissingContractVersionError(ContractValidationError):
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import MissingContractVersionError
+    >>> from finstack_quant.portfolio import ContractValidationError, MissingContractVersionError
     >>> issubclass(MissingContractVersionError, ContractValidationError)
     True
     """
@@ -250,7 +252,7 @@ class MalformedContractSchemaError(ContractValidationError):
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import MalformedContractSchemaError
+    >>> from finstack_quant.portfolio import ContractValidationError, MalformedContractSchemaError
     >>> issubclass(MalformedContractSchemaError, ContractValidationError)
     True
     """
@@ -261,7 +263,7 @@ class ContractLimitExceededError(ContractValidationError):
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import ContractLimitExceededError
+    >>> from finstack_quant.portfolio import ContractValidationError, ContractLimitExceededError
     >>> issubclass(ContractLimitExceededError, ContractValidationError)
     True
     """
@@ -657,6 +659,40 @@ class PortfolioAttribution:
         -------
         str
             Canonical JSON representation of this `PortfolioAttribution`, suitable for a matching `from_json` call.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> PortfolioAttribution:
+        """
+        Deserialize a `PortfolioAttribution` from JSON produced by :meth:`to_json`.
+
+        Completes the wire round-trip, which is also what makes this type
+        picklable.
+
+        Parameters
+        ----------
+        json : str
+            Canonical JSON produced by :meth:`to_json`.
+
+        Returns
+        -------
+        PortfolioAttribution
+            Validated instance reconstructed from the canonical JSON payload.
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or does not match the serialized schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import PortfolioAttribution
+        >>> try:
+        ...     PortfolioAttribution.from_json("{}")
+        ... except ValueError as exc:
+        ...     "missing field" in str(exc)
+        True
         """
         ...
 
@@ -1528,6 +1564,131 @@ class PortfolioMetrics:
 
     def __repr__(self) -> str: ...
 
+class ScenarioPnl:
+    """
+    Scenario-attributable profit and loss, in the portfolio base currency.
+
+    Returned by :func:`scenario_pnl` alongside the scenario
+    :class:`~finstack_quant.scenarios.ApplicationReport`. Positions added or
+    removed by the scenario are zero-filled against the missing side, so
+    :attr:`by_position` always sums to :attr:`total`.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import ScenarioPnl
+    >>> doc = {"total": {"amount": "0", "currency": "USD"}, "by_position": {}}
+    >>> pnl = ScenarioPnl.from_json(json.dumps(doc))
+    >>> (pnl.total, pnl.currency, pnl.by_position)
+    (0.0, 'USD', {})
+    """
+
+    @property
+    def total(self) -> float:
+        """
+        Total scenario P&L in the portfolio base currency.
+
+        Returns
+        -------
+        float
+            Sum of :attr:`by_position`, quoted in :attr:`currency`.
+        """
+        ...
+
+    @property
+    def currency(self) -> str:
+        """
+        Base currency the P&L is denominated in.
+
+        Returns
+        -------
+        str
+            ISO 4217 code of the portfolio base currency.
+        """
+        ...
+
+    @property
+    def by_position(self) -> dict[str, float]:
+        """
+        Per-position scenario P&L, keyed by position id.
+
+        Returns
+        -------
+        dict[str, float]
+            Base-currency amounts ordered by position id. Sums to
+            :attr:`total`.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Per-position P&L ladder as a pandas DataFrame.
+
+        Columns: ``position_id``, ``pnl``. The schema is pinned, so an empty
+        ladder keeps the same dtypes as a populated one.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per position, with float ``pnl`` in :attr:`currency`.
+        """
+        ...
+
+    def to_series(self) -> pd.Series:
+        """
+        Per-position P&L as a pandas Series indexed by position id.
+
+        Returns
+        -------
+        pd.Series
+            Float base-currency amounts named ``pnl``.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize this P&L ladder to canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON representation, suitable for a matching
+            :meth:`from_json` call.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> ScenarioPnl:
+        """
+        Deserialize a ``ScenarioPnl`` from JSON.
+
+        Parameters
+        ----------
+        json : str
+            Canonical payload produced by :meth:`to_json`, or the ``pnl``
+            member of a :func:`scenario_pnl_batch` entry.
+
+        Returns
+        -------
+        ScenarioPnl
+            Validated instance reconstructed from the canonical JSON payload.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed or does not match the serialized
+            ``ScenarioPnl`` schema.
+
+        Examples
+        --------
+        >>> import json as _json
+        >>> from finstack_quant.portfolio import ScenarioPnl
+        >>> doc = {"total": {"amount": "0", "currency": "USD"}, "by_position": {}}
+        >>> ScenarioPnl.from_json(_json.dumps(doc)).total
+        0.0
+        """
+        ...
+
 def parse_portfolio_spec(json_str: str) -> str:
     """
     Parse and canonicalize a ``PortfolioSpec`` from JSON.
@@ -1841,11 +2002,9 @@ def apply_scenario_and_revalue(
     portfolio: Portfolio | str,
     scenario_json: str,
     market: MarketContext | str,
-) -> tuple[str, str]:
+) -> tuple[PortfolioValuation, ApplicationReport]:
     """
     Apply a scenario and revalue the portfolio.
-
-    Returns ``(valuation_json, report_json)``.
 
     Parameters
     ----------
@@ -1858,8 +2017,9 @@ def apply_scenario_and_revalue(
 
     Returns
     -------
-    tuple[str, str]
-        ``(valuation_json, diagnostics_json)`` for the shocked valuation and targets.
+    tuple[PortfolioValuation, ApplicationReport]
+        The revalued portfolio and the scenario application report. Call
+        ``.to_json()`` on either for its wire form.
 
     Raises
     ------
@@ -1873,14 +2033,13 @@ def apply_scenario_and_revalue(
 
     Examples
     --------
-    >>> import json
     >>> from finstack_quant.core.market_data import MarketContext
     >>> from finstack_quant.portfolio import Portfolio, apply_scenario_and_revalue
     >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
     >>> scenario = '{"id":"s","name":"S","operations":[]}'
-    >>> valuation_json, _ = apply_scenario_and_revalue(Portfolio.from_spec(spec), scenario, MarketContext())
-    >>> json.loads(valuation_json)["position_values"]
-    {}
+    >>> valuation, report = apply_scenario_and_revalue(Portfolio.from_spec(spec), scenario, MarketContext())
+    >>> (valuation.total_value, report.operations_applied)
+    (0.0, 0)
     """
     ...
 
@@ -1888,7 +2047,7 @@ def scenario_pnl(
     portfolio: Portfolio | str,
     scenario_json: str,
     market: MarketContext | str,
-) -> tuple[str, str]:
+) -> tuple[ScenarioPnl, ApplicationReport]:
     """
     Compute the profit and loss attributable to a scenario.
 
@@ -1897,8 +2056,6 @@ def scenario_pnl(
     position and in total. Positions added or removed by the scenario are
     zero-filled against the missing side, so ``by_position`` always sums to
     ``total``.
-
-    Returns ``(pnl_json, report_json)``.
 
     Parameters
     ----------
@@ -1914,10 +2071,11 @@ def scenario_pnl(
 
     Returns
     -------
-    tuple[str, str]
-        ``(pnl_json, report_json)`` — the ``ScenarioPnl`` ladder (base-currency
-        ``total`` and ``by_position`` amounts) and the scenario application
-        report carrying which operations were applied.
+    tuple[ScenarioPnl, ApplicationReport]
+        The P&L ladder (base-currency ``total`` and ``by_position`` amounts)
+        and the scenario application report carrying which operations were
+        applied. :class:`ScenarioPnl` offers ``to_dataframe()`` and
+        ``to_series()``; call ``.to_json()`` on either for its wire form.
 
     Raises
     ------
@@ -1931,13 +2089,12 @@ def scenario_pnl(
 
     Examples
     --------
-    >>> import json
     >>> from finstack_quant.core.market_data import MarketContext
     >>> from finstack_quant.portfolio import Portfolio, scenario_pnl
     >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
-    >>> pnl_json, _ = scenario_pnl(Portfolio.from_spec(spec), '{"id":"s","name":"S","operations":[]}', MarketContext())
-    >>> json.loads(pnl_json)["by_position"]
-    {}
+    >>> pnl, report = scenario_pnl(Portfolio.from_spec(spec), '{"id":"s","name":"S","operations":[]}', MarketContext())
+    >>> (pnl.total, pnl.currency, pnl.by_position)
+    (0.0, 'USD', {})
     """
     ...
 

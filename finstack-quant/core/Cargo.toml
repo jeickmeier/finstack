@@ -23,7 +23,7 @@ smallvec = { version = "1.15", default-features = false }
 phf = { version = "0.13", features = ["macros"], default-features = false }
 rustc-hash = { workspace = true }
 parking_lot = "0.12"
-lru = "0.16"
+lru = "0.18"
 indexmap = { workspace = true, features = ["serde"] }
 rust_decimal = { workspace = true }
 # `schemars` is a build-time/runtime dependency for JSON-Schema derivation.

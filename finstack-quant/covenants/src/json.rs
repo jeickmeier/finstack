@@ -143,7 +143,7 @@ pub fn evaluate_engine_json(engine_json: &str, metrics_json: &str, as_of: &str) 
 /// Evaluate a covenant engine against a JSON metric map, returning typed reports.
 ///
 /// Identical to [`evaluate_engine_json`] except that the covenant reports are
-/// returned as an [`IndexMap`] keyed by stable covenant instance key rather
+/// returned as an [`indexmap::IndexMap`] keyed by stable covenant instance key rather
 /// than serialized. Language bindings that surface typed report objects call
 /// this so the parsing, validation, and unit conventions stay owned by the
 /// crate rather than duplicated per binding.

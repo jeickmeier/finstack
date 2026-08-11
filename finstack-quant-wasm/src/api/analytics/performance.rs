@@ -961,11 +961,43 @@ impl JsPerformance {
     ) -> Result<JsValue, JsValue> {
         let pk = parse_frequency(aggregation_frequency.as_deref().unwrap_or("monthly"))?;
         let fc = make_fiscal_config(fiscal_year_start_month, fiscal_year_start_day)?;
-        to_js(
-            &self
-                .inner
-                .period_stats(ticker_idx, pk, Some(fc))
-                .map_err(to_js_err)?,
-        )
+        let stats = self
+            .inner
+            .period_stats(ticker_idx, pk, Some(fc))
+            .map_err(to_js_err)?;
+        let js = to_js(&stats)?;
+        restore_non_finite_ratios(&js, &stats)?;
+        Ok(js)
     }
+}
+
+/// Restore `PeriodStats` ratios that serde encoded as sentinel strings.
+///
+/// The four ratio fields carry `#[serde(with = "core::wire::non_finite_f64")]`
+/// so the JSON wire form can round-trip `+∞`: `serde_json` writes a bare
+/// `f64::INFINITY` as `null` and then refuses to read `null` back as an `f64`.
+/// JavaScript numbers have no such limitation — `Infinity` is an ordinary
+/// number — but `serde_wasm_bindgen` still runs that adapter and hands JS the
+/// string `"inf"`, which breaks consumers silently (`"inf" > 2` is `false`
+/// where `Infinity > 2` is `true`). Overwrite those four keys with the real
+/// `f64`s; finite values are unchanged by the round trip.
+///
+/// # Arguments
+///
+/// * `js` - Serialized `PeriodStats` object to patch in place.
+/// * `stats` - Source statistics holding the unencoded `f64` ratios.
+///
+/// # Errors
+///
+/// Propagates any failure from `Reflect::set`.
+fn restore_non_finite_ratios(js: &JsValue, stats: &fa::PeriodStats) -> Result<(), JsValue> {
+    for (key, value) in [
+        ("payoff_ratio", stats.payoff_ratio),
+        ("profit_factor", stats.profit_factor),
+        ("cpc_ratio", stats.cpc_ratio),
+        ("kelly_criterion", stats.kelly_criterion),
+    ] {
+        Reflect::set(js, &JsValue::from_str(key), &JsValue::from_f64(value))?;
+    }
+    Ok(())
 }
