@@ -166,10 +166,11 @@ run = [
 
 [tasks.rust-doc]
 description = "Build workspace docs, enforce input docs, and run contract doctests"
+# --no-sync on the Python checkers: they are static; plain `uv run` rebuilds PyO3.
 run = [
   "RUSTDOCFLAGS='-D warnings' cargo doc --workspace --exclude finstack-quant-py --exclude finstack-quant-wasm --no-deps",
-  "uv run python scripts/check_public_api_input_docs.py",
-  "uv run python scripts/check_deprecated_annotations.py",
+  "uv run --no-sync python scripts/check_public_api_input_docs.py",
+  "uv run --no-sync python scripts/check_deprecated_annotations.py",
   "cargo test --workspace --exclude finstack-quant-py --exclude finstack-quant-wasm --doc",
 ]
 
@@ -470,8 +471,9 @@ echo 'WASM serializer check passed: all JsValue returns route through to_js_valu
 
 [tasks.wasm-doc]
 description = "Enforce complete WASM and TypeScript IntelliSense documentation"
+# --no-sync: pure static checks; plain `uv run` rebuilds the PyO3 extension.
 run = [
-  "uv run python scripts/check_wasm_api_input_docs.py",
+  "uv run --no-sync python scripts/check_wasm_api_input_docs.py",
   "npm --prefix finstack-quant-wasm run docs:check",
 ]
 
@@ -637,11 +639,12 @@ uv run python scripts/check_criterion_regressions.py --threshold 0.10
 
 [tasks.materialization-benchmark-doc-check]
 description = "Verify tracked benchmark digests, baselines, and toolchains"
+# --no-sync: pure static checks; plain `uv run` rebuilds the PyO3 extension.
 run = """
-uv run python scripts/sync_materialization_benchmark_digest.py \
+uv run --no-sync python scripts/sync_materialization_benchmark_digest.py \
   --artifact benchmarks/materialization/materialization-benchmark-results.json \
   --document benchmarks/MATERIALIZATION_BENCHMARKS.md --check
-uv run python scripts/check_materialization_benchmark_docs.py \
+uv run --no-sync python scripts/check_materialization_benchmark_docs.py \
   --artifact benchmarks/materialization/materialization-benchmark-results.json \
   --document benchmarks/MATERIALIZATION_BENCHMARKS.md \
   --baseline-manifest benchmarks/materialization/materialization-benchmark-baseline.json \
