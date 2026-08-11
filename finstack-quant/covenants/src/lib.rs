@@ -88,8 +88,9 @@ pub use forward::{
     FutureBreach, ModelTimeSeries,
 };
 pub use json::{
-    cov_lite_json, evaluate_engine_json, lbo_standard_json, project_finance_json, real_estate_json,
-    validate_covenant_engine_json, validate_covenant_report_json, validate_covenant_spec_json,
+    cov_lite_json, evaluate_engine_json, evaluate_engine_map, lbo_standard_json,
+    project_finance_json, real_estate_json, validate_covenant_engine_json,
+    validate_covenant_report_json, validate_covenant_spec_json,
 };
 pub use metric::{CovenantMetricId, CovenantMetricSource, HashMapMetricSource};
 pub use report::CovenantReport;

@@ -1200,6 +1200,18 @@ impl PyPerformance {
 
     // -- DataFrame export methods --
 
+    /// The primary pandas view of this object: the summary statistics table.
+    ///
+    /// One row per ticker, one column per scalar metric. This is an alias for
+    /// :meth:`summary_to_dataframe` with default arguments, provided so every
+    /// result type in the library answers to a plain ``to_dataframe()``. The
+    /// ``*_to_dataframe`` methods on this class are the secondary views
+    /// (returns, drawdowns, correlations, lookbacks); use those when you want
+    /// something other than the summary.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.summary_to_dataframe(py, 0.0, 0.95)
+    }
+
     /// Summary statistics for all tickers as a pandas ``DataFrame``.
     ///
     /// Returns a DataFrame with one row per ticker and columns for each

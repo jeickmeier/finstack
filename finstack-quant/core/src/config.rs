@@ -417,7 +417,7 @@ impl Default for ToleranceConfig {
 ///
 /// Instances are typically produced via [`rounding_context_from`] and persisted
 /// alongside valuation results.
-#[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct RoundingContext {
     /// Active rounding mode.
     pub mode: RoundingMode,
@@ -534,7 +534,7 @@ pub enum NumericMode {
 /// assert_eq!(meta.numeric_mode, NumericMode::F64);
 /// assert!(meta.timestamp.is_none()); // deterministic by default
 /// ```
-#[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct ResultsMeta {
     /// Numeric engine mode used to produce the results.
     pub numeric_mode: NumericMode,
@@ -543,6 +543,12 @@ pub struct ResultsMeta {
     /// Optional FX policy applied by the computing layer (human-readable key).
     #[serde(default)]
     pub fx_policy_applied: Option<String>,
+    /// Whether the producing computation ran in parallel.
+    ///
+    /// Serial results omit the field entirely so existing payloads and golden
+    /// files stay byte-identical.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub parallel: bool,
     /// Timestamp when result was computed (ISO 8601 format).
     /// Useful for audit trails and reproducibility.
     #[serde(
@@ -705,6 +711,7 @@ pub fn results_meta_with_timestamp(
         numeric_mode: NUMERIC_MODE,
         rounding: rounding_context_from(cfg),
         fx_policy_applied: None,
+        parallel: false,
         timestamp,
         version: Some(env!("CARGO_PKG_VERSION").to_string()),
     }

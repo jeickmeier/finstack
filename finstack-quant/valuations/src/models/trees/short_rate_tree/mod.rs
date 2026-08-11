@@ -61,7 +61,7 @@ mod tree_model;
 pub use config::{
     ShortRateModel, ShortRateTreeConfig, TreeCompounding, DEFAULT_LOGNORMAL_VOL, DEFAULT_NORMAL_VOL,
 };
-pub use tree::{CalibrationResult, ShortRateTree};
+pub use tree::{ShortRateTree, TreeCalibrationResult};
 
 #[cfg(test)]
 mod tests;

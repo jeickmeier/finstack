@@ -178,7 +178,7 @@ class TestCashflowsNamespace:
     def test_cashflows_exports(self) -> None:
         """Cashflows should expose the JSON bridge functions."""
         from finstack_quant.cashflows import (  # noqa: F401
-            accrued_interest_json,
+            accrued_interest,
             build_cashflow_schedule_json,
             dated_flows_json,
             validate_cashflow_schedule_json,
@@ -463,13 +463,28 @@ class TestValuationsNamespace:
         from finstack_quant.valuations.models import credit
 
         for name in (
+            "AssetDynamics",
+            "BarrierType",
             "CreditState",
             "DynamicRecoverySpec",
             "EndogenousHazardSpec",
             "MertonModel",
+            "SimulatedPaths",
             "ToggleExerciseModel",
         ):
             assert hasattr(credit, name)
+
+        from finstack_quant.valuations import instruments
+
+        for name in (
+            "BarrierCrossing",
+            "MertonMcConfig",
+            "MertonMcResult",
+            "PathStatistics",
+            "PikMode",
+            "PikSchedule",
+        ):
+            assert hasattr(instruments, name)
 
     def test_valuations_extension_submodules_are_registered(self) -> None:
         """PyO3 valuation submodules should have stable extension-qualified names."""

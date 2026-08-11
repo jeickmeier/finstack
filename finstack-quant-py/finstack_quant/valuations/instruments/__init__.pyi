@@ -19,15 +19,24 @@ from __future__ import annotations
 import datetime
 from typing import Literal
 
+import pandas as pd
+
 from finstack_quant.core.currency import Currency
 from finstack_quant.core.dates import DayCount, Tenor
 from finstack_quant.core.market_data import MarketContext
 from finstack_quant.core.money import Money
 from finstack_quant.core.types import Bps, Rate
 from finstack_quant.valuations import ValuationResult
+from finstack_quant.valuations.models.credit import (
+    DynamicRecoverySpec,
+    EndogenousHazardSpec,
+    MertonModel,
+    ToggleExerciseModel,
+)
 
 __all__ = [
     "AssetPool",
+    "BarrierCrossing",
     "Bond",
     "CDSIndex",
     "CDSIndexBuilder",
@@ -49,7 +58,12 @@ __all__ = [
     "FxOptionBuilder",
     "InterestRateSwap",
     "InterestRateSwapBuilder",
+    "MertonMcConfig",
+    "MertonMcResult",
     "OasResult",
+    "PathStatistics",
+    "PikMode",
+    "PikSchedule",
     "PremiumLegSpec",
     "ProtectionLegSpec",
     "RepLine",
@@ -306,6 +320,632 @@ class Bond:
         str
             Canonical instrument envelope accepted by :func:`price_instrument`
             and :meth:`Bond.from_json`.
+        """
+        ...
+
+    def price_merton_mc(
+        self,
+        config: MertonMcConfig,
+        discount_rate: float,
+        as_of: datetime.date | str,
+    ) -> MertonMcResult:
+        """
+        Price this bond with the Merton Monte Carlo structural credit engine.
+
+        Uses geometric Brownian motion asset dynamics only. Floating-rate and
+        amortizing cashflow specs raise ``ValueError``. When the config's PIK
+        schedule is the default uniform cash mode, the bond's ``CouponType``
+        overrides the schedule; otherwise the config schedule takes precedence.
+
+        Parameters
+        ----------
+        config : MertonMcConfig
+            Merton MC simulation configuration including the structural model.
+        discount_rate : float
+            Flat continuously compounded risk-free rate as a decimal used to
+            discount simulated cashflows.
+        as_of : datetime.date or str
+            Valuation date.
+
+        Returns
+        -------
+        MertonMcResult
+            Monte Carlo pricing result with clean/dirty prices and path stats.
+
+        Raises
+        ------
+        ValueError
+            If ``as_of`` is invalid, the bond has floating or amortizing
+            cashflows, or simulation parameters fail validation.
+
+        Examples
+        --------
+        >>> import datetime
+        >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.money import Money
+        >>> from finstack_quant.core.types import Rate
+        >>> from finstack_quant.valuations.instruments import (
+        ...     Bond, MertonMcConfig, PikMode, PikSchedule,
+        ... )
+        >>> from finstack_quant.valuations.models.credit import MertonModel
+        >>> bond = Bond.fixed(
+        ...     "BOND-MC",
+        ...     Money(1_000_000.0, Currency("USD")),
+        ...     Rate(0.08),
+        ...     datetime.date(2024, 1, 1),
+        ...     datetime.date(2029, 1, 1),
+        ...     "USD-OIS",
+        ... )
+        >>> merton = MertonModel(100.0, 0.25, 80.0, 0.04)
+        >>> config = (
+        ...     MertonMcConfig(merton)
+        ...     .pik_schedule(PikSchedule.uniform(PikMode.pik()))
+        ...     .num_paths(256)
+        ...     .seed(42)
+        ... )
+        >>> result = bond.price_merton_mc(config, 0.04, datetime.date(2024, 1, 1))
+        >>> result.num_paths
+        256
+
+        """
+        ...
+
+class BarrierCrossing:
+    """
+    Barrier-crossing detection policy for first-passage default simulation.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.instruments import BarrierCrossing
+    >>> BarrierCrossing.brownian_bridge().to_json()
+    '"brownian_bridge"'
+    """
+
+    @staticmethod
+    def discrete() -> BarrierCrossing:
+        """
+        Discrete monitoring at simulation grid points.
+
+        Returns
+        -------
+        BarrierCrossing
+            Discrete barrier-crossing policy.
+        """
+        ...
+
+    @staticmethod
+    def brownian_bridge() -> BarrierCrossing:
+        """
+        Brownian-bridge correction for continuous monitoring.
+
+        Returns
+        -------
+        BarrierCrossing
+            Brownian-bridge barrier-crossing policy.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> BarrierCrossing:
+        """
+        Deserialize from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON-encoded barrier-crossing policy.
+
+        Returns
+        -------
+        BarrierCrossing
+            The decoded policy.
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is not valid JSON for a barrier-crossing policy.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to compact JSON.
+
+        Returns
+        -------
+        str
+            JSON-encoded barrier-crossing policy.
+        """
+        ...
+
+class MertonMcConfig:
+    """
+    Configuration for Merton Monte Carlo PIK bond pricing.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.instruments import MertonMcConfig, PikMode, PikSchedule
+    >>> from finstack_quant.valuations.models.credit import MertonModel
+    >>> config = MertonMcConfig(MertonModel(100.0, 0.25, 80.0, 0.04)).num_paths(1000)
+    >>> config.num_paths(1000).seed(1).pik_schedule(PikSchedule.uniform(PikMode.cash()))
+    MertonMcConfig(...)
+    """
+
+    def __init__(self, merton: MertonModel) -> None:
+        """
+        Create a configuration with registry-sourced simulation defaults.
+
+        Parameters
+        ----------
+        merton : MertonModel
+            Structural credit model driving asset dynamics and default.
+        """
+        ...
+
+    def pik_schedule(self, s: PikSchedule) -> MertonMcConfig:
+        """
+        Set the PIK schedule.
+
+        Parameters
+        ----------
+        s : PikSchedule
+            PIK schedule applied across coupon dates.
+
+        Returns
+        -------
+        MertonMcConfig
+            Updated configuration (fluent).
+        """
+        ...
+
+    def num_paths(self, n: int) -> MertonMcConfig:
+        """
+        Set the number of Monte Carlo paths.
+
+        Parameters
+        ----------
+        n : int
+            Path count.
+
+        Returns
+        -------
+        MertonMcConfig
+            Updated configuration (fluent).
+        """
+        ...
+
+    def seed(self, s: int) -> MertonMcConfig:
+        """
+        Set the RNG seed.
+
+        Parameters
+        ----------
+        s : int
+            Unsigned 64-bit seed.
+
+        Returns
+        -------
+        MertonMcConfig
+            Updated configuration (fluent).
+        """
+        ...
+
+    def antithetic(self, a: bool) -> MertonMcConfig:
+        """
+        Enable or disable antithetic variates.
+
+        Parameters
+        ----------
+        a : bool
+            When ``True``, pair each path with its antithetic counterpart.
+
+        Returns
+        -------
+        MertonMcConfig
+            Updated configuration (fluent).
+        """
+        ...
+
+    def time_steps_per_year(self, n: int) -> MertonMcConfig:
+        """
+        Set simulation grid density.
+
+        Parameters
+        ----------
+        n : int
+            Time steps per year.
+
+        Returns
+        -------
+        MertonMcConfig
+            Updated configuration (fluent).
+        """
+        ...
+
+    def barrier_crossing(self, p: BarrierCrossing) -> MertonMcConfig:
+        """
+        Set barrier-crossing policy for first-passage monitoring.
+
+        Parameters
+        ----------
+        p : BarrierCrossing
+            Discrete or Brownian-bridge policy.
+
+        Returns
+        -------
+        MertonMcConfig
+            Updated configuration (fluent).
+        """
+        ...
+
+    def default_recovery_rate(self, r: float) -> MertonMcConfig:
+        """
+        Set flat recovery when no dynamic recovery model is configured.
+
+        Parameters
+        ----------
+        r : float
+            Recovery rate as a decimal in ``[0, 1]``.
+
+        Returns
+        -------
+        MertonMcConfig
+            Updated configuration (fluent).
+        """
+        ...
+
+    def endogenous_hazard(
+        self, h: EndogenousHazardSpec
+    ) -> MertonMcConfig:
+        """
+        Set an endogenous hazard model.
+
+        Parameters
+        ----------
+        h : EndogenousHazardSpec
+            Endogenous hazard specification.
+
+        Returns
+        -------
+        MertonMcConfig
+            Updated configuration (fluent).
+        """
+        ...
+
+    def dynamic_recovery(self, r: DynamicRecoverySpec) -> MertonMcConfig:
+        """
+        Set a dynamic recovery model.
+
+        Parameters
+        ----------
+        r : DynamicRecoverySpec
+            Dynamic recovery specification.
+
+        Returns
+        -------
+        MertonMcConfig
+            Updated configuration (fluent).
+        """
+        ...
+
+    def toggle_model(self, t: ToggleExerciseModel) -> MertonMcConfig:
+        """
+        Set toggle exercise model for PIK/cash decisions.
+
+        Parameters
+        ----------
+        t : ToggleExerciseModel
+            Toggle exercise model.
+
+        Returns
+        -------
+        MertonMcConfig
+            Updated configuration (fluent).
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> MertonMcConfig:
+        """
+        Deserialize from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON-encoded configuration.
+
+        Returns
+        -------
+        MertonMcConfig
+            The decoded configuration.
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is not valid JSON for a Merton MC configuration.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to compact JSON.
+
+        Returns
+        -------
+        str
+            JSON-encoded configuration.
+        """
+        ...
+
+class MertonMcResult:
+    """
+    Result from Merton Monte Carlo PIK bond pricing.
+
+    Examples
+    --------
+    >>> result.clean_price_pct >= 0.0
+    True
+    """
+
+    @property
+    def clean_price_pct(self) -> float:
+        """Clean price as a percentage of par."""
+        ...
+
+    @property
+    def dirty_price_pct(self) -> float:
+        """Dirty price as a percentage of par."""
+        ...
+
+    @property
+    def expected_loss(self) -> float:
+        """Expected loss as a fraction of PIK-aware risk-free PV."""
+        ...
+
+    @property
+    def unexpected_loss(self) -> float:
+        """Unexpected loss (std dev of path PVs / notional)."""
+        ...
+
+    @property
+    def expected_shortfall_95(self) -> float:
+        """Expected shortfall at the 95% confidence level."""
+        ...
+
+    @property
+    def average_pik_fraction(self) -> float:
+        """Average PIK fraction across coupon dates and paths."""
+        ...
+
+    @property
+    def effective_spread_bp(self) -> float:
+        """Effective spread in basis points versus risk-free PV."""
+        ...
+
+    @property
+    def path_statistics(self) -> PathStatistics:
+        """Path-level simulation statistics."""
+        ...
+
+    @property
+    def num_paths(self) -> int:
+        """Number of Monte Carlo paths used."""
+        ...
+
+    @property
+    def standard_error(self) -> float:
+        """Standard error of the clean price (percentage of par)."""
+        ...
+
+class PathStatistics:
+    """
+    Path-level statistics from a Merton Monte Carlo simulation.
+
+    Examples
+    --------
+    >>> stats.default_rate >= 0.0
+    True
+    """
+
+    @property
+    def default_rate(self) -> float:
+        """Fraction of paths that defaulted."""
+        ...
+
+    @property
+    def avg_default_time(self) -> float:
+        """Average default time in years among defaulted paths."""
+        ...
+
+    @property
+    def avg_terminal_notional(self) -> float:
+        """Average terminal notional reflecting PIK accretion."""
+        ...
+
+    @property
+    def avg_recovery_pct(self) -> float:
+        """Average recovery percentage among defaulted paths."""
+        ...
+
+    @property
+    def pik_exercise_rate(self) -> float:
+        """Fraction of coupon dates where PIK was elected."""
+        ...
+
+class PikMode:
+    """
+    Per-coupon PIK behavior for the Merton Monte Carlo engine.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.instruments import PikMode
+    >>> PikMode.cash().to_json()
+    '"cash"'
+    """
+
+    @staticmethod
+    def cash() -> PikMode:
+        """Coupon paid entirely in cash."""
+        ...
+
+    @staticmethod
+    def pik() -> PikMode:
+        """Coupon accreted to notional."""
+        ...
+
+    @staticmethod
+    def split(cash_fraction: float, pik_fraction: float) -> PikMode:
+        """
+        Coupon split between cash and PIK.
+
+        Parameters
+        ----------
+        cash_fraction : float
+            Fraction paid in cash as a decimal.
+        pik_fraction : float
+            Fraction accreted to notional as a decimal.
+
+        Returns
+        -------
+        PikMode
+            Split PIK mode.
+        """
+        ...
+
+    @staticmethod
+    def toggle() -> PikMode:
+        """Defer to the toggle exercise model on the config."""
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> PikMode:
+        """
+        Deserialize from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON-encoded PIK mode.
+
+        Returns
+        -------
+        PikMode
+            The decoded mode.
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is not valid JSON for a PIK mode.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to compact JSON.
+
+        Returns
+        -------
+        str
+            JSON-encoded PIK mode.
+        """
+        ...
+
+class PikSchedule:
+    """
+    Time-varying PIK schedule for the Merton Monte Carlo engine.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.instruments import PikMode, PikSchedule
+    >>> PikSchedule.uniform(PikMode.pik()).mode_at(1.0).to_json()
+    '"pik"'
+    """
+
+    @staticmethod
+    def uniform(mode: PikMode) -> PikSchedule:
+        """
+        Apply the same PIK mode at every coupon date.
+
+        Parameters
+        ----------
+        mode : PikMode
+            PIK mode applied uniformly.
+
+        Returns
+        -------
+        PikSchedule
+            Uniform schedule.
+        """
+        ...
+
+    @staticmethod
+    def stepped(steps: list[tuple[float, PikMode]]) -> PikSchedule:
+        """
+        Step-function PIK schedule keyed by year fraction.
+
+        Parameters
+        ----------
+        steps : list[tuple[float, PikMode]]
+            ``(year_fraction, mode)`` pairs sorted by time ascending.
+
+        Returns
+        -------
+        PikSchedule
+            Stepped schedule.
+
+        Raises
+        ------
+        ValueError
+            If ``steps`` cannot be parsed or fails validation at pricing time.
+        """
+        ...
+
+    def mode_at(self, t: float) -> PikMode:
+        """
+        Look up the active PIK mode at time ``t``.
+
+        Parameters
+        ----------
+        t : float
+            Time in years from the valuation date.
+
+        Returns
+        -------
+        PikMode
+            Active mode at ``t``.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> PikSchedule:
+        """
+        Deserialize from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON-encoded PIK schedule.
+
+        Returns
+        -------
+        PikSchedule
+            The decoded schedule.
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is not valid JSON for a PIK schedule.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to compact JSON.
+
+        Returns
+        -------
+        str
+            JSON-encoded PIK schedule.
         """
         ...
 
@@ -6881,6 +7521,22 @@ class OasResult:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export as a single-row pandas DataFrame.
+
+        Columns: ``oas`` (annual decimal), ``model_price`` and
+        ``market_price`` (percentage of original balance), ``num_paths``,
+        ``price_std_error`` (percentage of original balance).
+
+        Returns
+        -------
+        pd.DataFrame
+            Single-row DataFrame of the OAS solve, so a book of tranches
+            stacks with ``pd.concat``.
+        """
+        ...
+
 class TrancheMetrics:
     """
     Summary risk/pricing metrics for a structured-credit tranche
@@ -7098,6 +7754,24 @@ class TrancheMetrics:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export as a single-row pandas DataFrame.
+
+        Columns: ``tranche_id``, ``currency``, ``pv``, ``price_pct``, ``wal``,
+        ``z_spread_bp``, ``cs01``, ``spread_duration``, ``modified_duration``,
+        ``convexity``, ``target_price_pct`` -- the same fields and units as
+        the properties of the same name.
+
+        Returns
+        -------
+        pd.DataFrame
+            Single-row DataFrame, so a capital structure stacks with
+            ``pd.concat``. ``pv`` and ``cs01`` are in ``currency`` units and
+            are only additive across tranches sharing one currency.
+        """
+        ...
+
 class ScenarioTable:
     """
     Scenario/yield table for a single structured-credit tranche
@@ -7187,6 +7861,23 @@ class ScenarioTable:
         -------
         list[dict[str, float]]
             One dict per evaluated scenario cell.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the evaluated cells as a pandas DataFrame.
+
+        Columns: ``tranche_id``, ``cpr``, ``cdr``, ``severity``, ``price``
+        (percentage of original balance), ``wal`` (years), ``writedown``
+        (currency units). One row per cell, in CPR-major then CDR then
+        severity order -- the same cells and order as ``cells``.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per scenario cell. A grid that evaluated no cells yields a
+            zero-row frame that still carries the columns above.
         """
         ...
 

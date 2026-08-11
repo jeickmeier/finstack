@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyType};
+use pyo3::types::PyDict;
 
 use finstack_quant_portfolio::factor_model::{
     FactorContribution, PositionEsContribution, PositionFactorContribution,
@@ -45,9 +45,9 @@ impl PyFactorContribution {
     }
 
     /// Parse from a JSON string.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: FactorContribution = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }
@@ -127,9 +127,9 @@ impl PyPositionFactorContribution {
     }
 
     /// Parse from a JSON string.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: PositionFactorContribution = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }
@@ -200,9 +200,9 @@ impl PyPositionResidualContribution {
     }
 
     /// Parse from a JSON string.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: PositionResidualContribution = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }
@@ -288,9 +288,9 @@ impl PyRiskDecomposition {
     }
 
     /// Parse from a JSON string.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: RiskDecomposition = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }
@@ -485,9 +485,9 @@ impl PyPositionVarContribution {
     }
 
     /// Parse from a JSON string.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: PositionVarContribution = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }
@@ -614,9 +614,9 @@ impl PyPositionEsContribution {
     }
 
     /// Parse from a JSON string.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: PositionEsContribution = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }
@@ -695,9 +695,9 @@ impl PyPositionRiskDecomposition {
     }
 
     /// Parse from a JSON string.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: PositionRiskDecomposition = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }

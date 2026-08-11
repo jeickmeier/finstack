@@ -170,7 +170,7 @@ impl PyScalarTimeSeries {
 
     /// Serialize the canonical Rust series state to JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(&self.inner).map_err(|err| {
+        serde_json::to_string(&self.inner).map_err(|err| {
             crate::errors::value_error(format!("failed to serialize ScalarTimeSeries: {err}"))
         })
     }
@@ -310,7 +310,7 @@ impl PyInflationIndex {
 
     /// Serialize the canonical Rust inflation-index state to JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(&self.inner).map_err(|err| {
+        serde_json::to_string(&self.inner).map_err(|err| {
             crate::errors::value_error(format!("failed to serialize InflationIndex: {err}"))
         })
     }

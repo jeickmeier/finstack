@@ -106,9 +106,9 @@ impl PyUnknownScalePolicy {
     }
 
     /// Deserialize a policy from JSON.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
         UnknownScalePolicy::from_json(json)
             .map(Self::from_inner)
             .map_err(core_to_py)
@@ -191,9 +191,9 @@ impl PyRatingLevel {
     }
 
     /// Deserialize a rating level from JSON.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
         RatingLevel::from_json(json)
             .map(Self::from_inner)
             .map_err(core_to_py)
@@ -292,9 +292,9 @@ impl PyScorecardScale {
     }
 
     /// Deserialize a scorecard scale from JSON.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
         ScorecardScale::from_json(json)
             .map(Self::from_inner)
             .map_err(core_to_py)
@@ -385,9 +385,9 @@ impl PyRatingScaleRegistry {
     }
 
     /// Deserialize a registry from JSON. The payload is validated.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
         RatingScaleRegistry::from_json(json)
             .map(Self::from_inner)
             .map_err(core_to_py)

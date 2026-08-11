@@ -6,7 +6,6 @@ use finstack_quant_core::types::CurveId;
 use finstack_quant_scenarios::spec::RateBindingSpec;
 use finstack_quant_statements::types::NodeId;
 use pyo3::prelude::*;
-use pyo3::types::PyType;
 
 use super::kinds::PyCompounding;
 
@@ -106,8 +105,8 @@ impl PyRateBindingSpec {
     }
 
     /// Deserialize a `RateBindingSpec` from JSON.
-    #[classmethod]
-    fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
         let inner: RateBindingSpec = serde_json::from_str(json).map_err(|e| {
             crate::errors::value_error(format!("Invalid RateBindingSpec JSON: {e}"))
         })?;

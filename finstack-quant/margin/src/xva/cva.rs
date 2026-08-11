@@ -221,6 +221,9 @@ fn compute_cva_internal(
         max_pfe,
         effective_epe_profile,
         effective_epe,
+        meta: finstack_quant_core::config::results_meta(
+            &finstack_quant_core::config::FinstackConfig::default(),
+        ),
     })
 }
 

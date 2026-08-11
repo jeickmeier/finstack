@@ -5,7 +5,7 @@ use super::bond_valuator::BondValuator;
 use super::config::{TreeModelChoice, TreePricerConfig};
 use crate::instruments::pricing_overrides::OasPriceBasis;
 use crate::models::trees::hull_white_tree::{HullWhiteTree, HullWhiteTreeConfig};
-use crate::models::trees::short_rate_tree::CalibrationResult;
+use crate::models::trees::short_rate_tree::TreeCalibrationResult;
 use crate::models::trees::two_factor_rates_credit::{resolve_rates_credit_config, RatesCreditTree};
 use crate::models::{short_rate_keys, ShortRateTree, ShortRateTreeConfig, TreeModel};
 use finstack_quant_core::dates::Date;
@@ -835,7 +835,7 @@ impl Default for TreePricer {
     }
 }
 
-fn validate_bdt_calibration_quality(quality: Option<&CalibrationResult>) -> Result<()> {
+fn validate_bdt_calibration_quality(quality: Option<&TreeCalibrationResult>) -> Result<()> {
     let quality = quality.ok_or_else(|| {
         Error::internal("BDT calibration quality is unavailable after calibration")
     })?;
@@ -853,11 +853,11 @@ fn validate_bdt_calibration_quality(quality: Option<&CalibrationResult>) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::trees::short_rate_tree::CalibrationResult;
+    use crate::models::trees::short_rate_tree::TreeCalibrationResult;
 
     #[test]
     fn bdt_calibration_quality_rejects_fallbacks_and_large_error() {
-        let poor = CalibrationResult {
+        let poor = TreeCalibrationResult {
             max_error_bp: 1.25,
             max_error_step: 4,
             fallback_count: 1,

@@ -7,7 +7,7 @@ use finstack_quant_core::dates::{DayCount, DayCountContext};
 use finstack_quant_core::types::CurveId;
 use indexmap::IndexMap;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyType};
+use pyo3::types::PyDict;
 
 use crate::bindings::cashflows::primitives::PyCashFlow;
 use crate::bindings::core::dates::daycount::PyDayCount;
@@ -287,9 +287,9 @@ impl PyCashFlowSchedule {
     }
 
     /// Deserialize a schedule from canonical JSON (strict field names).
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
         serde_json::from_str::<CashFlowSchedule>(json)
             .map(Self::from_inner)
             .map_err(|e| crate::errors::serde_json_to_py(e, "invalid CashFlowSchedule JSON"))

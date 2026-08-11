@@ -466,14 +466,12 @@ impl PyScheduleImCalculator {
         let ccy = parse_currency(currency)?;
         let as_of = parse_date(year, month, day)?;
         let asset_class = parse_schedule_asset_class(asset_class)?;
-        Ok(PyImResult::from_inner(
-            self.inner.calculate_for_notional_result(
-                money_from_amount(notional, ccy)?,
-                asset_class,
-                maturity_years,
-                as_of,
-            ),
-        ))
+        Ok(PyImResult::from_inner(self.inner.calculate_for_notional(
+            money_from_amount(notional, ccy)?,
+            asset_class,
+            maturity_years,
+            as_of,
+        )))
     }
 
     /// Calculate schedule IM for a single-asset-class netting set using NGR.
@@ -503,12 +501,7 @@ impl PyScheduleImCalculator {
             .collect::<PyResult<_>>()?;
         Ok(self
             .inner
-            .calculate_netting_set_with_ngr_result(
-                &money_positions,
-                asset_class,
-                maturity_years,
-                as_of,
-            )
+            .calculate_netting_set_with_ngr(&money_positions, asset_class, maturity_years, as_of)
             .map(PyImResult::from_inner))
     }
 }
@@ -594,7 +587,7 @@ impl PyHaircutImCalculator {
         let as_of = parse_date(year, month, day)?;
         Ok(PyImResult::from_inner(
             self.inner
-                .calculate_for_collateral_result(
+                .calculate_for_collateral(
                     money_from_amount(collateral_value, ccy)?,
                     &asset_class.inner,
                     currency_mismatch,

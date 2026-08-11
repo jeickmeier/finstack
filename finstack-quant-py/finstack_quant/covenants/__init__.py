@@ -3,8 +3,8 @@
 Examples:
 --------
 >>> import json
->>> from finstack_quant.covenants import cov_lite
->>> len(json.loads(cov_lite(7.0, 4.5)))
+>>> from finstack_quant.covenants import cov_lite_json
+>>> len(json.loads(cov_lite_json(7.0, 4.5)))
 3
 """
 
@@ -12,22 +12,24 @@ from __future__ import annotations
 
 from finstack_quant.finstack_quant import covenants as _covenants
 
-cov_lite = _covenants.cov_lite
+CovenantReport = _covenants.CovenantReport
+cov_lite_json = _covenants.cov_lite_json
 evaluate_engine = _covenants.evaluate_engine
-lbo_standard = _covenants.lbo_standard
-project_finance = _covenants.project_finance
-real_estate = _covenants.real_estate
-validate_covenant_engine = _covenants.validate_covenant_engine
-validate_covenant_report = _covenants.validate_covenant_report
-validate_covenant_spec = _covenants.validate_covenant_spec
+lbo_standard_json = _covenants.lbo_standard_json
+project_finance_json = _covenants.project_finance_json
+real_estate_json = _covenants.real_estate_json
+validate_covenant_engine_json = _covenants.validate_covenant_engine_json
+validate_covenant_report_json = _covenants.validate_covenant_report_json
+validate_covenant_spec_json = _covenants.validate_covenant_spec_json
 
 __all__ = [
-    "cov_lite",
+    "CovenantReport",
+    "cov_lite_json",
     "evaluate_engine",
-    "lbo_standard",
-    "project_finance",
-    "real_estate",
-    "validate_covenant_engine",
-    "validate_covenant_report",
-    "validate_covenant_spec",
+    "lbo_standard_json",
+    "project_finance_json",
+    "real_estate_json",
+    "validate_covenant_engine_json",
+    "validate_covenant_report_json",
+    "validate_covenant_spec_json",
 ]

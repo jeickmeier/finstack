@@ -137,6 +137,7 @@ fn test_evaluation_result_serde() {
                 version: 1,
             },
             fx_policy_applied: None,
+            parallel: false,
             timestamp: None,
             version: None,
         },
@@ -238,6 +239,7 @@ fn test_compiled_expr_serde() {
             version: 1,
         },
         fx_policy_applied: None,
+        parallel: false,
         timestamp: None,
         version: None,
     };

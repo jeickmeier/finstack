@@ -1,0 +1,164 @@
+//! `CovenantReport` Python wrapper.
+
+use crate::bindings::pandas_utils::{
+    serde_object_to_single_row_dataframe_with_schema, serde_to_py,
+};
+use crate::errors::display_to_py;
+use pyo3::prelude::*;
+
+/// Result of a single covenant evaluation.
+///
+/// Carries pass/fail status, the tested value against its threshold, the
+/// headroom (positive is cushion, negative is deficit), an optional
+/// human-readable explanation, and the audit stamp (numeric mode, rounding
+/// context, FX policy) in force when the covenant was evaluated.
+///
+/// Construct via :func:`evaluate_engine` or :meth:`from_json`.
+#[pyclass(
+    name = "CovenantReport",
+    module = "finstack_quant.covenants",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub(crate) struct PyCovenantReport {
+    pub(crate) inner: finstack_quant_covenants::CovenantReport,
+}
+
+#[pymethods]
+impl PyCovenantReport {
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Deserialize from JSON.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: finstack_quant_covenants::CovenantReport =
+            serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize to compact JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Human-readable description of the covenant being tested
+    /// (e.g. ``"Debt/EBITDA <= 5.00x"``).
+    #[getter]
+    fn covenant_type(&self) -> &str {
+        &self.inner.covenant_type
+    }
+
+    /// Stable machine-readable covenant instance identifier, or ``None`` when
+    /// the report was produced without one.
+    #[getter]
+    fn covenant_id(&self) -> Option<&str> {
+        self.inner.covenant_id.as_deref()
+    }
+
+    /// ``True`` when the covenant passed.
+    ///
+    /// Inactive covenants, unmet springing conditions, and full waivers also
+    /// report ``True``; :attr:`details` carries the reason.
+    #[getter]
+    fn passed(&self) -> bool {
+        self.inner.passed
+    }
+
+    /// Tested metric value, or ``None`` when the covenant was not evaluated
+    /// numerically (inactive, waived, or springing condition unmet).
+    #[getter]
+    fn actual_value(&self) -> Option<f64> {
+        self.inner.actual_value
+    }
+
+    /// Threshold the metric was tested against, or ``None`` when no numeric
+    /// test was applied.
+    #[getter]
+    fn threshold(&self) -> Option<f64> {
+        self.inner.threshold
+    }
+
+    /// Explanation of the outcome, or ``None``.
+    #[getter]
+    fn details(&self) -> Option<&str> {
+        self.inner.details.as_deref()
+    }
+
+    /// Cushion relative to the threshold: positive is a passing buffer,
+    /// negative a deficit. ``None`` when no numeric test was applied.
+    #[getter]
+    fn headroom(&self) -> Option<f64> {
+        self.inner.headroom
+    }
+
+    /// Audit stamp as a dict: numeric mode, rounding context, and FX policy in
+    /// force for this evaluation.
+    #[getter]
+    fn meta<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.meta)
+    }
+
+    /// Export the report as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``covenant_type``, ``covenant_id``, ``passed``,
+    /// ``actual_value``, ``threshold``, ``headroom``, ``details``.
+    ///
+    /// The optional columns are ``None`` for a covenant that was not evaluated
+    /// numerically (inactive, waived, springing condition unmet); pandas then
+    /// infers dtype ``object`` for that column, so coerce with
+    /// ``pd.to_numeric`` before concatenating mixed reports.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let row = serde_json::json!({
+            "covenant_type": self.inner.covenant_type,
+            "covenant_id": self.inner.covenant_id,
+            "passed": self.inner.passed,
+            "actual_value": self.inner.actual_value,
+            "threshold": self.inner.threshold,
+            "headroom": self.inner.headroom,
+            "details": self.inner.details,
+        });
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "covenant_type",
+                "covenant_id",
+                "passed",
+                "actual_value",
+                "threshold",
+                "headroom",
+                "details",
+            ],
+        )
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CovenantReport(covenant_type={:?}, passed={}, actual_value={:?}, threshold={:?}, headroom={:?})",
+            self.inner.covenant_type,
+            self.inner.passed,
+            self.inner.actual_value,
+            self.inner.threshold,
+            self.inner.headroom,
+        )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`. Returns `None` if the frame
+    /// cannot be built, which makes IPython fall back to `__repr__` instead of
+    /// raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
+    }
+}

@@ -735,7 +735,7 @@ mod tests {
             expanded_operations: 0,
             changes: Default::default(),
             warnings: vec![],
-            rounding_context: None,
+            meta: None,
             time_roll: None,
         }
     }

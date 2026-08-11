@@ -16,6 +16,7 @@ from __future__ import annotations
 from finstack_quant.finstack_quant import valuations as _valuations
 
 AssetPool = _valuations.instruments.AssetPool
+BarrierCrossing = _valuations.instruments.BarrierCrossing
 Bond = _valuations.instruments.Bond
 CDSIndex = _valuations.instruments.CDSIndex
 CDSIndexBuilder = _valuations.instruments.CDSIndexBuilder
@@ -37,7 +38,12 @@ FxOption = _valuations.instruments.FxOption
 FxOptionBuilder = _valuations.instruments.FxOptionBuilder
 InterestRateSwap = _valuations.instruments.InterestRateSwap
 InterestRateSwapBuilder = _valuations.instruments.InterestRateSwapBuilder
+MertonMcConfig = _valuations.instruments.MertonMcConfig
+MertonMcResult = _valuations.instruments.MertonMcResult
 OasResult = _valuations.instruments.OasResult
+PathStatistics = _valuations.instruments.PathStatistics
+PikMode = _valuations.instruments.PikMode
+PikSchedule = _valuations.instruments.PikSchedule
 PremiumLegSpec = _valuations.instruments.PremiumLegSpec
 ProtectionLegSpec = _valuations.instruments.ProtectionLegSpec
 RepLine = _valuations.instruments.RepLine
@@ -70,6 +76,7 @@ structured_credit_tranche_scenario_table = _valuations.instruments.structured_cr
 
 __all__: list[str] = [
     "AssetPool",
+    "BarrierCrossing",
     "Bond",
     "CDSIndex",
     "CDSIndexBuilder",
@@ -91,7 +98,12 @@ __all__: list[str] = [
     "FxOptionBuilder",
     "InterestRateSwap",
     "InterestRateSwapBuilder",
+    "MertonMcConfig",
+    "MertonMcResult",
     "OasResult",
+    "PathStatistics",
+    "PikMode",
+    "PikSchedule",
     "PremiumLegSpec",
     "ProtectionLegSpec",
     "RepLine",

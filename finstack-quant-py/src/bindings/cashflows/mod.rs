@@ -103,7 +103,7 @@ fn dated_flows_json(py: Python<'_>, schedule_json: &str) -> PyResult<String> {
     signature = (schedule_json, as_of, config_json = None),
     text_signature = "(schedule_json, as_of, config_json=None)"
 )]
-fn accrued_interest_json(
+fn accrued_interest(
     py: Python<'_>,
     schedule_json: &str,
     as_of: &Bound<'_, PyAny>,
@@ -111,7 +111,7 @@ fn accrued_interest_json(
 ) -> PyResult<f64> {
     let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     py.detach(|| {
-        finstack_quant_cashflows::accrued_interest_json(schedule_json, &as_of, config_json)
+        finstack_quant_cashflows::accrued_interest(schedule_json, &as_of, config_json)
             .map_err(crate::errors::core_to_py)
     })
 }
@@ -131,13 +131,13 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     aggregation::register(py, &m)?;
     schema::register(py, &m)?;
 
-    m.add_function(wrap_pyfunction!(accrued_interest_json, &m)?)?;
+    m.add_function(wrap_pyfunction!(accrued_interest, &m)?)?;
     m.add_function(wrap_pyfunction!(build_cashflow_schedule_json, &m)?)?;
     m.add_function(wrap_pyfunction!(dated_flows_json, &m)?)?;
     m.add_function(wrap_pyfunction!(validate_cashflow_schedule_json, &m)?)?;
 
     for name in [
-        "accrued_interest_json",
+        "accrued_interest",
         "build_cashflow_schedule_json",
         "dated_flows_json",
         "validate_cashflow_schedule_json",
@@ -150,7 +150,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         py,
         [
             "accrual",
-            "accrued_interest_json",
+            "accrued_interest",
             "aggregation",
             "build_cashflow_schedule_json",
             "builder",

@@ -15,13 +15,369 @@ Examples
 
 from __future__ import annotations
 
+import datetime
+import pandas as pd
+
+from finstack_quant.core.market_data.curves import HazardCurve
+from typing import Any
+
 __all__ = [
-    "MertonModel",
+    "AssetDynamics",
+    "BarrierType",
+    "CreditState",
     "DynamicRecoverySpec",
     "EndogenousHazardSpec",
-    "CreditState",
+    "MertonModel",
+    "SimulatedPaths",
     "ToggleExerciseModel",
 ]
+
+class BarrierType:
+    """
+    Default barrier monitoring convention for structural credit models.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.models.credit import BarrierType
+    >>> BarrierType.terminal() is not None
+    True
+
+    """
+
+    @staticmethod
+    def terminal() -> BarrierType:
+        """
+        Classic Merton barrier tested only at maturity.
+
+        Returns
+        -------
+        BarrierType
+            Terminal-barrier specification.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.models.credit import BarrierType
+        >>> bt = BarrierType.terminal()
+        >>> bt.to_json()
+        '"terminal"'
+
+        """
+        ...
+
+    @staticmethod
+    def first_passage(barrier_growth_rate: float) -> BarrierType:
+        """
+        Black-Cox first-passage barrier with optional growth rate.
+
+        Parameters
+        ----------
+        barrier_growth_rate : float
+            Continuous growth rate of the default barrier over time, as a
+            decimal (e.g. ``0.02`` for 2% annual growth).
+
+        Returns
+        -------
+        BarrierType
+            First-passage barrier specification.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.models.credit import BarrierType
+        >>> bt = BarrierType.first_passage(0.02)
+        >>> "first_passage" in bt.to_json()
+        True
+
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> BarrierType:
+        """
+        Deserialize a barrier type from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Canonical JSON payload.
+
+        Returns
+        -------
+        BarrierType
+            Parsed barrier type.
+
+        Raises
+        ------
+        ValueError
+            If JSON is malformed or fails validation.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.models.credit import BarrierType
+        >>> restored = BarrierType.from_json(BarrierType.terminal().to_json())
+        >>> restored.to_json()
+        '"terminal"'
+
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize this barrier type to compact JSON.
+
+        Returns
+        -------
+        str
+            JSON string.
+        """
+        ...
+
+class AssetDynamics:
+    """
+    Asset return dynamics specification for structural credit models.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.models.credit import AssetDynamics
+    >>> AssetDynamics.geometric_brownian() is not None
+    True
+
+    """
+
+    @staticmethod
+    def geometric_brownian() -> AssetDynamics:
+        """
+        Standard geometric Brownian motion (lognormal diffusion).
+
+        Returns
+        -------
+        AssetDynamics
+            GBM dynamics specification.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.models.credit import AssetDynamics
+        >>> dyn = AssetDynamics.geometric_brownian()
+        >>> dyn.to_json()
+        '"geometric_brownian"'
+
+        """
+        ...
+
+    @staticmethod
+    def jump_diffusion(
+        jump_intensity: float,
+        jump_mean: float,
+        jump_vol: float,
+    ) -> AssetDynamics:
+        """
+        Merton jump-diffusion asset dynamics.
+
+        Parameters
+        ----------
+        jump_intensity : float
+            Poisson jump arrival intensity (jumps per year).
+        jump_mean : float
+            Mean log-jump size.
+        jump_vol : float
+            Volatility of log-jump size.
+
+        Returns
+        -------
+        AssetDynamics
+            Jump-diffusion specification.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.models.credit import AssetDynamics
+        >>> dyn = AssetDynamics.jump_diffusion(0.5, -0.1, 0.2)
+        >>> "jump_diffusion" in dyn.to_json()
+        True
+
+        """
+        ...
+
+    @staticmethod
+    def credit_grades(
+        barrier_uncertainty: float,
+        mean_recovery: float,
+    ) -> AssetDynamics:
+        """
+        CreditGrades stochastic-barrier dynamics.
+
+        Parameters
+        ----------
+        barrier_uncertainty : float
+            Log-barrier volatility ``lambda`` (lognormal standard deviation of
+            the default barrier).
+        mean_recovery : float
+            Mean recovery rate at default, as a decimal in ``[0, 1]``.
+
+        Returns
+        -------
+        AssetDynamics
+            CreditGrades dynamics specification.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.models.credit import AssetDynamics
+        >>> dyn = AssetDynamics.credit_grades(0.3, 0.4)
+        >>> "credit_grades" in dyn.to_json()
+        True
+
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> AssetDynamics:
+        """
+        Deserialize asset dynamics from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Canonical JSON payload.
+
+        Returns
+        -------
+        AssetDynamics
+            Parsed dynamics specification.
+
+        Raises
+        ------
+        ValueError
+            If JSON is malformed or fails validation.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.models.credit import AssetDynamics
+        >>> restored = AssetDynamics.from_json(
+        ...     AssetDynamics.geometric_brownian().to_json()
+        ... )
+        >>> restored.to_json()
+        '"geometric_brownian"'
+
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize these asset dynamics to compact JSON.
+
+        Returns
+        -------
+        str
+            JSON string.
+        """
+        ...
+
+class SimulatedPaths:
+    """
+    Monte Carlo asset path simulation results from a Merton model.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.models.credit import MertonModel
+    >>> model = MertonModel(100.0, 0.25, 80.0, 0.05)
+    >>> paths = model.simulate_paths(4, 10, 1.0, seed=42)
+    >>> (paths.num_paths, paths.num_steps, len(paths.times))
+    (4, 10, 11)
+
+    """
+
+    @property
+    def times(self) -> list[float]:
+        """
+        Time grid from 0 to the simulation horizon.
+
+        Returns
+        -------
+        list[float]
+            Time points in years.
+        """
+        ...
+
+    @property
+    def asset_values(self) -> list[float]:
+        """
+        Asset values in row-major order.
+
+        Returns
+        -------
+        list[float]
+            Flattened path values.
+        """
+        ...
+
+    @property
+    def num_paths(self) -> int:
+        """
+        Number of simulated paths.
+
+        Returns
+        -------
+        int
+            Path count.
+        """
+        ...
+
+    @property
+    def num_steps(self) -> int:
+        """
+        Number of time steps between grid points.
+
+        Returns
+        -------
+        int
+            Step count.
+        """
+        ...
+
+    def get(self, path_idx: int, time_idx: int) -> float | None:
+        """
+        Return one asset value by path and time-grid index.
+
+        Parameters
+        ----------
+        path_idx : int
+            Zero-based path index.
+        time_idx : int
+            Zero-based time-grid index (includes ``t = 0``).
+
+        Returns
+        -------
+        float or None
+            Asset value at the requested coordinate, or ``None`` when indices
+            are out of range.
+        """
+        ...
+
+    def path(self, path_idx: int) -> list[float] | None:
+        """
+        Return the contiguous asset-value row for one path.
+
+        Parameters
+        ----------
+        path_idx : int
+            Zero-based path index.
+
+        Returns
+        -------
+        list[float] or None
+            Asset values along the path, or ``None`` when ``path_idx`` is out
+            of range.
+        """
+        ...
+
+    def to_nested(self) -> list[list[float]]:
+        """
+        Materialize nested path storage as a list of path rows.
+
+        Returns
+        -------
+        list[list[float]]
+            One inner list per simulated path.
+        """
+        ...
 
 class MertonModel:
     """
@@ -69,6 +425,211 @@ class MertonModel:
         Sources
         -------
         See ``docs/REFERENCES.md#merton-1974``.
+        """
+        ...
+
+    @staticmethod
+    def from_equity(
+        equity_value: float,
+        equity_vol: float,
+        total_debt: float,
+        risk_free_rate: float,
+        payout_rate: float,
+        maturity: float,
+    ) -> MertonModel:
+        """
+        KMV calibration from observed equity value and volatility.
+
+        Parameters
+        ----------
+        equity_value : float
+            Observed market equity value (positive, finite).
+        equity_vol : float
+            Equity volatility as a decimal.
+        total_debt : float
+            Face value of debt used as the default barrier.
+        risk_free_rate : float
+            Continuously compounded risk-free rate as a decimal.
+        payout_rate : float
+            Continuous dividend / payout yield on assets as a decimal.
+        maturity : float
+            Calibration horizon in years.
+
+        Returns
+        -------
+        MertonModel
+            Calibrated structural model.
+
+        Raises
+        ------
+        ValueError
+            If inputs are invalid or calibration fails to converge.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.models.credit import MertonModel
+        >>> model = MertonModel.from_equity(25.0, 0.30, 80.0, 0.05, 0.0, 1.0)
+        >>> model.asset_value > 0
+        True
+
+        """
+        ...
+
+    @staticmethod
+    def from_cds_spread(
+        cds_spread_bp: float,
+        recovery: float,
+        total_debt: float,
+        risk_free_rate: float,
+        maturity: float,
+        asset_value: float,
+        payout_rate: float,
+    ) -> MertonModel:
+        """
+        Calibrate asset volatility to match a target CDS par spread.
+
+        Parameters
+        ----------
+        cds_spread_bp : float
+            Target CDS par spread in basis points.
+        recovery : float
+            Assumed recovery rate as a decimal in ``[0, 1]``.
+        total_debt : float
+            Face value of debt.
+        risk_free_rate : float
+            Continuously compounded risk-free rate as a decimal.
+        maturity : float
+            Calibration horizon in years.
+        asset_value : float
+            Assumed initial firm asset value.
+        payout_rate : float
+            Continuous payout rate on assets as a decimal.
+
+        Returns
+        -------
+        MertonModel
+            Calibrated structural model with terminal barrier and GBM dynamics.
+
+        Raises
+        ------
+        ValueError
+            If inputs are invalid or the solver fails.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.models.credit import MertonModel
+        >>> model = MertonModel.from_cds_spread(
+        ...     150.0, 0.40, 80.0, 0.04, 5.0, 100.0, 0.0
+        ... )
+        >>> model.asset_vol > 0
+        True
+
+        """
+        ...
+
+    @staticmethod
+    def from_target_pd(
+        asset_value: float,
+        asset_vol: float,
+        risk_free_rate: float,
+        target_pd: float,
+        maturity: float,
+    ) -> MertonModel:
+        """
+        Calibrate the debt barrier to match a target cumulative default probability.
+
+        Parameters
+        ----------
+        asset_value : float
+            Current firm asset value.
+        asset_vol : float
+            Asset volatility as a decimal.
+        risk_free_rate : float
+            Continuously compounded risk-free rate as a decimal.
+        target_pd : float
+            Target cumulative default probability in ``[0, 1]``.
+        maturity : float
+            Calibration horizon in years.
+
+        Returns
+        -------
+        MertonModel
+            Calibrated structural model.
+
+        Raises
+        ------
+        ValueError
+            If inputs are invalid or the solver fails.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.models.credit import MertonModel
+        >>> model = MertonModel.from_target_pd(100.0, 0.25, 0.05, 0.05, 1.0)
+        >>> round(model.default_probability(1.0), 6)
+        0.05
+
+        """
+        ...
+
+    @staticmethod
+    def new_with_dynamics(
+        asset_value: float,
+        asset_vol: float,
+        debt_barrier: float,
+        risk_free_rate: float,
+        payout_rate: float,
+        barrier_type: BarrierType,
+        dynamics: AssetDynamics,
+    ) -> MertonModel:
+        """
+        Construct a Merton model with explicit barrier and dynamics specifications.
+
+        Parameters
+        ----------
+        asset_value : float
+            Current firm asset value.
+        asset_vol : float
+            Asset volatility as a decimal.
+        debt_barrier : float
+            Default barrier level.
+        risk_free_rate : float
+            Continuously compounded risk-free rate as a decimal.
+        payout_rate : float
+            Continuous payout rate on assets as a decimal.
+        barrier_type : BarrierType
+            Terminal or first-passage barrier monitoring.
+        dynamics : AssetDynamics
+            Asset return dynamics specification.
+
+        Returns
+        -------
+        MertonModel
+            Fully specified structural model.
+
+        Raises
+        ------
+        ValueError
+            If inputs are non-finite or out of range.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.models.credit import (
+        ...     AssetDynamics,
+        ...     BarrierType,
+        ...     MertonModel,
+        ... )
+        >>> model = MertonModel.new_with_dynamics(
+        ...     100.0,
+        ...     0.25,
+        ...     80.0,
+        ...     0.05,
+        ...     0.0,
+        ...     BarrierType.first_passage(0.02),
+        ...     AssetDynamics.geometric_brownian(),
+        ... )
+        >>> round(model.default_probability(1.0), 6)
+        0.166629
+
         """
         ...
 
@@ -168,6 +729,101 @@ class MertonModel:
         """
         ...
 
+    @property
+    def asset_value(self) -> float:
+        """
+        Current firm asset value ``V_0``.
+
+        Returns
+        -------
+        float
+            Asset value in the issuer's reporting currency.
+        """
+        ...
+
+    @property
+    def asset_vol(self) -> float:
+        """
+        Annualized asset volatility ``sigma_V``.
+
+        Returns
+        -------
+        float
+            Volatility as a decimal (``0.25`` is 25%).
+        """
+        ...
+
+    @property
+    def debt_barrier(self) -> float:
+        """
+        Default barrier ``B``.
+
+        Returns
+        -------
+        float
+            Barrier level, in the same currency as ``asset_value``.
+        """
+        ...
+
+    @property
+    def risk_free_rate(self) -> float:
+        """
+        Continuously compounded risk-free rate ``r``.
+
+        Returns
+        -------
+        float
+            Rate as a decimal.
+        """
+        ...
+
+    @property
+    def payout_rate(self) -> float:
+        """
+        Continuous payout (dividend) rate ``q`` on assets.
+
+        Returns
+        -------
+        float
+            Payout rate as a decimal.
+        """
+        ...
+
+    @property
+    def barrier_type(self) -> BarrierType:
+        """
+        Barrier monitoring convention.
+
+        Returns
+        -------
+        BarrierType
+            Terminal or first-passage barrier specification.
+        """
+        ...
+
+    @property
+    def dynamics(self) -> AssetDynamics:
+        """
+        Asset return dynamics specification.
+
+        Returns
+        -------
+        AssetDynamics
+            GBM, jump-diffusion, or CreditGrades dynamics.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the model parameters as a single-row pandas ``DataFrame``.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One row with the canonical model fields as columns.
+        """
+        ...
+
     def distance_to_default(self, horizon: float) -> float:
         """
         Return risk-neutral distance to default at ``horizon`` years.
@@ -224,6 +880,99 @@ class MertonModel:
         Sources
         -------
         See ``docs/REFERENCES.md#o-kane-2008`` for CDS spread conventions.
+        """
+        ...
+
+    def try_implied_equity(self, horizon: float) -> tuple[float, float]:
+        """
+        Return implied equity value and equity volatility at ``horizon`` years.
+
+        Parameters
+        ----------
+        horizon : float
+            Time horizon in years (positive, finite).
+
+        Returns
+        -------
+        tuple[float, float]
+            ``(equity_value, equity_vol)`` implied by the structural model.
+
+        Raises
+        ------
+        ValueError
+            When the firm is economically in default or the inversion is
+            numerically ill-conditioned.
+        """
+        ...
+
+    def to_hazard_curve(
+        self,
+        id: str,
+        base_date: datetime.date,
+        tenors: list[float],
+        recovery: float,
+    ) -> HazardCurve:
+        """
+        Bootstrap a piecewise-constant hazard curve from structural default probabilities.
+
+        Parameters
+        ----------
+        id : str
+            Curve identifier.
+        base_date : datetime.date
+            Valuation date for the curve.
+        tenors : list[float]
+            Tenor grid in years (non-empty, strictly positive).
+        recovery : float
+            Recovery rate assumption as a decimal in ``[0, 1]``.
+
+        Returns
+        -------
+        HazardCurve
+            Bootstrapped hazard curve compatible with pricing engines.
+
+        Raises
+        ------
+        ValueError
+            If ``tenors`` is empty, contains non-positive values, or the
+            bootstrap fails.
+        """
+        ...
+
+    def simulate_paths(
+        self,
+        num_paths: int,
+        num_steps: int,
+        horizon: float,
+        seed: int,
+        antithetic: bool = False,
+    ) -> SimulatedPaths:
+        """
+        Simulate asset value paths using Monte Carlo.
+
+        Parameters
+        ----------
+        num_paths : int
+            Number of paths to simulate.
+        num_steps : int
+            Number of time steps per path (must be >= 1).
+        horizon : float
+            Simulation horizon in years (must be > 0).
+        seed : int
+            RNG seed for reproducible draws.
+        antithetic : bool, optional
+            When ``True``, use antithetic variates for variance reduction.
+            Default ``False``.
+
+        Returns
+        -------
+        SimulatedPaths
+            Time grid and simulated asset paths.
+
+        Raises
+        ------
+        ValueError
+            If ``num_steps`` is zero or ``horizon`` is non-positive.
         """
         ...
 
@@ -324,6 +1073,55 @@ class DynamicRecoverySpec:
         -------
         float
             Recovery rate as a decimal.
+        """
+        ...
+
+    @property
+    def base_recovery(self) -> float:
+        """
+        Base (reference) recovery rate ``R_0``.
+
+        Returns
+        -------
+        float
+            Recovery rate as a decimal in ``[0, 1]``.
+        """
+        ...
+
+    @property
+    def base_notional(self) -> float:
+        """
+        Base (reference) notional ``N_0`` the recovery mapping is anchored to.
+
+        Returns
+        -------
+        float
+            Reference notional (positive).
+        """
+        ...
+
+    @property
+    def model(self) -> Any:
+        """
+        Notional-to-recovery mapping, in canonical JSON form.
+
+        Returns
+        -------
+        Any
+            ``"constant"`` / ``"inverse_linear"`` for the parameterless models,
+            or a single-key mapping (``inverse_power``, ``floored_inverse``,
+            ``linear_decline``) carrying that model's parameters.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the recovery specification as a single-row pandas ``DataFrame``.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One row with the canonical specification fields as columns.
         """
         ...
 
@@ -457,6 +1255,54 @@ class EndogenousHazardSpec:
         """
         ...
 
+    @property
+    def base_hazard_rate(self) -> float:
+        """
+        Base (reference) hazard rate ``lambda_0``.
+
+        Returns
+        -------
+        float
+            Annualized hazard rate as a decimal.
+        """
+        ...
+
+    @property
+    def base_leverage(self) -> float:
+        """
+        Base (reference) leverage level ``L_0`` the hazard mapping is anchored to.
+
+        Returns
+        -------
+        float
+            Reference leverage ratio (positive).
+        """
+        ...
+
+    @property
+    def leverage_hazard_map(self) -> Any:
+        """
+        Leverage-to-hazard mapping, in canonical JSON form.
+
+        Returns
+        -------
+        Any
+            A single-key mapping (``power_law``, ``exponential``, ``tabular``)
+            carrying that model's parameters.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the hazard specification as a single-row pandas ``DataFrame``.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One row with the canonical specification fields as columns.
+        """
+        ...
+
 class CreditState:
     """
     Point-in-time credit state for toggle and path-dependent credit logic.
@@ -508,6 +1354,89 @@ class CreditState:
         -------
         str
             JSON string.
+        """
+        ...
+
+    @property
+    def hazard_rate(self) -> float:
+        """
+        Instantaneous default intensity at this observation.
+
+        Returns
+        -------
+        float
+            Annualized hazard rate as a decimal.
+        """
+        ...
+
+    @property
+    def distance_to_default(self) -> float | None:
+        """
+        Structural distance-to-default.
+
+        Returns
+        -------
+        float or None
+            Distance in standard deviations, or ``None`` when unavailable.
+        """
+        ...
+
+    @property
+    def leverage(self) -> float:
+        """
+        Leverage ratio (debt / assets).
+
+        Returns
+        -------
+        float
+            Leverage ratio.
+        """
+        ...
+
+    @property
+    def accreted_notional(self) -> float:
+        """
+        Accreted (PIK-augmented) notional outstanding.
+
+        Returns
+        -------
+        float
+            Outstanding notional.
+        """
+        ...
+
+    @property
+    def coupon_due(self) -> float:
+        """
+        Cash coupon amount due at this decision date.
+
+        Returns
+        -------
+        float
+            Coupon amount.
+        """
+        ...
+
+    @property
+    def asset_value(self) -> float | None:
+        """
+        Fair value of the firm's assets.
+
+        Returns
+        -------
+        float or None
+            Asset value, or ``None`` when unavailable.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the observed credit state as a single-row pandas ``DataFrame``.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One row with the canonical state fields as columns.
         """
         ...
 
@@ -645,5 +1574,35 @@ class ToggleExerciseModel:
         -------
         str
             JSON string.
+        """
+        ...
+
+    @property
+    def kind(self) -> str:
+        """
+        Which exercise rule this model carries.
+
+        Returns
+        -------
+        str
+            One of ``"threshold"``, ``"stochastic"`` or ``"optimal_exercise"`` —
+            the canonical serde tag, so it also names the single key in the
+            ``to_json`` payload.
+        """
+        ...
+
+    @property
+    def params(self) -> Any:
+        """
+        Parameters of the active rule, in canonical JSON form.
+
+        Returns
+        -------
+        Any
+            Mapping whose keys depend on ``kind``: ``state_variable`` /
+            ``threshold`` / ``direction`` for a threshold rule,
+            ``state_variable`` / ``intercept`` / ``sensitivity`` for a
+            stochastic one, and the nested-Monte-Carlo settings for optimal
+            exercise.
         """
         ...

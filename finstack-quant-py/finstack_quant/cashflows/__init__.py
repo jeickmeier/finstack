@@ -37,10 +37,10 @@ for _name, _mod in _submodules.items():
 build_cashflow_schedule_json = _cashflows.build_cashflow_schedule_json
 validate_cashflow_schedule_json = _cashflows.validate_cashflow_schedule_json
 dated_flows_json = _cashflows.dated_flows_json
-accrued_interest_json = _cashflows.accrued_interest_json
+accrued_interest = _cashflows.accrued_interest
 
 for _fn in (
-    "accrued_interest_json",
+    "accrued_interest",
     "build_cashflow_schedule_json",
     "dated_flows_json",
     "validate_cashflow_schedule_json",
@@ -49,7 +49,7 @@ for _fn in (
 
 __all__: list[str] = [
     "accrual",
-    "accrued_interest_json",
+    "accrued_interest",
     "aggregation",
     "build_cashflow_schedule_json",
     "builder",

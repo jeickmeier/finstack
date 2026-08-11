@@ -402,6 +402,12 @@ pub struct XvaResult {
     /// - BCBS 279 (2014). "The standardised approach for measuring
     ///   counterparty credit risk exposures."
     pub effective_epe: f64,
+
+    /// Policy metadata stamped by the computing layer: numeric mode, active
+    /// rounding context, any applied FX policy, and the parallel-execution
+    /// flag.
+    #[serde(default)]
+    pub meta: finstack_quant_core::config::ResultsMeta,
 }
 
 /// Diagnostics from exposure simulation capturing data quality metrics.

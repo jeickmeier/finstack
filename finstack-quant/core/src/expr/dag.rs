@@ -41,6 +41,7 @@ mod tests {
                 version: 1,
             },
             fx_policy_applied: None,
+            parallel: false,
             timestamp: None,
             version: None,
         }

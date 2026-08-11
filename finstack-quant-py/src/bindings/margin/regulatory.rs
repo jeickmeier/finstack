@@ -116,7 +116,7 @@ impl PyFrtbSensitivities {
 
     /// Serialize to a JSON string.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
     /// Add a GIRR delta sensitivity (currency P&L per 1 percentage-point move).
@@ -582,7 +582,7 @@ impl PySaCcrTrade {
 
     /// Serialize to a JSON string.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
     /// Trade identifier.
@@ -722,7 +722,7 @@ impl PySaCcrNettingSetConfig {
 
     /// Serialize to a JSON string.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
     /// Whether the netting set is margined (a CSA with an MPoR applies).

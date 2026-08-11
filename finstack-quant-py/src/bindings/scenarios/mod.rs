@@ -4,7 +4,7 @@
 //! functions for [`ScenarioSpec`] construction, validation, template
 //! registry discovery, and scenario engine application.
 
-mod engine;
+pub(crate) mod engine;
 mod horizon;
 mod operation_spec;
 mod schema;

@@ -790,7 +790,7 @@ fn test_normal_to_lognormal_errors_on_negative_rate() {
 
 #[test]
 fn test_calibration_result_quality_helpers_cover_thresholds() {
-    let good = CalibrationResult {
+    let good = TreeCalibrationResult {
         max_error_bp: 0.05,
         max_error_step: 2,
         fallback_count: 0,
@@ -799,7 +799,7 @@ fn test_calibration_result_quality_helpers_cover_thresholds() {
     assert!(good.is_good());
     assert!(good.is_acceptable());
 
-    let acceptable_only = CalibrationResult {
+    let acceptable_only = TreeCalibrationResult {
         max_error_bp: 0.5,
         max_error_step: 3,
         fallback_count: 0,
@@ -808,7 +808,7 @@ fn test_calibration_result_quality_helpers_cover_thresholds() {
     assert!(!acceptable_only.is_good());
     assert!(acceptable_only.is_acceptable());
 
-    let poor = CalibrationResult {
+    let poor = TreeCalibrationResult {
         max_error_bp: 2.0,
         max_error_step: 1,
         fallback_count: 1,

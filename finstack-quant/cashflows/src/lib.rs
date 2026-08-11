@@ -113,7 +113,7 @@ pub use accrual::{
 };
 pub use builder::CashFlowBuilder;
 pub use json::{
-    accrued_interest_json, build_cashflow_schedule_json, dated_flows_json,
+    accrued_interest, build_cashflow_schedule_json, dated_flows_json,
     validate_cashflow_schedule, validate_cashflow_schedule_json, CashflowScheduleBuildSpec,
     CouponLegSpec, DatedFlowJson, PaymentProgramSpec, PaymentStepSpec, PrincipalEventSpec,
     RateStepSpec,

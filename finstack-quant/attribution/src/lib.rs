@@ -154,10 +154,11 @@ pub use model_params::{
 };
 pub use parallel::attribute_pnl_parallel;
 pub use return_contribution::{
-    attribute_return_contribution, validate_return_contribution_json,
-    BenchmarkRelativeContribution, FactorContribution, GroupContribution, InstrumentContribution,
-    ReturnContributionFactor, ReturnContributionPosition, ReturnContributionResult,
-    ReturnContributionSpec, ReturnContributionWeighting,
+    attribute_return_contribution, attribute_return_contribution_json,
+    validate_return_contribution_json, BenchmarkRelativeContribution, FactorContribution,
+    GroupContribution, InstrumentContribution, ReturnContributionFactor,
+    ReturnContributionPosition, ReturnContributionResult, ReturnContributionSpec,
+    ReturnContributionWeighting,
 };
 pub use spec::{
     default_attribution_metrics, AttributionConfig, AttributionEnvelope, AttributionResult,

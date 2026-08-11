@@ -342,9 +342,21 @@ fn validate_report_json_returns_core_canonical_order() {
 
     let canonical = validate_covenant_report_json(report).expect("valid report");
 
+    // `meta` is the default audit stamp filled in by `#[serde(default)]`; it
+    // carries the library version, so render it rather than hard-coding it.
+    let meta = String::from_utf8(
+        finstack_quant_core::canonical::to_canonical_bytes(
+            &finstack_quant_core::config::ResultsMeta::default(),
+        )
+        .expect("canonical meta"),
+    )
+    .expect("meta is UTF-8");
+
     assert_eq!(
         canonical,
-        r#"{"actual_value":3.5,"covenant_type":"Debt/EBITDA <= 5.00x","details":null,"headroom":null,"passed":true,"threshold":4.0}"#
+        format!(
+            r#"{{"actual_value":3.5,"covenant_type":"Debt/EBITDA <= 5.00x","details":null,"headroom":null,"meta":{meta},"passed":true,"threshold":4.0}}"#
+        )
     );
 }
 

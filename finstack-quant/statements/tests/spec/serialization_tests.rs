@@ -5,7 +5,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_statements::builder::ModelBuilder;
 use finstack_quant_statements::capital_structure::{CapitalStructureCashflows, CashflowBreakdown};
-use finstack_quant_statements::evaluator::{Evaluator, ResultsMeta, StatementResult};
+use finstack_quant_statements::evaluator::{EvalStats, Evaluator, StatementResult};
 use finstack_quant_statements::types::{AmountOrScalar, FinancialModelSpec, NodeSpec, NodeType};
 use indexmap::IndexMap;
 
@@ -24,7 +24,7 @@ fn test_results_serialization() {
         [(period, 60_000.0)].into_iter().collect(),
     );
 
-    results.meta = ResultsMeta {
+    results.meta = EvalStats {
         eval_time_ms: Some(42),
         num_nodes: 2,
         num_periods: 1,

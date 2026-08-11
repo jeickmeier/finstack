@@ -12,7 +12,7 @@ use pyo3::exceptions::PyKeyError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
 
-use crate::bindings::pandas_utils::{dict_to_dataframe, table_to_dataframe};
+use crate::bindings::pandas_utils::{dict_to_dataframe, serde_to_py, table_to_dataframe};
 use crate::errors::{core_to_py, display_to_py, portfolio_to_py};
 
 // PyPortfolio
@@ -367,6 +367,34 @@ impl PyPortfolioMetrics {
             .map_err(display_to_py)
     }
 
+    /// Portfolio-wide aggregated metrics keyed by metric id.
+    ///
+    /// Each value carries ``metric_id``, ``total`` and the ``by_entity``
+    /// breakdown, in canonical Rust ``IndexMap`` insertion order. Only summable
+    /// metrics are aggregated.
+    #[getter]
+    fn aggregated<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.aggregated)
+    }
+
+    /// Raw per-position metric values keyed by position id.
+    ///
+    /// Each value carries the position's native ``currency`` — non-summable
+    /// metrics are quoted in it — and its ``metrics`` mapping.
+    #[getter]
+    fn by_position<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.by_position)
+    }
+
+    /// Metric values excluded from aggregation because they were non-finite.
+    ///
+    /// A non-empty list means aggregation is incomplete; each entry records the
+    /// ``position_id``, ``metric_id`` and the offending ``value``.
+    #[getter]
+    fn skipped_metrics<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.skipped_metrics)
+    }
+
     /// Return decoded components, total, and ordered entity breakdown by base metric.
     fn metric_series(&self, py: Python<'_>, base: &str) -> PyResult<Vec<PyMetricSeriesEntry>> {
         let base = finstack_quant_valuations::metrics::MetricId::custom(base);
@@ -659,5 +687,6 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPortfolioResult>()?;
     m.add_class::<PyPortfolioMetrics>()?;
     m.add_class::<PyPortfolioCashflows>()?;
+    m.add_class::<super::scenario_pnl::PyScenarioPnl>()?;
     Ok(())
 }

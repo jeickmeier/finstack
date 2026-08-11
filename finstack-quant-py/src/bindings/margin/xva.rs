@@ -1,6 +1,8 @@
 //! Python wrappers for XVA types (CVA/DVA/FVA configuration and results).
 
-use crate::bindings::pandas_utils::dict_to_dataframe;
+use crate::bindings::pandas_utils::{
+    dict_to_dataframe, serde_object_to_single_row_dataframe_with_schema,
+};
 use crate::errors::{core_to_py, display_to_py};
 use finstack_quant_margin::xva::types as xva;
 use pyo3::prelude::*;
@@ -171,7 +173,7 @@ impl PyXvaConfig {
 
     /// Serialize to JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
     /// Validate configuration parameters.
@@ -297,7 +299,7 @@ impl PyExposureProfile {
 
     /// Serialize to JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
     /// Validate internal consistency.
@@ -396,7 +398,7 @@ impl PyXvaResult {
 
     /// Serialize to JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
     /// Unilateral CVA (positive = cost).
@@ -466,6 +468,47 @@ impl PyXvaResult {
     #[getter]
     fn effective_epe_profile(&self) -> Vec<(f64, f64)> {
         self.inner.effective_epe_profile.clone()
+    }
+
+    /// Export the XVA components as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``cva``, ``dva``, ``fva``, ``mva``, ``total_xva``,
+    /// ``max_pfe``, ``effective_epe`` — all in the netting set's currency
+    /// units, matching the getters of the same name. Uncomputed legs
+    /// (``dva`` / ``fva`` / ``mva``) are ``NaN`` rather than absent, so the
+    /// frame keeps its schema across netting sets.
+    ///
+    /// This is the default export; one row per result, so a portfolio of
+    /// netting sets stacks with
+    /// ``pd.concat([r.to_dataframe() for r in results])``. The time-indexed
+    /// exposure profiles are a separate table — see ``profiles_to_dataframe``.
+    #[pyo3(text_signature = "($self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        // Built explicitly rather than from `XvaResult`'s serde, which also
+        // carries the four profile vectors — a nested list per cell is not a
+        // scalar summary row.
+        let row = serde_json::json!({
+            "cva": self.inner.cva,
+            "dva": self.inner.dva,
+            "fva": self.inner.fva,
+            "mva": self.inner.mva,
+            "total_xva": self.inner.total_xva,
+            "max_pfe": self.inner.max_pfe,
+            "effective_epe": self.inner.effective_epe,
+        });
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "cva",
+                "dva",
+                "fva",
+                "mva",
+                "total_xva",
+                "max_pfe",
+                "effective_epe",
+            ],
+        )
     }
 
     /// Export exposure profiles as a pandas ``DataFrame``.
@@ -698,7 +741,7 @@ impl PyImDecayProfile {
 
     /// Serialize to JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
     fn __repr__(&self) -> String {
@@ -752,7 +795,7 @@ impl PyImProfile {
 
     /// Serialize to JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
     /// Validate internal consistency.
@@ -837,7 +880,7 @@ impl PyMvaResult {
 
     /// Serialize to JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
     /// MVA (positive = lifetime funding cost of posting IM).

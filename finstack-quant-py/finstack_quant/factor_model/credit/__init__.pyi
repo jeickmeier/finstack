@@ -341,6 +341,45 @@ class LevelsAtDate:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the per-level bucket values as a pandas DataFrame.
+
+        Columns: ``date``, ``level_index``, ``dimension``, ``bucket``,
+        ``value``.
+
+        One row per (level, bucket) pair. ``date`` repeats on every row as an
+        ISO string so a row survives ``pd.concat`` across dates. Rows are
+        ordered by ``level_index``, then by ``bucket`` — the values are a
+        sorted map, so repeated exports are identical.
+
+        The scalar ``generic`` factor and the per-issuer residuals are not
+        levels; read them from the ``generic`` property and :meth:`to_series`
+        respectively.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per (level, bucket) pair. A snapshot from a hierarchy with
+            no levels yields a zero-row frame that still carries the columns
+            above.
+        """
+        ...
+
+    def to_series(self) -> pd.Series:
+        """
+        Export the per-issuer residual adders as a pandas Series.
+
+        Returns
+        -------
+        pd.Series
+            Named ``adder``, indexed by issuer ID, holding the residual after
+            peeling the generic factor and every hierarchy level. Issuers are
+            in sorted order, so repeated exports and
+            ``pd.concat([...], axis=1)`` across dates align on the index.
+        """
+        ...
+
     def __repr__(self) -> str: ...
 
 class PeriodDecomposition:
@@ -450,12 +489,33 @@ class PeriodDecomposition:
         """
         ...
 
-    def to_level_dataframe(self) -> pd.DataFrame:
+    def to_dataframe(self) -> pd.DataFrame:
         """
         Export the per-level bucket deltas as a pandas DataFrame.
 
         Columns: ``from_date``, ``to_date``, ``level_index``, ``dimension``,
         ``bucket``, ``delta``.
+
+        This is the default export and the same table as
+        :meth:`to_level_dataframe`. The per-issuer adder deltas are a
+        separate, differently-keyed table; see :meth:`to_adder_dataframe`. The
+        scalar ``d_generic`` is metadata and is not repeated per row.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per (level, bucket) pair. A decomposition with no
+            hierarchy levels yields a zero-row frame that still carries the
+            columns above.
+        """
+        ...
+
+    def to_level_dataframe(self) -> pd.DataFrame:
+        """
+        Export the per-level bucket deltas as a pandas DataFrame.
+
+        Columns: ``from_date``, ``to_date``, ``level_index``, ``dimension``,
+        ``bucket``, ``delta``. Identical to :meth:`to_dataframe`.
 
         One row per (level, bucket) pair — the long format the level deltas
         naturally take, since each level has its own bucket set. The two dates

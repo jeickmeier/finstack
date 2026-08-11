@@ -532,7 +532,7 @@ pub fn dated_flows_json(schedule_json: &str) -> Result<String> {
 /// # Examples
 ///
 /// ```rust
-/// use finstack_quant_cashflows::{accrued_interest_json, build_cashflow_schedule_json};
+/// use finstack_quant_cashflows::{accrued_interest, build_cashflow_schedule_json};
 ///
 /// let spec_json = r#"{
 ///   "notional": {
@@ -558,11 +558,11 @@ pub fn dated_flows_json(schedule_json: &str) -> Result<String> {
 /// }"#;
 ///
 /// let schedule_json = build_cashflow_schedule_json(spec_json, None)?;
-/// let accrued = accrued_interest_json(&schedule_json, "2025-02-28", None)?;
+/// let accrued = accrued_interest(&schedule_json, "2025-02-28", None)?;
 /// assert!(accrued > 0.0);
 /// # Ok::<(), finstack_quant_core::Error>(())
 /// ```
-pub fn accrued_interest_json(
+pub fn accrued_interest(
     schedule_json: &str,
     as_of: &str,
     config_json: Option<&str>,

@@ -97,6 +97,9 @@ impl SaCcrEngine {
             add_on_by_asset_class: add_on_by_class,
             alpha: self.alpha,
             maturity_factor: mf,
+            meta: finstack_quant_core::config::results_meta(
+                &finstack_quant_core::config::FinstackConfig::default(),
+            ),
         })
     }
 }

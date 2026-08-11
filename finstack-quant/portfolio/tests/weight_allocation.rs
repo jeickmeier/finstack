@@ -1,6 +1,6 @@
 //! Strategy-level allocation JSON API tests.
 
-use finstack_quant_portfolio::allocate_weights;
+use finstack_quant_portfolio::allocate_weights_json;
 use serde_json::{json, Value};
 
 #[test]
@@ -11,7 +11,7 @@ fn allocate_weights_supports_equal_fixed_and_inverse_volatility() {
         "strategies": [{"id": "value:1"}, {"id": "carry:1"}],
         "money_decimal_places": 2
     });
-    let out = allocate_weights(&equal.to_string()).expect("equal allocation");
+    let out = allocate_weights_json(&equal.to_string()).expect("equal allocation");
     let result: Value = serde_json::from_str(&out).expect("equal JSON");
     assert_eq!(result["scheme"], "equal");
     assert!((result["allocations"][0]["weight"].as_f64().expect("weight") - 0.5).abs() < 1e-12);
@@ -26,7 +26,7 @@ fn allocate_weights_supports_equal_fixed_and_inverse_volatility() {
         ],
         "money_decimal_places": 2
     });
-    let out = allocate_weights(&fixed.to_string()).expect("fixed allocation");
+    let out = allocate_weights_json(&fixed.to_string()).expect("fixed allocation");
     let result: Value = serde_json::from_str(&out).expect("fixed JSON");
     assert!((result["allocations"][1]["weight"].as_f64().expect("weight") - 0.75).abs() < 1e-12);
 
@@ -39,7 +39,7 @@ fn allocate_weights_supports_equal_fixed_and_inverse_volatility() {
         ],
         "money_decimal_places": 2
     });
-    let out = allocate_weights(&inverse_vol.to_string()).expect("inverse vol allocation");
+    let out = allocate_weights_json(&inverse_vol.to_string()).expect("inverse vol allocation");
     let result: Value = serde_json::from_str(&out).expect("inverse vol JSON");
     let low_weight = result["allocations"][0]["weight"]
         .as_f64()
@@ -64,7 +64,7 @@ fn allocate_weights_solves_diagonal_risk_budget() {
         "money_decimal_places": 2
     });
 
-    let out = allocate_weights(&spec.to_string()).expect("risk budget allocation");
+    let out = allocate_weights_json(&spec.to_string()).expect("risk budget allocation");
     let result: Value = serde_json::from_str(&out).expect("risk budget JSON");
     assert_eq!(result["scheme"], "risk_budget");
     let first = result["allocations"][0]["weight"]
@@ -92,7 +92,7 @@ fn allocate_weights_accepts_singular_psd_covariance() {
         "money_decimal_places": 2
     });
 
-    let out = allocate_weights(&spec.to_string()).expect("rank-one PSD covariance should be valid");
+    let out = allocate_weights_json(&spec.to_string()).expect("rank-one PSD covariance should be valid");
     let result: Value = serde_json::from_str(&out).expect("risk budget JSON");
     assert!(
         (result["allocations"][0]["weight"]
@@ -123,7 +123,7 @@ fn allocate_weights_rejects_invalid_fixed_weights() {
         ]
     });
 
-    let err = allocate_weights(&spec.to_string()).expect_err("fixed weights must sum to one");
+    let err = allocate_weights_json(&spec.to_string()).expect_err("fixed weights must sum to one");
     assert!(err.to_string().contains("sum"));
 }
 
@@ -136,7 +136,7 @@ fn single_strategy_inverse_volatility_does_not_require_returns() {
         "money_decimal_places": 2
     });
 
-    let out = allocate_weights(&spec.to_string()).expect("single strategy inverse-vol");
+    let out = allocate_weights_json(&spec.to_string()).expect("single strategy inverse-vol");
     let result: Value = serde_json::from_str(&out).expect("allocation JSON");
     assert_eq!(result["allocations"][0]["weight"], 1.0);
     assert!(result["allocations"][0].get("volatility").is_none());
@@ -150,7 +150,7 @@ fn single_strategy_risk_budget_still_validates_budget() {
         "strategies": [{"id": "only"}],
         "covariance": [[0.04]]
     });
-    let err = allocate_weights(&missing.to_string()).expect_err("missing risk budget");
+    let err = allocate_weights_json(&missing.to_string()).expect_err("missing risk budget");
     assert!(err.to_string().contains("risk_budget"));
 
     let wrong_sum = json!({
@@ -159,6 +159,6 @@ fn single_strategy_risk_budget_still_validates_budget() {
         "strategies": [{"id": "only", "risk_budget": 0.5}],
         "covariance": [[0.04]]
     });
-    let err = allocate_weights(&wrong_sum.to_string()).expect_err("risk budget must sum to one");
+    let err = allocate_weights_json(&wrong_sum.to_string()).expect_err("risk budget must sum to one");
     assert!(err.to_string().contains("sum"));
 }

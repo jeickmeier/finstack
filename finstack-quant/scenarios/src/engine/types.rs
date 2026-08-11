@@ -218,7 +218,7 @@ pub struct RollForwardReport {
 ///     expanded_operations: 3,
 ///     changes: Default::default(),
 ///     warnings: vec![],
-///     rounding_context: Some("default".into()),
+///     meta: None,
 ///     time_roll: None,
 /// };
 ///
@@ -253,8 +253,10 @@ pub struct ApplicationReport {
     /// Structured warnings generated during application (non-fatal).
     pub warnings: Vec<Warning>,
 
-    /// Rounding context stamp (for determinism tracking).
-    pub rounding_context: Option<String>,
+    /// Audit stamp describing the numeric mode, rounding context, and FX
+    /// policy under which the scenario was applied.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meta: Option<finstack_quant_core::config::ResultsMeta>,
 
     /// Roll-forward report from the Phase 0 `TimeRollForward` operation,
     /// when the scenario contained one. Carries the per-instrument carry
@@ -270,11 +272,11 @@ pub struct ApplicationReport {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ApplicationEnvelope {
-    /// Serialized mutated market context.
-    pub market_json: String,
-    /// Serialized mutated financial model, when a model was supplied.
+    /// Mutated market context.
+    pub market: serde_json::Value,
+    /// Mutated financial model, when a model was supplied.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub model_json: Option<String>,
+    pub model: Option<serde_json::Value>,
     /// Number of effects successfully applied.
     pub operations_applied: usize,
     /// Number of user-provided operations before expansion.
@@ -285,9 +287,9 @@ pub struct ApplicationEnvelope {
     pub changes: ScenarioChangeManifest,
     /// Structured warnings produced while applying the scenario.
     pub warnings: Vec<Warning>,
-    /// Rounding context stamp from the report (active rounding mode).
+    /// Audit stamp copied from the report.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub rounding_context: Option<String>,
+    pub meta: Option<finstack_quant_core::config::ResultsMeta>,
     /// Roll-forward report, when the scenario contained a time-roll operation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub time_roll: Option<RollForwardReport>,
@@ -305,22 +307,22 @@ impl ApplicationEnvelope {
     ///
     /// * `report` - Application report whose counters, warnings, and change
     ///   manifest are copied into the envelope.
-    /// * `market` - Mutated market context serialized as JSON.
-    /// * `model` - Optional mutated statement model serialized as JSON when present.
+    /// * `market` - Mutated market context.
+    /// * `model` - Optional mutated statement model when present.
     pub fn from_contexts(
         report: ApplicationReport,
         market: &finstack_quant_core::market_data::context::MarketContext,
         model: Option<&finstack_quant_statements::FinancialModelSpec>,
     ) -> serde_json::Result<Self> {
         Ok(Self {
-            market_json: serde_json::to_string(market)?,
-            model_json: model.map(serde_json::to_string).transpose()?,
+            market: serde_json::to_value(market)?,
+            model: model.map(serde_json::to_value).transpose()?,
             operations_applied: report.operations_applied,
             user_operations: report.user_operations,
             expanded_operations: report.expanded_operations,
             changes: report.changes,
             warnings: report.warnings,
-            rounding_context: report.rounding_context,
+            meta: report.meta,
             time_roll: report.time_roll,
         })
     }

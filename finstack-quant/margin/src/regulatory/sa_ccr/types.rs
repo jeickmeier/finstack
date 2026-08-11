@@ -232,6 +232,11 @@ pub struct EadResult {
     pub alpha: f64,
     /// Maturity factor applied.
     pub maturity_factor: f64,
+    /// Policy metadata stamped by the computing layer: numeric mode, active
+    /// rounding context, any applied FX policy, and the parallel-execution
+    /// flag.
+    #[serde(default)]
+    pub meta: finstack_quant_core::config::ResultsMeta,
 }
 
 fn validate_finite_trade_value(

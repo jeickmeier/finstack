@@ -156,15 +156,15 @@ proptest! {
         let tau = t2 - t1;
         let fwd_from_zero = (z2 * t2 - z1 * t1) / tau;
         let fwd_from_curve = curve.forward(t1, t2).expect("forward should succeed");
-        let rel_error = if fwd_from_zero.abs() > 1e-12 {
-            (fwd_from_zero - fwd_from_curve).abs() / fwd_from_zero.abs()
-        } else {
-            (fwd_from_zero - fwd_from_curve).abs()
-        };
+        // `forward` uses -ln(DF2/DF1)/τ; the zero-rate form round-trips each
+        // endpoint through an extra /t and *t. Near |f| ≲ 1e-8 that ulp noise
+        // makes relative error meaningless, so use a hybrid absolute floor.
+        let abs_error = (fwd_from_zero - fwd_from_curve).abs();
+        let tol = 1e-12_f64.max(1e-10 * fwd_from_zero.abs());
         prop_assert!(
-            rel_error < 1e-10,
-            "Forward parity near zero/neg: from_zero={:.8}, from_curve={:.8}, rel_err={:.2e}",
-            fwd_from_zero, fwd_from_curve, rel_error
+            abs_error <= tol,
+            "Forward parity near zero/neg: from_zero={:.8}, from_curve={:.8}, abs_err={:.2e}, tol={:.2e}",
+            fwd_from_zero, fwd_from_curve, abs_error, tol
         );
     }
 }

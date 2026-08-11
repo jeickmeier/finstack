@@ -55,6 +55,34 @@ class MoneyEstimate:
     10000
     """
 
+    @staticmethod
+    def from_json(json: str) -> MoneyEstimate:
+        """
+        Deserialize a ``MoneyEstimate`` from JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON string produced by :meth:`to_json`.
+
+        Returns
+        -------
+        MoneyEstimate
+            Parsed ``MoneyEstimate`` instance.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to compact JSON.
+
+        Returns
+        -------
+        str
+            Compact JSON string.
+        """
+        ...
+
     @property
     def mean(self) -> Money:
         """
@@ -271,6 +299,34 @@ class Estimate:
     >>> from finstack_quant.monte_carlo import Estimate
     >>> # Estimate objects are returned by scalar MC functions.
     """
+
+    @staticmethod
+    def from_json(json: str) -> Estimate:
+        """
+        Deserialize an ``Estimate`` from JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON string produced by :meth:`to_json`.
+
+        Returns
+        -------
+        Estimate
+            Parsed ``Estimate`` instance.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to compact JSON.
+
+        Returns
+        -------
+        str
+            Compact JSON string.
+        """
+        ...
 
     @property
     def mean(self) -> float:
@@ -647,6 +703,34 @@ class GbmPathSummary:
     >>> (paths.num_paths, paths.times)
     (3, [0.0, 0.5, 1.0])
     """
+
+    @staticmethod
+    def from_json(json: str) -> GbmPathSummary:
+        """
+        Deserialize a ``GbmPathSummary`` from JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON string produced by :meth:`to_json`.
+
+        Returns
+        -------
+        GbmPathSummary
+            Parsed ``GbmPathSummary`` instance.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to compact JSON.
+
+        Returns
+        -------
+        str
+            Compact JSON string.
+        """
+        ...
 
     @property
     def num_paths(self) -> int:

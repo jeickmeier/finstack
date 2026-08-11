@@ -715,6 +715,33 @@ impl PyScenarioDiff {
             inner: self.inner.variance.clone(),
         }
     }
+
+    /// Export the underlying variance rows as a pandas ``DataFrame``.
+    ///
+    /// Columns: ``period``, ``metric``, ``baseline``, ``comparison``,
+    /// ``abs_var``, ``pct_var``. One row per (metric, period) pair, in report
+    /// order; an empty diff still carries the full column schema.
+    ///
+    /// This is the same table as ``variance.to_dataframe()`` — both call one
+    /// implementation, so the two cannot drift apart. The two scenario *names*
+    /// are diff metadata (the ``baseline`` / ``comparison`` getters) and are
+    /// not repeated per row; the ``baseline`` and ``comparison`` columns hold
+    /// the metric *values* in each scenario.
+    #[pyo3(text_signature = "($self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.variance().to_dataframe(py)
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
+    }
 }
 
 /// One driver step in a bridge decomposition.

@@ -264,8 +264,9 @@ pub use factor_brinson::{
     FactorContribution,
 };
 pub use factor_model::{
-    allocate_weights, validate_allocation_json, AllocationDiagnostics, AllocationScheme,
-    StrategyAllocation, StrategyAllocationInput, WeightAllocationResult, WeightAllocationSpec,
+    allocate_weights, allocate_weights_json, validate_allocation_json, AllocationDiagnostics,
+    AllocationScheme, StrategyAllocation, StrategyAllocationInput, WeightAllocationResult,
+    WeightAllocationSpec,
 };
 pub use fi_attribution::{
     campisi_attribution, campisi_carino_link, campisi_carino_link_from_snapshots,

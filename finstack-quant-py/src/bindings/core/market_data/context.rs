@@ -321,10 +321,10 @@ impl PyMarketContext {
         Ok(Self { inner: ctx })
     }
 
-    /// Serialize this market context to pretty-printed JSON (round-trips with pricers).
+    /// Serialize this market context to compact JSON (round-trips with pricers).
     #[pyo3(text_signature = "(self)")]
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(&self.inner).map_err(|e| {
+        serde_json::to_string(&self.inner).map_err(|e| {
             crate::errors::value_error(format!("failed to serialize MarketContext: {e}"))
         })
     }

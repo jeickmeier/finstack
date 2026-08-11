@@ -21,6 +21,7 @@ mod optimization_spec;
 mod performance;
 mod pipeline;
 mod replay;
+mod scenario_pnl;
 mod schema;
 mod sensitivity;
 mod spec;

@@ -11,6 +11,7 @@ mod credit_derivatives;
 mod exotic_rates;
 mod fourier;
 pub(crate) mod instruments;
+mod merton_mc;
 mod pricing;
 mod sabr;
 mod schema;
@@ -22,7 +23,9 @@ mod typed_legs;
 pub(crate) mod typed_rates;
 pub(crate) mod typed_structured_credit;
 
-use crate::bindings::pandas_utils::dict_to_dataframe;
+use crate::bindings::pandas_utils::{
+    dict_to_dataframe, serde_object_to_single_row_dataframe_with_schema,
+};
 use crate::errors::display_to_py;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
@@ -59,7 +62,7 @@ impl PyValuationResult {
     }
 
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
     #[getter]
@@ -126,11 +129,37 @@ impl PyValuationResult {
             .collect()
     }
 
+    /// Export the headline result as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``instrument_id``, ``as_of_date`` (ISO 8601 string), ``pv``,
+    /// ``currency``, then one column per metric key in ``measures`` insertion
+    /// order.
+    ///
+    /// This is the default export. It is built from the Rust crate's own
+    /// ``ValuationResult::to_row`` flattener, so the Python frame and the
+    /// Rust-side DataFrame rows cannot drift apart. Stack a book with
+    /// ``pd.concat([r.to_dataframe() for r in results])``; instruments with
+    /// different metric sets align on column name and leave ``NaN`` elsewhere.
+    ///
+    /// ``metrics_to_dataframe`` is the older, near-identical view that names
+    /// the value column ``price`` and omits the valuation date.
+    #[pyo3(text_signature = "($self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let row = self.inner.to_row();
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &["instrument_id", "as_of_date", "pv", "currency"],
+        )
+    }
+
     /// Export as a single-row pandas ``DataFrame``.
     ///
     /// Columns include ``instrument_id``, ``price``, ``currency``, plus one
     /// column per metric key.  Useful for stacking multiple results with
     /// ``pd.concat``.
+    ///
+    /// Prefer ``to_dataframe``, which additionally carries the valuation date.
     fn metrics_to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let data = PyDict::new(py);
         data.set_item("instrument_id", vec![&self.inner.instrument_id])?;
@@ -274,6 +303,7 @@ fn register_instruments(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResul
     m.getattr("bond_from_cashflows_json")?
         .setattr("__module__", "finstack_quant.valuations.instruments")?;
     instruments::register(py, &m)?;
+    merton_mc::register(py, &m)?;
     typed_legs::register(py, &m)?;
     typed_rates::register(py, &m)?;
     typed_credit::register(py, &m)?;
@@ -284,6 +314,7 @@ fn register_instruments(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResul
     structured_credit::register(&m)?;
     let mut exports = vec![
         "AssetPool",
+        "BarrierCrossing",
         "Bond",
         "CDSIndex",
         "CDSIndexBuilder",
@@ -325,7 +356,10 @@ fn register_instruments(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResul
         "price_instrument",
         "price_instrument_with_metrics",
     ];
+    exports.extend_from_slice(merton_mc::EXPORTS);
     exports.extend_from_slice(structured_credit::EXPORTS);
+    exports.sort_unstable();
+    exports.dedup();
     exports.push("validate_instrument_json");
     let all = PyList::new(py, exports)?;
     m.setattr("__all__", all)?;

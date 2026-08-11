@@ -174,7 +174,7 @@ markets, portfolios, reporting, or capstone workflows.
 Deep dives:
 
 - `07_advanced_quant/monte_carlo/` (4 notebooks): Black-Scholes benchmarks, stochastic processes, discretization schemes, exotic payoffs and pricers.
-- `07_advanced_quant/correlation/` (4 notebooks): portfolio default simulation, recovery modeling, CLO tranche modeling, structural credit models.
+- `07_advanced_quant/correlation/` (4 notebooks): portfolio default simulation, recovery modeling, CLO tranche modeling, Merton equity↔credit structural models (KMV/CreditGrades, hazard conversion, paths, typed MertonMc).
 
 ## Level 8 -- Capstone (`08_capstone/`)
 

@@ -63,10 +63,10 @@ impl PyNormalizationConfig {
         Ok(Self { inner })
     }
 
-    /// Serialize this configuration to pretty-printed JSON.
+    /// Serialize this configuration to compact JSON.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
     /// Node identifier of the metric being normalized (e.g. ``"ebitda"``).

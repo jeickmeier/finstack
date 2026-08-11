@@ -9,6 +9,10 @@
 //! and `from_json` decodes it back.
 
 use crate::bindings::extract::{extract_instrument_json, extract_market};
+use crate::bindings::pandas_utils::{
+    serde_object_to_single_row_dataframe_with_schema, serde_rows_to_dataframe_with_schema,
+    ColumnSchema,
+};
 use crate::errors::display_to_py;
 use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
     OasResult, ScenarioTable, TrancheMetrics,
@@ -16,6 +20,18 @@ use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 use std::collections::BTreeMap;
+
+/// Column schema of [`PyScenarioTable::to_dataframe`], kept so a grid that
+/// evaluated no cells still exports the documented columns.
+const SCENARIO_CELL_COLUMNS: &[ColumnSchema<'static>] = &[
+    ("tranche_id", "str"),
+    ("cpr", "float64"),
+    ("cdr", "float64"),
+    ("severity", "float64"),
+    ("price", "float64"),
+    ("wal", "float64"),
+    ("writedown", "float64"),
+];
 
 /// Solve a z-spread-equivalent discount margin for a floating-rate tranche.
 ///
@@ -400,6 +416,29 @@ impl PyOasResult {
         self.inner.price_std_error
     }
 
+    /// Export as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``oas`` (annual decimal), ``model_price`` and ``market_price``
+    /// (percentage of original balance), ``num_paths``, ``price_std_error``
+    /// (percentage of original balance).
+    ///
+    /// One row, so a book of tranches stacks with
+    /// ``pd.concat([r.to_dataframe() for r in results])``.
+    #[pyo3(text_signature = "($self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &self.inner,
+            &[
+                "oas",
+                "model_price",
+                "market_price",
+                "num_paths",
+                "price_std_error",
+            ],
+        )
+    }
+
     /// Return ``repr(self)``.
     fn __repr__(&self) -> String {
         format!(
@@ -552,6 +591,38 @@ impl PyTrancheMetrics {
         self.inner.target_price_pct
     }
 
+    /// Export as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``tranche_id``, ``currency``, ``pv``, ``price_pct``, ``wal``,
+    /// ``z_spread_bp``, ``cs01``, ``spread_duration``, ``modified_duration``,
+    /// ``convexity``, ``target_price_pct`` — the same fields and units as the
+    /// getters of the same name.
+    ///
+    /// One row per tranche, so a capital structure stacks with
+    /// ``pd.concat([m.to_dataframe() for m in metrics])``. ``pv`` and ``cs01``
+    /// are in ``currency`` units and are only additive across tranches sharing
+    /// one currency.
+    #[pyo3(text_signature = "($self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &self.inner,
+            &[
+                "tranche_id",
+                "currency",
+                "pv",
+                "price_pct",
+                "wal",
+                "z_spread_bp",
+                "cs01",
+                "spread_duration",
+                "modified_duration",
+                "convexity",
+                "target_price_pct",
+            ],
+        )
+    }
+
     /// Return ``repr(self)``.
     fn __repr__(&self) -> String {
         format!(
@@ -668,6 +739,39 @@ impl PyScenarioTable {
                 map
             })
             .collect()
+    }
+
+    /// Export the evaluated cells as a pandas ``DataFrame``.
+    ///
+    /// Columns: ``tranche_id``, ``cpr``, ``cdr``, ``severity`` (all annual
+    /// decimals except ``severity``, which is a plain decimal), ``price``
+    /// (percentage of original balance), ``wal`` (years), ``writedown``
+    /// (currency units).
+    ///
+    /// One row per cell of the grid, in CPR-major then CDR then severity
+    /// order — the same cells and order as ``cells``. ``tranche_id`` repeats on
+    /// every row so tables for several tranches concatenate and pivot. A grid
+    /// that evaluated no cells yields a zero-row frame that still carries the
+    /// columns above.
+    #[pyo3(text_signature = "($self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let rows: Vec<serde_json::Value> = self
+            .inner
+            .cells
+            .iter()
+            .map(|cell| {
+                serde_json::json!({
+                    "tranche_id": self.inner.tranche_id,
+                    "cpr": cell.cpr,
+                    "cdr": cell.cdr,
+                    "severity": cell.severity,
+                    "price": cell.price,
+                    "wal": cell.wal,
+                    "writedown": cell.writedown,
+                })
+            })
+            .collect();
+        serde_rows_to_dataframe_with_schema(py, &rows, SCENARIO_CELL_COLUMNS)
     }
 
     /// Return ``repr(self)``.

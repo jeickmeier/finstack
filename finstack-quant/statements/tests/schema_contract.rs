@@ -14,7 +14,7 @@ use finstack_quant_statements::checks::{
     CheckCategory, CheckFinding, CheckReport, CheckResult, CheckSummary, Materiality, Severity,
 };
 use finstack_quant_statements::evaluator::{
-    CapitalStructureWarning, EvalWarning, ResultsMeta, StatementResult,
+    CapitalStructureWarning, EvalStats, EvalWarning, StatementResult,
 };
 use finstack_quant_statements::schema::{
     financial_model_spec_schema, normalization_config_schema, statement_result_schema,
@@ -223,7 +223,7 @@ fn representative_statement_result() -> StatementResult {
             infos: 0,
         },
     });
-    result.meta = ResultsMeta {
+    result.meta = EvalStats {
         eval_time_ms: Some(3),
         num_nodes: 1,
         num_periods: 1,
@@ -232,7 +232,7 @@ fn representative_statement_result() -> StatementResult {
             node_id: "interest_coverage".to_string(),
             period,
         }],
-        ..ResultsMeta::default()
+        ..EvalStats::default()
     };
     result
 }

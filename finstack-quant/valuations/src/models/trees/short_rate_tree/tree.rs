@@ -14,7 +14,7 @@ use super::{ShortRateModel, ShortRateTreeConfig};
 /// Provides diagnostic information about calibration quality, allowing
 /// users to assess whether the tree is suitable for their use case.
 #[derive(Debug, Clone, Default)]
-pub struct CalibrationResult {
+pub struct TreeCalibrationResult {
     /// Maximum calibration error in basis points.
     pub max_error_bp: f64,
     /// Step at which maximum error occurred.
@@ -25,7 +25,7 @@ pub struct CalibrationResult {
     pub converged: bool,
 }
 
-impl CalibrationResult {
+impl TreeCalibrationResult {
     /// Returns true if calibration quality is acceptable (max error < 1bp, no fallbacks).
     #[must_use]
     pub fn is_acceptable(&self) -> bool {
@@ -52,7 +52,7 @@ pub struct ShortRateTree {
     /// Discount curve used for calibration
     pub(super) calibration_curve_id: CurveId,
     /// Calibration quality metrics (populated after calibration).
-    pub(super) calibration_quality: Option<CalibrationResult>,
+    pub(super) calibration_quality: Option<TreeCalibrationResult>,
     /// Trinomial Black-Karasinski lattice (set when BDT model has κ ≠ 0).
     pub(super) bk_trinomial: Option<BkTrinomialLattice>,
 }
@@ -75,10 +75,10 @@ impl ShortRateTree {
     ///
     /// # Returns
     ///
-    /// - `Some(CalibrationResult)` with quality metrics if calibrated
+    /// - `Some(TreeCalibrationResult)` with quality metrics if calibrated
     /// - `None` if not yet calibrated
     #[must_use]
-    pub fn calibration_result(&self) -> Option<&CalibrationResult> {
+    pub fn calibration_result(&self) -> Option<&TreeCalibrationResult> {
         self.calibration_quality.as_ref()
     }
 

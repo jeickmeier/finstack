@@ -1425,6 +1425,46 @@ class PortfolioMetrics:
         """
         ...
 
+    @property
+    def aggregated(self) -> dict[str, Any]:
+        """
+        Portfolio-wide aggregated metrics keyed by metric id.
+
+        Returns
+        -------
+        dict[str, Any]
+            Each value carries ``metric_id``, ``total`` and the ``by_entity``
+            breakdown, in canonical Rust ``IndexMap`` insertion order. Only
+            summable metrics are aggregated.
+        """
+        ...
+
+    @property
+    def by_position(self) -> dict[str, Any]:
+        """
+        Raw per-position metric values keyed by position id.
+
+        Returns
+        -------
+        dict[str, Any]
+            Each value carries the position's native ``currency`` — non-summable
+            metrics are quoted in it — and its ``metrics`` mapping.
+        """
+        ...
+
+    @property
+    def skipped_metrics(self) -> list[Any]:
+        """
+        Metric values excluded from aggregation because they were non-finite.
+
+        Returns
+        -------
+        list[Any]
+            A non-empty list means aggregation is incomplete; each entry records
+            the ``position_id``, ``metric_id`` and the offending ``value``.
+        """
+        ...
+
     def metric_series(
         self,
         base: str,
@@ -3303,7 +3343,7 @@ def factor_brinson_attribution(input_json: str, factor_returns: list[float]) -> 
     """
     ...
 
-def twrr_modified_dietz(period_json: str) -> float | None:
+def twrr_modified_dietz(period_json: str) -> float:
     """
     Compute a Modified-Dietz TWRR sub-period return from period JSON.
 
@@ -3315,14 +3355,15 @@ def twrr_modified_dietz(period_json: str) -> float | None:
 
     Returns
     -------
-    float or None
-        Sub-period time-weighted return as a decimal, or ``None`` when the
-        period cannot be computed (e.g. zero denominator).
+    float
+        Sub-period time-weighted return as a decimal.
 
     Raises
     ------
     ValueError
-        If ``period_json`` is malformed.
+        If ``period_json`` is malformed, a cashflow weight lies outside
+        ``[0, 1]``, or the Dietz denominator is non-positive so the return is
+        undefined.
 
     Examples
     --------
@@ -3334,7 +3375,7 @@ def twrr_modified_dietz(period_json: str) -> float | None:
     """
     ...
 
-def twrr_linked(returns_json: str, horizon_years: float) -> str | None:
+def twrr_linked(returns_json: str, horizon_years: float) -> str:
     """
     Geometrically link TWRR sub-period returns over a horizon.
 
@@ -3347,14 +3388,14 @@ def twrr_linked(returns_json: str, horizon_years: float) -> str | None:
 
     Returns
     -------
-    str or None
-        JSON-encoded linked return result, or ``None`` when linking fails (e.g.
-        empty return series).
+    str
+        JSON-encoded linked return result.
 
     Raises
     ------
     ValueError
-        If ``returns_json`` is malformed.
+        If ``returns_json`` is malformed, any sub-period return is non-finite,
+        or the compounded growth factor is non-positive.
 
     Examples
     --------

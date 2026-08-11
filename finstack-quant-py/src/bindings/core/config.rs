@@ -277,9 +277,9 @@ impl PyFinstackConfig {
     }
 
     /// Deserialize a config from JSON.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
         serde_json::from_str(json)
             .map(Self::from_inner)
             .map_err(|err| serde_json_to_py(err, "invalid FinstackConfig JSON"))

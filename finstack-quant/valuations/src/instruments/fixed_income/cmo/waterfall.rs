@@ -42,7 +42,7 @@ pub struct TrancheAllocation {
 
 /// Waterfall execution result for a single period.
 #[derive(Debug, Clone)]
-pub struct WaterfallPeriodResult {
+pub struct CmoWaterfallPeriodResult {
     /// Allocations by tranche
     pub allocations: Vec<TrancheAllocation>,
     /// Total principal distributed
@@ -98,7 +98,7 @@ pub fn execute_waterfall(
     waterfall: &mut CmoWaterfall,
     available_principal: f64,
     available_interest: f64,
-) -> WaterfallPeriodResult {
+) -> CmoWaterfallPeriodResult {
     execute_waterfall_with_pac(waterfall, available_principal, available_interest, None)
 }
 
@@ -117,7 +117,7 @@ pub fn execute_waterfall_with_pac(
     available_principal: f64,
     available_interest: f64,
     pac_context: Option<&PacContext>,
-) -> WaterfallPeriodResult {
+) -> CmoWaterfallPeriodResult {
     execute_waterfall_with_principal_breakdown(
         waterfall,
         available_principal,
@@ -175,7 +175,7 @@ pub fn execute_waterfall_with_principal_breakdown(
     available_interest: f64,
     collateral_factor: f64,
     pac_context: Option<&PacContext>,
-) -> WaterfallPeriodResult {
+) -> CmoWaterfallPeriodResult {
     let mut remaining_principal = scheduled_principal + prepayment_principal;
     let mut remaining_interest = available_interest;
 
@@ -429,7 +429,7 @@ pub fn execute_waterfall_with_principal_breakdown(
         total_interest += interest;
     }
 
-    WaterfallPeriodResult {
+    CmoWaterfallPeriodResult {
         allocations,
         total_principal,
         total_scheduled_principal,
@@ -1003,7 +1003,7 @@ mod tests {
         );
 
         // Helper to extract (scheduled, prepayment) for a given tranche ID.
-        let find = |res: &WaterfallPeriodResult, id: &str| {
+        let find = |res: &CmoWaterfallPeriodResult, id: &str| {
             res.allocations
                 .iter()
                 .find(|a| a.tranche_id == id)

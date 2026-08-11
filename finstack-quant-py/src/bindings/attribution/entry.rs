@@ -1,17 +1,19 @@
 //! P&L attribution entry points and JSON helpers.
 
+use crate::bindings::attribution::pnl_attribution::PyPnlAttribution;
+use crate::bindings::attribution::return_contribution::PyReturnContributionResult;
 use crate::bindings::module_utils::py_to_json_string;
 use crate::errors::{core_to_py, display_to_py, serde_json_to_py};
 use pyo3::prelude::*;
 
 // Ergonomic entry point
 
-/// Run P&L attribution for a single instrument and return JSON.
+/// Run P&L attribution for a single instrument.
 ///
 /// This is the main entry point. It accepts the instrument, two market
 /// snapshots, valuation dates, and a method descriptor — all as simple
-/// Python objects — and returns the canonical JSON form of the attribution.
-/// Use ``PnlAttribution.from_json(...)`` when you want the richer Python wrapper.
+/// Python objects — and returns a typed :class:`PnlAttribution`. Call
+/// ``.to_json()`` on the result for the canonical JSON form.
 ///
 /// Parameters
 /// ----------
@@ -45,13 +47,13 @@ use pyo3::prelude::*;
 ///
 /// Returns
 /// -------
-/// str
-///     Compact JSON ``PnlAttribution`` payload.
+/// PnlAttribution
+///     Typed attribution result. Use ``.to_json()`` for the wire form and
+///     ``.to_dataframe()`` for a pandas view.
 ///
 /// Examples
 /// --------
-/// >>> attr_json = attribute_pnl(inst, mkt_t0, mkt_t1, "2025-01-15", "2025-01-16", "parallel")
-/// >>> attr = PnlAttribution.from_json(attr_json)
+/// >>> attr = attribute_pnl(inst, mkt_t0, mkt_t1, "2025-01-15", "2025-01-16", "parallel")
 /// >>> print(attr.explain())
 /// >>> attr.to_dataframe()
 #[pyfunction]
@@ -67,7 +69,7 @@ pub(crate) fn attribute_pnl(
     method: &Bound<'_, PyAny>,
     config: Option<&Bound<'_, PyAny>>,
     full_cross_attribution: Option<bool>,
-) -> PyResult<String> {
+) -> PyResult<PyPnlAttribution> {
     let as_of_t0 = crate::bindings::date_utils::extract_date_iso(as_of_t0)?;
     let as_of_t1 = crate::bindings::date_utils::extract_date_iso(as_of_t1)?;
     let method_json = py_to_json_string(py, method, "method")?;
@@ -99,7 +101,9 @@ pub(crate) fn attribute_pnl(
     // RuntimeError — so production pipelines catching ValueError for bad
     // inputs do not silently swallow missing-curve failures.
     let result = py.detach(|| spec.execute()).map_err(core_to_py)?;
-    serde_json::to_string(&result.attribution).map_err(display_to_py)
+    Ok(PyPnlAttribution {
+        inner: result.attribution,
+    })
 }
 
 // Raw JSON envelope entry point (power-user / round-trip)
@@ -107,8 +111,8 @@ pub(crate) fn attribute_pnl(
 /// Run attribution from a full JSON ``AttributionEnvelope`` and return JSON.
 ///
 /// This is the raw JSON round-trip variant. Most users should prefer
-/// :func:`attribute_pnl` which accepts separate arguments and returns
-/// a ``PnlAttribution`` directly.
+/// :func:`attribute_pnl`, which accepts separate arguments and returns a
+/// typed :class:`PnlAttribution`.
 ///
 /// Parameters
 /// ----------
@@ -138,11 +142,19 @@ pub(crate) fn attribute_pnl_from_spec(py: Python<'_>, spec_json: &str) -> PyResu
 ///
 /// Returns
 /// -------
-/// str
-///     JSON-serialized return contribution result.
+/// ReturnContributionResult
+///     Typed result. Use ``.to_json()`` for the wire form,
+///     ``.to_dataframe()`` for per-instrument rows, and ``.to_series()`` for
+///     contributions indexed by instrument id.
 #[pyfunction]
-pub(crate) fn attribute_return_contribution(spec_json: &str) -> PyResult<String> {
-    finstack_quant_attribution::attribute_return_contribution(spec_json).map_err(core_to_py)
+pub(crate) fn attribute_return_contribution(
+    spec_json: &str,
+) -> PyResult<PyReturnContributionResult> {
+    let spec: finstack_quant_attribution::ReturnContributionSpec = serde_json::from_str(spec_json)
+        .map_err(|err| serde_json_to_py(err, "invalid return contribution JSON"))?;
+    let inner =
+        finstack_quant_attribution::attribute_return_contribution(&spec).map_err(core_to_py)?;
+    Ok(PyReturnContributionResult { inner })
 }
 
 // Helpers

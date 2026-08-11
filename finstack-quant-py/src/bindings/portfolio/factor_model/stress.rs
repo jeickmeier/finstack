@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyType};
+use pyo3::types::{PyDict, PyList};
 
 use finstack_quant_portfolio::factor_model::{
     self as fm, StressAttribution, StressPositionEntry, StressResult, TailScenarioBreakdown,
@@ -45,9 +45,9 @@ impl PyStressResult {
     }
 
     /// Parse from a JSON string.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: StressResult = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }
@@ -155,9 +155,9 @@ impl PyStressPositionEntry {
     }
 
     /// Parse from a JSON string.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: StressPositionEntry = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }
@@ -235,9 +235,9 @@ impl PyTailScenarioBreakdown {
     }
 
     /// Parse from a JSON string.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: TailScenarioBreakdown = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }
@@ -347,9 +347,9 @@ impl PyStressAttribution {
     }
 
     /// Parse from a JSON string.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: StressAttribution = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }

@@ -1,7 +1,7 @@
 //! Static envelope validator and dependency-graph utilities.
 //!
 //! [`validate`] runs all structural checks (missing dependencies, undefined
-//! `quote_set`s) and returns a [`ValidationReport`] listing every error found
+//! `quote_set`s) and returns a [`CalibrationValidationReport`] listing every error found
 //! plus the dependency graph of the steps. No solver is invoked — the
 //! validator runs in microseconds.
 //!
@@ -40,7 +40,7 @@ use finstack_quant_core::contract::{
 /// Result of [`validate`]. Always contains the dependency graph; `errors` is
 /// empty when the envelope is structurally valid.
 #[derive(Debug, Clone, Serialize)]
-pub struct ValidationReport {
+pub struct CalibrationValidationReport {
     /// All errors found in a single pass; empty if the envelope is valid.
     pub errors: Vec<EnvelopeError>,
     /// Topological view of the steps' inputs and outputs.
@@ -75,7 +75,7 @@ pub struct DependencyNode {
 
 /// Run all static validation checks.
 ///
-/// Always returns a [`ValidationReport`]; inspect `errors` to see what failed.
+/// Always returns a [`CalibrationValidationReport`]; inspect `errors` to see what failed.
 /// The validator is solver-free — runs in microseconds, suitable as a
 /// pre-flight check before invoking [`engine::execute`](super::engine::execute).
 ///
@@ -83,7 +83,7 @@ pub struct DependencyNode {
 ///
 /// * `envelope` - Typed calibration plan, market data, prior market objects,
 ///   quote sets, and solver settings to validate without executing solvers.
-pub fn validate(envelope: &CalibrationEnvelope) -> ValidationReport {
+pub fn validate(envelope: &CalibrationEnvelope) -> CalibrationValidationReport {
     let mut errors = Vec::new();
     let initial_ids = collect_initial_ids(envelope);
     let nodes = build_nodes(&envelope.plan.steps);
@@ -97,7 +97,7 @@ pub fn validate(envelope: &CalibrationEnvelope) -> ValidationReport {
     let mut sorted_initial: Vec<String> = initial_ids.into_iter().collect();
     sorted_initial.sort();
 
-    ValidationReport {
+    CalibrationValidationReport {
         errors,
         dependency_graph: DependencyGraph {
             initial_ids: sorted_initial,
@@ -113,7 +113,7 @@ impl CalibrationEnvelope {
     /// with the dependency graph. An empty `errors` list means the request is
     /// semantically valid for execution.
     #[must_use]
-    pub fn validate(&self) -> ValidationReport {
+    pub fn validate(&self) -> CalibrationValidationReport {
         validate(self)
     }
 }
@@ -177,7 +177,7 @@ fn escape_json_pointer(segment: &str) -> String {
 pub fn dry_run(envelope_json: &str) -> Result<String, EnvelopeError> {
     let envelope = parse_envelope(envelope_json)?;
     let report = validate(&envelope);
-    serialize_pretty_json(&report, "ValidationReport")
+    serialize_pretty_json(&report, "CalibrationValidationReport")
 }
 
 /// JSON-friendly wrapper that returns just the dependency graph.

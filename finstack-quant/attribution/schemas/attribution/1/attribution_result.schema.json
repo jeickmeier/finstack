@@ -1779,6 +1779,10 @@
           "$ref": "#/$defs/NumericMode",
           "description": "Numeric engine mode used to produce the results."
         },
+        "parallel": {
+          "description": "Whether the producing computation ran in parallel.\n\nSerial results omit the field entirely so existing payloads and golden\nfiles stay byte-identical.",
+          "type": "boolean"
+        },
         "rounding": {
           "$ref": "#/$defs/RoundingContext",
           "description": "Rounding context snapshot applied to IO boundaries."

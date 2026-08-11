@@ -2,6 +2,61 @@
 
 ## Unreleased
 
+### Changed — result-return standardization (BREAKING)
+
+Public APIs now hand results back the same way in Rust, Python, and WASM. The
+full contract is recorded in `.claude/skills/finstack-consistency-reviewer/conventions.md`.
+`to_json` / `from_json` still work everywhere — every converted entry point's
+previous string output is available by calling `.to_json()` on the result.
+
+**Rust**
+
+- `finstack_quant_core::config::ResultsMeta` gained `parallel: bool`. It is
+  omitted from JSON when false, so existing payloads and golden files are
+  byte-identical for serial runs.
+- `finstack_quant_statements::evaluator::ResultsMeta` → `EvalStats` (execution
+  statistics, distinct from the workspace audit stamp). Serde field names are
+  unchanged; the JSON Schema definition is renamed `StatementResultsMeta` →
+  `StatementEvalStats`.
+- `scenarios`: `ApplicationReport.rounding_context: Option<String>` →
+  `meta: Option<ResultsMeta>`. `ApplicationEnvelope.market_json: String` /
+  `model_json: Option<String>` → `market` / `model` as nested JSON objects.
+- Typed twins are now public where only a JSON string was reachable:
+  `attribute_return_contribution(&spec)` and `allocate_weights(&spec)` return
+  typed results; the string forms are `*_json`.
+- `margin`: three scalar/`_result` API pairs collapsed — `calculate_for_notional`,
+  `calculate_netting_set_with_ngr`, and `calculate_for_collateral` now return
+  `ImResult` (the scalar is the `amount` field).
+- `XvaResult`, `EadResult`, `FrtbSbaResult`, `CovenantReport`, and the ECL
+  results now stamp `meta: ResultsMeta`.
+- Duplicate type names resolved: `CalibrationResult` → `TreeCalibrationResult`
+  (short-rate tree), `ValidationReport` → `CalibrationValidationReport`
+  (calibration validator), `WaterfallPeriodResult` → `CmoWaterfallPeriodResult`.
+- `portfolio::performance`: `twrr_modified_dietz` and `twrr_linked` return
+  `Result<_>` instead of `Option<_>`, so invalid inputs report why.
+
+**Python**
+
+- `attribute_pnl` returns `PnlAttribution` (its docstring already claimed this).
+- `attribute_return_contribution` returns a new typed `ReturnContributionResult`
+  with `to_dataframe()` and `to_series()`.
+- `scenarios.apply_scenario` / `apply_scenario_to_market` return a typed
+  `ApplicationResult` (`.market`, `.model`, `.report`) instead of a dict of JSON
+  strings. `ApplicationReport` is a new typed class.
+- `StatementResult.to_pandas_long` / `to_pandas_wide` → `to_dataframe(orient=...)`.
+- `from_json` is `@staticmethod` everywhere (49 `@classmethod` conversions).
+- `to_json()` emits compact JSON everywhere. Schema-document emitters
+  (`*_schema`, `schema.index`) stay pretty-printed by design.
+- The analytics domain and the Monte Carlo estimates gained `to_json` /
+  `from_json` / `__reduce__`; they previously had no serialization at all.
+
+**WASM**
+
+- All 19 raw `serde_wasm_bindgen::to_value` call sites now route through
+  `crate::utils::to_js_value`. Rust maps previously arrived as ES `Map`s in
+  those returns, which `JSON.stringify` silently drops; they are now plain
+  objects, matching `index.d.ts` and the Python dict shapes.
+
 ### Added
 
 - **Python:** ~90 `to_dataframe` / `to_*_dataframe` exports across portfolio,

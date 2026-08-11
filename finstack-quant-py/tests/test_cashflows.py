@@ -9,7 +9,7 @@ import math
 import pytest
 
 from finstack_quant.cashflows import (
-    accrued_interest_json,
+    accrued_interest,
     build_cashflow_schedule_json,
     dated_flows_json,
     validate_cashflow_schedule_json,
@@ -140,7 +140,7 @@ def test_cashflows_namespace_build_validate_accrual_and_price_bond() -> None:
     assert json.loads(validate_cashflow_schedule_json(schedule_json)) == schedule
     flows = json.loads(dated_flows_json(schedule_json))
     assert len(flows) == len(schedule["flows"])
-    assert accrued_interest_json(schedule_json, "2025-02-28") > 0.0
+    assert accrued_interest(schedule_json, "2025-02-28") > 0.0
 
     instrument_json = bond_from_cashflows_json("CUSTOM-CF", schedule_json, "USD-OIS", 99.0)
     instrument = json.loads(instrument_json)
@@ -283,7 +283,7 @@ def test_cashflows_accrued_interest_accepts_config_json() -> None:
         "frequency": {"count": 12, "unit": "months"},
     })
 
-    assert accrued_interest_json(schedule_json, "2025-02-28", config_json) > 0.0
+    assert accrued_interest(schedule_json, "2025-02-28", config_json) > 0.0
 
 
 def test_cashflows_accrued_interest_rejects_unknown_config_json_fields() -> None:
@@ -295,7 +295,7 @@ def test_cashflows_accrued_interest_rejects_unknown_config_json_fields() -> None
     })
 
     with pytest.raises(ValueError, match="invalid accrual config JSON"):
-        accrued_interest_json(schedule_json, "2025-02-28", config_json)
+        accrued_interest(schedule_json, "2025-02-28", config_json)
 
 
 def test_cashflows_bond_from_cashflows_allows_missing_quoted_clean() -> None:
@@ -328,11 +328,11 @@ def test_cashflows_reject_malformed_json_and_invalid_dates() -> None:
     # crate. Same `ValueError`, but the message names the offending value and
     # the reason, and is identical across every date-taking entry point.
     with pytest.raises(ValueError, match=r"Invalid date '2025-02-30'"):
-        accrued_interest_json(schedule_json, "2025-02-30")
+        accrued_interest(schedule_json, "2025-02-30")
 
     # The date-object spelling must reach the same computation as the string.
-    assert accrued_interest_json(schedule_json, datetime.date(2025, 6, 30)) == (
-        accrued_interest_json(schedule_json, "2025-06-30")
+    assert accrued_interest(schedule_json, datetime.date(2025, 6, 30)) == (
+        accrued_interest(schedule_json, "2025-06-30")
     )
 
 
@@ -355,7 +355,7 @@ def test_cashflows_build_is_deterministic_and_accrual_is_finite() -> None:
     second = build_cashflow_schedule_json(_cashflow_spec())
     assert first == second  # byte-identical canonical JSON
 
-    accrued = accrued_interest_json(first, "2025-02-28")
+    accrued = accrued_interest(first, "2025-02-28")
     assert isinstance(accrued, float)
     assert math.isfinite(accrued)
 
