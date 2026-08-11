@@ -226,9 +226,8 @@ fn test_json_bridge_build_validate_flows_and_accrual() {
         serde_json::from_str(&dated).expect("dated flow JSON");
     assert_eq!(dated_flows.len(), schedule.get_flows().len());
 
-    let accrued =
-        finstack_quant_cashflows::accrued_interest_json(&schedule_json, "2025-02-28", None)
-            .expect("accrued interest");
+    let accrued = finstack_quant_cashflows::accrued_interest(&schedule_json, "2025-02-28", None)
+        .expect("accrued interest");
     assert!(accrued > 0.0, "expected positive accrued interest");
 }
 

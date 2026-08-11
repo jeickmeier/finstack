@@ -11,8 +11,8 @@ use wasm_bindgen::prelude::*;
 /// Throws a JavaScript exception if `specJson` is malformed, does not match the
 /// covenant-spec schema, violates covenant threshold or frequency invariants, or
 /// cannot be serialized to canonical JSON.
-#[wasm_bindgen(js_name = validateCovenantSpec)]
-pub fn validate_covenant_spec(spec_json: &str) -> Result<String, JsValue> {
+#[wasm_bindgen(js_name = validateCovenantSpecJson)]
+pub fn validate_covenant_spec_json(spec_json: &str) -> Result<String, JsValue> {
     finstack_quant_covenants::validate_covenant_spec_json(spec_json).map_err(to_js_err)
 }
 
@@ -23,8 +23,8 @@ pub fn validate_covenant_spec(spec_json: &str) -> Result<String, JsValue> {
 ///
 /// Throws a JavaScript exception if `reportJson` is malformed, does not match the
 /// covenant-report schema, or cannot be serialized to canonical JSON.
-#[wasm_bindgen(js_name = validateCovenantReport)]
-pub fn validate_covenant_report(report_json: &str) -> Result<String, JsValue> {
+#[wasm_bindgen(js_name = validateCovenantReportJson)]
+pub fn validate_covenant_report_json(report_json: &str) -> Result<String, JsValue> {
     finstack_quant_covenants::validate_covenant_report_json(report_json).map_err(to_js_err)
 }
 
@@ -36,12 +36,19 @@ pub fn validate_covenant_report(report_json: &str) -> Result<String, JsValue> {
 /// Throws a JavaScript exception if `engineJson` is malformed, does not match the
 /// covenant-engine schema, contains an invalid covenant package, violates engine
 /// invariants, or cannot be serialized to canonical JSON.
-#[wasm_bindgen(js_name = validateCovenantEngine)]
-pub fn validate_covenant_engine(engine_json: &str) -> Result<String, JsValue> {
+#[wasm_bindgen(js_name = validateCovenantEngineJson)]
+pub fn validate_covenant_engine_json(engine_json: &str) -> Result<String, JsValue> {
     finstack_quant_covenants::validate_covenant_engine_json(engine_json).map_err(to_js_err)
 }
 
 /// Evaluate a covenant engine JSON string against a JSON metric map.
+///
+/// Returns a plain JavaScript object keyed by the engine's stable covenant
+/// instance key, each value a covenant report carrying `covenant_type`,
+/// `covenant_id`, `passed`, `actual_value`, `threshold`, `details`,
+/// `headroom`, and `meta`. This mirrors the Python binding, which returns
+/// `dict[str, CovenantReport]` from the same Rust entry point.
+///
 /// @param engine_json - JSON-serialized covenant engine and its covenant definitions.
 /// @param metrics_json - JSON object of financial metrics referenced by the covenant engine.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
@@ -50,16 +57,17 @@ pub fn validate_covenant_engine(engine_json: &str) -> Result<String, JsValue> {
 ///
 /// Throws a JavaScript exception if either JSON input is malformed or has the
 /// wrong schema, a metric is non-numeric, `asOf` is not a valid ISO date, the
-/// engine or required metrics fail validation, or the report cannot be
-/// serialized.
+/// engine or required metrics fail validation, or the reports cannot be
+/// serialized to JavaScript.
 #[wasm_bindgen(js_name = evaluateEngine)]
 pub fn evaluate_engine(
     engine_json: &str,
     metrics_json: &str,
     as_of: &str,
-) -> Result<String, JsValue> {
-    finstack_quant_covenants::evaluate_engine_json(engine_json, metrics_json, as_of)
-        .map_err(to_js_err)
+) -> Result<JsValue, JsValue> {
+    let reports = finstack_quant_covenants::evaluate_engine_map(engine_json, metrics_json, as_of)
+        .map_err(to_js_err)?;
+    crate::utils::to_js_value(&reports)
 }
 
 /// Standard leveraged-buyout covenant package as JSON.
@@ -72,8 +80,8 @@ pub fn evaluate_engine(
 ///
 /// Throws a JavaScript exception if the generated covenant package cannot be
 /// serialized to JSON.
-#[wasm_bindgen(js_name = lboStandard)]
-pub fn lbo_standard(
+#[wasm_bindgen(js_name = lboStandardJson)]
+pub fn lbo_standard_json(
     initial_leverage: f64,
     interest_coverage: f64,
     fixed_charge_coverage: f64,
@@ -96,8 +104,8 @@ pub fn lbo_standard(
 ///
 /// Throws a JavaScript exception if the generated covenant package cannot be
 /// serialized to JSON.
-#[wasm_bindgen(js_name = covLite)]
-pub fn cov_lite(max_leverage: f64, max_senior_leverage: f64) -> Result<String, JsValue> {
+#[wasm_bindgen(js_name = covLiteJson)]
+pub fn cov_lite_json(max_leverage: f64, max_senior_leverage: f64) -> Result<String, JsValue> {
     finstack_quant_covenants::cov_lite_json(max_leverage, max_senior_leverage).map_err(to_js_err)
 }
 
@@ -110,8 +118,12 @@ pub fn cov_lite(max_leverage: f64, max_senior_leverage: f64) -> Result<String, J
 ///
 /// Throws a JavaScript exception if the generated covenant package cannot be
 /// serialized to JSON.
-#[wasm_bindgen(js_name = realEstate)]
-pub fn real_estate(min_dscr: f64, min_debt_yield: f64, max_ltv: f64) -> Result<String, JsValue> {
+#[wasm_bindgen(js_name = realEstateJson)]
+pub fn real_estate_json(
+    min_dscr: f64,
+    min_debt_yield: f64,
+    max_ltv: f64,
+) -> Result<String, JsValue> {
     finstack_quant_covenants::real_estate_json(min_dscr, min_debt_yield, max_ltv).map_err(to_js_err)
 }
 
@@ -125,8 +137,8 @@ pub fn real_estate(min_dscr: f64, min_debt_yield: f64, max_ltv: f64) -> Result<S
 ///
 /// Throws a JavaScript exception if the generated covenant package cannot be
 /// serialized to JSON.
-#[wasm_bindgen(js_name = projectFinance)]
-pub fn project_finance(
+#[wasm_bindgen(js_name = projectFinanceJson)]
+pub fn project_finance_json(
     min_dscr: f64,
     distribution_lockup_dscr: f64,
     min_liquidity: f64,

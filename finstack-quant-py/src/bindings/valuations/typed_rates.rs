@@ -2,7 +2,6 @@
 //! Mirrors the `PyBond` pattern in `instruments.rs`.
 
 use pyo3::prelude::*;
-use pyo3::types::PyType;
 
 use crate::bindings::core::dates::daycount::PyDayCount;
 use crate::bindings::core::dates::tenor::PyTenor;
@@ -108,9 +107,9 @@ impl PyInterestRateSwap {
     /// ... except ValueError as exc:
     /// ...     print("schema" in str(exc))
     /// True
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
         match parse_typed_instrument_json(json)? {
             InstrumentJson::InterestRateSwap(inner) => {
                 inner.validate_for_pricing().map_err(core_to_py)?;
@@ -378,9 +377,9 @@ impl PySwaption {
     /// ... except ValueError as exc:
     /// ...     print("schema" in str(exc))
     /// True
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
         match parse_typed_instrument_json(json)? {
             InstrumentJson::Swaption(inner) => {
                 inner.validate_for_pricing().map_err(core_to_py)?;
@@ -824,9 +823,9 @@ impl PyCapFloor {
     /// ... except ValueError as exc:
     /// ...     print("schema" in str(exc))
     /// True
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
         match parse_typed_instrument_json(json)? {
             InstrumentJson::CapFloor(inner) => {
                 inner.validate_for_pricing().map_err(core_to_py)?;

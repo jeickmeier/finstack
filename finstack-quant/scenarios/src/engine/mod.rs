@@ -33,8 +33,10 @@ use finstack_quant_core::market_data::bumps::MarketBump;
 use finstack_quant_core::market_data::hierarchy::ResolutionMode;
 use hierarchy::{expand_hierarchy_operations, ExpansionOutcome};
 
-fn rounding_stamp(config: &finstack_quant_core::config::FinstackConfig) -> Option<String> {
-    Some(config.rounding.mode.to_string())
+fn results_stamp(
+    config: &finstack_quant_core::config::FinstackConfig,
+) -> Option<finstack_quant_core::config::ResultsMeta> {
+    Some(finstack_quant_core::config::results_meta(config))
 }
 
 /// Orchestrates the deterministic application of a [`ScenarioSpec`].
@@ -46,7 +48,7 @@ fn rounding_stamp(config: &finstack_quant_core::config::FinstackConfig) -> Optio
 #[derive(Debug, Default, Clone)]
 pub struct ScenarioEngine {
     /// Active configuration; its rounding mode is stamped into
-    /// [`ApplicationReport::rounding_context`].
+    /// [`ApplicationReport::meta`].
     config: finstack_quant_core::config::FinstackConfig,
 }
 
@@ -69,7 +71,7 @@ impl ScenarioEngine {
     /// Create a scenario engine carrying the caller's active configuration.
     ///
     /// The configuration's rounding mode is stamped into
-    /// [`ApplicationReport::rounding_context`] so reports reflect the policy
+    /// [`ApplicationReport::meta`] so reports reflect the policy
     /// actually in force rather than the library default.
     ///
     /// # Arguments
@@ -273,7 +275,7 @@ impl ScenarioEngine {
                         expanded_operations,
                         changes,
                         warnings,
-                        rounding_context: rounding_stamp(&self.config),
+                        meta: results_stamp(&self.config),
                         time_roll,
                     });
                 }
@@ -479,7 +481,7 @@ impl ScenarioEngine {
             expanded_operations,
             changes,
             warnings,
-            rounding_context: rounding_stamp(&self.config),
+            meta: results_stamp(&self.config),
             time_roll,
         })
     }

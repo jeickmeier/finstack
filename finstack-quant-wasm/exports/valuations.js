@@ -17,7 +17,7 @@ export const valuations = {
   // application-level timeout until the envelope schema carries timeout_ms.
   calibrate(envelope) {
     const json = typeof envelope === 'string' ? envelope : JSON.stringify(envelope);
-    return JSON.parse(wasm.calibrate(json));
+    return wasm.calibrate(json);
   },
   validateCalibrationJson(envelope) {
     const json = typeof envelope === 'string' ? envelope : JSON.stringify(envelope);

@@ -103,8 +103,8 @@ class TestModelBuilderChaining:
 
         assert chained.node_ids() == stepwise.node_ids()
 
-        chained_frame = Evaluator().evaluate(chained).to_pandas_long()
-        stepwise_frame = Evaluator().evaluate(stepwise).to_pandas_long()
+        chained_frame = Evaluator().evaluate(chained).to_dataframe(orient="long")
+        stepwise_frame = Evaluator().evaluate(stepwise).to_dataframe(orient="long")
         pd.testing.assert_frame_equal(chained_frame, stepwise_frame)
         values = chained_frame.set_index(["node_id", "period"])["value"].to_dict()
         assert values == {
@@ -154,7 +154,7 @@ class TestModelBuilderChaining:
             .build()
         )
         result = Evaluator().evaluate(model)
-        frame = result.to_pandas_long()
+        frame = result.to_dataframe(orient="long")
         assert set(frame["node_id"]) == {"revenue", "cogs"}
         # The formula the chain configured, evaluated: 100 * 0.4 and 110 * 0.4.
         values = frame.set_index(["node_id", "period"])["value"].to_dict()
@@ -282,18 +282,16 @@ class TestDateAcceptanceIsUniform:
         )
 
     def test_cashflows_accrued_interest(self) -> None:
-        from finstack_quant.cashflows import accrued_interest_json
+        from finstack_quant.cashflows import accrued_interest
 
         schedule = self._schedule()
-        assert accrued_interest_json(schedule, "2025-02-28") == accrued_interest_json(
-            schedule, datetime.date(2025, 2, 28)
-        )
+        assert accrued_interest(schedule, "2025-02-28") == accrued_interest(schedule, datetime.date(2025, 2, 28))
 
     def test_covenants_evaluate_engine(self) -> None:
         from finstack_quant import covenants
 
-        specs = json.loads(covenants.lbo_standard(6.0, 2.0, 1.1, 50_000_000.0))
-        engine = covenants.validate_covenant_engine(
+        specs = json.loads(covenants.lbo_standard_json(6.0, 2.0, 1.1, 50_000_000.0))
+        engine = covenants.validate_covenant_engine_json(
             json.dumps({
                 "specs": [specs[0]],
                 "breach_history": [],
@@ -302,23 +300,25 @@ class TestDateAcceptanceIsUniform:
             })
         )
         metrics = json.dumps({"debt_to_ebitda": 4.0})
-        assert covenants.evaluate_engine(engine, metrics, "2026-03-31") == (
+
+        def as_json(reports: dict[str, object]) -> dict[str, str]:
+            return {key: report.to_json() for key, report in reports.items()}
+
+        assert as_json(covenants.evaluate_engine(engine, metrics, "2026-03-31")) == as_json(
             covenants.evaluate_engine(engine, metrics, datetime.date(2026, 3, 31))
         )
 
     def test_a_pandas_timestamp_is_also_accepted(self) -> None:
         """`pandas.Timestamp` is what a quant actually holds after a `read_csv`."""
-        from finstack_quant.cashflows import accrued_interest_json
+        from finstack_quant.cashflows import accrued_interest
 
         schedule = self._schedule()
-        assert accrued_interest_json(schedule, pd.Timestamp("2025-02-28")) == (
-            accrued_interest_json(schedule, "2025-02-28")
-        )
+        assert accrued_interest(schedule, pd.Timestamp("2025-02-28")) == (accrued_interest(schedule, "2025-02-28"))
 
     def test_factor_model_decompose_levels(self) -> None:
         """A third, structurally different entry point: takes a `time::Date`.
 
-        `accrued_interest_json` and `evaluate_engine` forward an ISO string to
+        `accrued_interest` and `evaluate_engine` forward an ISO string to
         the crate; `decompose_levels` converts to a `time::Date` instead, so it
         exercises the other half of the helper pair. Comparing the stamped
         ``date`` catches an off-by-one in the conversion, which comparing only
@@ -365,8 +365,8 @@ class TestDateAcceptanceIsUniform:
         """
         from finstack_quant import covenants
 
-        specs = json.loads(covenants.lbo_standard(6.0, 2.0, 1.1, 50_000_000.0))
-        engine = covenants.validate_covenant_engine(
+        specs = json.loads(covenants.lbo_standard_json(6.0, 2.0, 1.1, 50_000_000.0))
+        engine = covenants.validate_covenant_engine_json(
             json.dumps({
                 "specs": [specs[0]],
                 "breach_history": [],

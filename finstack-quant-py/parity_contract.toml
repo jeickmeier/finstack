@@ -248,7 +248,7 @@ note = "Typed submodules (primitives/builder/accrual/aggregation) plus the JSON 
 
 [crates.cashflows.modules]
 json        = { python = "finstack_quant.cashflows",             status = "exists", note = "JSON bridge exposes the canonical coupon_program and payment_program builder surface" }
-accrual     = { python = "finstack_quant.cashflows.accrual",     status = "exists", note = "Typed accrual engine; accrued_interest_json remains on the JSON bridge" }
+accrual     = { python = "finstack_quant.cashflows.accrual",     status = "exists", note = "Typed accrual engine; accrued_interest remains on the JSON bridge" }
 aggregation = { python = "finstack_quant.cashflows.aggregation", status = "exists", note = "Typed period rollups and currency-checked totals" }
 builder     = { python = "finstack_quant.cashflows.builder",     status = "exists", note = "Typed spec + builder + schedule surface; the JSON program bridge remains available on finstack_quant.cashflows" }
 primitives  = { python = "finstack_quant.cashflows.primitives",  status = "exists", note = "Typed CashFlow/CFKind primitives; CashFlow rows also travel inside schedule JSON" }
@@ -292,7 +292,7 @@ public = ["get", "index", "resources", "validate"]
 rust_module_root = "../finstack-quant-wasm/src/api/cashflows/"
 js_export_file   = "../finstack-quant-wasm/exports/cashflows.js"
 root_exports = [
-    "accruedInterestJson",
+    "accruedInterest",
     "buildCashflowScheduleJson",
     "datedFlowsJson",
     "validateCashflowScheduleJson",
@@ -307,7 +307,7 @@ python_only = [
 ]
 
 [wasm_cashflows_subset.python_js_map]
-accrued_interest_json = "accruedInterestJson"
+accrued_interest = "accruedInterest"
 build_cashflow_schedule_json = "buildCashflowScheduleJson"
 dated_flows_json = "datedFlowsJson"
 validate_cashflow_schedule_json = "validateCashflowScheduleJson"
@@ -321,10 +321,11 @@ rust_lib   = "finstack-quant/covenants/src/lib.rs"
 python_package = "finstack_quant.covenants"
 visibility = "pub"
 status = "exists"
-note = "First binding slice is JSON/map-backed: validation, templates, and engine evaluation."
+note = "Spec/engine/template surfaces stay JSON wire strings (suffixed `_json`); evaluation returns typed CovenantReport objects."
 
 [crates.covenants.modules]
-json = { python = "finstack_quant.covenants", status = "exists", note = "validate_covenant_spec, validate_covenant_report, validate_covenant_engine, evaluate_engine, and covenant templates exposed flat on finstack_quant.covenants" }
+json = { python = "finstack_quant.covenants", status = "exists", note = "validate_covenant_spec_json, validate_covenant_report_json, validate_covenant_engine_json, and the covenant template builders (lbo_standard_json, cov_lite_json, real_estate_json, project_finance_json) exposed flat on finstack_quant.covenants, matching the Rust `json` module names" }
+report = { python = "finstack_quant.covenants", status = "flattened", note = "CovenantReport wrapper exposed flat on finstack_quant.covenants; `evaluate_engine` returns dict[str, CovenantReport] rather than a JSON string. WASM still returns the JSON string from `evaluateEngine`." }
 
 # ---------------------------------------------------------------------------
 # finstack-quant-margin  →  finstack_quant.margin
@@ -400,8 +401,8 @@ status = "explicit_subset"
 note = "WASM margin remains a compact JSON/facade subset; full Rust/Python regulatory engines are not yet exposed in WASM."
 js_export_file = "../finstack-quant-wasm/exports/margin.js"
 root_exports = [
-  "csaUsdRegulatory",
-  "csaEurRegulatory",
+  "csaUsdRegulatoryJson",
+  "csaEurRegulatoryJson",
   "validateCsaJson",
   "calculateVm",
   "computeBilateralXva",
@@ -412,8 +413,8 @@ compute_bilateral_xva = "computeBilateralXva"
 
 [wasm_margin_subset.wasm_only]
 symbols = [
-  "csaUsdRegulatory",
-  "csaEurRegulatory",
+  "csaUsdRegulatoryJson",
+  "csaEurRegulatoryJson",
   "validateCsaJson",
   "calculateVm",
 ]
@@ -577,6 +578,7 @@ public = [
 python_package = "finstack_quant.valuations.instruments"
 public = [
     "AssetPool",
+    "BarrierCrossing",
     "Bond",
     "CDSIndex",
     "CDSIndexBuilder",
@@ -598,7 +600,12 @@ public = [
     "FxOptionBuilder",
     "InterestRateSwap",
     "InterestRateSwapBuilder",
+    "MertonMcConfig",
+    "MertonMcResult",
     "OasResult",
+    "PathStatistics",
+    "PikMode",
+    "PikSchedule",
     "PremiumLegSpec",
     "ProtectionLegSpec",
     "RepLine",
@@ -637,10 +644,13 @@ public = [
 [crates.valuations.models.credit]
 python_package = "finstack_quant.valuations.models.credit"
 public = [
+    "AssetDynamics",
+    "BarrierType",
     "CreditState",
     "DynamicRecoverySpec",
     "EndogenousHazardSpec",
     "MertonModel",
+    "SimulatedPaths",
     "ToggleExerciseModel",
 ]
 
@@ -661,6 +671,7 @@ schema = { python = "finstack_quant.attribution.schema", status = "exists", note
 [crates.attribution.symbols]
 public = [
     "PnlAttribution",
+    "ReturnContributionResult",
     "attribute_pnl",
     "attribute_pnl_from_spec",
     "attribute_return_contribution",
@@ -851,20 +862,20 @@ js_export_file   = "../finstack-quant-wasm/exports/statements.js"
 root_exports = [
     "validateFinancialModelJson",
     "modelNodeIds",
-    "validateCheckSuiteSpec",
-    "validateCapitalStructureSpec",
-    "validateWaterfallSpec",
-    "validateEcfSweepSpec",
-    "validatePikToggleSpec",
+    "validateCheckSuiteSpecJson",
+    "validateCapitalStructureSpecJson",
+    "validateWaterfallSpecJson",
+    "validateEcfSweepSpecJson",
+    "validatePikToggleSpecJson",
     "evaluateModel",
     "evaluateModelWithMarket",
     "runMonteCarlo",
-    "parseFormula",
+    "parseFormulaText",
     "validateFormula",
 ]
 
 [wasm_statements_subset.python_js_map]
-parse_formula = "parseFormula"
+parse_formula = "parseFormulaText"
 run_monte_carlo = "runMonteCarlo"
 validate_formula = "validateFormula"
 
@@ -874,11 +885,11 @@ validate_formula = "validateFormula"
 symbols = [
     "validateFinancialModelJson",
     "modelNodeIds",
-    "validateCheckSuiteSpec",
-    "validateCapitalStructureSpec",
-    "validateWaterfallSpec",
-    "validateEcfSweepSpec",
-    "validatePikToggleSpec",
+    "validateCheckSuiteSpecJson",
+    "validateCapitalStructureSpecJson",
+    "validateWaterfallSpecJson",
+    "validateEcfSweepSpecJson",
+    "validatePikToggleSpecJson",
     "evaluateModel",
     "evaluateModelWithMarket",
 ]
@@ -906,8 +917,8 @@ root_exports = [
     "traceDependencies",
     "explainFormula",
     "explainFormulaText",
-    "plSummaryReport",
-    "creditAssessmentReport",
+    "plSummaryReportText",
+    "creditAssessmentReportText",
     "creditAssessment",
     "runChecks",
     "runThreeStatementChecks",
@@ -934,8 +945,8 @@ evaluate_lbo = "evaluateLbo"
 wacc = "wacc"
 explain_formula = "explainFormula"
 explain_formula_text = "explainFormulaText"
-pl_summary_report = "plSummaryReport"
-credit_assessment_report = "creditAssessmentReport"
+pl_summary_report = "plSummaryReportText"
+credit_assessment_report = "creditAssessmentReportText"
 credit_assessment = "creditAssessment"
 run_checks = "runChecks"
 run_three_statement_checks = "runThreeStatementChecks"
@@ -1107,6 +1118,7 @@ public = [
     "PositionVolContribution",
     "RiskBudgetResult",
     "RiskDecomposition",
+    "ScenarioPnl",
     "SensitivityMatrix",
     "StressAttribution",
     "StressPositionEntry",
@@ -1190,7 +1202,7 @@ js_export_file   = "../finstack-quant-wasm/exports/portfolio.js"
 root_exports = [
   "InstrumentArtifactCache",
   "Portfolio",
-  "parsePortfolioSpec",
+  "parsePortfolioSpecJson",
   "brinsonFachler",
   "carinoLink",
   "campisiAttribution",
@@ -1206,7 +1218,7 @@ root_exports = [
   "twrrModifiedDietz",
   "twrrLinked",
   "mwrXirr",
-  "buildPortfolioFromSpec",
+  "buildPortfolioFromSpecJson",
   "portfolioResultTotalValue",
   "portfolioResultGetMetric",
   "aggregateMetrics",
@@ -1287,6 +1299,7 @@ python_only = [
   "PositionVolContribution",
   "RiskBudgetResult",
   "RiskDecomposition",
+  "ScenarioPnl",
   "SensitivityMatrix",
   "StressAttribution",
   "StressPositionEntry",
@@ -1329,7 +1342,7 @@ Portfolio = ["fromMaterialization", "validateMaterializationJson"]
 [wasm_portfolio_subset.python_js_map]
 InstrumentArtifactCache = "InstrumentArtifactCache"
 Portfolio = "Portfolio"
-parse_portfolio_spec = "parsePortfolioSpec"
+parse_portfolio_spec = "parsePortfolioSpecJson"
 brinson_fachler = "brinsonFachler"
 carino_link = "carinoLink"
 campisi_attribution = "campisiAttribution"
@@ -1345,7 +1358,7 @@ factor_brinson_attribution = "factorBrinsonAttribution"
 twrr_modified_dietz = "twrrModifiedDietz"
 twrr_linked = "twrrLinked"
 mwr_xirr = "mwrXirr"
-build_portfolio_from_spec = "buildPortfolioFromSpec"
+build_portfolio_from_spec = "buildPortfolioFromSpecJson"
 portfolio_result_total_value = "portfolioResultTotalValue"
 portfolio_result_get_metric = "portfolioResultGetMetric"
 aggregate_metrics = "aggregateMetrics"
@@ -1786,8 +1799,15 @@ credit = [
     "endogenousHazardPowerLawJson",
     "mertonDefaultProbability",
     "mertonDistanceToDefault",
+    "mertonFromCdsSpreadJson",
+    "mertonFromEquityJson",
+    "mertonFromTargetPdJson",
     "mertonImpliedSpread",
     "mertonModelJson",
+    "mertonModelWithDynamicsJson",
+    "mertonSimulatePathsJson",
+    "mertonToHazardCurveJson",
+    "mertonTryImpliedEquity",
     "toggleExerciseOptimalJson",
     "toggleExerciseThresholdJson",
 ]

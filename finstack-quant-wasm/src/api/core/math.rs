@@ -25,7 +25,7 @@ pub fn cholesky_decomposition(matrix: JsValue) -> Result<JsValue, JsValue> {
     let flat = flatten_matrix(&rows, n)?;
     let result = linalg::cholesky_decomposition(&flat, n).map_err(to_js_err)?;
     let nested = unflatten_matrix(&result, n);
-    serde_wasm_bindgen::to_value(&nested).map_err(to_js_err)
+    crate::utils::to_js_value(&nested)
 }
 
 /// Solve a symmetric positive-definite linear system A x = b given the
@@ -55,7 +55,7 @@ pub fn cholesky_solve(chol: JsValue, b: JsValue) -> Result<JsValue, JsValue> {
     }
     let mut x = vec![0.0; n];
     linalg::cholesky_solve(&flat, &b_vec, &mut x).map_err(to_js_err)?;
-    serde_wasm_bindgen::to_value(&x).map_err(to_js_err)
+    crate::utils::to_js_value(&x)
 }
 
 /// Cholesky decomposition for a flat row-major matrix.

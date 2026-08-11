@@ -11,7 +11,7 @@ use crate::evaluator::monte_carlo::{
     MonteCarloAccumulator, MonteCarloConfig, MonteCarloResults, PathResult,
 };
 use crate::evaluator::precedence::{resolve_node_value_with_policy, NodeValueSource};
-use crate::evaluator::results::{EvalWarning, ResultsMeta, StatementResult};
+use crate::evaluator::results::{EvalStats, EvalWarning, StatementResult};
 use crate::evaluator::{capital_structure_runtime, capital_structure_runtime::dependent_closure};
 use crate::types::{FinancialModelSpec, NodeId};
 use finstack_quant_core::dates::PeriodId;
@@ -353,7 +353,7 @@ impl Evaluator {
         self.finalize_results(
             &mut results,
             model,
-            ResultsMeta {
+            EvalStats {
                 #[cfg(not(target_arch = "wasm32"))]
                 eval_time_ms: Some(start.elapsed().as_millis() as u64),
                 #[cfg(target_arch = "wasm32")]
@@ -555,7 +555,7 @@ impl Evaluator {
         self.finalize_results(
             &mut results,
             model,
-            ResultsMeta {
+            EvalStats {
                 eval_time_ms: None,
                 num_nodes: model.nodes.len(),
                 num_periods: model.periods.len(),
@@ -744,7 +744,7 @@ impl Evaluator {
         &self,
         results: &mut StatementResult,
         model: &FinancialModelSpec,
-        meta: ResultsMeta,
+        meta: EvalStats,
     ) -> Result<()> {
         results.populate_value_types(model)?;
         results.meta = meta;

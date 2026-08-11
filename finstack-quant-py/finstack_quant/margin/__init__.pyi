@@ -3381,6 +3381,27 @@ class XvaResult:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the XVA components as a single-row pandas DataFrame.
+
+        Columns: ``cva``, ``dva``, ``fva``, ``mva``, ``total_xva``,
+        ``max_pfe``, ``effective_epe`` -- all in the netting set's currency
+        units, matching the properties of the same name. Uncomputed legs
+        (``dva`` / ``fva`` / ``mva``) are ``NaN`` rather than absent, so the
+        frame keeps its schema across netting sets.
+
+        This is the default export; the time-indexed exposure profiles are a
+        separate table -- see :meth:`profiles_to_dataframe`.
+
+        Returns
+        -------
+        pd.DataFrame
+            Single-row DataFrame, so a portfolio of netting sets stacks with
+            ``pd.concat``.
+        """
+        ...
+
     def profiles_to_dataframe(self) -> pd.DataFrame:
         """
         Export exposure profiles as a pandas DataFrame.

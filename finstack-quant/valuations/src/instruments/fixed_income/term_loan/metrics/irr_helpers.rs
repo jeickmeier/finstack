@@ -340,8 +340,7 @@ pub(super) fn exercisable_call_candidates(
             let active = cs
                 .calls
                 .iter()
-                .filter(|c| c.date <= exercise)
-                .next_back()
+                .rfind(|c| c.date <= exercise)
                 .filter(|c| !matches!(c.call_type, LoanCallType::MakeWhole { .. }));
             if let Some(call) = active {
                 if exercise < loan.maturity && !candidates.iter().any(|(d, _)| *d == exercise) {
@@ -351,7 +350,7 @@ pub(super) fn exercisable_call_candidates(
         }
     }
 
-    candidates.sort_by(|a, b| a.0.cmp(&b.0));
+    candidates.sort_by_key(|a| a.0);
     Ok(candidates)
 }
 

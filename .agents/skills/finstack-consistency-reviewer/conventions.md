@@ -112,9 +112,110 @@ When the same concept appears in multiple places, use the same term:
 | Module-level private | `SCREAMING_SNAKE_CASE` (preferred) | Mixed in practice |
 | Function-level | `snake_case` | Local computation constants |
 
+## Result-Return Contract
+
+How a public API hands its result back. This is the contract all three
+languages implement; deviations from it are findings, not style choices.
+
+| Surface | Computation result | Wire / validator surface |
+|---------|-------------------|--------------------------|
+| Rust | Typed `…Result` / `…Report` struct. Top-level envelopes stamp `finstack_quant_core::config::ResultsMeta`. | `Result<String>` allowed **only** with a `_json` name suffix **and** a public typed twin |
+| Python | Typed `Py*` wrapper | `_json`-suffixed `#[pyfunction]` returning `str` |
+| WASM | Plain JS object via `crate::utils::to_js_value`, or a `Js*` handle with getters | `*Json`-suffixed export returning `string` |
+
+### Mandatory accessor set on every result wrapper
+
+| Method | Python | WASM | Notes |
+|--------|--------|------|-------|
+| Typed field access | `#[getter]` per headline field | getters on `Js*` handles | A wrapper whose only accessor is `to_json` is a JSON string with extra steps |
+| JSON out | `to_json() -> String` (compact) | `toJson(): string` | Never `to_string_pretty` |
+| JSON in | `#[staticmethod] from_json(json)` | `fromJson(json)` | `#[staticmethod]`, never `#[classmethod]` |
+| Pickle | `__reduce__` via `pickle_support::reduce_via_json` | n/a | 49 of 51 `to_json` files already do this |
+| pandas frame | `to_dataframe()` | n/a | Primary table; built via `pandas_utils` helpers |
+| pandas series | `to_series()` | n/a | **Only** for 1-D labeled vectors |
+
+### Naming rules
+
+| Rule | Correct | Wrong |
+|------|---------|-------|
+| `_json` / `*Json` suffix means *returns* a JSON string | `allocate_weights_json` | `accrued_interest_json` returning `f64` |
+| Non-JSON text returns say so | `plSummaryReportText` | `plSummaryReport` returning prose |
+| One primary frame per class | `to_dataframe()` | `to_pandas_long` / `to_pandas_wide` |
+| Multi-table classes may add secondaries | `to_dataframe()` + `returns_to_dataframe()` | only `<x>_to_dataframe`, no plain one |
+| Orientation is a parameter, not a method | `to_dataframe(orient="wide")` | `to_pandas_wide()` |
+
+### Type suffix policy
+
+| Suffix | Means |
+|--------|-------|
+| `…Result` | Computation output |
+| `…Report` | Diagnostics / validation output |
+| `…Envelope` | Wire container (spec in, or result out) |
+
+Do not mass-rename existing types to fit; apply to new types and fix genuine
+duplicate names (two types sharing one name in the workspace).
+
+### Serialization rules
+
+- **WASM**: every `JsValue` return goes through `crate::utils::to_js_value`
+  (`json_compatible`). Raw `serde_wasm_bindgen::to_value` serializes maps as ES
+  `Map`s, which `JSON.stringify` silently drops — it is banned outside
+  `utils/mod.rs`.
+- **Numeric vectors** cross the WASM boundary as `Float64Array` (return
+  `Box<[f64]>`, not `Vec<f64>`).
+- **Compact JSON** everywhere. Pretty-printing is presentation; callers can do
+  it themselves.
+- **Absent values** are `Option<T>` (→ `undefined`), never `JsValue::NULL`.
+  `Result` is for *failed*, `Option` is for *absent*.
+
 ## Known Intentional Deviations
 
 Document any places where divergence from the dominant pattern is intentional:
+
+### Result-Return Contract
+- **Schema-document emitters keep `to_string_pretty`**: `schema.rs`,
+  `schema_registry.rs`, and the per-domain `*_schema` functions emit JSON
+  Schema documents meant to be read by humans and LLMs and written to files.
+  `to_json()` on a *class* is a wire format and stays compact; a `*_schema()`
+  *document* stays pretty. Same for the calibration canonical-echo validator.
+- **`CalibrationResult.to_json` returns `Bound<'py, PyString>`, not `String`**:
+  it serves a cached Python string so repeated access is allocation-free.
+  Python sees `str` either way, so the contract is satisfied; the difference is
+  Rust-internal.
+- **`DatedSeries` JSON is not verbatim `inner`**: the wrapper carries a
+  `value_column` metric label that the Rust type does not, so it serializes
+  through a private wire struct. Without this, `from_json` would silently
+  relabel a rolling-Sharpe series.
+- **`SimmCalculator::calculate_from_sensitivities` keeps its `_result` twin**:
+  the base fn returns `(f64, HashMap<String, Money>)`, not a bare scalar, and
+  collapsing it would force an `as_of: Date` parameter onto the public
+  `im_profile_from_simm` and cascade into its binding, stub, and tests. The
+  other three margin pairs were collapsed.
+- **`validateMaterializationJson` (WASM) returns an object despite its `Json`
+  suffix**: it is pinned by `dts_contract.rs` and by a cache shim in
+  `exports/portfolio.js`, so renaming it is its own decision rather than part
+  of the sweep.
+
+## Known Remaining Gap: paired conversions still owed
+
+These entry points return a bare JSON string under a name with **no** `_json`
+suffix in **both** Python and WASM. They are therefore consistent with each
+other but not with the contract. Converting either side alone would
+*manufacture* the cross-language divergence this contract exists to remove, so
+they must be done as paired changes:
+
+| Domain | Entry points |
+|--------|-------------|
+| statements_analytics | `run_checks`, `run_three_statement_checks`, `run_credit_underwriting_checks`, `generate_tornado_entries` |
+| attribution | `attribute_pnl_from_spec` |
+| features | `transform_panel` (the typed twin `transform_panel_spec` is already public in Rust) |
+| scenarios | `parse_scenario_spec`, `compose_scenarios`, `build_scenario_spec`, `build_from_template`, `build_template_component`, `list_builtin_template_metadata` |
+| factor_model | `covariance_at`, `factor_model_at` |
+
+The scenarios group is arguably fine as-is — those emit spec *documents* meant
+for re-ingest, so they are wire surfaces and only need `_json`/`Json` suffixes.
+The statements_analytics and factor_model groups are genuine computation
+results and want typed returns on both sides.
 
 ### Error & Module Structure
 - `error/mod.rs` in core: Uses subdirectory because error module has `inputs.rs` and `suggestions.rs` submodules (justified by size). Valuations uses flat `error.rs` as a re-export facade.

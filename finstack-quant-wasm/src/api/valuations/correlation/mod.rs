@@ -334,9 +334,9 @@ impl JsRecoveryModel {
 /// Throws a JavaScript exception if either marginal probability is non-finite
 /// or outside `[0, 1]`.
 #[wasm_bindgen(js_name = correlationBounds)]
-pub fn correlation_bounds(p1: f64, p2: f64) -> Result<Vec<f64>, JsValue> {
+pub fn correlation_bounds(p1: f64, p2: f64) -> Result<Box<[f64]>, JsValue> {
     let (lo, hi) = corr::correlation_bounds(p1, p2).map_err(to_js_err)?;
-    Ok(vec![lo, hi])
+    Ok(Box::new([lo, hi]))
 }
 
 /// Joint probabilities for two correlated Bernoulli variables.
@@ -351,9 +351,9 @@ pub fn correlation_bounds(p1: f64, p2: f64) -> Result<Vec<f64>, JsValue> {
 /// Throws a JavaScript exception if either marginal probability is non-finite
 /// or outside `[0, 1]`, or `correlation` is non-finite or outside `[-1, 1]`.
 #[wasm_bindgen(js_name = jointProbabilities)]
-pub fn joint_probabilities(p1: f64, p2: f64, correlation: f64) -> Result<Vec<f64>, JsValue> {
+pub fn joint_probabilities(p1: f64, p2: f64, correlation: f64) -> Result<Box<[f64]>, JsValue> {
     let (p11, p10, p01, p00) = corr::joint_probabilities(p1, p2, correlation).map_err(to_js_err)?;
-    Ok(vec![p11, p10, p01, p00])
+    Ok(Box::new([p11, p10, p01, p00]))
 }
 
 /// Validate a flat row-major correlation matrix.
@@ -397,7 +397,7 @@ pub fn nearest_correlation(
     n: usize,
     max_iter: Option<usize>,
     tol: Option<f64>,
-) -> Result<Vec<f64>, JsValue> {
+) -> Result<Box<[f64]>, JsValue> {
     // Single source of truth for the defaults: the Rust
     // `NearestCorrelationOpts::default()` (max_iter = 200, tol = 1e-10).
     let defaults = corr::NearestCorrelationOpts::default();
@@ -405,7 +405,9 @@ pub fn nearest_correlation(
         max_iter: max_iter.unwrap_or(defaults.max_iter),
         tol: tol.unwrap_or(defaults.tol),
     };
-    corr::nearest_correlation_matrix(&matrix, n, opts).map_err(to_js_err)
+    corr::nearest_correlation_matrix(&matrix, n, opts)
+        .map(Vec::into_boxed_slice)
+        .map_err(to_js_err)
 }
 
 /// Tranche loss statistics over a simulated pool loss distribution.

@@ -16,17 +16,19 @@ use wasm_bindgen::prelude::*;
 /// Run a sensitivity analysis on a financial model.
 ///
 /// Accepts JSON strings for the model spec and sensitivity configuration,
-/// evaluates all perturbation scenarios, and returns JSON results.
+/// evaluates all perturbation scenarios, and returns the `SensitivityResult`
+/// as a structured JavaScript object. `generateTornadoEntries` still takes the
+/// result as JSON, so pass `JSON.stringify(result)` when chaining the two.
 ///
 /// # Errors
 ///
 /// Rejects malformed model or configuration JSON, invalid sensitivity modes or
 /// parameter perturbations, missing model nodes or periods, model-evaluation
-/// failures, or failure to serialize the sensitivity result.
+/// failures, or failure to serialize the sensitivity result to JavaScript.
 /// @param model_json - Canonical JSON payload representing the model consumed by this API.
 /// @param config_json - Canonical JSON payload representing the config consumed by this API.
 #[wasm_bindgen(js_name = runSensitivity)]
-pub fn run_sensitivity(model_json: &str, config_json: &str) -> Result<String, JsValue> {
+pub fn run_sensitivity(model_json: &str, config_json: &str) -> Result<JsValue, JsValue> {
     let model: finstack_quant_statements::FinancialModelSpec =
         serde_json::from_str(model_json).map_err(to_js_err)?;
 
@@ -36,18 +38,18 @@ pub fn run_sensitivity(model_json: &str, config_json: &str) -> Result<String, Js
     let analyzer = finstack_quant_statements_analytics::analysis::SensitivityAnalyzer::new(&model);
     let result = analyzer.run(&config).map_err(to_js_err)?;
 
-    serde_json::to_string(&result).map_err(to_js_err)
+    to_js_value(&result)
 }
 
 /// Run a variance analysis comparing two evaluated statement results.
 ///
-/// Returns JSON-serialized variance report.
+/// Returns the variance report as a structured JavaScript object.
 ///
 /// # Errors
 ///
 /// Rejects malformed result or configuration JSON, empty metric or period
 /// selections, a requested value missing from either result, or failure to
-/// serialize the variance report.
+/// serialize the variance report to JavaScript.
 /// @param base_json - Canonical JSON payload representing the base consumed by this API.
 /// @param comparison_json - Canonical JSON payload representing the comparison consumed by this API.
 /// @param config_json - Canonical JSON payload representing the config consumed by this API.
@@ -56,7 +58,7 @@ pub fn run_variance(
     base_json: &str,
     comparison_json: &str,
     config_json: &str,
-) -> Result<String, JsValue> {
+) -> Result<JsValue, JsValue> {
     let base: finstack_quant_statements::evaluator::StatementResult =
         serde_json::from_str(base_json).map_err(to_js_err)?;
 
@@ -70,22 +72,26 @@ pub fn run_variance(
         finstack_quant_statements_analytics::analysis::VarianceAnalyzer::new(&base, &comparison);
     let report = analyzer.compute(&config).map_err(to_js_err)?;
 
-    serde_json::to_string(&report).map_err(to_js_err)
+    to_js_value(&report)
 }
 
 /// Evaluate all scenarios in a scenario set against a base model.
 ///
-/// Returns a JSON object mapping scenario names to their statement results.
+/// Returns a structured JavaScript object mapping scenario names to their
+/// statement results.
 ///
 /// # Errors
 ///
 /// Rejects malformed model or scenario-set JSON, an empty scenario set,
 /// invalid parent chains, overrides of missing nodes, failure to evaluate any
-/// scenario, or failure to serialize the result map.
+/// scenario, or failure to serialize the result map to JavaScript.
 /// @param model_json - Canonical JSON payload representing the model consumed by this API.
 /// @param scenario_set_json - Canonical JSON payload representing the scenario set consumed by this API.
 #[wasm_bindgen(js_name = evaluateScenarioSet)]
-pub fn evaluate_scenario_set(model_json: &str, scenario_set_json: &str) -> Result<String, JsValue> {
+pub fn evaluate_scenario_set(
+    model_json: &str,
+    scenario_set_json: &str,
+) -> Result<JsValue, JsValue> {
     let model: finstack_quant_statements::FinancialModelSpec =
         serde_json::from_str(model_json).map_err(to_js_err)?;
 
@@ -96,7 +102,7 @@ pub fn evaluate_scenario_set(model_json: &str, scenario_set_json: &str) -> Resul
 
     let map: indexmap::IndexMap<&String, &finstack_quant_statements::evaluator::StatementResult> =
         results.scenarios.iter().collect();
-    serde_json::to_string(&map).map_err(to_js_err)
+    to_js_value(&map)
 }
 
 /// Compute forecast accuracy metrics (MAE, MAPE, RMSE).
@@ -164,7 +170,8 @@ pub fn generate_tornado_entries(
 /// The statement model is evaluated once; each shocked point re-runs only the
 /// DCF. Returns JSON with the baseline enterprise value, tornado entries as
 /// deltas versus that baseline sorted by descending absolute swing, and the
-/// effective (possibly clamped) shock levels.
+/// effective (possibly clamped) shock levels, as a structured JavaScript
+/// object.
 ///
 /// # Errors
 ///
@@ -191,7 +198,7 @@ pub fn dcf_sensitivity(
     wacc_sensitivity_bump: Option<f64>,
     wacc_denominator_epsilon: Option<f64>,
     exit_multiple_bump: Option<f64>,
-) -> Result<String, JsValue> {
+) -> Result<JsValue, JsValue> {
     use finstack_quant_statements_analytics::analysis::{DcfOptions, ExitMultipleBump};
 
     let model: finstack_quant_statements::FinancialModelSpec =
@@ -232,7 +239,7 @@ pub fn dcf_sensitivity(
         })
         .collect();
 
-    serde_json::to_string(&serde_json::json!({
+    to_js_value(&serde_json::json!({
         "baseline_enterprise_value": result.baseline_enterprise_value.amount(),
         "currency": result.baseline_enterprise_value.currency().to_string(),
         "entries": entries,
@@ -241,7 +248,6 @@ pub fn dcf_sensitivity(
         "terminal_growth_up": result.terminal_growth_up,
         "terminal_growth_up_clamped": result.terminal_growth_up_clamped,
     }))
-    .map_err(to_js_err)
 }
 
 /// Evaluate a leveraged-buyout transaction against a statement model.
@@ -257,8 +263,9 @@ pub fn dcf_sensitivity(
 /// Rejects malformed model or tranche JSON, an invalid `exit_period`, model
 /// evaluation or lookup failures, a missing model currency or period,
 /// non-finite transaction inputs or model values, negative tranche amounts, a
-/// non-positive sponsor equity check, check-suite failures, or result
-/// serialization failure.
+/// non-positive sponsor equity check, check-suite failures, or failure to
+/// serialize the result to JavaScript. The result is a structured JavaScript
+/// object.
 /// @param model_json - Canonical JSON payload representing the financial model spec consumed by this API.
 /// @param entry_multiple - Entry valuation multiple applied to the entry metric (8.5 = 8.5x).
 /// @param entry_metric_node - Node identifier supplying the entry valuation metric, read at the model's first period.
@@ -280,7 +287,7 @@ pub fn evaluate_lbo(
     exit_period: &str,
     sources_json: &str,
     transaction_fees: f64,
-) -> Result<String, JsValue> {
+) -> Result<JsValue, JsValue> {
     use finstack_quant_statements_analytics::analysis::{LboConfig, LboTranche};
 
     #[derive(serde::Deserialize)]
@@ -317,7 +324,7 @@ pub fn evaluate_lbo(
     let result = finstack_quant_statements_analytics::analysis::evaluate_lbo(&model, &config)
         .map_err(to_js_err)?;
 
-    serde_json::to_string(&serde_json::json!({
+    to_js_value(&serde_json::json!({
         "entry_enterprise_value": result.entry_enterprise_value.amount(),
         "entry_metric": result.entry_metric,
         "debt_total": result.debt_total.amount(),
@@ -332,7 +339,6 @@ pub fn evaluate_lbo(
         "moic": result.moic,
         "currency": result.entry_enterprise_value.currency().to_string(),
     }))
-    .map_err(to_js_err)
 }
 
 /// Weighted-average cost of capital (WACC).
@@ -538,8 +544,8 @@ pub fn explain_formula_text(
 /// @param results_json - Canonical JSON payload representing the results consumed by this API.
 /// @param line_items - Ordered statement line-item definitions included in the summary report.
 /// @param periods - Ordered period labels or observations aligned with the supplied data.
-#[wasm_bindgen(js_name = plSummaryReport)]
-pub fn pl_summary_report(
+#[wasm_bindgen(js_name = plSummaryReportText)]
+pub fn pl_summary_report_text(
     results_json: &str,
     line_items: JsValue,
     periods: JsValue,
@@ -568,8 +574,8 @@ pub fn pl_summary_report(
 /// statement period identifier.
 /// @param results_json - Canonical JSON payload representing the results consumed by this API.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
-#[wasm_bindgen(js_name = creditAssessmentReport)]
-pub fn credit_assessment_report(results_json: &str, as_of: &str) -> Result<String, JsValue> {
+#[wasm_bindgen(js_name = creditAssessmentReportText)]
+pub fn credit_assessment_report_text(results_json: &str, as_of: &str) -> Result<String, JsValue> {
     use finstack_quant_statements_analytics::analysis::Report;
 
     let results: finstack_quant_statements::evaluator::StatementResult =
@@ -581,22 +587,25 @@ pub fn credit_assessment_report(results_json: &str, as_of: &str) -> Result<Strin
     Ok(report.to_string())
 }
 
-/// Compute a structured credit assessment (leverage, coverage, FCF) as JSON.
+/// Compute a structured credit assessment (leverage, coverage, FCF).
+///
+/// Returns a structured JavaScript object.
 ///
 /// # Errors
 ///
 /// Rejects malformed `results_json`, an `as_of` value that is not a valid
-/// statement period identifier, or failure to serialize the assessment.
+/// statement period identifier, or failure to serialize the assessment to
+/// JavaScript.
 /// @param results_json - Canonical JSON payload representing the results consumed by this API.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 #[wasm_bindgen(js_name = creditAssessment)]
-pub fn credit_assessment(results_json: &str, as_of: &str) -> Result<String, JsValue> {
+pub fn credit_assessment(results_json: &str, as_of: &str) -> Result<JsValue, JsValue> {
     let results: finstack_quant_statements::evaluator::StatementResult =
         serde_json::from_str(results_json).map_err(to_js_err)?;
     let period: finstack_quant_core::dates::PeriodId = as_of.parse().map_err(to_js_err)?;
     let assessment =
         finstack_quant_statements_analytics::analysis::CreditAssessment::compute(&results, period);
-    serde_json::to_string(&assessment).map_err(to_js_err)
+    to_js_value(&assessment)
 }
 
 /// Run checks from a suite spec against a model (JSON in/out).
@@ -777,7 +786,7 @@ mod tests {
     fn credit_assessment_report_accepts_minimal_results() {
         let results = StatementResult::default();
         let results_json = serde_json::to_string(&results).expect("serialize results");
-        let text = credit_assessment_report(&results_json, "2024").expect("report");
+        let text = credit_assessment_report_text(&results_json, "2024").expect("report");
         assert!(text.contains("Credit Assessment"));
     }
 
@@ -801,15 +810,22 @@ mod tests {
     #[test]
     fn credit_assessment_report_with_data() {
         let (_, results_json) = evaluated_results();
-        let text = credit_assessment_report(&results_json, "2024Q1").expect("report");
+        let text = credit_assessment_report_text(&results_json, "2024Q1").expect("report");
         assert!(text.contains("Credit Assessment"));
     }
 
     #[test]
     fn credit_assessment_returns_structured_json() {
+        // `credit_assessment` now returns a `JsValue`, unconstructible off
+        // wasm32; assert the serializable shape it hands to `to_js_value`.
         let (_, results_json) = evaluated_results();
-        let json = credit_assessment(&results_json, "2024Q1").expect("assessment");
-        let parsed: serde_json::Value = serde_json::from_str(&json).expect("parse");
+        let results: finstack_quant_statements::evaluator::StatementResult =
+            serde_json::from_str(&results_json).expect("parse results");
+        let assessment = finstack_quant_statements_analytics::analysis::CreditAssessment::compute(
+            &results,
+            "2024Q1".parse().expect("period"),
+        );
+        let parsed = serde_json::to_value(&assessment).expect("serialize");
         assert!(parsed.get("as_of").is_some());
         assert!(parsed.get("series").map(|s| s.is_array()).unwrap_or(false));
     }
@@ -829,9 +845,14 @@ mod tests {
             ],
             target_metrics: vec!["gross_profit".to_string()],
         };
-        let config_json = serde_json::to_string(&config).expect("config");
-        let result = run_sensitivity(&model_json, &config_json).expect("sensitivity");
-        let parsed: serde_json::Value = serde_json::from_str(&result).expect("parse");
+        // `run_sensitivity` returns a `JsValue`; exercise the analyzer it
+        // delegates to and assert the serializable shape.
+        let model: finstack_quant_statements::FinancialModelSpec =
+            serde_json::from_str(&model_json).expect("parse model");
+        let analyzer =
+            finstack_quant_statements_analytics::analysis::SensitivityAnalyzer::new(&model);
+        let result = analyzer.run(&config).expect("sensitivity");
+        let parsed = serde_json::to_value(&result).expect("serialize");
         assert!(parsed.is_object() || parsed.is_array());
     }
 
@@ -850,8 +871,14 @@ mod tests {
             ],
             target_metrics: vec!["gross_profit".to_string()],
         };
-        let config_json = serde_json::to_string(&config).expect("config");
-        let result_str = run_sensitivity(&model_json, &config_json).expect("sensitivity");
+        let model: finstack_quant_statements::FinancialModelSpec =
+            serde_json::from_str(&model_json).expect("parse model");
+        let analyzer =
+            finstack_quant_statements_analytics::analysis::SensitivityAnalyzer::new(&model);
+        let result = analyzer.run(&config).expect("sensitivity");
+        // `generateTornadoEntries` still takes the sensitivity result as JSON,
+        // so JS callers stringify the object `runSensitivity` now returns.
+        let result_str = serde_json::to_string(&result).expect("serialize sensitivity");
         let entries = generate_tornado_entries(&result_str, "gross_profit", None).expect("tornado");
         let parsed: serde_json::Value = serde_json::from_str(&entries).expect("parse");
         assert!(parsed.is_array());
@@ -865,17 +892,19 @@ mod tests {
         let mut evaluator = finstack_quant_statements::evaluator::Evaluator::new();
         let base = evaluator.evaluate(&model).expect("eval base");
         let comparison = evaluator.evaluate(&model).expect("eval comparison");
-        let base_json = serde_json::to_string(&base).expect("ser base");
-        let comparison_json = serde_json::to_string(&comparison).expect("ser comparison");
         let config = finstack_quant_statements_analytics::analysis::VarianceConfig {
             baseline_label: "base".to_string(),
             comparison_label: "comp".to_string(),
             metrics: vec!["revenue".to_string(), "gross_profit".to_string()],
             periods: vec![PeriodId::quarter(2024, 1)],
         };
-        let config_json = serde_json::to_string(&config).expect("ser config");
-        let result = run_variance(&base_json, &comparison_json, &config_json).expect("variance");
-        let parsed: serde_json::Value = serde_json::from_str(&result).expect("parse");
+        // `run_variance` returns a `JsValue`; assert the report it serializes.
+        let analyzer = finstack_quant_statements_analytics::analysis::VarianceAnalyzer::new(
+            &base,
+            &comparison,
+        );
+        let report = analyzer.compute(&config).expect("variance");
+        let parsed = serde_json::to_value(&report).expect("serialize");
         assert!(parsed.is_object());
     }
 
@@ -892,20 +921,26 @@ mod tests {
                 },
             },
         };
-        let scenario_set_json = serde_json::to_string(&scenario_set).expect("ser");
-        let result = evaluate_scenario_set(&model_json, &scenario_set_json).expect("eval");
-        let parsed: serde_json::Value = serde_json::from_str(&result).expect("parse");
+        // `evaluate_scenario_set` returns a `JsValue`; assert the map it
+        // serializes.
+        let model: finstack_quant_statements::FinancialModelSpec =
+            serde_json::from_str(&model_json).expect("parse model");
+        let results = scenario_set.evaluate_all(&model).expect("eval");
+        let parsed = serde_json::to_value(&results.scenarios).expect("serialize");
         assert!(parsed.is_object());
         assert!(parsed.get("upside").is_some());
     }
 
     #[test]
     fn evaluate_scenario_set_rejects_removed_model_id() {
-        assert!(evaluate_scenario_set(
-            &test_model_json(),
-            r#"{"scenarios":{"base":{"model_id":"legacy"}}}"#,
-        )
-        .is_err());
+        // Error paths build a `JsValue`, which aborts off wasm32; assert the
+        // serde rejection the binding surfaces.
+        assert!(
+            serde_json::from_str::<finstack_quant_statements_analytics::analysis::ScenarioSet>(
+                r#"{"scenarios":{"base":{"model_id":"legacy"}}}"#
+            )
+            .is_err()
+        );
     }
 
     #[test]

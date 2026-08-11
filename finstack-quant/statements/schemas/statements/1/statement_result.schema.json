@@ -1712,24 +1712,9 @@
       "minimum": 1,
       "type": "integer"
     },
-    "StatementNumericMode": {
-      "description": "Numeric mode used for evaluation.",
-      "oneOf": [
-        {
-          "const": "float64",
-          "description": "f64 floating-point mode (current default)",
-          "type": "string"
-        },
-        {
-          "const": "decimal",
-          "description": "Reserved fixed-point mode.\n\nThe variant remains in the serde/public API so saved result metadata can\nevolve without renaming the enum. The evaluator currently emits\n[`NumericMode::Float64`] only.",
-          "type": "string"
-        }
-      ]
-    },
-    "StatementResultsMeta": {
+    "StatementEvalStats": {
       "additionalProperties": false,
-      "description": "Metadata about evaluation results.",
+      "description": "Execution statistics for a statement-model evaluation.\n\nDistinct from [`finstack_quant_core::config::ResultsMeta`], which is the\nworkspace-wide *audit* stamp (numeric mode, rounding context, FX policy).\nThis type records how the evaluation *ran* — timing, graph size, warnings.",
       "properties": {
         "eval_time_ms": {
           "description": "Evaluation time in milliseconds",
@@ -1775,6 +1760,21 @@
         "num_periods"
       ],
       "type": "object"
+    },
+    "StatementNumericMode": {
+      "description": "Numeric mode used for evaluation.",
+      "oneOf": [
+        {
+          "const": "float64",
+          "description": "f64 floating-point mode (current default)",
+          "type": "string"
+        },
+        {
+          "const": "decimal",
+          "description": "Reserved fixed-point mode.\n\nThe variant remains in the serde/public API so saved result metadata can\nevolve without renaming the enum. The evaluator currently emits\n[`NumericMode::Float64`] only.",
+          "type": "string"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/statements/1/statement_result.schema.json",
@@ -1817,7 +1817,7 @@
       "description": "Capital structure cashflows (populated when model has a capital_structure)"
     },
     "meta": {
-      "$ref": "#/$defs/StatementResultsMeta",
+      "$ref": "#/$defs/StatementEvalStats",
       "description": "Metadata about the evaluation"
     },
     "monetary_nodes": {

@@ -93,7 +93,26 @@ pub struct AllocationDiagnostics {
     pub leverage: f64,
 }
 
+/// Allocate strategy weights from a typed specification.
+///
+/// This is the canonical entry point. Use [`allocate_weights_json`] only at
+/// wire boundaries that must exchange JSON documents.
+///
+/// # Errors
+///
+/// Returns [`Error::ValidationFailed`] when inputs violate scheme invariants.
+///
+/// # Arguments
+///
+/// * `spec` - [`WeightAllocationSpec`] selecting the allocation scheme,
+///   strategy inputs, and any required covariance data.
+pub fn allocate_weights(spec: &WeightAllocationSpec) -> Result<WeightAllocationResult> {
+    spec.execute()
+}
+
 /// Allocate strategy weights from a JSON specification.
+///
+/// Wire-boundary wrapper over [`allocate_weights`].
 ///
 /// # Errors
 ///
@@ -103,9 +122,9 @@ pub struct AllocationDiagnostics {
 ///
 /// * `spec_json` - UTF-8 JSON [`WeightAllocationSpec`] selecting the
 ///   allocation scheme, strategy inputs, and any required covariance data.
-pub fn allocate_weights(spec_json: &str) -> Result<String> {
+pub fn allocate_weights_json(spec_json: &str) -> Result<String> {
     let spec = parse_allocation_spec(spec_json)?;
-    let result = spec.execute()?;
+    let result = allocate_weights(&spec)?;
     serde_json::to_string(&result)
         .map_err(|err| Error::InvalidInput(format!("failed to serialize allocation result: {err}")))
 }

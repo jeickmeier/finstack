@@ -181,7 +181,7 @@ pub enum EnvelopeError {
     /// A JSON response payload could not be serialized.
     #[error("failed to serialize {target} as JSON: {message}")]
     JsonSerialize {
-        /// Payload being serialized, e.g. `"ValidationReport"`.
+        /// Payload being serialized, e.g. `"CalibrationValidationReport"`.
         target: String,
         /// Serializer-provided error description.
         message: String,

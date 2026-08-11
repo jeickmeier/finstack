@@ -37,7 +37,7 @@ const EXPORTED_KEYS = [
   'applyScenarioAndRevalue',
   'applyScenarioAndRevalueBuilt',
   'brinsonFachler',
-  'buildPortfolioFromSpec',
+  'buildPortfolioFromSpecJson',
   'campisiAttribution',
   'campisiCarinoLink',
   'campisiCarinoLinkFromSnapshots',
@@ -64,7 +64,7 @@ const EXPORTED_KEYS = [
   'optimizePortfolio',
   'parametricEsDecomposition',
   'parametricVarDecomposition',
-  'parsePortfolioSpec',
+  'parsePortfolioSpecJson',
   'portfolioResultGetMetric',
   'portfolioResultTotalValue',
   'replayPortfolio',
@@ -76,6 +76,22 @@ const EXPORTED_KEYS = [
   'valuePortfolio',
   'valuePortfolioBuilt',
 ];
+
+/**
+ * Assert a computation result is a plain structured object, not an ES2015
+ * `Map` and not a JSON string.
+ *
+ * `JSON.stringify` is the load-bearing check: a `Map` stringifies to `{}`,
+ * and its property reads silently yield `undefined`.
+ */
+function assertStructured(value, label) {
+  assert.ok(!(value instanceof Map), `${label} must not be an ES2015 Map`);
+  assert.equal(typeof value, 'object', `${label} must be an object, not a JSON string`);
+  assert.notEqual(value, null, `${label} must not be null`);
+  const text = JSON.stringify(value);
+  assert.ok(text.length > 2, `${label} must JSON.stringify to a non-empty payload (got ${text})`);
+  return value;
+}
 
 test('portfolio namespace exposes exactly the pinned contract surface', () => {
   assert.deepEqual(Object.keys(portfolio).sort(), EXPORTED_KEYS);
@@ -146,9 +162,12 @@ const CAMPISI_BENCHMARK = JSON.stringify([
 const campisiConfig = (periodYears) => JSON.stringify({ period_years: periodYears });
 
 test('portfolio.campisiAttribution reconciles the five effects to active return', () => {
-  const result = JSON.parse(
-    portfolio.campisiAttribution(CAMPISI_PORTFOLIO, CAMPISI_BENCHMARK, campisiConfig(0.25))
+  const result = assertStructured(
+    portfolio.campisiAttribution(CAMPISI_PORTFOLIO, CAMPISI_BENCHMARK, campisiConfig(0.25)),
+    'campisiAttribution result'
   );
+  // Direct property read: an ES Map would give undefined here.
+  assert.equal(typeof result.active_return, 'number');
   const reconstructed =
     result.total_allocation +
     result.total_active_carry +
@@ -189,9 +208,12 @@ test('portfolio.campisiCarinoLink links precomputed periods of unequal length', 
     CAMPISI_BENCHMARK,
     campisiConfig(28 / 365)
   );
-  assert.notEqual(JSON.parse(jan).total_active_carry, JSON.parse(feb).total_active_carry);
+  assert.notEqual(jan.total_active_carry, feb.total_active_carry);
 
-  const linked = JSON.parse(portfolio.campisiCarinoLink(`[${jan},${feb}]`));
+  const linked = assertStructured(
+    portfolio.campisiCarinoLink(JSON.stringify([jan, feb])),
+    'campisiCarinoLink result'
+  );
   const geometric = linked.portfolio_return_compounded - linked.benchmark_return_compounded;
   const reconstructed =
     linked.linked_allocation +
@@ -204,8 +226,10 @@ test('portfolio.campisiCarinoLink links precomputed periods of unequal length', 
 });
 
 test('portfolio.campisiCarinoLink rejects inconsistent result contracts', () => {
-  const result = JSON.parse(
-    portfolio.campisiAttribution(CAMPISI_PORTFOLIO, CAMPISI_BENCHMARK, campisiConfig(0.25))
+  const result = portfolio.campisiAttribution(
+    CAMPISI_PORTFOLIO,
+    CAMPISI_BENCHMARK,
+    campisiConfig(0.25)
   );
 
   const badActive = { ...result, active_return: result.active_return + 0.001 };
@@ -225,8 +249,10 @@ test('portfolio.campisiCarinoLink rejects inconsistent result contracts', () => 
 });
 
 test('portfolio.campisiCarinoLink accepts huge finite cancelling effects', () => {
-  const period = JSON.parse(
-    portfolio.campisiAttribution(CAMPISI_PORTFOLIO, CAMPISI_BENCHMARK, campisiConfig(0.25))
+  const period = portfolio.campisiAttribution(
+    CAMPISI_PORTFOLIO,
+    CAMPISI_BENCHMARK,
+    campisiConfig(0.25)
   );
   period.portfolio_return = 0.01;
   period.benchmark_return = 0.01;
@@ -257,7 +283,7 @@ test('portfolio.campisiCarinoLink accepts huge finite cancelling effects', () =>
   period.sectors[0].allocation = 1e308;
   period.sectors[0].active_carry = -1e308;
 
-  const linked = JSON.parse(portfolio.campisiCarinoLink(JSON.stringify([period])));
+  const linked = portfolio.campisiCarinoLink(JSON.stringify([period]));
   assert.equal(linked.linked_allocation, 1e308);
   assert.equal(linked.linked_active_carry, -1e308);
 });
@@ -267,8 +293,9 @@ test('portfolio.campisiCarinoLinkFromSnapshots links raw snapshot periods', () =
     portfolio: JSON.parse(CAMPISI_PORTFOLIO),
     benchmark: JSON.parse(CAMPISI_BENCHMARK),
   };
-  const linked = JSON.parse(
-    portfolio.campisiCarinoLinkFromSnapshots(JSON.stringify([period, period]), campisiConfig(0.25))
+  const linked = assertStructured(
+    portfolio.campisiCarinoLinkFromSnapshots(JSON.stringify([period, period]), campisiConfig(0.25)),
+    'campisiCarinoLinkFromSnapshots result'
   );
   const geometric = linked.portfolio_return_compounded - linked.benchmark_return_compounded;
   const reconstructed =
@@ -283,7 +310,9 @@ test('portfolio.campisiCarinoLinkFromSnapshots links raw snapshot periods', () =
   assert.throws(() => portfolio.campisiCarinoLink(JSON.stringify([period])));
   assert.throws(() =>
     portfolio.campisiCarinoLinkFromSnapshots(
-      `[${portfolio.campisiAttribution(CAMPISI_PORTFOLIO, CAMPISI_BENCHMARK, campisiConfig(0.25))}]`,
+      JSON.stringify([
+        portfolio.campisiAttribution(CAMPISI_PORTFOLIO, CAMPISI_BENCHMARK, campisiConfig(0.25)),
+      ]),
       campisiConfig(0.25)
     )
   );
@@ -324,9 +353,7 @@ test('portfolio.campisiAttribution fails closed on a zero-net-weight sector', ()
     campisiSnapshot('CORE', 0.8, 0.015, 0.048, 5.0),
     campisiSnapshot('EXTRA', 0.2, 0.021, 0.07, 3.0),
   ]);
-  const result = JSON.parse(
-    portfolio.campisiAttribution(oneSided, cleanBenchmark, campisiConfig(0.25))
-  );
+  const result = portfolio.campisiAttribution(oneSided, cleanBenchmark, campisiConfig(0.25));
   assert.deepEqual(
     result.sectors.map((s) => s.sector),
     ['CORE', 'EXTRA']
@@ -342,12 +369,16 @@ test('portfolio.campisiAttribution fails closed on a zero-net-weight sector', ()
 });
 
 test('portfolio.campisiReconciliationCheck reports the residual and fails closed', () => {
-  const resultJson = portfolio.campisiAttribution(
+  const result = portfolio.campisiAttribution(
     CAMPISI_PORTFOLIO,
     CAMPISI_BENCHMARK,
     campisiConfig(0.25)
   );
-  const report = JSON.parse(portfolio.campisiReconciliationCheck(resultJson, 1e-10));
+  const resultJson = JSON.stringify(result);
+  const report = assertStructured(
+    portfolio.campisiReconciliationCheck(resultJson, 1e-10),
+    'campisiReconciliationCheck result'
+  );
   assert.equal(report.is_reconciled, true);
   assert.equal(report.tolerance, 1e-10);
   assert.ok(Math.abs(report.total_residual) <= 1e-10);
@@ -355,19 +386,13 @@ test('portfolio.campisiReconciliationCheck reports the residual and fails closed
   // The tolerance argument is load-bearing, not decorative: a result whose
   // active_return has been tampered with breaks the identity at 1e-10 and
   // passes only under an absurdly loose tolerance.
-  const tampered = JSON.stringify({
-    ...JSON.parse(resultJson),
-    active_return: JSON.parse(resultJson).active_return + 0.01,
-  });
-  assert.equal(
-    JSON.parse(portfolio.campisiReconciliationCheck(tampered, 1e-10)).is_reconciled,
-    false
-  );
-  assert.equal(JSON.parse(portfolio.campisiReconciliationCheck(tampered, 1.0)).is_reconciled, true);
+  const tampered = JSON.stringify({ ...result, active_return: result.active_return + 0.01 });
+  assert.equal(portfolio.campisiReconciliationCheck(tampered, 1e-10).is_reconciled, false);
+  assert.equal(portfolio.campisiReconciliationCheck(tampered, 1.0).is_reconciled, true);
 
   // `FiAttributionResult` denies unknown fields, so a stale key fails closed
   // instead of being silently dropped into a report that still "reconciles".
-  const withBogus = JSON.stringify({ ...JSON.parse(resultJson), bogus_field: 1.0 });
+  const withBogus = JSON.stringify({ ...result, bogus_field: 1.0 });
   assert.throws(() => portfolio.campisiReconciliationCheck(withBogus, 1e-10));
   assert.throws(() => portfolio.campisiCarinoLink(`[${withBogus}]`));
 });
@@ -406,12 +431,10 @@ const LEHMAN_B1_REFERENCE = JSON.stringify(
 const lehmanCellConfig = JSON.stringify({ width: 0.5 });
 
 test('portfolio.cellReturnsFromReference + excessReturns reproduce the Lehman Figure B-2 golden', () => {
-  const tableJson = portfolio.cellReturnsFromReference(
-    LEHMAN_B1_REFERENCE,
-    'UST',
-    lehmanCellConfig
+  const table = assertStructured(
+    portfolio.cellReturnsFromReference(LEHMAN_B1_REFERENCE, 'UST', lehmanCellConfig),
+    'cellReturnsFromReference result'
   );
-  const table = JSON.parse(tableJson);
   assert.equal(table.base_label, 'UST');
   assert.equal(table.cells[0].label, '0.0-0.5');
 
@@ -422,7 +445,10 @@ test('portfolio.cellReturnsFromReference + excessReturns reproduce the Lehman Fi
     { id: 'Delta', weight: 0.2, duration: 9.81, total_return: 0.0102 },
     { id: 'Quebec', weight: 0.2, duration: 11.08, total_return: 0.0185 },
   ]);
-  const result = JSON.parse(portfolio.excessReturns(positions, tableJson));
+  const result = assertStructured(
+    portfolio.excessReturns(positions, JSON.stringify(table)),
+    'excessReturns result'
+  );
   assert.ok(Math.abs(result.portfolio_excess_return - 0.00648) < 1e-9);
   assert.equal(result.positions[0].cell, '5.0-5.5');
   assert.ok(
@@ -434,10 +460,8 @@ test('portfolio.cellReturnsFromReference + excessReturns reproduce the Lehman Fi
 });
 
 test('portfolio.excessReturns fails closed on a duration outside the table range, naming the position', () => {
-  const tableJson = portfolio.cellReturnsFromReference(
-    LEHMAN_B1_REFERENCE,
-    'UST',
-    lehmanCellConfig
+  const tableJson = JSON.stringify(
+    portfolio.cellReturnsFromReference(LEHMAN_B1_REFERENCE, 'UST', lehmanCellConfig)
   );
   const farPosition = JSON.stringify([
     { id: 'X', weight: 1.0, duration: 99.0, total_return: 0.01 },
@@ -504,8 +528,9 @@ const flatCurveKnots = (id) =>
 test('portfolio.cellReturnsFromCurves reproduces the flat-curve pure-carry golden', () => {
   const start = flatCurveKnots('UST');
   const end = flatCurveKnots('UST');
-  const table = JSON.parse(
-    portfolio.cellReturnsFromCurves(start, end, 0.25, 2.0, 'UST', JSON.stringify({ width: 1.0 }))
+  const table = assertStructured(
+    portfolio.cellReturnsFromCurves(start, end, 0.25, 2.0, 'UST', JSON.stringify({ width: 1.0 })),
+    'cellReturnsFromCurves result'
   );
   assert.equal(table.cells.length, 2);
   for (const cell of table.cells) {
@@ -529,8 +554,13 @@ test('portfolio.cellReturnsFromCurves distinguishes start and end curves under r
     '2024-01-01',
     [0.0, 1.0, 0.25, 0.9875778, 1.25, 0.93941306]
   );
-  const table = JSON.parse(
-    portfolio.cellReturnsFromCurves(start, end, 0.25, 2.0, 'UST', JSON.stringify({ width: 1.0 }))
+  const table = portfolio.cellReturnsFromCurves(
+    start,
+    end,
+    0.25,
+    2.0,
+    'UST',
+    JSON.stringify({ width: 1.0 })
   );
   assert.ok(Math.abs(table.cells[0].base_return - 0.0075281983) < 1e-8);
   assert.ok(Math.abs(table.cells[1].base_return - -0.00249688) < 1e-8);
@@ -563,7 +593,10 @@ const GRID_BENCHMARK = JSON.stringify([
 ]);
 
 test('portfolio.gridAttribution matches the hand-derived golden and reconciles', () => {
-  const result = JSON.parse(portfolio.gridAttribution(GRID_PORTFOLIO, GRID_BENCHMARK));
+  const result = assertStructured(
+    portfolio.gridAttribution(GRID_PORTFOLIO, GRID_BENCHMARK),
+    'gridAttribution result'
+  );
   const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-12, `${a} vs ${b}`);
   close(result.portfolio_return, 0.0293);
   close(result.benchmark_return, 0.0245);
@@ -578,7 +611,7 @@ test('portfolio.gridAttribution matches the hand-derived golden and reconciles',
 // arrays, and the golden above has portfolio_return != benchmark_return, so
 // swapping them changes every total.
 test('portfolio.gridAttribution is not invariant under swapping portfolio and benchmark', () => {
-  const swapped = JSON.parse(portfolio.gridAttribution(GRID_BENCHMARK, GRID_PORTFOLIO));
+  const swapped = portfolio.gridAttribution(GRID_BENCHMARK, GRID_PORTFOLIO);
   assert.notEqual(swapped.active_return, 0.0048);
   assert.ok(Math.abs(swapped.active_return - -0.0048) < 1e-12);
 });
@@ -625,7 +658,10 @@ test('portfolio.gridAttribution fails closed on a near-zero (not just exact-zero
 
 test('portfolio.gridCarinoLink reconstructs the geometrically compounded active return over two periods', () => {
   const period = portfolio.gridAttribution(GRID_PORTFOLIO, GRID_BENCHMARK);
-  const linked = JSON.parse(portfolio.gridCarinoLink(`[${period},${period}]`));
+  const linked = assertStructured(
+    portfolio.gridCarinoLink(JSON.stringify([period, period])),
+    'gridCarinoLink result'
+  );
   const close = (a, b, tol) => assert.ok(Math.abs(a - b) < tol, `${a} vs ${b}`);
   close(linked.portfolio_return_compounded, 0.05945849, 1e-8);
   close(linked.benchmark_return_compounded, 0.04960025, 1e-8);
@@ -639,7 +675,7 @@ test('portfolio.gridCarinoLink rejects an empty period array', () => {
 });
 
 test('portfolio.gridCarinoLink rejects inconsistent result contracts', () => {
-  const period = JSON.parse(portfolio.gridAttribution(GRID_PORTFOLIO, GRID_BENCHMARK));
+  const period = portfolio.gridAttribution(GRID_PORTFOLIO, GRID_BENCHMARK);
 
   const badActive = { ...period, active_return: period.active_return + 0.001 };
   assert.throws(() => portfolio.gridCarinoLink(JSON.stringify([badActive])), /active_return/);
@@ -661,8 +697,9 @@ const FACTOR_BRINSON_INPUT = JSON.stringify({
 const FACTOR_BRINSON_F_B = [0.02, 0.31 / 7.0];
 
 test('portfolio.factorBrinsonAttribution matches the binary Jeet-Partani golden', () => {
-  const result = JSON.parse(
-    portfolio.factorBrinsonAttribution(FACTOR_BRINSON_INPUT, FACTOR_BRINSON_F_B)
+  const result = assertStructured(
+    portfolio.factorBrinsonAttribution(FACTOR_BRINSON_INPUT, FACTOR_BRINSON_F_B),
+    'factorBrinsonAttribution result'
   );
   const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-12, `${a} vs ${b}`);
   close(result.active_return, 0.02);
@@ -749,8 +786,239 @@ test('constrainedLeastSquares output satisfies factorBrinsonAttribution complete
     portfolio_weights: [1.25, -0.3, 0.05],
     benchmark_weights: benchmarkWeights,
   });
-  const result = JSON.parse(portfolio.factorBrinsonAttribution(input, fB));
+  const result = portfolio.factorBrinsonAttribution(input, fB);
   assert.ok(Math.abs(result.allocation - 0.00977) < 1e-4);
   assert.ok(Math.abs(result.selection - 0.010231) < 1e-4);
   assert.ok(Math.abs(result.allocation + result.selection - result.active_return) < 1e-12);
+});
+
+// Structured-return contract for the remaining portfolio computation results.
+//
+// Every export below used to hand back a JSON string. The assertions read a
+// property directly (an ES2015 Map would yield `undefined`) and round-trip the
+// value through `JSON.stringify` (a Map renders as `{}`).
+
+const EMPTY_SPEC = JSON.stringify({
+  id: 'facade_portfolio',
+  name: 'Facade',
+  base_currency: 'USD',
+  as_of: '2024-01-15',
+  entities: {},
+  positions: [],
+});
+// An empty `MarketContext`. `MarketContextState` denies unknown fields and
+// requires every key except `fx`, so the payload has to be spelled out in full.
+const EMPTY_MARKET = JSON.stringify({
+  schema_version: 1,
+  curves: [],
+  fx: null,
+  surfaces: [],
+  prices: {},
+  series: [],
+  inflation_indices: [],
+  dividends: [],
+  credit_indices: [],
+  fx_delta_vol_surfaces: [],
+  vol_cubes: [],
+  collateral: {},
+  hierarchy: null,
+});
+
+test('portfolio spec wire surfaces keep returning canonical JSON strings', () => {
+  const canonical = portfolio.parsePortfolioSpecJson(EMPTY_SPEC);
+  assert.equal(typeof canonical, 'string', 'parsePortfolioSpecJson is a wire surface');
+  assert.equal(JSON.parse(canonical).id, 'facade_portfolio');
+
+  const rebuilt = portfolio.buildPortfolioFromSpecJson(canonical);
+  assert.equal(typeof rebuilt, 'string', 'buildPortfolioFromSpecJson is a wire surface');
+  assert.equal(JSON.parse(rebuilt).id, 'facade_portfolio');
+
+  const handle = portfolio.Portfolio.fromSpec(canonical);
+  assert.equal(typeof handle.toJson(), 'string', 'Portfolio.toJson is a wire surface');
+  handle.free();
+});
+
+test('portfolio.valuePortfolio returns a structured valuation', () => {
+  const valuation = assertStructured(
+    portfolio.valuePortfolio(EMPTY_SPEC, EMPTY_MARKET, false),
+    'valuePortfolio result'
+  );
+  // Direct property reads: an ES2015 Map would yield `undefined` for all of
+  // these, and `position_values` would not survive JSON.stringify.
+  assert.equal(valuation.as_of, '2024-01-15');
+  assert.deepEqual(valuation.position_values, {});
+  assert.equal(valuation.total_base_currency.currency, 'USD');
+  assert.equal(typeof valuation.fx_collapse_policy, 'string');
+});
+
+test('portfolio.aggregateFullCashflows returns a structured ladder', () => {
+  const ladder = assertStructured(
+    portfolio.aggregateFullCashflows(EMPTY_SPEC, EMPTY_MARKET),
+    'aggregateFullCashflows result'
+  );
+  assert.deepEqual(ladder.events, []);
+  assert.deepEqual(ladder.issues, []);
+
+  const handle = portfolio.Portfolio.fromSpec(EMPTY_SPEC);
+  const built = assertStructured(
+    portfolio.aggregateFullCashflowsBuilt(handle, EMPTY_MARKET),
+    'aggregateFullCashflowsBuilt result'
+  );
+  assert.deepEqual(built, ladder);
+  handle.free();
+});
+
+test('portfolio.aggregateMetrics returns a structured metrics object', () => {
+  const valuation = portfolio.valuePortfolio(EMPTY_SPEC, EMPTY_MARKET, false);
+  const metrics = assertStructured(
+    portfolio.aggregateMetrics(JSON.stringify(valuation), 'USD', EMPTY_MARKET, '2024-01-15'),
+    'aggregateMetrics result'
+  );
+  assert.equal(typeof metrics, 'object');
+});
+
+test('portfolio.replayPortfolio returns a structured replay result', () => {
+  const market = JSON.parse(EMPTY_MARKET);
+  const snapshots = JSON.stringify([
+    { date: '2024-01-15', market },
+    { date: '2024-01-16', market },
+  ]);
+  const config = JSON.stringify({ mode: 'pv_only', attribution_method: 'parallel' });
+  const replay = assertStructured(
+    portfolio.replayPortfolio(EMPTY_SPEC, snapshots, config),
+    'replayPortfolio result'
+  );
+  assert.equal(replay.steps.length, 2);
+});
+
+test('portfolio.brinsonFachler and carinoLink return structured attributions', () => {
+  const sectors = JSON.stringify([
+    {
+      sector: 'A',
+      portfolio_weight: 0.6,
+      benchmark_weight: 0.4,
+      portfolio_return: 0.08,
+      benchmark_return: 0.06,
+    },
+    {
+      sector: 'B',
+      portfolio_weight: 0.4,
+      benchmark_weight: 0.6,
+      portfolio_return: 0.01,
+      benchmark_return: 0.03,
+    },
+  ]);
+  const single = assertStructured(portfolio.brinsonFachler(sectors), 'brinsonFachler result');
+  const reconstructed = single.total_allocation + single.total_selection + single.total_interaction;
+  assert.ok(Math.abs(reconstructed - single.total_excess_return) < 1e-12);
+
+  const linked = assertStructured(
+    portfolio.carinoLink(JSON.stringify([JSON.parse(sectors), JSON.parse(sectors)])),
+    'carinoLink result'
+  );
+  const geometric = linked.portfolio_return_compounded - linked.benchmark_return_compounded;
+  const sum = linked.linked_allocation + linked.linked_selection + linked.linked_interaction;
+  assert.ok(Math.abs(sum - geometric) < 1e-10);
+});
+
+test('portfolio.twrrLinked returns a structured linked return', () => {
+  const linked = assertStructured(
+    portfolio.twrrLinked(JSON.stringify([0.05, 0.03]), 1.0),
+    'twrrLinked result'
+  );
+  assert.ok(Math.abs(linked.cumulative - 0.0815) < 1e-12);
+  assert.equal(linked.num_periods, 2);
+});
+
+// Position ids / weights / covariance are all shared by the three
+// decomposition entry points.
+const VAR_IDS = JSON.stringify(['A', 'B']);
+const VAR_WEIGHTS = JSON.stringify([0.6, 0.4]);
+const VAR_COVARIANCE = JSON.stringify([
+  [0.04, 0.01],
+  [0.01, 0.09],
+]);
+
+test('portfolio.parametricVarDecomposition returns the Python-parity object', () => {
+  const decomposition = assertStructured(
+    portfolio.parametricVarDecomposition(VAR_IDS, VAR_WEIGHTS, VAR_COVARIANCE, 0.95),
+    'parametricVarDecomposition result'
+  );
+  assert.equal(decomposition.confidence, 0.95);
+  assert.equal(decomposition.n_positions, 2);
+  assert.equal(decomposition.contributions.length, 2);
+  assert.equal(decomposition.contributions[0].position_id, 'A');
+  assert.equal(typeof decomposition.contributions[0].component_var, 'number');
+  assert.equal(typeof decomposition.contributions[0].pct_contribution, 'number');
+});
+
+test('portfolio.parametricEsDecomposition returns the Python-parity object', () => {
+  const decomposition = assertStructured(
+    portfolio.parametricEsDecomposition(VAR_IDS, VAR_WEIGHTS, VAR_COVARIANCE, 0.95),
+    'parametricEsDecomposition result'
+  );
+  assert.equal(decomposition.n_positions, 2);
+  assert.equal(typeof decomposition.portfolio_es, 'number');
+  assert.equal(typeof decomposition.contributions[0].component_es, 'number');
+  assert.equal(typeof decomposition.contributions[0].pct_contribution, 'number');
+});
+
+test('portfolio.historicalVarDecomposition returns a structured decomposition', () => {
+  // (1 - confidence) * n_scenarios must be at least 1 to resolve the tail, so
+  // 0.9 confidence needs >= 10 scenarios per position.
+  const scenarios = 20;
+  const pnls = JSON.stringify([
+    Array.from({ length: scenarios }, (_, i) => i - scenarios / 2),
+    Array.from({ length: scenarios }, (_, i) => (i - scenarios / 2) / 2),
+  ]);
+  const decomposition = assertStructured(
+    portfolio.historicalVarDecomposition(VAR_IDS, pnls, 0.9),
+    'historicalVarDecomposition result'
+  );
+  assert.equal(decomposition.n_positions, 2);
+  assert.equal(decomposition.contributions.length, 2);
+});
+
+test('portfolio.evaluateRiskBudget returns a structured budget report', () => {
+  const budget = assertStructured(
+    portfolio.evaluateRiskBudget(
+      VAR_IDS,
+      JSON.stringify([60.0, 40.0]),
+      JSON.stringify([0.5, 0.5]),
+      100.0,
+      1.1
+    ),
+    'evaluateRiskBudget result'
+  );
+  assert.equal(budget.portfolio_var, 100.0);
+  assert.equal(budget.utilization_threshold, 1.1);
+  assert.equal(budget.positions.length, 2);
+  assert.equal(budget.positions[0].position_id, 'A');
+  assert.equal(typeof budget.positions[0].breach, 'boolean');
+});
+
+test('portfolio.lvarBangia returns the Python-parity dict shape', () => {
+  const lvar = assertStructured(
+    portfolio.lvarBangia(-100_000, 0.002, 0.0005, 0.99, 1_000_000),
+    'lvarBangia result'
+  );
+  assert.deepEqual(Object.keys(lvar).sort(), ['lvar', 'lvar_ratio', 'spread_cost', 'var']);
+  assert.equal(lvar.var, -100_000);
+  assert.ok(lvar.lvar <= lvar.var);
+  assert.ok(Math.abs(lvar.lvar_ratio - lvar.lvar / lvar.var) < 1e-12);
+});
+
+test('portfolio.almgrenChrissImpact returns the Python-parity dict shape', () => {
+  const impact = assertStructured(
+    portfolio.almgrenChrissImpact(10_000, 1_000_000, 0.02, 1.0, 0.0, 0.01, 100.0),
+    'almgrenChrissImpact result'
+  );
+  assert.deepEqual(Object.keys(impact).sort(), [
+    'expected_cost_bp',
+    'permanent_impact',
+    'temporary_impact',
+    'total_impact',
+  ]);
+  const unpriced = portfolio.almgrenChrissImpact(10_000, 1_000_000, 0.02, 1.0, 0.0, 0.01);
+  assert.ok(Math.abs(impact.expected_cost_bp - unpriced.expected_cost_bp / 100) < 1e-12);
 });

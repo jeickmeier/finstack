@@ -300,3 +300,58 @@ pub fn selected_table_to_dataframe<'py>(
     }
     dict_to_dataframe(py, &columns, None)
 }
+
+/// Convert any `Serialize` value into a Python object via its canonical JSON
+/// shape.
+///
+/// This is the shared escape hatch behind `to_dict()`-style accessors and
+/// typed getters that surface nested serde structures (for example
+/// [`finstack_quant_core::config::ResultsMeta`]) without hand-writing a
+/// `PyDict` per field.
+///
+/// # Arguments
+///
+/// * `value` - Any serde-serializable value.
+///
+/// # Errors
+///
+/// Returns a `ValueError` if the value cannot be serialized, or propagates a
+/// failure from Python's `json.loads`.
+pub fn serde_to_py<'py, T>(py: Python<'py>, value: &T) -> PyResult<Bound<'py, PyAny>>
+where
+    T: Serialize,
+{
+    let json = serde_json::to_string(value).map_err(crate::errors::display_to_py)?;
+    py.import("json")?.call_method1("loads", (json,))
+}
+
+/// Build a `pd.Series` from parallel label/value slices.
+///
+/// Use for one-dimensional labeled vectors (weights by strategy, contribution
+/// by position, level by node). For dated series prefer
+/// [`values_to_series`] with [`dates_to_datetime_index`].
+///
+/// # Arguments
+///
+/// * `labels` - Index labels; must be the same length as `values`.
+/// * `values` - Numeric payload.
+/// * `name` - Series name (typically the metric being reported).
+///
+/// # Errors
+///
+/// Returns a `ValueError` if `labels` and `values` differ in length.
+pub fn labeled_values_to_series<'py>(
+    py: Python<'py>,
+    labels: &[String],
+    values: Vec<f64>,
+    name: &str,
+) -> PyResult<Bound<'py, PyAny>> {
+    if labels.len() != values.len() {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "labels and values must have equal length (got {} and {})",
+            labels.len(),
+            values.len()
+        )));
+    }
+    values_to_series(py, values, labels, name)
+}

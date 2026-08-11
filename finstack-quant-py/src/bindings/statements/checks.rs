@@ -68,13 +68,13 @@ impl PyCheckSuiteSpec {
         Ok(Self { inner })
     }
 
-    /// Serialize this suite spec to pretty-printed JSON.
+    /// Serialize this suite spec to compact JSON.
     ///
     /// The output is the canonical policy format — check it into version
     /// control to pin a team's validation rules and tolerances.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
     /// Suite name, used for display and logging.
@@ -146,10 +146,10 @@ impl PyCheckReport {
         Ok(Self { inner })
     }
 
-    /// Serialize this report to pretty-printed JSON.
+    /// Serialize this report to compact JSON.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
     /// Whether the whole report passed: no error-severity finding was

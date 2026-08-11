@@ -65,7 +65,7 @@ sensitivities.add_ir_delta(Currency::USD, "5y", 50_000.0);
 sensitivities.add_equity_delta("AAPL", 100_000.0);
 
 let (total_im, breakdown) = calc.calculate_from_sensitivities(&sensitivities, Currency::USD);
-assert!(total_im.amount() >= 0.0);
+assert!(total_im >= 0.0);
 assert!(!breakdown.is_empty());
 # Ok(())
 # }
@@ -85,7 +85,7 @@ let calc = VmCalculator::new(CsaSpec::usd_regulatory()?);
 
 let exposure = Money::new(5_000_000.0, Currency::USD);
 let posted = Money::new(3_000_000.0, Currency::USD);
-let as_of = Date::from_calendar_date(2025, Month::January, 15)?;
+let as_of = Date::from_calendar_date(2025, Month::January, 15).expect("valid date");
 
 let result = calc.calculate(exposure, posted, as_of)?;
 assert!(result.delivery_amount.amount() >= 0.0 || result.return_amount.amount() >= 0.0);
@@ -139,13 +139,13 @@ let trade = ExampleTrade {
 };
 
 let market = MarketContext::new();
-let as_of = Date::from_calendar_date(2025, Month::January, 15)?;
+let as_of = Date::from_calendar_date(2025, Month::January, 15).expect("valid date");
 
 let sens = trade.simm_sensitivities(&market, as_of)?;
 let (im, _breakdown) = SimmCalculator::new(SimmVersion::V2_6)?
     .calculate_from_sensitivities(&sens, Currency::USD);
 let vm = trade.mtm_for_vm(&market, as_of)?;
-assert!(im.amount() >= 0.0);
+assert!(im >= 0.0);
 assert!(vm.amount() >= 0.0);
 # Ok(())
 # }

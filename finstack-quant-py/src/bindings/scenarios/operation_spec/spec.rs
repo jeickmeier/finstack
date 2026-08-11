@@ -424,8 +424,8 @@ impl PyOperationSpec {
     }
 
     /// Deserialize an `OperationSpec` from JSON.
-    #[classmethod]
-    fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
         let inner: OperationSpec = serde_json::from_str(json)
             .map_err(|e| crate::errors::value_error(format!("Invalid OperationSpec JSON: {e}")))?;
         Ok(Self { inner })

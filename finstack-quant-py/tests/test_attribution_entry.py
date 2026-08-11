@@ -14,6 +14,7 @@ import pytest
 
 from finstack_quant.attribution import (
     PnlAttribution,
+    ReturnContributionResult,
     attribute_pnl,
     attribute_return_contribution,
     default_waterfall_order,
@@ -80,7 +81,7 @@ def test_attribute_pnl_accepts_bare_method_strings() -> None:
     valid JSON, so the bare unit-variant names raised
     ``ValueError: invalid method JSON``.
     """
-    out = attribute_pnl(
+    attr = attribute_pnl(
         _bond_json(),
         _market_json(AS_OF_T0),
         _market_json(AS_OF_T1, shift=0.002),
@@ -88,7 +89,7 @@ def test_attribute_pnl_accepts_bare_method_strings() -> None:
         AS_OF_T1,
         "parallel",
     )
-    attr = PnlAttribution.from_json(out)
+    assert isinstance(attr, PnlAttribution)
     assert attr.method == "parallel"
     assert attr.total_pnl != 0.0
     # Rates moved between T0 and T1; the parallel method must attribute it.
@@ -122,7 +123,7 @@ def test_default_waterfall_order_uses_canonical_factor_names() -> None:
 
 
 def test_attribute_pnl_accepts_dict_method_forms() -> None:
-    out = attribute_pnl(
+    attr = attribute_pnl(
         _bond_json(),
         _market_json(AS_OF_T0),
         _market_json(AS_OF_T1, shift=0.002),
@@ -130,7 +131,6 @@ def test_attribute_pnl_accepts_dict_method_forms() -> None:
         AS_OF_T1,
         {"waterfall": ["carry", "rates_curves"]},
     )
-    attr = PnlAttribution.from_json(out)
     assert attr.rates_curves_pnl != 0.0
 
 
@@ -181,7 +181,7 @@ def test_empty_detail_dataframes_keep_schema_columns() -> None:
     Cross-instrument pipelines filter/aggregate the documented columns, so
     instruments without detail blocks must not produce column-less frames.
     """
-    out = attribute_pnl(
+    attr = attribute_pnl(
         _bond_json(),
         _market_json(AS_OF_T0),
         _market_json(AS_OF_T1),
@@ -189,7 +189,6 @@ def test_empty_detail_dataframes_keep_schema_columns() -> None:
         AS_OF_T1,
         "parallel",
     )
-    attr = PnlAttribution.from_json(out)
     expected_columns = ["kind", "factor", "key_a", "key_b", "amount", "currency"]
     for df in (
         attr.to_credit_factor_dataframe(),
@@ -227,11 +226,12 @@ def test_attribute_return_contribution_json_entrypoint() -> None:
     }
 
     validate_return_contribution_json(json.dumps(spec))
-    result = json.loads(attribute_return_contribution(json.dumps(spec)))
+    result = attribute_return_contribution(json.dumps(spec))
 
-    assert result["portfolio_return"] == pytest.approx(0.0104)
-    assert result["instrument_contribution"][0]["id"] == "AAPL.XNAS"
-    assert any(row["key"] == "unknown" for row in result["group_contribution"]["strategy"])
-    relative = result["benchmark_relative"]
+    assert isinstance(result, ReturnContributionResult)
+    assert result.portfolio_return == pytest.approx(0.0104)
+    assert result.instrument_contribution[0]["id"] == "AAPL.XNAS"
+    assert any(row["key"] == "unknown" for row in result.group_contribution["strategy"])
+    relative = result.benchmark_relative
     assert relative is not None
     assert relative["residual"] == pytest.approx(0.0, abs=1e-12)

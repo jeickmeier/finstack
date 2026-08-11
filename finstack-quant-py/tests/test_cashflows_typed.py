@@ -933,12 +933,12 @@ class TestAggregation:
 
 class TestTypedJsonEquivalence:
     def test_typed_accrual_matches_json_bridge(self) -> None:
-        from finstack_quant.cashflows import accrued_interest_json
+        from finstack_quant.cashflows import accrued_interest
         from finstack_quant.cashflows.accrual import accrued_interest_amount
 
         schedule = TestAccrual._semiannual_bond()
         typed = accrued_interest_amount(schedule, dt.date(2025, 4, 15))
-        via_json = accrued_interest_json(schedule.to_json(), "2025-04-15")
+        via_json = accrued_interest(schedule.to_json(), "2025-04-15")
         assert typed == pytest.approx(via_json, abs=1e-9)
         assert typed == pytest.approx(12_500.0, abs=1e-6)
 

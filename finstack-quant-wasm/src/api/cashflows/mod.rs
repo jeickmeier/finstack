@@ -51,12 +51,12 @@ pub fn dated_flows_json(schedule_json: &str) -> Result<String, JsValue> {
 ///   absolute tolerance scaled to the schedule notional rather than expecting
 ///   decimal-string equality.
 /// @throws If any JSON input is malformed or the accrual computation fails.
-#[wasm_bindgen(js_name = accruedInterestJson)]
-pub fn accrued_interest_json(
+#[wasm_bindgen(js_name = accruedInterest)]
+pub fn accrued_interest(
     schedule_json: &str,
     as_of: &str,
     config_json: Option<String>,
 ) -> Result<f64, JsValue> {
-    finstack_quant_cashflows::accrued_interest_json(schedule_json, as_of, config_json.as_deref())
+    finstack_quant_cashflows::accrued_interest(schedule_json, as_of, config_json.as_deref())
         .map_err(to_js_err)
 }

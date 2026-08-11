@@ -68,9 +68,9 @@ impl PyOptimizationStatus {
     }
 
     /// Parse from a JSON string.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: OptimizationStatus = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }
@@ -156,9 +156,9 @@ impl PyTradeSpec {
     }
 
     /// Parse from a JSON string.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: TradeSpec = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }

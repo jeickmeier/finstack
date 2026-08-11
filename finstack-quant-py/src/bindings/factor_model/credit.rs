@@ -5,11 +5,22 @@
 //! [`PyFactorCovarianceForecast`] which wraps the vol-forecast engine from
 //! `finstack-quant-portfolio`.
 
+use crate::bindings::pandas_utils::labeled_values_to_series;
 use crate::bindings::pandas_utils::serde_rows_to_dataframe_with_schema;
 use crate::bindings::pandas_utils::ColumnSchema;
 use crate::errors::{core_to_py, display_to_py};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+
+/// Column schema of `PyLevelsAtDate::to_dataframe`, kept so a level-free
+/// snapshot still exports the documented columns.
+const LEVEL_VALUE_COLUMNS: &[ColumnSchema<'static>] = &[
+    ("date", "str"),
+    ("level_index", "int64"),
+    ("dimension", "str"),
+    ("bucket", "str"),
+    ("value", "float64"),
+];
 
 /// Column schema of `PyPeriodDecomposition::to_level_dataframe`, kept so a
 /// level-free decomposition still exports the documented columns.
@@ -126,12 +137,12 @@ impl PyCreditFactorModel {
         Ok(Self { inner })
     }
 
-    /// Serialize this model to pretty-printed JSON.
+    /// Serialize this model to compact JSON.
     ///
     /// Returns:
     ///     JSON string suitable for storage or transmission.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
     /// Namespaced schema marker (``"finstack_quant.credit_factor_model/1"``).
@@ -392,6 +403,60 @@ impl PyLevelsAtDate {
         Ok(d)
     }
 
+    /// Export the per-level bucket values as a pandas ``DataFrame``.
+    ///
+    /// Columns: ``date``, ``level_index``, ``dimension``, ``bucket``,
+    /// ``value``.
+    ///
+    /// One row per (level, bucket) pair — the long format the level values
+    /// naturally take, since each level has its own bucket set. ``date``
+    /// repeats on every row as an ISO string so a row survives ``pd.concat``
+    /// across dates. Rows are ordered by ``level_index``, then by ``bucket``
+    /// — the values are a ``BTreeMap``, so bucket order is the sorted key
+    /// order and repeated exports are identical.
+    ///
+    /// A snapshot from a hierarchy with no levels yields a zero-row frame that
+    /// still carries the columns above. The scalar ``generic`` factor and the
+    /// per-issuer residuals are not levels; read them from the ``generic``
+    /// getter and ``to_series`` respectively.
+    #[pyo3(text_signature = "($self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let date = self.inner.date.to_string();
+        let mut rows: Vec<serde_json::Value> = Vec::new();
+        for level in &self.inner.by_level {
+            let dimension = dimension_label(&level.dimension);
+            for (bucket, value) in &level.values {
+                rows.push(serde_json::json!({
+                    "date": date,
+                    "level_index": level.level_index,
+                    "dimension": dimension,
+                    "bucket": bucket,
+                    "value": value,
+                }));
+            }
+        }
+        serde_rows_to_dataframe_with_schema(py, &rows, LEVEL_VALUE_COLUMNS)
+    }
+
+    /// Export the per-issuer residual adders as a pandas ``Series``.
+    ///
+    /// Index is the issuer ID, values are the residual after peeling the
+    /// generic factor and every hierarchy level; the Series is named
+    /// ``adder``. Issuers are in sorted order — the adders are a ``BTreeMap``
+    /// — so repeated exports and ``pd.concat([...], axis=1)`` across dates
+    /// align on the index.
+    #[pyo3(text_signature = "($self)")]
+    fn to_series<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let labels: Vec<String> = self
+            .inner
+            .adder
+            .keys()
+            .map(|issuer| issuer.as_str().to_owned())
+            .collect();
+        let values: Vec<f64> = self.inner.adder.values().copied().collect();
+        labeled_values_to_series(py, &labels, values, "adder")
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "LevelsAtDate(date={:?}, generic={:.4}, n_levels={}, n_issuers={})",
@@ -527,6 +592,21 @@ impl PyPeriodDecomposition {
     ///
     /// Columns: ``from_date``, ``to_date``, ``level_index``, ``dimension``,
     /// ``bucket``, ``delta``.
+    ///
+    /// This is the default export and the same table as
+    /// ``to_level_dataframe`` — both call one implementation, so the two
+    /// cannot drift apart. The per-issuer adder deltas are a separate,
+    /// differently-keyed table; see ``to_adder_dataframe``. The scalar
+    /// ``d_generic`` is metadata and is not repeated per row.
+    #[pyo3(text_signature = "($self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.to_level_dataframe(py)
+    }
+
+    /// Export the per-level bucket deltas as a pandas ``DataFrame``.
+    ///
+    /// Columns: ``from_date``, ``to_date``, ``level_index``, ``dimension``,
+    /// ``bucket``, ``delta``. Identical to ``to_dataframe``.
     ///
     /// One row per (level, bucket) pair — the long format the level deltas
     /// naturally take, since each level has its own bucket set. The two dates
@@ -822,7 +902,7 @@ impl PyFactorCovarianceForecast {
                 forecast.covariance_at(h)
             })
             .map_err(display_to_py)?;
-        serde_json::to_string_pretty(&cov).map_err(display_to_py)
+        serde_json::to_string(&cov).map_err(display_to_py)
     }
 
     /// Idiosyncratic vol (std dev) for a specific issuer at the requested horizon.
@@ -883,7 +963,7 @@ impl PyFactorCovarianceForecast {
                 forecast.factor_model_config_at(h, measure)
             })
             .map_err(display_to_py)?;
-        serde_json::to_string_pretty(&config).map_err(display_to_py)
+        serde_json::to_string(&config).map_err(display_to_py)
     }
 
     fn __repr__(&self) -> String {

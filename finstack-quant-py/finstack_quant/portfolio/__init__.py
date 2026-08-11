@@ -84,6 +84,7 @@ Portfolio = _portfolio.Portfolio
 InstrumentArtifactCache = _portfolio.InstrumentArtifactCache
 MaterializationReport = _portfolio.MaterializationReport
 PortfolioValuation = _portfolio.PortfolioValuation
+ScenarioPnl = _portfolio.ScenarioPnl
 PortfolioResult = _portfolio.PortfolioResult
 PortfolioMetrics = _portfolio.PortfolioMetrics
 PortfolioCashflows = _portfolio.PortfolioCashflows
@@ -238,6 +239,7 @@ __all__: list[str] = [
     "PositionVolContribution",
     "RiskBudgetResult",
     "RiskDecomposition",
+    "ScenarioPnl",
     "SensitivityMatrix",
     "StressAttribution",
     "StressPositionEntry",

@@ -1,7 +1,6 @@
 //! Convertible bond Python wrappers and fluent builder.
 
 use pyo3::prelude::*;
-use pyo3::types::PyType;
 
 use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::core::money::PyMoney;
@@ -103,9 +102,9 @@ impl PyConvertibleBond {
     /// ... except ValueError as exc:
     /// ...     print("schema" in str(exc))
     /// True
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
         match parse_typed_instrument_json(json)? {
             InstrumentJson::ConvertibleBond(inner) => {
                 inner.validate_for_pricing().map_err(core_to_py)?;

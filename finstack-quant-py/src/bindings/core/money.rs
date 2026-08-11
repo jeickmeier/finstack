@@ -226,9 +226,9 @@ impl PyMoney {
     }
 
     /// Deserialize from JSON.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
         let inner: Money = serde_json::from_str(json).map_err(display_to_py)?;
         Ok(Self::from_inner(inner))
     }

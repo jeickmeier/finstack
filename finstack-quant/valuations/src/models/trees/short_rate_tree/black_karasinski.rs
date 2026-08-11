@@ -4,7 +4,7 @@ use finstack_quant_core::{Error, Result};
 
 use crate::models::trees::hull_white_tree::HullWhiteTree;
 
-use super::{CalibrationResult, ShortRateTree};
+use super::{ShortRateTree, TreeCalibrationResult};
 
 /// Calibrated Black-Karasinski trinomial lattice data (κ ≠ 0).
 ///
@@ -178,7 +178,7 @@ impl ShortRateTree {
         // calibrates to float noise; anything materially off must not escape.
         const MAX_CALIBRATION_ERROR_BPS: f64 = 25.0;
         let converged = max_error_bp.is_finite() && max_error_bp <= MAX_CALIBRATION_ERROR_BPS;
-        self.calibration_quality = Some(CalibrationResult {
+        self.calibration_quality = Some(TreeCalibrationResult {
             max_error_bp,
             max_error_step,
             fallback_count: 0,

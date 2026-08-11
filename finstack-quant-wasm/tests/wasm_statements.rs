@@ -75,9 +75,11 @@ fn evaluate_model_produces_computed_nodes() {
         .unwrap();
     let model_json = serde_json::to_string(&model).unwrap();
 
+    // `evaluate_model` returns a structured JS object; decode it back into the
+    // canonical Rust type to assert the evaluated values.
     let out = evaluate_model(&model_json).unwrap();
     let result: finstack_quant_statements::evaluator::StatementResult =
-        serde_json::from_str(&out).unwrap();
+        serde_wasm_bindgen::from_value(out).unwrap();
     assert!(result.nodes.contains_key("revenue"));
     assert!(result.nodes.contains_key("gross_profit"));
     let gp_q1 = result
@@ -92,8 +94,8 @@ fn evaluate_model_produces_computed_nodes() {
 // DSL
 
 #[wasm_bindgen_test]
-fn parse_formula_returns_non_empty_ast() {
-    let out = parse_formula("revenue - cogs").unwrap();
+fn parse_formula_text_returns_non_empty_ast() {
+    let out = parse_formula_text("revenue - cogs").unwrap();
     assert!(!out.is_empty());
 }
 
@@ -108,28 +110,28 @@ fn validate_formula_accepts_valid() {
 fn validate_waterfall_spec_roundtrips_default() {
     let spec = finstack_quant_statements::capital_structure::WaterfallSpec::default();
     let json = serde_json::to_string(&spec).unwrap();
-    let out = validate_waterfall_spec(&json).unwrap();
+    let out = validate_waterfall_spec_json(&json).unwrap();
     assert!(out.contains("priority_of_payments"));
 }
 
 #[wasm_bindgen_test]
 fn validate_ecf_sweep_spec_accepts_minimal() {
     let json = r#"{"ebitda_node":"ebitda","sweep_percentage":0.5}"#;
-    let out = validate_ecf_sweep_spec(json).unwrap();
+    let out = validate_ecf_sweep_spec_json(json).unwrap();
     assert!(out.contains("ebitda_node"));
 }
 
 #[wasm_bindgen_test]
 fn validate_pik_toggle_spec_accepts_minimal() {
     let json = r#"{"liquidity_metric":"cash","threshold":1000000.0}"#;
-    let out = validate_pik_toggle_spec(json).unwrap();
+    let out = validate_pik_toggle_spec_json(json).unwrap();
     assert!(out.contains("liquidity_metric"));
 }
 
 #[wasm_bindgen_test]
 fn validate_capital_structure_spec_accepts_empty() {
     let json = r#"{}"#;
-    let out = validate_capital_structure_spec(json).unwrap();
+    let out = validate_capital_structure_spec_json(json).unwrap();
     // Empty spec serializes with default fields.
     assert!(!out.is_empty());
 }

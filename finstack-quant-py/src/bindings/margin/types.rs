@@ -472,7 +472,7 @@ impl PyCsaSpec {
 
     /// Serialize to a JSON string.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
     /// CSA identifier.
@@ -565,7 +565,7 @@ impl PyEligibleCollateralSchedule {
 
     /// Serialize to JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
     /// Whether rehypothecation is allowed.

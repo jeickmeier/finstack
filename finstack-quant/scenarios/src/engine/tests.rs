@@ -202,7 +202,7 @@ fn application_report_requires_change_manifest() {
         "user_operations": 0,
         "expanded_operations": 0,
         "warnings": [],
-        "rounding_context": null
+        "meta": null
     }"#;
     let error = serde_json::from_str::<ApplicationReport>(incomplete_json)
         .expect_err("changes is required by the canonical report contract");
@@ -214,7 +214,7 @@ fn application_report_requires_change_manifest() {
         expanded_operations: 0,
         changes: ScenarioChangeManifest::default(),
         warnings: vec![],
-        rounding_context: None,
+        meta: None,
         time_roll: None,
     };
     let encoded = serde_json::to_value(&report).expect("report should serialize");

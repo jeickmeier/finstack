@@ -383,9 +383,12 @@ mod tests {
                             discount_factor: 1.0,
                             ecl,
                         }],
+                        meta: finstack_quant_core::config::ResultsMeta::default(),
                     },
                 )],
+                meta: finstack_quant_core::config::ResultsMeta::default(),
             },
+            meta: finstack_quant_core::config::ResultsMeta::default(),
         }
     }
 

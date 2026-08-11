@@ -19,10 +19,6 @@ fn builtin_registry() -> Result<&'static finstack_quant_scenarios::TemplateRegis
     stored.as_ref().map_err(to_js_err)
 }
 
-fn to_json_string<T: serde::Serialize>(value: &T) -> Result<String, JsValue> {
-    serde_json::to_string(value).map_err(to_js_err)
-}
-
 fn apply_with_context(
     spec: &finstack_quant_scenarios::ScenarioSpec,
     market: &mut finstack_quant_core::market_data::context::MarketContext,
@@ -117,7 +113,7 @@ pub fn validate_scenario_spec(json_str: &str) -> Result<bool, JsValue> {
 pub fn list_builtin_templates() -> Result<JsValue, JsValue> {
     let registry = builtin_registry()?;
     let ids: Vec<String> = registry.list().iter().map(|m| m.id.clone()).collect();
-    serde_wasm_bindgen::to_value(&ids).map_err(to_js_err)
+    crate::utils::to_js_value(&ids)
 }
 
 /// Get metadata for all built-in templates as a JSON string.
@@ -175,7 +171,7 @@ pub fn list_template_components(template_id: &str) -> Result<JsValue, JsValue> {
         .into_iter()
         .map(str::to_string)
         .collect();
-    serde_wasm_bindgen::to_value(&ids).map_err(to_js_err)
+    crate::utils::to_js_value(&ids)
 }
 
 /// Build a specific component from a built-in composite template.
@@ -247,11 +243,13 @@ pub fn build_scenario_spec(
 
 /// Apply a scenario to a market context and financial model.
 ///
-/// Returns a JSON object with `market_json`, `model_json`,
-/// `operations_applied`, `user_operations`, `expanded_operations`,
-/// `rounding_context` (active rounding-mode stamp), `time_roll` (a
-/// `RollForwardReport`, only present when the scenario contained a
-/// `time_roll_forward` operation), and `warnings`.
+/// Returns a JavaScript object with `market` and `model` (the mutated
+/// contexts as objects, not JSON strings), `operations_applied`,
+/// `user_operations`, `expanded_operations`, `changes` (a
+/// `ScenarioChangeManifest`), `warnings`, `meta` (a `ResultsMeta` audit stamp
+/// carrying the numeric mode, rounding context, and FX policy; omitted when
+/// absent), and `time_roll` (a `RollForwardReport`, only present when the
+/// scenario contained a `time_roll_forward` operation).
 ///
 /// This entry point supplies no instrument portfolio and no holiday calendar
 /// to the engine: instrument-scoped operations (`instrument_price_pct_by_*`,
@@ -287,12 +285,12 @@ pub fn apply_scenario(
     let out =
         finstack_quant_scenarios::ApplicationEnvelope::from_contexts(report, &market, Some(&model))
             .map_err(to_js_err)?;
-    serde_wasm_bindgen::to_value(&out).map_err(to_js_err)
+    crate::utils::to_js_value(&out)
 }
 
 /// Apply a scenario to a market context only (no model mutations).
 ///
-/// Returns the same envelope shape as [`apply_scenario`] minus `model_json`;
+/// Returns the same envelope shape as [`apply_scenario`] minus `model`;
 /// the same caveats apply (no instrument portfolio, no holiday calendar).
 ///
 /// # Errors
@@ -318,7 +316,7 @@ pub fn apply_scenario_to_market(
     let report = apply_with_context(&spec, &mut market, None, date)?;
     let out = finstack_quant_scenarios::ApplicationEnvelope::from_contexts(report, &market, None)
         .map_err(to_js_err)?;
-    serde_wasm_bindgen::to_value(&out).map_err(to_js_err)
+    crate::utils::to_js_value(&out)
 }
 
 /// Compute horizon total return under a scenario.
@@ -336,7 +334,8 @@ pub fn apply_scenario_to_market(
 ///
 /// # Returns
 ///
-/// JSON-serialized `HorizonResult`.
+/// The `HorizonResult` as a structured JavaScript object, matching the Python
+/// binding's typed `HorizonResult`.
 ///
 /// # Errors
 ///
@@ -344,7 +343,7 @@ pub fn apply_scenario_to_market(
 /// invalid ISO `as_of` date; an unsupported attribution `method`; an unknown
 /// `calendar_id`; invalid, unsupported, or unresolved scenario operations;
 /// missing market data; pricing or attribution failures; or failure to
-/// serialize the horizon result.
+/// serialize the horizon result to JavaScript.
 /// @param config_json - Optional FinstackConfig JSON for horizon analysis; omit to use defaults.
 /// @param calendar_id - Optional holiday calendar (e.g. "nyse", "target") used to
 ///   business-day adjust `time_roll_forward` targets under `business_days` mode.
@@ -358,7 +357,7 @@ pub fn compute_horizon_return(
     method: Option<String>,
     config_json: Option<String>,
     calendar_id: Option<String>,
-) -> Result<String, JsValue> {
+) -> Result<JsValue, JsValue> {
     use finstack_quant_attribution::AttributionMethod;
     use std::sync::Arc;
 
@@ -415,7 +414,7 @@ pub fn compute_horizon_return(
         .compute(&instrument, &market, date, &scenario)
         .map_err(to_js_err)?;
 
-    to_json_string(&result)
+    crate::utils::to_js_value(&result)
 }
 
 #[cfg(test)]

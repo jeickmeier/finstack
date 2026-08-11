@@ -111,14 +111,15 @@ function bondInstrumentJson(returnFloor = null) {
 // Helpers
 
 /**
- * Price a bond and return the parsed ValuationResult.
+ * Price a bond and return the structured ValuationResult object.
  *
  * @param {string} instrumentJson  Canonical instrument-envelope JSON.
  * @param {string[]} metrics  Metric IDs to compute.
- * @returns {object}  Parsed ValuationResult.
+ * @returns {object}  ValuationResult object (no JSON.parse — the binding
+ *   returns a plain JS object, matching the Python `ValuationResult`).
  */
 function priceWithMetrics(instrumentJson, metrics) {
-  const resultJson = valuations.instruments.priceInstrumentWithMetrics(
+  return valuations.instruments.priceInstrumentWithMetrics(
     instrumentJson,
     MARKET_JSON,
     '2024-01-01',
@@ -127,13 +128,86 @@ function priceWithMetrics(instrumentJson, metrics) {
     null,
     null
   );
-  return JSON.parse(resultJson);
 }
 
 function numericAmount(result) {
   const a = result?.value?.amount;
   return typeof a === 'number' ? a : parseFloat(a);
 }
+
+// Tests: structured (non-JSON-string) pricing returns
+
+test('priceInstrument returns a plain ValuationResult object, not a JSON string', () => {
+  const result = valuations.instruments.priceInstrument(
+    bondInstrumentJson(),
+    MARKET_JSON,
+    '2024-01-01',
+    'discounting'
+  );
+  assert.equal(typeof result, 'object', 'priceInstrument returns an object');
+  assert.ok(!(result instanceof Map), 'result must not be an ES2015 Map');
+  // Fields are readable directly — parity with Python's ValuationResult getters.
+  assert.equal(result.instrument_id, 'WASM-RETURN-FLOOR-BOND');
+  assert.equal(typeof result.value.currency, 'string');
+  assert.equal(typeof result.measures, 'object');
+  assert.ok(!(result.measures instanceof Map), 'measures must not be an ES2015 Map');
+  // A Map would stringify to `{}`; a plain object round-trips losslessly.
+  const roundTripped = JSON.parse(JSON.stringify(result));
+  assert.equal(roundTripped.instrument_id, result.instrument_id);
+  assert.equal(roundTripped.as_of, result.as_of);
+  assert.ok(numericAmount(roundTripped) > 0, 'round-tripped value survives stringify');
+});
+
+test('priceInstrumentWithMetrics returns readable measures without JSON.parse', () => {
+  const result = priceWithMetrics(bondInstrumentJson(), ['moic', 'xirr']);
+  assert.equal(typeof result, 'object');
+  assert.ok(!(result instanceof Map));
+  assert.equal(typeof result.measures.moic, 'number', 'measures.moic is directly readable');
+  const roundTripped = JSON.parse(JSON.stringify(result));
+  assert.equal(roundTripped.measures.moic, result.measures.moic);
+});
+
+test('priceInstrumentWithMarket / …WithMetricsAndMarket return objects too', () => {
+  const market = new valuations.Market(MARKET_JSON);
+  try {
+    const priced = valuations.instruments.priceInstrumentWithMarket(
+      bondInstrumentJson(),
+      market,
+      '2024-01-01',
+      'discounting'
+    );
+    assert.equal(typeof priced, 'object');
+    assert.ok(!(priced instanceof Map));
+    assert.equal(priced.instrument_id, 'WASM-RETURN-FLOOR-BOND');
+
+    const withMetrics = valuations.instruments.priceInstrumentWithMetricsAndMarket(
+      bondInstrumentJson(),
+      market,
+      '2024-01-01',
+      'discounting',
+      ['moic'],
+      null,
+      null
+    );
+    assert.equal(typeof withMetrics, 'object');
+    assert.equal(typeof withMetrics.measures.moic, 'number');
+    assert.equal(JSON.parse(JSON.stringify(withMetrics)).measures.moic, withMetrics.measures.moic);
+  } finally {
+    market.free();
+  }
+});
+
+test('validateValuationResultJson still accepts a stringified price result', () => {
+  const result = valuations.instruments.priceInstrument(
+    bondInstrumentJson(),
+    MARKET_JSON,
+    '2024-01-01',
+    'discounting'
+  );
+  const canonical = valuations.validateValuationResultJson(JSON.stringify(result));
+  assert.equal(typeof canonical, 'string');
+  assert.equal(JSON.parse(canonical).instrument_id, 'WASM-RETURN-FLOOR-BOND');
+});
 
 // Tests: metric registration
 

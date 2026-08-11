@@ -1,6 +1,6 @@
 //! wasm-bindgen-test suite for `api::statements_analytics`.
 //!
-//! Covers goal_seek, backtest_forecast, and pl_summary_report which use JsValue.
+//! Covers goal_seek, backtest_forecast, and pl_summary_report_text which use JsValue.
 
 #![cfg(target_arch = "wasm32")]
 
@@ -92,13 +92,15 @@ fn compute_multiple_uses_canonical_company_metric_fields() {
         ("custom_signal".to_string(), 3.0),
     ]);
     let metrics = serde_wasm_bindgen::to_value(&metrics).unwrap();
-    let result = compute_multiple(metrics, "ev_ebitda").unwrap();
-    let multiple: Option<f64> = serde_wasm_bindgen::from_value(result).unwrap();
-    assert_eq!(multiple, Some(8.5));
+    let result = compute_multiple(metrics, "ev_ebitda")
+        .unwrap()
+        .expect("ev_ebitda multiple is defined");
+    let multiple: f64 = serde_wasm_bindgen::from_value(result).unwrap();
+    assert!((multiple - 8.5).abs() < 1e-12);
 }
 
 #[wasm_bindgen_test]
-fn pl_summary_report_returns_text() {
+fn pl_summary_report_text_returns_text() {
     let results_json = evaluated_results_json();
     let line_items: JsValue = serde_wasm_bindgen::to_value(&vec![
         "revenue".to_string(),
@@ -107,6 +109,6 @@ fn pl_summary_report_returns_text() {
     ])
     .unwrap();
     let periods: JsValue = serde_wasm_bindgen::to_value(&vec!["2024Q1".to_string()]).unwrap();
-    let text = pl_summary_report(&results_json, line_items, periods).unwrap();
+    let text = pl_summary_report_text(&results_json, line_items, periods).unwrap();
     assert!(!text.is_empty());
 }

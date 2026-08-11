@@ -75,7 +75,7 @@ pub struct ReturnContributionFactor {
 }
 
 /// Return-contribution attribution result.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ReturnContributionResult {
     /// Total portfolio return, equal to summed instrument contribution.
     pub portfolio_return: f64,
@@ -89,12 +89,12 @@ pub struct ReturnContributionResult {
     pub benchmark_relative: Option<BenchmarkRelativeContribution>,
     /// Diagnostic warnings (e.g. leveraged weights from a near-flat net-MV
     /// book). Omitted from JSON when empty (additive schema).
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<String>,
 }
 
 /// Per-instrument contribution output row.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct InstrumentContribution {
     /// Stable instrument identifier.
     pub id: String,
@@ -106,12 +106,12 @@ pub struct InstrumentContribution {
     /// Weight times return.
     pub contribution: f64,
     /// Active contribution versus benchmark contribution, when benchmark is supplied.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_contribution: Option<f64>,
 }
 
 /// Group-level contribution row.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GroupContribution {
     /// Group bucket key.
     pub key: String,
@@ -120,7 +120,7 @@ pub struct GroupContribution {
 }
 
 /// Factor contribution output row.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct FactorContribution {
     /// Factor identifier.
     pub factor: String,
@@ -133,7 +133,7 @@ pub struct FactorContribution {
 }
 
 /// Benchmark-relative return attribution.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BenchmarkRelativeContribution {
     /// Benchmark total return.
     pub benchmark_return: f64,
@@ -152,7 +152,7 @@ pub struct BenchmarkRelativeContribution {
     /// Multi-dimensional inputs pick one dimension (`sector` when present,
     /// else the first dimension name alphabetically); `None` when positions
     /// carry no groups at all (a single `all` bucket).
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group_dimension: Option<String>,
 }
 
@@ -171,7 +171,30 @@ struct BrinsonGroup {
     benchmark_contribution: NeumaierAccumulator,
 }
 
+/// Compute return contribution attribution from a typed specification.
+///
+/// This is the canonical entry point. Use
+/// [`attribute_return_contribution_json`] only at wire boundaries that must
+/// exchange JSON documents.
+///
+/// # Arguments
+///
+/// * `spec` - Return-contribution positions, weights, returns, and optional
+///   benchmark inputs.
+///
+/// # Errors
+///
+/// Returns a validation error when the specification violates the
+/// weighting/benchmark invariants.
+pub fn attribute_return_contribution(
+    spec: &ReturnContributionSpec,
+) -> Result<ReturnContributionResult> {
+    spec.execute()
+}
+
 /// Compute return contribution attribution from a JSON specification.
+///
+/// Wire-boundary wrapper over [`attribute_return_contribution`].
 ///
 /// # Arguments
 ///
@@ -182,9 +205,9 @@ struct BrinsonGroup {
 ///
 /// Returns a validation error when the JSON is malformed or violates the
 /// weighting/benchmark invariants.
-pub fn attribute_return_contribution(spec_json: &str) -> Result<String> {
+pub fn attribute_return_contribution_json(spec_json: &str) -> Result<String> {
     let spec = parse_return_contribution_spec(spec_json)?;
-    let result = spec.execute()?;
+    let result = attribute_return_contribution(&spec)?;
     serde_json::to_string(&result)
         .map_err(|err| Error::Internal(format!("failed to serialize return contribution: {err}")))
 }

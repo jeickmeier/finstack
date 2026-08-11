@@ -773,6 +773,62 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    #[derive(serde::Serialize, serde::Deserialize, Debug)]
+    struct NonFiniteHolder {
+        #[serde(with = "super::non_finite_f64")]
+        value: f64,
+    }
+
+    #[test]
+    fn non_finite_f64_round_trips_infinities() {
+        // serde_json writes these as `null` and then refuses to read `null`
+        // back as an f64, so a ratio documented to reach `+inf` used to lose
+        // its value on to_json/from_json.
+        for (value, expected_json) in [
+            (f64::INFINITY, json!({"value": "inf"})),
+            (f64::NEG_INFINITY, json!({"value": "-inf"})),
+        ] {
+            let holder = NonFiniteHolder { value };
+            let encoded = serde_json::to_value(&holder).expect("serialize");
+            assert_eq!(encoded, expected_json);
+            let decoded: NonFiniteHolder = serde_json::from_value(encoded).expect("deserialize");
+            assert_eq!(decoded.value, value);
+        }
+    }
+
+    #[test]
+    fn non_finite_f64_round_trips_nan_and_finite() {
+        let nan: NonFiniteHolder = serde_json::from_value(
+            serde_json::to_value(NonFiniteHolder { value: f64::NAN }).unwrap(),
+        )
+        .expect("nan");
+        assert!(nan.value.is_nan());
+
+        let finite: NonFiniteHolder =
+            serde_json::from_value(json!({"value": 1.5})).expect("finite");
+        assert_eq!(finite.value, 1.5);
+        // Finite values stay ordinary JSON numbers, so the wire format is
+        // unchanged for every payload that never hit a zero denominator.
+        assert_eq!(
+            serde_json::to_value(NonFiniteHolder { value: 1.5 }).unwrap(),
+            json!({"value": 1.5})
+        );
+    }
+
+    #[test]
+    fn non_finite_f64_accepts_legacy_null() {
+        // Payloads written before this adapter encoded non-finite values as
+        // `null`; they must still load rather than hard-failing.
+        let decoded: NonFiniteHolder =
+            serde_json::from_value(json!({"value": null})).expect("null");
+        assert!(decoded.value.is_nan());
+    }
+
+    #[test]
+    fn non_finite_f64_rejects_unknown_sentinel() {
+        assert!(serde_json::from_value::<NonFiniteHolder>(json!({"value": "huge"})).is_err());
+    }
+
     #[test]
     fn date_schema_has_date_format() {
         let schema = serde_json::to_value(schemars::schema_for!(DateWire)).expect("schema");
@@ -859,5 +915,101 @@ mod tests {
             .expect("percentage schema");
         assert_eq!(percentage["minimum"], -100.0);
         assert_eq!(percentage["maximum"], 100.0);
+    }
+}
+
+/// Serde field adapter for an `f64` that may legitimately be non-finite.
+///
+/// `serde_json` writes `f64::INFINITY` and `f64::NAN` as JSON `null` and then
+/// refuses to read `null` back as an `f64`, so a field documented to reach
+/// `+∞` silently loses its value on a `to_json` / `from_json` round trip.
+/// Ratio metrics hit this whenever a denominator is zero — a profit factor
+/// with wins and no losses is `+∞`, not missing data.
+///
+/// This adapter encodes non-finite values as the strings `"inf"`, `"-inf"`,
+/// and `"nan"`, leaving finite values as ordinary JSON numbers.
+///
+/// # Examples
+/// ```rust
+/// use serde::{Deserialize, Serialize};
+///
+/// #[derive(Serialize, Deserialize, PartialEq, Debug)]
+/// struct Ratios {
+///     #[serde(with = "finstack_quant_core::wire::non_finite_f64")]
+///     profit_factor: f64,
+/// }
+///
+/// let json = serde_json::to_string(&Ratios { profit_factor: f64::INFINITY })?;
+/// assert_eq!(json, r#"{"profit_factor":"inf"}"#);
+/// assert_eq!(serde_json::from_str::<Ratios>(&json)?.profit_factor, f64::INFINITY);
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+pub mod non_finite_f64 {
+    use serde::{Deserialize, Serialize};
+
+    /// Wire form: a number when finite, a sentinel string otherwise.
+    #[derive(Serialize, Deserialize)]
+    #[serde(untagged)]
+    enum Wire {
+        Number(f64),
+        Sentinel(String),
+    }
+
+    /// Serialize an `f64`, encoding non-finite values as sentinel strings.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - Value to encode; `±∞` and `NaN` become strings.
+    /// * `serializer` - Serde serializer receiving the number or sentinel.
+    ///
+    /// # Errors
+    ///
+    /// Propagates any failure from the underlying serializer.
+    pub fn serialize<S>(value: &f64, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        if value.is_finite() {
+            return Wire::Number(*value).serialize(serializer);
+        }
+        let sentinel = if value.is_nan() {
+            "nan"
+        } else if value.is_sign_positive() {
+            "inf"
+        } else {
+            "-inf"
+        };
+        Wire::Sentinel(sentinel.to_string()).serialize(serializer)
+    }
+
+    /// Deserialize an `f64` that may arrive as a sentinel string.
+    ///
+    /// Also accepts JSON `null`, which is what earlier releases emitted for
+    /// non-finite values, mapping it to `NaN` so old payloads still load.
+    ///
+    /// # Arguments
+    ///
+    /// * `deserializer` - Serde deserializer supplying a number or sentinel.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the value is neither a number nor a recognized
+    /// sentinel (`"inf"`, `"+inf"`, `"-inf"`, `"infinity"`, `"nan"`).
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<f64, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        match Option::<Wire>::deserialize(deserializer)? {
+            None => Ok(f64::NAN),
+            Some(Wire::Number(value)) => Ok(value),
+            Some(Wire::Sentinel(text)) => match text.trim().to_ascii_lowercase().as_str() {
+                "inf" | "+inf" | "infinity" | "+infinity" => Ok(f64::INFINITY),
+                "-inf" | "-infinity" => Ok(f64::NEG_INFINITY),
+                "nan" => Ok(f64::NAN),
+                other => Err(serde::de::Error::custom(format!(
+                    "expected a number or one of \"inf\", \"-inf\", \"nan\"; got {other:?}"
+                ))),
+            },
+        }
     }
 }

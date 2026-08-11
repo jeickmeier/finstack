@@ -87,22 +87,32 @@ pub struct DietzFlow {
 /// r = (EMV − BMV − Σ CF_i) / (BMV + Σ w_i · CF_i)
 /// ```
 ///
-/// Returns `None` when the denominator (BMV adjusted for weighted
-/// cashflows) is non-positive — a typical sign of an error-case
-/// portfolio (zero NAV after redemptions, or mis-specified flows)
-/// where the return is not meaningfully defined.
-///
 /// # Arguments
 ///
 /// * `period` - Beginning and ending market values plus signed external flows
 ///   whose fractions specify the remaining portion of the measurement period.
-#[must_use]
-pub fn twrr_modified_dietz(period: &TwrrPeriod) -> Option<f64> {
-    if period.cashflows.iter().any(|flow| {
-        !flow.fraction_of_period_remaining.is_finite()
+///
+/// # Errors
+///
+/// Returns [`finstack_quant_core::Error::Validation`] when:
+/// - a cashflow's `fraction_of_period_remaining` is non-finite or outside
+///   `[0, 1]` (weights are never silently clamped);
+/// - the Dietz denominator (BMV adjusted for weighted cashflows) is non-finite
+///   or non-positive — a typical sign of an error-case portfolio (zero NAV
+///   after redemptions, or mis-specified flows) where the return is not
+///   meaningfully defined;
+/// - the resulting return is non-finite (non-finite market values).
+pub fn twrr_modified_dietz(period: &TwrrPeriod) -> finstack_quant_core::Result<f64> {
+    for (index, flow) in period.cashflows.iter().enumerate() {
+        if !flow.fraction_of_period_remaining.is_finite()
             || !(0.0..=1.0).contains(&flow.fraction_of_period_remaining)
-    }) {
-        return None;
+        {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "Modified-Dietz cashflow {index} has fraction_of_period_remaining = {}; \
+                 it must be finite and within [0, 1]",
+                flow.fraction_of_period_remaining
+            )));
+        }
     }
 
     let numerator = period.ending_market_value
@@ -117,10 +127,20 @@ pub fn twrr_modified_dietz(period: &TwrrPeriod) -> Option<f64> {
             .sum::<f64>();
 
     if !denominator.is_finite() || denominator <= 0.0 {
-        return None;
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "Modified-Dietz denominator (BMV + sum of weighted cashflows) is {denominator}; \
+             it must be finite and strictly positive for the return to be defined"
+        )));
     }
+
     let r = numerator / denominator;
-    r.is_finite().then_some(r)
+    if !r.is_finite() {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "Modified-Dietz return is non-finite ({r}); check that beginning and ending \
+             market values and cashflow amounts are finite"
+        )));
+    }
+    Ok(r)
 }
 
 /// Result of geometrically linking sub-period returns.
@@ -147,8 +167,6 @@ pub struct DatedCashflow {
 
 /// Geometrically link sub-period returns. GIPS 2020 §2.A.6.b.i.
 ///
-/// Returns `None` if any sub-period return is non-finite.
-///
 /// # `horizon_years` convention
 ///
 /// `horizon_years` is the elapsed time covered by the full sequence of
@@ -173,14 +191,32 @@ pub struct DatedCashflow {
 ///   `0.02` for 2%; every value must be finite.
 /// * `horizon_years` - Full elapsed horizon in 365-day calendar years; values
 ///   below one skip annualization.
-#[must_use]
-pub fn twrr_linked(periods: &[f64], horizon_years: f64) -> Option<LinkedReturn> {
-    if periods.iter().any(|r| !r.is_finite()) {
-        return None;
+///
+/// # Errors
+///
+/// Returns [`finstack_quant_core::Error::Validation`] when:
+/// - any sub-period return is non-finite;
+/// - the compounded growth factor `Π(1 + r_i)` is non-finite or non-positive,
+///   which means the portfolio was wiped out (or worse) and no geometric link
+///   is defined.
+pub fn twrr_linked(
+    periods: &[f64],
+    horizon_years: f64,
+) -> finstack_quant_core::Result<LinkedReturn> {
+    for (index, r) in periods.iter().enumerate() {
+        if !r.is_finite() {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "TWRR sub-period return {index} is non-finite ({r}); every linked \
+                 sub-period return must be finite"
+            )));
+        }
     }
     let growth: f64 = periods.iter().map(|r| 1.0 + r).product();
     if !growth.is_finite() || growth <= 0.0 {
-        return None;
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "TWRR compounded growth factor is {growth}; it must be finite and strictly \
+             positive (a sub-period return of -100% or worse leaves the linked return undefined)"
+        )));
     }
     let cumulative = growth - 1.0;
     let annualised = if horizon_years >= 1.0 {
@@ -188,7 +224,7 @@ pub fn twrr_linked(periods: &[f64], horizon_years: f64) -> Option<LinkedReturn> 
     } else {
         cumulative
     };
-    Some(LinkedReturn {
+    Ok(LinkedReturn {
         cumulative,
         annualised,
         num_periods: periods.len(),
@@ -300,7 +336,7 @@ mod tests {
         };
 
         assert!(
-            twrr_modified_dietz(&period).is_none(),
+            twrr_modified_dietz(&period).is_err(),
             "minor 6: Dietz flow weights outside [0, 1] must not be clamped"
         );
     }
@@ -336,21 +372,21 @@ mod tests {
         );
     }
 
-    /// Non-finite period → None.
+    /// Non-finite period → validation error.
     #[test]
     fn linked_return_rejects_non_finite_period() {
-        assert!(twrr_linked(&[0.05, f64::NAN], 1.0).is_none());
+        assert!(twrr_linked(&[0.05, f64::NAN], 1.0).is_err());
     }
 
-    /// Zero denominator (full-redemption mid-period) → None.
+    /// Zero denominator (full-redemption mid-period) → validation error.
     #[test]
-    fn modified_dietz_returns_none_on_zero_denominator() {
+    fn modified_dietz_errors_on_zero_denominator() {
         let period = TwrrPeriod {
             beginning_market_value: 0.0,
             ending_market_value: 0.0,
             cashflows: vec![],
         };
-        assert!(twrr_modified_dietz(&period).is_none());
+        assert!(twrr_modified_dietz(&period).is_err());
     }
 
     /// MWR convenience wrapper round-trips a known XIRR case: invest

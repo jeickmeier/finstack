@@ -177,6 +177,7 @@ pub struct FxValuationDetails {
 ///     threshold: Some(1.25),
 ///     details: Some("DSCR: 1.50x >= 1.25x".to_string()),
 ///     headroom: Some(0.25),
+///     meta: Default::default(),
 /// };
 ///
 /// let result = ValuationResult::stamped("LOAN-001", as_of, pv)
@@ -585,6 +586,7 @@ impl ValuationResult {
     ///     threshold: Some(1.25),
     ///     details: Some("DSCR test passed".to_string()),
     ///     headroom: Some(0.25),
+    ///     meta: Default::default(),
     /// });
     ///
     /// let result = ValuationResult::stamped("LOAN-001", as_of, pv)
@@ -635,6 +637,7 @@ impl ValuationResult {
     ///         threshold: Some(1.25),
     ///         details: None,
     ///         headroom: Some(0.25),
+    ///         meta: Default::default(),
     ///     })
     ///     .with_covenant("ltv", CovenantReport {
     ///         covenant_type: "ltv".to_string(),
@@ -644,6 +647,7 @@ impl ValuationResult {
     ///         threshold: Some(0.80),
     ///         details: None,
     ///         headroom: Some(0.10),
+    ///         meta: Default::default(),
     ///     });
     ///
     /// assert_eq!(result.covenants.as_ref().expect("should succeed").len(), 2);
@@ -690,6 +694,7 @@ impl ValuationResult {
     ///         threshold: Some(1.25),
     ///         details: None,
     ///         headroom: Some(0.25),
+    ///         meta: Default::default(),
     ///     });
     ///
     /// assert!(result.all_covenants_passed());
@@ -734,6 +739,7 @@ impl ValuationResult {
     ///         threshold: Some(1.25),
     ///         details: Some("DSCR below threshold".to_string()),
     ///         headroom: Some(-0.15),
+    ///         meta: Default::default(),
     ///     });
     ///
     /// let failed = result.failed_covenants();
@@ -898,6 +904,7 @@ mod tests {
                 threshold: Some(1.2),
                 details: None,
                 headroom: None,
+                meta: finstack_quant_core::config::ResultsMeta::default(),
             },
         );
         let trace = ExplanationTrace::new("unit");

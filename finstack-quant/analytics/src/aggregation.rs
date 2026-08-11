@@ -32,18 +32,22 @@ pub struct PeriodStats {
     pub avg_loss: f64,
     /// `avg_win / |avg_loss|`. `0.0` when there are no wins; `+∞` when wins
     /// exist but there are no losses.
+    #[serde(with = "finstack_quant_core::wire::non_finite_f64")]
     pub payoff_ratio: f64,
     /// Sum of wins / sum of |losses| (gross profit / gross loss).
     /// `0.0` when there are no wins; `+∞` when wins exist but there are no
     /// losses.
+    #[serde(with = "finstack_quant_core::wire::non_finite_f64")]
     pub profit_factor: f64,
     /// CPC index: `profit_factor × win_rate × payoff_ratio`.
     ///
     /// Not to be confused with the Common Sense Ratio
     /// (`profit_factor × tail_ratio`), which is a different metric.
+    #[serde(with = "finstack_quant_core::wire::non_finite_f64")]
     pub cpc_ratio: f64,
     /// Kelly criterion: `win_rate − (loss_rate / payoff_ratio)`. The division
     /// binds tighter than the subtraction.
+    #[serde(with = "finstack_quant_core::wire::non_finite_f64")]
     pub kelly_criterion: f64,
 }
 

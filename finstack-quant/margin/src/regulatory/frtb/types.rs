@@ -757,4 +757,9 @@ pub struct FrtbSbaResult {
     pub binding_scenario: CorrelationScenario,
     /// Delta+Vega+Curvature charge under each scenario (for transparency).
     pub scenario_charges: BTreeMap<CorrelationScenario, f64>,
+    /// Policy metadata stamped by the computing layer: numeric mode, active
+    /// rounding context, any applied FX policy, and the parallel-execution
+    /// flag.
+    #[serde(default)]
+    pub meta: finstack_quant_core::config::ResultsMeta,
 }

@@ -89,7 +89,7 @@ def test_to_arrow_long_returns_arrow_table_with_stream_protocol() -> None:
 def test_pyarrow_values_match_pandas_export_exactly() -> None:
     res = _statement_result()
     tbl = pa.table(res.to_arrow_long())
-    df = res.to_pandas_long()
+    df = res.to_dataframe(orient="long")
     assert tbl.num_rows == len(df)
     assert tbl.column("node_id").to_pylist() == df["node_id"].tolist()
     assert tbl.column("period_id").to_pylist() == df["period"].tolist()
@@ -109,7 +109,7 @@ def test_null_handling_for_scalar_nodes() -> None:
 def test_polars_roundtrip_matches_values_exactly() -> None:
     res = _statement_result()
     df_pl = pl.DataFrame(res.to_arrow_long())
-    df_pd = res.to_pandas_long()
+    df_pd = res.to_dataframe(orient="long")
     assert df_pl.get_column("value").to_list() == df_pd["value"].tolist()
     assert df_pl.get_column("node_id").to_list() == df_pd["node_id"].tolist()
     assert df_pl.get_column("value_money").null_count() == df_pl.height

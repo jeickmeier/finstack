@@ -69,8 +69,9 @@ pub use types::{
     ResidualContributionSource, RiskDecomposition,
 };
 pub use weight_allocation::{
-    allocate_weights, validate_allocation_json, AllocationDiagnostics, AllocationScheme,
-    StrategyAllocation, StrategyAllocationInput, WeightAllocationResult, WeightAllocationSpec,
+    allocate_weights, allocate_weights_json, validate_allocation_json, AllocationDiagnostics,
+    AllocationScheme, StrategyAllocation, StrategyAllocationInput, WeightAllocationResult,
+    WeightAllocationSpec,
 };
 pub use whatif::{
     FactorContributionDelta, PositionChange, StressResult, WhatIfEngine, WhatIfResult,

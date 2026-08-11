@@ -925,6 +925,7 @@ mod tests {
                 threshold: Some(1.0),
                 details: Some("preserved".to_string()),
                 headroom: Some(0.5),
+                meta: finstack_quant_core::config::ResultsMeta::default(),
             };
             let mut result = crate::results::ValuationResult::stamped(
                 instrument.id(),

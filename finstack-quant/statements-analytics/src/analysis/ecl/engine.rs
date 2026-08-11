@@ -506,6 +506,9 @@ pub struct EclResult {
     pub horizon: f64,
     /// Per-bucket breakdown.
     pub buckets: Vec<EclBucket>,
+    /// Audit stamp: numeric mode, rounding context, and FX policy in force.
+    #[serde(default)]
+    pub meta: finstack_quant_core::config::ResultsMeta,
 }
 
 /// Probability-weighted ECL result across scenarios.
@@ -519,6 +522,9 @@ pub struct WeightedEclResult {
     pub ecl: f64,
     /// Per-scenario breakdown: (scenario_id, weight, result).
     pub scenario_breakdown: Vec<(String, f64, EclResult)>,
+    /// Audit stamp: numeric mode, rounding context, and FX policy in force.
+    #[serde(default)]
+    pub meta: finstack_quant_core::config::ResultsMeta,
 }
 
 /// Combined staging + ECL result for one exposure.
@@ -533,6 +539,9 @@ pub struct ExposureEclResult {
     /// results produced before this field existed.
     #[serde(default)]
     pub ead: f64,
+    /// Audit stamp: numeric mode, rounding context, and FX policy in force.
+    #[serde(default)]
+    pub meta: finstack_quant_core::config::ResultsMeta,
 }
 
 // Core computation (stateless)
@@ -672,6 +681,9 @@ pub fn compute_ecl_single(
                 discount_factor: df,
                 ecl,
             }],
+            meta: finstack_quant_core::config::results_meta(
+                &finstack_quant_core::config::FinstackConfig::default(),
+            ),
         });
     }
 
@@ -726,6 +738,9 @@ pub fn compute_ecl_single(
         ecl,
         horizon,
         buckets: bucket_details,
+        meta: finstack_quant_core::config::results_meta(
+            &finstack_quant_core::config::FinstackConfig::default(),
+        ),
     })
 }
 
@@ -842,6 +857,9 @@ pub fn compute_ecl_weighted(
         stage,
         ecl: weighted_ecl,
         scenario_breakdown: scenario_results,
+        meta: finstack_quant_core::config::results_meta(
+            &finstack_quant_core::config::FinstackConfig::default(),
+        ),
     })
 }
 
@@ -958,6 +976,9 @@ impl<'a> EclEngine<'a> {
             stage_result,
             ecl_result,
             ead: exposure.ead,
+            meta: finstack_quant_core::config::results_meta(
+                &finstack_quant_core::config::FinstackConfig::default(),
+            ),
         })
     }
 

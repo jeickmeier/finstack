@@ -75,6 +75,46 @@ class PeriodStats:
     1.0
     """
 
+    @staticmethod
+    def from_json(json: str) -> PeriodStats:
+        """
+        Deserialize a ``PeriodStats`` from JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON string produced by :meth:`to_json`.
+
+        Returns
+        -------
+        PeriodStats
+            Parsed ``PeriodStats`` instance.
+
+        Examples
+        --------
+        >>> from datetime import date
+        >>> from finstack_quant.analytics import PeriodStats, Performance
+        >>> dates = [date(2024, month, 1) for month in range(1, 7)]
+        >>> perf = Performance.from_returns_arrays(
+        ...     dates, [[0.10, -0.05, 0.02, 0.0, 0.03, -0.01]], ["FUND"], frequency="monthly"
+        ... )
+        >>> stats = perf.period_stats(0, aggregation_frequency="monthly")
+        >>> PeriodStats.from_json(stats.to_json()).win_rate
+        0.5
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to compact JSON.
+
+        Returns
+        -------
+        str
+            Compact JSON string.
+        """
+        ...
+
     @property
     def best(self) -> float:
         """
@@ -233,6 +273,50 @@ class BetaResult:
     2.0
     """
 
+    @staticmethod
+    def from_json(json: str) -> BetaResult:
+        """
+        Deserialize a ``BetaResult`` from JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON string produced by :meth:`to_json`.
+
+        Returns
+        -------
+        BetaResult
+            Parsed ``BetaResult`` instance.
+
+        Examples
+        --------
+        >>> from datetime import date, timedelta
+        >>> from finstack_quant.analytics import BetaResult, Performance
+        >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(6)]
+        >>> benchmark = [-0.02, -0.01, 0.0, 0.01, 0.02, 0.03]
+        >>> perf = Performance.from_returns_arrays(
+        ...     dates,
+        ...     [[2.0 * value for value in benchmark], benchmark],
+        ...     ["FUND", "BENCH"],
+        ...     benchmark_ticker="BENCH",
+        ...     frequency="monthly",
+        ... )
+        >>> BetaResult.from_json(perf.beta()[0].to_json()).beta
+        2.0
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to compact JSON.
+
+        Returns
+        -------
+        str
+            Compact JSON string.
+        """
+        ...
+
     @property
     def beta(self) -> float:
         """
@@ -321,6 +405,50 @@ class GreeksResult:
     >>> round(perf.greeks()[0].alpha, 12)
     0.0
     """
+
+    @staticmethod
+    def from_json(json: str) -> GreeksResult:
+        """
+        Deserialize a ``GreeksResult`` from JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON string produced by :meth:`to_json`.
+
+        Returns
+        -------
+        GreeksResult
+            Parsed ``GreeksResult`` instance.
+
+        Examples
+        --------
+        >>> from datetime import date, timedelta
+        >>> from finstack_quant.analytics import GreeksResult, Performance
+        >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(6)]
+        >>> benchmark = [-0.02, -0.01, 0.0, 0.01, 0.02, 0.03]
+        >>> perf = Performance.from_returns_arrays(
+        ...     dates,
+        ...     [[2.0 * value for value in benchmark], benchmark],
+        ...     ["FUND", "BENCH"],
+        ...     benchmark_ticker="BENCH",
+        ...     frequency="monthly",
+        ... )
+        >>> round(GreeksResult.from_json(perf.greeks()[0].to_json()).alpha, 12)
+        0.0
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to compact JSON.
+
+        Returns
+        -------
+        str
+            Compact JSON string.
+        """
+        ...
 
     @property
     def alpha(self) -> float:
@@ -412,6 +540,51 @@ class RollingGreeks:
     True
     """
 
+    @staticmethod
+    def from_json(json: str) -> RollingGreeks:
+        """
+        Deserialize a ``RollingGreeks`` from JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON string produced by :meth:`to_json`.
+
+        Returns
+        -------
+        RollingGreeks
+            Parsed ``RollingGreeks`` instance.
+
+        Examples
+        --------
+        >>> from datetime import date, timedelta
+        >>> from finstack_quant.analytics import RollingGreeks, Performance
+        >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(6)]
+        >>> benchmark = [-0.02, -0.01, 0.0, 0.01, 0.02, 0.03]
+        >>> perf = Performance.from_returns_arrays(
+        ...     dates,
+        ...     [[2.0 * value for value in benchmark], benchmark],
+        ...     ["FUND", "BENCH"],
+        ...     benchmark_ticker="BENCH",
+        ...     frequency="monthly",
+        ... )
+        >>> rolling = RollingGreeks.from_json(perf.rolling_greeks(0, window=3).to_json())
+        >>> len(rolling.dates) == len(rolling.betas)
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to compact JSON.
+
+        Returns
+        -------
+        str
+            Compact JSON string.
+        """
+        ...
+
     @property
     def dates(self) -> list[datetime.date]:
         """
@@ -474,6 +647,47 @@ class MultiFactorResult:
     >>> round(float(perf.multi_factor_greeks(0, [factor]).betas[0]), 1)
     2.0
     """
+
+    @staticmethod
+    def from_json(json: str) -> MultiFactorResult:
+        """
+        Deserialize a ``MultiFactorResult`` from JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON string produced by :meth:`to_json`.
+
+        Returns
+        -------
+        MultiFactorResult
+            Parsed ``MultiFactorResult`` instance.
+
+        Examples
+        --------
+        >>> from datetime import date, timedelta
+        >>> from finstack_quant.analytics import MultiFactorResult, Performance
+        >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(6)]
+        >>> factor = [-0.02, -0.01, 0.0, 0.01, 0.02, 0.03]
+        >>> perf = Performance.from_returns_arrays(
+        ...     dates, [[2.0 * value for value in factor]], ["FUND"], frequency="monthly"
+        ... )
+        >>> fitted = MultiFactorResult.from_json(perf.multi_factor_greeks(0, [factor]).to_json())
+        >>> round(float(fitted.betas[0]), 1)
+        2.0
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to compact JSON.
+
+        Returns
+        -------
+        str
+            Compact JSON string.
+        """
+        ...
 
     @property
     def alpha(self) -> float:
@@ -584,6 +798,44 @@ class DrawdownEpisode:
     -0.2
     """
 
+    @staticmethod
+    def from_json(json: str) -> DrawdownEpisode:
+        """
+        Deserialize a ``DrawdownEpisode`` from JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON string produced by :meth:`to_json`.
+
+        Returns
+        -------
+        DrawdownEpisode
+            Parsed ``DrawdownEpisode`` instance.
+
+        Examples
+        --------
+        >>> from datetime import date, timedelta
+        >>> from finstack_quant.analytics import DrawdownEpisode, Performance
+        >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(5)]
+        >>> perf = Performance.from_arrays(dates, [[100.0, 90.0, 95.0, 80.0, 100.0]], ["FUND"])
+        >>> episode = perf.drawdown_details(0, n=1)[0]
+        >>> round(DrawdownEpisode.from_json(episode.to_json()).max_drawdown, 1)
+        -0.2
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to compact JSON.
+
+        Returns
+        -------
+        str
+            Compact JSON string.
+        """
+        ...
+
     @property
     def start(self) -> datetime.date:
         """
@@ -677,6 +929,44 @@ class LookbackReturns:
     1
     """
 
+    @staticmethod
+    def from_json(json: str) -> LookbackReturns:
+        """
+        Deserialize a ``LookbackReturns`` from JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON string produced by :meth:`to_json`.
+
+        Returns
+        -------
+        LookbackReturns
+            Parsed ``LookbackReturns`` instance.
+
+        Examples
+        --------
+        >>> from datetime import date, timedelta
+        >>> from finstack_quant.analytics import LookbackReturns, Performance
+        >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(5)]
+        >>> perf = Performance.from_arrays(dates, [[100.0, 90.0, 95.0, 80.0, 100.0]], ["FUND"])
+        >>> lookback = perf.lookback_returns(date(2024, 1, 5))
+        >>> len(LookbackReturns.from_json(lookback.to_json()).mtd)
+        1
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to compact JSON.
+
+        Returns
+        -------
+        str
+            Compact JSON string.
+        """
+        ...
+
     @property
     def mtd(self) -> npt.NDArray[np.float64]:
         """
@@ -764,6 +1054,48 @@ class DatedSeries:
     >>> (len(series.values) == len(series.dates), series.value_column)
     (True, 'return')
     """
+
+    @staticmethod
+    def from_json(json: str) -> DatedSeries:
+        """
+        Deserialize a ``DatedSeries`` from JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON string produced by :meth:`to_json`, carrying ``values``,
+            ``dates`` and ``value_column``.
+
+        Returns
+        -------
+        DatedSeries
+            Parsed ``DatedSeries`` instance, including its metric label.
+
+        Examples
+        --------
+        >>> from datetime import date, timedelta
+        >>> from finstack_quant.analytics import DatedSeries, Performance
+        >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(5)]
+        >>> perf = Performance.from_arrays(dates, [[100.0, 90.0, 95.0, 80.0, 100.0]], ["FUND"])
+        >>> series = DatedSeries.from_json(perf.rolling_returns(0, window=2).to_json())
+        >>> series.value_column
+        'return'
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to compact JSON.
+
+        Emits ``values`` and ``dates`` plus the ``value_column`` label, so the
+        metric name survives a round-trip.
+
+        Returns
+        -------
+        str
+            Compact JSON string.
+        """
+        ...
 
     @property
     def values(self) -> npt.NDArray[np.float64]:
@@ -2095,6 +2427,22 @@ class Performance:
         """
 
     # -- DataFrame export methods --
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        The primary pandas view: the summary statistics table.
+
+        One row per ticker, one column per scalar metric. Alias for
+        `summary_to_dataframe` with default arguments, so every result type
+        answers to a plain `to_dataframe()`. The other `*_to_dataframe`
+        methods are the secondary views.
+
+        Returns
+        -------
+        pd.DataFrame
+            Summary statistics, one row per ticker.
+        """
+        ...
 
     def summary_to_dataframe(
         self,

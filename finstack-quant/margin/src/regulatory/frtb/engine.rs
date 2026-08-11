@@ -98,6 +98,9 @@ impl FrtbSbaEngine {
             rrao,
             binding_scenario: best_scenario,
             scenario_charges: scenario_charges.into_iter().collect(),
+            meta: finstack_quant_core::config::results_meta(
+                &finstack_quant_core::config::FinstackConfig::default(),
+            ),
         })
     }
 }

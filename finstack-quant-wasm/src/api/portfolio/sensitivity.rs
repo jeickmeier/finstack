@@ -2,15 +2,16 @@
 
 use crate::api::valuations::market_handle::JsMarket;
 use crate::utils::date::parse_iso_date;
-use crate::utils::to_js_err;
+use crate::utils::{to_js_err, to_js_value};
 use wasm_bindgen::prelude::*;
 
-/// Compute first-order factor sensitivities and return the matrix as JSON.
+/// Compute first-order factor sensitivities and return the matrix.
 ///
 /// Accepts a JSON array of positions, a JSON array of `FactorDefinition`,
 /// a `MarketContext` JSON, an ISO 8601 date, and an optional `BumpSizeConfig`
-/// JSON.  Returns a JSON object with `position_ids`, `factor_ids`, and a
-/// row-major `data` matrix.
+/// JSON.  Returns a structured object with `position_ids`, `factor_ids`, and a
+/// row-major `data` matrix; `JSON.stringify` it to chain into
+/// `decomposeFactorRisk`.
 /// @param positions_json - Canonical portfolio-positions JSON to bump and revalue.
 /// @param factors_json - Canonical factor-definition JSON identifying the market factors to shock.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
@@ -22,7 +23,7 @@ use wasm_bindgen::prelude::*;
 /// Throws a JavaScript exception if `asOf` is not a valid ISO date; any JSON
 /// input is malformed; a factor definition or bump configuration is invalid or
 /// unsupported; bumping or repricing fails; or the sensitivity matrix cannot be
-/// serialized.
+/// converted to a JavaScript value.
 #[wasm_bindgen(js_name = computeFactorSensitivities)]
 pub fn compute_factor_sensitivities(
     positions_json: &str,
@@ -30,16 +31,20 @@ pub fn compute_factor_sensitivities(
     market_json: &str,
     as_of: &str,
     bump_config_json: Option<String>,
-) -> Result<String, JsValue> {
-    parse_iso_date(as_of)?;
-    finstack_quant_portfolio::sensitivity::compute_factor_sensitivities_json(
+) -> Result<JsValue, JsValue> {
+    let as_of = parse_iso_date(as_of)?;
+    let market: finstack_quant_core::market_data::context::MarketContext =
+        serde_json::from_str(market_json).map_err(to_js_err)?;
+    let matrix = finstack_quant_portfolio::sensitivity::compute_factor_sensitivities_from_json(
         positions_json,
         factors_json,
-        market_json,
+        &market,
         as_of,
         bump_config_json.as_deref(),
     )
-    .map_err(to_js_err)
+    .map_err(to_js_err)?;
+    let output = finstack_quant_portfolio::sensitivity::SensitivityMatrixJson::from(&matrix);
+    to_js_value(&output)
 }
 
 /// Compute first-order factor sensitivities using a pre-parsed [`JsMarket`].
@@ -56,7 +61,7 @@ pub fn compute_factor_sensitivities(
 /// Throws a JavaScript exception if `asOf` is not a valid ISO date; a position,
 /// factor, or bump-config JSON input is malformed; a factor definition is
 /// invalid or unsupported; bumping or repricing fails; or the sensitivity
-/// matrix cannot be serialized.
+/// matrix cannot be converted to a JavaScript value.
 #[wasm_bindgen(js_name = computeFactorSensitivitiesWithMarket)]
 pub fn compute_factor_sensitivities_with_market(
     positions_json: &str,
@@ -64,7 +69,7 @@ pub fn compute_factor_sensitivities_with_market(
     market: &JsMarket,
     as_of: &str,
     bump_config_json: Option<String>,
-) -> Result<String, JsValue> {
+) -> Result<JsValue, JsValue> {
     let as_of = parse_iso_date(as_of)?;
     let matrix = finstack_quant_portfolio::sensitivity::compute_factor_sensitivities_from_json(
         positions_json,
@@ -75,13 +80,14 @@ pub fn compute_factor_sensitivities_with_market(
     )
     .map_err(to_js_err)?;
     let output = finstack_quant_portfolio::sensitivity::SensitivityMatrixJson::from(&matrix);
-    serde_json::to_string(&output).map_err(to_js_err)
+    to_js_value(&output)
 }
 
-/// Compute scenario P&L profiles via full repricing and return as JSON.
+/// Compute scenario P&L profiles via full repricing.
 ///
 /// Same position/factor/market inputs as `computeFactorSensitivities`, plus
-/// an optional `n_scenario_points` integer.
+/// an optional `n_scenario_points` integer. Returns a structured array with one
+/// `{ factor_id, shifts, position_pnls }` entry per shocked factor.
 /// @param positions_json - Canonical portfolio-positions JSON to bump and revalue.
 /// @param factors_json - Canonical factor-definition JSON identifying the market factors to shock.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
@@ -94,7 +100,7 @@ pub fn compute_factor_sensitivities_with_market(
 /// Throws a JavaScript exception if `asOf` is not a valid ISO date; any JSON
 /// input is malformed; a factor, bump configuration, or scenario-point count is
 /// invalid or unsupported; bumping or repricing fails; or the profiles cannot
-/// be serialized.
+/// be converted to a JavaScript value.
 #[wasm_bindgen(js_name = computePnlProfiles)]
 pub fn compute_pnl_profiles(
     positions_json: &str,
@@ -103,17 +109,25 @@ pub fn compute_pnl_profiles(
     as_of: &str,
     bump_config_json: Option<String>,
     n_scenario_points: Option<usize>,
-) -> Result<String, JsValue> {
-    parse_iso_date(as_of)?;
-    finstack_quant_portfolio::sensitivity::compute_pnl_profiles_json(
+) -> Result<JsValue, JsValue> {
+    let as_of = parse_iso_date(as_of)?;
+    let market: finstack_quant_core::market_data::context::MarketContext =
+        serde_json::from_str(market_json).map_err(to_js_err)?;
+    let profiles = finstack_quant_portfolio::sensitivity::compute_pnl_profiles_from_json(
         positions_json,
         factors_json,
-        market_json,
+        &market,
         as_of,
         bump_config_json.as_deref(),
-        n_scenario_points,
+        n_scenario_points
+            .unwrap_or(finstack_quant_portfolio::sensitivity::DEFAULT_PNL_SCENARIO_POINTS),
     )
-    .map_err(to_js_err)
+    .map_err(to_js_err)?;
+    let output: Vec<finstack_quant_portfolio::sensitivity::FactorPnlProfileJson> = profiles
+        .iter()
+        .map(finstack_quant_portfolio::sensitivity::FactorPnlProfileJson::from)
+        .collect();
+    to_js_value(&output)
 }
 
 /// Compute scenario P&L profiles using a pre-parsed [`JsMarket`].
@@ -129,7 +143,7 @@ pub fn compute_pnl_profiles(
 /// Throws a JavaScript exception if `asOf` is not a valid ISO date; a position,
 /// factor, or bump-config JSON input is malformed; a factor or scenario-point
 /// count is invalid or unsupported; bumping or repricing fails; or the profiles
-/// cannot be serialized.
+/// cannot be converted to a JavaScript value.
 #[wasm_bindgen(js_name = computePnlProfilesWithMarket)]
 pub fn compute_pnl_profiles_with_market(
     positions_json: &str,
@@ -138,7 +152,7 @@ pub fn compute_pnl_profiles_with_market(
     as_of: &str,
     bump_config_json: Option<String>,
     n_scenario_points: Option<usize>,
-) -> Result<String, JsValue> {
+) -> Result<JsValue, JsValue> {
     let as_of = parse_iso_date(as_of)?;
     let profiles = finstack_quant_portfolio::sensitivity::compute_pnl_profiles_from_json(
         positions_json,
@@ -154,7 +168,7 @@ pub fn compute_pnl_profiles_with_market(
         .iter()
         .map(finstack_quant_portfolio::sensitivity::FactorPnlProfileJson::from)
         .collect();
-    serde_json::to_string(&output).map_err(to_js_err)
+    to_js_value(&output)
 }
 
 /// Decompose portfolio risk into factor and position contributions.
@@ -164,9 +178,13 @@ pub fn compute_pnl_profiles_with_market(
 /// `computeFactorSensitivities`), a `FactorCovarianceMatrix` JSON, and an
 /// optional `RiskMeasure` JSON.
 ///
-/// Returns a JSON object with `total_risk`, `measure`, `residual_risk`,
+/// Returns a structured object with `total_risk`, `measure`, `residual_risk`,
 /// `factor_contributions` (array), and `position_factor_contributions` (array).
-/// @param sensitivities_json - Canonical factor-sensitivity result JSON to decompose.
+///
+/// `measure` uses the canonical serde form (`"variance"`, `"volatility"`). The
+/// Python binding's `measure` getter reports the JSON-quoted form
+/// (`"\"variance\""`); the WASM value is the unquoted one.
+/// @param sensitivities_json - Canonical factor-sensitivity result JSON; `JSON.stringify` the structured matrix returned by `computeFactorSensitivities`.
 /// @param covariance_json - Factor covariance-matrix JSON aligned with the supplied sensitivities.
 /// @param risk_measure_json - Risk-measure configuration JSON selecting the decomposition metric.
 ///
@@ -175,13 +193,13 @@ pub fn compute_pnl_profiles_with_market(
 /// Throws a JavaScript exception if any JSON input is malformed; sensitivity
 /// dimensions or factor axes disagree; the covariance matrix or risk measure is
 /// invalid; decomposition produces invalid variance or another non-finite
-/// value; or the result cannot be converted to and serialized as JSON.
+/// value; or the result cannot be converted to a JavaScript value.
 #[wasm_bindgen(js_name = decomposeFactorRisk)]
 pub fn decompose_factor_risk(
     sensitivities_json: &str,
     covariance_json: &str,
     risk_measure_json: Option<String>,
-) -> Result<String, JsValue> {
+) -> Result<JsValue, JsValue> {
     #[derive(serde::Deserialize)]
     struct SensInput {
         position_ids: Vec<String>,
@@ -247,7 +265,7 @@ pub fn decompose_factor_risk(
             })
         }).collect::<Vec<_>>(),
     });
-    serde_json::to_string(&output).map_err(to_js_err)
+    to_js_value(&output)
 }
 
 // Validation helpers
@@ -285,9 +303,14 @@ fn validate_sensitivity_data(
     Ok(())
 }
 
+/// Host-target unit tests.
+///
+/// `decompose_factor_risk` now returns a structured `JsValue`, which cannot be
+/// built off `wasm32`; its behavioural coverage lives in
+/// `tests/wasm_portfolio.rs`.
 #[cfg(test)]
 mod tests {
-    use super::{decompose_factor_risk, validate_sensitivity_data};
+    use super::validate_sensitivity_data;
 
     #[test]
     fn validate_rejects_too_many_rows() {
@@ -351,28 +374,5 @@ mod tests {
         // Zero positions, zero factors, zero data rows — valid degenerate case
         let data: Vec<Vec<f64>> = vec![];
         assert!(validate_sensitivity_data(&data, 0, 0).is_ok());
-    }
-
-    #[test]
-    fn mo25_26_decompose_factor_risk_accepts_zero_factors_with_canonical_measure() {
-        let sensitivities = serde_json::json!({
-            "position_ids": [],
-            "factor_ids": [],
-            "data": []
-        })
-        .to_string();
-        let covariance =
-            finstack_quant_factor_model::FactorCovarianceMatrix::new(Vec::new(), Vec::new())
-                .expect("empty covariance should build");
-        let covariance_json = serde_json::to_string(&covariance).expect("serialize covariance");
-
-        let output = decompose_factor_risk(&sensitivities, &covariance_json, None)
-            .expect("MO-26: zero-factor decomposition should be accepted");
-        let value: serde_json::Value = serde_json::from_str(&output).expect("json output");
-        assert_eq!(value["total_risk"], 0.0);
-        assert_eq!(
-            value["measure"], "variance",
-            "MO-25: measure should use canonical serde form, not Debug"
-        );
     }
 }

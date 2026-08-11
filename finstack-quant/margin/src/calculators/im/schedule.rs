@@ -365,38 +365,12 @@ impl ScheduleImCalculator {
         self
     }
 
-    /// Calculate schedule IM from an explicit notional amount.
+    /// Calculate gross schedule IM from an explicit notional amount.
     ///
     /// # Arguments
     ///
-    /// * `notional` - Regulatory notional or other caller-supplied exposure base
-    ///   in the reporting currency
-    /// * `asset_class` - Regulatory schedule asset class
-    /// * `maturity_years` - Remaining maturity as a year fraction
-    ///
-    /// # Returns
-    ///
-    /// `|notional| × rate`, with the rate taken from the configured schedule grid.
-    /// This is the **gross** IM — no netting benefit is applied. For
-    /// portfolios with offsetting positions use
-    /// [`calculate_netting_set_with_ngr`](Self::calculate_netting_set_with_ngr)
-    /// which implements the BCBS-IOSCO NGR reduction factor.
-    pub fn calculate_for_notional(
-        &self,
-        notional: Money,
-        asset_class: ScheduleAssetClass,
-        maturity_years: f64,
-    ) -> Money {
-        let rate = self.schedule.rate(asset_class, maturity_years);
-        Money::new(notional.amount().abs(), notional.currency()) * rate
-    }
-
-    /// Calculate gross schedule IM and return a full [`ImResult`].
-    ///
-    /// # Arguments
-    ///
-    /// * `notional` - Regulatory notional or caller-supplied exposure base.
-    ///   The calculation uses `abs(notional)`.
+    /// * `notional` - Regulatory notional or caller-supplied exposure base in
+    ///   the reporting currency. The calculation uses `abs(notional)`.
     /// * `asset_class` - Schedule asset class used for the rate lookup and
     ///   result breakdown key.
     /// * `maturity_years` - Remaining maturity as a year fraction.
@@ -406,16 +380,21 @@ impl ScheduleImCalculator {
     ///
     /// An [`ImResult`] with methodology [`ImMethodology::Schedule`], the
     /// calculator's registry-backed MPOR, and one breakdown entry keyed by
-    /// `asset_class`.
+    /// `asset_class`. The amount is `|notional| × rate`, with the rate taken
+    /// from the configured schedule grid. This is the **gross** IM — no netting
+    /// benefit is applied. For portfolios with offsetting positions use
+    /// [`calculate_netting_set_with_ngr`](Self::calculate_netting_set_with_ngr)
+    /// which implements the BCBS-IOSCO NGR reduction factor.
     #[must_use]
-    pub fn calculate_for_notional_result(
+    pub fn calculate_for_notional(
         &self,
         notional: Money,
         asset_class: ScheduleAssetClass,
         maturity_years: f64,
         as_of: Date,
     ) -> ImResult {
-        let amount = self.calculate_for_notional(notional, asset_class.clone(), maturity_years);
+        let rate = self.schedule.rate(asset_class.clone(), maturity_years);
+        let amount = Money::new(notional.amount().abs(), notional.currency()) * rate;
         self.result_from_amount(amount, as_of, asset_class.to_string())
     }
 
@@ -447,6 +426,7 @@ impl ScheduleImCalculator {
     /// * `maturity_years` — representative remaining maturity for the
     ///   rate lookup. Typical convention: longest or weighted-average
     ///   remaining maturity across the netting set.
+    /// * `as_of` — calculation date stored on the returned result.
     ///
     /// # Precondition
     ///
@@ -458,15 +438,19 @@ impl ScheduleImCalculator {
     ///
     /// # Returns
     ///
-    /// `None` when `positions` is empty or all notionals are zero — the
-    /// NGR denominator would be zero.
+    /// `Some(ImResult)` when a non-empty, same-currency netting set has
+    /// positive gross notional. The result breakdown key is
+    /// [`Self::ngr_breakdown_key`]. Returns `None` when `positions` is empty,
+    /// all notionals are zero (the NGR denominator would be zero), or the
+    /// netting set mixes currencies.
     #[must_use]
     pub fn calculate_netting_set_with_ngr(
         &self,
         positions: &[(Money, Money)],
         asset_class: ScheduleAssetClass,
         maturity_years: f64,
-    ) -> Option<Money> {
+        as_of: Date,
+    ) -> Option<ImResult> {
         if positions.is_empty() {
             return None;
         }
@@ -507,11 +491,9 @@ impl ScheduleImCalculator {
             (signed_mtm_sum.max(0.0) / positive_mtm_sum).clamp(0.0, 1.0)
         };
         let reduction = 0.4 + 0.6 * ngr;
-        let rate = self.schedule.rate(asset_class, maturity_years);
-        Some(Money::new(
-            gross_notional_sum * rate * reduction,
-            reporting_currency,
-        ))
+        let rate = self.schedule.rate(asset_class.clone(), maturity_years);
+        let amount = Money::new(gross_notional_sum * rate * reduction, reporting_currency);
+        Some(self.result_from_amount(amount, as_of, Self::ngr_breakdown_key(&asset_class)))
     }
 
     /// Canonical schedule IM breakdown key for NGR-reduced netting-set results.
@@ -522,37 +504,6 @@ impl ScheduleImCalculator {
     #[must_use]
     pub fn ngr_breakdown_key(asset_class: &ScheduleAssetClass) -> String {
         format!("{asset_class}_ngr")
-    }
-
-    /// Calculate schedule IM with NGR reduction and return a full [`ImResult`].
-    ///
-    /// # Arguments
-    ///
-    /// * `positions` - `(signed_mtm, gross_notional)` pairs in one reporting
-    ///   currency.
-    /// * `asset_class` - Schedule asset class applied uniformly to the whole
-    ///   netting set.
-    /// * `maturity_years` - Representative remaining maturity for the rate
-    ///   lookup.
-    /// * `as_of` - Calculation date stored on the returned result.
-    ///
-    /// # Returns
-    ///
-    /// `Some(ImResult)` when a non-empty, same-currency netting set has
-    /// positive gross notional. The result breakdown key is
-    /// [`Self::ngr_breakdown_key`]. Returns `None` for empty inputs, zero gross
-    /// notionals, or mixed currencies.
-    #[must_use]
-    pub fn calculate_netting_set_with_ngr_result(
-        &self,
-        positions: &[(Money, Money)],
-        asset_class: ScheduleAssetClass,
-        maturity_years: f64,
-        as_of: Date,
-    ) -> Option<ImResult> {
-        let amount =
-            self.calculate_netting_set_with_ngr(positions, asset_class.clone(), maturity_years)?;
-        Some(self.result_from_amount(amount, as_of, Self::ngr_breakdown_key(&asset_class)))
     }
 
     /// Get the decimal schedule rate for an asset class and maturity.
@@ -603,21 +554,11 @@ impl ImCalculator for ScheduleImCalculator {
             "a regulatory notional",
         )?;
 
-        let im_amount = self.calculate_for_notional(
+        Ok(self.calculate_for_notional(
             notional,
             self.default_asset_class.clone(),
             self.default_maturity_years,
-        );
-
-        let mut breakdown = HashMap::default();
-        breakdown.insert(self.default_asset_class.to_string(), im_amount);
-
-        Ok(ImResult::with_breakdown(
-            im_amount,
-            ImMethodology::Schedule,
             as_of,
-            self.mpor_days,
-            breakdown,
         ))
     }
 
@@ -630,6 +571,10 @@ impl ImCalculator for ScheduleImCalculator {
 mod tests {
     use super::*;
     use finstack_quant_core::currency::Currency;
+
+    fn test_date() -> Date {
+        Date::from_calendar_date(2024, time::Month::January, 1).expect("valid date")
+    }
 
     #[test]
     fn bcbs_schedule_rates() {
@@ -656,10 +601,15 @@ mod tests {
             .expect("bcbs_standard calculator should load from embedded registry");
 
         let notional = Money::new(100_000_000.0, Currency::USD);
-        let im = calc.calculate_for_notional(notional, ScheduleAssetClass::InterestRate, 5.0);
+        let im = calc.calculate_for_notional(
+            notional,
+            ScheduleAssetClass::InterestRate,
+            5.0,
+            test_date(),
+        );
 
         // 5y IR uses long bucket (4%) since maturity >= 5.0
-        assert_eq!(im.amount(), 4_000_000.0);
+        assert_eq!(im.amount.amount(), 4_000_000.0);
     }
 
     #[test]
@@ -723,10 +673,11 @@ mod tests {
             .with_maturity(7.0);
 
         let notional = Money::new(50_000_000.0, Currency::USD);
-        let im = calc.calculate_for_notional(notional, ScheduleAssetClass::Credit, 7.0);
+        let im =
+            calc.calculate_for_notional(notional, ScheduleAssetClass::Credit, 7.0, test_date());
 
         // 7y credit uses long bucket (10%)
-        assert_eq!(im.amount(), 5_000_000.0);
+        assert_eq!(im.amount.amount(), 5_000_000.0);
     }
 
     #[test]
@@ -765,15 +716,20 @@ mod tests {
             ),
         ];
         let im = calc
-            .calculate_netting_set_with_ngr(&positions, ScheduleAssetClass::InterestRate, 5.0)
+            .calculate_netting_set_with_ngr(
+                &positions,
+                ScheduleAssetClass::InterestRate,
+                5.0,
+                test_date(),
+            )
             .expect("NGR computable");
 
         // Gross = 200M, 5Y IR rate = 4%, reduction = 0.4.
         let expected = 200.0e6 * 0.04 * 0.4;
         assert!(
-            (im.amount() - expected).abs() < 1e-6,
+            (im.amount.amount() - expected).abs() < 1e-6,
             "fully-offset NGR gives 40% reduction, expected {expected}, got {}",
-            im.amount()
+            im.amount.amount()
         );
     }
 
@@ -796,15 +752,20 @@ mod tests {
             ),
         ];
         let im = calc
-            .calculate_netting_set_with_ngr(&positions, ScheduleAssetClass::InterestRate, 5.0)
+            .calculate_netting_set_with_ngr(
+                &positions,
+                ScheduleAssetClass::InterestRate,
+                5.0,
+                test_date(),
+            )
             .expect("NGR computable");
 
         // Σ MtM = 15M, Σ|MtM| = 15M → NGR = 1.0. Gross = 150M; reduction = 1.0.
         let expected = 150.0e6 * 0.04 * 1.0;
         assert!(
-            (im.amount() - expected).abs() < 1e-6,
+            (im.amount.amount() - expected).abs() < 1e-6,
             "NGR = 1 reduces to gross formula, expected {expected}, got {}",
-            im.amount()
+            im.amount.amount()
         );
     }
 
@@ -827,16 +788,21 @@ mod tests {
             ),
         ];
         let im = calc
-            .calculate_netting_set_with_ngr(&positions, ScheduleAssetClass::InterestRate, 5.0)
+            .calculate_netting_set_with_ngr(
+                &positions,
+                ScheduleAssetClass::InterestRate,
+                5.0,
+                test_date(),
+            )
             .expect("NGR computable");
 
         let ngr = 5.0 / 10.0; // 1/2
         let reduction = 0.4 + 0.6 * ngr; // 0.7
         let expected = 150.0e6 * 0.04 * reduction;
         assert!(
-            (im.amount() - expected).abs() < 1e-6,
+            (im.amount.amount() - expected).abs() < 1e-6,
             "partial NGR = 1/2 -> reduction 0.7, expected {expected}, got {}",
-            im.amount()
+            im.amount.amount()
         );
     }
 
@@ -857,14 +823,19 @@ mod tests {
             ),
         ];
         let im = calc
-            .calculate_netting_set_with_ngr(&positions, ScheduleAssetClass::InterestRate, 5.0)
+            .calculate_netting_set_with_ngr(
+                &positions,
+                ScheduleAssetClass::InterestRate,
+                5.0,
+                test_date(),
+            )
             .expect("NGR computable");
 
         let expected = 150.0e6 * 0.04 * 0.4;
         assert!(
-            (im.amount() - expected).abs() < 1e-6,
+            (im.amount.amount() - expected).abs() < 1e-6,
             "all-negative book should use NGR=0 floor, expected {expected}, got {}",
-            im.amount()
+            im.amount.amount()
         );
     }
 
@@ -876,7 +847,7 @@ mod tests {
             .with_asset_class(ScheduleAssetClass::InterestRate);
 
         assert!(calc
-            .calculate_netting_set_with_ngr(&[], ScheduleAssetClass::InterestRate, 5.0)
+            .calculate_netting_set_with_ngr(&[], ScheduleAssetClass::InterestRate, 5.0, test_date())
             .is_none());
 
         let mixed = vec![
@@ -890,7 +861,12 @@ mod tests {
             ),
         ];
         assert!(calc
-            .calculate_netting_set_with_ngr(&mixed, ScheduleAssetClass::InterestRate, 5.0)
+            .calculate_netting_set_with_ngr(
+                &mixed,
+                ScheduleAssetClass::InterestRate,
+                5.0,
+                test_date()
+            )
             .is_none());
     }
 

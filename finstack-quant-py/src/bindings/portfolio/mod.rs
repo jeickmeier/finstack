@@ -21,6 +21,7 @@ mod optimization_spec;
 mod performance;
 mod pipeline;
 mod replay;
+mod scenario_pnl;
 mod schema;
 mod sensitivity;
 mod spec;
@@ -113,6 +114,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         "InstrumentArtifactCache",
         "MaterializationReport",
         "PortfolioValuation",
+        "ScenarioPnl",
         "PortfolioResult",
         "PortfolioMetrics",
         "PortfolioCashflows",

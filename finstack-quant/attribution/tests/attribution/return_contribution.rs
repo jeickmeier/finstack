@@ -1,6 +1,6 @@
 //! Tests for the surrounding crate component and its documented behavior.
 //!
-use finstack_quant_attribution::attribute_return_contribution;
+use finstack_quant_attribution::attribute_return_contribution_json;
 use serde_json::{json, Value};
 
 #[test]
@@ -31,7 +31,7 @@ fn return_contribution_groups_factors_and_brinson_reconcile() {
         ]
     });
 
-    let out = attribute_return_contribution(&spec.to_string()).expect("valid spec");
+    let out = attribute_return_contribution_json(&spec.to_string()).expect("valid spec");
     let result: Value = serde_json::from_str(&out).expect("json result");
 
     assert!(
@@ -101,7 +101,8 @@ fn return_contribution_rejects_mixed_benchmark_fields() {
         ]
     });
 
-    let err = attribute_return_contribution(&spec.to_string()).expect_err("mixed benchmark fields");
+    let err =
+        attribute_return_contribution_json(&spec.to_string()).expect_err("mixed benchmark fields");
     assert!(err.to_string().contains("benchmark"));
 }
 
@@ -115,7 +116,7 @@ fn return_contribution_rejects_zero_portfolio_weight_for_benchmark_relative() {
         ]
     });
 
-    let err = attribute_return_contribution(&spec.to_string())
+    let err = attribute_return_contribution_json(&spec.to_string())
         .expect_err("benchmark-relative attribution requires normalized portfolio weights");
     assert!(err.to_string().contains("portfolio weights"));
 }
@@ -135,7 +136,7 @@ fn return_contribution_warns_on_near_zero_net_market_value() {
         ]
     });
 
-    let out = attribute_return_contribution(&spec.to_string()).expect("valid spec");
+    let out = attribute_return_contribution_json(&spec.to_string()).expect("valid spec");
     let result: Value = serde_json::from_str(&out).expect("json result");
 
     let warnings = result["warnings"].as_array().expect("warnings array");
@@ -160,7 +161,7 @@ fn return_contribution_no_warning_for_ordinary_net_book() {
         ]
     });
 
-    let out = attribute_return_contribution(&spec.to_string()).expect("valid spec");
+    let out = attribute_return_contribution_json(&spec.to_string()).expect("valid spec");
     let result: Value = serde_json::from_str(&out).expect("json result");
     assert!(
         result.get("warnings").is_none(),

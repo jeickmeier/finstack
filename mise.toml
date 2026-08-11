@@ -445,7 +445,28 @@ description = "Lint WASM/TS code (prettier --check + eslint, check-only)"
 run = [
   "npm --prefix finstack-quant-wasm run format",
   "npm --prefix finstack-quant-wasm run lint",
+  "mise run wasm-check-serializer",
 ]
+
+[tasks.wasm-check-serializer]
+description = "Fail if any binding bypasses utils::to_js_value"
+# `serde_wasm_bindgen::to_value` serializes Rust maps as ES2015 `Map`s, which
+# `JSON.stringify` silently drops. `crate::utils::to_js_value` uses the
+# `json_compatible` serializer so maps become plain objects, matching
+# `index.d.ts` and the dicts the Python bindings return. The only legitimate
+# call site is inside the helper itself.
+run = """
+set -eu
+offenders=$(grep -rn 'serde_wasm_bindgen::to_value' finstack-quant-wasm/src \
+  --include='*.rs' | grep -v 'src/utils/mod.rs' || true)
+if [ -n "$offenders" ]; then
+  echo 'Raw serde_wasm_bindgen::to_value is banned outside src/utils/mod.rs.'
+  echo 'It emits ES Maps that JSON.stringify drops; use crate::utils::to_js_value.'
+  echo "$offenders"
+  exit 1
+fi
+echo 'WASM serializer check passed: all JsValue returns route through to_js_value.'
+"""
 
 [tasks.wasm-doc]
 description = "Enforce complete WASM and TypeScript IntelliSense documentation"

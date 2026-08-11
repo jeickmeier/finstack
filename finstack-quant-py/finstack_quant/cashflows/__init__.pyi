@@ -27,7 +27,7 @@ from finstack_quant.cashflows import schema as schema
 
 __all__ = [
     "accrual",
-    "accrued_interest_json",
+    "accrued_interest",
     "aggregation",
     "build_cashflow_schedule_json",
     "builder",
@@ -175,7 +175,7 @@ def dated_flows_json(schedule_json: str) -> str:
 
     """
 
-def accrued_interest_json(schedule_json: str, as_of: datetime.date | str, config_json: str | None = None) -> float:
+def accrued_interest(schedule_json: str, as_of: datetime.date | str, config_json: str | None = None) -> float:
     """
     Compute accrued interest for a schedule as of a valuation date.
 
@@ -217,8 +217,8 @@ def accrued_interest_json(schedule_json: str, as_of: datetime.date | str, config
     ...     .fixed_cf(FixedCouponSpec(rate=Decimal("0.05"), schedule=ScheduleParams.semiannual_30360()))
     ...     .build()
     ... )
-    >>> from finstack_quant.cashflows import accrued_interest_json
-    >>> accrued_interest_json(schedule.to_json(), "2025-04-15") > 0.0
+    >>> from finstack_quant.cashflows import accrued_interest
+    >>> accrued_interest(schedule.to_json(), "2025-04-15") > 0.0
     True
 
     """

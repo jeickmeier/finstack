@@ -1,33 +1,204 @@
 //! Python wrappers for scenario engine application.
 
+use crate::bindings::core::market_data::context::PyMarketContext;
 use crate::bindings::extract::{extract_market, extract_model};
+use crate::bindings::pandas_utils::{serde_object_to_single_row_dataframe, serde_to_py};
+use crate::bindings::statements::types::PyFinancialModelSpec;
 use crate::errors::display_to_py;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::types::PyAny;
 
-fn set_warning_items(
-    dict: &Bound<'_, PyDict>,
-    warnings: &[finstack_quant_scenarios::Warning],
-) -> PyResult<()> {
-    let warning_strs: Vec<String> = warnings.iter().map(ToString::to_string).collect();
-    dict.set_item("warnings", warning_strs)?;
-    let warnings_json = serde_json::to_string(warnings).map_err(display_to_py)?;
-    dict.set_item("warnings_json", warnings_json)
+/// Report describing what a scenario application changed.
+///
+/// Returned by :func:`apply_scenario` and :func:`apply_scenario_to_market` as
+/// the ``report`` attribute of an :class:`ApplicationResult`.
+#[pyclass(
+    name = "ApplicationReport",
+    module = "finstack_quant.scenarios",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub struct PyApplicationReport {
+    pub(crate) inner: finstack_quant_scenarios::engine::ApplicationReport,
 }
 
-fn set_report_items(
-    dict: &Bound<'_, PyDict>,
-    report: &finstack_quant_scenarios::engine::ApplicationReport,
-) -> PyResult<()> {
-    dict.set_item("operations_applied", report.operations_applied)?;
-    dict.set_item("user_operations", report.user_operations)?;
-    dict.set_item("expanded_operations", report.expanded_operations)?;
-    dict.set_item("rounding_context", report.rounding_context.as_deref())?;
-    if let Some(time_roll) = &report.time_roll {
-        let time_roll_json = serde_json::to_string(time_roll).map_err(display_to_py)?;
-        dict.set_item("time_roll_json", time_roll_json)?;
+#[pymethods]
+impl PyApplicationReport {
+    /// Number of effects successfully applied to the execution context.
+    ///
+    /// One user-level operation can expand into several effects, so this is
+    /// always ``>=`` :attr:`user_operations`.
+    #[getter]
+    fn operations_applied(&self) -> usize {
+        self.inner.operations_applied
     }
-    set_warning_items(dict, &report.warnings)
+
+    /// Number of user-provided operations before hierarchy expansion.
+    #[getter]
+    fn user_operations(&self) -> usize {
+        self.inner.user_operations
+    }
+
+    /// Number of operations the engine attempted after hierarchy expansion.
+    #[getter]
+    fn expanded_operations(&self) -> usize {
+        self.inner.expanded_operations
+    }
+
+    /// Non-fatal warnings raised while applying the scenario.
+    #[getter]
+    fn warnings(&self) -> Vec<String> {
+        self.inner
+            .warnings
+            .iter()
+            .map(ToString::to_string)
+            .collect()
+    }
+
+    /// Audit stamp: numeric mode, rounding context, and FX policy in force.
+    #[getter]
+    fn meta<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.inner
+            .meta
+            .as_ref()
+            .map(|meta| serde_to_py(py, meta))
+            .transpose()
+    }
+
+    /// Metadata describing exactly which market state the effects changed.
+    #[getter]
+    fn changes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.changes)
+    }
+
+    /// Roll-forward report, present only when the scenario contained a
+    /// ``time_roll_forward`` operation.
+    #[getter]
+    fn time_roll<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.inner
+            .time_roll
+            .as_ref()
+            .map(|roll| serde_to_py(py, roll))
+            .transpose()
+    }
+
+    /// Export the report counters as a single-row :class:`pandas.DataFrame`.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_object_to_single_row_dataframe(py, &self.inner)
+    }
+
+    /// Serialize to a compact JSON string.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Deserialize from a JSON string.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: finstack_quant_scenarios::engine::ApplicationReport =
+            serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+}
+
+/// Result of applying a scenario: the mutated market, the mutated model (when
+/// one was supplied), and the application report.
+#[pyclass(
+    name = "ApplicationResult",
+    module = "finstack_quant.scenarios",
+    frozen,
+    skip_from_py_object
+)]
+pub struct PyApplicationResult {
+    market: finstack_quant_core::market_data::context::MarketContext,
+    model: Option<finstack_quant_statements::FinancialModelSpec>,
+    report: finstack_quant_scenarios::engine::ApplicationReport,
+}
+
+#[pymethods]
+impl PyApplicationResult {
+    /// The mutated market context.
+    #[getter]
+    fn market(&self) -> PyMarketContext {
+        PyMarketContext::from_inner(self.market.clone())
+    }
+
+    /// The mutated financial model, or ``None`` when no model was supplied.
+    #[getter]
+    fn model(&self) -> Option<PyFinancialModelSpec> {
+        self.model.as_ref().map(|inner| PyFinancialModelSpec {
+            inner: inner.clone(),
+        })
+    }
+
+    /// What the scenario changed.
+    #[getter]
+    fn report(&self) -> PyApplicationReport {
+        PyApplicationReport {
+            inner: self.report.clone(),
+        }
+    }
+
+    /// Serialize to a compact JSON string.
+    ///
+    /// Emits the canonical
+    /// :rust:struct:`finstack_quant_scenarios::engine::ApplicationEnvelope`
+    /// shape, with ``market`` and ``model`` as nested objects.
+    fn to_json(&self) -> PyResult<String> {
+        let envelope = finstack_quant_scenarios::engine::ApplicationEnvelope::from_contexts(
+            self.report.clone(),
+            &self.market,
+            self.model.as_ref(),
+        )
+        .map_err(display_to_py)?;
+        serde_json::to_string(&envelope).map_err(display_to_py)
+    }
+
+    /// Deserialize from a JSON string produced by :meth:`to_json`.
+    ///
+    /// Accepts the canonical
+    /// :rust:struct:`finstack_quant_scenarios::engine::ApplicationEnvelope`
+    /// shape and rebuilds the market, model, and report.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let envelope: finstack_quant_scenarios::engine::ApplicationEnvelope =
+            serde_json::from_str(json).map_err(display_to_py)?;
+        let market: finstack_quant_core::market_data::context::MarketContext =
+            serde_json::from_value(envelope.market).map_err(display_to_py)?;
+        let model: Option<finstack_quant_statements::FinancialModelSpec> = envelope
+            .model
+            .map(serde_json::from_value)
+            .transpose()
+            .map_err(display_to_py)?;
+        Ok(Self {
+            market,
+            model,
+            report: finstack_quant_scenarios::engine::ApplicationReport {
+                operations_applied: envelope.operations_applied,
+                user_operations: envelope.user_operations,
+                expanded_operations: envelope.expanded_operations,
+                changes: envelope.changes,
+                warnings: envelope.warnings,
+                meta: envelope.meta,
+                time_roll: envelope.time_roll,
+            },
+        })
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
 }
 
 fn apply_with_context(
@@ -63,14 +234,11 @@ fn apply_with_context(
 ///
 /// Returns
 /// -------
-/// dict
-///     Dict with ``market_json`` (modified market), ``model_json`` (modified
-///     model), ``operations_applied`` (int), ``user_operations`` (int, count of
-///     user-provided operations before hierarchy expansion), ``expanded_operations``
-///     (int, count after expansion), ``rounding_context`` (str | None, active
-///     rounding-mode stamp), ``time_roll_json`` (str, JSON ``RollForwardReport``;
-///     only present when the scenario contained a ``time_roll_forward``
-///     operation), and ``warnings`` (list[str]).
+/// ApplicationResult
+///     Typed result exposing ``market`` (:class:`MarketContext`), ``model``
+///     (:class:`FinancialModelSpec`), and ``report``
+///     (:class:`ApplicationReport`). Call ``.to_json()`` for the canonical
+///     JSON envelope.
 ///
 /// Notes
 /// -----
@@ -81,13 +249,13 @@ fn apply_with_context(
 /// and produce a warning, and ``time_roll_forward`` in ``business_days`` mode
 /// adjusts without holiday information.
 #[pyfunction]
-fn apply_scenario<'py>(
-    py: Python<'py>,
+fn apply_scenario(
+    py: Python<'_>,
     scenario_json: &str,
-    market: &Bound<'py, PyAny>,
-    model: &Bound<'py, PyAny>,
-    as_of: &Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyDict>> {
+    market: &Bound<'_, PyAny>,
+    model: &Bound<'_, PyAny>,
+    as_of: &Bound<'_, PyAny>,
+) -> PyResult<PyApplicationResult> {
     let spec: finstack_quant_scenarios::ScenarioSpec =
         serde_json::from_str(scenario_json).map_err(display_to_py)?;
     let mut market = extract_market(py, market)?;
@@ -101,18 +269,11 @@ fn apply_scenario<'py>(
     });
     let report = report.map_err(display_to_py)?;
 
-    let dict = PyDict::new(py);
-    dict.set_item(
-        "market_json",
-        serde_json::to_string(&market).map_err(display_to_py)?,
-    )?;
-    dict.set_item(
-        "model_json",
-        serde_json::to_string(&model).map_err(display_to_py)?,
-    )?;
-    set_report_items(&dict, &report)?;
-
-    Ok(dict)
+    Ok(PyApplicationResult {
+        market,
+        model: Some(model),
+        report,
+    })
 }
 
 /// Apply a scenario to a market context only (no model).
@@ -128,11 +289,8 @@ fn apply_scenario<'py>(
 ///
 /// Returns
 /// -------
-/// dict
-///     Dict with ``market_json`` (modified market), ``operations_applied``,
-///     ``user_operations``, ``expanded_operations``, ``rounding_context``,
-///     ``time_roll_json`` (only when a ``time_roll_forward`` operation ran),
-///     and ``warnings``.
+/// ApplicationResult
+///     Typed result whose ``model`` attribute is ``None``.
 ///
 /// Notes
 /// -----
@@ -140,12 +298,12 @@ fn apply_scenario<'py>(
 /// supplied: instrument-scoped operations are inert (with a warning) and
 /// business-day time rolls adjust without holiday information.
 #[pyfunction]
-fn apply_scenario_to_market<'py>(
-    py: Python<'py>,
+fn apply_scenario_to_market(
+    py: Python<'_>,
     scenario_json: &str,
-    market: &Bound<'py, PyAny>,
-    as_of: &Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyDict>> {
+    market: &Bound<'_, PyAny>,
+    as_of: &Bound<'_, PyAny>,
+) -> PyResult<PyApplicationResult> {
     let spec: finstack_quant_scenarios::ScenarioSpec =
         serde_json::from_str(scenario_json).map_err(display_to_py)?;
     let mut market = extract_market(py, market)?;
@@ -157,18 +315,17 @@ fn apply_scenario_to_market<'py>(
     });
     let report = report.map_err(display_to_py)?;
 
-    let dict = PyDict::new(py);
-    dict.set_item(
-        "market_json",
-        serde_json::to_string(&market).map_err(display_to_py)?,
-    )?;
-    set_report_items(&dict, &report)?;
-
-    Ok(dict)
+    Ok(PyApplicationResult {
+        market,
+        model: None,
+        report,
+    })
 }
 
 /// Register engine functions.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<PyApplicationReport>()?;
+    m.add_class::<PyApplicationResult>()?;
     m.add_function(pyo3::wrap_pyfunction!(apply_scenario, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(apply_scenario_to_market, m)?)?;
     Ok(())

@@ -2,7 +2,7 @@ use finstack_quant_core::market_data::traits::Discounting;
 use finstack_quant_core::math::{BrentSolver, Solver};
 use finstack_quant_core::{Error, Result};
 
-use super::{CalibrationResult, ShortRateTree, TreeCompounding};
+use super::{ShortRateTree, TreeCalibrationResult, TreeCompounding};
 
 impl ShortRateTree {
     /// Calibrate Ho-Lee model parameters.
@@ -217,7 +217,7 @@ impl ShortRateTree {
                 let df_in_range =
                     (MIN_NODE_DISCOUNT_FACTOR..=MAX_NODE_DISCOUNT_FACTOR).contains(&node_df);
                 if !df_in_range {
-                    self.calibration_quality = Some(CalibrationResult {
+                    self.calibration_quality = Some(TreeCalibrationResult {
                         max_error_bp,
                         max_error_step,
                         fallback_count: 0,
@@ -234,7 +234,7 @@ impl ShortRateTree {
             }
         }
 
-        self.calibration_quality = Some(CalibrationResult {
+        self.calibration_quality = Some(TreeCalibrationResult {
             max_error_bp,
             max_error_step,
             fallback_count: 0,

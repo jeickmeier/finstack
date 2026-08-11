@@ -132,7 +132,7 @@ request documents. The current public inventory contains 28 one-way types:
 - scenario views: `ScenarioRevalueView` and `ScenarioPnlView`;
 - sensitivity views: `SensitivityMatrixJson` and `FactorPnlProfileJson`;
 - statement-analysis outputs: `CreditAssessmentPoint` and `CreditAssessment`;
-- calibration validation views: `ValidationReport`, `DependencyGraph`, and
+- calibration validation views: `CalibrationValidationReport`, `DependencyGraph`, and
   `DependencyNode`;
 - optimization output: `PortfolioOptimizationResult`.
 

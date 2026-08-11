@@ -6,9 +6,11 @@
 mod dataframe;
 mod entry;
 mod pnl_attribution;
+mod return_contribution;
 mod schema;
 
 pub(crate) use pnl_attribution::PyPnlAttribution;
+pub(crate) use return_contribution::PyReturnContributionResult;
 
 use entry::{
     attribute_pnl, attribute_pnl_from_spec, attribute_return_contribution,
@@ -23,6 +25,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let m = PyModule::new(py, "attribution")?;
     m.setattr("__doc__", "P&L attribution across multiple methodologies.")?;
     m.add_class::<PyPnlAttribution>()?;
+    m.add_class::<PyReturnContributionResult>()?;
     m.add_function(pyo3::wrap_pyfunction!(attribute_pnl, &m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(attribute_pnl_from_spec, &m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(attribute_return_contribution, &m)?)?;
@@ -39,6 +42,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         py,
         [
             "PnlAttribution",
+            "ReturnContributionResult",
             "attribute_pnl",
             "attribute_pnl_from_spec",
             "attribute_return_contribution",

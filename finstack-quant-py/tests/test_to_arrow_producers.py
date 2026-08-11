@@ -43,7 +43,7 @@ def test_to_arrow_long_matches_pandas_long_columns() -> None:
         "value_type",
     ]
 
-    df = res.to_pandas_long()
+    df = res.to_dataframe(orient="long")
     assert at.num_rows == len(df)
 
 

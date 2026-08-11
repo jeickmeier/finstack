@@ -10,33 +10,34 @@ use crate::errors::{core_to_py, serde_json_to_py};
 
 /// Compute a Modified-Dietz TWRR sub-period return.
 ///
-/// Returns ``None`` when the Rust engine determines the return is undefined
-/// (for example, non-positive adjusted denominator).
+/// Raises ``ValueError`` when the return is undefined (for example, a
+/// non-positive adjusted denominator or an out-of-range cashflow weight).
 #[pyfunction]
 #[pyo3(text_signature = "(period_json)")]
-fn twrr_modified_dietz(py: Python<'_>, period_json: &str) -> PyResult<Option<f64>> {
+fn twrr_modified_dietz(py: Python<'_>, period_json: &str) -> PyResult<f64> {
     let period_json = period_json.to_owned();
     py.detach(move || {
         let period: finstack_quant_portfolio::TwrrPeriod = serde_json::from_str(&period_json)
             .map_err(|err| serde_json_to_py(err, "invalid TWRR period JSON"))?;
-        Ok(finstack_quant_portfolio::twrr_modified_dietz(&period))
+        finstack_quant_portfolio::twrr_modified_dietz(&period).map_err(core_to_py)
     })
 }
 
 /// Geometrically link TWRR sub-period returns.
+///
+/// Raises ``ValueError`` when any sub-period return is non-finite or the
+/// compounded growth factor is non-positive.
 #[pyfunction]
 #[pyo3(text_signature = "(returns_json, horizon_years)")]
-fn twrr_linked(py: Python<'_>, returns_json: &str, horizon_years: f64) -> PyResult<Option<String>> {
+fn twrr_linked(py: Python<'_>, returns_json: &str, horizon_years: f64) -> PyResult<String> {
     let returns_json = returns_json.to_owned();
     py.detach(move || {
         let returns: Vec<f64> = serde_json::from_str(&returns_json)
             .map_err(|err| serde_json_to_py(err, "invalid TWRR returns JSON"))?;
-        finstack_quant_portfolio::twrr_linked(&returns, horizon_years)
-            .map(|result| {
-                serde_json::to_string(&result)
-                    .map_err(|err| serde_json_to_py(err, "serialize linked return"))
-            })
-            .transpose()
+        let result =
+            finstack_quant_portfolio::twrr_linked(&returns, horizon_years).map_err(core_to_py)?;
+        serde_json::to_string(&result)
+            .map_err(|err| serde_json_to_py(err, "serialize linked return"))
     })
 }
 

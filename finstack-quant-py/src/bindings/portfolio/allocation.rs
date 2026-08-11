@@ -17,7 +17,7 @@ use pyo3::prelude::*;
 #[pyfunction]
 fn allocate_weights(py: Python<'_>, spec_json: &str) -> PyResult<String> {
     let spec_json = spec_json.to_owned();
-    py.detach(move || finstack_quant_portfolio::allocate_weights(&spec_json))
+    py.detach(move || finstack_quant_portfolio::allocate_weights_json(&spec_json))
         .map_err(portfolio_to_py)
 }
 

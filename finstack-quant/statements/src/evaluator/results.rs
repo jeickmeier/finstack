@@ -73,16 +73,18 @@ pub struct StatementResult {
     pub check_report: Option<crate::checks::CheckReport>,
 
     /// Metadata about the evaluation
-    pub meta: ResultsMeta,
+    pub meta: EvalStats,
 }
 
-/// Metadata about evaluation results.
+/// Execution statistics for a statement-model evaluation.
+///
+/// Distinct from [`finstack_quant_core::config::ResultsMeta`], which is the
+/// workspace-wide *audit* stamp (numeric mode, rounding context, FX policy).
+/// This type records how the evaluation *ran* — timing, graph size, warnings.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-// Distinct from `finstack_quant_core::config::ResultsMeta`, which stamps a
-// different field set.
-#[schemars(rename = "StatementResultsMeta")]
-pub struct ResultsMeta {
+#[schemars(rename = "StatementEvalStats")]
+pub struct EvalStats {
     /// Evaluation time in milliseconds
     #[serde(skip_serializing_if = "Option::is_none")]
     pub eval_time_ms: Option<u64>,
@@ -106,7 +108,7 @@ pub struct ResultsMeta {
     pub warnings: Vec<EvalWarning>,
 }
 
-impl Default for ResultsMeta {
+impl Default for EvalStats {
     fn default() -> Self {
         Self {
             eval_time_ms: None,
@@ -146,7 +148,7 @@ impl Default for StatementResult {
             node_value_types: IndexMap::new(),
             cs_cashflows: None,
             check_report: None,
-            meta: ResultsMeta::default(),
+            meta: EvalStats::default(),
         }
     }
 }

@@ -2,7 +2,7 @@ use crate::bindings::module_utils::py_to_serde;
 use crate::bindings::pandas_utils::{dict_to_dataframe, serde_object_to_single_row_dataframe};
 use indexmap::IndexMap;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyType};
+use pyo3::types::PyDict;
 use serde::Deserialize;
 
 use finstack_quant_portfolio::factor_model::{
@@ -84,9 +84,9 @@ impl PyPositionBudgetEntry {
     }
 
     /// Parse from a JSON string.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: PositionBudgetEntry = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }
@@ -199,9 +199,9 @@ impl PyRiskBudgetResult {
     }
 
     /// Parse from a JSON string.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: RiskBudgetResult = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }
@@ -313,9 +313,9 @@ impl PyFactorContributionDelta {
     }
 
     /// Parse from a JSON string.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: FactorContributionDelta = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }
@@ -387,9 +387,9 @@ impl PyWhatIfResult {
     }
 
     /// Parse from a JSON string.
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: WhatIfResult = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }

@@ -32,7 +32,7 @@ wasm.Portfolio.validateMaterializationJson = (bundle, cache = undefined) => {
 export const portfolio = {
   InstrumentArtifactCache: wasm.InstrumentArtifactCache,
   Portfolio: wasm.Portfolio,
-  parsePortfolioSpec: wasm.parsePortfolioSpec,
+  parsePortfolioSpecJson: wasm.parsePortfolioSpecJson,
   brinsonFachler: wasm.brinsonFachler,
   carinoLink: wasm.carinoLink,
   campisiAttribution: wasm.campisiAttribution,
@@ -52,7 +52,7 @@ export const portfolio = {
   twrrModifiedDietz: wasm.twrrModifiedDietz,
   twrrLinked: wasm.twrrLinked,
   mwrXirr: wasm.mwrXirr,
-  buildPortfolioFromSpec: wasm.buildPortfolioFromSpec,
+  buildPortfolioFromSpecJson: wasm.buildPortfolioFromSpecJson,
   portfolioResultTotalValue: wasm.portfolioResultTotalValue,
   portfolioResultGetMetric: wasm.portfolioResultGetMetric,
   aggregateMetrics: wasm.aggregateMetrics,

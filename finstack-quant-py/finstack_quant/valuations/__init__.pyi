@@ -334,6 +334,28 @@ class ValuationResult:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the headline result as a single-row pandas DataFrame.
+
+        Columns: ``instrument_id``, ``as_of_date`` (ISO 8601 string), ``pv``,
+        ``currency``, then one column per metric key in ``measures``
+        insertion order.
+
+        This is the default export, built from the Rust crate's own
+        ``ValuationResult::to_row`` flattener. Stack a book with
+        ``pd.concat([r.to_dataframe() for r in results])``; instruments with
+        different metric sets align on column name and leave ``NaN``
+        elsewhere.
+
+        Returns
+        -------
+        pd.DataFrame
+            Single-row DataFrame with the identity columns followed by one
+            column per metric.
+        """
+        ...
+
     def metrics_to_dataframe(self) -> pd.DataFrame:
         """
         Export as a single-row pandas DataFrame.
@@ -341,6 +363,9 @@ class ValuationResult:
         Columns include ``instrument_id``, ``price``, ``currency``, plus one
         column per metric key.  Useful for stacking multiple results with
         ``pd.concat``.
+
+        Prefer :meth:`to_dataframe`, which additionally carries the valuation
+        date.
 
         Returns
         -------
@@ -623,12 +648,32 @@ class CalibrationResult:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the per-step summary as a pandas DataFrame.
+
+        Columns: ``step_id``, ``success``, ``iterations``, ``max_residual``,
+        ``rmse``, ``convergence_reason``. One row per calibration step, in
+        plan execution order.
+
+        This is the default export and the same table as
+        :meth:`report_to_dataframe`. The plan-level roll-ups (``success``,
+        ``iterations``, ``max_residual``, ``rmse``) are properties on the
+        result and are not repeated per row.
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with one row per calibration step.
+        """
+        ...
+
     def report_to_dataframe(self) -> pd.DataFrame:
         """
         Per-step summary as a pandas DataFrame.
 
         Columns: ``step_id``, ``success``, ``iterations``, ``max_residual``,
-        ``rmse``, ``convergence_reason``.
+        ``rmse``, ``convergence_reason``. Identical to :meth:`to_dataframe`.
 
         Returns
         -------
@@ -715,7 +760,7 @@ def dry_run(json: str) -> str:
 
     Runs all structural checks (missing dependencies, undefined ``quote_set``s,
     cycles) in a single pass and returns a JSON-serialized
-    ``ValidationReport`` listing every error found plus the dependency graph.
+    ``CalibrationValidationReport`` listing every error found plus the dependency graph.
     Microseconds — suitable as a fast pre-flight check before invoking
     :func:`calibrate`.
 
@@ -727,7 +772,7 @@ def dry_run(json: str) -> str:
     Returns
     -------
     str
-        Pretty-printed JSON ``ValidationReport``. Inspect ``report["errors"]``
+        Pretty-printed JSON ``CalibrationValidationReport``. Inspect ``report["errors"]``
         for any structural problems and ``report["dependency_graph"]`` for the
         step DAG.
 

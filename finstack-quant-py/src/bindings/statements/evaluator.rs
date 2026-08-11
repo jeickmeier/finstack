@@ -216,39 +216,56 @@ impl PyStatementResult {
         self.inner.meta.parallel
     }
 
-    /// Export to pandas long-format ``DataFrame``.
+    /// Export to a pandas ``DataFrame``.
     ///
-    /// Columns: ``node_id``, ``period``, ``value``, ``value_money``,
-    /// ``currency``, ``value_type``. The monetary columns are populated for
-    /// `Money`-typed nodes and left null for scalar nodes. ``value_money``
-    /// is a float64 mirror of the monetary amount, so it carries f64 (not
-    /// fixed-point Decimal) precision; use ``to_json()`` or ``get_money()``
-    /// when full fixed-point precision is required.
-    #[pyo3(text_signature = "($self)")]
-    fn to_pandas_long<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let table = self.inner.to_table_long().map_err(statements_to_py)?;
-        selected_table_to_dataframe(
-            py,
-            &table,
-            &[
-                ("node_id", "node_id"),
-                ("period_id", "period"),
-                ("value", "value"),
-                ("value_money", "value_money"),
-                ("currency", "currency"),
-                ("value_type", "value_type"),
-            ],
-        )
-    }
-
-    /// Export to pandas wide-format ``DataFrame``.
+    /// Parameters
+    /// ----------
+    /// orient : {"long", "wide"}, default "long"
+    ///     ``"long"`` yields one row per (node, period) with columns
+    ///     ``node_id``, ``period``, ``value``, ``value_money``, ``currency``,
+    ///     ``value_type``. ``"wide"`` yields node identifiers as rows and
+    ///     period identifiers as columns.
     ///
-    /// Rows are node identifiers, columns are period identifiers.
-    #[pyo3(text_signature = "($self)")]
-    fn to_pandas_wide<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let table = self.inner.to_table_wide().map_err(statements_to_py)?;
-        let df = table_to_dataframe(py, &table)?;
-        df.call_method1("set_index", ("period_id",))?.getattr("T")
+    /// Notes
+    /// -----
+    /// In long format the monetary columns are populated for `Money`-typed
+    /// nodes and left null for scalar nodes. ``value_money`` is a float64
+    /// mirror of the monetary amount, so it carries f64 (not fixed-point
+    /// Decimal) precision; use ``to_json()`` or ``get_money()`` when full
+    /// fixed-point precision is required.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``orient`` is not ``"long"`` or ``"wide"``.
+    #[pyo3(signature = (orient = "long"))]
+    #[pyo3(text_signature = "($self, orient='long')")]
+    fn to_dataframe<'py>(&self, py: Python<'py>, orient: &str) -> PyResult<Bound<'py, PyAny>> {
+        match orient {
+            "long" => {
+                let table = self.inner.to_table_long().map_err(statements_to_py)?;
+                selected_table_to_dataframe(
+                    py,
+                    &table,
+                    &[
+                        ("node_id", "node_id"),
+                        ("period_id", "period"),
+                        ("value", "value"),
+                        ("value_money", "value_money"),
+                        ("currency", "currency"),
+                        ("value_type", "value_type"),
+                    ],
+                )
+            }
+            "wide" => {
+                let table = self.inner.to_table_wide().map_err(statements_to_py)?;
+                let df = table_to_dataframe(py, &table)?;
+                df.call_method1("set_index", ("period_id",))?.getattr("T")
+            }
+            other => Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "orient must be 'long' or 'wide', got {other:?}"
+            ))),
+        }
     }
 
     /// Export the long-format table via Arrow (zero-copy for consumers).
@@ -256,11 +273,11 @@ impl PyStatementResult {
     /// Returns an :class:`finstack_quant.core.table.ArrowTable` implementing
     /// ``__arrow_c_stream__``; pass it to ``pyarrow.table(...)``,
     /// ``polars.DataFrame(...)``, or DuckDB. Column values and
-    /// monetary-mirror semantics match :meth:`to_pandas_long`, plus column
+    /// monetary-mirror semantics match ``to_dataframe("long")``, plus column
     /// roles and table metadata are preserved as Arrow field/schema
     /// metadata. One column name differs: the period column here is
     /// ``period_id`` (the table envelope's native name), whereas
-    /// :meth:`to_pandas_long` renames it to ``period``.
+    /// ``to_dataframe("long")`` renames it to ``period``.
     #[pyo3(text_signature = "($self)")]
     fn to_arrow_long(&self) -> PyResult<crate::bindings::core::table::PyArrowTable> {
         let table = self.inner.to_table_long().map_err(statements_to_py)?;
@@ -270,7 +287,7 @@ impl PyStatementResult {
     /// Export the wide-format table via Arrow (zero-copy for consumers).
     ///
     /// Rows are periods (column ``period_id``), one ``float64`` column per
-    /// node, matching :meth:`to_pandas_wide` before its transpose.
+    /// node, matching ``to_dataframe("wide")`` before its transpose.
     #[pyo3(text_signature = "($self)")]
     fn to_arrow_wide(&self) -> PyResult<crate::bindings::core::table::PyArrowTable> {
         let table = self.inner.to_table_wide().map_err(statements_to_py)?;

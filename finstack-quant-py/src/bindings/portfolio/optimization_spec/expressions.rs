@@ -143,9 +143,9 @@ impl PyPerPositionMetric {
     }
 
     /// Parse from a serde-JSON object (e.g. ``{"Metric": "dv01"}``).
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: PerPositionMetric = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }
@@ -270,9 +270,9 @@ impl PyPositionFilter {
     }
 
     /// Parse from JSON (matches the on-wire Rust shape).
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: PositionFilter = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }
@@ -361,9 +361,9 @@ impl PyMetricExpr {
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: MetricExpr = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }
@@ -428,9 +428,9 @@ impl PyObjective {
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: Objective = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }
@@ -596,9 +596,9 @@ impl PyConstraint {
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json_str)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json_str: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
         let inner: Constraint = deserialize_json(json_str)?;
         Ok(Self::from_inner(inner))
     }

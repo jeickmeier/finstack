@@ -48,6 +48,6 @@ pub use dag::{evaluate_order, DependencyGraph};
 pub use engine::{Evaluator, PreparedEvaluation};
 pub use monte_carlo::{MonteCarloConfig, MonteCarloResults, PercentileSeries};
 pub use results::{
-    CapitalStructureClaimCategory, CapitalStructureWarning, EvalWarning, NumericMode, ResultsMeta,
+    CapitalStructureClaimCategory, CapitalStructureWarning, EvalStats, EvalWarning, NumericMode,
     StatementResult,
 };

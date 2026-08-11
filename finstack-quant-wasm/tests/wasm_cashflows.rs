@@ -202,18 +202,23 @@ fn cashflows_json_bridge_builds_accrues_and_prices_custom_bond() {
     let flows: Vec<serde_json::Value> = serde_json::from_str(&flows_json).unwrap();
     let schedule: serde_json::Value = serde_json::from_str(&schedule_json).unwrap();
     assert_eq!(flows.len(), schedule["flows"].as_array().unwrap().len());
-    assert!(cashflows::accrued_interest_json(&schedule_json, "2025-02-28", None).unwrap() > 0.0);
+    assert!(cashflows::accrued_interest(&schedule_json, "2025-02-28", None).unwrap() > 0.0);
 
     let instrument_json =
         bond_from_cashflows_json("CUSTOM-CF", &schedule_json, "USD-OIS", Some(99.0))
             .expect("bond JSON");
-    let result_json = price_instrument(
+    // `priceInstrument` hands back a structured JS object; stringify to decode
+    // it (a `Map` would collapse to `{}` and fail the assertion below).
+    let priced = price_instrument(
         &instrument_json,
         &market_context_json(),
         "2024-09-03",
         Some("discounting".to_string()),
     )
     .expect("price custom bond");
+    let result_json: String = js_sys::JSON::stringify(&priced)
+        .expect("valuation result must be JSON.stringify-able")
+        .into();
     let result: serde_json::Value = serde_json::from_str(&result_json).unwrap();
     assert_eq!(result["instrument_id"], "CUSTOM-CF");
 }
@@ -353,8 +358,7 @@ fn cashflows_json_bridge_accepts_config_and_missing_quoted_clean() {
     .to_string();
 
     assert!(
-        cashflows::accrued_interest_json(&schedule_json, "2025-02-28", Some(config_json)).unwrap()
-            > 0.0
+        cashflows::accrued_interest(&schedule_json, "2025-02-28", Some(config_json)).unwrap() > 0.0
     );
 
     let instrument_json =
@@ -370,7 +374,7 @@ fn cashflows_json_bridge_rejects_bad_inputs() {
         .expect("schedule should build");
 
     assert!(cashflows::validate_cashflow_schedule_json("{not json").is_err());
-    assert!(cashflows::accrued_interest_json(&schedule_json, "2025-02-30", None).is_err());
+    assert!(cashflows::accrued_interest(&schedule_json, "2025-02-30", None).is_err());
 }
 
 #[wasm_bindgen_test]

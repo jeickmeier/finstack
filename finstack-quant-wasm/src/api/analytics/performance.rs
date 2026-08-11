@@ -71,7 +71,7 @@ fn parse_panel_inputs(
 }
 
 fn to_js<T: serde::Serialize>(value: &T) -> Result<JsValue, JsValue> {
-    serde_wasm_bindgen::to_value(value).map_err(to_js_err)
+    crate::utils::to_js_value(value)
 }
 
 /// Serialize a `Vec<f64>` as a JavaScript `Float64Array`.

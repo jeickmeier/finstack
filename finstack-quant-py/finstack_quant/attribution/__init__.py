@@ -12,6 +12,7 @@ import sys
 from finstack_quant.finstack_quant import attribution as _attribution
 
 PnlAttribution = _attribution.PnlAttribution
+ReturnContributionResult = _attribution.ReturnContributionResult
 attribute_pnl = _attribution.attribute_pnl
 attribute_pnl_from_spec = _attribution.attribute_pnl_from_spec
 attribute_return_contribution = _attribution.attribute_return_contribution
@@ -28,6 +29,7 @@ if "finstack_quant.attribution.schema" not in sys.modules:
 
 __all__: list[str] = [
     "PnlAttribution",
+    "ReturnContributionResult",
     "attribute_pnl",
     "attribute_pnl_from_spec",
     "attribute_return_contribution",

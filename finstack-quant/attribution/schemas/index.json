@@ -10,7 +10,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/attribution/1/attribution_result.schema.json",
-      "bytes": 73929,
+      "bytes": 74171,
       "kind": "output",
       "path": "schemas/attribution/1/attribution_result.schema.json",
       "summary": "Attributed P&L by effect and grouping, with policy stamps.",

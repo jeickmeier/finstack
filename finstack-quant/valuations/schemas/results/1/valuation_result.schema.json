@@ -38,6 +38,25 @@
             "null"
           ]
         },
+        "meta": {
+          "$ref": "#/$defs/ResultsMeta",
+          "default": {
+            "fx_policy_applied": null,
+            "numeric_mode": "f64",
+            "rounding": {
+              "ingest_scale_by_currency": {},
+              "mode": "bankers",
+              "output_scale_by_currency": {},
+              "tolerances": {
+                "generic_epsilon": 1e-10,
+                "rate_epsilon": 1e-12
+              },
+              "version": 1
+            },
+            "version": "0.7.0"
+          },
+          "description": "Audit stamp: numeric mode, rounding context, and FX policy in force."
+        },
         "passed": {
           "description": "Whether the covenant passed",
           "type": "boolean"
@@ -293,6 +312,10 @@
         "numeric_mode": {
           "$ref": "#/$defs/NumericMode",
           "description": "Numeric engine mode used to produce the results."
+        },
+        "parallel": {
+          "description": "Whether the producing computation ran in parallel.\n\nSerial results omit the field entirely so existing payloads and golden\nfiles stay byte-identical.",
+          "type": "boolean"
         },
         "rounding": {
           "$ref": "#/$defs/RoundingContext",

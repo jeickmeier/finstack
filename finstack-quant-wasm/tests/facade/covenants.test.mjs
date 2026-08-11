@@ -27,30 +27,46 @@ const { covenants } = facade;
 await init({ module_or_path: readFileSync(WASM_BG) });
 
 test('covenants namespace exposes JSON bridge functions', () => {
-  assert.equal(typeof covenants.validateCovenantSpec, 'function');
-  assert.equal(typeof covenants.validateCovenantReport, 'function');
-  assert.equal(typeof covenants.validateCovenantEngine, 'function');
+  assert.equal(typeof covenants.validateCovenantSpecJson, 'function');
+  assert.equal(typeof covenants.validateCovenantReportJson, 'function');
+  assert.equal(typeof covenants.validateCovenantEngineJson, 'function');
   assert.equal(typeof covenants.evaluateEngine, 'function');
-  assert.equal(typeof covenants.lboStandard, 'function');
-  assert.equal(typeof covenants.covLite, 'function');
-  assert.equal(typeof covenants.realEstate, 'function');
-  assert.equal(typeof covenants.projectFinance, 'function');
+  assert.equal(typeof covenants.lboStandardJson, 'function');
+  assert.equal(typeof covenants.covLiteJson, 'function');
+  assert.equal(typeof covenants.realEstateJson, 'function');
+  assert.equal(typeof covenants.projectFinanceJson, 'function');
 });
 
 test('covenants facade generates and evaluates template JSON', () => {
-  const specs = JSON.parse(covenants.lboStandard(5.0, 1.5, 1.2, 10_000_000.0));
+  const specs = JSON.parse(covenants.lboStandardJson(5.0, 1.5, 1.2, 10_000_000.0));
   const engine = JSON.stringify({
     specs: [specs[0]],
     breach_history: [],
     windows: [],
     waivers: [],
   });
-  const canonical = covenants.validateCovenantEngine(engine);
-  const reports = JSON.parse(
-    covenants.evaluateEngine(canonical, JSON.stringify({ debt_to_ebitda: 4.0 }), '2026-03-31')
+  const canonical = covenants.validateCovenantEngineJson(engine);
+  const reports = covenants.evaluateEngine(
+    canonical,
+    JSON.stringify({ debt_to_ebitda: 4.0 }),
+    '2026-03-31'
   );
 
-  assert.equal(reports.max_debt_ebitda.passed, true);
+  // Structured object, not a JSON string and not an ES2015 Map: property
+  // reads must resolve directly.
+  assert.ok(!(reports instanceof Map), 'evaluateEngine must not return an ES2015 Map');
+  assert.equal(typeof reports, 'object');
+  const report = reports.max_debt_ebitda;
+  assert.equal(report.passed, true);
+  assert.equal(typeof report.covenant_type, 'string');
+  assert.equal(typeof report.actual_value, 'number');
+  assert.equal(typeof report.threshold, 'number');
+  assert.ok(report.meta, 'report carries the results meta stamp');
+
+  // Round-trips through JSON without collapsing to `{}` (the ES-Map regression).
+  const roundTripped = JSON.stringify(reports);
+  assert.ok(roundTripped.length > 2, `evaluateEngine result must serialize: ${roundTripped}`);
+  assert.equal(JSON.parse(roundTripped).max_debt_ebitda.passed, true);
 });
 
 test('covenants facade rejects unknown validation fields', () => {
@@ -61,5 +77,5 @@ test('covenants facade rejects unknown validation fields', () => {
     waviers: [],
   });
 
-  assert.throws(() => covenants.validateCovenantEngine(engine), /unknown field/);
+  assert.throws(() => covenants.validateCovenantEngineJson(engine), /unknown field/);
 });

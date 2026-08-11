@@ -2,7 +2,7 @@ use finstack_quant_core::market_data::traits::Discounting;
 use finstack_quant_core::math::{BrentSolver, Solver};
 use finstack_quant_core::{Error, Result};
 
-use super::{CalibrationResult, ShortRateTree};
+use super::{ShortRateTree, TreeCalibrationResult};
 
 impl ShortRateTree {
     /// Calibrate the standard (κ = 0) Black-Derman-Toy model using
@@ -241,7 +241,7 @@ impl ShortRateTree {
 
         // Hard repricing tolerance. A well-posed BDT tree calibrates to far
         // below 1 bp (floating-point accumulation only); the codebase's own
-        // `CalibrationResult::is_acceptable` bar is 1 bp. This *hard error*
+        // `TreeCalibrationResult::is_acceptable` bar is 1 bp. This *hard error*
         // gate is set well above that — at 25 bp — so it never rejects a
         // merely-imperfect tree, only one that has genuinely *stopped*
         // repricing the curve. Empirically the BDT clamp failure is bimodal:
@@ -270,7 +270,7 @@ impl ShortRateTree {
         // reports whether the clamp engaged (the usual root cause for a wide
         // tree) so the caller knows which knob to turn.
         if !max_error_bp.is_finite() || max_error_bp > MAX_CALIBRATION_ERROR_BPS {
-            self.calibration_quality = Some(CalibrationResult {
+            self.calibration_quality = Some(TreeCalibrationResult {
                 max_error_bp,
                 max_error_step,
                 fallback_count,
@@ -294,7 +294,7 @@ impl ShortRateTree {
         }
 
         // Store calibration result for user inspection
-        self.calibration_quality = Some(CalibrationResult {
+        self.calibration_quality = Some(TreeCalibrationResult {
             max_error_bp,
             max_error_step,
             fallback_count,

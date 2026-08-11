@@ -31,6 +31,10 @@ pub struct CovenantReport {
 
     /// Cushion relative to threshold (positive => passing buffer)
     pub headroom: Option<f64>,
+
+    /// Audit stamp: numeric mode, rounding context, and FX policy in force.
+    #[serde(default)]
+    pub meta: finstack_quant_core::config::ResultsMeta,
 }
 
 impl CovenantReport {
@@ -44,6 +48,9 @@ impl CovenantReport {
             threshold: None,
             details: None,
             headroom: None,
+            meta: finstack_quant_core::config::results_meta(
+                &finstack_quant_core::config::FinstackConfig::default(),
+            ),
         }
     }
 
@@ -57,6 +64,9 @@ impl CovenantReport {
             threshold: None,
             details: None,
             headroom: None,
+            meta: finstack_quant_core::config::results_meta(
+                &finstack_quant_core::config::FinstackConfig::default(),
+            ),
         }
     }
 

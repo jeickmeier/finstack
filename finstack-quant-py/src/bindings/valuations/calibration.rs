@@ -150,11 +150,12 @@ impl PyCalibrationResult {
         Ok(Self::new(inner))
     }
 
-    /// Serialize to a pretty-printed JSON string.
+    /// Serialize to a compact JSON string.
+    ///
+    /// Returns a cached Python `str`: the JSON is rendered once and reused on
+    /// subsequent calls, so repeated access is allocation-free.
     fn to_json<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyString>> {
-        cached_json(py, &self.cached_json, || {
-            serde_json::to_string_pretty(&self.inner)
-        })
+        cached_json(py, &self.cached_json, || serde_json::to_string(&self.inner))
     }
 
     /// Whether the overall calibration succeeded (all steps passed fitting and validation).
@@ -181,25 +182,25 @@ impl PyCalibrationResult {
     fn market_json<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyString>> {
         MarketContext::try_from(self.inner.result.final_market.clone()).map_err(display_to_py)?;
         cached_json(py, &self.cached_market_json, || {
-            serde_json::to_string_pretty(&self.inner.result.final_market)
+            serde_json::to_string(&self.inner.result.final_market)
         })
     }
 
     fn _market_json_uncached(&self) -> PyResult<String> {
         MarketContext::try_from(self.inner.result.final_market.clone()).map_err(display_to_py)?;
-        serde_json::to_string_pretty(&self.inner.result.final_market).map_err(display_to_py)
+        serde_json::to_string(&self.inner.result.final_market).map_err(display_to_py)
     }
 
     /// The aggregated calibration report as a JSON string.
     #[getter]
     fn report_json<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyString>> {
         cached_json(py, &self.cached_report_json, || {
-            serde_json::to_string_pretty(&self.inner.result.report)
+            serde_json::to_string(&self.inner.result.report)
         })
     }
 
     fn _report_json_uncached(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(&self.inner.result.report).map_err(display_to_py)
+        serde_json::to_string(&self.inner.result.report).map_err(display_to_py)
     }
 
     /// List of step identifiers that were executed.
@@ -252,7 +253,7 @@ impl PyCalibrationResult {
             for (id, report) in &self.inner.result.step_reports {
                 reports.insert(
                     id.clone(),
-                    serde_json::to_string_pretty(report).map_err(display_to_py)?,
+                    serde_json::to_string(report).map_err(display_to_py)?,
                 );
             }
             let _ = self.cached_step_reports.set(reports);
@@ -265,10 +266,26 @@ impl PyCalibrationResult {
             .ok_or_else(|| crate::errors::value_error(format!("No step report for '{step_id}'")))
     }
 
+    /// Export the per-step summary as a pandas ``DataFrame``.
+    ///
+    /// Columns: ``step_id``, ``success``, ``iterations``, ``max_residual``,
+    /// ``rmse``, ``convergence_reason``. One row per calibration step, in plan
+    /// execution order.
+    ///
+    /// This is the default export and the same table as
+    /// ``report_to_dataframe`` — both call one implementation, so the two
+    /// cannot drift apart. The plan-level roll-ups (``success``,
+    /// ``iterations``, ``max_residual``, ``rmse``) are getters on the result
+    /// and are not repeated per row.
+    #[pyo3(text_signature = "($self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.report_to_dataframe(py)
+    }
+
     /// Per-step summary as a pandas ``DataFrame``.
     ///
     /// Columns: ``step_id``, ``success``, ``iterations``, ``max_residual``,
-    /// ``rmse``, ``convergence_reason``.
+    /// ``rmse``, ``convergence_reason``. Identical to ``to_dataframe``.
     fn report_to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let n = self.inner.result.step_reports.len();
         let mut ids: Vec<String> = Vec::with_capacity(n);
@@ -341,7 +358,7 @@ fn validate_calibration_json(py: Python<'_>, json: &str) -> PyResult<String> {
 /// Returns
 /// -------
 /// str
-///     Pretty-printed JSON ``ValidationReport`` with all errors found in a
+///     Pretty-printed JSON ``CalibrationValidationReport`` with all errors found in a
 ///     single pass plus the dependency graph.
 ///
 /// Raises

@@ -28,6 +28,8 @@ apply_scenario = _scenarios.apply_scenario
 apply_scenario_to_market = _scenarios.apply_scenario_to_market
 compute_horizon_return = _scenarios.compute_horizon_return
 HorizonResult = _scenarios.HorizonResult
+ApplicationReport = _scenarios.ApplicationReport
+ApplicationResult = _scenarios.ApplicationResult
 
 # Operation specifications
 OperationSpec = _scenarios.OperationSpec
@@ -44,6 +46,8 @@ if "finstack_quant.scenarios.schema" not in sys.modules:
     sys.modules["finstack_quant.scenarios.schema"] = schema
 
 __all__: list[str] = [
+    "ApplicationReport",
+    "ApplicationResult",
     "Compounding",
     "CurveKind",
     "HorizonResult",

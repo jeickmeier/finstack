@@ -973,8 +973,8 @@ impl JsFxDeltaVolSurface {
 
     /// Expiry axis in years.
     #[wasm_bindgen(getter, js_name = expiries)]
-    pub fn expiries(&self) -> Vec<f64> {
-        self.inner.expiries().to_vec()
+    pub fn expiries(&self) -> Box<[f64]> {
+        self.inner.expiries().into()
     }
 
     /// Number of expiry pillars.
@@ -991,7 +991,7 @@ impl JsFxDeltaVolSurface {
     /// Throws a JavaScript exception if `expiryIdx` is outside the surface's
     /// expiry axis.
     #[wasm_bindgen(js_name = pillarVols)]
-    pub fn pillar_vols(&self, expiry_idx: usize) -> Result<Vec<f64>, JsValue> {
+    pub fn pillar_vols(&self, expiry_idx: usize) -> Result<Box<[f64]>, JsValue> {
         if expiry_idx >= self.inner.num_expiries() {
             return Err(JsValue::from_str(&format!(
                 "expiry_idx {} out of range (num_expiries={})",
@@ -1000,7 +1000,7 @@ impl JsFxDeltaVolSurface {
             )));
         }
         let (atm, p, c) = self.inner.pillar_vols(expiry_idx);
-        Ok(vec![atm, p, c])
+        Ok(Box::new([atm, p, c]))
     }
 
     /// Implied vol at `(expiry, strike)` for the supplied forward.

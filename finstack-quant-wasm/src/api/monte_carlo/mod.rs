@@ -84,7 +84,7 @@ impl McResultJs {
     }
 
     fn to_js_value(&self) -> Result<JsValue, JsValue> {
-        serde_wasm_bindgen::to_value(self).map_err(to_js_err)
+        crate::utils::to_js_value(self)
     }
 }
 

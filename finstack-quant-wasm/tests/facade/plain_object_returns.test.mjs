@@ -83,7 +83,8 @@ test('FxOption.greeks returns a plain object keyed by metric name', () => {
   const fixture = JSON.parse(readFileSync(fixturePath, 'utf8'));
   const asOf = fixture.metadata.valuation_date;
 
-  const calibrated = JSON.parse(wasm.calibrate(JSON.stringify(fixture.market.envelope)));
+  const calibrated = wasm.calibrate(JSON.stringify(fixture.market.envelope));
+  assertPlainObject(calibrated, 'calibrate result');
   const marketJson = JSON.stringify(calibrated.result.final_market);
   const option = new wasm.FxOption(fixture.instrument.instrument.spec);
 

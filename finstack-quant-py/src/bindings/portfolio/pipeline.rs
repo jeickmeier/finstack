@@ -7,7 +7,9 @@
 //! a JSON round-trip.
 
 use crate::bindings::extract::{extract_market_ref, extract_portfolio_ref};
+use crate::bindings::portfolio::scenario_pnl::PyScenarioPnl;
 use crate::bindings::portfolio::types::{PyPortfolioCashflows, PyPortfolioValuation};
+use crate::bindings::scenarios::engine::PyApplicationReport;
 use crate::errors::{display_to_py, portfolio_to_py};
 use pyo3::prelude::*;
 use std::str::FromStr;
@@ -140,16 +142,16 @@ fn aggregate_full_cashflows(
 ///
 /// Returns
 /// -------
-/// tuple[str, str]
-///     ``(valuation_json, report_json)`` — JSON for the revalued portfolio
-///     and the scenario application report.
+/// tuple[PortfolioValuation, ApplicationReport]
+///     The revalued portfolio and the scenario application report. Call
+///     ``.to_json()`` on either for its wire form.
 #[pyfunction]
 fn apply_scenario_and_revalue(
     py: Python<'_>,
     portfolio: &Bound<'_, PyAny>,
     scenario_json: &str,
     market: &Bound<'_, PyAny>,
-) -> PyResult<(String, String)> {
+) -> PyResult<(PyPortfolioValuation, PyApplicationReport)> {
     let portfolio = extract_portfolio_ref(py, portfolio)?;
     let scenario_json = scenario_json.to_owned();
     let scenario: finstack_quant_scenarios::ScenarioSpec = py
@@ -169,13 +171,10 @@ fn apply_scenario_and_revalue(
             )
         })
         .map_err(portfolio_to_py)?;
-    py.detach(move || -> Result<(String, String), serde_json::Error> {
-        Ok((
-            serde_json::to_string(&valuation)?,
-            serde_json::to_string(&report)?,
-        ))
-    })
-    .map_err(display_to_py)
+    Ok((
+        PyPortfolioValuation::from_inner(valuation),
+        PyApplicationReport { inner: report },
+    ))
 }
 
 /// Compute the profit and loss attributable to a scenario.
@@ -189,17 +188,18 @@ fn apply_scenario_and_revalue(
 ///
 /// Returns
 /// -------
-/// tuple[str, str]
-///     ``(pnl_json, report_json)`` — JSON for the ``ScenarioPnl`` ladder
-///     (``total`` plus ``by_position``, all base-currency ``Money``) and the
-///     scenario application report.
+/// tuple[ScenarioPnl, ApplicationReport]
+///     The P&L ladder (``total`` plus ``by_position``, all base-currency) and
+///     the scenario application report. ``ScenarioPnl`` offers
+///     ``to_dataframe()`` and ``to_series()``; call ``.to_json()`` on either
+///     for its wire form.
 #[pyfunction]
 fn scenario_pnl(
     py: Python<'_>,
     portfolio: &Bound<'_, PyAny>,
     scenario_json: &str,
     market: &Bound<'_, PyAny>,
-) -> PyResult<(String, String)> {
+) -> PyResult<(PyScenarioPnl, PyApplicationReport)> {
     let portfolio = extract_portfolio_ref(py, portfolio)?;
     let scenario_json = scenario_json.to_owned();
     let scenario: finstack_quant_scenarios::ScenarioSpec = py
@@ -219,13 +219,10 @@ fn scenario_pnl(
             )
         })
         .map_err(portfolio_to_py)?;
-    py.detach(move || -> Result<(String, String), serde_json::Error> {
-        Ok((
-            serde_json::to_string(&pnl)?,
-            serde_json::to_string(&report)?,
-        ))
-    })
-    .map_err(display_to_py)
+    Ok((
+        PyScenarioPnl { inner: pnl },
+        PyApplicationReport { inner: report },
+    ))
 }
 
 /// Compute ordered portfolio P&L for a batch of scenarios.

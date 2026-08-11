@@ -119,14 +119,16 @@ def test_scenario_pnl_batch_matches_standalone_and_accepts_json_or_typed_inputs(
     scenarios_json = _scenario_batch_json()
     scenarios = json.loads(scenarios_json)
 
+    # `scenario_pnl_batch` is still a JSON-wire entry point, so the typed
+    # standalone results are compared through their canonical JSON.
     batch = json.loads(scenario_pnl_batch(portfolio, scenarios_json, market))
     expected = []
     for scenario in scenarios:
-        pnl_json, report_json = scenario_pnl(portfolio, json.dumps(scenario), market)
+        pnl, report = scenario_pnl(portfolio, json.dumps(scenario), market)
         expected.append({
             "scenario_id": scenario["id"],
-            "pnl": json.loads(pnl_json),
-            "report": json.loads(report_json),
+            "pnl": json.loads(pnl.to_json()),
+            "report": json.loads(report.to_json()),
         })
 
     assert batch == expected

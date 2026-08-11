@@ -8,11 +8,11 @@
 //! `finstack_quant.instrument/1` envelope accepted by the JSON loader.
 
 use pyo3::prelude::*;
-use pyo3::types::PyType;
 
 use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::core::money::PyMoney;
 use crate::bindings::core::types::{PyBps, PyRate};
+use crate::bindings::valuations::merton_mc::{PyMertonMcConfig, PyMertonMcResult};
 use crate::errors::{core_to_py, serde_json_to_py};
 use finstack_quant_valuations::instruments::{Instrument, InstrumentEnvelope, InstrumentJson};
 
@@ -270,9 +270,9 @@ impl PyBond {
     /// ... )
     /// >>> Bond.from_json(bond.to_json()).id
     /// 'B'
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
         match parse_typed_instrument_json(json)? {
             InstrumentJson::Bond(inner) => {
                 inner.validate_for_pricing().map_err(core_to_py)?;
@@ -309,6 +309,34 @@ impl PyBond {
             self.inner.id.as_str(),
             self.inner.maturity
         )
+    }
+
+    /// Price this bond with the Merton Monte Carlo structural credit engine.
+    ///
+    /// Uses geometric Brownian motion asset dynamics only. Floating-rate and
+    /// amortizing cashflow specs are rejected. When the config's PIK schedule
+    /// is the default uniform cash mode, the bond's ``CouponType`` overrides
+    /// the schedule; otherwise the config schedule takes precedence.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Merton MC simulation configuration including the structural model.
+    /// * `discount_rate` - Flat continuously compounded risk-free rate as a decimal
+    ///   used to discount simulated cashflows (unless term-structure DFs are set on
+    ///   the config via JSON).
+    /// * `as_of` - Valuation date (`datetime.date` or ISO 8601 string).
+    fn price_merton_mc(
+        &self,
+        config: PyRef<'_, PyMertonMcConfig>,
+        discount_rate: f64,
+        as_of: &Bound<'_, PyAny>,
+    ) -> PyResult<PyMertonMcResult> {
+        let as_of = py_to_date(as_of)?;
+        let result = self
+            .inner
+            .price_merton_mc(&config.inner, discount_rate, as_of)
+            .map_err(core_to_py)?;
+        Ok(PyMertonMcResult::from_inner(result))
     }
 }
 
@@ -376,9 +404,9 @@ impl PyTermLoan {
     /// >>> from finstack_quant.valuations.instruments import TermLoan
     /// >>> TermLoan.from_json(TermLoan.example().to_json()).id
     /// 'TERM-LOAN-USD-5Y'
-    #[classmethod]
-    #[pyo3(text_signature = "(cls, json)")]
-    fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
         match parse_typed_instrument_json(json)? {
             InstrumentJson::TermLoan(inner) => {
                 inner.validate_for_pricing().map_err(core_to_py)?;

@@ -5692,6 +5692,26 @@ class ScenarioDiff:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the underlying variance rows as a pandas DataFrame.
+
+        Columns: ``period``, ``metric``, ``baseline``, ``comparison``,
+        ``abs_var``, ``pct_var``. One row per (metric, period) pair, in report
+        order; an empty diff still carries the full column schema.
+
+        This is the same table as ``variance.to_dataframe()``. The two
+        scenario *names* are diff metadata (the ``baseline`` / ``comparison``
+        properties) and are not repeated per row; the ``baseline`` and
+        ``comparison`` columns hold the metric *values* in each scenario.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per (metric, period) pair.
+        """
+        ...
+
 class BridgeStep:
     """
     One driver step in a bridge decomposition.
