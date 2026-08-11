@@ -439,3 +439,78 @@ fn test_dm_monotone_residual_does_not_break_valid_solve() {
         "DM should round-trip after monotone-residual fix: target={target_dm}, got={dm}"
     );
 }
+
+/// DM must be available for amortizing floaters, not just plain FRNs.
+///
+/// An `Amortizing { base: Floating }` bond has floating coupons
+/// (`Bond::has_floating_coupons()`), and discount margin is the market
+/// convention for quoting amortizing floaters. The calculator previously
+/// rejected them with `InputError::Invalid` by matching only
+/// `CashflowSpec::Floating`.
+#[test]
+fn test_dm_amortizing_frn_is_supported() {
+    use finstack_quant_valuations::instruments::fixed_income::bond::{
+        AmortizationSpec, CashflowSpec,
+    };
+    use finstack_quant_valuations::instruments::InstrumentPricingOverrides;
+
+    let as_of = date!(2025 - 01 - 01);
+    let mut bond = Bond::floating(
+        "DM-AMORT-FRN",
+        Money::new(1_000_000.0, Currency::USD),
+        "USD-SOFR-3M",
+        100,
+        as_of,
+        date!(2027 - 01 - 01),
+        finstack_quant_core::dates::Tenor::quarterly(),
+        finstack_quant_core::dates::DayCount::Act360,
+        "USD-OIS",
+    )
+    .expect("FRN construction should succeed");
+    // Wrap the floating spec into a linear amortizer paying down to 50% of par.
+    bond.cashflow_spec = CashflowSpec::Amortizing {
+        base: Box::new(bond.cashflow_spec.clone()),
+        schedule: AmortizationSpec::LinearTo {
+            final_notional: Money::new(500_000.0, Currency::USD),
+        },
+    };
+    bond.instrument_pricing_overrides =
+        InstrumentPricingOverrides::default().with_quoted_clean_price(99.0);
+
+    // Flat, self-consistent market: discount curve == projection curve.
+    let rate = 0.03;
+    let df_10y = (1.0 + rate / 4.0_f64).powf(-40.0);
+    let disc = finstack_quant_core::market_data::term_structures::DiscountCurve::builder("USD-OIS")
+        .base_date(as_of)
+        .day_count(finstack_quant_core::dates::DayCount::Act360)
+        .interp(finstack_quant_core::math::interp::InterpStyle::LogLinear)
+        .knots([(0.0, 1.0), (10.0, df_10y)])
+        .build()
+        .expect("discount curve should build");
+    let fwd = finstack_quant_core::market_data::term_structures::ForwardCurve::builder(
+        "USD-SOFR-3M",
+        0.25,
+    )
+    .base_date(date!(2024 - 12 - 28))
+    .day_count(finstack_quant_core::dates::DayCount::Act360)
+    .knots([(0.0, rate), (10.0, rate)])
+    .build()
+    .expect("forward curve should build");
+    let market = finstack_quant_core::market_data::context::MarketContext::new()
+        .insert(disc)
+        .insert(fwd);
+
+    let result = bond
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::DiscountMargin],
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .expect("DM metric must solve for an amortizing FRN");
+    let dm = result.measures["discount_margin"];
+    assert!(
+        dm.is_finite() && dm.abs() < 0.05,
+        "amortizing-FRN DM should be a finite, realistic spread, got {dm}"
+    );
+}

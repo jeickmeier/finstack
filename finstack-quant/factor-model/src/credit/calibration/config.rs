@@ -28,11 +28,10 @@ pub enum PanelSpace {
 /// (the usual `Var(x) = E[(x − x̄)²]`), while `Ewma` does not — it recurses
 /// directly on squared observations (`σ²_t = λσ²_{t−1} + (1−λ)r²_{t−1}`),
 /// matching the RiskMetrics convention of treating financial return series as
-/// zero-mean. That convention only holds for a *return* panel; combining
-/// `Ewma` with a raw levels panel
-/// ([`PanelSpace::Levels`]) is rejected by
-/// `validate_calibration_config` because the squared-level mean-square is
-/// dominated by the level itself, not its dispersion.
+/// zero-mean. Both estimators always operate on factor and adder *moves*:
+/// under [`PanelSpace::Levels`] the calibrator first-differences the peeled
+/// level series before estimating variance, so the zero-mean convention is
+/// sound in either panel space.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
@@ -42,7 +41,7 @@ pub enum VolModelChoice {
     Sample,
     /// RiskMetrics exponentially weighted moving-average variance.
     ///
-    /// Uncentered (zero-mean) squared returns, no demeaning step — see the
+    /// Uncentered (zero-mean) squared moves, no demeaning step — see the
     /// enum-level docs above. Implemented by `ewma_variance`. `lambda` must
     /// be in the open interval `(0, 1)`; validated by
     /// `validate_calibration_config`.
@@ -169,7 +168,12 @@ impl Default for CreditCalibrationConfig {
             hierarchy: CreditHierarchySpec { levels: vec![] },
             min_bucket_size_per_level: BucketSizeThresholds { per_level: vec![] },
             vol_model: VolModelChoice::Sample,
-            covariance_strategy: CovarianceStrategy::Diagonal,
+            // FullSampleRepaired, not Diagonal: an identity-correlation
+            // default silently drops cross-factor correlation, understating
+            // the vol of a correlated long book by tens of percent. The
+            // sample correlation (PSD-repaired when needed) works on sparse
+            // panels; opt into Diagonal explicitly for stress-isolated runs.
+            covariance_strategy: CovarianceStrategy::FullSampleRepaired,
             beta_shrinkage: BetaShrinkage::None,
             use_returns_or_levels: PanelSpace::Returns,
             annualization_factor: 12.0,

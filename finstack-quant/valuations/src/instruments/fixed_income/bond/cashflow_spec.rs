@@ -170,7 +170,7 @@ impl CashflowSpec {
     ///
     /// - `coupon_type`: Cash (100% cash payment)
     /// - `business_day_convention`: Following
-    /// - `stub`: None
+    /// - `stub`: ShortFront
     /// - `calendar_id`: "weekends_only"
     ///
     /// # Returns
@@ -286,7 +286,7 @@ impl CashflowSpec {
     /// - `all_in_cap_bp`: None
     /// - `reset_frequency`: Same as payment frequency
     /// - `business_day_convention`: Following
-    /// - `stub`: None
+    /// - `stub`: ShortFront
     /// - `calendar_id`: Market default from index registry (fallback: "weekends_only")
     ///
     /// # Market Conventions for Reset Lag
@@ -660,7 +660,7 @@ impl CashflowSpec {
     ///
     /// - `coupon_type`: Cash (100% cash payment)
     /// - `business_day_convention`: Following
-    /// - `stub`: None
+    /// - `stub`: ShortFront
     /// - `calendar_id`: "weekends_only"
     ///
     /// # Examples

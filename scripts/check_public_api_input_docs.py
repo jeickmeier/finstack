@@ -7,6 +7,11 @@ publicly reachable function, associated function, trait method, and constructor
 with non-``self`` inputs. Each must provide a ``# Arguments`` section containing
 a non-trivial Markdown-list entry for every input.
 
+``cargo public-api`` requires a nightly Rust toolchain (rustdoc JSON is still
+nightly-only). ``mise.toml`` provisions ``nightly`` alongside the active 1.91
+toolchain; install with ``mise install`` or
+``rustup toolchain install nightly --profile minimal``.
+
 Run ``python3 scripts/check_public_api_input_docs.py --help`` for focused
 package checks. ``mise run rust-doc`` runs the full workspace gate.
 """
@@ -15,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -91,6 +97,39 @@ def cargo_executable() -> str:
     return cargo
 
 
+def ensure_nightly_toolchain() -> None:
+    """Require nightly rustc; cargo-public-api builds rustdoc JSON only with nightly.
+
+    Without this check, a missing nightly surfaces as a confusing
+    ``Cargo.toml is a virtual manifest`` error from cargo-public-api after
+    rustup rejects the toolchain switch.
+    """
+    rustup = shutil.which("rustup")
+    if rustup is None:
+        raise RuntimeError(
+            "rustup is required to check public API documentation "
+            "(cargo-public-api needs a nightly toolchain for rustdoc JSON)"
+        )
+    probe = subprocess.run(  # noqa: S603 -- fixed rustup invocation; no shell is used.
+        [rustup, "run", "nightly", "rustc", "--version"],
+        cwd=REPO_ROOT,
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if probe.returncode == 0:
+        return
+    detail = (probe.stderr or "").strip()
+    hint = (
+        "Install with `rustup toolchain install nightly --profile minimal`, "
+        "or run `mise install` (mise.toml provisions nightly for rust-doc)."
+    )
+    if detail:
+        raise RuntimeError(f"nightly Rust toolchain is required for rustdoc JSON: {detail}\n{hint}")
+    raise RuntimeError(f"nightly Rust toolchain is required for rustdoc JSON.\n{hint}")
+
+
 def workspace_libraries(metadata: dict[str, Any], requested: list[str] | None) -> list[tuple[str, str]]:
     """Return package names and rustdoc JSON stems for selected workspace libraries."""
     workspace_members = set(metadata["workspace_members"])
@@ -115,11 +154,16 @@ def workspace_libraries(metadata: dict[str, Any], requested: list[str] | None) -
 
 def build_rustdoc_json(package: str) -> None:
     """Generate current public rustdoc metadata for one package."""
+    # cargo-public-api must be free to select nightly for rustdoc JSON. A pinned
+    # RUSTUP_TOOLCHAIN (mise sets 1.91 as the default build toolchain) can block
+    # that switch on some rustup versions, so drop it for this invocation only.
+    env = {key: value for key, value in os.environ.items() if key != "RUSTUP_TOOLCHAIN"}
     subprocess.run(  # noqa: S603 -- package is constrained to Cargo workspace metadata.
         [cargo_executable(), "public-api", "-p", package, "-sss", "--color", "never"],
         cwd=REPO_ROOT,
         check=True,
         stdout=subprocess.DEVNULL,
+        env=env,
     )
 
 
@@ -207,6 +251,13 @@ def main(argv: list[str]) -> int:
     except ValueError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
+
+    if not args.skip_build:
+        try:
+            ensure_nightly_toolchain()
+        except RuntimeError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 2
 
     errors: list[DocumentationError] = []
     for package, rustdoc_stem in libraries:

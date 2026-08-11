@@ -725,6 +725,7 @@ mod tests {
                 adder_vol_annualized: 0.0,
                 adder_vol_source: AdderVolSource::Default,
                 fit_quality: None,
+                level_fit_quality: vec![],
             }],
             anchor_state: LevelsAtAnchor {
                 pc: 0.0,

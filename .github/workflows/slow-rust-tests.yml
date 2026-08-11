@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 120
 
     env:
-      CARGO_BUILD_JOBS: 2
+      CARGO_BUILD_JOBS: 4
       CARGO_INCREMENTAL: 1
       CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS: "-C debuginfo=0 -C strip=symbols -C linker=cc -C link-arg=-fuse-ld=bfd"
 
@@ -36,6 +36,11 @@ jobs:
         uses: jdx/mise-action@v4
         with:
           cache: true
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: test-rust-slow
 
       - name: Run ignored and slow Rust tests
         run: mise run rust-test-slow

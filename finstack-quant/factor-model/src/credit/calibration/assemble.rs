@@ -244,6 +244,10 @@ pub(super) fn assemble_factor_model_config(
         dependency_filter: Default::default(),
         hierarchy: hierarchy.clone(),
         issuer_betas: issuer_betas.to_vec(),
+        // Calibrated artifacts know their issuer universe; a missing
+        // issuer-id meta key on a credit position is a data gap that must
+        // surface rather than silently proxy to PC-only.
+        require_issuer_id: true,
     });
 
     let config = FactorModelConfig {
@@ -253,7 +257,10 @@ pub(super) fn assemble_factor_model_config(
         pricing_mode: PricingMode::DeltaBased,
         risk_measure: Default::default(),
         bump_size: None,
-        unmatched_policy: None,
+        // Warn rather than the silent Residual default: a calibrated
+        // artifact knows its factor universe, so a runtime issuer matching
+        // a bucket outside it is a data gap worth surfacing.
+        unmatched_policy: Some(crate::UnmatchedPolicy::Warn),
     };
 
     Ok((static_correlation, config))

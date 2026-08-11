@@ -81,8 +81,10 @@ repos:
         name: Rust lint (cargo clippy)
         # `--workspace` is required: a bare `cargo clippy` checks only
         # `default-members`, omitting finstack-quant-py / finstack-quant-wasm.
+        # `--all-features` covers the old pre-push `cargo check --all-features`
+        # pass so CI/local lint is one compile, not two.
         # Keep in step with `mise run rust-lint`.
-        entry: bash -c 'CARGO_INCREMENTAL=1 cargo clippy --workspace --all-targets -- -D warnings'
+        entry: bash -c 'CARGO_INCREMENTAL=1 cargo clippy --workspace --all-targets --all-features -- -D warnings'
         language: system
         types: [rust]
         pass_filenames: false
@@ -112,7 +114,6 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
-        stages: [pre-commit, pre-push]
 
   # ============================================
   # Security audits (all languages)
@@ -146,16 +147,3 @@ repos:
         language: system
         files: (Cargo\.toml|Cargo\.lock|deny\.toml)$
         pass_filenames: false
-
-  # ============================================
-  # Build / validation (slower, pre-push)
-  # ============================================
-  - repo: local
-    hooks:
-      - id: cargo-check
-        name: Cargo check
-        entry: cargo check --workspace --all-features
-        language: system
-        files: (Cargo\.toml|.*\.rs)$
-        pass_filenames: false
-        stages: [pre-push]  # Only run on push (slower)

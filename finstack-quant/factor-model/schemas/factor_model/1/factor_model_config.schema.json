@@ -164,6 +164,10 @@
             "$ref": "#/$defs/IssuerBetaRow"
           },
           "type": "array"
+        },
+        "require_issuer_id": {
+          "description": "Require the [`ISSUER_ID_META_KEY`] meta key on every credit dependency.\n\nWhen `true`, a credit dependency whose attributes omit the issuer id\nis rejected with [`FactorMatchError::MissingRequiredTag`] instead of\nbeing silently downgraded to the PC-only proxy — an absent key is\nusually a data-plumbing failure, and the proxy fallback drops both\nhierarchy exposure and idiosyncratic risk. Calibrated artifacts set\nthis to `true`; hand-built configs default to `false` (`serde`\ndefault) so index-proxy workflows without issuer identities keep\nworking.",
+          "type": "boolean"
         }
       },
       "required": [
@@ -1441,11 +1445,25 @@
               "type": "null"
             }
           ],
-          "description": "Regression fit statistics; `None` when `mode == BucketOnly`."
+          "description": "PC-regression fit statistics; `None` when `mode == BucketOnly`."
         },
         "issuer_id": {
           "$ref": "#/$defs/Id",
           "description": "Unique issuer identifier (e.g. LEI or internal code)."
+        },
+        "level_fit_quality": {
+          "description": "Per-level regression fit statistics, aligned with `betas.levels`.\n\n`Some` where a per-level OLS fit ran (`IssuerBeta` mode, level not\nfolded, regressor not degenerate); `None` otherwise. Empty for\n`BucketOnly` rows and for artifacts written before this field existed\n(serde default; omitted from the wire when empty so pre-existing\nartifacts remain byte-stable).",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FitQuality"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": "array"
         },
         "mode": {
           "$ref": "#/$defs/IssuerBetaMode",
@@ -1469,7 +1487,7 @@
     },
     "IssuerBetas": {
       "additionalProperties": false,
-      "description": "Factor beta loadings for a single issuer.\n\n`pc` is the loading on the generic (PC) factor.\n`levels[i]` is the loading on the bucket factor at hierarchy level `i`.\n\nFor `BucketOnly` issuers every component is `1.0` by convention.",
+      "description": "Factor beta loadings for a single issuer.\n\n`pc` is the loading on the generic (PC) factor.\n`levels[i]` is the loading on the bucket factor at hierarchy level `i`.\n\nFor `BucketOnly` issuers every component is `1.0` by convention.\n\n# The `0.0` level-beta sentinel\n\n`levels[i] == 0.0` marks a level that was **folded** during calibration\n(the issuer's bucket was below the size threshold). The matcher and\n`enumerate_factor_ids` skip such levels. A *fitted* beta of exactly `0.0`\nis indistinguishable from the sentinel, and that is deliberate: every\nconsumer scales by the beta (exposure `= β·CS01`, stress shift `= β·shock`,\nattribution `= β·ΔL`), so skipping the level and emitting a zero-beta\nentry produce identical numbers. The degenerate-regressor guard in\ncalibration additionally maps near-zero-information fits to the unit-beta\nfallback rather than to `0.0`.",
       "properties": {
         "levels": {
           "description": "Betas on each hierarchy-level factor, in spec order.",

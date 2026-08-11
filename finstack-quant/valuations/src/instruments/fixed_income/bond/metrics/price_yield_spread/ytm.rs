@@ -1,6 +1,5 @@
 //! Bond price, yield, spread, duration, and risk metric calculations.
 //!
-use crate::instruments::common_impl::pricing::time::relative_df_discount_curve;
 use crate::instruments::fixed_income::bond::pricing::settlement::QuoteDateContext;
 use crate::instruments::fixed_income::bond::CashflowSpec;
 use crate::instruments::Bond;
@@ -81,37 +80,26 @@ impl MetricCalculator for YtmCalculator {
             // Fallback: forward-value the model PV (computed at `as_of`) to the
             // quote/settlement date so the solved YTM discounts cashflows from
             // the same origin (`quote_date`) at which the dirty price is
-            // expressed. `base_value` is PV at `as_of`; dividing by
-            // `DF(as_of → quote_date)` removes the settlement-period (typically
-            // T+2) carry that would otherwise bias the YTM and the
-            // duration/convexity derived from it. This assumes no cashflow falls
-            // strictly between `as_of` and `quote_date`; for a standard T+1/T+2
-            // settlement lag that window contains no coupon, but a coupon inside
-            // it would be carried forward yet excluded by the solver, leaving a
-            // small residual bias.
-            let pv_as_of = context.base_value.amount();
-            let pv_at_quote = if quote_ctx.quote_date > context.as_of {
-                let curve = context.curves.get_discount(discount_curve_id.as_str())?;
-                let df = relative_df_discount_curve(
-                    curve.as_ref(),
+            // expressed (see `model_dirty_at_quote_date` for the carry
+            // rationale shared with the Z-spread and DM fallbacks).
+            let pv_at_quote =
+                crate::instruments::fixed_income::bond::pricing::settlement::model_dirty_at_quote_date(
+                    bond,
+                    &context.curves,
                     context.as_of,
                     quote_ctx.quote_date,
+                    context.base_value.amount(),
                 )?;
-                if df > 0.0 {
-                    pv_as_of / df
-                } else {
-                    pv_as_of
-                }
-            } else {
-                pv_as_of
-            };
             Money::new(pv_at_quote, notional.currency())
         };
 
-        // Build and cache flows and hints if not already present
+        // Build and cache flows and hints if not already present. Coupon
+        // entitlement is tested at the quote/settlement date so a trade whose
+        // settlement lands inside an ex-coupon window drops the imminent
+        // coupon, consistent with the (negative) accrued at the quote date.
         if context.cashflows.is_none() {
             let bond: &Bond = context.instrument_as()?;
-            let flows = bond.pricing_dated_cashflows(&context.curves, context.as_of)?;
+            let flows = quote_ctx.entitled_flows(bond, &context.curves, context.as_of)?;
             context.cashflows = Some(flows);
             context.discount_curve_id = Some(discount_curve_id);
             context.day_count = Some(day_count);

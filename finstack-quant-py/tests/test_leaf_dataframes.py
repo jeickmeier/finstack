@@ -488,7 +488,11 @@ def _hierarchy_period_decomposition() -> PeriodDecomposition:
     config = {
         "policy": "globally_off",
         "hierarchy": {"levels": ["rating", "region"]},
-        "min_bucket_size_per_level": {"per_level": [3, 3]},
+        # Level-1 threshold of 1 keeps the singleton rating x region buckets:
+        # fold-up now counts every bucket member (it was previously inert
+        # under globally_off), and this fixture wants all 6 level-1 buckets
+        # to survive so the long dataframe shape stays interesting.
+        "min_bucket_size_per_level": {"per_level": [3, 1]},
         "vol_model": "sample",
         "covariance_strategy": "diagonal",
         "beta_shrinkage": "none",

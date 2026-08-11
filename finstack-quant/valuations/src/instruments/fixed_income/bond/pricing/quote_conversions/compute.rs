@@ -263,7 +263,7 @@ pub(crate) fn price_from_quote_overrides(
         return Ok(Some(quote_ctx.dirty_from_clean_pct(clean_pct, notional)));
     }
     if let Some(ytm) = quotes.quoted_ytm {
-        let flows = bond.pricing_dated_cashflows(curves, as_of)?;
+        let flows = quote_ctx.entitled_flows(bond, curves, as_of)?;
         return Ok(Some(price_from_ytm(
             bond,
             &flows,
@@ -276,7 +276,7 @@ pub(crate) fn price_from_quote_overrides(
         // For callable bonds, the quote-override path uses maturity flows
         // (consistent with `quoted_ytm`); users who need exercise-aware
         // pricing should use `quoted_oas` instead.
-        let flows = bond.pricing_dated_cashflows(curves, as_of)?;
+        let flows = quote_ctx.entitled_flows(bond, curves, as_of)?;
         return Ok(Some(price_from_ytm(
             bond,
             &flows,
@@ -303,7 +303,7 @@ pub(crate) fn price_from_quote_overrides(
     if let Some(i_spread) = quotes.quoted_i_spread {
         let par_swap_rate = par_swap_rate_from_discount(bond, curves, quote_ctx.quote_date)?;
         let ytm = i_spread + par_swap_rate;
-        let flows = bond.pricing_dated_cashflows(curves, as_of)?;
+        let flows = quote_ctx.entitled_flows(bond, curves, as_of)?;
         return Ok(Some(price_from_ytm(
             bond,
             &flows,

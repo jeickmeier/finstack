@@ -50,9 +50,16 @@ impl MetricCalculator for AccruedInterestCalculator {
                 &bond.accrual_config(),
             )?;
 
-            // Prepare potential flows for caching (build now, assign later)
+            // Prepare potential flows for caching (build now, assign later).
+            // Coupon entitlement is tested at the same date the accrued is
+            // anchored to (quote/settlement date for market quotes), so the
+            // cached flows and the accrued stay on one convention basis.
             let maybe_flows = if context.cashflows.is_none() {
-                Some(bond.pricing_dated_cashflows(&context.curves, context.as_of)?)
+                Some(bond.pricing_dated_cashflows_at(
+                    &context.curves,
+                    context.as_of,
+                    accrual_date,
+                )?)
             } else {
                 None
             };

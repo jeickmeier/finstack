@@ -11,7 +11,13 @@
 #   - `*-lint`                         — check-only (CI-safe, no mutation)
 
 [tools]
-rust = { version = "1.91", components = "clippy,rustfmt", targets = "wasm32-unknown-unknown", profile = "minimal" }
+# 1.91 is the active toolchain. Nightly is also installed because
+# cargo-public-api (used by `mise run rust-doc`) can only build rustdoc JSON
+# with nightly; see scripts/check_public_api_input_docs.py.
+rust = [
+  { version = "1.91", components = "clippy,rustfmt", targets = "wasm32-unknown-unknown", profile = "minimal" },
+  { version = "nightly", profile = "minimal" },
+]
 node = "24"
 "aqua:rustwasm/wasm-pack" = "latest"
 "cargo:cargo-nextest" = "latest"
@@ -25,6 +31,8 @@ node = "24"
 CARGO_INCREMENTAL = "{{ env.CARGO_INCREMENTAL | default(value='1') }}"
 CARGO_HOME = "{{ env.CARGO_HOME | default(value=env.HOME ~ '/.cargo') }}"
 RUSTUP_HOME = "{{ env.RUSTUP_HOME | default(value=env.HOME ~ '/.rustup') }}"
+# Keep builds on 1.91 when mise also provisions nightly for rustdoc JSON.
+RUSTUP_TOOLCHAIN = "{{ env.RUSTUP_TOOLCHAIN | default(value='1.91') }}"
 UV_PYTHON_DOWNLOADS = "{{ env.UV_PYTHON_DOWNLOADS | default(value='never') }}"
 
 # ─────────────────────────────────────────────────────────────────
@@ -184,7 +192,7 @@ echo "HTML report: target/llvm-cov/html/index.html"
 description = "Format + auto-fix Rust code (cargo fmt + clippy --fix, mutating)"
 run = [
   "cargo fmt --all",
-  "cargo clippy --workspace --all-targets --fix --allow-dirty -- -D warnings",
+  "cargo clippy --workspace --all-targets --all-features --fix --allow-dirty -- -D warnings",
 ]
 
 [tasks.rust-lint]
@@ -195,13 +203,13 @@ run = [
 # which omits finstack-quant-py and finstack-quant-wasm. That blind spot let a
 # breaking change land on master with a Python binding that did not compile
 # (a struct gained a field; the binding's struct-literal call site was not updated).
-# `cargo fmt --all` already covered those crates, and the `cargo check --workspace`
-# pre-commit hook would have caught it but only runs at the pre-push stage.
-# Clippy type-checks, so linting the whole workspace closes the gap at commit time.
+# `cargo fmt --all` already covered those crates; clippy type-checks the whole
+# workspace (including `--all-features`) so feature-gated code is covered in one
+# pass at commit time.
 description = "Lint Rust (fmt --check + clippy with -D warnings, check-only)"
 run = [
   "cargo fmt --all -- --check",
-  "cargo clippy --workspace --all-targets -- -D warnings",
+  "cargo clippy --workspace --all-targets --all-features -- -D warnings",
 ]
 
 [tasks.rust-audit]
@@ -548,18 +556,12 @@ echo "Generated artifacts are idempotent: sha256:$after_digest"
 # ─────────────────────────────────────────────────────────────────
 
 [tasks.pre-commit-install]
-description = "Install pre-commit hooks (commit + pre-push)"
-run = [
-  "uv run --no-sync pre-commit install",
-  "uv run --no-sync pre-commit install --hook-type pre-push",
-]
+description = "Install pre-commit hooks"
+run = "uv run --no-sync pre-commit install"
 
 [tasks.pre-commit-run]
 description = "Run all pre-commit hooks on the full tree (CI lint job)"
-run = [
-  "uv run --no-sync pre-commit run --all-files",
-  "uv run --no-sync pre-commit run --all-files --hook-stage pre-push",
-]
+run = "uv run --no-sync pre-commit run --all-files"
 
 [tasks.pre-commit-update]
 description = "Autoupdate pre-commit hook versions"

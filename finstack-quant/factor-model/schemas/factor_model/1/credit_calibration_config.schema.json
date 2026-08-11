@@ -226,7 +226,7 @@
       ]
     },
     "VolModelChoice": {
-      "description": "Volatility model selector for the per-factor variance forecast.\n\n`Sample` is the plain (unbiased) sample variance. `Ewma` is the RiskMetrics\nfinite-window exponentially weighted variance estimator (Longerstaey &\nSpencer, 1996, §5.2): both are fully supported by the calibrator.\n\nThe two differ in centering: `Sample` demeans the series before squaring\n(the usual `Var(x) = E[(x − x̄)²]`), while `Ewma` does not — it recurses\ndirectly on squared observations (`σ²_t = λσ²_{t−1} + (1−λ)r²_{t−1}`),\nmatching the RiskMetrics convention of treating financial return series as\nzero-mean. That convention only holds for a *return* panel; combining\n`Ewma` with a raw levels panel\n([`PanelSpace::Levels`]) is rejected by\n`validate_calibration_config` because the squared-level mean-square is\ndominated by the level itself, not its dispersion.",
+      "description": "Volatility model selector for the per-factor variance forecast.\n\n`Sample` is the plain (unbiased) sample variance. `Ewma` is the RiskMetrics\nfinite-window exponentially weighted variance estimator (Longerstaey &\nSpencer, 1996, §5.2): both are fully supported by the calibrator.\n\nThe two differ in centering: `Sample` demeans the series before squaring\n(the usual `Var(x) = E[(x − x̄)²]`), while `Ewma` does not — it recurses\ndirectly on squared observations (`σ²_t = λσ²_{t−1} + (1−λ)r²_{t−1}`),\nmatching the RiskMetrics convention of treating financial return series as\nzero-mean. Both estimators always operate on factor and adder *moves*:\nunder [`PanelSpace::Levels`] the calibrator first-differences the peeled\nlevel series before estimating variance, so the zero-mean convention is\nsound in either panel space.",
       "oneOf": [
         {
           "const": "sample",
@@ -235,7 +235,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "RiskMetrics exponentially weighted moving-average variance.\n\nUncentered (zero-mean) squared returns, no demeaning step — see the\nenum-level docs above. Implemented by `ewma_variance`. `lambda` must\nbe in the open interval `(0, 1)`; validated by\n`validate_calibration_config`.\n\n# References\n\n- Longerstaey, J., & Spencer, M. (1996). *RiskMetrics — Technical\n  Document* (4th ed.). J.P. Morgan/Reuters. §5.2.",
+          "description": "RiskMetrics exponentially weighted moving-average variance.\n\nUncentered (zero-mean) squared moves, no demeaning step — see the\nenum-level docs above. Implemented by `ewma_variance`. `lambda` must\nbe in the open interval `(0, 1)`; validated by\n`validate_calibration_config`.\n\n# References\n\n- Longerstaey, J., & Spencer, M. (1996). *RiskMetrics — Technical\n  Document* (4th ed.). J.P. Morgan/Reuters. §5.2.",
           "properties": {
             "ewma": {
               "properties": {
@@ -269,7 +269,7 @@
     {
       "annualization_factor": 12.0,
       "beta_shrinkage": "none",
-      "covariance_strategy": "diagonal",
+      "covariance_strategy": "full_sample_repaired",
       "hierarchy": {
         "levels": []
       },

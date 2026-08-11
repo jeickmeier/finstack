@@ -269,6 +269,18 @@ pub struct IssuerTags(pub BTreeMap<String, String>);
 /// `levels[i]` is the loading on the bucket factor at hierarchy level `i`.
 ///
 /// For `BucketOnly` issuers every component is `1.0` by convention.
+///
+/// # The `0.0` level-beta sentinel
+///
+/// `levels[i] == 0.0` marks a level that was **folded** during calibration
+/// (the issuer's bucket was below the size threshold). The matcher and
+/// `enumerate_factor_ids` skip such levels. A *fitted* beta of exactly `0.0`
+/// is indistinguishable from the sentinel, and that is deliberate: every
+/// consumer scales by the beta (exposure `= β·CS01`, stress shift `= β·shock`,
+/// attribution `= β·ΔL`), so skipping the level and emitting a zero-beta
+/// entry produce identical numbers. The degenerate-regressor guard in
+/// calibration additionally maps near-zero-information fits to the unit-beta
+/// fallback rather than to `0.0`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct IssuerBetas {
@@ -332,8 +344,17 @@ pub struct IssuerBetaRow {
     pub adder_vol_annualized: f64,
     /// Provenance of `adder_vol_annualized`.
     pub adder_vol_source: AdderVolSource,
-    /// Regression fit statistics; `None` when `mode == BucketOnly`.
+    /// PC-regression fit statistics; `None` when `mode == BucketOnly`.
     pub fit_quality: Option<FitQuality>,
+    /// Per-level regression fit statistics, aligned with `betas.levels`.
+    ///
+    /// `Some` where a per-level OLS fit ran (`IssuerBeta` mode, level not
+    /// folded, regressor not degenerate); `None` otherwise. Empty for
+    /// `BucketOnly` rows and for artifacts written before this field existed
+    /// (serde default; omitted from the wire when empty so pre-existing
+    /// artifacts remain byte-stable).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub level_fit_quality: Vec<Option<FitQuality>>,
 }
 
 // Anchor state
@@ -666,9 +687,9 @@ pub struct CalibrationDiagnostics {
     ///
     /// Keys are `"issuer_beta"` and `"bucket_only"`.
     pub mode_counts: BTreeMap<String, usize>,
-    /// One entry per hierarchy level: `BTreeMap<bucket_path, IssuerBeta_count>`.
-    /// Counts only issuers calibrated in `IssuerBeta` mode, since `BucketOnly`
-    /// issuers do not affect fold-up thresholds.
+    /// One entry per hierarchy level: `BTreeMap<bucket_path, member_count>`.
+    /// Counts every issuer assigned to the bucket regardless of
+    /// [`IssuerBetaMode`]; the same full-membership count gates fold-up.
     pub bucket_sizes_per_level: Vec<BTreeMap<String, usize>>,
     /// Log of all fold-up events triggered by insufficient bucket coverage.
     ///
@@ -858,18 +879,16 @@ impl CreditFactorModel {
             }
         }
 
-        // Duplicate hierarchy dimension names
+        // Duplicate hierarchy dimension keys. Dedup on `dimension_key` — the
+        // exact key used to read tags at runtime — so `Rating` and
+        // `Custom("rating")` collide here just as they do at lookup time
+        // (both read `tags["rating"]`, i.e. the same information twice).
         let mut seen_dims: BTreeSet<String> = BTreeSet::new();
         for dim in &self.hierarchy.levels {
-            let key = match dim {
-                HierarchyDimension::Rating => "rating".to_owned(),
-                HierarchyDimension::Region => "region".to_owned(),
-                HierarchyDimension::Sector => "sector".to_owned(),
-                HierarchyDimension::Custom(s) => format!("custom:{s}"),
-            };
+            let key = dimension_key(dim);
             if !seen_dims.insert(key.clone()) {
                 return Err(finstack_quant_core::Error::Validation(format!(
-                    "CreditFactorModel: duplicate hierarchy dimension {key:?}"
+                    "CreditFactorModel: duplicate hierarchy dimension key {key:?}"
                 )));
             }
         }
@@ -892,6 +911,33 @@ impl CreditFactorModel {
             }
         }
 
+        // BucketOnly rows carry β = 1.0 by convention (0.0 only as the
+        // folded-level sentinel). A row claiming BucketOnly with
+        // fitted-looking betas is contradictory: consumers branching on the
+        // mode and consumers reading the betas would disagree about the
+        // issuer's loadings.
+        for row in &self.issuer_betas {
+            if row.mode != IssuerBetaMode::BucketOnly {
+                continue;
+            }
+            let pc_ok = (row.betas.pc - 1.0).abs() < 1e-12;
+            let levels_ok = row
+                .betas
+                .levels
+                .iter()
+                .all(|b| b.abs() < 1e-12 || (b - 1.0).abs() < 1e-12);
+            if !pc_ok || !levels_ok {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "CreditFactorModel: BucketOnly issuer {:?} has non-conventional \
+                     betas (pc = {}, levels = {:?}); BucketOnly betas must be 1.0 \
+                     (or 0.0 for folded levels)",
+                    row.issuer_id.as_str(),
+                    row.betas.pc,
+                    row.betas.levels
+                )));
+            }
+        }
+
         // Static correlation structural re-check (fields are pub, so bypass of new() is possible)
         self.static_correlation.check_structure()?;
 
@@ -899,6 +945,33 @@ impl CreditFactorModel {
         // an undeclared factor would silently contribute zero risk at
         // covariance-lookup time.
         self.config.validate_matching_factor_ids()?;
+
+        // The covariance, static correlation, and vol-state factor universes
+        // must all agree with `config.factors`. `FactorCovarianceMatrix`
+        // returns 0.0 for unknown factor IDs, so a set mismatch silently
+        // zeroes risk instead of failing.
+        let declared: BTreeSet<&FactorId> = self.config.factors.iter().map(|f| &f.id).collect();
+        let check_ids = |label: &str, ids: BTreeSet<&FactorId>| {
+            if ids != declared {
+                let missing: Vec<&str> =
+                    declared.difference(&ids).map(|fid| fid.as_str()).collect();
+                let extra: Vec<&str> = ids.difference(&declared).map(|fid| fid.as_str()).collect();
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "CreditFactorModel: {label} factor ids do not match config.factors \
+                     (missing: {missing:?}, undeclared: {extra:?})"
+                )));
+            }
+            Ok(())
+        };
+        check_ids(
+            "config.covariance",
+            self.config.covariance.factor_ids().iter().collect(),
+        )?;
+        check_ids(
+            "static_correlation",
+            self.static_correlation.factor_ids.iter().collect(),
+        )?;
+        check_ids("vol_state.factors", self.vol_state.factors.keys().collect())?;
 
         // Factor histories length consistency
         if let Some(hist) = &self.factor_histories {
@@ -998,6 +1071,7 @@ mod tests {
             adder_vol_annualized: 0.01,
             adder_vol_source: AdderVolSource::Default,
             fit_quality: None,
+            level_fit_quality: vec![],
         }
     }
 
@@ -1392,5 +1466,140 @@ mod tests {
         let tags = tags_rrs("IG", "EU", "FIN");
         // Any k is out of bounds for an empty hierarchy.
         assert_eq!(spec.bucket_path(&tags, 0), None);
+    }
+    #[test]
+    fn validate_rejects_covariance_factor_id_mismatch() {
+        use crate::{FactorDefinition, FactorType, MarketMapping};
+        use finstack_quant_core::market_data::bumps::BumpUnits;
+
+        let declared = FactorId::new("credit::generic");
+        let uncovered = FactorId::new("credit::level0::Rating::IG");
+        let mut model = minimal_model();
+        model.config.factors = [&declared, &uncovered]
+            .into_iter()
+            .map(|id| FactorDefinition {
+                id: id.clone(),
+                factor_type: FactorType::Credit,
+                market_mapping: MarketMapping::CurveParallel {
+                    curve_ids: vec![],
+                    units: BumpUnits::RateBp,
+                },
+                description: None,
+            })
+            .collect();
+        // Covariance only covers one of the two declared factors; the other
+        // would silently contribute zero risk at lookup time.
+        model.config.covariance =
+            FactorCovarianceMatrix::new(vec![declared.clone()], vec![400.0]).unwrap();
+        model.static_correlation = FactorCorrelationMatrix::identity(vec![declared.clone()]);
+        model
+            .vol_state
+            .factors
+            .insert(declared, FactorVolModel::Sample { variance: 400.0 });
+
+        let err = model
+            .validate()
+            .expect_err("covariance missing a declared factor must be rejected");
+        assert!(
+            err.to_string().contains("credit::level0::Rating::IG"),
+            "error must name the uncovered factor: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_static_correlation_and_vol_state_mismatch() {
+        use crate::{FactorDefinition, FactorType, MarketMapping};
+        use finstack_quant_core::market_data::bumps::BumpUnits;
+
+        let declared = FactorId::new("credit::generic");
+        let mut model = minimal_model();
+        model.config.factors = vec![FactorDefinition {
+            id: declared.clone(),
+            factor_type: FactorType::Credit,
+            market_mapping: MarketMapping::CurveParallel {
+                curve_ids: vec![],
+                units: BumpUnits::RateBp,
+            },
+            description: None,
+        }];
+        model.config.covariance =
+            FactorCovarianceMatrix::new(vec![declared.clone()], vec![400.0]).unwrap();
+
+        // Correlation matrix over a disjoint id set.
+        model.static_correlation =
+            FactorCorrelationMatrix::identity(vec![FactorId::new("unrelated")]);
+        model
+            .vol_state
+            .factors
+            .insert(declared.clone(), FactorVolModel::Sample { variance: 400.0 });
+        assert!(
+            model.validate().is_err(),
+            "static_correlation over a different factor-id set must be rejected"
+        );
+
+        // Fix the correlation; break vol_state instead.
+        model.static_correlation = FactorCorrelationMatrix::identity(vec![declared.clone()]);
+        model.vol_state.factors.clear();
+        model.vol_state.factors.insert(
+            FactorId::new("unrelated"),
+            FactorVolModel::Sample { variance: 1.0 },
+        );
+        assert!(
+            model.validate().is_err(),
+            "vol_state keyed by a different factor-id set must be rejected"
+        );
+
+        // Aligned everywhere: validate() must pass.
+        model.vol_state.factors.clear();
+        model
+            .vol_state
+            .factors
+            .insert(declared, FactorVolModel::Sample { variance: 400.0 });
+        assert!(model.validate().is_ok(), "aligned model must validate");
+    }
+
+    #[test]
+    fn validate_rejects_builtin_and_custom_dimension_key_collision() {
+        let mut model = minimal_model();
+        // `Rating` and `Custom("rating")` read the SAME tag key at runtime
+        // (`dimension_key` maps both to "rating"), so the two levels are the
+        // same information counted twice.
+        model.hierarchy = CreditHierarchySpec {
+            levels: vec![
+                HierarchyDimension::Rating,
+                HierarchyDimension::Custom("rating".to_owned()),
+            ],
+        };
+        let err = model
+            .validate()
+            .expect_err("colliding dimension keys must be rejected");
+        assert!(
+            err.to_string().contains("rating"),
+            "error must name the colliding key: {err}"
+        );
+    }
+    /// A `BucketOnly` row's betas are `1.0` by convention (`0.0` only as the
+    /// folded-level sentinel). A hand-edited row claiming `BucketOnly` with
+    /// fitted-looking betas is contradictory: consumers that branch on the
+    /// mode and consumers that read the betas would disagree.
+    #[test]
+    fn validate_rejects_bucket_only_row_with_non_unit_betas() {
+        let mut model = minimal_model();
+        let mut row = issuer_row("ACME", IssuerBetaMode::BucketOnly);
+        row.betas.pc = 5.0;
+        model.issuer_betas = vec![row];
+        let err = model
+            .validate()
+            .expect_err("BucketOnly with non-unit pc beta must be rejected");
+        assert!(
+            err.to_string().contains("ACME"),
+            "error must name the issuer: {err}"
+        );
+
+        // Folded levels (0.0) and unit betas are the legitimate shapes.
+        let mut ok_row = issuer_row("ACME", IssuerBetaMode::BucketOnly);
+        ok_row.betas.levels = vec![1.0, 0.0, 1.0];
+        model.issuer_betas = vec![ok_row];
+        assert!(model.validate().is_ok(), "unit/folded betas must validate");
     }
 }

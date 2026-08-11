@@ -455,8 +455,47 @@ impl FactorModelConfig {
                 )));
             }
         }
+        check_no_duplicate_issuer_rows(&self.matching)?;
         Ok(())
     }
+}
+
+/// Reject matching configs with more than one beta row for the same issuer —
+/// within a single credit-hierarchical config **or across cascade members**.
+///
+/// Row lookup (binary search) resolves within-config duplicates arbitrarily,
+/// and the idiosyncratic-variance collector lets a later cascade member's row
+/// silently overwrite an earlier one's adder variance, so either form of
+/// duplication can source betas and idiosyncratic variance from two
+/// different rows for the same issuer.
+fn check_no_duplicate_issuer_rows(matching: &MatchingConfig) -> finstack_quant_core::Result<()> {
+    use std::collections::BTreeSet;
+    fn walk<'a>(
+        matching: &'a MatchingConfig,
+        seen: &mut BTreeSet<&'a str>,
+    ) -> finstack_quant_core::Result<()> {
+        match matching {
+            MatchingConfig::Cascade(configs) => {
+                configs.iter().try_for_each(|config| walk(config, seen))
+            }
+            MatchingConfig::CreditHierarchical(config) => {
+                for row in &config.issuer_betas {
+                    if !seen.insert(row.issuer_id.as_str()) {
+                        return Err(finstack_quant_core::Error::Validation(format!(
+                            "FactorModelConfig: duplicate issuer_id {:?} in credit \
+                             hierarchical matching config (within one config or \
+                             across cascade members)",
+                            row.issuer_id.as_str()
+                        )));
+                    }
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+    let mut seen = BTreeSet::new();
+    walk(matching, &mut seen)
 }
 
 #[cfg(test)]
@@ -837,6 +876,7 @@ mod tests {
             adder_vol_annualized: 0.01,
             adder_vol_source: AdderVolSource::Default,
             fit_quality: None,
+            level_fit_quality: vec![],
         };
         let credit_config = CreditHierarchicalConfig {
             dependency_filter: DependencyFilter::default(),
@@ -844,6 +884,7 @@ mod tests {
                 levels: vec![HierarchyDimension::Rating],
             },
             issuer_betas: vec![row],
+            require_issuer_id: false,
         };
 
         // Build a FactorModelConfig where `factors` only knows about
@@ -911,5 +952,140 @@ mod tests {
             unmatched_policy: None,
         };
         assert!(config.validate_matching_factor_ids().is_ok());
+    }
+    #[test]
+    fn validate_matching_factor_ids_rejects_duplicate_issuer_rows() {
+        use crate::credit::hierarchy::{
+            AdderVolSource, CreditHierarchySpec, HierarchyDimension, IssuerBetaMode, IssuerBetaRow,
+            IssuerBetas, IssuerTags,
+        };
+        use crate::matching::CreditHierarchicalConfig;
+        use finstack_quant_core::types::IssuerId;
+        use std::collections::BTreeMap;
+
+        let row = |adder_vol: f64| IssuerBetaRow {
+            issuer_id: IssuerId::new("ACME"),
+            tags: IssuerTags(BTreeMap::from([("rating".to_string(), "IG".to_string())])),
+            mode: IssuerBetaMode::BucketOnly,
+            betas: IssuerBetas {
+                pc: 1.0,
+                levels: vec![1.0],
+            },
+            adder_at_anchor: 0.0,
+            adder_vol_annualized: adder_vol,
+            adder_vol_source: AdderVolSource::Default,
+            fit_quality: None,
+            level_fit_quality: vec![],
+        };
+        let generic = FactorId::new("credit::generic");
+        let bucket = FactorId::new("credit::level0::Rating::IG");
+        let factors: Vec<FactorDefinition> = [&generic, &bucket]
+            .into_iter()
+            .map(|id| FactorDefinition {
+                id: id.clone(),
+                factor_type: FactorType::Credit,
+                market_mapping: MarketMapping::CurveParallel {
+                    curve_ids: vec![],
+                    units: BumpUnits::RateBp,
+                },
+                description: None,
+            })
+            .collect();
+        let covariance =
+            FactorCovarianceMatrix::new(vec![generic, bucket], vec![1.0, 0.0, 0.0, 1.0]).unwrap();
+        // Two rows for the same issuer: lookup and idiosyncratic-variance
+        // consumers could silently pick different rows.
+        let config = FactorModelConfig {
+            factors,
+            covariance,
+            matching: MatchingConfig::CreditHierarchical(CreditHierarchicalConfig {
+                dependency_filter: Default::default(),
+                hierarchy: CreditHierarchySpec {
+                    levels: vec![HierarchyDimension::Rating],
+                },
+                issuer_betas: vec![row(20.0), row(200.0)],
+                require_issuer_id: false,
+            }),
+            pricing_mode: PricingMode::DeltaBased,
+            risk_measure: RiskMeasure::Variance,
+            bump_size: None,
+            unmatched_policy: None,
+        };
+        let err = config
+            .validate_matching_factor_ids()
+            .expect_err("duplicate issuer rows in the matching config must be rejected");
+        assert!(
+            err.to_string().contains("ACME"),
+            "error must name the duplicated issuer: {err}"
+        );
+    }
+    #[test]
+    fn validate_matching_factor_ids_rejects_duplicates_across_cascade_members() {
+        use crate::credit::hierarchy::{
+            AdderVolSource, CreditHierarchySpec, HierarchyDimension, IssuerBetaMode, IssuerBetaRow,
+            IssuerBetas, IssuerTags,
+        };
+        use crate::matching::CreditHierarchicalConfig;
+        use finstack_quant_core::types::IssuerId;
+        use std::collections::BTreeMap;
+
+        let row = || IssuerBetaRow {
+            issuer_id: IssuerId::new("ACME"),
+            tags: IssuerTags(BTreeMap::from([("rating".to_string(), "IG".to_string())])),
+            mode: IssuerBetaMode::BucketOnly,
+            betas: IssuerBetas {
+                pc: 1.0,
+                levels: vec![1.0],
+            },
+            adder_at_anchor: 0.0,
+            adder_vol_annualized: 10.0,
+            adder_vol_source: AdderVolSource::Default,
+            fit_quality: None,
+            level_fit_quality: vec![],
+        };
+        let member = |r: IssuerBetaRow| {
+            MatchingConfig::CreditHierarchical(CreditHierarchicalConfig {
+                dependency_filter: Default::default(),
+                hierarchy: CreditHierarchySpec {
+                    levels: vec![HierarchyDimension::Rating],
+                },
+                issuer_betas: vec![r],
+                require_issuer_id: false,
+            })
+        };
+        let generic = FactorId::new("credit::generic");
+        let bucket = FactorId::new("credit::level0::Rating::IG");
+        let factors: Vec<FactorDefinition> = [&generic, &bucket]
+            .into_iter()
+            .map(|id| FactorDefinition {
+                id: id.clone(),
+                factor_type: FactorType::Credit,
+                market_mapping: MarketMapping::CurveParallel {
+                    curve_ids: vec![],
+                    units: BumpUnits::RateBp,
+                },
+                description: None,
+            })
+            .collect();
+        // Same issuer appears in two different cascade members: the
+        // idiosyncratic-variance collector would let the later member
+        // silently overwrite the earlier one's adder variance.
+        let config = FactorModelConfig {
+            factors,
+            covariance: FactorCovarianceMatrix::new(
+                vec![generic, bucket],
+                vec![1.0, 0.0, 0.0, 1.0],
+            )
+            .unwrap(),
+            matching: MatchingConfig::Cascade(vec![member(row()), member(row())]),
+            pricing_mode: PricingMode::DeltaBased,
+            risk_measure: RiskMeasure::Variance,
+            bump_size: None,
+            unmatched_policy: None,
+        };
+        let err = config
+            .validate_matching_factor_ids()
+            .expect_err("same issuer in two cascade members must be rejected");
+        assert!(err.to_string().contains("ACME"), "must name issuer: {err}");
     }
 }

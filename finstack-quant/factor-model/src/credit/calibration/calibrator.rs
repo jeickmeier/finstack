@@ -128,6 +128,34 @@ impl CreditCalibrator {
             &folded,
         );
 
+        // All variance/correlation estimation operates on factor and adder
+        // *moves*. In `Returns` space the peeled series already are moves; a
+        // `Levels` panel is first-differenced here. Estimating dispersion on
+        // raw levels and multiplying by the annualization factor is
+        // dimensionally meaningless (a flat 150bp spread would report a huge
+        // "variance" with zero actual change-vol), and it is the differencing
+        // that keeps the covariance in the canonical
+        // annualized-variance-of-moves units documented on
+        // [`crate::FactorCovarianceMatrix`].
+        let (stat_factor_returns, stat_adder_series) = match self.config.use_returns_or_levels {
+            super::config::PanelSpace::Returns => (
+                peel_outcome.factor_returns.clone(),
+                peel_outcome.adder_series.clone(),
+            ),
+            super::config::PanelSpace::Levels => (
+                peel_outcome
+                    .factor_returns
+                    .iter()
+                    .map(|(fid, series)| (fid.clone(), super::panel::diff_sparse(series)))
+                    .collect(),
+                peel_outcome
+                    .adder_series
+                    .iter()
+                    .map(|(issuer, series)| (issuer.clone(), super::panel::diff_sparse(series)))
+                    .collect(),
+            ),
+        };
+
         // -- 6. Adder series → idiosyncratic vol. ---------------------------
         // Compute from-history vols for every issuer with enough residual
         // observations, regardless of mode: under `GloballyOff` (the default
@@ -135,7 +163,7 @@ impl CreditCalibrator {
         // `IssuerBeta` issuers would leave every idiosyncratic vol at the
         // hard-coded 0.0 fallback — silently zeroing issuer-specific risk.
         let from_history_vols = adder_vols_from_history(
-            &peel_outcome.adder_series,
+            &stat_adder_series,
             self.config.vol_model,
             self.config.annualization_factor,
         );
@@ -157,9 +185,9 @@ impl CreditCalibrator {
             &folded,
         )?;
 
-        // -- 8. Per-factor variance forecast (sample or EWMA). --------------
+        // -- 8. Per-factor variance forecast (sample or EWMA), over moves. --
         let factor_variances = factor_variances(
-            &peel_outcome.factor_returns,
+            &stat_factor_returns,
             self.config.vol_model,
             self.config.annualization_factor,
         );
@@ -195,6 +223,11 @@ impl CreditCalibrator {
                 self.config.hierarchy.levels.len(),
             );
             let fit_quality = peel_outcome.fit_quality.get(issuer_id).cloned();
+            let level_fit_quality = peel_outcome
+                .level_fit_quality
+                .get(issuer_id)
+                .cloned()
+                .unwrap_or_default();
             issuer_betas.push(IssuerBetaRow {
                 issuer_id: issuer_id.clone(),
                 tags,
@@ -204,6 +237,7 @@ impl CreditCalibrator {
                 adder_vol_annualized: adder_vol,
                 adder_vol_source,
                 fit_quality,
+                level_fit_quality,
             });
         }
         // BTreeMap iteration is already sorted by issuer_id, but be defensive.
@@ -212,11 +246,11 @@ impl CreditCalibrator {
         // -- 9. Correlation matrix and covariance assembly. -----------------
         let factor_id_order = build_factor_id_order(&peel_outcome.factor_returns);
 
-        // -- 10. Assemble FactorModelConfig. --------------------------------
+        // -- 10. Assemble FactorModelConfig (correlations over moves). ------
         let (static_correlation, config) = assemble_factor_model_config(
             &factor_id_order,
             &factor_variances,
-            &peel_outcome.factor_returns,
+            &stat_factor_returns,
             &self.config.hierarchy,
             &issuer_betas,
             self.config.covariance_strategy,

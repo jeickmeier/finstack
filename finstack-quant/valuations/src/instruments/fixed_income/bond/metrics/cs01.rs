@@ -13,7 +13,10 @@
 //! CS01_fallback = PV(z + 1bp) - PV(z)        (forward difference)
 //! ```
 //!
-//! where `PV(z) = Σ CF_i · DF_i · exp(-z · t_i)`. This is a deliberate
+//! where `PV(z)` re-discounts each cashflow with the spread `z` added to the
+//! periodically-compounded zero rate implied by the base discount factor (see
+//! `z_spread_discount_factor`) — i.e. the same compounding-aware shift used
+//! by the Z-spread solver, not a continuous `exp(-z·t)` shift. This is a deliberate
 //! deviation from the canonical methodology in two respects, called out here
 //! so consumers can audit the regime:
 //!

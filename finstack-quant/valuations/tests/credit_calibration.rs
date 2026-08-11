@@ -1491,9 +1491,11 @@ fn peer_proxy_cascade_falls_back_to_global() {
 /// old IssuerBeta-only gate silently zeroed every idiosyncratic vol under the
 /// default policy). In this fixture every issuer is alone in its deepest
 /// (rating × region) bucket, so the final-level peel absorbs the residual
-/// completely and the FromHistory vol is exactly 0.0 — the bucket factor
-/// carries that risk instead. The source must still be `FromHistory`, not the
-/// `Default` fallback.
+/// completely and the residual series is identically zero. A self-mean
+/// carries no information about idiosyncratic risk, so such series are
+/// excluded from `FromHistory`; with *every* issuer a singleton there are no
+/// peers to proxy from either, and the cascade lands on the honest
+/// `Default` 0.0 ("no data"), not a `FromHistory` "estimate" of 0.0.
 #[test]
 fn globally_off_issuers_get_from_history_adder_vols() {
     let cfg = CreditCalibrationConfig {
@@ -1517,16 +1519,17 @@ fn globally_off_issuers_get_from_history_adder_vols() {
             "mode must be BucketOnly"
         );
         assert!(
-            matches!(row.adder_vol_source, AdderVolSource::FromHistory),
-            "adder_vol_source must be FromHistory under GloballyOff with full history; \
+            matches!(row.adder_vol_source, AdderVolSource::Default),
+            "identically-zero singleton residuals must fall through to the \
+             Default source (no usable history, no peers anywhere); \
              got {:?} for {:?}",
             row.adder_vol_source,
             row.issuer_id.as_str()
         );
         assert!(
             row.adder_vol_annualized.abs() < 1e-9,
-            "singleton-bucket residuals are fully absorbed by the deepest level, \
-             so the FromHistory vol must be 0.0; got {} for {:?}",
+            "with no from-history vols anywhere the Default fallback is 0.0; \
+             got {} for {:?}",
             row.adder_vol_annualized,
             row.issuer_id.as_str()
         );

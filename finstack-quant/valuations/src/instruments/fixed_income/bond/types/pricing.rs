@@ -38,6 +38,39 @@ impl Bond {
             finstack_quant_core::money::Money,
         )>,
     > {
+        self.pricing_dated_cashflows_at(curves, as_of, as_of)
+    }
+
+    /// [`Bond::pricing_dated_cashflows`] with an explicit coupon-entitlement date.
+    ///
+    /// Market convention (e.g. UK gilts/DMO) determines coupon entitlement by
+    /// whether the **settlement** date falls on/after the ex-dividend date, not
+    /// the trade/valuation date. Quote-derived metrics (YTM, YTW, Z-spread, DM,
+    /// I-spread, ASW) therefore pass the quote/settlement date as
+    /// `entitlement_date` so that a trade whose settlement lands inside the
+    /// ex-window drops the imminent coupon, consistent with the negative
+    /// accrued interest computed at the same date.
+    ///
+    /// # Arguments
+    ///
+    /// * `curves` - Market context used to build the full cashflow schedule
+    ///   (floating-rate projection, amortization, custom schedules).
+    /// * `as_of` - Valuation date; flows dated on or before it are excluded
+    ///   (strict `date > as_of`).
+    /// * `entitlement_date` - Date at which coupon entitlement is tested
+    ///   against each coupon's ex-date; the quote/settlement date for market
+    ///   quotes, `as_of` for model PV.
+    pub(crate) fn pricing_dated_cashflows_at(
+        &self,
+        curves: &finstack_quant_core::market_data::context::MarketContext,
+        as_of: finstack_quant_core::dates::Date,
+        entitlement_date: finstack_quant_core::dates::Date,
+    ) -> Result<
+        Vec<(
+            finstack_quant_core::dates::Date,
+            finstack_quant_core::money::Money,
+        )>,
+    > {
         use finstack_quant_core::cashflow::CFKind;
 
         let ex_coupon = self.accrual_config().ex_coupon;
@@ -50,12 +83,12 @@ impl Bond {
             if !keep {
                 continue;
             }
-            // Drop interest flows whose ex-date has passed: the buyer as of
-            // `as_of` is not entitled to them.
+            // Drop interest flows whose ex-date has passed: the buyer entitled
+            // as of `entitlement_date` does not receive them.
             if cf.kind.is_interest_like() {
                 if let Some(rule) = &ex_coupon {
                     let ex_date = rule.ex_date(cf.date)?;
-                    if as_of >= ex_date && as_of < cf.date {
+                    if entitlement_date >= ex_date && entitlement_date < cf.date {
                         continue;
                     }
                 }
@@ -303,6 +336,37 @@ mod tests {
         assert!(
             flows.iter().any(|(d, _)| *d == coupon_date),
             "cum-coupon flows must include the next coupon"
+        );
+    }
+
+    /// Entitlement is a settlement-date rule: a trade whose settlement lands
+    /// inside the ex-window must drop the coupon even when the trade date is
+    /// still cum-coupon.
+    #[test]
+    fn entitlement_date_controls_ex_window_exclusion() {
+        let bond = ex_coupon_bond();
+        let coupon_date = date!(2025 - 07 - 01);
+        let market = MarketContext::new();
+
+        // Trade 8 days before the coupon (cum at trade date), settling 5 days
+        // before (inside the 7-day ex-window): the coupon is not a buyer flow.
+        let trade_date = coupon_date - time::Duration::days(8);
+        let settle_date = coupon_date - time::Duration::days(5);
+        let flows = bond
+            .pricing_dated_cashflows_at(&market, trade_date, settle_date)
+            .expect("flows");
+        assert!(
+            !flows.iter().any(|(d, _)| *d == coupon_date),
+            "coupon must be excluded when the entitlement (settlement) date is in the ex-window"
+        );
+
+        // Same trade date with entitlement also at the trade date keeps the coupon.
+        let flows = bond
+            .pricing_dated_cashflows_at(&market, trade_date, trade_date)
+            .expect("flows");
+        assert!(
+            flows.iter().any(|(d, _)| *d == coupon_date),
+            "coupon must be included when the entitlement date is cum-coupon"
         );
     }
 

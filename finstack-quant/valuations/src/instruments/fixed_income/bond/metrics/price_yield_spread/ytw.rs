@@ -58,7 +58,9 @@ impl MetricCalculator for YtwCalculator {
                 (
                     bond.discount_curve_id.to_owned(),
                     bond.cashflow_spec.day_count(),
-                    bond.pricing_dated_cashflows(&context.curves, context.as_of)?,
+                    // Coupon entitlement at the quote/settlement date,
+                    // consistent with the accrued used for the dirty target.
+                    quote_ctx.entitled_flows(bond, &context.curves, context.as_of)?,
                 )
             };
             context.cashflows = Some(built);

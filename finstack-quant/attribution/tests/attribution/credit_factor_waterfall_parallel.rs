@@ -63,6 +63,7 @@ fn issuer_row(id: &str, rating: &str, region: &str, pc: f64, lv: Vec<f64>) -> Is
         adder_vol_annualized: 0.01,
         adder_vol_source: AdderVolSource::Default,
         fit_quality: None,
+        level_fit_quality: vec![],
     }
 }
 

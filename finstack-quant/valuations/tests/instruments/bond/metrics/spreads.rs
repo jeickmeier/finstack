@@ -1106,8 +1106,9 @@ fn test_z_spread_roundtrip_coupon_exactly_on_settlement_date() {
 /// quote_date, dirty) = y` implies `price_from_ytm(flows, quote_date, y) =
 /// dirty`.
 ///
-/// Both paths build flows via `pricing_dated_cashflows(as_of=trade_date)` and
-/// anchor discounting at `quote_date`, so any flow in `(trade_date, quote_date]`
+/// Both paths build flows from the trade date with coupon entitlement tested
+/// at `quote_date` (see `QuoteDateContext::entitled_flows`) and anchor
+/// discounting at `quote_date`, so any flow in `(trade_date, quote_date]`
 /// must be filtered by both in the same way.  `price_from_ytm_compounded_params`
 /// already skips `date <= as_of (= quote_date)`, which is the correct behaviour.
 /// This test documents and guards that symmetry.
@@ -1505,5 +1506,60 @@ fn test_z_spread_solver_non_positive_base_df_returns_err() {
         "Z-spread solver against an unreachable price target must return Err, \
          not a meaningless finite spread. Got: {:?}",
         result
+    );
+}
+
+/// Model-PV Z-spread must be free of settlement carry.
+///
+/// A bond priced on its own discount curve (no market quote) has a true
+/// Z-spread of zero by construction. With `settlement_days` set, the solver's
+/// pricing kernel discounts from the quote date, so the model-PV target must
+/// be forward-valued from `as_of` to the quote date (`model_dirty_at_quote_date`).
+/// Before that carry adjustment the solved spread absorbed ~2 days of rate
+/// carry instead of being zero.
+#[test]
+fn test_z_spread_on_curve_model_pv_is_zero_with_settlement_lag() {
+    use finstack_quant_core::market_data::context::MarketContext;
+    use finstack_quant_core::market_data::term_structures::DiscountCurve;
+
+    let as_of = date!(2025 - 01 - 02);
+    let mut bond = Bond::fixed(
+        "ZSPR-ONCURVE-T2",
+        Money::new(1_000_000.0, Currency::USD),
+        0.05,
+        as_of,
+        date!(2030 - 01 - 02),
+        "USD-OIS",
+    )
+    .expect("bond should build");
+    // T+2 settlement, no market quote: the metric target is the model PV.
+    bond.settlement_convention = Some(BondSettlementConvention {
+        settlement_days: 2,
+        ex_coupon_days: 0,
+        ex_coupon_calendar_id: None,
+    });
+
+    let disc = DiscountCurve::builder("USD-OIS")
+        .base_date(as_of)
+        .knots([(0.0, 1.0), (5.0, 0.80)])
+        .build()
+        .expect("curve");
+    let market = MarketContext::new().insert(disc);
+
+    let result = bond
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::ZSpread],
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .expect("Z-spread metric should solve");
+    let z = *result.measures.get("z_spread").expect("z_spread measure");
+
+    // Tolerance 0.01 bp: the pre-fix carry bias for ~4.5% rates over T+2 is
+    // orders of magnitude larger (~0.5 bp on a 5y bond).
+    assert!(
+        z.abs() < 1e-6,
+        "on-curve model-PV Z-spread must be ~0 with a settlement lag, got {z:.6e}"
     );
 }

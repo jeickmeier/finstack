@@ -2,7 +2,6 @@
 //!
 use crate::instruments::fixed_income::bond::pricing::quote_conversions::price_from_dm;
 use crate::instruments::fixed_income::bond::pricing::settlement::QuoteDateContext;
-use crate::instruments::fixed_income::bond::CashflowSpec;
 use crate::instruments::Bond;
 use crate::metrics::{MetricCalculator, MetricContext};
 use finstack_quant_core::dates::{Date, DayCountContext};
@@ -115,11 +114,13 @@ impl Default for DiscountMarginSolverConfig {
 /// DM equal to its quoted margin.
 ///
 /// Notes:
-/// - Intended for **floating-rate notes (FRNs)**. For fixed-rate bonds and
+/// - Intended for bonds with **floating coupons**: plain FRNs and amortizing
+///   floaters (`Amortizing` with a floating base). For fixed-rate bonds and
 ///   other non-floating `CashflowSpec` variants, this calculator returns an error,
 ///   since there is no forward index to spread over. In those cases, use **YTM**,
 ///   **Z-spread**, or asset-swap spreads instead.
-/// - Requires quoted clean price or falls back to base PV as target.
+/// - Requires quoted clean price, or falls back to the model PV forward-valued
+///   to the quote/settlement date as target.
 /// - Uses the FRN path: coupons are projected off the forward curve at reset
 ///   with margin and gearing from `FloatingCouponSpec` (unchanged by the DM),
 ///   then discounted with the DM added to the periodically-compounded zero
@@ -216,12 +217,22 @@ impl MetricCalculator for DiscountMarginCalculator {
         {
             quote_ctx.dirty_from_clean_pct(clean_px, bond.notional.amount())
         } else {
-            context.base_value.amount()
+            // Fallback: forward-value the model PV (at `as_of`) to the
+            // quote/settlement date, matching the YTM and Z-spread fallbacks,
+            // since the DM objective discounts from `quote_date`.
+            crate::instruments::fixed_income::bond::pricing::settlement::model_dirty_at_quote_date(
+                bond,
+                &context.curves,
+                context.as_of,
+                quote_ctx.quote_date,
+                context.base_value.amount(),
+            )?
         };
 
-        // DM is only defined for floating-rate bonds. For fixed-rate bonds, return an error.
-        // Callers should use YTM, Z-spread, or asset-swap spreads for fixed-rate instruments.
-        if !matches!(&bond.cashflow_spec, CashflowSpec::Floating(_)) {
+        // DM is only defined for bonds with floating coupons (plain FRNs and
+        // amortizing floaters). For fixed-rate bonds, return an error; callers
+        // should use YTM, Z-spread, or asset-swap spreads instead.
+        if !bond.has_floating_coupons() {
             return Err(finstack_quant_core::Error::from(
                 finstack_quant_core::InputError::Invalid,
             ));

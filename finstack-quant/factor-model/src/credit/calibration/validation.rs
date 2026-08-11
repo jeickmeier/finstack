@@ -1,9 +1,7 @@
 use finstack_quant_core::types::IssuerId;
 use finstack_quant_core::{Error, Result};
 
-use super::config::{
-    BetaShrinkage, CovarianceStrategy, CreditCalibrationConfig, PanelSpace, VolModelChoice,
-};
+use super::config::{BetaShrinkage, CovarianceStrategy, CreditCalibrationConfig, VolModelChoice};
 use super::inputs::CreditCalibrationInputs;
 use crate::credit::hierarchy::dimension_key;
 
@@ -66,25 +64,6 @@ pub(super) fn validate_calibration_config(config: &CreditCalibrationConfig) -> R
         }
     }
 
-    // The zero-mean EWMA estimator computes the exponentially weighted
-    // mean-square of the panel it is given, with no demeaning step. Over a
-    // levels panel (e.g. spreads around 150bp) that mean-square is dominated
-    // by the squared level itself, not its dispersion, overstating variance
-    // by orders of magnitude while parsing and validating cleanly. `Sample`
-    // does not have this problem because it demeans before squaring.
-    if matches!(config.vol_model, VolModelChoice::Ewma { .. })
-        && config.use_returns_or_levels == PanelSpace::Levels
-    {
-        return Err(validation_err(
-            "CreditCalibrator: vol_model = Ewma cannot be combined with \
-             use_returns_or_levels = Levels; the zero-mean EWMA estimator computes the \
-             exponentially weighted mean-square of raw levels, not their dispersion, which \
-             silently overstates variance by orders of magnitude; use vol_model = Sample for a \
-             levels panel, or set use_returns_or_levels = Returns"
-                .to_owned(),
-        ));
-    }
-
     // Custom dimension keys join into dotted dimension paths inside factor
     // IDs; a '.' inside the key would mis-segment those paths the same way a
     // dotted tag value would.
@@ -111,6 +90,21 @@ pub(super) fn validate_calibration_inputs(inputs: &CreditCalibrationInputs) -> R
                 "CreditCalibrator: history_panel.dates must be strictly increasing; \
                  found {:?} followed by {:?}",
                 pair[0], pair[1]
+            )));
+        }
+    }
+
+    // The anchor must be the panel end. An earlier as_of would let
+    // post-as_of history leak into betas, vols, and correlations
+    // (look-ahead), silently invalidating any backtest built on the
+    // artifact. Callers wanting an earlier anchor must truncate the panel.
+    if let Some(last) = inputs.history_panel.dates.last() {
+        if inputs.as_of != *last {
+            return Err(validation_err(format!(
+                "CreditCalibrator: as_of {:?} must equal the last panel date {:?}; \
+                 calibrating with history after as_of is look-ahead — truncate \
+                 history_panel (and generic_factor.values) at as_of instead",
+                inputs.as_of, last
             )));
         }
     }

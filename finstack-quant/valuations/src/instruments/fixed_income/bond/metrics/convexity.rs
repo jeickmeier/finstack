@@ -98,7 +98,7 @@ impl MetricCalculator for ConvexityCalculator {
         }
 
         // Calculate convexity using quote_date as time origin
-        let mut d2_price = 0.0;
+        let mut d2_price = finstack_quant_core::math::summation::NeumaierAccumulator::new();
         for &(date, amount) in risk_flows.as_ref() {
             if date <= quote_date {
                 continue;
@@ -116,10 +116,10 @@ impl MetricCalculator for ConvexityCalculator {
                 )?
                 .max(0.0);
             let df_second = df_second_derivative(yield_rate, t, comp, frequency)?;
-            d2_price += amount.amount() * df_second;
+            d2_price.add(amount.amount() * df_second);
         }
 
-        Ok(d2_price / price / 100.0)
+        Ok(d2_price.total() / price / 100.0)
     }
 }
 

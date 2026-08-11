@@ -73,6 +73,7 @@ fn issuer_row(
         adder_vol_annualized: 0.005,
         adder_vol_source: AdderVolSource::Default,
         fit_quality: None,
+        level_fit_quality: vec![],
     }
 }
 

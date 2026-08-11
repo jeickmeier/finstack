@@ -135,10 +135,10 @@ pub fn price_from_dm(
     let mut b = bond.clone();
     clear_price_driving_overrides(&mut b);
 
-    // DM discounting semantics apply to floating-rate bonds only; other
-    // cashflow specs fall back to the plain model PV.
-    let is_floating = matches!(&b.cashflow_spec, CashflowSpec::Floating(_));
-    if !is_floating {
+    // DM discounting semantics apply to bonds with floating coupons (plain
+    // FRNs and amortizing floaters); other cashflow specs fall back to the
+    // plain model PV.
+    if !b.has_floating_coupons() {
         return Ok(b.value(curves, as_of)?.amount());
     }
     // Coupons stay at the contractual quoted margin; the DM shifts the

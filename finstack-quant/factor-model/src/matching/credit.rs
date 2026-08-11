@@ -66,6 +66,24 @@ pub struct CreditHierarchicalConfig {
     /// Issuer beta rows, sorted by `issuer_id`.
     #[serde(default)]
     pub issuer_betas: Vec<IssuerBetaRow>,
+    /// Require the [`ISSUER_ID_META_KEY`] meta key on every credit dependency.
+    ///
+    /// When `true`, a credit dependency whose attributes omit the issuer id
+    /// is rejected with [`FactorMatchError::MissingRequiredTag`] instead of
+    /// being silently downgraded to the PC-only proxy — an absent key is
+    /// usually a data-plumbing failure, and the proxy fallback drops both
+    /// hierarchy exposure and idiosyncratic risk. Calibrated artifacts set
+    /// this to `true`; hand-built configs default to `false` (`serde`
+    /// default) so index-proxy workflows without issuer identities keep
+    /// working.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub require_issuer_id: bool,
+}
+
+/// `skip_serializing_if` helper keeping pre-existing artifacts byte-stable.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 impl CreditHierarchicalConfig {
@@ -152,6 +170,15 @@ impl FactorMatcher for CreditHierarchicalMatcher {
         }
 
         let issuer_id_str = attributes.get_meta(ISSUER_ID_META_KEY);
+        if self.config.require_issuer_id && issuer_id_str.is_none() {
+            // A credit dependency with no issuer identity is a data-plumbing
+            // gap when the config demands one (calibrated artifacts do):
+            // silently proxying to PC-only would drop hierarchy exposure and
+            // idiosyncratic risk without any signal.
+            return Err(FactorMatchError::MissingRequiredTag {
+                dimension: ISSUER_ID_META_KEY.to_owned(),
+            });
+        }
 
         // Look up calibrated betas if available; otherwise fall back to 1.0.
         let row = issuer_id_str
@@ -161,13 +188,12 @@ impl FactorMatcher for CreditHierarchicalMatcher {
 
         // Source of issuer tags: the calibrated row's tags take precedence,
         // because they reflect the canonical taxonomy. If no row is found,
-        // we read tags directly from `attributes.meta` using the same key
-        // convention.
+        // we read tags from the namespaced `credit::<dimension>` meta keys.
         let tags_owned: IssuerTags;
         let tags = match row {
             Some(r) => &r.tags,
             None => {
-                tags_owned = tags_from_attributes(&self.config.hierarchy, attributes);
+                tags_owned = tags_from_attributes(&self.config.hierarchy, attributes)?;
                 &tags_owned
             }
         };
@@ -300,22 +326,43 @@ fn is_credit_dependency(dep: &MarketDependency) -> bool {
     }
 }
 
-/// Build an [`IssuerTags`] view from `attributes.meta` using the canonical
-/// dimension keys defined by `spec`.
+/// Meta key under which a runtime credit-hierarchy tag is read from
+/// [`Attributes::meta`]: `credit::<dimension_key>` (e.g. `credit::rating`).
 ///
-/// Used as a fallback for unknown issuers (no calibrated row): the matcher
-/// reads tags from instrument metadata using the same key convention as
-/// [`dimension_key`].
-fn tags_from_attributes(spec: &CreditHierarchySpec, attrs: &Attributes) -> IssuerTags {
+/// Namespaced like [`ISSUER_ID_META_KEY`] so that generic instrument metadata
+/// using bare keys such as `"rating"` (also consumed by `AttributeFilter`)
+/// is never silently reinterpreted as a credit-hierarchy tag.
+#[must_use]
+pub fn credit_tag_meta_key(dim: &HierarchyDimension) -> String {
+    format!("credit::{}", dimension_key(dim))
+}
+
+/// Build an [`IssuerTags`] view from `attributes.meta` using the namespaced
+/// [`credit_tag_meta_key`] convention.
+///
+/// Used as a fallback for unknown issuers (no calibrated row). Tag values
+/// containing `'.'` are rejected: the dot is the bucket-path separator, and a
+/// dotted runtime value would mis-segment bucket paths and factor IDs
+/// (calibration enforces the same rule for calibrated issuers).
+fn tags_from_attributes(
+    spec: &CreditHierarchySpec,
+    attrs: &Attributes,
+) -> Result<IssuerTags, FactorMatchError> {
     use std::collections::BTreeMap;
     let mut map = BTreeMap::new();
     for dim in &spec.levels {
         let key = dimension_key(dim);
-        if let Some(v) = attrs.get_meta(&key) {
+        if let Some(v) = attrs.get_meta(&credit_tag_meta_key(dim)) {
+            if v.contains('.') {
+                return Err(FactorMatchError::InvalidTagValue {
+                    dimension: key,
+                    value: v.to_owned(),
+                });
+            }
             map.insert(key, v.to_owned());
         }
     }
-    IssuerTags(map)
+    Ok(IssuerTags(map))
 }
 
 // Tests
@@ -355,6 +402,7 @@ mod tests {
             adder_vol_annualized: 0.01,
             adder_vol_source: AdderVolSource::Default,
             fit_quality: None,
+            level_fit_quality: vec![],
         }
     }
 
@@ -376,7 +424,111 @@ mod tests {
             },
             hierarchy: three_level_spec(),
             issuer_betas: vec![row],
+            require_issuer_id: false,
         })
+    }
+
+    /// Runtime tags for unknown issuers must be read from the namespaced
+    /// `credit::<dimension>` meta keys, not bare keys: bare `"rating"` /
+    /// `"region"` / `"sector"` are generic instrument metadata (also consumed
+    /// by `AttributeFilter`) and silently reinterpreting them as
+    /// credit-hierarchy tags mis-buckets unrelated instruments.
+    #[test]
+    fn runtime_tags_use_namespaced_meta_keys() {
+        let matcher = matcher_with_one_issuer();
+        let dep = MarketDependency::CreditCurve {
+            id: CurveId::new("NEWCO-HAZARD"),
+        };
+
+        // Namespaced keys: full hierarchy is emitted with unit betas.
+        let attrs = Attributes::default()
+            .with_meta(ISSUER_ID_META_KEY, "NEWCO")
+            .with_meta("credit::rating", "HY")
+            .with_meta("credit::region", "NA")
+            .with_meta("credit::sector", "TECH");
+        let entries = matcher
+            .match_factor_with_betas(&dep, &attrs)
+            .expect("must succeed")
+            .expect("must match");
+        assert_eq!(entries.len(), 4, "PC + 3 levels from namespaced tags");
+        assert_eq!(
+            entries[1].factor_id,
+            FactorId::new("credit::level0::Rating::HY")
+        );
+
+        // Bare keys are ignored: PC-only proxy fallback.
+        let bare = Attributes::default()
+            .with_meta(ISSUER_ID_META_KEY, "NEWCO")
+            .with_meta("rating", "HY")
+            .with_meta("region", "NA")
+            .with_meta("sector", "TECH");
+        let entries = matcher
+            .match_factor_with_betas(&dep, &bare)
+            .expect("must succeed")
+            .expect("must match");
+        assert_eq!(
+            entries.len(),
+            1,
+            "bare meta keys must not be read as credit tags"
+        );
+    }
+
+    /// A runtime tag value containing '.' would mis-segment dotted bucket
+    /// paths and factor IDs (`HY.EU` vs `HY`, `EU`); calibration rejects such
+    /// values for calibrated issuers, and the matcher must reject them for
+    /// runtime issuers instead of silently corrupting factor identity.
+    #[test]
+    fn runtime_tags_with_dotted_values_are_rejected() {
+        let matcher = matcher_with_one_issuer();
+        let dep = MarketDependency::CreditCurve {
+            id: CurveId::new("NEWCO-HAZARD"),
+        };
+        let attrs = Attributes::default()
+            .with_meta(ISSUER_ID_META_KEY, "NEWCO")
+            .with_meta("credit::rating", "A.BBB")
+            .with_meta("credit::region", "NA")
+            .with_meta("credit::sector", "TECH");
+        let err = matcher
+            .match_factor_with_betas(&dep, &attrs)
+            .expect_err("dotted runtime tag value must be rejected");
+        assert!(
+            err.to_string().contains("A.BBB"),
+            "error must show the offending value: {err}"
+        );
+    }
+
+    /// With `require_issuer_id` set (the calibrated-artifact default), a
+    /// credit dependency whose attributes omit `credit::issuer_id` is a
+    /// data-plumbing failure, not a modelling choice: the matcher must fail
+    /// instead of silently downgrading the position to the PC-only proxy.
+    #[test]
+    fn require_issuer_id_rejects_missing_issuer_meta() {
+        let row = issuer_row("ISSUER-A", 0.9, vec![0.85, 0.8, 0.75], three_level_tags());
+        let matcher = CreditHierarchicalMatcher::new(CreditHierarchicalConfig {
+            dependency_filter: DependencyFilter {
+                dependency_type: Some(DependencyType::Credit),
+                curve_type: None,
+                id: None,
+            },
+            hierarchy: three_level_spec(),
+            issuer_betas: vec![row],
+            require_issuer_id: true,
+        });
+        let dep = MarketDependency::CreditCurve {
+            id: CurveId::new("ISSUER-A-HAZARD"),
+        };
+
+        let err = matcher
+            .match_factor_with_betas(&dep, &Attributes::default())
+            .expect_err("missing issuer id meta must be rejected when required");
+        assert!(
+            err.to_string().contains(ISSUER_ID_META_KEY),
+            "error must name the required meta key: {err}"
+        );
+
+        // With the issuer id present the matcher works normally.
+        let attrs = Attributes::default().with_meta(ISSUER_ID_META_KEY, "ISSUER-A");
+        assert!(matcher.match_factor_with_betas(&dep, &attrs).is_ok());
     }
 
     // PR-2 test: known issuer → PC + bucket factors in canonical order
@@ -430,6 +582,7 @@ mod tests {
             dependency_filter: DependencyFilter::default(),
             hierarchy: three_level_spec(),
             issuer_betas: vec![row],
+            require_issuer_id: false,
         });
 
         let dep = MarketDependency::CreditCurve {
@@ -459,6 +612,7 @@ mod tests {
             dependency_filter: DependencyFilter::default(),
             hierarchy: three_level_spec(),
             issuer_betas: vec![row_z, row_a],
+            require_issuer_id: false,
         });
 
         let dep = MarketDependency::CreditCurve {
@@ -485,6 +639,7 @@ mod tests {
             dependency_filter: DependencyFilter::default(),
             hierarchy: three_level_spec(),
             issuer_betas: vec![row],
+            require_issuer_id: false,
         });
 
         let dep = MarketDependency::CreditCurve {
@@ -516,6 +671,7 @@ mod tests {
             dependency_filter: DependencyFilter::default(),
             hierarchy: three_level_spec(),
             issuer_betas: vec![],
+            require_issuer_id: false,
         });
         let dep = MarketDependency::CreditCurve {
             id: CurveId::new("UNKNOWN-HAZARD"),
@@ -524,7 +680,7 @@ mod tests {
         // Partial tags (rating only) → error naming the first missing dim.
         let attrs_partial = Attributes::default()
             .with_meta(ISSUER_ID_META_KEY, "UNKNOWN")
-            .with_meta("rating", "IG");
+            .with_meta("credit::rating", "IG");
         let err = matcher
             .match_factor_with_betas(&dep, &attrs_partial)
             .expect_err("partial tags must error, not silently truncate");
@@ -558,6 +714,7 @@ mod tests {
             dependency_filter: DependencyFilter::default(),
             hierarchy: three_level_spec(),
             issuer_betas: vec![row],
+            require_issuer_id: false,
         };
 
         let ids = config.enumerate_factor_ids();
@@ -593,6 +750,7 @@ mod tests {
             dependency_filter: DependencyFilter::default(),
             hierarchy: three_level_spec(),
             issuer_betas: vec![],
+            require_issuer_id: false,
         });
 
         let dep = MarketDependency::CreditCurve {
@@ -600,9 +758,9 @@ mod tests {
         };
         let attrs = Attributes::default()
             .with_meta(ISSUER_ID_META_KEY, "UNKNOWN-ISSUER")
-            .with_meta("rating", "IG")
-            .with_meta("region", "EU")
-            .with_meta("sector", "FIN");
+            .with_meta("credit::rating", "IG")
+            .with_meta("credit::region", "EU")
+            .with_meta("credit::sector", "FIN");
 
         let entries = matcher
             .match_factor_with_betas(&dep, &attrs)
@@ -651,6 +809,7 @@ mod tests {
             dependency_filter: DependencyFilter::default(),
             hierarchy: spec,
             issuer_betas: vec![row],
+            require_issuer_id: false,
         });
 
         let dep = MarketDependency::CreditCurve {
@@ -698,6 +857,7 @@ mod tests {
             dependency_filter: DependencyFilter::default(),
             hierarchy: three_level_spec(),
             issuer_betas: rows,
+            require_issuer_id: false,
         });
         let dep = MarketDependency::CreditCurve {
             id: CurveId::new("X"),
@@ -726,6 +886,7 @@ mod tests {
                 vec![0.85, 0.8, 0.75],
                 three_level_tags(),
             )],
+            require_issuer_id: false,
         };
         let json = serde_json::to_string(&config).unwrap();
         let back: CreditHierarchicalConfig = serde_json::from_str(&json).unwrap();

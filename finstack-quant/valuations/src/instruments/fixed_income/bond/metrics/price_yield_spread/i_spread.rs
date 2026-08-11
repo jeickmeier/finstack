@@ -73,7 +73,7 @@ impl MetricCalculator for ISpreadCalculator {
         let disc = context.curves.get_discount(&bond.discount_curve_id)?;
 
         let quote_ctx = QuoteDateContext::new(bond, &context.curves, context.as_of)?;
-        let flows = bond.pricing_dated_cashflows(&context.curves, context.as_of)?;
+        let flows = quote_ctx.entitled_flows(bond, &context.curves, context.as_of)?;
         let (yield_rate, spread_maturity, uses_workout_path) =
             if let Some((workout_yield, workout_flows, _)) =
                 crate::instruments::fixed_income::bond::metrics::quoted_workout_path(

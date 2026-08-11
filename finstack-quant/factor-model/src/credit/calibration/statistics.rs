@@ -20,11 +20,16 @@ use crate::FactorId;
 /// `BucketOnly` issuers are included deliberately: under
 /// [`IssuerBetaPolicy::GloballyOff`][crate::credit::hierarchy::IssuerBetaPolicy]
 /// every issuer is `BucketOnly`, and skipping
-/// them here would leave the whole model with 0.0 idiosyncratic vol. A
-/// `BucketOnly` issuer alone in its bucket has an identically-zero residual
-/// (its own residual is the bucket mean), so its from-history vol is 0.0 —
-/// which is the mathematically correct statement that the bucket factor
-/// already explains it fully.
+/// them here would leave the whole model with 0.0 idiosyncratic vol.
+///
+/// An **identically-zero** residual series is excluded. It is the signature
+/// of an issuer alone in its deepest bucket (the residual minus its own
+/// bucket mean is exactly `0.0` in IEEE arithmetic), and a self-mean carries
+/// no information about idiosyncratic risk — recording it as a `FromHistory`
+/// estimate of 0.0 would silently zero the issuer's specific risk. Excluded
+/// issuers fall through the [`assign_adder_vol`] cascade to the bucket peer
+/// proxy or the global default instead. Genuine residuals from multi-member
+/// buckets carry float noise well above zero and are unaffected.
 ///
 /// Variance uses the unbiased sample estimator (`n − 1`, Bessel's correction),
 /// matching [`factor_variances`]; sparse adders can have short effective
@@ -40,6 +45,12 @@ pub(super) fn adder_vols_from_history(
     for (issuer, series) in adder_series {
         let n_valid = series.iter().filter(|v| v.is_some()).count();
         if n_valid < 2 {
+            continue;
+        }
+        // Singleton-bucket signature: every observed residual is exactly
+        // ±0.0 (`abs() < MIN_POSITIVE` is a lint-clean exact-zero test;
+        // genuine residual noise is ~1e-16, far above subnormal range).
+        if series.iter().flatten().all(|v| v.abs() < f64::MIN_POSITIVE) {
             continue;
         }
         let ann_var = match vol_model {

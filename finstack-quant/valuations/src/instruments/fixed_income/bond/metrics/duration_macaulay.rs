@@ -76,7 +76,7 @@ impl MetricCalculator for MacaulayDurationCalculator {
         }
 
         // Calculate Macaulay duration using quote_date as time origin
-        let mut weighted_time = 0.0;
+        let mut weighted_time = finstack_quant_core::math::summation::NeumaierAccumulator::new();
 
         for &(date, amount) in risk_flows.as_ref() {
             if date <= quote_date {
@@ -100,10 +100,10 @@ impl MetricCalculator for MacaulayDurationCalculator {
                 crate::instruments::fixed_income::bond::pricing::quote_conversions::YieldCompounding::Street,
                 bond.cashflow_spec.frequency(),
             )?;
-            weighted_time += t * amount.amount() * df;
+            weighted_time.add(t * amount.amount() * df);
         }
 
-        Ok(weighted_time / price)
+        Ok(weighted_time.total() / price)
     }
 }
 

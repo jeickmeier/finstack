@@ -99,9 +99,16 @@ impl SensitivityMatrix {
     }
 
     /// Return the contiguous row slice for a position.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `position_idx` is out of bounds (hard assert, matching
+    /// [`Self::delta`]: with `n_factors == 0` the slice arithmetic would
+    /// otherwise return an empty slice for *any* index in release builds
+    /// instead of failing).
     #[must_use]
     pub fn position_deltas(&self, position_idx: usize) -> &[f64] {
-        debug_assert!(
+        assert!(
             position_idx < self.n_positions(),
             "position_idx {position_idx} out of bounds for {} positions",
             self.n_positions()
@@ -181,5 +188,14 @@ mod tests {
         assert_eq!(column.len(), 2);
         assert!((column[0] - 100.0).abs() < 1e-12);
         assert!((column[1] - 200.0).abs() < 1e-12);
+    }
+    /// The zero-factor edge case is exactly where a `debug_assert!` would
+    /// have silently returned an empty slice for any out-of-range index in
+    /// release builds.
+    #[test]
+    #[should_panic(expected = "out of bounds")]
+    fn position_deltas_panics_on_out_of_range_index_with_zero_factors() {
+        let matrix = SensitivityMatrix::zeros(vec![], vec![]);
+        let _ = matrix.position_deltas(7);
     }
 }

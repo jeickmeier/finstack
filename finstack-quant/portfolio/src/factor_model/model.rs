@@ -41,7 +41,7 @@ use finstack_quant_factor_model::{
 use finstack_quant_valuations::calibration::bumps::{bump_hazard_shift, BumpRequest};
 use finstack_quant_valuations::instruments::dependencies_flatten::decompose as flatten_dependencies;
 use finstack_quant_valuations::instruments::Instrument;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, HashMap};
 
 /// Builder for the top-level portfolio factor-model orchestrator.
 ///
@@ -382,6 +382,33 @@ impl FactorModel {
                         .iter()
                         .position(|factor| factor.id == entry.factor_id)
                     else {
+                        // The matcher emitted a factor id that is not
+                        // declared in `factors` (typically a runtime issuer
+                        // whose tags name a bucket outside the calibrated
+                        // universe). Dropping it loses real credit exposure,
+                        // so the unmatched policy decides: Strict fails,
+                        // Warn surfaces the drop, Residual continues.
+                        match self.unmatched_policy {
+                            UnmatchedPolicy::Strict => {
+                                return Err(Error::invalid_input(format!(
+                                    "Credit factor '{}' matched for position '{}' is not \
+                                     declared in the factor model; its exposure would be \
+                                     silently dropped",
+                                    entry.factor_id, position.position_id
+                                )));
+                            }
+                            UnmatchedPolicy::Warn => {
+                                tracing::warn!(
+                                    position_id = %position.position_id,
+                                    factor_id = %entry.factor_id,
+                                    "dropping credit exposure to a factor id not declared \
+                                     in the factor model"
+                                );
+                            }
+                            // Residual (and any future policy variants —
+                            // the enum is non_exhaustive): keep going.
+                            _ => {}
+                        }
                         continue;
                     };
                     if !uses_assignment_driven_credit_shock(&self.factors[factor_idx]) {
@@ -399,8 +426,15 @@ impl FactorModel {
                         curve_id,
                         bump_size,
                     )?;
+                    // Under the credit hierarchy model Δs_i = β_pc·ΔG +
+                    // Σ_k β_k·ΔL_k + Δε_i, so exposure to a factor is the
+                    // issuer CS01 scaled by that factor's calibrated loading —
+                    // the same convention credit attribution applies
+                    // (`attribution::credit_factor`). Dropping the beta here
+                    // would overstate risk for defensive names (β < 1) and
+                    // understate it for levered ones (β > 1).
                     let current = sensitivities.delta(position_idx, factor_idx);
-                    sensitivities.set_delta(position_idx, factor_idx, current + delta);
+                    sensitivities.set_delta(position_idx, factor_idx, current + entry.beta * delta);
                 }
             }
         }
@@ -670,9 +704,14 @@ impl FactorModel {
                 continue;
             };
             let resolved_curve_ids = if uses_assignment_driven_credit_shock(factor) {
-                let curve_ids = self.credit_curves_matched_to_factor(portfolio, &factor.id)?;
-                stressed = shift_credit_curves(&stressed, &curve_ids, shift)?;
-                Some(curve_ids)
+                let curve_betas = self.credit_curves_matched_to_factor(portfolio, &factor.id)?;
+                stressed = shift_credit_curves(&stressed, &curve_betas, shift)?;
+                Some(
+                    curve_betas
+                        .into_iter()
+                        .map(|(curve_id, _)| curve_id)
+                        .collect::<Vec<_>>(),
+                )
             } else {
                 stressed = stressed.bump(mapping_to_market_bumps(
                     &factor.market_mapping,
@@ -703,12 +742,16 @@ impl FactorModel {
         Ok((stressed, exact_keys))
     }
 
+    /// Credit curves matched to `factor_id`, each with the issuer's calibrated
+    /// loading on that factor. The beta scales the curve shift under a factor
+    /// shock (`Δs_i = β_i · ΔF`); a curve reached through several positions of
+    /// the same issuer carries one beta, and the first match wins.
     fn credit_curves_matched_to_factor(
         &self,
         portfolio: &Portfolio,
         factor_id: &finstack_quant_factor_model::FactorId,
-    ) -> Result<Vec<finstack_quant_core::types::CurveId>> {
-        let mut curve_ids = BTreeSet::new();
+    ) -> Result<Vec<(finstack_quant_core::types::CurveId, f64)>> {
+        let mut curve_betas: BTreeMap<finstack_quant_core::types::CurveId, f64> = BTreeMap::new();
         for position in &portfolio.positions {
             let dependencies = flatten_dependencies(&position.instrument.market_dependencies()?);
             for dependency in &dependencies {
@@ -722,12 +765,12 @@ impl FactorModel {
                 else {
                     continue;
                 };
-                if entries.iter().any(|entry| entry.factor_id == *factor_id) {
-                    curve_ids.insert(curve_id.clone());
+                if let Some(entry) = entries.iter().find(|entry| entry.factor_id == *factor_id) {
+                    curve_betas.entry(curve_id.clone()).or_insert(entry.beta);
                 }
             }
         }
-        Ok(curve_ids.into_iter().collect())
+        Ok(curve_betas.into_iter().collect())
     }
 }
 
@@ -1009,18 +1052,28 @@ impl<'a> CreditBumpContexts<'a> {
     }
 }
 
+/// Shift each matched hazard curve by `beta × delta_bp`.
+///
+/// Under the hierarchy model `Δs_i = β_i · ΔF`, a factor shock of
+/// `delta_bp` moves issuer `i`'s spread by its calibrated loading times the
+/// shock — the same convention the sensitivity overlay and credit
+/// attribution apply.
 fn shift_credit_curves(
     market: &MarketContext,
-    curve_ids: &[finstack_quant_core::types::CurveId],
+    curve_betas: &[(finstack_quant_core::types::CurveId, f64)],
     delta_bp: f64,
 ) -> Result<MarketContext> {
     let mut out = market.clone();
     if delta_bp == 0.0 {
         return Ok(out);
     }
-    for curve_id in curve_ids {
+    for (curve_id, beta) in curve_betas {
+        let scaled = beta * delta_bp;
+        if scaled == 0.0 {
+            continue;
+        }
         let curve = out.get_hazard(curve_id.as_str())?;
-        let bumped = bump_hazard_shift(curve.as_ref(), &BumpRequest::Parallel(delta_bp))?;
+        let bumped = bump_hazard_shift(curve.as_ref(), &BumpRequest::Parallel(scaled))?;
         out = out.insert(bumped);
     }
     Ok(out)
@@ -1866,7 +1919,7 @@ mod tests {
     }
 
     #[test]
-    fn credit_hierarchy_sensitivities_use_fixed_bp_membership_not_beta_scaled_mapping() {
+    fn credit_hierarchy_sensitivities_scale_cs01_by_calibrated_betas() {
         use finstack_quant_factor_model::credit::hierarchy::{
             AdderVolSource, CreditHierarchySpec, HierarchyDimension, IssuerBetaMode, IssuerBetaRow,
             IssuerBetas, IssuerTags,
@@ -1891,6 +1944,7 @@ mod tests {
             adder_vol_annualized: 0.0,
             adder_vol_source: AdderVolSource::Default,
             fit_quality: None,
+            level_fit_quality: vec![],
         };
         let factors = vec![
             FactorDefinition {
@@ -1927,6 +1981,7 @@ mod tests {
                         levels: vec![HierarchyDimension::Rating],
                     },
                     issuer_betas: vec![issuer_row],
+                    require_issuer_id: false,
                 }),
                 pricing_mode: PricingMode::DeltaBased,
                 risk_measure: RiskMeasure::Variance,
@@ -1961,14 +2016,156 @@ mod tests {
             generic.abs() > 1e-8,
             "canonical bond should have credit sensitivity"
         );
+        // The factor model is Δs_i = β_pc·ΔG + Σ_k β_k·ΔL_k + Δε_i, so a unit
+        // factor move produces a spread move of β on the issuer curve and the
+        // exposure row must be CS01 · (β_pc, β_0, …). With pc = 5 and
+        // level-0 β = 7 the two columns must sit in a 7:5 ratio — matching
+        // the loading convention used by credit attribution.
         assert!(
-            (generic - rating).abs() < 1e-10,
-            "fixed-bp hierarchy factors should use the same direct issuer CS01, not beta scaling"
+            (rating - (7.0 / 5.0) * generic).abs() < 1e-10 * generic.abs().max(1.0),
+            "hierarchy factor exposure must be CS01 scaled by the calibrated \
+             beta: rating = {rating}, generic = {generic}"
         );
     }
 
     #[test]
-    fn credit_hierarchy_analysis_adds_idiosyncratic_residual_variance() {
+    fn strict_policy_rejects_dropped_credit_factor_ids() {
+        use finstack_quant_core::types::Attributes;
+        use finstack_quant_factor_model::credit::hierarchy::{
+            AdderVolSource, CreditHierarchySpec, HierarchyDimension, IssuerBetaMode, IssuerBetaRow,
+            IssuerBetas, IssuerTags,
+        };
+        use finstack_quant_factor_model::matching::{CreditHierarchicalConfig, ISSUER_ID_META_KEY};
+        use std::collections::BTreeMap;
+
+        let as_of = date!(2024 - 01 - 01);
+        let curve_id = CurveId::new("NEWCO-HAZ");
+        let market = credit_market(as_of, curve_id.clone());
+        let mut tags = BTreeMap::new();
+        tags.insert("rating".to_string(), "B".to_string());
+        // Calibrated universe knows only ISSUER-B / rating B.
+        let issuer_row = IssuerBetaRow {
+            issuer_id: finstack_quant_core::types::IssuerId::new("ISSUER-B"),
+            tags: IssuerTags(tags),
+            mode: IssuerBetaMode::BucketOnly,
+            betas: IssuerBetas {
+                pc: 1.0,
+                levels: vec![1.0],
+            },
+            adder_at_anchor: 0.0,
+            adder_vol_annualized: 0.0,
+            adder_vol_source: AdderVolSource::Default,
+            fit_quality: None,
+            level_fit_quality: vec![],
+        };
+        let factors = vec![
+            FactorDefinition {
+                id: FactorId::new("credit::generic"),
+                factor_type: FactorType::Credit,
+                market_mapping: MarketMapping::CurveParallel {
+                    curve_ids: vec![],
+                    units: BumpUnits::RateBp,
+                },
+                description: None,
+            },
+            FactorDefinition {
+                id: FactorId::new("credit::level0::Rating::B"),
+                factor_type: FactorType::Credit,
+                market_mapping: MarketMapping::CurveParallel {
+                    curve_ids: vec![],
+                    units: BumpUnits::RateBp,
+                },
+                description: None,
+            },
+            FactorDefinition {
+                id: FactorId::new("rates::usd"),
+                factor_type: FactorType::Rates,
+                market_mapping: MarketMapping::CurveParallel {
+                    curve_ids: vec![CurveId::new("USD-OIS")],
+                    units: BumpUnits::RateBp,
+                },
+                description: None,
+            },
+        ];
+        let covariance = FactorCovarianceMatrix::new(
+            factors.iter().map(|f| f.id.clone()).collect(),
+            vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+        )
+        .unwrap();
+        let build = |policy: UnmatchedPolicy| {
+            FactorModelBuilder::new()
+                .config(FactorModelConfig {
+                    factors: factors.clone(),
+                    covariance: covariance.clone(),
+                    // Cascade: credit deps hit the hierarchy; everything else
+                    // (the discount curve) falls through to a catch-all rates
+                    // rule so the only unmatched surface is the credit drop.
+                    matching: MatchingConfig::Cascade(vec![
+                        MatchingConfig::CreditHierarchical(CreditHierarchicalConfig {
+                            dependency_filter: Default::default(),
+                            hierarchy: CreditHierarchySpec {
+                                levels: vec![HierarchyDimension::Rating],
+                            },
+                            issuer_betas: vec![issuer_row.clone()],
+                            require_issuer_id: false,
+                        }),
+                        MatchingConfig::MappingTable(vec![
+                            finstack_quant_factor_model::matching::MappingRule {
+                                dependency_filter: Default::default(),
+                                attribute_filter: Default::default(),
+                                factor_id: FactorId::new("rates::usd"),
+                            },
+                        ]),
+                    ]),
+                    pricing_mode: PricingMode::DeltaBased,
+                    risk_measure: RiskMeasure::Variance,
+                    bump_size: None,
+                    unmatched_policy: Some(policy),
+                })
+                .build()
+                .unwrap()
+        };
+
+        // Runtime issuer NEWCO (not calibrated) tagged rating HY: the matcher
+        // emits credit::level0::Rating::HY, which is not declared in factors.
+        let mut bond = canonical_credit_bond(curve_id);
+        bond.attributes = Attributes::new()
+            .with_meta(ISSUER_ID_META_KEY, "NEWCO")
+            .with_meta("credit::rating", "HY");
+        let position = Position::new(
+            "pos-newco",
+            DUMMY_ENTITY_ID,
+            "inst-newco",
+            Arc::new(bond),
+            1.0,
+            PositionUnit::Units,
+        )
+        .unwrap();
+        let portfolio = Portfolio::builder("portfolio")
+            .base_currency(Currency::USD)
+            .as_of(as_of)
+            .position(position)
+            .build()
+            .unwrap();
+
+        let err = build(UnmatchedPolicy::Strict)
+            .compute_sensitivities(&portfolio, &market, as_of)
+            .expect_err("Strict must reject a matched-but-undeclared credit factor id");
+        assert!(
+            err.to_string().contains("credit::level0::Rating::HY"),
+            "error must name the dropped factor id: {err}"
+        );
+
+        // Residual/Warn continue (Warn surfaces a tracing warning).
+        for policy in [UnmatchedPolicy::Residual, UnmatchedPolicy::Warn] {
+            build(policy)
+                .compute_sensitivities(&portfolio, &market, as_of)
+                .expect("non-strict policies must continue");
+        }
+    }
+
+    #[test]
+    fn credit_factor_stress_scales_curve_shift_by_calibrated_beta() {
         use finstack_quant_factor_model::credit::hierarchy::{
             AdderVolSource, CreditHierarchySpec, HierarchyDimension, IssuerBetaMode, IssuerBetaRow,
             IssuerBetas, IssuerTags,
@@ -1986,13 +2183,14 @@ mod tests {
             tags: IssuerTags(tags),
             mode: IssuerBetaMode::IssuerBeta,
             betas: IssuerBetas {
-                pc: 1.0,
-                levels: vec![1.0],
+                pc: 5.0,
+                levels: vec![7.0],
             },
             adder_at_anchor: 0.0,
-            adder_vol_annualized: 3.0,
+            adder_vol_annualized: 0.0,
             adder_vol_source: AdderVolSource::Default,
             fit_quality: None,
+            level_fit_quality: vec![],
         };
         let factors = vec![
             FactorDefinition {
@@ -2029,6 +2227,124 @@ mod tests {
                         levels: vec![HierarchyDimension::Rating],
                     },
                     issuer_betas: vec![issuer_row],
+                    require_issuer_id: false,
+                }),
+                pricing_mode: PricingMode::DeltaBased,
+                risk_measure: RiskMeasure::Variance,
+                bump_size: None,
+                unmatched_policy: Some(UnmatchedPolicy::Residual),
+            })
+            .build()
+            .unwrap();
+        let position = Position::new(
+            "pos-credit",
+            DUMMY_ENTITY_ID,
+            "inst-credit",
+            Arc::new(canonical_credit_bond(curve_id.clone())),
+            1.0,
+            PositionUnit::Units,
+        )
+        .unwrap();
+        let portfolio = Portfolio::builder("portfolio")
+            .base_currency(Currency::USD)
+            .as_of(as_of)
+            .position(position)
+            .build()
+            .unwrap();
+
+        // A +2bp shock to the generic factor moves the issuer spread by
+        // β_pc × 2bp = 10bp under the model Δs_i = β_pc·ΔG + …, so the
+        // stressed market must equal a manual 10bp parallel hazard shift.
+        let (stressed, _) = model
+            .stressed_market_with_factor_keys(
+                &portfolio,
+                &market,
+                as_of,
+                &[(FactorId::new("credit::generic"), 2.0)],
+            )
+            .expect("stressed market");
+        let expected =
+            shift_credit_curves(&market, &[(curve_id, 1.0)], 5.0 * 2.0).expect("manual shift");
+
+        let bond = &portfolio.positions[0].instrument;
+        let stressed_value = bond.value_raw(&stressed, as_of).expect("stressed value");
+        let expected_value = bond.value_raw(&expected, as_of).expect("expected value");
+        let base_value = bond.value_raw(&market, as_of).expect("base value");
+        assert!(
+            (stressed_value - base_value).abs() > 1e-8,
+            "shock must move the bond value"
+        );
+        assert!(
+            (stressed_value - expected_value).abs() < 1e-8,
+            "factor stress must shift the issuer curve by beta × shock \
+             (stressed = {stressed_value}, expected = {expected_value})"
+        );
+    }
+
+    #[test]
+    fn credit_hierarchy_analysis_adds_idiosyncratic_residual_variance() {
+        use finstack_quant_factor_model::credit::hierarchy::{
+            AdderVolSource, CreditHierarchySpec, HierarchyDimension, IssuerBetaMode, IssuerBetaRow,
+            IssuerBetas, IssuerTags,
+        };
+        use finstack_quant_factor_model::matching::CreditHierarchicalConfig;
+        use std::collections::BTreeMap;
+
+        let as_of = date!(2024 - 01 - 01);
+        let curve_id = CurveId::new("ISSUER-B-HAZ");
+        let market = credit_market(as_of, curve_id.clone());
+        let mut tags = BTreeMap::new();
+        tags.insert("rating".to_string(), "B".to_string());
+        let issuer_row = IssuerBetaRow {
+            issuer_id: finstack_quant_core::types::IssuerId::new("ISSUER-B"),
+            tags: IssuerTags(tags),
+            mode: IssuerBetaMode::IssuerBeta,
+            betas: IssuerBetas {
+                pc: 1.0,
+                levels: vec![1.0],
+            },
+            adder_at_anchor: 0.0,
+            adder_vol_annualized: 3.0,
+            adder_vol_source: AdderVolSource::Default,
+            fit_quality: None,
+            level_fit_quality: vec![],
+        };
+        let factors = vec![
+            FactorDefinition {
+                id: FactorId::new("credit::generic"),
+                factor_type: FactorType::Credit,
+                market_mapping: MarketMapping::CurveParallel {
+                    curve_ids: vec![],
+                    units: BumpUnits::RateBp,
+                },
+                description: None,
+            },
+            FactorDefinition {
+                id: FactorId::new("credit::level0::Rating::B"),
+                factor_type: FactorType::Credit,
+                market_mapping: MarketMapping::CurveParallel {
+                    curve_ids: vec![],
+                    units: BumpUnits::RateBp,
+                },
+                description: None,
+            },
+        ];
+        let covariance = FactorCovarianceMatrix::new(
+            factors.iter().map(|f| f.id.clone()).collect(),
+            vec![1.0, 0.0, 0.0, 1.0],
+        )
+        .unwrap();
+        let model = FactorModelBuilder::new()
+            .config(FactorModelConfig {
+                factors,
+                covariance,
+                matching: MatchingConfig::CreditHierarchical(CreditHierarchicalConfig {
+                    dependency_filter: Default::default(),
+                    hierarchy: CreditHierarchySpec {
+                        levels: vec![HierarchyDimension::Rating],
+                    },
+                    issuer_betas: vec![issuer_row],
+                    require_issuer_id: false,
                 }),
                 pricing_mode: PricingMode::DeltaBased,
                 risk_measure: RiskMeasure::Variance,

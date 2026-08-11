@@ -846,10 +846,17 @@ impl MetricCalculator for AssetSwapMarketCalculator {
         if context.cashflows.is_none() {
             let (disc_id_capture, dc_capture, built) = {
                 let b: &Bond = context.instrument_as()?;
+                // Coupon entitlement at the quote/settlement date, consistent
+                // with the other quote-derived metrics sharing this cache.
+                let quote_date =
+                    crate::instruments::fixed_income::bond::pricing::settlement::settlement_date(
+                        b,
+                        context.as_of,
+                    )?;
                 (
                     b.discount_curve_id.to_owned(),
                     b.cashflow_spec.day_count(),
-                    b.pricing_dated_cashflows(&context.curves, context.as_of)?,
+                    b.pricing_dated_cashflows_at(&context.curves, context.as_of, quote_date)?,
                 )
             };
             context.cashflows = Some(built);
@@ -928,7 +935,7 @@ impl MetricCalculator for AssetSwapMarketCalculator {
 
         let quote_ctx = QuoteDateContext::new(bond, &context.curves, context.as_of)?;
         if let Some(clean_px) = quoted_clean {
-            let flows = bond.pricing_dated_cashflows(&context.curves, context.as_of)?;
+            let flows = quote_ctx.entitled_flows(bond, &context.curves, context.as_of)?;
             if let Some((_, workout_flows, workout_quote_date)) =
                 crate::instruments::fixed_income::bond::metrics::quoted_workout_path(
                     bond,

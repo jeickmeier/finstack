@@ -780,7 +780,7 @@ mod tests {
     }
 
     #[test]
-    fn factor_stress_applies_credit_hierarchy_fixed_bp_shocks_in_model_order() {
+    fn factor_stress_matches_manually_stressed_market_for_credit_hierarchy() {
         use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCurve};
         use finstack_quant_factor_model::credit::hierarchy::{
             AdderVolSource, CreditHierarchySpec, HierarchyDimension, IssuerBetaMode, IssuerBetaRow,
@@ -854,7 +854,9 @@ mod tests {
                         adder_vol_annualized: 0.0,
                         adder_vol_source: AdderVolSource::Default,
                         fit_quality: None,
+                        level_fit_quality: vec![],
                     }],
+                    require_issuer_id: false,
                 }),
                 pricing_mode: PricingMode::DeltaBased,
                 risk_measure: RiskMeasure::Variance,

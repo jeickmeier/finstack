@@ -13,12 +13,16 @@ use crate::credit::hierarchy::{
 pub(super) struct BucketInventory {
     /// `bucket_paths[issuer][k]` = bucket path at level k (or error).
     pub(super) bucket_paths: BTreeMap<IssuerId, Vec<String>>,
-    /// `bucket_sizes_per_level[k][bucket]` = count of IssuerBeta issuers in that bucket.
-    /// (BucketOnly issuers do not count toward the threshold.)
+    /// `bucket_sizes_per_level[k][bucket]` = count of **all** issuers in that
+    /// bucket, regardless of [`IssuerBetaMode`]. Bucket factors are
+    /// cross-sectional means over every member, so occupancy and the fold-up
+    /// threshold both use the full membership. (Counting only `IssuerBeta`
+    /// members made the threshold inert under the default `GloballyOff`
+    /// policy, where every issuer is `BucketOnly`.)
     pub(super) bucket_sizes_per_level: Vec<BTreeMap<String, usize>>,
-    /// Membership keyed by (level_index, bucket_path) → set of IssuerBeta issuer IDs.
-    /// Used by fold-up to decide whether to mark members as folded.
-    bucket_members_issuer_beta: Vec<BTreeMap<String, BTreeSet<IssuerId>>>,
+    /// Membership keyed by (level_index, bucket_path) → set of all member
+    /// issuer IDs. Used by fold-up to decide whether to mark members as folded.
+    bucket_members: Vec<BTreeMap<String, BTreeSet<IssuerId>>>,
     /// Observed values per dimension (for diagnostics).
     pub(super) tag_taxonomy: BTreeMap<String, BTreeSet<String>>,
 }
@@ -32,7 +36,7 @@ pub(super) fn build_bucket_inventory(
     let mut bucket_paths: BTreeMap<IssuerId, Vec<String>> = BTreeMap::new();
     let mut bucket_sizes_per_level: Vec<BTreeMap<String, usize>> =
         vec![BTreeMap::new(); num_levels];
-    let mut bucket_members_issuer_beta: Vec<BTreeMap<String, BTreeSet<IssuerId>>> =
+    let mut bucket_members: Vec<BTreeMap<String, BTreeSet<IssuerId>>> =
         vec![BTreeMap::new(); num_levels];
     let mut tag_taxonomy: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
 
@@ -43,7 +47,10 @@ pub(super) fn build_bucket_inventory(
         tag_taxonomy.entry(dimension_key(dim)).or_default();
     }
 
-    for (issuer, mode) in modes {
+    // Every issuer in the panel is inventoried; `modes` supplies the universe
+    // (its keys are the panel issuers) and is otherwise unused now that bucket
+    // occupancy counts all member modes.
+    for issuer in modes.keys() {
         let issuer_tags = tags.get(issuer).cloned().unwrap_or_default();
         // Update tag taxonomy (every dimension seen contributes a value).
         // Tag values used by hierarchy dimensions must not contain the '.'
@@ -77,19 +84,11 @@ pub(super) fn build_bucket_inventory(
                     missing
                 ))
             })?;
-            *bucket_sizes_per_level[k].entry(path.clone()).or_insert(0) +=
-                if matches!(mode, IssuerBetaMode::IssuerBeta) {
-                    1
-                } else {
-                    0
-                };
-            // Track members (only IssuerBeta count toward fold threshold).
-            if matches!(mode, IssuerBetaMode::IssuerBeta) {
-                bucket_members_issuer_beta[k]
-                    .entry(path.clone())
-                    .or_default()
-                    .insert(issuer.clone());
-            }
+            *bucket_sizes_per_level[k].entry(path.clone()).or_insert(0) += 1;
+            bucket_members[k]
+                .entry(path.clone())
+                .or_default()
+                .insert(issuer.clone());
             paths.push(path);
         }
         bucket_paths.insert(issuer.clone(), paths);
@@ -98,7 +97,7 @@ pub(super) fn build_bucket_inventory(
     Ok(BucketInventory {
         bucket_paths,
         bucket_sizes_per_level,
-        bucket_members_issuer_beta,
+        bucket_members,
         tag_taxonomy,
     })
 }
@@ -120,8 +119,9 @@ pub(super) fn apply_fold_up(
 
     for k in 0..num_levels {
         let threshold = thresholds.threshold_for_level(k);
-        for (bucket, members) in &inventory.bucket_members_issuer_beta[k] {
-            // Use the IssuerBeta-only count (matches threshold semantics).
+        for (bucket, members) in &inventory.bucket_members[k] {
+            // Full bucket occupancy: the bucket factor is a cross-sectional
+            // mean over every member, so the sparsity gate must see them all.
             let count = members.len();
             if count < threshold {
                 let folded_to = if k == 0 {
@@ -134,7 +134,7 @@ pub(super) fn apply_fold_up(
                         .unwrap_or("<root>")
                         .to_owned()
                 };
-                let reason = format!("fewer than {threshold} issuer_beta members ({count})");
+                let reason = format!("fewer than {threshold} members ({count})");
                 for member in members {
                     if let Some(flags) = folded.get_mut(member) {
                         flags[k] = true;

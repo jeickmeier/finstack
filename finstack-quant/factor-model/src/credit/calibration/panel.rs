@@ -57,6 +57,18 @@ pub(super) struct WorkingPanel {
     pub(super) issuers: BTreeMap<IssuerId, Vec<Option<f64>>>,
 }
 
+/// First-difference a sparse series: `d[t] = s[t+1] - s[t]` where both
+/// observations exist, `None` otherwise. Length is `len - 1`.
+pub(super) fn diff_sparse(series: &[Option<f64>]) -> Vec<Option<f64>> {
+    series
+        .windows(2)
+        .map(|w| match (w[0], w[1]) {
+            (Some(a), Some(b)) => Some(b - a),
+            _ => None,
+        })
+        .collect()
+}
+
 pub(super) fn build_working_panel(
     space: &PanelSpace,
     dates: &[Date],
@@ -76,15 +88,7 @@ pub(super) fn build_working_panel(
             }
             let mut issuers: BTreeMap<IssuerId, Vec<Option<f64>>> = BTreeMap::new();
             for (issuer, series) in spreads {
-                let mut diffs = Vec::with_capacity(n.saturating_sub(1));
-                for t in 1..n {
-                    let d = match (series[t - 1], series[t]) {
-                        (Some(a), Some(b)) => Some(b - a),
-                        _ => None,
-                    };
-                    diffs.push(d);
-                }
-                issuers.insert(issuer.clone(), diffs);
+                issuers.insert(issuer.clone(), diff_sparse(series));
             }
             WorkingPanel {
                 generic: g,

@@ -263,7 +263,7 @@ impl BondZSpreadPricingKernel {
         as_of: Date,
     ) -> finstack_quant_core::Result<Self> {
         let quote_ctx = QuoteDateContext::new(bond, curves, as_of)?;
-        let flows = bond.pricing_dated_cashflows(curves, as_of)?;
+        let flows = quote_ctx.entitled_flows(bond, curves, as_of)?;
         let (spread_flows, quote_date) = if let Some((_, workout_flows, workout_quote_date)) =
             crate::instruments::fixed_income::bond::metrics::quoted_workout_path(
                 bond, curves, as_of, &flows,
@@ -279,8 +279,17 @@ impl BondZSpreadPricingKernel {
             .filter(|(date, _)| *date > quote_date)
             .map(
                 |(date, amount)| -> finstack_quant_core::Result<(f64, f64, f64)> {
-                    let t =
-                        day_count.year_fraction(quote_date, *date, DayCountContext::default())?;
+                    // Supply the coupon frequency so ICMA-style curve day
+                    // counts (which require a reference frequency) don't
+                    // hard-error; ignored by ACT/30-360 conventions.
+                    let t = day_count.year_fraction(
+                        quote_date,
+                        *date,
+                        DayCountContext {
+                            frequency: Some(bond.cashflow_spec.frequency()),
+                            ..DayCountContext::default()
+                        },
+                    )?;
                     let df_base = disc.df_between_dates(quote_date, *date)?;
                     Ok((t, df_base, amount.amount()))
                 },
@@ -321,8 +330,17 @@ impl MetricCalculator for ZSpreadCalculator {
             // Use accrued at quote_date for dirty price calculation
             quote_ctx.dirty_from_clean_pct(clean_px, bond.notional.amount())
         } else {
-            // Fallback to base PV if no market quote
-            context.base_value.amount()
+            // Fallback: forward-value the model PV (at `as_of`) to the
+            // quote/settlement date, matching the YTM fallback. The kernel
+            // discounts from `quote_date`, so an un-carried PV target would
+            // bias the solved spread by the settlement-period carry.
+            crate::instruments::fixed_income::bond::pricing::settlement::model_dirty_at_quote_date(
+                bond,
+                &context.curves,
+                context.as_of,
+                quote_ctx.quote_date,
+                context.base_value.amount(),
+            )?
         };
 
         // Build the same quote-date/workout-path repricing kernel used by

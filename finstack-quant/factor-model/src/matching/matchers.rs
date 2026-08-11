@@ -61,6 +61,19 @@ pub enum FactorMatchError {
         /// Number of hierarchy levels expected.
         expected: usize,
     },
+    /// A runtime tag value read from instrument metadata contains the `'.'`
+    /// bucket-path separator, which would mis-segment bucket paths and
+    /// factor identifiers.
+    #[error(
+        "credit-hierarchical matcher: tag value {value:?} for dimension '{dimension}' \
+         contains '.', which is reserved as the bucket-path separator"
+    )]
+    InvalidTagValue {
+        /// Hierarchy dimension key whose value is invalid.
+        dimension: String,
+        /// The offending tag value.
+        value: String,
+    },
 }
 
 /// Matches a market dependency and instrument attributes to factor identifiers.
@@ -166,6 +179,18 @@ pub struct FactorNode {
 }
 
 /// Tree-based matcher where the deepest matching factor assignment wins.
+///
+/// # Tie-breaking
+///
+/// Depth is compared **globally across the whole tree**, not per branch: a
+/// depth-2 node under one subtree beats a depth-1 node under a sibling
+/// subtree even when the two encode unrelated classification axes. When two
+/// matches occur at **equal depth** in different sibling subtrees, the one
+/// found first in child declaration order wins — reordering `children` in
+/// the config can therefore change factor assignment for attribute sets
+/// that match multiple subtrees at the same depth. Configs that rely on a
+/// specific winner should encode it as depth (more specific = deeper), not
+/// as declaration order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HierarchicalMatcher {
     dependency_filter: DependencyFilter,
@@ -235,6 +260,17 @@ impl FactorMatcher for HierarchicalMatcher {
 // CascadeMatcher
 
 /// Ordered matcher chain that returns the first successful factor match.
+///
+/// # Error semantics
+///
+/// A member matcher **error** (e.g. a credit matcher's
+/// [`FactorMatchError::MissingRequiredTag`]) is terminal: it propagates
+/// immediately and later members are *not* consulted. This is deliberate
+/// fail-closed behavior — an error means the dependency *should* have been
+/// handled by that member but its inputs are inconsistent, and falling
+/// through to a coarser matcher would silently mis-map risk that was meant
+/// to be mapped precisely. Only a clean non-match (`Ok(None)`) falls
+/// through to the next member.
 pub struct CascadeMatcher {
     matchers: Vec<Box<dyn FactorMatcher>>,
 }

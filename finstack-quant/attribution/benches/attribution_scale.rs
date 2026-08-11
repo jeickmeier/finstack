@@ -293,6 +293,7 @@ fn build_credit_model_for_n(n: usize) -> CreditFactorModel {
                 adder_vol_annualized: 0.01,
                 adder_vol_source: AdderVolSource::Default,
                 fit_quality: None,
+                level_fit_quality: vec![],
             }
         })
         .collect();
