@@ -11,11 +11,15 @@
 #   - `*-lint`                         — check-only (CI-safe, no mutation)
 
 [tools]
-# 1.91 is the active toolchain. Nightly is also installed because
-# cargo-public-api (used by `mise run rust-doc`) can only build rustdoc JSON
-# with nightly; see scripts/check_public_api_input_docs.py.
+# Pin the active toolchain to an exact rustup name (1.91.1), not the bare
+# channel (1.91). mise resolves `1.91` → installs `1.91.1`, while
+# RUSTUP_TOOLCHAIN=1.91 would then make parallel `cargo:*` installs each
+# race to fetch the `1.91` channel (rustup download rename / os error 2).
+# Nightly is also installed because cargo-public-api (used by
+# `mise run rust-doc`) can only build rustdoc JSON with nightly; see
+# scripts/check_public_api_input_docs.py.
 rust = [
-  { version = "1.91", components = "clippy,rustfmt", targets = "wasm32-unknown-unknown", profile = "minimal" },
+  { version = "1.91.1", components = "clippy,rustfmt", targets = "wasm32-unknown-unknown", profile = "minimal" },
   { version = "nightly", profile = "minimal" },
 ]
 node = "24"
@@ -31,8 +35,9 @@ node = "24"
 CARGO_INCREMENTAL = "{{ env.CARGO_INCREMENTAL | default(value='1') }}"
 CARGO_HOME = "{{ env.CARGO_HOME | default(value=env.HOME ~ '/.cargo') }}"
 RUSTUP_HOME = "{{ env.RUSTUP_HOME | default(value=env.HOME ~ '/.rustup') }}"
-# Keep builds on 1.91 when mise also provisions nightly for rustdoc JSON.
-RUSTUP_TOOLCHAIN = "{{ env.RUSTUP_TOOLCHAIN | default(value='1.91') }}"
+# Keep builds on the pinned stable toolchain when mise also provisions
+# nightly for rustdoc JSON. Must match the rust tool version name above.
+RUSTUP_TOOLCHAIN = "{{ env.RUSTUP_TOOLCHAIN | default(value='1.91.1') }}"
 UV_PYTHON_DOWNLOADS = "{{ env.UV_PYTHON_DOWNLOADS | default(value='never') }}"
 
 # ─────────────────────────────────────────────────────────────────

@@ -36,6 +36,9 @@ jobs:
         uses: jdx/mise-action@v4
         with:
           cache: true
+        env:
+          # rustup download cache is not concurrency-safe under parallel cargo:*.
+          MISE_JOBS: "1"
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
