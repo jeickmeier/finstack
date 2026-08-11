@@ -238,18 +238,24 @@ mod tests {
         let market = MarketContext::new().insert(curve);
 
         let quote_date = settlement_date(&bond, as_of).expect("settlement date");
-        assert!(quote_date > as_of, "T+2 quote date must follow the trade date");
+        assert!(
+            quote_date > as_of,
+            "T+2 quote date must follow the trade date"
+        );
 
         let pv_as_of = 987_654.321;
-        let carried = model_dirty_at_quote_date(&bond, &market, as_of, quote_date, pv_as_of)
-            .expect("carry");
+        let carried =
+            model_dirty_at_quote_date(&bond, &market, as_of, quote_date, pv_as_of).expect("carry");
         let disc = market.get_discount("USD-OIS").expect("curve");
         let df = relative_df_discount_curve(disc.as_ref(), as_of, quote_date).expect("df");
         assert!((carried - pv_as_of / df).abs() < 1e-9);
-        assert!(carried > pv_as_of, "positive rates must carry the PV upward");
+        assert!(
+            carried > pv_as_of,
+            "positive rates must carry the PV upward"
+        );
 
-        let unchanged = model_dirty_at_quote_date(&bond, &market, as_of, as_of, pv_as_of)
-            .expect("no-op carry");
+        let unchanged =
+            model_dirty_at_quote_date(&bond, &market, as_of, as_of, pv_as_of).expect("no-op carry");
         assert_eq!(unchanged, pv_as_of);
     }
 

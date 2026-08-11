@@ -461,9 +461,9 @@ mod calibration_pipeline {
         })
     }
 
-    fn wavy(n: usize, base: f64, amp: f64, freq: f64) -> Vec<f64> {
+    fn wavy(n: usize, base: f64, amp: f64, frequency: f64) -> Vec<f64> {
         (0..n)
-            .map(|i| base + amp * ((i as f64) * freq).sin())
+            .map(|i| base + amp * ((i as f64) * frequency).sin())
             .collect()
     }
 
@@ -559,7 +559,7 @@ mod calibration_pipeline {
             ("F", 3.1),
         ]
         .into_iter()
-        .map(|(id, freq)| (id, "TECH", wavy(n, 100.0, 10.0, freq)))
+        .map(|(id, frequency)| (id, "TECH", wavy(n, 100.0, 10.0, frequency)))
         .collect();
         let model = calibrate(PipelineCase {
             policy: IssuerBetaPolicy::Dynamic {
