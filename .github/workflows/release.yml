@@ -90,6 +90,10 @@ jobs:
           # Windows wheel builds have hit rustc-version skew from cached artifacts
           # (E0514). Keep sccache for Unix wheels, but force clean Windows compiles.
           sccache: ${{ runner.os != 'Windows' }}
+        env:
+          # mise.toml defaults CARGO_INCREMENTAL=1 for local/dev builds; sccache
+          # refuses to wrap rustc when incremental compilation is enabled.
+          CARGO_INCREMENTAL: "0"
 
       # Linux arm64 remains build-only until the project selects a native arm64 runner.
       - name: Install built wheel
