@@ -15,9 +15,13 @@ on:
         type: boolean
         default: false
 
+# Keep workflow_dispatch publishes and workflow_run auto-releases in separate
+# groups, and never cancel in-progress Release runs. A skipped PR Build echo
+# previously cancelled a healthy multi-platform publish mid-wheel-build
+# (Release #120 killed by #121).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
 
 # Managed toolchain versions are pinned in mise.toml.
 # CI uses jdx/mise-action@v4 to provision them, then runs raw commands.
