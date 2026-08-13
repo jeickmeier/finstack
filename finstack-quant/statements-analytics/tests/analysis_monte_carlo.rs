@@ -45,10 +45,10 @@ fn evaluate_monte_carlo_produces_deterministic_results() {
     assert_eq!(res1.percentile_results.len(), res2.percentile_results.len());
 
     let p95_series_1 = res1
-        .get_percentile_series("revenue", 0.95)
+        .percentile_by_period("revenue", 0.95)
         .expect("p95 series");
     let p95_series_2 = res2
-        .get_percentile_series("revenue", 0.95)
+        .percentile_by_period("revenue", 0.95)
         .expect("p95 series");
     assert_eq!(p95_series_1, p95_series_2);
 }
@@ -103,13 +103,13 @@ fn evaluate_monte_carlo_correlated_normals_constant_spread() {
 
     let q3 = PeriodId::quarter(2025, 3);
     let a = res
-        .get_percentile_series("a", 0.5)
+        .percentile_by_period("a", 0.5)
         .expect("a")
         .get(&q3)
         .copied()
         .expect("a q3");
     let b = res
-        .get_percentile_series("b", 0.5)
+        .percentile_by_period("b", 0.5)
         .expect("b")
         .get(&q3)
         .copied()
@@ -170,13 +170,13 @@ fn evaluate_monte_carlo_correlated_lognormals_preserve_ratio() {
 
     let q3 = PeriodId::quarter(2025, 3);
     let a = res
-        .get_percentile_series("a", 0.5)
+        .percentile_by_period("a", 0.5)
         .expect("a")
         .get(&q3)
         .copied()
         .expect("a q3");
     let b = res
-        .get_percentile_series("b", 0.5)
+        .percentile_by_period("b", 0.5)
         .expect("b")
         .get(&q3)
         .copied()

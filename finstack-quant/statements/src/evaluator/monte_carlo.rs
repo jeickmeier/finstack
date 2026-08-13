@@ -120,7 +120,7 @@ pub struct MonteCarloResults {
 
 impl MonteCarloResults {
     /// Get a time series of a specific percentile for a metric.
-    pub fn get_percentile_series(
+    pub fn percentile_by_period(
         &self,
         metric: &str,
         percentile: f64,

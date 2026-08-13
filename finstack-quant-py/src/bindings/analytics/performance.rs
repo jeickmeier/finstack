@@ -1003,6 +1003,10 @@ impl PyPerformance {
     }
 
     /// Drawdown series for each ticker.
+    ///
+    /// Despite the ``_series`` suffix (which mirrors the Rust name) this is a
+    /// nested ``list[list[float]]`` panel, not a :class:`pandas.Series`. Use
+    /// :meth:`to_drawdown_series_dataframe` for the tabular view.
     fn drawdown_series(&self) -> Vec<Vec<f64>> {
         self.inner.drawdown_series()
     }

@@ -65,9 +65,14 @@ from finstack_quant.finstack_quant import portfolio as _portfolio
 
 FinstackError = _portfolio.FinstackError
 PortfolioError = _portfolio.PortfolioError
-FinstackValuationError = _portfolio.FinstackValuationError
-FinstackFxError = _portfolio.FinstackFxError
-FinstackOptimizationError = _portfolio.FinstackOptimizationError
+ValuationError = _portfolio.ValuationError
+FxError = _portfolio.FxError
+OptimizationError = _portfolio.OptimizationError
+# Deprecated aliases for the pre-rename names; the same class objects, so
+# `except FinstackFxError` still catches what it always did.
+FinstackValuationError = ValuationError
+FinstackFxError = FxError
+FinstackOptimizationError = OptimizationError
 ContractValidationError = _portfolio.ContractValidationError
 UnsupportedContractVersionError = _portfolio.UnsupportedContractVersionError
 MissingContractVersionError = _portfolio.MissingContractVersionError
@@ -243,6 +248,9 @@ __all__: list[str] = [
     "FinstackFxError",
     "FinstackOptimizationError",
     "FinstackValuationError",
+    "FxError",
+    "OptimizationError",
+    "ValuationError",
     "GridAttributionResult",
     "GridCarinoLinkedResult",
     "Inequality",

@@ -111,7 +111,11 @@ impl PyValuationResult {
         self.inner.metric_str(key)
     }
 
-    /// Return decoded component vectors and values for a composite base metric.
+    /// Decoded component vectors and values for a composite base metric.
+    ///
+    /// Despite the ``_series`` suffix (which mirrors the Rust name) this is a
+    /// plain ``list`` of tuples, not a :class:`pandas.Series`. Use
+    /// :meth:`to_metrics_dataframe` for the tabular view.
     ///
     /// Results preserve the underlying ``measures`` insertion order. Legacy
     /// malformed escapes remain literal, and decoded-coordinate collisions

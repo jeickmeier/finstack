@@ -294,9 +294,9 @@ class TestPortfolioNamespace:
         from finstack_quant.portfolio import (  # noqa: F401
             FactorPnlProfile,
             FactorRiskDecomposition,
-            FinstackFxError,
-            FinstackOptimizationError,
-            FinstackValuationError,
+            FxError,
+            OptimizationError,
+            ValuationError,
             Portfolio,
             PortfolioError,
             PortfolioResult,

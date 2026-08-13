@@ -347,7 +347,7 @@ class MonteCarloResults:
         """
         ...
 
-    def get_percentile_series(self, metric: str, percentile: float) -> dict[str, float] | None:
+    def percentile_by_period(self, metric: str, percentile: float) -> dict[str, float] | None:
         """
         Look up one percentile of one metric as a period-keyed dict.
 

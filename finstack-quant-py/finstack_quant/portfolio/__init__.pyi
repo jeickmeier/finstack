@@ -22,6 +22,7 @@ from finstack_quant.core.market_data import DiscountCurve, MarketContext
 from finstack_quant.core.money import Money
 from finstack_quant.core.table import ArrowTable
 from finstack_quant.factor_model.credit import CreditFactorModel
+from finstack_quant.portfolio import schema as schema
 from finstack_quant.scenarios import ApplicationReport
 
 __all__ = [
@@ -31,6 +32,9 @@ __all__ = [
     "FinstackFxError",
     "FinstackOptimizationError",
     "FinstackValuationError",
+    "FxError",
+    "OptimizationError",
+    "ValuationError",
     "InstrumentArtifactCache",
     "MalformedContractSchemaError",
     "MaterializationReport",
@@ -207,38 +211,47 @@ class PortfolioError(FinstackError):
     'invalid portfolio'
     """
 
-class FinstackValuationError(PortfolioError):
+class ValuationError(PortfolioError):
     """
     Portfolio valuation failure.
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import FinstackValuationError
-    >>> str(FinstackValuationError("valuation failed"))
+    >>> from finstack_quant.portfolio import ValuationError
+    >>> str(ValuationError("valuation failed"))
     'valuation failed'
     """
 
-class FinstackFxError(PortfolioError):
+class FxError(PortfolioError):
     """
     Portfolio FX conversion or market-data failure.
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import FinstackFxError
-    >>> str(FinstackFxError("missing FX rate"))
+    >>> from finstack_quant.portfolio import FxError
+    >>> str(FxError("missing FX rate"))
     'missing FX rate'
     """
 
-class FinstackOptimizationError(PortfolioError):
+class OptimizationError(PortfolioError):
     """
     Portfolio optimization failure.
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import FinstackOptimizationError
-    >>> str(FinstackOptimizationError("infeasible"))
+    >>> from finstack_quant.portfolio import OptimizationError
+    >>> str(OptimizationError("infeasible"))
     'infeasible'
     """
+
+FinstackValuationError = ValuationError
+"""Deprecated alias for :class:`ValuationError`; the same class object."""
+
+FinstackFxError = FxError
+"""Deprecated alias for :class:`FxError`; the same class object."""
+
+FinstackOptimizationError = OptimizationError
+"""Deprecated alias for :class:`OptimizationError`; the same class object."""
 
 class ContractValidationError(FinstackError):
     """
@@ -1525,7 +1538,7 @@ class PortfolioCashflows:
         ValueError
             If the market JSON, currency, or date is invalid, or monetary
             aggregation cannot represent the result.
-        FinstackFxError
+        FxError
             If an FX rate required for base-currency conversion is unavailable.
         """
         ...
@@ -2454,7 +2467,7 @@ def aggregate_metrics(
     PortfolioError
         If the valuation base currency or date is inconsistent with the
         requested aggregation context.
-    FinstackFxError
+    FxError
         If an FX rate required for base-currency aggregation is unavailable.
 
     Examples
@@ -2506,7 +2519,7 @@ def aggregate_metrics_json(
         If supplied JSON, ``base_currency``, or ``as_of`` is invalid.
     PortfolioError
         If the valuation is inconsistent with the aggregation context.
-    FinstackFxError
+    FxError
         If a required FX rate is unavailable.
 
     Examples
@@ -13986,11 +13999,11 @@ def optimize_portfolio(
         If supplied market JSON is malformed or schema-incompatible.
     PortfolioError
         If the embedded portfolio specification cannot be constructed.
-    FinstackValuationError
+    ValuationError
         If a required position metric cannot be valued.
-    FinstackFxError
+    FxError
         If a required base-currency conversion is unavailable.
-    FinstackOptimizationError
+    OptimizationError
         If the optimization problem or solver fails.
 
     Examples
