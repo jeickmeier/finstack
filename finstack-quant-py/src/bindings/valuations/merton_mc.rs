@@ -272,6 +272,17 @@ impl PyPathStatistics {
     fn pik_exercise_rate(&self) -> f64 {
         self.inner.pik_exercise_rate
     }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// The inner type is not `Serialize`, so the headline statistics are
+    /// rendered directly.
+    fn __repr__(&self) -> String {
+        format!(
+            "PathStatistics(default_rate={}, avg_recovery_pct={}, pik_exercise_rate={})",
+            self.inner.default_rate, self.inner.avg_recovery_pct, self.inner.pik_exercise_rate
+        )
+    }
 }
 
 // MertonMcResult
@@ -354,6 +365,17 @@ impl PyMertonMcResult {
     #[getter]
     fn standard_error(&self) -> f64 {
         self.inner.standard_error
+    }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// The inner type is not `Serialize`, so the headline results are
+    /// rendered directly.
+    fn __repr__(&self) -> String {
+        format!(
+            "MertonMcResult(clean_price_pct={}, effective_spread_bp={}, expected_loss={})",
+            self.inner.clean_price_pct, self.inner.effective_spread_bp, self.inner.expected_loss
+        )
     }
 }
 

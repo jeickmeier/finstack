@@ -20,6 +20,7 @@ pub(crate) mod module_utils;
 pub mod monte_carlo;
 pub(crate) mod pandas_utils;
 pub(crate) mod pickle_support;
+pub(crate) mod repr_support;
 pub mod portfolio;
 pub mod scenarios;
 pub mod schema;

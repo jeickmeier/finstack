@@ -203,6 +203,15 @@ impl PyGeneratorMatrix {
     fn round_trip_error(&self) -> f64 {
         self.inner.round_trip_error()
     }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("GeneratorMatrix", &self.inner)
+    }
 }
 
 #[pyclass(

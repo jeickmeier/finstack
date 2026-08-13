@@ -199,6 +199,15 @@ impl PySimpleLeaseSpec {
         let frame = self.to_dataframe(py).ok()?;
         frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("SimpleLeaseSpec", &self.inner)
+    }
 }
 
 // RentStepSpec / FreeRentWindowSpec / RenewalSpec
@@ -260,6 +269,15 @@ impl PyRentStepSpec {
         let inner: rust_re::RentStepSpec = serde_json::from_str(json).map_err(display_to_py)?;
         Ok(Self { inner })
     }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("RentStepSpec", &self.inner)
+    }
 }
 
 /// Free rent (concession) window that zeros out rent for ``periods`` starting at ``start``.
@@ -316,6 +334,15 @@ impl PyFreeRentWindowSpec {
         let inner: rust_re::FreeRentWindowSpec =
             serde_json::from_str(json).map_err(display_to_py)?;
         Ok(Self { inner })
+    }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("FreeRentWindowSpec", &self.inner)
     }
 }
 
@@ -433,6 +460,15 @@ impl PyRenewalSpec {
     fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
         let frame = self.to_dataframe(py).ok()?;
         frame.call_method0("_repr_html_").ok()?.extract().ok()
+    }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("RenewalSpec", &self.inner)
     }
 }
 
@@ -708,6 +744,15 @@ impl PyLeaseSpec {
         let frame = self.to_dataframe(py).ok()?;
         frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("LeaseSpec", &self.inner)
+    }
 }
 
 // RentRollOutputNodes
@@ -814,6 +859,15 @@ impl PyRentRollOutputNodes {
     fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
         let frame = self.to_dataframe(py).ok()?;
         frame.call_method0("_repr_html_").ok()?.extract().ok()
+    }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("RentRollOutputNodes", &self.inner)
     }
 }
 
@@ -935,6 +989,15 @@ impl PyManagementFeeSpec {
         let inner: rust_re::ManagementFeeSpec =
             serde_json::from_str(json).map_err(display_to_py)?;
         Ok(Self { inner })
+    }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("ManagementFeeSpec", &self.inner)
     }
 }
 
@@ -1113,6 +1176,15 @@ impl PyPropertyTemplateNodes {
     fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
         let frame = self.to_dataframe(py).ok()?;
         frame.call_method0("_repr_html_").ok()?.extract().ok()
+    }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("PropertyTemplateNodes", &self.inner)
     }
 }
 

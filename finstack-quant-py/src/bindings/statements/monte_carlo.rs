@@ -117,6 +117,15 @@ impl PyMonteCarloConfig {
     fn include_path_data(&self) -> bool {
         self.inner.include_path_data
     }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("MonteCarloConfig", &self.inner)
+    }
 }
 
 /// Typed results for statement-model Monte Carlo evaluation.
@@ -307,6 +316,15 @@ impl PyMonteCarloResults {
                 dict_to_dataframe(py, &columns, None)
             }
         }
+    }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("MonteCarloResults", &self.inner)
     }
 }
 

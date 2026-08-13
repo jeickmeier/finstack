@@ -181,6 +181,15 @@ impl PyRecoveryAllocation {
     fn deficiency(&self) -> f64 {
         self.inner.deficiency
     }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("RecoveryAllocation", &self.inner)
+    }
 }
 
 /// Result of allocating a distributable estate across claims.
@@ -253,6 +262,15 @@ impl PyRecoveryWaterfallResult {
     fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
         let frame = self.to_dataframe(py).ok()?;
         frame.call_method0("_repr_html_").ok()?.extract().ok()
+    }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("RecoveryWaterfallResult", &self.inner)
     }
 }
 

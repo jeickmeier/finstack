@@ -337,6 +337,15 @@ impl PySimmSensitivities {
         let frame = self.to_dataframe(py).ok()?;
         frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("SimmSensitivities", &self.inner)
+    }
 }
 
 /// ISDA SIMM initial-margin calculator.
@@ -380,6 +389,18 @@ impl PySimmCalculator {
     #[getter]
     fn mpor_days(&self) -> u32 {
         self.inner.mpor_days()
+    }
+
+    /// Identify this calculator in notebooks and logs.
+    ///
+    /// The inner type is not `Serialize`, so the two configuration fields are
+    /// rendered directly.
+    fn __repr__(&self) -> String {
+        format!(
+            "SimmCalculator(version={:?}, mpor_days={})",
+            self.inner.version().as_str(),
+            self.inner.mpor_days()
+        )
     }
 
     /// Calculate SIMM from explicit sensitivities.

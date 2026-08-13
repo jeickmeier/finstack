@@ -144,6 +144,15 @@ impl PySensitivityConfig {
     fn parameter_count(&self) -> usize {
         self.inner.parameters.len()
     }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("SensitivityConfig", &self.inner)
+    }
 }
 
 /// Configuration for comparing two statement results.
@@ -217,6 +226,15 @@ impl PyVarianceConfig {
     #[getter]
     fn periods(&self) -> Vec<String> {
         self.inner.periods.iter().map(ToString::to_string).collect()
+    }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("VarianceConfig", &self.inner)
     }
 }
 
@@ -299,6 +317,15 @@ impl PyScenarioSet {
     #[pyo3(text_signature = "(scenario)")]
     fn trace(&self, scenario: &str) -> PyResult<Vec<String>> {
         self.inner.trace(scenario).map_err(display_to_py)
+    }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("ScenarioSet", &self.inner)
     }
 }
 
@@ -406,6 +433,15 @@ impl PySensitivityResult {
         let frame = self.to_dataframe(py).ok()?;
         frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("SensitivityResult", &self.inner)
+    }
 }
 
 /// One typed variance-report row.
@@ -459,6 +495,15 @@ impl PyVarianceRow {
     #[getter]
     fn pct_var(&self) -> Option<f64> {
         self.inner.pct_var
+    }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("VarianceRow", &self.inner)
     }
 }
 
@@ -561,6 +606,15 @@ impl PyVarianceReport {
         let frame = self.to_dataframe(py).ok()?;
         frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("VarianceReport", &self.inner)
+    }
 }
 
 /// Typed evaluated results for a set of named scenarios.
@@ -606,6 +660,14 @@ impl PyScenarioResults {
     #[getter]
     fn names(&self) -> Vec<String> {
         self.inner.scenarios.keys().cloned().collect()
+    }
+
+    /// Identify this result set in notebooks and logs.
+    ///
+    /// The inner type is not `Serialize`, so the scenario count is rendered
+    /// directly; use :meth:`names` for the full list.
+    fn __repr__(&self) -> String {
+        format!("ScenarioResults(scenarios={})", self.inner.scenarios.len())
     }
 
     fn get(&self, name: &str) -> Option<PyStatementResult> {
@@ -705,6 +767,17 @@ impl PyScenarioDiff {
         &self.inner.baseline
     }
 
+    /// Identify this diff in notebooks and logs.
+    ///
+    /// The inner type is not `Serialize`, so the two scenario labels are
+    /// rendered directly.
+    fn __repr__(&self) -> String {
+        format!(
+            "ScenarioDiff(baseline={:?}, comparison={:?})",
+            self.inner.baseline, self.inner.comparison
+        )
+    }
+
     /// Name of the scenario compared against the baseline.
     #[getter]
     fn comparison(&self) -> &str {
@@ -777,6 +850,15 @@ impl PyBridgeStep {
     #[getter]
     fn contribution(&self) -> f64 {
         self.contribution
+    }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("BridgeStep", &self.driver)
     }
 }
 
@@ -907,6 +989,15 @@ impl PyBridgeChart {
     fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
         let frame = self.to_dataframe(py).ok()?;
         frame.call_method0("_repr_html_").ok()?.extract().ok()
+    }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("BridgeChart", &self.inner)
     }
 }
 
