@@ -161,6 +161,30 @@ impl PySchedule {
 
 #[pymethods]
 impl PySchedule {
+    /// Start a schedule build between two dates.
+    ///
+    /// The canonical entry point, mirroring the ``Type.builder()`` form every
+    /// other builder-backed type uses. Constructing
+    /// :class:`~finstack_quant.core.dates.ScheduleBuilder` directly is
+    /// equivalent.
+    ///
+    /// Parameters
+    /// ----------
+    /// start : datetime.date | str
+    ///     First accrual date.
+    /// end : datetime.date | str
+    ///     Final accrual date.
+    ///
+    /// Returns
+    /// -------
+    /// ScheduleBuilder
+    ///     A fresh builder defaulting to a monthly frequency.
+    #[staticmethod]
+    #[pyo3(text_signature = "(start, end)")]
+    fn builder(start: &Bound<'_, PyAny>, end: &Bound<'_, PyAny>) -> PyResult<PyScheduleBuilder> {
+        PyScheduleBuilder::new(start, end)
+    }
+
     /// Schedule dates as a list of ``datetime.date``.
     #[getter]
     fn dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyAny>>> {

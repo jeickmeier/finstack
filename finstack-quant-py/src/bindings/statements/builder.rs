@@ -66,6 +66,16 @@ pub struct PyModelBuilder {
     inner: Option<BuilderState>,
 }
 
+impl PyModelBuilder {
+    /// Shared constructor behind `ModelBuilder(id)` and
+    /// `FinancialModelSpec.builder(id)`.
+    pub(crate) fn start(id: &str) -> Self {
+        Self {
+            inner: Some(BuilderState::NeedPeriods(ModelBuilder::new(id))),
+        }
+    }
+}
+
 enum BuilderState {
     NeedPeriods(ModelBuilder<finstack_quant_statements::builder::NeedPeriods>),
     Ready(ModelBuilder<finstack_quant_statements::builder::Ready>),
@@ -242,12 +252,13 @@ impl PyMixedNodeBuilder {
 #[pymethods]
 impl PyModelBuilder {
     /// Create a new model builder.
+    ///
+    /// :meth:`FinancialModelSpec.builder` is the canonical entry point and
+    /// returns exactly this value.
     #[new]
     #[pyo3(text_signature = "(id)")]
     fn new(id: &str) -> Self {
-        Self {
-            inner: Some(BuilderState::NeedPeriods(ModelBuilder::new(id))),
-        }
+        Self::start(id)
     }
 
     /// Define periods using a range expression (e.g. ``"2025Q1..Q4"``).

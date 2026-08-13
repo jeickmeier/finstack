@@ -1439,6 +1439,36 @@ class FinancialModelSpec:
     """
 
     @staticmethod
+    def builder(id: str) -> ModelBuilder:
+        """
+        Start a staged model build.
+
+        The canonical entry point, mirroring Rust's
+        ``FinancialModelSpec::builder(id)`` and the ``Type.builder()`` form
+        every other builder-backed type uses. Constructing
+        :class:`ModelBuilder` directly is equivalent.
+
+        Parameters
+        ----------
+        id : str
+            Stable model identifier.
+
+        Returns
+        -------
+        ModelBuilder
+            A fresh builder awaiting ``periods(...)``.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import FinancialModelSpec
+        >>> builder = FinancialModelSpec.builder("demo")
+        >>> _ = builder.periods("2025Q1..Q1")
+        >>> builder.build().id
+        'demo'
+        """
+        ...
+
+    @staticmethod
     def from_json(json: str) -> FinancialModelSpec:
         """
         Deserialize a model specification from JSON text.

@@ -2606,6 +2606,43 @@ class Schedule:
 
     """
 
+    @staticmethod
+    def builder(
+        start: datetime.date | str, end: datetime.date | str
+    ) -> ScheduleBuilder:
+        """
+        Start a schedule build between two dates.
+
+        The canonical entry point, mirroring the ``Type.builder()`` form every
+        other builder-backed type uses. Constructing :class:`ScheduleBuilder`
+        directly is equivalent.
+
+        Parameters
+        ----------
+        start : datetime.date | str
+            First accrual date.
+        end : datetime.date | str
+            Final accrual date.
+
+        Returns
+        -------
+        ScheduleBuilder
+            A fresh builder defaulting to a monthly frequency.
+
+        Examples
+        --------
+        >>> import datetime
+        >>> from finstack_quant.core.dates import Schedule
+        >>> schedule = (
+        ...     Schedule.builder(datetime.date(2025, 1, 15), datetime.date(2025, 7, 15))
+        ...     .frequency("3M")
+        ...     .build()
+        ... )
+        >>> len(schedule.dates)
+        3
+        """
+        ...
+
     @property
     def dates(self) -> list[datetime.date]:
         """

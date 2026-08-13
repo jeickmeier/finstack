@@ -4,7 +4,7 @@
 //! DSL parser, and EBITDA normalization engine.
 
 mod adjustments;
-mod builder;
+pub(crate) mod builder;
 pub(crate) mod capital_structure;
 mod checks;
 mod dsl;
