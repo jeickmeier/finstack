@@ -24,16 +24,16 @@
 //! # References
 //!
 //! - Joe, S., & Kuo, F. Y. (2008). "Constructing Sobol Sequences with Better
-//!   Two-Dimensional Projections." SIAM J. Sci. Comput., 30(5), 2635-2654.
+//!   Two-Dimensional Projections." SIAM J. Sci. Comput., 30(5), 2635-2654. `docs/REFERENCES.md#joe-kuo-2008-sobol`
 //!
 //! - Sobol, I.M. (1967). "Distribution of points in a cube and approximate
-//!   evaluation of integrals." USSR Comp. Math. and Math. Physics, 7(4), 86-112.
+//!   evaluation of integrals." USSR Comp. Math. and Math. Physics, 7(4), 86-112. `docs/REFERENCES.md#sobol-1967`
 //!
 //! - Owen, A. B. (1995). "Randomly Permuted (t,m,s)-Nets and (t,s)-Sequences."
-//!   Monte Carlo and Quasi-Monte Carlo Methods in Scientific Computing, 299-317.
+//!   Monte Carlo and Quasi-Monte Carlo Methods in Scientific Computing, 299-317. `docs/REFERENCES.md#owen-1995-scrambling`
 //!
 //! - Owen, A. B. (1997). "Scrambled Net Variance for Integrals of Smooth Functions."
-//!   Annals of Statistics, 25(4), 1541-1562.
+//!   Annals of Statistics, 25(4), 1541-1562. `docs/REFERENCES.md#owen-1995-scrambling`
 
 use crate::math::special_functions::standard_normal_inv_cdf as inverse_normal_cdf;
 
@@ -235,8 +235,8 @@ impl SobolRng {
     ///
     /// # References
     ///
-    /// - Owen, A. B. (1995). "Randomly Permuted (t,m,s)-Nets and (t,s)-Sequences."
-    /// - Owen, A. B. (1997). "Scrambled Net Variance for Integrals of Smooth Functions."
+    /// - Owen, A. B. (1995). "Randomly Permuted (t,m,s)-Nets and (t,s)-Sequences." `docs/REFERENCES.md#owen-1995-scrambling`
+    /// - Owen, A. B. (1997). "Scrambled Net Variance for Integrals of Smooth Functions." `docs/REFERENCES.md#owen-1995-scrambling`
     fn owen_scramble(&self, value: u32, d: usize) -> f64 {
         // Grid-centred (k + 0.5) / 2^32 mapping, matching
         // `fill_std_normals`: never emits exactly 0.0 (or 1.0), so downstream

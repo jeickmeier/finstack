@@ -34,9 +34,9 @@
 //!
 //! - Jarrow, R. A., Lando, D., & Turnbull, S. M. (1997). "A Markov Model for
 //!   the Term Structure of Credit Risk Spreads." *Review of Financial Studies*,
-//!   10(2), 481-523.
+//!   10(2), 481-523. `docs/REFERENCES.md#jarrow-lando-turnbull-1997`
 //! - Gupton, G. M., Finger, C. C., & Bhatia, M. (1997). *CreditMetrics —
-//!   Technical Document*. J.P. Morgan.
+//!   Technical Document*. J.P. Morgan. `docs/REFERENCES.md#creditmetrics-1997`
 //! - Israel, R., Rosenthal, J., & Wei, J. (2001). "Finding Generators for
 //!   Markov Chains via Empirical Transition Matrices." *Mathematical Finance*,
 //!   11(2), 245-265.

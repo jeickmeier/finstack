@@ -56,51 +56,9 @@ parallel chunking, optional early stopping, and optional path capture.
 
 ## Quick Start
 
-### Generic Engine Example
-
-This is the canonical way to use the crate when you want explicit control over
-the engine, RNG, process, discretization, and payoff.
-
-```rust,no_run
-use finstack_quant_core::currency::Currency;
-use finstack_quant_monte_carlo::prelude::*;
-
-let engine = McEngine::builder()
-    .num_paths(50_000)
-    .seed(7)
-    .uniform_grid(1.0, 252)
-    .parallel(true)
-    .build()
-    .expect("valid Monte Carlo configuration");
-
-let rng = PhiloxRng::new(7);
-let process = GbmProcess::with_params(0.03, 0.01, 0.20)
-    .expect("valid GBM parameters");
-let disc = ExactGbm::new();
-let payoff = EuropeanCall::new(100.0, 1.0, 252);
-let discount_factor = (-0.03_f64).exp();
-
-let result = engine
-    .price(
-        &rng,
-        &process,
-        &disc,
-        &[100.0],
-        &payoff,
-        Currency::USD,
-        discount_factor,
-    )
-    .expect("pricing should succeed");
-
-println!(
-    "price={} stderr={} ci=({}, {}) n={}",
-    result.mean,
-    result.stderr,
-    result.ci_95.0,
-    result.ci_95.1,
-    result.num_paths
-);
-```
+A runnable GBM European example lives in the crate rustdoc
+(`cargo doc -p finstack-quant-monte-carlo --open`). Use `McEngine` when you
+need explicit control over the RNG, process, discretization, and payoff.
 
 ### Pricing With Captured Paths
 
@@ -313,20 +271,9 @@ All payoff and pricer modules are compiled by default:
 
 ## Conventions and Units
 
-Unless a specific process or payoff module says otherwise:
-
-- Rates, dividend yields, and volatilities are quoted in decimals, not basis points.
-- Time values and time-grid coordinates are year fractions.
-- `initial_state` must have length `process.dim()`.
-- `Payoff::value()` returns an undiscounted `Money` amount.
-- `McEngine::price()` and `price_with_capture()` expect a caller-supplied
-  discount factor for the payoff horizon, typically `exp(-rT)` under flat
-  continuous compounding.
-- Captured `payoff_value` snapshots are stored in the payoff's native amount
-  units and are not separately discounted inside each `PathPoint`.
-- Captured cashflows use `positive = inflow`, `negative = outflow`.
-- Captured percentiles, minima, maxima, and medians are computed from the
-  captured subset, not necessarily the full path population.
+Rates, yields, volatilities, year-fraction times, discounting, and captured-path
+statistics are documented in the crate rustdoc. See [`engine`](src/engine) for
+parallel-execution and configuration constraints.
 
 ## Reproducibility and Parallelism
 

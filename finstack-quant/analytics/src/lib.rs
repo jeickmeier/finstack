@@ -45,6 +45,32 @@
 //! - benchmark inputs are assumed pre-aligned to the panel's date grid
 //! - rolling series are right-labeled: each output value is dated by the last
 //!   observation in its window
+//!
+//! # Quick start
+//!
+//! ```
+//! use finstack_quant_analytics::Performance;
+//! use finstack_quant_core::dates::{Date, Month, PeriodKind};
+//!
+//! let dates: Vec<Date> = (1..=10)
+//!     .map(|d| Date::from_calendar_date(2025, Month::January, d).unwrap())
+//!     .collect();
+//! let prices = vec![(0..10).map(|i| 100.0 + i as f64).collect::<Vec<_>>()];
+//! let perf = Performance::new(
+//!     dates,
+//!     prices,
+//!     vec!["SPY".into()],
+//!     None,
+//!     PeriodKind::Daily,
+//! ).unwrap();
+//! assert_eq!(perf.ticker_names(), &["SPY"]);
+//! ```
+//!
+//! # References
+//!
+//! - Sharpe ratio: `docs/REFERENCES.md#sharpe1966`
+//! - Expected shortfall: `docs/REFERENCES.md#artzner1999CoherentRisk`
+//! - Active-portfolio context: `docs/REFERENCES.md#grinoldKahn1999ActivePortfolio`
 
 // Internal re-exports of frequently used `finstack-quant-core` modules.
 // Kept `pub(crate)` so they don't leak into the public API; downstream callers

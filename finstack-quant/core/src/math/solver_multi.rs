@@ -37,15 +37,15 @@
 //!
 //! - **Levenberg-Marquardt**:
 //!   - Levenberg, K. (1944). "A Method for the Solution of Certain Non-Linear Problems
-//!     in Least Squares." *Quarterly of Applied Mathematics*, 2(2), 164-168.
+//!   in Least Squares." *Quarterly of Applied Mathematics*, 2(2), 164-168.
 //!   - Marquardt, D. W. (1963). "An Algorithm for Least-Squares Estimation of Nonlinear
-//!     Parameters." *Journal of the Society for Industrial and Applied Mathematics*, 11(2), 431-441.
+//!   Parameters." *Journal of the Society for Industrial and Applied Mathematics*, 11(2), 431-441.
 //!   - Moré, J. J. (1978). "The Levenberg-Marquardt Algorithm: Implementation and Theory."
-//!     *Numerical Analysis*, Lecture Notes in Mathematics, vol 630.
+//!   *Numerical Analysis*, Lecture Notes in Mathematics, vol 630.
 //!
 //! - **Calibration Applications**:
-//!   - Hagan, P. S., et al. (2002). "Managing Smile Risk." *Wilmott Magazine*, September 2002.
-//!     (SABR calibration techniques)
+//! - Hagan, P. S., et al. (2002). "Managing Smile Risk." *Wilmott Magazine*, September 2002.
+//!   (SABR calibration techniques) `docs/REFERENCES.md#hagan-2002-sabr`
 
 use crate::error::InputError;
 use crate::Result;

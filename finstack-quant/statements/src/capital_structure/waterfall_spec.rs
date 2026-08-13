@@ -230,7 +230,7 @@ pub enum PaymentPriority {
 /// ECF = EBITDA - Taxes - CapEx - ΔWC - Cash Interest Paid
 ///       - Fees Paid Ahead of Prepayment
 ///       - Scheduled Principal Paid Ahead of Prepayment
-/// ```
+///   ```
 ///
 /// Set `cash_interest_node` to override the cash-interest input. If omitted,
 /// contractual cash interest is deducted automatically using the period's

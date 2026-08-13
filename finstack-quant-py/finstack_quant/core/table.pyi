@@ -67,6 +67,10 @@ class ArrowTable:
         -------
         int
             The row count of the underlying Arrow ``RecordBatch``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -79,6 +83,10 @@ class ArrowTable:
         -------
         int
             The column count of the underlying Arrow ``RecordBatch``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -91,6 +99,9 @@ class ArrowTable:
         list[str]
             Field names of the underlying Arrow schema, in column order.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 

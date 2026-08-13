@@ -42,9 +42,9 @@
 //!
 //! # References
 //!
-//! - Hull, J. C. (2018). *Options, Futures, and Other Derivatives*. Chapter 7.
-//! - Tuckman, B., & Serrat, A. (2011). *Fixed Income Securities*. Chapter 4.
-//! - Kahan, W. (1965). "Further Remarks on Reducing Truncation Errors."
+//! - Hull, J. C. (2018). *Options, Futures, and Other Derivatives*. Chapter 7. `docs/REFERENCES.md#hull-options-futures`
+//! - Tuckman, B., & Serrat, A. (2011). *Fixed Income Securities*. Chapter 4. `docs/REFERENCES.md#tuckman-serrat-fixed-income`
+//! - Kahan, W. (1965). "Further Remarks on Reducing Truncation Errors." `docs/REFERENCES.md#kahan-1965`
 
 use crate::instruments::InterestRateSwap;
 use crate::metrics::{MetricCalculator, MetricContext};

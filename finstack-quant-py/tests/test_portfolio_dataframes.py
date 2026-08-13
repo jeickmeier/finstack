@@ -1180,7 +1180,7 @@ def test_portfolio_metrics_to_position_dataframe_is_long_format() -> None:
     df = _portfolio_metrics().to_position_dataframe()
 
     assert isinstance(df, pd.DataFrame)
-    assert list(df.columns) == ["position_id", "currency", "metric_id", "value"]
+    assert list(df.columns) == ["metric_id", "position_id", "currency", "value"]
     assert len(df) == 3
     assert list(df["position_id"]) == ["P1", "P1", "P2"]
     assert df[df["position_id"] == "P2"].iloc[0]["currency"] == "EUR"

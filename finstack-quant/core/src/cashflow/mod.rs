@@ -111,8 +111,8 @@
 //! # References
 //!
 //! - Present value and discounting: `docs/REFERENCES.md#hull-options-futures`
-//! - Fixed-income risk and rate interpretation:
-//!   `docs/REFERENCES.md#tuckman-serrat-fixed-income`
+//! - Fixed-income risk and rate interpretation: `docs/REFERENCES.md#tuckman-serrat-fixed-income`
+//!
 
 mod discounting;
 mod primitives;

@@ -35,10 +35,10 @@
 //! # References
 //!
 //! - Tsiveriotis, K., & Fernandes, C. (1998). "Valuing Convertible Bonds with
-//!   Credit Risk." *Journal of Fixed Income*, 8(2), 95-102.
+//!   Credit Risk." *Journal of Fixed Income*, 8(2), 95-102. `docs/REFERENCES.md#tsiveriotis-fernandes-1998`
 //!
 //! - Ayache, E., Forsyth, P. A., & Vetzal, K. R. (2003). "Valuation of
-//!   Convertible Bonds with Credit Risk." *Journal of Derivatives*, 11(1), 9-29.
+//!   Convertible Bonds with Credit Risk." *Journal of Derivatives*, 11(1), 9-29. `docs/REFERENCES.md#ayache-forsyth-vetzal-2003`
 //!
 //! # See Also
 //!

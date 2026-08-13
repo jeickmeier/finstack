@@ -11,14 +11,18 @@ The current package exposes these top-level namespaces:
 
 - `core`
 - `analytics`
+- `attribution`
+- `cashflows`
+- `covenants`
+- `factor_model` (includes nested `factor_model.credit`)
+- `features`
 - `margin`
 - `monte_carlo`
 - `portfolio`
 - `scenarios`
 - `statements`
 - `statements_analytics`
-- `cashflows`
-- `valuations` (includes nested `valuations.correlation`)
+- `valuations` (includes nested `valuations.correlation`, `valuations.instruments`, `valuations.fx`, `valuations.credit`, and `valuations.creditDerivatives`)
 
 These namespaces are assembled in `index.js` from the files under `exports/`,
 while the Rust binding implementations live under `src/api/`.
@@ -29,8 +33,8 @@ while the Rust binding implementations live under `src/api/`.
 - `index.d.ts`: package-level TypeScript declarations.
 - `exports/`: per-domain JavaScript namespace shims.
 - `src/api/`: Rust bindings grouped by workspace domain.
-- `tests/`: wasm integration coverage for analytics, margin, Monte Carlo,
-  portfolio, scenarios, statements, statements analytics, cashflows, and valuations.
+- `tests/`: wasm integration coverage for the published namespaces, plus
+  facade and TypeScript-declaration contract tests.
 - `pkg/` and `pkg-node/`: generated web and Node.js build output.
 
 ## Type Declaration Strategy

@@ -54,6 +54,10 @@ def pct(x: Any, dp: int = 1, signed: bool = False) -> str:
     str
         Percentage-point value with the requested precision and sign convention.
 
+    Notes:
+    -----
+    This helper does not raise; missing or non-finite inputs render as ``·``.
+
     Examples:
     --------
     >>> from finstack_quant.reporting.format import pct
@@ -80,6 +84,10 @@ def ratio(x: Any, dp: int = 2) -> str:
     -------
     str
         Unitless ratio rounded to the requested decimal precision.
+
+    Notes:
+    -----
+    This helper does not raise; missing or non-finite inputs render as ``·``.
 
     Examples:
     --------
@@ -109,6 +117,10 @@ def money(amount: Any, currency: str | None = None, dp: int = 2) -> str:
     str
         Grouped amount followed by the currency code when one is supplied.
 
+    Notes:
+    -----
+    This helper does not raise; missing or non-finite inputs render as ``·``.
+
     Examples:
     --------
     >>> from finstack_quant.reporting.format import money
@@ -134,6 +146,10 @@ def sign_class(x: Any) -> str:
     str
         ``"pos"`` for positive values, ``"neg"`` for negative values, otherwise ``""``.
 
+    Notes:
+    -----
+    This helper does not raise; missing or zero values yield an empty class.
+
     Examples:
     --------
     >>> from finstack_quant.reporting.format import sign_class
@@ -157,6 +173,10 @@ def fmt_date(d: Any) -> str:
     -------
     str
         Human-readable day, abbreviated month, and four-digit year.
+
+    Notes:
+    -----
+    This helper does not raise; values without ``strftime`` are converted with ``str``.
 
     Examples:
     --------

@@ -15,9 +15,9 @@
 //!
 //! # References
 //!
-//! - Garman, M. B., & Kohlhagen, S. W. (1983), "Foreign Currency Option Values"
-//! - Brigo, D., & Mercurio, F. (2006), "Interest Rate Models—Theory and Practice"
-//! - Hull, J. C., "Options, Futures, and Other Derivatives" (quanto adjustment overview)
+//! - Garman, M. B., & Kohlhagen, S. W. (1983), "Foreign Currency Option Values" `docs/REFERENCES.md#garman-kohlhagen-1983`
+//! - Brigo, D., & Mercurio, F. (2006), "Interest Rate Models—Theory and Practice" `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
+//! - Hull, J. C., "Options, Futures, and Other Derivatives" (quanto adjustment overview) `docs/REFERENCES.md#hull-options-futures`
 //!
 //! # Quanto Adjustment
 //!

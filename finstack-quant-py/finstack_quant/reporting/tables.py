@@ -31,6 +31,10 @@ def scroll(inner_html: str) -> str:
     str
         HTML ``div`` containing the supplied markup with the scrolling CSS class.
 
+    Notes:
+    -----
+    This helper does not raise; it wraps the supplied markup without parsing it.
+
     Examples:
     --------
     >>> from finstack_quant.reporting.tables import scroll
@@ -52,6 +56,10 @@ def kv_table(rows: list[tuple[str, str, str]]) -> str:
     -------
     str
         Escaped two-column HTML table in the supplied row order.
+
+    Notes:
+    -----
+    This helper does not raise; cell values are escaped and missing numbers use the report placeholder.
 
     Examples:
     --------
@@ -90,6 +98,10 @@ def data_table(
     -------
     str
         HTML table with the requested columns, formatting, and negative-value classes.
+
+    Notes:
+    -----
+    This helper does not raise; cell values are escaped and missing numbers use the report placeholder.
 
     Examples:
     --------
@@ -132,6 +144,10 @@ def heatmap(rows: list[tuple[int, list[Any], Any]], *, theme: Theme) -> str:
     -------
     str
         HTML table containing month cells and the annual total for each year.
+
+    Notes:
+    -----
+    This helper does not raise; cell values are escaped and missing numbers use the report placeholder.
 
     Examples:
     --------

@@ -16,8 +16,8 @@ configuration, and the expression engine.
 - **Math and numerics**: interpolation, solvers, integration, statistics,
   summation, volatility helpers
 - **Expression engine**: AST-based scalar evaluation for time-series formulas
-- **Credit and factor model**: migration matrices, PD/LGD helpers, covariance
-  and matching utilities
+- **Credit primitives**: migration matrices, PD/LGD helpers, scoring, and
+  recovery-waterfall utilities
 - **Configuration**: rounding policies and shared runtime settings
 
 ## API documentation
@@ -27,8 +27,9 @@ documentation commands under [Verification](#verification) to build and test it.
 
 ## Cargo features
 
-`finstack-quant-core` defines no crate-local Cargo features. Serde wire formats,
-tracing hooks, and golden-test helpers compile unconditionally.
+`finstack-quant-core` defines no crate-local Cargo features. Serde wire formats
+and tracing hooks compile unconditionally. Golden-test helpers live in
+`finstack-quant-test-utils`.
 
 ## Usage
 
@@ -51,9 +52,12 @@ finstack-quant = { path = "../finstack-quant" }
 Use adjacent crates for domain-specific workflows:
 
 - `finstack-quant-cashflows` — schedule construction and accrual
-- `finstack-quant-valuations` — pricing, metrics, calibration, attribution
+- `finstack-quant-valuations` — pricing, metrics, and calibration
+- `finstack-quant-attribution` — multi-period P&L attribution
+- `finstack-quant-factor-model` — factor covariance, matching, and credit hierarchy
 - `finstack-quant-statements` — financial statement modeling
 - `finstack-quant-analytics` — return-series performance and risk analytics
+- `finstack-quant-test-utils` — workspace golden-test helpers
 
 ## Verification
 

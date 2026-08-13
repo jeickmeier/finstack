@@ -44,6 +44,11 @@ use pyo3::prelude::*;
 /// -------
 /// float
 ///     Present-value option price in the underlying's currency units.
+///
+/// Sources
+/// -------
+/// - Fang-Oosterlee (2008): see docs/REFERENCES.md#fang-oosterlee-2008
+/// - Black-Scholes (1973): see docs/REFERENCES.md#black-scholes-1973
 #[pyfunction]
 #[pyo3(signature = (spot, strike, rate, dividend, vol, maturity, is_call, n_terms=None))]
 #[allow(clippy::too_many_arguments)]
@@ -104,6 +109,11 @@ fn bs_cos_price(
 /// -------
 /// float
 ///     Present-value option price.
+///
+/// Sources
+/// -------
+/// - Fang-Oosterlee (2008): see docs/REFERENCES.md#fang-oosterlee-2008
+/// - Madan-Carr-Chang (1998): see docs/REFERENCES.md#madan-carr-chang-1998
 #[pyfunction]
 #[pyo3(signature = (spot, strike, rate, dividend, sigma, theta, nu, maturity, is_call, n_terms=None))]
 #[allow(clippy::too_many_arguments)]
@@ -171,6 +181,11 @@ fn vg_cos_price(
 /// -------
 /// float
 ///     Present-value option price.
+///
+/// Sources
+/// -------
+/// - Fang-Oosterlee (2008): see docs/REFERENCES.md#fang-oosterlee-2008
+/// - Merton jump-diffusion (1976): see docs/REFERENCES.md#merton-1976-jump
 #[pyfunction]
 #[pyo3(signature = (spot, strike, rate, dividend, sigma, mu_jump, sigma_jump, lambda_, maturity, is_call, n_terms=None))]
 #[allow(clippy::too_many_arguments)]

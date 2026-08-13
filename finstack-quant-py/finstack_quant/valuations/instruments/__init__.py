@@ -58,6 +58,8 @@ TrancheBuilder = _valuations.instruments.TrancheBuilder
 TrancheMetrics = _valuations.instruments.TrancheMetrics
 TrancheStructure = _valuations.instruments.TrancheStructure
 validate_instrument_json = _valuations.instruments.validate_instrument_json
+validate_typed_instrument_json = _valuations.instruments.validate_typed_instrument_json
+pretty_instrument_json = _valuations.instruments.pretty_instrument_json
 bond_from_cashflows_json = _valuations.instruments.bond_from_cashflows_json
 price_instrument = _valuations.instruments.price_instrument
 price_instrument_with_metrics = _valuations.instruments.price_instrument_with_metrics
@@ -123,6 +125,7 @@ __all__: list[str] = [
     "list_models_grouped",
     "list_standard_metrics",
     "list_standard_metrics_grouped",
+    "pretty_instrument_json",
     "price_instrument",
     "price_instrument_with_metrics",
     "structured_credit_tranche_breakeven_cdr",
@@ -131,4 +134,5 @@ __all__: list[str] = [
     "structured_credit_tranche_oas",
     "structured_credit_tranche_scenario_table",
     "validate_instrument_json",
+    "validate_typed_instrument_json",
 ]

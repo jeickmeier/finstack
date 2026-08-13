@@ -808,7 +808,8 @@ pub const DEFAULT_MONOTONE_CONVEX_EPSILON: f64 = 1e-14;
 /// # References
 ///
 /// Hagan, P. S., & West, G. (2006). "Interpolation Methods for Curve Construction."
-/// *Applied Mathematical Finance*, 13(2), 89-129.
+/// *Applied Mathematical Finance*, 13(2), 89-129. `docs/REFERENCES.md#hagan-west-monotone-convex`
+///
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MonotoneConvexStrategy {
     /// Discrete forward rates f^d_i for each segment (length n-1).

@@ -55,6 +55,16 @@ fn py_third_friday<'py>(
 }
 
 /// Next quarterly IMM date strictly after `date`.
+///
+/// # Arguments
+///
+/// * `date` - Reference calendar date (`datetime.date`, `datetime.datetime`,
+///   or any object with integer `year`/`month`/`day` attributes).
+///
+/// # Errors
+///
+/// Returns `TypeError` if `date` is not date-like, or `ValueError` if those
+/// attributes do not form a valid calendar date.
 #[pyfunction(name = "next_imm")]
 #[pyo3(text_signature = "(date)")]
 fn py_next_imm<'py>(py: Python<'py>, date: &Bound<'_, PyAny>) -> PyResult<Bound<'py, PyAny>> {
@@ -62,6 +72,15 @@ fn py_next_imm<'py>(py: Python<'py>, date: &Bound<'_, PyAny>) -> PyResult<Bound<
 }
 
 /// True when `date` is a quarterly IMM date.
+///
+/// # Arguments
+///
+/// * `date` - Candidate calendar date (`datetime.date` or date-like).
+///
+/// # Errors
+///
+/// Returns `TypeError` if `date` is not date-like, or `ValueError` if those
+/// attributes do not form a valid calendar date.
 #[pyfunction(name = "is_imm_date")]
 #[pyo3(text_signature = "(date)")]
 fn py_is_imm_date(date: &Bound<'_, PyAny>) -> PyResult<bool> {
@@ -69,6 +88,15 @@ fn py_is_imm_date(date: &Bound<'_, PyAny>) -> PyResult<bool> {
 }
 
 /// True when `date` is a standard CDS roll date.
+///
+/// # Arguments
+///
+/// * `date` - Candidate calendar date (`datetime.date` or date-like).
+///
+/// # Errors
+///
+/// Returns `TypeError` if `date` is not date-like, or `ValueError` if those
+/// attributes do not form a valid calendar date.
 #[pyfunction(name = "is_cds_date")]
 #[pyo3(text_signature = "(date)")]
 fn py_is_cds_date(date: &Bound<'_, PyAny>) -> PyResult<bool> {
@@ -76,6 +104,15 @@ fn py_is_cds_date(date: &Bound<'_, PyAny>) -> PyResult<bool> {
 }
 
 /// Next standard CDS roll date on or after `date`.
+///
+/// # Arguments
+///
+/// * `date` - Reference calendar date (`datetime.date` or date-like).
+///
+/// # Errors
+///
+/// Returns `TypeError` if `date` is not date-like, or `ValueError` if those
+/// attributes do not form a valid calendar date.
 #[pyfunction(name = "next_cds_date")]
 #[pyo3(text_signature = "(date)")]
 fn py_next_cds_date<'py>(py: Python<'py>, date: &Bound<'_, PyAny>) -> PyResult<Bound<'py, PyAny>> {
@@ -83,6 +120,15 @@ fn py_next_cds_date<'py>(py: Python<'py>, date: &Bound<'_, PyAny>) -> PyResult<B
 }
 
 /// Most recent standard CDS roll date on or before `date`.
+///
+/// # Arguments
+///
+/// * `date` - Reference calendar date (`datetime.date` or date-like).
+///
+/// # Errors
+///
+/// Returns `TypeError` if `date` is not date-like, or `ValueError` if those
+/// attributes do not form a valid calendar date.
 #[pyfunction(name = "prev_cds_date")]
 #[pyo3(text_signature = "(date)")]
 fn py_prev_cds_date<'py>(py: Python<'py>, date: &Bound<'_, PyAny>) -> PyResult<Bound<'py, PyAny>> {
@@ -90,6 +136,15 @@ fn py_prev_cds_date<'py>(py: Python<'py>, date: &Bound<'_, PyAny>) -> PyResult<B
 }
 
 /// Most recent semi-annual (March / September) CDS roll on or before `date`.
+///
+/// # Arguments
+///
+/// * `date` - Reference calendar date (`datetime.date` or date-like).
+///
+/// # Errors
+///
+/// Returns `TypeError` if `date` is not date-like, or `ValueError` if those
+/// attributes do not form a valid calendar date.
 #[pyfunction(name = "prev_cds_semiannual_roll")]
 #[pyo3(text_signature = "(date)")]
 fn py_prev_cds_semiannual_roll<'py>(
@@ -100,6 +155,15 @@ fn py_prev_cds_semiannual_roll<'py>(
 }
 
 /// Next semi-annual CDS maturity date after `date`.
+///
+/// # Arguments
+///
+/// * `date` - Reference calendar date (`datetime.date` or date-like).
+///
+/// # Errors
+///
+/// Returns `TypeError` if `date` is not date-like, or `ValueError` if those
+/// attributes do not form a valid calendar date.
 #[pyfunction(name = "next_semiannual_cds_maturity")]
 #[pyo3(text_signature = "(date)")]
 fn py_next_semiannual_cds_maturity<'py>(
@@ -121,6 +185,15 @@ fn py_imm_option_expiry<'py>(
 }
 
 /// Next quarterly IMM option expiry strictly after `date`.
+///
+/// # Arguments
+///
+/// * `date` - Reference calendar date (`datetime.date` or date-like).
+///
+/// # Errors
+///
+/// Returns `TypeError` if `date` is not date-like, or `ValueError` if those
+/// attributes do not form a valid calendar date.
 #[pyfunction(name = "next_imm_option_expiry")]
 #[pyo3(text_signature = "(date)")]
 fn py_next_imm_option_expiry<'py>(
@@ -131,6 +204,15 @@ fn py_next_imm_option_expiry<'py>(
 }
 
 /// Next monthly listed-equity-option expiry strictly after `date`.
+///
+/// # Arguments
+///
+/// * `date` - Reference calendar date (`datetime.date` or date-like).
+///
+/// # Errors
+///
+/// Returns `TypeError` if `date` is not date-like, or `ValueError` if those
+/// attributes do not form a valid calendar date.
 #[pyfunction(name = "next_equity_option_expiry")]
 #[pyo3(text_signature = "(date)")]
 fn py_next_equity_option_expiry<'py>(

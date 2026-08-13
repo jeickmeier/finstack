@@ -47,13 +47,13 @@
 //! # References
 //!
 //! - Cheyette, O. (1994). "Markov Representation of the Heath-Jarrow-Morton
-//!   Model." Working paper.
+//!   Model." Working paper. `docs/REFERENCES.md#jarrow-lando-turnbull-1997`
 //! - Andersen, L. & Piterbarg, V. (2010). *Interest Rate Modeling*, Volume II,
-//!   Chapter 12 (Cheyette / quasi-Gaussian models).
+//!   Chapter 12 (Cheyette / quasi-Gaussian models). `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
 //! - Bayer, C., Friz, P. & Gatheral, J. (2016). "Pricing under rough
-//!   volatility." *Quantitative Finance*, 16(6), 887–904.
+//!   volatility." *Quantitative Finance*, 16(6), 887–904. `docs/REFERENCES.md#bayer-friz-gatheral-2016`
 //! - Gatheral, J., Jaisson, T. & Rosenbaum, M. (2018). "Volatility is rough."
-//!   *Quantitative Finance*, 18(6), 933–949.
+//!   *Quantitative Finance*, 18(6), 933–949. `docs/REFERENCES.md#gatheral-jaisson-rosenbaum-2018`
 //!
 //! # Examples
 //!

@@ -44,11 +44,12 @@
 //!
 //! - Heston, S. L. (1993). "A Closed-Form Solution for Options with Stochastic
 //!   Volatility with Applications to Bond and Currency Options."
-//!   *Review of Financial Studies*, 6(2), 327-343.
+//!   *Review of Financial Studies*, 6(2), 327-343. `docs/REFERENCES.md#heston-1993`
+//!
 //! - Albrecher, H., Mayer, P., Schoutens, W., & Tistaert, J. (2007).
-//!   "The Little Heston Trap." *Wilmott Magazine*, January 2007.
+//!   "The Little Heston Trap." *Wilmott Magazine*, January 2007. `docs/REFERENCES.md#albrecher-2007-little-heston-trap`
 //! - Gatheral, J. (2006). *The Volatility Surface: A Practitioner's Guide*.
-//!   Wiley Finance.
+//!   Wiley Finance. `docs/REFERENCES.md#gatheral-volatility-surface`
 //! - Kahl, C., & Jäckel, P. (2005). "Not-so-complex logarithms in the Heston
 //!   model." *Wilmott Magazine*, September 2005. (Characteristic-function
 //!   tail decay rate used for the quadrature truncation bound.)
@@ -931,9 +932,9 @@ pub enum HestonCfStatus {
 /// # References
 ///
 /// - Albrecher, H., Mayer, P., Schoutens, W., & Tistaert, J. (2007).
-///   "The Little Heston Trap." *Wilmott Magazine*, January 2007.
+///   "The Little Heston Trap." *Wilmott Magazine*, January 2007. `docs/REFERENCES.md#albrecher-2007-little-heston-trap`
 /// - Heston, S. L. (1993). "A Closed-Form Solution for Options with
-///   Stochastic Volatility." *Review of Financial Studies*, 6(2), 327-343.
+///   Stochastic Volatility." *Review of Financial Studies*, 6(2), 327-343. `docs/REFERENCES.md#heston-1993`
 #[must_use]
 pub fn heston_pj_characteristic_function(
     j: u8,
@@ -954,8 +955,8 @@ pub fn heston_pj_characteristic_function(
     let one = Complex64::new(1.0, 0.0);
     let zero = Complex64::new(0.0, 0.0);
 
-    // For P₁: u = 0.5, b = κ − ρσ  (stock numeraire)
-    // For P₂: u = −0.5, b = κ       (money market numeraire)
+    // For P₁: u = 0.5, b = κ − ρσ (stock numeraire)
+    // For P₂: u = −0.5, b = κ (money market numeraire)
     let (u_j, b_j) = if j == 1 {
         (0.5, kappa - rho * sigma)
     } else {

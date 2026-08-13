@@ -326,7 +326,7 @@ pub struct XvaResult {
     ///
     /// # References
     ///
-    /// - Green, A. (2015). *XVA*. Wiley. Chapter 10.
+    /// - Green, A. (2015). *XVA*. Wiley. Chapter 10. `docs/REFERENCES.md#green-xva`
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mva: Option<f64>,
 
@@ -340,8 +340,8 @@ pub struct XvaResult {
     ///
     /// # References
     ///
-    /// - Gregory, J. (2020). *The xVA Challenge*, 4th ed. Wiley. Chapter 14.
-    /// - Green, A. (2015). *XVA*. Wiley. Chapters 9-10.
+    /// - Gregory, J. (2020). *The xVA Challenge*, 4th ed. Wiley. Chapter 14. `docs/REFERENCES.md#gregory-xva-challenge`
+    /// - Green, A. (2015). *XVA*. Wiley. Chapters 9-10. `docs/REFERENCES.md#green-xva`
     pub total_xva: f64,
 
     /// Expected Positive Exposure profile: `(time, EPE(t))`.
@@ -384,7 +384,7 @@ pub struct XvaResult {
     /// # References
     ///
     /// - BCBS 279 (2014). "The standardised approach for measuring
-    ///   counterparty credit risk exposures."
+    ///   counterparty credit risk exposures." `docs/REFERENCES.md#bcbs-279-saccr`
     pub effective_epe_profile: Vec<(f64, f64)>,
 
     /// Time-weighted average of Effective EPE (regulatory scalar metric).
@@ -400,7 +400,7 @@ pub struct XvaResult {
     /// # References
     ///
     /// - BCBS 279 (2014). "The standardised approach for measuring
-    ///   counterparty credit risk exposures."
+    ///   counterparty credit risk exposures." `docs/REFERENCES.md#bcbs-279-saccr`
     pub effective_epe: f64,
 
     /// Policy metadata stamped by the computing layer: numeric mode, active

@@ -62,8 +62,8 @@
 //!
 //! # References
 //!
-//! - Black, F., & Scholes, M. (1973). "The Pricing of Options and Corporate Liabilities."
-//! - Heston, S. L. (1993). "A Closed-Form Solution for Options with Stochastic Volatility."
+//! - Black, F., & Scholes, M. (1973). "The Pricing of Options and Corporate Liabilities." `docs/REFERENCES.md#black-scholes-1973`
+//! - Heston, S. L. (1993). "A Closed-Form Solution for Options with Stochastic Volatility." `docs/REFERENCES.md#heston-1993`
 //!
 //! # See Also
 //!

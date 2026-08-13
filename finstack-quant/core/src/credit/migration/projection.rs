@@ -18,7 +18,7 @@
 //!
 //! - Higham, N. J. (2005). "The Scaling and Squaring Method for the Matrix
 //!   Exponential Revisited." *SIAM Journal on Matrix Analysis and Applications*,
-//!   26(4), 1179-1193.
+//!   26(4), 1179-1193. `docs/REFERENCES.md#higham-accuracy-and-stability`
 //! - Moler, C., & Van Loan, C. (2003). "Nineteen Dubious Ways to Compute the
 //!   Exponential of a Matrix, Twenty-Five Years Later." *SIAM Review*, 45(1), 3-49.
 

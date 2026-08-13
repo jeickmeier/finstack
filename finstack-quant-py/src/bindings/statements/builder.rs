@@ -628,6 +628,187 @@ impl PyModelBuilder {
         Ok(slf)
     }
 
+    /// Add a fixed-rate bond with a market convention preset.
+    ///
+    /// Applies regional day-count, coupon-frequency, and calendar conventions
+    /// automatically; ``add_bond`` uses US corporate conventions instead.
+    ///
+    /// Parameters
+    /// ----------
+    /// id : str
+    ///     Unique instrument identifier.
+    /// notional : Money
+    ///     Principal amount (must be in a valid Currency).
+    /// coupon_rate : float
+    ///     Annual coupon rate as a decimal fraction (e.g. ``0.03`` for 3%).
+    /// issue_date, maturity_date : datetime.date
+    ///     Bond issue and maturity dates.
+    /// convention : str
+    ///     Regional convention preset, as the canonical snake_case
+    ///     identifier: ``"us_treasury"``, ``"us_agency"``, ``"german_bund"``,
+    ///     ``"uk_gilt"``, ``"french_oat"``, ``"jgb"``, or ``"corporate"``.
+    /// discount_curve_id : str
+    ///     Discount curve identifier used for pricing.
+    #[pyo3(
+        text_signature = "($self, id, notional, coupon_rate, issue_date, maturity_date, convention, discount_curve_id)"
+    )]
+    #[allow(clippy::too_many_arguments)]
+    fn add_bond_with_convention<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        id: &str,
+        notional: PyRef<'_, PyMoney>,
+        coupon_rate: f64,
+        issue_date: &Bound<'_, PyAny>,
+        maturity_date: &Bound<'_, PyAny>,
+        convention: &str,
+        discount_curve_id: &str,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let notional = notional.inner;
+        let issue = py_to_date(issue_date)?;
+        let maturity = py_to_date(maturity_date)?;
+        let convention: finstack_quant_valuations::instruments::BondConvention =
+            serde_json::from_value(serde_json::Value::String(convention.to_string())).map_err(
+                |e| {
+                    crate::errors::value_error(format!(
+                        "invalid bond convention {convention:?}: {e}; expected one of \
+                         us_treasury, us_agency, german_bund, uk_gilt, french_oat, jgb, corporate"
+                    ))
+                },
+            )?;
+        let rate = finstack_quant_core::types::Rate::from_decimal(coupon_rate);
+        let state = slf.take_any()?;
+        let next = match state {
+            BuilderState::NeedPeriods(b) => BuilderState::NeedPeriods(
+                b.add_bond_with_convention(
+                    id,
+                    notional,
+                    rate,
+                    issue,
+                    maturity,
+                    convention,
+                    discount_curve_id,
+                )
+                .map_err(statements_to_py)?,
+            ),
+            BuilderState::Ready(b) => BuilderState::Ready(
+                b.add_bond_with_convention(
+                    id,
+                    notional,
+                    rate,
+                    issue,
+                    maturity,
+                    convention,
+                    discount_curve_id,
+                )
+                .map_err(statements_to_py)?,
+            ),
+        };
+        slf.inner = Some(next);
+        Ok(slf)
+    }
+
+    /// Add an interest rate swap with custom leg conventions.
+    ///
+    /// Exposes day-count, frequency, and business-day-convention parameters
+    /// for non-USD swaps (e.g. EUR annual ACT/360 fixed legs); ``add_swap``
+    /// uses US conventions instead.
+    ///
+    /// Parameters
+    /// ----------
+    /// id : str
+    ///     Unique instrument identifier.
+    /// notional : Money
+    ///     Swap notional.
+    /// fixed_rate : float
+    ///     Fixed leg rate (e.g. ``0.04`` for 4%).
+    /// start_date, maturity_date : datetime.date
+    ///     Effective and maturity dates of the swap schedule.
+    /// discount_curve_id, forward_curve_id : str
+    ///     Discount curve and floating-leg forward curve identifiers.
+    /// fixed_frequency : Tenor or str
+    ///     Payment frequency of the fixed leg (e.g. ``"1Y"``).
+    /// fixed_day_count : DayCount
+    ///     Day-count convention applied to the fixed leg.
+    /// float_frequency : Tenor or str
+    ///     Payment / fixing frequency of the floating leg (e.g. ``"3M"``).
+    /// float_day_count : DayCount
+    ///     Day-count convention applied to the floating leg.
+    /// business_day_convention : BusinessDayConvention or str, optional
+    ///     Schedule-date rolling convention (default Modified Following).
+    #[pyo3(
+        signature = (id, notional, fixed_rate, start_date, maturity_date, discount_curve_id, forward_curve_id, fixed_frequency, fixed_day_count, float_frequency, float_day_count, business_day_convention=None),
+        text_signature = "($self, id, notional, fixed_rate, start_date, maturity_date, discount_curve_id, forward_curve_id, fixed_frequency, fixed_day_count, float_frequency, float_day_count, business_day_convention=None)"
+    )]
+    #[allow(clippy::too_many_arguments)]
+    fn add_swap_with_conventions<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        id: &str,
+        notional: PyRef<'_, PyMoney>,
+        fixed_rate: f64,
+        start_date: &Bound<'_, PyAny>,
+        maturity_date: &Bound<'_, PyAny>,
+        discount_curve_id: &str,
+        forward_curve_id: &str,
+        fixed_frequency: &Bound<'_, PyAny>,
+        fixed_day_count: PyRef<'_, crate::bindings::core::dates::daycount::PyDayCount>,
+        float_frequency: &Bound<'_, PyAny>,
+        float_day_count: PyRef<'_, crate::bindings::core::dates::daycount::PyDayCount>,
+        business_day_convention: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let notional = notional.inner;
+        let start = py_to_date(start_date)?;
+        let maturity = py_to_date(maturity_date)?;
+        let fixed_frequency = crate::bindings::core::dates::tenor::extract_tenor(fixed_frequency)?;
+        let float_frequency = crate::bindings::core::dates::tenor::extract_tenor(float_frequency)?;
+        let fixed_day_count = fixed_day_count.inner;
+        let float_day_count = float_day_count.inner;
+        let bdc = match business_day_convention {
+            Some(obj) => {
+                crate::bindings::core::dates::calendar::extract_business_day_convention(obj)?
+            }
+            None => finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
+        };
+        let state = slf.take_any()?;
+        let next = match state {
+            BuilderState::NeedPeriods(b) => BuilderState::NeedPeriods(
+                b.add_swap_with_conventions(
+                    id,
+                    notional,
+                    fixed_rate,
+                    start,
+                    maturity,
+                    discount_curve_id,
+                    forward_curve_id,
+                    fixed_frequency,
+                    fixed_day_count,
+                    float_frequency,
+                    float_day_count,
+                    bdc,
+                )
+                .map_err(statements_to_py)?,
+            ),
+            BuilderState::Ready(b) => BuilderState::Ready(
+                b.add_swap_with_conventions(
+                    id,
+                    notional,
+                    fixed_rate,
+                    start,
+                    maturity,
+                    discount_curve_id,
+                    forward_curve_id,
+                    fixed_frequency,
+                    fixed_day_count,
+                    float_frequency,
+                    float_day_count,
+                    bdc,
+                )
+                .map_err(statements_to_py)?,
+            ),
+        };
+        slf.inner = Some(next);
+        Ok(slf)
+    }
+
     /// Add a debt instrument from its canonical v1 instrument envelope.
     ///
     /// Use this for supported capital-structure instruments not covered by the

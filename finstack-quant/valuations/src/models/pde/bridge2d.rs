@@ -20,10 +20,10 @@
 //! # References
 //!
 //! - Heston, S. L. (1993). "A Closed-Form Solution for Options with Stochastic
-//!   Volatility." *Review of Financial Studies*, 6(2), 327-343.
+//!   Volatility." *Review of Financial Studies*, 6(2), 327-343. `docs/REFERENCES.md#heston-1993`
 //! - In 't Hout, K. J. & Foulon, S. (2010). "ADI finite difference schemes for
 //!   option pricing in the Heston model with correlation." *Int. J. of Numerical
-//!   Analysis and Modeling*, 7(2).
+//!   Analysis and Modeling*, 7(2). `docs/REFERENCES.md#in-t-hout-welfert-2009`
 
 use super::boundary::BoundaryCondition;
 use super::problem2d::PdeProblem2D;

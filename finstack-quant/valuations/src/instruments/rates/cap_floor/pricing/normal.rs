@@ -96,7 +96,7 @@ pub(crate) fn price_caplet_floorlet(
 ///
 /// # References
 ///
-/// - Brigo, D., & Mercurio, F. (2006). *Interest Rate Models*, Ch. 1.
+/// - Brigo, D., & Mercurio, F. (2006). *Interest Rate Models*, Ch. 1. `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
 pub(crate) fn delta(is_cap: bool, strike: f64, forward: f64, sigma: f64, t_fix: f64) -> f64 {
     if t_fix <= 0.0 || sigma <= 0.0 {
         if is_cap {

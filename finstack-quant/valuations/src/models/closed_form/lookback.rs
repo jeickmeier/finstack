@@ -14,10 +14,10 @@
 //!
 //! # References
 //!
-//! - Conze, A., & Viswanathan, R. (1991), "Path Dependent Options: The Case of Lookback Options"
+//! - Conze, A., & Viswanathan, R. (1991), "Path Dependent Options: The Case of Lookback Options" `docs/REFERENCES.md#conze-viswanathan-1991`
 //! - Cheuk, T. H. F., & Vorst, T. C. F. (1997), "Lookback Options and Binomial Trees"
-//! - Haug, E. G. (2007), "The Complete Guide to Option Pricing Formulas", Chapter 6
-//! - Goldman, Sosin & Gatto (1979), "Path Dependent Options: Buy at the Low, Sell at the High"
+//! - Haug, E. G. (2007), "The Complete Guide to Option Pricing Formulas", Chapter 6 `docs/REFERENCES.md#haug-2007-option-formulas`
+//! - Goldman, Sosin & Gatto (1979), "Path Dependent Options: Buy at the Low, Sell at the High" `docs/REFERENCES.md#goldman-sosin-gatto-1979`
 //!
 //! # Types
 //!

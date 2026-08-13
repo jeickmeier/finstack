@@ -701,7 +701,7 @@ impl crate::instruments::common_impl::traits::Instrument for BermudanSwaption {
 ///
 /// - Brenner, M. & Subrahmanyam, M.G. (1988). "A Simple Formula to Compute
 ///   the Implied Standard Deviation"
-/// - Hagan, P. et al. (2002). "Managing Smile Risk" Wilmott Magazine
+/// - Hagan, P. et al. (2002). "Managing Smile Risk" Wilmott Magazine `docs/REFERENCES.md#hagan-2002-sabr`
 /// - Jaeckel, P. (2017). "Let's Be Rational" for exact conversion
 pub(crate) fn lognormal_to_normal_vol(
     sigma_ln: f64,

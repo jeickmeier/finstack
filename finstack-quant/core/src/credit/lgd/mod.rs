@@ -160,7 +160,7 @@ pub fn workout_lgd(
 /// ```text
 /// LGD_downturn = LGD_base + lgd_sensitivity * sqrt(rho)
 ///              * Phi_inv(stress_quantile) * sqrt(LGD_base * (1 - LGD_base))
-/// ```
+///   ```
 ///
 /// # Arguments
 ///

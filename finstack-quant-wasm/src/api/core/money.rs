@@ -186,6 +186,27 @@ impl JsMoney {
     pub fn to_string(&self) -> String {
         self.inner.to_string()
     }
+
+    /// Serialize to a JSON string using the canonical Rust serde schema.
+    ///
+    /// @returns A JSON string carrying the exact decimal amount and the
+    /// ISO-4217 currency code.
+    /// @throws If serialization fails (should not happen for valid `Money`).
+    #[wasm_bindgen(js_name = toJson)]
+    pub fn to_json(&self) -> Result<String, JsValue> {
+        serde_json::to_string(&self.inner).map_err(to_js_err)
+    }
+
+    /// Deserialize from a JSON string produced by `Money.toJson`.
+    ///
+    /// @param json - A JSON string in the canonical Rust `Money` schema.
+    /// @returns The parsed `Money`.
+    /// @throws If `json` is malformed or fails strict schema validation.
+    #[wasm_bindgen(js_name = fromJson)]
+    pub fn from_json(json: &str) -> Result<JsMoney, JsValue> {
+        let inner: RustMoney = serde_json::from_str(json).map_err(to_js_err)?;
+        Ok(JsMoney { inner })
+    }
 }
 
 #[cfg(test)]
@@ -249,6 +270,15 @@ mod tests {
         let s = m.to_string();
         assert!(s.contains("USD"), "expected USD in: {s}");
         assert!(s.contains("10"), "expected 10 in: {s}");
+    }
+
+    #[test]
+    fn json_roundtrip() {
+        let m = JsMoney::new(1234.56, &usd()).expect("valid");
+        let json = m.to_json().expect("serialize");
+        let back = JsMoney::from_json(&json).expect("deserialize");
+        assert_eq!(back.amount_decimal(), m.amount_decimal());
+        assert_eq!(back.currency().code(), "USD");
     }
 
     #[test]

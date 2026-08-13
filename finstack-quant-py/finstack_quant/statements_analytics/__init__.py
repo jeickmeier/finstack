@@ -26,7 +26,7 @@ ScenarioSet = _sa.ScenarioSet
 SensitivityResult = _sa.SensitivityResult
 VarianceRow = _sa.VarianceRow
 VarianceReport = _sa.VarianceReport
-ScenarioResultSet = _sa.ScenarioResultSet
+ScenarioResults = _sa.ScenarioResults
 ScenarioDiff = _sa.ScenarioDiff
 BridgeStep = _sa.BridgeStep
 BridgeChart = _sa.BridgeChart
@@ -131,7 +131,7 @@ __all__: list[str] = [
     "RentRollOutputNodes",
     "RentStepSpec",
     "ScenarioDiff",
-    "ScenarioResultSet",
+    "ScenarioResults",
     "ScenarioSet",
     "ScorecardConfig",
     "ScorecardMetric",

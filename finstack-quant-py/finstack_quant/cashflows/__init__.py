@@ -39,10 +39,19 @@ validate_cashflow_schedule_json = _cashflows.validate_cashflow_schedule_json
 dated_flows_json = _cashflows.dated_flows_json
 accrued_interest = _cashflows.accrued_interest
 
+cpr_to_smm = _cashflows.cpr_to_smm
+smm_to_cpr = _cashflows.smm_to_cpr
+cdr_to_mdr = _cashflows.cdr_to_mdr
+mdr_to_cdr = _cashflows.mdr_to_cdr
+
 for _fn in (
     "accrued_interest",
     "build_cashflow_schedule_json",
+    "cdr_to_mdr",
+    "cpr_to_smm",
     "dated_flows_json",
+    "mdr_to_cdr",
+    "smm_to_cpr",
     "validate_cashflow_schedule_json",
 ):
     globals()[_fn].__module__ = __name__
@@ -53,8 +62,12 @@ __all__: list[str] = [
     "aggregation",
     "build_cashflow_schedule_json",
     "builder",
+    "cdr_to_mdr",
+    "cpr_to_smm",
     "dated_flows_json",
+    "mdr_to_cdr",
     "primitives",
     "schema",
+    "smm_to_cpr",
     "validate_cashflow_schedule_json",
 ]

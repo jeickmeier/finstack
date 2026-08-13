@@ -206,11 +206,11 @@ def test_simulate_gbm_paths_rejects_capture_with_antithetic() -> None:
         simulate_gbm_paths(100.0, 0.05, 0.0, 0.2, 1.0, 4, 3, 42, antithetic=True)
 
 
-def test_heston_feller_delegates_validation_and_strict_condition() -> None:
+def test_heston_feller_uses_inclusive_predicate_without_validation() -> None:
     assert heston_satisfies_feller(2.0, 0.04, 0.3)
-    assert not heston_satisfies_feller(1.0, 0.045, 0.3)
-    with pytest.raises(ValueError, match="kappa"):
-        heston_satisfies_feller(0.0, 0.04, 0.3)
+    assert heston_satisfies_feller(1.0, 0.045, 0.3)
+    assert not heston_satisfies_feller(1.0, 0.04, 0.5)
+    assert not heston_satisfies_feller(0.0, 0.04, 0.3)
 
 
 @pytest.mark.parametrize(

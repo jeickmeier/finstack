@@ -16,13 +16,13 @@ use finstack_quant_valuations::pricer::cos::{
 use wasm_bindgen::prelude::*;
 
 /// Price a European option under the Black-Scholes model using the COS method.
-/// @param spot - Current spot price or exchange rate in the documented quote convention.
+/// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
 /// @param dividend - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
 /// @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
 /// @param maturity - Time to option expiry in years.
-/// @param is_call - Whether to value a call (`true`) or put (`false`); defaults follow the callable's contract.
+/// @param is_call - Whether to value a call (`true`) or put (`false`).
 /// @param n_terms - Optional positive number of COS expansion terms; omit to use the pricer default.
 ///
 /// # Errors
@@ -56,7 +56,7 @@ pub fn bs_cos_price(
 }
 
 /// Price a European option under the Variance Gamma model using the COS method.
-/// @param spot - Current spot price or exchange rate in the documented quote convention.
+/// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
 /// @param dividend - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -64,7 +64,7 @@ pub fn bs_cos_price(
 /// @param theta - Variance-Gamma drift parameter controlling skew in log returns.
 /// @param nu - Variance-Gamma variance-rate parameter; larger values increase tail thickness.
 /// @param maturity - Time to option expiry in years.
-/// @param is_call - Whether to value a call (`true`) or put (`false`); defaults follow the callable's contract.
+/// @param is_call - Whether to value a call (`true`) or put (`false`).
 /// @param n_terms - Optional positive number of COS expansion terms; omit to use the pricer default.
 ///
 /// # Errors
@@ -102,7 +102,7 @@ pub fn vg_cos_price(
 }
 
 /// Price a European option under Merton (1976) jump-diffusion using the COS method.
-/// @param spot - Current spot price or exchange rate in the documented quote convention.
+/// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
 /// @param dividend - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -111,7 +111,7 @@ pub fn vg_cos_price(
 /// @param sigma_jump - Standard deviation of log jump sizes in the Merton jump-diffusion model.
 /// @param lambda - Annual jump-arrival intensity in the Merton jump-diffusion model.
 /// @param maturity - Time to option expiry in years.
-/// @param is_call - Whether to value a call (`true`) or put (`false`); defaults follow the callable's contract.
+/// @param is_call - Whether to value a call (`true`) or put (`false`).
 /// @param n_terms - Optional positive number of COS expansion terms; omit to use the pricer default.
 ///
 /// # Errors

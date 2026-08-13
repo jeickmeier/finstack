@@ -45,11 +45,13 @@
 //!
 //! - Bloomberg L.P. Quantitative Analytics. *Pricing Credit Index Options.*
 //!   DOCS 2055833 ⟨GO⟩, March 2012.
+//!   `docs/REFERENCES.md#bloomberg-cdso`
 //! - Bloomberg L.P. Quantitative Analytics. *The Bloomberg CDS Model.*
 //!   DOCS 2057273 ⟨GO⟩, August 2024.
+//!   `docs/REFERENCES.md#bloomberg-cds-model`
 //! - O'Kane, D. (2008). *Modelling Single-name and Multi-name Credit
 //!   Derivatives*. Wiley Finance, ch. 11 — background on lognormal-spread
-//!   models.
+//!   models. `docs/REFERENCES.md#o-kane-2008`
 //!
 //! # See also
 //!

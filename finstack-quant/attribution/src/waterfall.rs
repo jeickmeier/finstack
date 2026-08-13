@@ -11,7 +11,7 @@
 //!    - Apply that factor's T₁ state while keeping remaining factors at T₀
 //!    - Reprice and record delta
 //!    - Keep that factor at T₁ for remaining steps
-//! 3. Final PV should equal T₁ PV (residual ≈ 0 by construction)
+//!   3. Final PV should equal T₁ PV (residual ≈ 0 by construction)
 //!
 //! # Default Order
 //!
@@ -368,6 +368,16 @@ fn attribute_pnl_waterfall_impl(
     // Policy-visibility invariant: stamp the execution policy the
     // attribution ran under (workspace rule: results carry the parallel flag).
     attribution.meta.execution_policy = Some(ExecutionPolicy::Serial);
+    // Path-order visibility (audit Mo12): waterfall factor P&Ls are
+    // path-dependent, so stamp the executed order into the notes for audit.
+    attribution.meta.notes.push(format!(
+        "waterfall order: {}",
+        factor_order
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(" -> ")
+    ));
 
     // Plan a credit cascade if a model was supplied. Use the canonical single
     // CreditCurves step when planning yields None (no issuer tag, no hazard

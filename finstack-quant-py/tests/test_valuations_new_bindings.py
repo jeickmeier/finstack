@@ -277,8 +277,8 @@ def _revolving_credit_market(*, credit_curve: bool = False) -> MarketContext:
         ForwardCurve(
             "USD-SOFR-3M",
             0.25,
-            [(0.0, 0.03), (5.0, 0.03)],
             date(2024, 1, 1),
+            [(0.0, 0.03), (5.0, 0.03)],
             day_count="act_360",
         )
     )

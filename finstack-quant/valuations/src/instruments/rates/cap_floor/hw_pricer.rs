@@ -19,10 +19,10 @@
 //! # References
 //!
 //! - Hull, J. & White, A. (1990). "Pricing Interest-Rate-Derivative Securities."
-//!   *Review of Financial Studies*, 3(4), 573-592.
+//!   *Review of Financial Studies*, 3(4), 573-592. `docs/REFERENCES.md#hull-white-1990-pricing-ird`
 //! - Brigo, D. & Mercurio, F. (2006). *Interest Rate Models - Theory and Practice*,
 //!   Chapter 3: One-factor Short-Rate Models, Section 3.3.2 (Gaussian forward-rate
-//!   dynamics underpinning the closed-form caplet normal volatility).
+//!   dynamics underpinning the closed-form caplet normal volatility). `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
 
 use crate::calibration::hull_white::{
     capfloor_hw1f_scalar_keys, capfloor_hw1f_sigma_schedule_key,

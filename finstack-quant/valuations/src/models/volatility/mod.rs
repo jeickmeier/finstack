@@ -52,10 +52,10 @@
 //!
 //! # Academic References
 //!
-//! - Black, F., & Scholes, M. (1973). "The Pricing of Options and Corporate Liabilities."
-//! - Hagan, P. S., et al. (2002). "Managing Smile Risk." *Wilmott Magazine*.
-//! - Heston, S. L. (1993). "A Closed-Form Solution for Options with Stochastic Volatility."
-//! - Dupire, B. (1994). "Pricing with a Smile." *Risk Magazine*.
+//! - Black, F., & Scholes, M. (1973). "The Pricing of Options and Corporate Liabilities." `docs/REFERENCES.md#black-scholes-1973`
+//! - Hagan, P. S., et al. (2002). "Managing Smile Risk." *Wilmott Magazine*. `docs/REFERENCES.md#hagan-2002-sabr`
+//! - Heston, S. L. (1993). "A Closed-Form Solution for Options with Stochastic Volatility." `docs/REFERENCES.md#heston-1993`
+//! - Dupire, B. (1994). "Pricing with a Smile." *Risk Magazine*. `docs/REFERENCES.md#dupire-1994`
 //!
 //! # See Also
 //!

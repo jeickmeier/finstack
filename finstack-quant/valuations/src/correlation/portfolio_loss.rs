@@ -89,7 +89,7 @@ pub struct PortfolioLossResult {
 /// - O'Kane, D. (2008). *Modelling Single-name and Multi-name Credit
 ///   Derivatives*. Wiley Finance. Chapter 15 ("Modelling Tranches"), which
 ///   defines the tranche loss function
-///   `min(max(L - A, 0), D - A) / (D - A)` used here.
+///   `min(max(L - A, 0), D - A) / (D - A)` used here. `docs/REFERENCES.md#o-kane-2008`
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct TrancheLossStatistics {
     /// Tranche attachment point as a fraction of pool notional, in `[0, 1)`.
@@ -227,9 +227,9 @@ impl PortfolioLossResult {
     /// # References
     ///
     /// - O'Kane, D. (2008). *Modelling Single-name and Multi-name Credit
-    ///   Derivatives*. Wiley Finance, Chapter 15.
+    ///   Derivatives*. Wiley Finance, Chapter 15. `docs/REFERENCES.md#o-kane-2008`
     /// - Gibson, M. S. (2004). "Understanding the Risk of Synthetic CDOs."
-    ///   *Finance and Economics Discussion Series* 2004-36, Federal Reserve Board.
+    ///   *Finance and Economics Discussion Series* 2004-36, Federal Reserve Board. `docs/REFERENCES.md#gibson-2004-synthetic-cdos`
     pub fn tranche_loss_statistics(
         &self,
         attachment: f64,

@@ -44,7 +44,7 @@ pub enum SpreadVolatilityKind {
 ///
 /// # References
 ///
-/// - Bid-ask spread conventions: `docs/REFERENCES.md#hasbrouck2007MarketMicrostructure`
+/// - Bid-ask spread conventions: `docs/REFERENCES.md#hasbrouck-2007`
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct LiquidityProfile {
     /// Instrument identifier (must match `Position::instrument_id`).
@@ -247,7 +247,7 @@ impl LiquidityProfile {
 ///
 /// # References
 ///
-/// - AIFMD liquidity bucketing: `docs/REFERENCES.md#esma2014AifmdGuidelines`
+/// - AIFMD liquidity bucketing: `docs/REFERENCES.md#aifmd-liquidity-management`
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LiquidityTier {
@@ -291,57 +291,28 @@ impl LiquidityTier {
 
 /// Configuration for liquidity calculations.
 ///
-/// Provides default parameter values that can be overridden per analysis.
+/// Holds the tier-classification thresholds consumed by [`classify_tier`].
 /// All thresholds use trading days (not calendar days).
+///
+/// Historical note (breaking wire change, 2026-08): the former
+/// `participation_rate`, `risk_aversion`, `holding_period`,
+/// `confidence_level` and `endogenous_spread_coef` fields were validated and
+/// serde-required but consumed by nothing — their docs referenced a
+/// `lvar_bangia(profile, config, ...)` entry point that does not exist — so
+/// they were removed. Inbound payloads still carrying those keys now fail
+/// closed under `deny_unknown_fields`. Per-call knobs live where they are
+/// used instead: participation is an explicit argument to
+/// [`days_to_liquidate`], risk aversion rides on
+/// [`crate::liquidity::TradeParams::risk_aversion`], and the VaR confidence
+/// is an explicit argument to [`crate::liquidity::lvar_bangia_scalar`].
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LiquidityConfig {
-    /// Maximum fraction of ADV that can be traded per day without
-    /// excessive impact. Typical range: 0.05-0.25.
-    ///
-    /// Default: 0.10 (10% of ADV).
-    pub participation_rate: f64,
-
     /// Days-to-liquidate thresholds for tier boundaries.
     ///
     /// Array of 4 thresholds: \[tier1_max, tier2_max, tier3_max, tier4_max\].
     /// Default: \[1.0, 5.0, 20.0, 60.0\].
     pub tier_thresholds: [f64; 4],
-
-    /// Risk aversion parameter for Almgren-Chriss optimal execution.
-    ///
-    /// Higher values penalize variance more, leading to faster
-    /// (but more costly) liquidation. Dimensionless.
-    ///
-    /// Default: 1e-6.
-    pub risk_aversion: f64,
-
-    /// Holding period in trading days for VaR horizon.
-    ///
-    /// Default: 1.0 (daily VaR).
-    pub holding_period: f64,
-
-    /// Confidence level for VaR / LVaR.
-    ///
-    /// Default: 0.99 (99% VaR).
-    pub confidence_level: f64,
-
-    /// Coefficient for the size-dependent endogenous spread-widening term in
-    /// LVaR cost reporting:
-    ///
-    /// ```text
-    /// endogenous_cost = endogenous_spread_coef * spread * sqrt(shares / ADV) / mid * |PV|
-    /// ```
-    ///
-    /// This is a calibration parameter, not a published constant: Bangia et al.
-    /// (1999) do not specify a size-dependent term, and the square-root form is
-    /// imported from market-impact literature (Almgren-Chriss, Kyle). Calibrate
-    /// to your venue / instrument universe; the default of `0.1` is a
-    /// conservative calibration starting point.
-    ///
-    /// Set to `0.0` to disable the endogenous term entirely (only the Bangia
-    /// exogenous + spread-vol terms remain in `lvar_bangia`). Default: 0.1.
-    pub endogenous_spread_coef: f64,
 }
 
 impl Default for LiquidityConfig {
@@ -498,9 +469,7 @@ mod tests {
     #[test]
     fn default_config() {
         let c = LiquidityConfig::default();
-        assert!((c.participation_rate - 0.10).abs() < 1e-10);
-        assert!((c.confidence_level - 0.99).abs() < 1e-10);
-        assert!((c.holding_period - 1.0).abs() < 1e-10);
+        assert_eq!(c.tier_thresholds, [1.0, 5.0, 20.0, 60.0]);
     }
 
     #[test]
@@ -558,28 +527,45 @@ mod tests {
         Ok(())
     }
 
+    /// BREAKING wire change (audit fix 8): `participation_rate`,
+    /// `risk_aversion`, `holding_period`, `confidence_level` and
+    /// `endogenous_spread_coef` were validated, documented and
+    /// serde-required but consumed by nothing in the workspace (the docs
+    /// referenced a nonexistent `lvar_bangia(profile, config, ...)`), so
+    /// they were deleted. `tier_thresholds` — the only consumed field —
+    /// remains, and any legacy payload still carrying a removed key now
+    /// fails closed under `deny_unknown_fields`.
+    #[test]
+    fn liquidity_config_is_tier_thresholds_only() {
+        let json = r#"{"tier_thresholds": [1.0, 5.0, 20.0, 60.0]}"#;
+        let config: LiquidityConfig =
+            serde_json::from_str(json).expect("tier-thresholds-only payload must parse");
+        assert_eq!(config.tier_thresholds, [1.0, 5.0, 20.0, 60.0]);
+
+        for legacy in [
+            "participation_rate",
+            "risk_aversion",
+            "holding_period",
+            "confidence_level",
+            "endogenous_spread_coef",
+        ] {
+            let payload =
+                format!(r#"{{"tier_thresholds": [1.0, 5.0, 20.0, 60.0], "{legacy}": 0.5}}"#);
+            let err = serde_json::from_str::<LiquidityConfig>(&payload)
+                .expect_err("removed legacy fields must fail closed");
+            assert!(
+                err.to_string().contains("unknown field"),
+                "{legacy}: unexpected error: {err}"
+            );
+        }
+    }
+
     #[test]
     fn serde_round_trip_config() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let c = LiquidityConfig::default();
         let json = serde_json::to_string(&c)?;
         let c2: LiquidityConfig = serde_json::from_str(&json)?;
         assert_eq!(c, c2);
-        Ok(())
-    }
-
-    #[test]
-    fn serde_config_requires_endogenous_spread_coefficient(
-    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let incomplete_json = r#"{
-            "participation_rate": 0.10,
-            "tier_thresholds": [1.0, 5.0, 20.0, 60.0],
-            "risk_aversion": 1e-6,
-            "holding_period": 1.0,
-            "confidence_level": 0.99
-        }"#;
-        let error = serde_json::from_str::<LiquidityConfig>(incomplete_json)
-            .expect_err("endogenous_spread_coef is required");
-        assert!(error.to_string().contains("endogenous_spread_coef"));
         Ok(())
     }
 }

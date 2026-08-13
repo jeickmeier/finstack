@@ -353,11 +353,17 @@ pub struct PySimmCalculator {
 #[pymethods]
 impl PySimmCalculator {
     /// Create a SIMM calculator from the embedded margin registry.
+    ///
+    /// ``version`` defaults to the Rust ``SimmVersion::default()`` (currently
+    /// ``"v2_6"``) rather than a binding-side literal.
     #[new]
-    #[pyo3(signature = (version = "v2_6", mpor_days = None))]
-    fn new(version: &str, mpor_days: Option<u32>) -> PyResult<Self> {
-        let mut inner =
-            fm::SimmCalculator::new(parse_simm_version(version)?).map_err(core_to_py)?;
+    #[pyo3(signature = (version = None, mpor_days = None))]
+    fn new(version: Option<&str>, mpor_days: Option<u32>) -> PyResult<Self> {
+        let version = match version {
+            Some(version) => parse_simm_version(version)?,
+            None => fm::SimmVersion::default(),
+        };
+        let mut inner = fm::SimmCalculator::new(version).map_err(core_to_py)?;
         if let Some(days) = mpor_days {
             inner = inner.with_mpor(days);
         }

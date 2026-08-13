@@ -87,10 +87,15 @@ pub(crate) fn cholesky(data: &[f64], n: usize) -> finstack_quant_core::Result<Ve
                 let value = data[i * n + j] - sum;
                 // `lower` holds square roots of variances, so a rank-deficient
                 // pivot is small on the *standard-deviation* scale, not the
-                // variance scale — compare against sqrt(tolerance).
+                // variance scale — compare against sqrt(tolerance). The
+                // residual `value`, however, lives on the covariance
+                // (variance) scale: for a PSD matrix a zero pivot forces the
+                // entire remaining column to zero, so any residual above the
+                // variance-scale `tolerance` proves the matrix is indefinite
+                // and must not be silently dropped.
                 let pivot_tolerance = tolerance.sqrt();
                 if denominator.abs() <= pivot_tolerance {
-                    if value.abs() > pivot_tolerance {
+                    if value.abs() > tolerance {
                         return Err(finstack_quant_core::Error::Validation(
                             "Covariance matrix is not positive semi-definite".to_string(),
                         ));
@@ -217,7 +222,7 @@ impl SimulationDecomposer {
         if let RiskMeasure::VaR { confidence } | RiskMeasure::ExpectedShortfall { confidence } =
             measure
         {
-            let tail_count = ((1.0 - confidence) * self.n_scenarios as f64).ceil() as usize;
+            let tail_count = super::tail_scenario_count(*confidence, self.n_scenarios);
             if tail_count < 2 {
                 return Err(finstack_quant_core::Error::Validation(format!(
                     "SimulationDecomposer requires at least two tail scenarios for confidence {confidence}; increase n_scenarios"
@@ -561,8 +566,7 @@ impl SimulationDecomposer {
             scenarios.portfolio_pnls[*lhs].total_cmp(&scenarios.portfolio_pnls[*rhs])
         });
 
-        let tail_count = ((1.0 - confidence) * self.n_scenarios as f64).ceil() as usize;
-        let tail_count = tail_count.max(1);
+        let tail_count = super::tail_scenario_count(confidence, self.n_scenarios).max(1);
         let tail_indices = &indices[..tail_count];
         let var_index = tail_indices[tail_count - 1];
         // Loss convention: VaR is the signed P&L at the alpha quantile (negative
@@ -589,7 +593,17 @@ impl SimulationDecomposer {
         }
 
         let (total_risk, absolute, marginal) = match measure {
-            RiskMeasure::ExpectedShortfall { .. } => (es.min(0.0), component_es, marginal_es),
+            RiskMeasure::ExpectedShortfall { .. } => {
+                if es > 0.0 {
+                    // Gain-clamp: the tail mean is a gain (extremely low
+                    // confidence levels), so the total clamps to zero. Zero
+                    // the components in the same branch — otherwise they no
+                    // longer sum to the total and Euler additivity breaks.
+                    (0.0, vec![0.0; n_factors], vec![0.0; n_factors])
+                } else {
+                    (es, component_es, marginal_es)
+                }
+            }
             RiskMeasure::VaR { .. } => {
                 // Prorate negative ES contributions to negative VaR total.
                 let ratio = if es.abs() > ZERO_TOLERANCE {
@@ -906,5 +920,79 @@ mod tests {
         assert!(result.is_err());
 
         Ok(())
+    }
+
+    #[test]
+    fn test_simulation_rejects_exact_single_tail_scenario() -> TestResult {
+        // 100 scenarios at 99%: the exact tail is 1 scenario, which the
+        // tail >= 2 guard must reject. The former ceil-on-float count
+        // ((1 - 0.99) * 100 = 1.0000000000000009 -> ceil = 2) let this
+        // configuration through with a one-observation tail.
+        let mut sensitivities =
+            SensitivityMatrix::zeros(vec!["pos-A".into()], vec![FactorId::new("Rates")]);
+        sensitivities.set_delta(0, 0, 100.0);
+
+        let covariance = FactorCovarianceMatrix::new(vec![FactorId::new("Rates")], vec![0.04])?;
+        let decomposer = SimulationDecomposer::new(100, 7);
+        let result = decomposer.decompose(
+            &sensitivities,
+            &covariance,
+            &RiskMeasure::VaR { confidence: 0.99 },
+        );
+        assert!(
+            result.is_err(),
+            "exact single-scenario tail must be rejected"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn cholesky_rejects_indefinite_matrix_with_tiny_leading_pivot() {
+        // [[1e-12, 1e-6], [1e-6, 0.04]] has determinant 4e-14 - 1e-12 < 0,
+        // so it is indefinite. The leading pivot sqrt(1e-12) = 1e-6 falls
+        // below the std-dev-scale pivot tolerance, and the zero-pivot branch
+        // used to compare the covariance-scale residual 1e-6 against the same
+        // std-dev-scale bound, silently dropping the entry that proves
+        // indefiniteness.
+        let data = [1e-12, 1e-6, 1e-6, 0.04];
+        assert!(
+            cholesky(&data, 2).is_err(),
+            "indefinite matrix with a near-zero leading pivot must be rejected"
+        );
+    }
+
+    #[test]
+    fn tail_gain_clamp_zeroes_components_for_euler_consistency() {
+        use super::ScenarioSet;
+
+        // Every scenario is a gain, so the tail ES is positive and the total
+        // is clamped to zero. Components must be zeroed in the same branch or
+        // sum(component) == total breaks.
+        let n = 10;
+        let scenarios = ScenarioSet {
+            portfolio_pnls: (1..=n).map(|v| v as f64).collect(),
+            factor_pnls: (1..=n).map(|v| v as f64).collect(),
+            factor_shocks: vec![0.5; n],
+            n_factors: 1,
+        };
+        let covariance = FactorCovarianceMatrix::new(vec![FactorId::new("Rates")], vec![0.04])
+            .expect("1x1 covariance");
+        let decomposer = SimulationDecomposer::new(n, 1);
+        let decomposition = decomposer.tail_risk_decomposition(
+            &covariance,
+            &scenarios,
+            &RiskMeasure::ExpectedShortfall { confidence: 0.8 },
+            0.8,
+        );
+
+        assert_eq!(decomposition.total_risk, 0.0);
+        for contribution in &decomposition.factor_contributions {
+            assert_eq!(
+                contribution.absolute_risk, 0.0,
+                "components must be zeroed when the gain-clamp fires"
+            );
+            assert_eq!(contribution.marginal_risk, 0.0);
+        }
     }
 }

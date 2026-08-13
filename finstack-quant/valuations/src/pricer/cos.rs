@@ -9,7 +9,8 @@
 //!
 //! - Fang, F. & Oosterlee, C. W. (2008). "A Novel Pricing Method for
 //!   European Options Based on Fourier-Cosine Series Expansions."
-//!   *SIAM J. Sci. Comput.*, 31(2), 826-848.
+//!   *SIAM J. Sci. Comput.*, 31(2), 826-848. `docs/REFERENCES.md#fang-oosterlee-2008`
+//!
 
 use super::PricingError;
 use finstack_quant_core::math::characteristic_function::{
@@ -230,7 +231,7 @@ fn price_from_cf(
 /// C = K * exp(-r*T) * sum_{k=0}^{N-1}' (2/(b-a))
 ///     * Re[phi_X(k*pi/(b-a)) * exp(-i*k*pi*a/(b-a))]
 ///     * (chi_k(0,b) - psi_k(0,b))
-/// ```
+///   ```
 ///
 /// where phi_X(u) = exp(i*u*ln(S/K)) * phi(u, t) is the CF of X = ln(S_T/K),
 /// and the prime on the sum means the k=0 term is halved.

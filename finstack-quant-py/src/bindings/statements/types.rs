@@ -467,6 +467,19 @@ impl PyNodeType {
         }
     }
 
+    /// The canonical snake_case wire discriminant (``"value"``,
+    /// ``"calculated"``, or ``"mixed"``), derived from the Rust serde
+    /// rename so the string can never drift from the JSON schema.
+    #[getter]
+    fn kind(&self) -> String {
+        crate::bindings::statements_analytics::serde_variant_str(&self.inner)
+    }
+
+    /// Return the canonical snake_case discriminant (same as :attr:`kind`).
+    fn __str__(&self) -> String {
+        self.kind()
+    }
+
     /// Return the debug representation, e.g. ``NodeType(Mixed)``.
     fn __repr__(&self) -> String {
         format!("NodeType({:?})", self.inner)

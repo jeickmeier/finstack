@@ -104,7 +104,7 @@
 //!   *Journal of Computational Finance*, 5(3), 79-103.
 //!
 //! - Curran, M. (1994). "Valuing Asian and Portfolio Options by Conditioning on
-//!   the Geometric Mean Price." *Management Science*, 40(12), 1705-1711.
+//!   the Geometric Mean Price." *Management Science*, 40(12), 1705-1711. `docs/REFERENCES.md#curran-1994-asian-options`
 //!
 //! # Implementation Notes
 //!

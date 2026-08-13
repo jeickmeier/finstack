@@ -37,9 +37,9 @@
 //! # References
 //!
 //! - Hull, J. C. (2018). *Options, Futures, and Other Derivatives* (10th ed.).
-//!   Pearson. Chapter 4 (Interest Rates).
+//!   Pearson. Chapter 4 (Interest Rates). `docs/REFERENCES.md#hull-options-futures`
 //! - Brigo, D., & Mercurio, F. (2006). *Interest Rate Models - Theory and Practice*
-//!   (2nd ed.). Springer. Chapter 1 (Definitions and Notation).
+//!   (2nd ed.). Springer. Chapter 1 (Definitions and Notation). `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
 
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU32;
@@ -168,7 +168,7 @@ impl Compounding {
     /// # References
     ///
     /// Hull, J. C. (2018). *Options, Futures, and Other Derivatives* (10th ed.),
-    /// Chapter 4 — Interest Rates.
+    /// Chapter 4 — Interest Rates. `docs/REFERENCES.md#hull-options-futures`
     #[must_use]
     #[inline]
     pub fn df_from_rate(&self, rate: f64, t: f64) -> f64 {
@@ -201,10 +201,10 @@ impl Compounding {
     /// Inverts the discount-factor formula for the compounding convention of `self`:
     ///
     /// ```text
-    /// Continuous:   r = -ln(DF) / t
-    /// Annual:       r = DF^(-1/t) - 1
-    /// Periodic(n):  r = n × (DF^(-1/(n×t)) - 1)
-    /// Simple:       r = (1/DF - 1) / t
+    /// Continuous: r = -ln(DF) / t
+    /// Annual: r = DF^(-1/t) - 1
+    /// Periodic(n): r = n × (DF^(-1/(n×t)) - 1)
+    /// Simple: r = (1/DF - 1) / t
     /// ```
     ///
     /// Returns `NaN` for non-positive or non-finite discount factors.
@@ -215,7 +215,7 @@ impl Compounding {
     /// # References
     ///
     /// Hull, J. C. (2018). *Options, Futures, and Other Derivatives* (10th ed.),
-    /// Chapter 4 — Interest Rates.
+    /// Chapter 4 — Interest Rates. `docs/REFERENCES.md#hull-options-futures`
     #[must_use]
     #[inline]
     pub fn rate_from_df(&self, df: f64, t: f64) -> f64 {
@@ -244,10 +244,10 @@ impl Compounding {
     /// This is the `t → 0` limit of the conversion to continuous compounding:
     ///
     /// ```text
-    /// Continuous:   c = r
-    /// Annual:       c = ln(1 + r)
-    /// Periodic(n):  c = n × ln(1 + r/n)
-    /// Simple:       c = r        (DF = 1/(1 + r t) → e^(-r t) as t → 0)
+    /// Continuous: c = r
+    /// Annual: c = ln(1 + r)
+    /// Periodic(n): c = n × ln(1 + r/n)
+    /// Simple: c = r (DF = 1/(1 + r t) → e^(-r t) as t → 0)
     /// ```
     #[must_use]
     #[inline]
@@ -267,10 +267,10 @@ impl Compounding {
     /// Inverse of [`instantaneous_rate`](Self::instantaneous_rate):
     ///
     /// ```text
-    /// Continuous:   r = c
-    /// Annual:       r = e^c − 1
-    /// Periodic(n):  r = n × (e^(c/n) − 1)
-    /// Simple:       r = c
+    /// Continuous: r = c
+    /// Annual: r = e^c − 1
+    /// Periodic(n): r = n × (e^(c/n) − 1)
+    /// Simple: r = c
     /// ```
     #[must_use]
     #[inline]
@@ -305,7 +305,7 @@ impl Compounding {
     /// # References
     ///
     /// Hull, J. C. (2018). *Options, Futures, and Other Derivatives* (10th ed.),
-    /// Chapter 4 — Interest Rates.
+    /// Chapter 4 — Interest Rates. `docs/REFERENCES.md#hull-options-futures`
     #[must_use]
     #[inline]
     pub fn convert_rate(&self, rate: f64, t: f64, to: &Compounding) -> f64 {

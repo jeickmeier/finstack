@@ -31,18 +31,18 @@
 //!
 //! # References
 //!
-//! - **Welford's Algorithm**:
-//!   - Welford, B. P. (1962). "Note on a Method for Calculating Corrected Sums of
-//!     Squares and Products." *Technometrics*, 4(3), 419-420.
+//! - **Welford's Algorithm**: `docs/REFERENCES.md#welford-1962`
+//! - Welford, B. P. (1962). "Note on a Method for Calculating Corrected Sums of
+//!   Squares and Products." *Technometrics*, 4(3), 419-420. `docs/REFERENCES.md#welford-1962`
 //!
 //! - **Chan's Parallel Algorithm**:
-//!   - Chan, T. F., Golub, G. H., & LeVeque, R. J. (1983). "Algorithms for Computing
-//!     the Sample Variance: Analysis and Recommendations." *The American Statistician*,
-//!     37(3), 242-247.
+//! - Chan, T. F., Golub, G. H., & LeVeque, R. J. (1983). "Algorithms for Computing
+//!   the Sample Variance: Analysis and Recommendations." *The American Statistician*,
+//!   37(3), 242-247. `docs/REFERENCES.md#golub-van-loan-matrix-computations`
 //!
-//! - **Kahan Summation**:
-//!   - Kahan, W. (1965). "Further Remarks on Reducing Truncation Errors."
-//!     *Communications of the ACM*, 8(1), 40.
+//! - **Kahan Summation**: `docs/REFERENCES.md#kahan-1965`
+//! - Kahan, W. (1965). "Further Remarks on Reducing Truncation Errors."
+//!   *Communications of the ACM*, 8(1), 40. `docs/REFERENCES.md#kahan-1965`
 
 use super::special_functions::standard_normal_inv_cdf;
 use super::summation::kahan_sum;

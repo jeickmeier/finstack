@@ -40,11 +40,11 @@
 //!   "Parallel Random Numbers: As Easy as 1, 2, 3."
 //!   Proceedings of SC '11 (International Conference for High Performance
 //!   Computing, Networking, Storage and Analysis).
-//!   DOI: 10.1145/2063384.2063405
+//!   DOI: 10.1145/2063384.2063405 `docs/REFERENCES.md#salmon-2011-philox`
 //!
 //! - TestU01: L'Ecuyer, P., & Simard, R. (2007).
 //!   "TestU01: A C Library for Empirical Testing of Random Number Generators."
-//!   ACM Transactions on Mathematical Software, 33(4), Article 22.
+//!   ACM Transactions on Mathematical Software, 33(4), Article 22. `docs/REFERENCES.md#salmon-2011-philox`
 
 use super::super::traits::RandomStream;
 use finstack_quant_core::math::random::box_muller_transform;

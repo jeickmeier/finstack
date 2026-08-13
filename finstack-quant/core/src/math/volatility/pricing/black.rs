@@ -16,10 +16,12 @@
 //!
 //! # References
 //!
-//! - Black, F. (1976), "The pricing of commodity contracts".
+//! - Black, F. (1976), "The pricing of commodity contracts". `docs/REFERENCES.md#black-1976`
+//!
 //! - Black, F. and Scholes, M. (1973), "The pricing of options and corporate
-//!   liabilities".
-//! - Hull, J. C., *Options, Futures, and Other Derivatives*.
+//!   liabilities". `docs/REFERENCES.md#black-scholes-1973`
+//! - Hull, J. C., *Options, Futures, and Other Derivatives*. `docs/REFERENCES.md#hull-options-futures`
+//!
 
 use crate::math::{norm_cdf, norm_pdf};
 

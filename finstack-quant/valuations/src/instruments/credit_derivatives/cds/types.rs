@@ -551,10 +551,11 @@ fn resolve_doc_clause(clause: CdsDocClause) -> CdsDocClause {
 ///
 /// ## References
 ///
-/// - ISDA 2014 Credit Derivatives Definitions
-/// - "Modelling Single-name and Multi-name Credit Derivatives" by O'Kane (2008)
-/// - ISDA CDS Standard Model Implementation (Markit, 2009)
-/// - Bloomberg CDSW function documentation
+/// - ISDA 2014 Credit Derivatives Definitions `docs/REFERENCES.md#isda-2014-credit-definitions`
+/// - "Modelling Single-name and Multi-name Credit Derivatives" by O'Kane (2008) `docs/REFERENCES.md#o-kane-2008`
+/// - ISDA CDS Standard Model Implementation (Markit, 2009) `docs/REFERENCES.md#isda-cds-standard-model`
+/// - Bloomberg CDSW / *The Bloomberg CDS Model* (DOCS 2057273)
+///   `docs/REFERENCES.md#bloomberg-cds-model`
 ///
 /// See unit tests and `examples/` for usage.
 #[derive(

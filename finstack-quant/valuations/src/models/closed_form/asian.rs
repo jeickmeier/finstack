@@ -54,7 +54,7 @@
 //!
 //! - Kemna, A. G. Z., & Vorst, A. C. F. (1990). "A Pricing Method for Options
 //!   Based on Average Asset Values." *Journal of Banking & Finance*, 14(1), 113-129.
-//!   (Exact closed-form solution for geometric average)
+//!   (Exact closed-form solution for geometric average) `docs/REFERENCES.md#kemna-vorst-1990`
 //!
 //! - Turnbull, S. M., & Wakeman, L. M. (1991). "A Quick Algorithm for Pricing
 //!   European Average Options." *Journal of Financial and Quantitative Analysis*,
@@ -65,11 +65,11 @@
 //!
 //! - Levy, E. (1992). "Pricing European Average Rate Currency Options."
 //!   *Journal of International Money and Finance*, 11(5), 474-491.
-//!   (Alternative approximation via geometric conditioning)
+//!   (Alternative approximation via geometric conditioning) `docs/REFERENCES.md#levy-1992-asian-options`
 //!
 //! - Curran, M. (1994). "Valuing Asian and Portfolio Options by Conditioning
 //!   on the Geometric Mean Price." *Management Science*, 40(12), 1705-1711.
-//!   (Conditioning approach for improved accuracy)
+//!   (Conditioning approach for improved accuracy) `docs/REFERENCES.md#curran-1994-asian-options`
 //!
 //! - Rogers, L. C. G., & Shi, Z. (1995). "The Value of an Asian Option."
 //!   *Journal of Applied Probability*, 32(4), 1077-1088.
@@ -78,7 +78,7 @@
 //! ## Reference Texts
 //!
 //! - Haug, E. G. (2007). *The Complete Guide to Option Pricing Formulas* (2nd ed.).
-//!   McGraw-Hill. Chapter 3: Average Rate Options.
+//!   McGraw-Hill. Chapter 3: Average Rate Options. `docs/REFERENCES.md#haug-2007-option-formulas`
 //!
 //! - Wilmott, P. (2006). *Paul Wilmott on Quantitative Finance* (2nd ed.).
 //!   Wiley. Volume 2, Chapter 25.

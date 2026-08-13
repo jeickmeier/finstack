@@ -34,3 +34,12 @@ export interface CalculatorConstructor {
  * A calculator handle used by the fixture.
  */
 export interface Calculator {}
+
+export declare class ReportHandle {
+  /**
+   * Serialize this report to JSON.
+   * @returns Canonical JSON string for the report.
+   * @throws Error - Throws a JavaScript exception if serialization fails.
+   */
+  toJson(): string;
+}

@@ -50,9 +50,9 @@
 //! # References
 //!
 //! - **PCG**: O'Neill, M. E. (2014). "PCG: A Family of Simple Fast Space-Efficient
-//!   Statistically Good Algorithms for Random Number Generation."
+//!   Statistically Good Algorithms for Random Number Generation." `docs/REFERENCES.md#o-neill-2014-pcg`
 //! - **Box-Muller**: Box, G. E. P., & Muller, M. E. (1958). "A Note on the
-//!   Generation of Random Normal Deviates."
+//!   Generation of Random Normal Deviates." `docs/REFERENCES.md#box-muller-1958`
 
 pub mod brownian_bridge;
 pub mod poisson;
@@ -153,7 +153,7 @@ use rand_pcg::Pcg64;
 ///
 /// - O'Neill, M. E. (2014). "PCG: A Family of Simple Fast Space-Efficient
 ///   Statistically Good Algorithms for Random Number Generation."
-///   [https://www.pcg-random.org/](https://www.pcg-random.org/)
+///   [https://www.pcg-random.org/](https://www.pcg-random.org/) `docs/REFERENCES.md#o-neill-2014-pcg`
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Pcg64Rng {
     inner: Pcg64,
@@ -335,7 +335,7 @@ impl RandomNumberGenerator for Pcg64Rng {
 /// # References
 ///
 /// - Box, G. E. P., & Muller, M. E. (1958). "A Note on the Generation of Random
-///   Normal Deviates." *The Annals of Mathematical Statistics*, 29(2), 610-611.
+///   Normal Deviates." *The Annals of Mathematical Statistics*, 29(2), 610-611. `docs/REFERENCES.md#box-muller-1958`
 #[inline]
 pub fn box_muller_transform(u1: f64, u2: f64) -> (f64, f64) {
     use std::f64::consts::PI;
@@ -345,8 +345,8 @@ pub fn box_muller_transform(u1: f64, u2: f64) -> (f64, f64) {
     // numerical issues when u1 rounds to exactly 1.0.
     //
     // With EPS = MIN_POSITIVE (~2.2e-308):
-    //   -2 * ln(2.2e-308) ≈ 1418, so sqrt ≈ 37.7
-    //   This allows sampling ~37σ events (probability ~1e-300)
+    // -2 * ln(2.2e-308) ≈ 1418, so sqrt ≈ 37.7
+    // This allows sampling ~37σ events (probability ~1e-300)
     const EPS: f64 = f64::MIN_POSITIVE;
     let u1_safe = u1.clamp(EPS, 1.0 - f64::EPSILON);
 

@@ -23,10 +23,10 @@
 //! # References
 //!
 //! - Conze, A., & Viswanathan (1991). "Path Dependent Options: The Case of
-//!   Lookback Options." *Journal of Finance*, 46(5), 1893-1907.
+//!   Lookback Options." *Journal of Finance*, 46(5), 1893-1907. `docs/REFERENCES.md#conze-viswanathan-1991`
 //!
 //! - Goldman, M. B., Sosin, H. B., & Gatto, M. A. (1979). "Path Dependent Options:
-//!   Buy at the Low, Sell at the High." *Journal of Finance*, 34(5), 1111-1127.
+//!   Buy at the Low, Sell at the High." *Journal of Finance*, 34(5), 1111-1127. `docs/REFERENCES.md#goldman-sosin-gatto-1979`
 //!
 //! # See Also
 //!

@@ -90,6 +90,9 @@ impl AttributionSpec {
         else {
             return Ok(None);
         };
+        // Surface planner diagnostics (e.g. the Mo3 factor-series unit
+        // guard) into the attribution's notes.
+        notes.extend(cascade.warnings.iter().cloned());
 
         // 5. Real aggregate **par-spread** CS01 measured against the same
         //    baseline as `credit_curves_pnl`: `market_t1` with the issuer's
@@ -164,28 +167,44 @@ impl AttributionSpec {
 }
 
 impl AttributionSpec {
-    /// Split `carry_detail.coupon_income` and `carry_detail.roll_down` into
-    /// rates / credit parts and emit the per-factor
-    /// `credit_carry_decomposition` (PR-8b §7).
+    /// Split `carry_detail.coupon_income`, `carry_detail.pull_to_par` and
+    /// `carry_detail.roll_down` into rates / credit parts and emit the
+    /// per-factor `credit_carry_decomposition` (PR-8b §7).
     ///
     /// # Math (§7.3, §7.5)
     ///
     /// At `as_of_t0`, sample base discount rate `r` and the issuer's credit
     /// spread `s = hazard × (1 − recovery)` at the bond's tenor. With total
-    /// risky yield `r + s`:
+    /// risky yield `r + s` and credit share `w = s / (r + s)` (clamped to
+    /// `[0, 1]`):
     ///
-    /// - `coupon.credit_part = coupon.total × s / (r + s)`
+    /// - `coupon.credit_part = coupon.total × w`
     /// - `coupon.rates_part  = coupon.total − coupon.credit_part`
+    /// - `pull_to_par` is split on the same `w`: it is discount-driven
+    ///   convergence of PV toward par under the total risky yield, so its
+    ///   credit share is well-defined by the same ratio. The wire field stays
+    ///   a single `Money` (v1 schema); the split enters the two carry totals
+    ///   so that `rates_carry_total + credit_carry_total ≡ carry_detail.total`
+    ///   holds exactly (audit M2 — previously pull_to_par entered neither leg).
     /// - `roll.credit_part   = 0` (v1: scalar level factors, no term-structure
     ///   adder → all credit roll-down lands in adder, which is 0 here)
     /// - `roll.rates_part    = roll.total`
     ///
-    /// The per-factor allocation of `coupon.credit_part` uses the issuer's
+    /// **Negative total yield** (audit Mo5): when `r + s ≤ 0` with `s > 0`
+    /// (negative-rate books where the base rate overwhelms the spread), the
+    /// naive `s / (r + s)` is negative and previously clamped to 0, routing
+    /// the entire coupon to rates despite a genuine positive spread. Since
+    /// curve builders enforce `hazard ≥ 0` and `recovery ∈ [0, 1]`, the
+    /// spread is the only non-negative yield component — the credit share is
+    /// set to `1` and a diagnostic note is pushed.
+    ///
+    /// The per-factor allocation of the total credit carry uses the issuer's
     /// spread decomposition at `as_of_t0`:
     /// `S_i = β_i^PC·g + Σ_k β_i^k·L_k(g_i^k) + adder_i`.
     /// Each factor's credit-carry share is its contribution to `S_i` scaled
-    /// by `coupon.credit_part / S_i`. Σ shares ≡ coupon.credit_part by
-    /// construction.
+    /// by `credit_carry_total / S_i`, so
+    /// `generic + Σ levels + adder ≡ credit_carry_total` by construction
+    /// (audit Mo6 — previously the scale used only the coupon credit part).
     ///
     /// Best-effort: returns `Ok(())` and leaves the existing CarryDetail
     /// alone if the inputs are missing (no carry detail, no issuer in model,
@@ -319,21 +338,34 @@ impl AttributionSpec {
         // share `s / (r + s)` explode (±10²–10⁶ × coupon into the two legs
         // with opposite signs, while still reconciling). Since the curve
         // builders enforce hazard ≥ 0 and recovery ∈ [0, 1], `s ≥ 0` always —
-        // so the economically meaningful credit share is clamped to [0, 1],
-        // and a near-cancelling denominator (|r + s| small relative to the
-        // component magnitudes) falls back to the degenerate all-rates split.
+        // so the economically meaningful credit share is clamped to [0, 1].
+        //
+        // Audit Mo5: when the total risky yield is non-positive (or the
+        // denominator degenerately cancels) while `s > 0`, the spread is the
+        // only positive-yield component: the naive share is negative and a
+        // clamp-to-zero would mislabel a genuinely spread-carrying bond as
+        // pure rates carry. The credit share is 1 there, with a note.
         let total_yield = r + s;
         let denominator_is_stable = total_yield.abs() > 1e-12 * r.abs().max(s).max(1e-3);
-        let (coupon_rates, coupon_credit) = if denominator_is_stable {
-            let credit_share = (s / total_yield).clamp(0.0, 1.0);
-            let credit_amt = coupon.amount() * credit_share;
-            let rates_amt = coupon.amount() - credit_amt;
-            (Money::new(rates_amt, ccy), Money::new(credit_amt, ccy))
+        let credit_share = if s > 0.0 && (total_yield <= 0.0 || !denominator_is_stable) {
+            lookup_warnings.push(format!(
+                "Carry credit split: negative total risky yield (r = {r:.6}, s = {s:.6}); \
+                 the spread is the only positive-yield component, so the coupon and \
+                 pull-to-par carry are attributed fully to credit (share = 1)"
+            ));
+            1.0
+        } else if denominator_is_stable {
+            (s / total_yield).clamp(0.0, 1.0)
         } else {
-            // Degenerate: total yield ≈ 0 (zero curves, or negative rates
-            // cancelling the spread). Push everything to rates.
-            (coupon, Money::new(0.0, ccy))
+            // Degenerate: total yield ≈ 0 with s == 0 (zero curves). Push
+            // everything to rates.
+            0.0
         };
+        let coupon_credit_amt = coupon.amount() * credit_share;
+        let (coupon_rates, coupon_credit) = (
+            Money::new(coupon.amount() - coupon_credit_amt, ccy),
+            Money::new(coupon_credit_amt, ccy),
+        );
 
         // 5. Split roll_down. v1: scalar level factors → all credit roll
         //    flows to adder, and the model carries no adder term structure
@@ -344,6 +376,17 @@ impl AttributionSpec {
             Some(r) => (r, Money::new(0.0, ccy)),
             None => (Money::new(0.0, ccy), Money::new(0.0, ccy)),
         };
+
+        // 5b. Split pull_to_par on the same credit share (audit M2). It is
+        //     discount-driven convergence toward par under the total risky
+        //     yield `r + s`, so the s/(r + s) ratio applies exactly as it does
+        //     to the coupon. The wire field stays a single `Money` (v1
+        //     schema); the split enters the two carry totals so the partition
+        //     `rates_carry_total + credit_carry_total ≡ carry_detail.total`
+        //     closes exactly instead of leaking the whole pull_to_par.
+        let ptp_amount = carry_detail.pull_to_par.map(|m| m.amount()).unwrap_or(0.0);
+        let ptp_credit_amt = ptp_amount * credit_share;
+        let ptp_rates_amt = ptp_amount - ptp_credit_amt;
 
         // 6. Update CarryDetail's source lines with the split. If the field
         //    was None we don't synthesize (keeps no-model behavior tight).
@@ -363,7 +406,10 @@ impl AttributionSpec {
         //    We compute each piece, then scale by `coupon_credit / S` so
         //    pieces sum to `coupon_credit`. (When `coupon_credit` is zero we
         //    short-circuit and emit zeros.)
-        let credit_total = Money::new(coupon_credit.amount() + roll_credit.amount(), ccy);
+        let credit_total = Money::new(
+            coupon_credit.amount() + roll_credit.amount() + ptp_credit_amt,
+            ccy,
+        );
 
         let num_levels = model.hierarchy.levels.len();
 
@@ -394,11 +440,14 @@ impl AttributionSpec {
 
         let s_model: f64 = pc_share_of_s + level_share_of_s.iter().sum::<f64>() + adder_of_s;
 
-        // Scaling factor: coupon_credit / S_model. If S_model is zero,
-        // we cannot allocate proportionally — route the entire credit total
+        // Scaling factor: credit_carry_total / S_model (audit Mo6 — scaling
+        // by only the coupon credit part broke `generic + Σ levels + adder ≡
+        // credit_carry_total` the moment any non-coupon credit carry, e.g.
+        // the pull-to-par credit share, was nonzero). If S_model is zero, we
+        // cannot allocate proportionally — route the entire credit total
         // through `adder_total` so invariant 4 still holds.
-        let scale_coupon = if s_model.abs() > 1e-15 {
-            coupon_credit.amount() / s_model
+        let scale_credit = if s_model.abs() > 1e-15 {
+            credit_total.amount() / s_model
         } else {
             0.0
         };
@@ -407,7 +456,7 @@ impl AttributionSpec {
         for (k, level_share) in level_share_of_s.iter().enumerate() {
             let dim = &model.hierarchy.levels[k];
             let level_name = hierarchy_level_name(dim);
-            let share = *level_share * scale_coupon;
+            let share = *level_share * scale_credit;
             let total_money = Money::new(share, ccy);
             let by_bucket = single_issuer_by_bucket(
                 model,
@@ -424,9 +473,9 @@ impl AttributionSpec {
             });
         }
 
-        let generic_money = Money::new(pc_share_of_s * scale_coupon, ccy);
+        let generic_money = Money::new(pc_share_of_s * scale_credit, ccy);
         let adder_total_money = if s_model.abs() > 1e-15 {
-            Money::new(adder_of_s * scale_coupon, ccy)
+            Money::new(adder_of_s * scale_credit, ccy)
         } else {
             // Degenerate: no spread observable, route the entire credit
             // total to adder so invariant 4 still holds.
@@ -439,10 +488,12 @@ impl AttributionSpec {
             self.credit_factor_detail_options.include_per_issuer_adder,
         );
 
-        // Rates carry total: Σ rates_parts − funding_cost.
+        // Rates carry total: Σ rates_parts + pull_to_par rates share −
+        // funding_cost, so `rates_carry_total + credit_carry_total ≡
+        // carry_detail.total` (coupon + pull_to_par + roll − funding) exactly.
         let funding_cost = carry_detail.funding_cost.map(|m| m.amount()).unwrap_or(0.0);
         let rates_carry_total = Money::new(
-            coupon_rates.amount() + roll_rates.amount() - funding_cost,
+            coupon_rates.amount() + roll_rates.amount() + ptp_rates_amt - funding_cost,
             ccy,
         );
 
@@ -460,5 +511,298 @@ impl AttributionSpec {
         attribution.meta.notes.extend(lookup_warnings);
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::spec::AttributionSpec;
+    use crate::types::{AttributionMethod, CarryDetail, PnlAttribution, SourceLine};
+    use finstack_quant_core::currency::Currency;
+    use finstack_quant_core::dates::{create_date, Date};
+    use finstack_quant_core::market_data::context::MarketContext;
+    use finstack_quant_core::market_data::term_structures::{
+        DiscountCurve, HazardCurve, ValidationMode,
+    };
+    use finstack_quant_core::math::interp::InterpStyle;
+    use finstack_quant_core::money::Money;
+    use finstack_quant_core::types::{CurveId, IssuerId};
+    use finstack_quant_factor_model::credit::hierarchy::{
+        AdderVolSource, CalibrationDiagnostics, CreditFactorModel, CreditFactorModelSchema,
+        CreditHierarchySpec, DateRange, FactorCorrelationMatrix, GenericFactorSpec,
+        HierarchyDimension, IssuerBetaMode, IssuerBetaPolicy, IssuerBetaRow, IssuerBetas,
+        IssuerTags, LevelsAtAnchor, VolState,
+    };
+    use finstack_quant_factor_model::matching::ISSUER_ID_META_KEY;
+    use finstack_quant_factor_model::{
+        FactorCovarianceMatrix, FactorModelConfig, MatchingConfig, PricingMode,
+    };
+    use finstack_quant_valuations::instruments::{Attributes, Bond, Instrument, InstrumentJson};
+    use std::sync::Arc;
+    use time::Month;
+
+    fn empty_factor_config() -> FactorModelConfig {
+        FactorModelConfig {
+            factors: vec![],
+            covariance: FactorCovarianceMatrix::new(vec![], vec![]).unwrap(),
+            matching: MatchingConfig::MappingTable(vec![]),
+            pricing_mode: PricingMode::DeltaBased,
+            risk_measure: Default::default(),
+            bump_size: None,
+            unmatched_policy: None,
+        }
+    }
+
+    /// Model with anchor pc = 100, adder_at_anchor = 20 (level anchors empty),
+    /// so the model-implied spread splits 100/120 generic and 20/120 adder.
+    fn make_model() -> CreditFactorModel {
+        let mut tags = std::collections::BTreeMap::new();
+        tags.insert("rating".to_string(), "B".to_string());
+        tags.insert("region".to_string(), "US".to_string());
+
+        CreditFactorModel {
+            schema: CreditFactorModelSchema::CURRENT,
+            as_of: create_date(2024, Month::March, 29).unwrap(),
+            calibration_window: DateRange {
+                start: create_date(2022, Month::March, 29).unwrap(),
+                end: create_date(2024, Month::March, 29).unwrap(),
+            },
+            policy: IssuerBetaPolicy::GloballyOff,
+            generic_factor: GenericFactorSpec {
+                name: "CDX HY".into(),
+                series_id: "cdx.hy.5y".into(),
+            },
+            hierarchy: CreditHierarchySpec {
+                levels: vec![HierarchyDimension::Rating, HierarchyDimension::Region],
+            },
+            config: empty_factor_config(),
+            issuer_betas: vec![IssuerBetaRow {
+                issuer_id: IssuerId::new("ISSUER-B"),
+                tags: IssuerTags(tags),
+                mode: IssuerBetaMode::IssuerBeta,
+                betas: IssuerBetas {
+                    pc: 1.0,
+                    levels: vec![1.0, 1.0],
+                },
+                adder_at_anchor: 20.0,
+                adder_vol_annualized: 0.0,
+                adder_vol_source: AdderVolSource::Default,
+                fit_quality: None,
+                level_fit_quality: vec![],
+            }],
+            anchor_state: LevelsAtAnchor {
+                pc: 100.0,
+                by_level: vec![],
+            },
+            static_correlation: FactorCorrelationMatrix::identity(vec![]),
+            vol_state: VolState {
+                factors: std::collections::BTreeMap::new(),
+                idiosyncratic: std::collections::BTreeMap::new(),
+            },
+            factor_histories: None,
+            diagnostics: CalibrationDiagnostics {
+                mode_counts: std::collections::BTreeMap::new(),
+                bucket_sizes_per_level: vec![],
+                fold_ups: vec![],
+                r_squared_histogram: None,
+                tag_taxonomy: std::collections::BTreeMap::new(),
+            },
+        }
+    }
+
+    fn credit_bond(curve_id: &CurveId) -> Bond {
+        let mut bond = Bond::fixed(
+            "BOND-ISSUER-B",
+            Money::new(1_000_000.0, Currency::USD),
+            0.05,
+            create_date(2024, Month::January, 1).unwrap(),
+            create_date(2030, Month::January, 1).unwrap(),
+            "USD-OIS",
+        )
+        .expect("bond construction");
+        bond.credit_curve_id = Some(curve_id.clone());
+        bond.attributes = Attributes::new().with_meta(ISSUER_ID_META_KEY, "ISSUER-B");
+        bond
+    }
+
+    /// Flat continuously-compounded discount curve at rate `r` (may be negative).
+    fn flat_discount(base: Date, r: f64) -> DiscountCurve {
+        DiscountCurve::builder("USD-OIS")
+            .base_date(base)
+            .knots([(0.0, 1.0), (10.0, (-r * 10.0).exp())])
+            .interp(InterpStyle::LogLinear)
+            .validation(ValidationMode::NegativeRateFriendly {
+                forward_floor: -0.10,
+            })
+            .build()
+            .unwrap()
+    }
+
+    fn flat_hazard(id: &str, base: Date, rate: f64, recovery: f64) -> HazardCurve {
+        HazardCurve::builder(id)
+            .base_date(base)
+            .recovery_rate(recovery)
+            .knots([(1.0, rate), (10.0, rate)])
+            .build()
+            .unwrap()
+    }
+
+    fn spec(t0: Date, t1: Date, bond: Bond) -> AttributionSpec {
+        AttributionSpec {
+            instrument: InstrumentJson::Bond(bond),
+            market_t0: (&MarketContext::new()).into(),
+            market_t1: (&MarketContext::new()).into(),
+            as_of_t0: t0,
+            as_of_t1: t1,
+            method: AttributionMethod::MetricsBased,
+            model_params_t0: None,
+            config: None,
+            credit_factor_model: None,
+            credit_factor_detail_options: Default::default(),
+            full_cross_attribution: false,
+        }
+    }
+
+    /// CarryDetail with all four components nonzero:
+    /// total = 1000 (coupon) + 300 (pull_to_par) + 200 (roll) − 50 (funding).
+    fn four_component_carry_detail(ccy: Currency) -> CarryDetail {
+        CarryDetail {
+            total: Money::new(1450.0, ccy),
+            coupon_income: Some(SourceLine::scalar(Money::new(1000.0, ccy))),
+            pull_to_par: Some(Money::new(300.0, ccy)),
+            roll_down: Some(SourceLine::scalar(Money::new(200.0, ccy))),
+            funding_cost: Some(Money::new(50.0, ccy)),
+        }
+    }
+
+    fn run_split(r: f64, hazard_rate: f64, recovery: f64) -> PnlAttribution {
+        let t0 = create_date(2025, Month::January, 1).unwrap();
+        let t1 = create_date(2025, Month::January, 2).unwrap();
+        let curve_id = CurveId::new("ISSUER-B-HAZ");
+        let bond = credit_bond(&curve_id);
+        let instrument: Arc<dyn Instrument> = Arc::new(bond.clone());
+        let model = make_model();
+        let market_t0 = MarketContext::new()
+            .insert(flat_discount(t0, r))
+            .insert(flat_hazard(curve_id.as_str(), t0, hazard_rate, recovery));
+
+        let mut attribution = PnlAttribution::new(
+            Money::new(0.0, Currency::USD),
+            "BOND-ISSUER-B",
+            t0,
+            t1,
+            AttributionMethod::MetricsBased,
+        );
+        attribution.carry_detail = Some(four_component_carry_detail(Currency::USD));
+
+        spec(t0, t1, bond)
+            .compute_carry_credit_split_and_decomposition(
+                &model,
+                &instrument,
+                &market_t0,
+                &mut attribution,
+            )
+            .expect("carry credit split");
+        attribution
+    }
+
+    /// M2: `rates_carry_total + credit_carry_total` must equal
+    /// `carry_detail.total` exactly — pull_to_par must enter the partition
+    /// (split on the same s/(r+s) ratio as the coupon), not vanish.
+    #[test]
+    fn carry_partition_includes_pull_to_par() {
+        // r = 2% continuous, hazard 1% at recovery 40% → s = 0.6%.
+        let attribution = run_split(0.02, 0.01, 0.4);
+        let detail = attribution.carry_detail.as_ref().expect("carry detail");
+        let decomp = attribution
+            .credit_carry_decomposition
+            .as_ref()
+            .expect("decomposition");
+
+        let partition_sum = decomp.rates_carry_total.amount() + decomp.credit_carry_total.amount();
+        assert!(
+            (partition_sum - detail.total.amount()).abs() < 1e-10,
+            "rates ({}) + credit ({}) must equal carry_detail.total ({}); gap = {}",
+            decomp.rates_carry_total.amount(),
+            decomp.credit_carry_total.amount(),
+            detail.total.amount(),
+            partition_sum - detail.total.amount()
+        );
+        // The credit leg must carry the pull-to-par credit share, not just the
+        // coupon share: credit_total > coupon_credit alone.
+        let coupon_credit = detail
+            .coupon_income
+            .as_ref()
+            .and_then(|l| l.credit_part)
+            .expect("coupon credit part")
+            .amount();
+        assert!(
+            decomp.credit_carry_total.amount() > coupon_credit + 1e-12,
+            "credit_carry_total ({}) must include the pull_to_par credit share \
+             beyond coupon_credit ({})",
+            decomp.credit_carry_total.amount(),
+            coupon_credit
+        );
+    }
+
+    /// Mo6: the per-factor allocation must sum to `credit_carry_total`
+    /// (generic + Σ levels + adder ≡ credit_carry_total), not merely to the
+    /// coupon credit share.
+    #[test]
+    fn per_factor_allocation_sums_to_credit_carry_total() {
+        let attribution = run_split(0.02, 0.01, 0.4);
+        let decomp = attribution
+            .credit_carry_decomposition
+            .as_ref()
+            .expect("decomposition");
+
+        let factor_sum = decomp.credit_by_level.generic.amount()
+            + decomp
+                .credit_by_level
+                .levels
+                .iter()
+                .map(|l| l.total.amount())
+                .sum::<f64>()
+            + decomp.credit_by_level.adder_total.amount();
+        assert!(
+            (factor_sum - decomp.credit_carry_total.amount()).abs() < 1e-10,
+            "generic + Σ levels + adder ({}) must equal credit_carry_total ({})",
+            factor_sum,
+            decomp.credit_carry_total.amount()
+        );
+        assert!(
+            decomp.credit_carry_total.amount() > 0.0,
+            "fixture must exercise a nonzero credit carry"
+        );
+    }
+
+    /// Mo5: with r = −2% and s = +1% the naive share s/(r+s) = −1 used to
+    /// clamp to 0, routing the whole coupon to rates despite a genuine 100bp
+    /// spread. The spread is the only positive-yield component, so the coupon
+    /// must go to credit (share = 1) with a diagnostic note.
+    #[test]
+    fn negative_total_yield_routes_coupon_to_credit() {
+        // r = −2% continuous; hazard 1% at recovery 0 → s = 1%; r + s = −1%.
+        let attribution = run_split(-0.02, 0.01, 0.0);
+        let detail = attribution.carry_detail.as_ref().expect("carry detail");
+        let coupon = detail.coupon_income.as_ref().expect("coupon line");
+        let coupon_credit = coupon.credit_part.expect("credit part").amount();
+        let coupon_rates = coupon.rates_part.expect("rates part").amount();
+
+        assert!(
+            (coupon_credit - 1000.0).abs() < 1e-9,
+            "with negative total yield and s > 0 the full coupon must be \
+             credit carry, got credit = {coupon_credit}, rates = {coupon_rates}"
+        );
+        assert!(
+            attribution
+                .meta
+                .notes
+                .iter()
+                .any(|n| n.contains("negative total risky yield")),
+            "a diagnostic note must flag the negative-yield credit share, \
+             notes = {:?}",
+            attribution.meta.notes
+        );
     }
 }

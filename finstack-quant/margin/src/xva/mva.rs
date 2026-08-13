@@ -50,7 +50,7 @@
 //! # References
 //!
 //! - Green, A. (2015). *XVA: Credit, Funding and Capital Valuation
-//!   Adjustments*. Wiley. Chapter 10 (MVA).
+//!   Adjustments*. Wiley. Chapter 10 (MVA). `docs/REFERENCES.md#green-xva`
 //! - Andersen, L., Pykhtin, M., & Sokol, A. (2017). "Rethinking the margin
 //!   period of risk." *Journal of Credit Risk*, 13(1).
 //! - ISDA SIMM v2.6: `docs/REFERENCES.md#isda-simm`
@@ -97,7 +97,7 @@ impl ImDecayProfile {
     ///
     /// # References
     ///
-    /// - Green, A. (2015). *XVA*. Wiley. Chapter 10.
+    /// - Green, A. (2015). *XVA*. Wiley. Chapter 10. `docs/REFERENCES.md#green-xva`
     pub fn factor(&self, t: f64) -> f64 {
         match self {
             Self::Constant => 1.0,
@@ -203,7 +203,7 @@ impl ImProfile {
 /// # References
 ///
 /// - ISDA SIMM v2.6: `docs/REFERENCES.md#isda-simm`
-/// - Green, A. (2015). *XVA*. Wiley. Chapter 10.
+/// - Green, A. (2015). *XVA*. Wiley. Chapter 10. `docs/REFERENCES.md#green-xva`
 pub fn im_profile_from_simm(
     calculator: &SimmCalculator,
     sensitivities: &SimmSensitivities,
@@ -297,7 +297,7 @@ pub struct MvaResult {
 ///
 /// # References
 ///
-/// - Green, A. (2015). *XVA*. Wiley. Chapter 10, eq. (10.4)-(10.7).
+/// - Green, A. (2015). *XVA*. Wiley. Chapter 10, eq. (10.4)-(10.7). `docs/REFERENCES.md#green-xva`
 pub fn compute_mva(
     im_profile: &ImProfile,
     funding_spread_curve: &[(f64, f64)],
@@ -544,9 +544,9 @@ mod tests {
     fn mva_flat_spread_zero_rates_no_survival() {
         // IM(t) = 1_000_000 constant, spread 50bp flat, DF = 1, S = 1,
         // grid [1, 2] with the flat-before-first-point convention:
-        //   bucket [0,1]: 0.0050 × 1e6 × 1 × 1 × 1 = 5_000
-        //   bucket [1,2]: 0.0050 × 1e6 × 1 × 1 × 1 = 5_000
-        //   MVA = 10_000 exactly; average_im = 1e6.
+        // bucket [0,1]: 0.0050 × 1e6 × 1 × 1 × 1 = 5_000
+        // bucket [1,2]: 0.0050 × 1e6 × 1 × 1 × 1 = 5_000
+        // MVA = 10_000 exactly; average_im = 1e6.
         let profile = constant_im_profile(1_000_000.0, &[1.0, 2.0]);
         let discount = flat_discount_curve(0.0);
         let result =
@@ -566,10 +566,10 @@ mod tests {
     #[test]
     fn mva_weights_by_bank_survival() {
         // Same as above with own-survival S(t) = exp(−0.02 t):
-        //   S(1) = 0.980198673, S(2) = 0.960789439
-        //   bucket1 S_mid = (1 + 0.980198673)/2 = 0.990099337
-        //   bucket2 S_mid = (0.980198673 + 0.960789439)/2 = 0.970494056
-        //   MVA = 5_000 × (0.990099337 + 0.970494056) = 9_802.96696…
+        // S(1) = 0.980198673, S(2) = 0.960789439
+        // bucket1 S_mid = (1 + 0.980198673)/2 = 0.990099337
+        // bucket2 S_mid = (0.980198673 + 0.960789439)/2 = 0.970494056
+        // MVA = 5_000 × (0.990099337 + 0.970494056) = 9_802.96696…
         let profile = constant_im_profile(1_000_000.0, &[1.0, 2.0]);
         let discount = flat_discount_curve(0.0);
         let survival = flat_hazard_curve(0.02);
@@ -589,9 +589,9 @@ mod tests {
     fn mva_linear_decay_profile() {
         // LinearToMaturity T=2 sampled on [1, 2]: IM = [500_000, 0].
         // Flat-before-first-point convention ⇒ bucket [0,1] uses IM = 5e5:
-        //   bucket1: 0.01 × 5e5 × 1 = 5_000
-        //   bucket2: 0.01 × (5e5 + 0)/2 × 1 = 2_500
-        //   MVA = 7_500; average_im = (5e5·1 + 2.5e5·1)/2 = 375_000.
+        // bucket1: 0.01 × 5e5 × 1 = 5_000
+        // bucket2: 0.01 × (5e5 + 0)/2 × 1 = 2_500
+        // MVA = 7_500; average_im = (5e5·1 + 2.5e5·1)/2 = 375_000.
         let profile = ImProfile {
             times: vec![1.0, 2.0],
             im_values: vec![500_000.0, 0.0],
@@ -607,7 +607,7 @@ mod tests {
     fn mva_interpolates_spread_curve() {
         // Spread curve [(0, 50bp), (2, 150bp)], constant IM 1e6, DF=1, S=1,
         // grid [1, 2]. Bucket midpoints: t=0.5 → 75bp; t=1.5 → 125bp.
-        //   MVA = 0.0075×1e6 + 0.0125×1e6 = 7_500 + 12_500 = 20_000.
+        // MVA = 0.0075×1e6 + 0.0125×1e6 = 7_500 + 12_500 = 20_000.
         let profile = constant_im_profile(1_000_000.0, &[1.0, 2.0]);
         let discount = flat_discount_curve(0.0);
         let result = compute_mva(&profile, &[(0.0, 50.0), (2.0, 150.0)], &discount, None)

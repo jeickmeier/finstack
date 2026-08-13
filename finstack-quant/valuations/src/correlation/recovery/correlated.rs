@@ -39,10 +39,10 @@
 //!
 //! # References
 //!
-//! - Stochastic recovery and random loading context:
-//!   `docs/REFERENCES.md#andersen-sidenius-2005-rfl`
-//! - Tranche calibration background:
-//!   `docs/REFERENCES.md#krekel-stumpp-2006-correlation-products`
+//! - Stochastic recovery and random loading context: `docs/REFERENCES.md#andersen-sidenius-2005-rfl`
+//!
+//! - Tranche calibration background: `docs/REFERENCES.md#krekel-stumpp-2006-correlation-products`
+//!
 
 use super::RecoveryModel;
 use finstack_quant_core::math::GaussHermiteQuadrature;

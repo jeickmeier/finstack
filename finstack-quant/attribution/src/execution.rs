@@ -126,18 +126,26 @@ impl AttributionSpec {
                     default_attribution_metrics()
                 };
 
-                // Compute valuations with metrics
+                // Compute valuations with metrics. The FinstackConfig built
+                // above carries the `valuations.sensitivities.v1` extension
+                // (e.g. `rate_bump_bp` from `AttributionConfig`) — it must be
+                // attached to the pricing request or the sensitivity
+                // calculators fall back to defaults and the config knob is
+                // silently inert (audit finding: spec.rs wrote the extension
+                // but pricing ran with `PricingOptions::default()`).
+                let pricing_options = finstack_quant_valuations::instruments::PricingOptions::new()
+                    .with_config(&config);
                 let val_t0 = instrument_arc.price_with_metrics(
                     &market_t0,
                     self.as_of_t0,
                     &metrics,
-                    finstack_quant_valuations::instruments::PricingOptions::default(),
+                    pricing_options.clone(),
                 )?;
                 let val_t1 = instrument_arc.price_with_metrics(
                     &market_t1,
                     self.as_of_t1,
                     &metrics,
-                    finstack_quant_valuations::instruments::PricingOptions::default(),
+                    pricing_options,
                 )?;
 
                 attribute_pnl_metrics_based(

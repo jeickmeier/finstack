@@ -27,8 +27,8 @@
 //!
 //! # References
 //!
-//! - Wystup (2006), *FX Options and Structured Products*, Ch. 1
-//! - Clark (2011), *Foreign Exchange Option Pricing*, Ch. 3-4
+//! - Wystup (2006), *FX Options and Structured Products*, Ch. 1 `docs/REFERENCES.md#wystup-fx-options`
+//! - Clark (2011), *Foreign Exchange Option Pricing*, Ch. 3-4 `docs/REFERENCES.md#clark-fx-options`
 
 use crate::{
     error::InputError, math::special_functions::norm_cdf, math::volatility::d1_black76,

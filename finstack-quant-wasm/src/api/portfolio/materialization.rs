@@ -83,8 +83,8 @@ impl JsPortfolio {
     ///
     /// * `bundle` - Complete UTF-8 materialization JSON as a JavaScript string
     ///   or `Uint8Array`.
-    /// * `cache` - Explicit cache created outside any timed validation region.
-    /// * `cache` - Optional reusable decoded-artifact cache.
+    /// * `cache` - Optional reusable decoded-artifact cache created outside any
+    ///   timed validation region.
     ///
     /// # Errors
     ///

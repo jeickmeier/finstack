@@ -1014,6 +1014,7 @@ test('portfolio.almgrenChrissImpact returns the Python-parity dict shape', () =>
     'almgrenChrissImpact result'
   );
   assert.deepEqual(Object.keys(impact).sort(), [
+    'execution_risk',
     'expected_cost_bp',
     'permanent_impact',
     'temporary_impact',

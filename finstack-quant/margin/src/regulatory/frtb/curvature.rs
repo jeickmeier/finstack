@@ -58,8 +58,8 @@ use finstack_quant_core::HashMap;
 ///
 /// # References
 ///
-/// - BCBS FRTB Minimum Capital Requirements:
-///   `docs/REFERENCES.md#bcbs-frtb-minimum-capital-requirements`
+/// - BCBS FRTB Minimum Capital Requirements: `docs/REFERENCES.md#bcbs-frtb-minimum-capital-requirements`
+///
 pub fn curvature_charge(
     risk_class: FrtbRiskClass,
     sensitivities: &FrtbSensitivities,
@@ -231,7 +231,7 @@ fn bucket_k_and_s(pairs: &[(f64, f64)], intra_rho: f64) -> (f64, f64) {
 ///
 /// ```text
 /// K = sqrt( max(0, sum_k max(cvr_k, 0)^2
-///                 + sum_{k != l} rho * cvr_k * cvr_l * psi(cvr_k, cvr_l)) )
+/// + sum_{k != l} rho * cvr_k * cvr_l * psi(cvr_k, cvr_l)) )
 /// ```
 ///
 /// Also returns the raw (uncapped) sum of cvr_k for this side.
@@ -254,7 +254,7 @@ fn one_side_k(cvrs: &[f64], rho: f64) -> (f64, f64) {
 ///
 /// ```text
 /// Curvature = sqrt( max(0, sum_b K_b^2
-///                    + sum_{b != c} gamma^2 * S_b * S_c * psi(S_b, S_c)) )
+/// + sum_{b != c} gamma^2 * S_b * S_c * psi(S_b, S_c)) )
 /// ```
 fn curvature_inter_bucket(bucket_results: &[(f64, f64)], gamma: f64) -> f64 {
     let mut total = 0.0;

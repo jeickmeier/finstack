@@ -49,8 +49,8 @@
 //!
 //! # References
 //!
-//! - Garman, M. B., & Kohlhagen, S. W. (1983). "Foreign Currency Option Values."
-//! - Reiner, E., & Rubinstein, M. (1991). "Breaking Down the Barriers."
+//! - Garman, M. B., & Kohlhagen, S. W. (1983). "Foreign Currency Option Values." `docs/REFERENCES.md#garman-kohlhagen-1983`
+//! - Reiner, E., & Rubinstein, M. (1991). "Breaking Down the Barriers." `docs/REFERENCES.md#reiner-rubinstein-1991`
 //!
 //! # See Also
 //!

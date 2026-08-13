@@ -575,11 +575,24 @@ proptest! {
         )
         .unwrap();
 
-        // Carry should be non-negative (allow small negative due to numerical precision)
+        // With an unchanged flat continuous curve, one day of carry for the
+        // whole bond position is the position value accreting at the flat
+        // rate: carry ≈ V(t0) × r / 365. Measured 2026-08-12 across proptest
+        // samples, carry/anchor ∈ [0.981, 1.009] (spread is day-count and
+        // pull-to-par noise), so pin a [0.85, 1.15] band. The old bound
+        // (`carry >= -1.0`) was satisfied by carry = 0.0 — the exact
+        // regression `carry_decomposition_window.rs` exists to catch.
+        let value_t0 = bond_instrument.value(&market, as_of_t0).unwrap().amount();
+        let anchor = value_t0 * flat_rate / 365.0;
+        let carry = attribution.carry.amount();
         prop_assert!(
-            attribution.carry.amount() >= -1.0,
-            "Carry should be non-negative for coupon bond, got {}",
-            attribution.carry.amount()
+            carry >= 0.85 * anchor && carry <= 1.15 * anchor,
+            "Carry ({}) should be within 15% of one day's accretion V*r/365 = {} \
+             (V(t0)={}, rate={})",
+            carry,
+            anchor,
+            value_t0,
+            flat_rate
         );
     }
 
@@ -817,12 +830,20 @@ fn test_large_notional_edge_case() {
     assert!(attribution.total_pnl.amount().is_finite());
     assert!(attribution.rates_curves_pnl.amount().is_finite());
 
-    // For $1B notional, 10bp move should produce ~$4-5M P&L
-    // (DV01 ≈ $450k per bp for 5Y bond with $1B notional)
-    let expected_magnitude = 4_000_000.0;
+    // For $1B notional, 10bp move should produce ~$4-5M loss
+    // (DV01 ≈ $470k per bp for this 5Y bond with $1B notional).
+    // Measured 2026-08-12: rates_pnl = −4,696,301.6. Two-sided band ±~25%
+    // around that: the old lower-bound-only check let a doubled DV01 (or any
+    // upward blow-up) pass.
+    let rates_pnl_abs = attribution.rates_curves_pnl.amount().abs();
     assert!(
-        attribution.rates_curves_pnl.amount().abs() > expected_magnitude * 0.5,
-        "Large notional should produce significant P&L, got {}",
+        rates_pnl_abs > 3_500_000.0,
+        "Large notional should produce significant P&L (measured ~−4.70M), got {}",
+        attribution.rates_curves_pnl.amount()
+    );
+    assert!(
+        rates_pnl_abs < 6_000_000.0,
+        "Large-notional rates P&L blew past the expected ~4.70M scale, got {}",
         attribution.rates_curves_pnl.amount()
     );
 }
@@ -944,11 +965,20 @@ fn test_near_maturity_edge_case() {
     // Should compute without error
     assert!(attribution.total_pnl.amount().is_finite());
 
-    // Near-maturity bond should have low duration, hence low rates P&L
-    // For a 16-day bond, rates P&L should be small
+    // Near-maturity bond should have low but NON-ZERO rates sensitivity:
+    // ~16 days of duration on $1M with a 100bp move gives DV01 ≈ $4.5/bp,
+    // i.e. a few hundred dollars. Measured 2026-08-12: rates_pnl = −489.7.
+    // Band [200, 1000]: the old upper-only bound of 5000 (11× the true value)
+    // was satisfied by a zeroed rates factor.
+    let near_maturity_rates_abs = attribution.rates_curves_pnl.amount().abs();
     assert!(
-        attribution.rates_curves_pnl.amount().abs() < 5000.0,
-        "Near-maturity bond should have low rates sensitivity, got {}",
+        near_maturity_rates_abs < 1000.0,
+        "Near-maturity bond should have low rates sensitivity (measured ~−490), got {}",
+        attribution.rates_curves_pnl.amount()
+    );
+    assert!(
+        near_maturity_rates_abs > 200.0,
+        "Near-maturity bond rates P&L collapsed (measured ~−490), got {}",
         attribution.rates_curves_pnl.amount()
     );
 }

@@ -21,7 +21,7 @@
 //! # References
 //!
 //! - Durrleman, V. (2003). *From Implied to Spot Volatilities*. PhD thesis.
-//! - Gatheral, J. (2006). *The Volatility Surface*. Wiley.
+//! - Gatheral, J. (2006). *The Volatility Surface*. Wiley. `docs/REFERENCES.md#gatheral-volatility-surface`
 
 use super::{classify_severity, ArbitrageCheck};
 use crate::market_data::arbitrage::types::{ArbitrageType, ArbitrageViolation, ViolationLocation};

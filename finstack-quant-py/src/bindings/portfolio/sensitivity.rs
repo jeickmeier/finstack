@@ -258,8 +258,9 @@ impl PyFactorPnlProfile {
 ///     ``instrument`` (canonical v1 instrument envelope), and ``weight`` (float).
 /// factors_json : str
 ///     JSON array of ``FactorDefinition`` objects.
-/// market_json : str
-///     JSON-serialized ``MarketContext``.
+/// market : MarketContext | str
+///     A ``MarketContext`` object or a JSON-serialized ``MarketContext``
+///     string.
 /// as_of : datetime.date | str
 ///     Valuation date, either a date-like object (``datetime.date``,
 ///     ``pandas.Timestamp``) or an ISO 8601 string.
@@ -311,8 +312,9 @@ fn compute_factor_sensitivities(
 ///     :func:`compute_factor_sensitivities`).
 /// factors_json : str
 ///     JSON array of ``FactorDefinition`` objects.
-/// market_json : str
-///     JSON-serialized ``MarketContext``.
+/// market : MarketContext | str
+///     A ``MarketContext`` object or a JSON-serialized ``MarketContext``
+///     string.
 /// as_of : datetime.date | str
 ///     Valuation date, either a date-like object (``datetime.date``,
 ///     ``pandas.Timestamp``) or an ISO 8601 string.
@@ -387,12 +389,37 @@ struct PyFactorRiskDecomposition {
     pfc_position_ids: Vec<String>,
     pfc_factor_ids: Vec<String>,
     pfc_risk_contributions: Vec<f64>,
+    residual_contributions:
+        Vec<finstack_quant_portfolio::factor_model::PositionResidualContribution>,
+}
+
+/// Bare snake_case serde tag of a [`RiskMeasure`], without JSON quoting or
+/// variant payload (`"variance"`, `"volatility"`, `"var"`,
+/// `"expected_shortfall"`). Matches the tag the WASM binding reports.
+fn risk_measure_tag(measure: &finstack_quant_factor_model::RiskMeasure) -> String {
+    use finstack_quant_factor_model::RiskMeasure as M;
+    match measure {
+        M::Variance => "variance".to_owned(),
+        M::Volatility => "volatility".to_owned(),
+        M::VaR { .. } => "var".to_owned(),
+        M::ExpectedShortfall { .. } => "expected_shortfall".to_owned(),
+        // `RiskMeasure` is `#[non_exhaustive]`; derive the tag of a future
+        // variant from its serde form so the binding stays forward-compatible.
+        other => match serde_json::to_value(other) {
+            Ok(serde_json::Value::String(tag)) => tag,
+            Ok(serde_json::Value::Object(map)) => map
+                .keys()
+                .next()
+                .cloned()
+                .unwrap_or_else(|| format!("{other:?}")),
+            _ => format!("{other:?}"),
+        },
+    }
 }
 
 impl PyFactorRiskDecomposition {
     fn from_inner(decomp: finstack_quant_portfolio::factor_model::RiskDecomposition) -> Self {
-        let measure = serde_json::to_string(&decomp.measure)
-            .unwrap_or_else(|_| format!("{:?}", decomp.measure));
+        let measure = risk_measure_tag(&decomp.measure);
         let factor_ids: Vec<String> = decomp
             .factor_contributions
             .iter()
@@ -439,6 +466,7 @@ impl PyFactorRiskDecomposition {
             pfc_position_ids,
             pfc_factor_ids,
             pfc_risk_contributions,
+            residual_contributions: decomp.position_residual_contributions,
         }
     }
 }
@@ -451,7 +479,9 @@ impl PyFactorRiskDecomposition {
         self.total_risk
     }
 
-    /// Risk measure used (e.g. ``"Variance"``, ``"Volatility"``).
+    /// Risk-measure tag in canonical snake_case serde form: ``"variance"``,
+    /// ``"volatility"``, ``"var"``, or ``"expected_shortfall"``. Matches the
+    /// tag reported by the WASM ``decomposeFactorRisk`` output.
     #[getter]
     fn measure(&self) -> &str {
         &self.measure
@@ -499,6 +529,17 @@ impl PyFactorRiskDecomposition {
             })
             .collect::<PyResult<Vec<_>>>()?;
         PyList::new(py, items)
+    }
+
+    /// Per-position residual (idiosyncratic) variance contributions as a
+    /// list of dicts.
+    ///
+    /// Each dict contains ``position_id``, ``residual_variance`` (annualized
+    /// variance units), and a ``source`` object tagged by ``kind``. Empty for
+    /// the parametric decomposer used by :func:`decompose_factor_risk` —
+    /// populated only by credit-aware position decomposers.
+    fn position_residual_contributions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::bindings::pandas_utils::serde_to_py(py, &self.residual_contributions)
     }
 
     /// Export factor contributions as a pandas ``DataFrame``.
@@ -564,7 +605,7 @@ impl PyFactorRiskDecomposition {
 ///
 /// Returns
 /// -------
-/// RiskDecomposition
+/// FactorRiskDecomposition
 ///     Portfolio-level risk decomposition with factor and position detail.
 #[pyfunction]
 #[pyo3(signature = (sensitivities, covariance_json, risk_measure=None))]

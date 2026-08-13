@@ -2,6 +2,10 @@
 //!
 //! Implements Historical Value-at-Risk using historical simulation methodology.
 //! Supports both full revaluation and Taylor approximation (Greeks-based) approaches.
+//!
+//! # References
+//!
+//! - VaR and Expected Shortfall interpretation: `docs/REFERENCES.md#mcneil-frey-embrechts-qrm`
 
 use crate::instruments::common_impl::helpers::instrument_to_arc;
 use crate::instruments::common_impl::traits::Instrument;

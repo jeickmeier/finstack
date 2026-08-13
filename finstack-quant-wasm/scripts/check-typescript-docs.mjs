@@ -71,7 +71,16 @@ function hasTag(documentationText, tag) {
 }
 
 function returnIsVoid(node) {
+  if (ts.isConstructorDeclaration(node)) {
+    return true;
+  }
   return node.type?.kind === ts.SyntaxKind.VoidKeyword;
+}
+
+function hasPrivateModifier(node) {
+  return (
+    node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.PrivateKeyword) ?? false
+  );
 }
 
 function error(node, message) {
@@ -95,6 +104,52 @@ function checkDocumentedNode(node, label, options = {}) {
   }
   if (blocks.some(isLegacyPlaceholderExample)) {
     error(node, `${label}: contains a non-executable placeholder @example`);
+  }
+
+  const joined = (documentationText ?? '').replace(/\s+/g, ' ');
+  const genericPhrases = [
+    ['units described above', 'generic numeric @returns boilerplate'],
+    ['exposed by this', 'generic field summary boilerplate'],
+    ['this callable', 'generic parameter boilerplate'],
+    ['declared TypeScript shape', 'generic @returns boilerplate'],
+    ['units and constraints stated above', 'generic numeric @param boilerplate'],
+    ['in the documented order', 'generic collection-order @returns boilerplate'],
+    ['TypeScript type that constrains', 'generic type-alias summary boilerplate'],
+    ['or WebAssembly handle', 'generic handle @returns boilerplate'],
+    ['requested string representation or JSON payload', 'generic JSON @returns boilerplate'],
+    ['TypeScript view of the', 'generic interface summary boilerplate'],
+    ['consumed by this API', 'generic JSON @param boilerplate'],
+    ['consumed by this operation', 'generic @param boilerplate'],
+    ['consumed by this calculation', 'generic @param boilerplate'],
+    ['documented condition is satisfied', 'generic boolean @returns boilerplate'],
+    ['documented condition holds', 'generic boolean @returns boilerplate'],
+    ['defaults follow the callable', 'generic optional-flag @param boilerplate'],
+    ['follow the type and convention', 'generic @param boilerplate'],
+    ['Create a new `', 'generic constructor-summary boilerplate'],
+    ['Create the object from its inputs', 'generic constructor-summary boilerplate'],
+    ['Structured specification that defines', 'generic spec @param boilerplate'],
+    ['JSON-serialized representation accepted by this API', 'generic JSON @param boilerplate'],
+    ['Whether to enable', 'generic boolean @param boilerplate'],
+    ['on the documented day-count basis', 'generic time @param boilerplate'],
+    ['in the documented quote convention', 'generic spot @param boilerplate'],
+    ['satisfy this calculation', 'generic market JSON @param boilerplate'],
+    ['accepted by this operation', 'generic JSON @param boilerplate'],
+    ['units required by this function', 'generic numeric @param boilerplate'],
+    ['string consumed by this', 'generic string @param boilerplate'],
+    ['input consumed by this', 'generic @param boilerplate'],
+    ['Construction and factory entry points', 'generic constructor-interface boilerplate'],
+    ['WebAssembly values.', 'generic constructor-interface boilerplate'],
+  ];
+  for (const [phrase, message] of genericPhrases) {
+    if (joined.includes(phrase)) {
+      error(node, `${label}: contains ${message}`);
+    }
+  }
+  if (/Perform \S+ for this `/.test(joined)) {
+    error(node, `${label}: contains generic method-summary boilerplate`);
+  }
+  if (/Compute \S+ for this `/.test(joined)) {
+    error(node, `${label}: contains generic method-summary boilerplate`);
   }
 
   if (options.example && !hasTag(documentationText, 'example')) {
@@ -140,9 +195,33 @@ function checkInterface(node) {
   }
 }
 
+function checkClass(node) {
+  const name = declarationName(node);
+  checkDocumentedNode(node, `class ${name}`);
+
+  for (const member of node.members) {
+    if (hasPrivateModifier(member)) {
+      continue;
+    }
+    if (ts.isConstructorDeclaration(member)) {
+      checkDocumentedNode(member, `${name}.constructor`, { callable: true });
+    } else if (ts.isMethodDeclaration(member)) {
+      checkDocumentedNode(member, `${name}.${declarationName(member)}`, { callable: true });
+    } else if (
+      ts.isPropertyDeclaration(member) ||
+      ts.isGetAccessorDeclaration(member) ||
+      ts.isSetAccessorDeclaration(member)
+    ) {
+      checkDocumentedNode(member, `${name}.${declarationName(member)}`);
+    }
+  }
+}
+
 for (const statement of sourceFile.statements) {
   if (ts.isInterfaceDeclaration(statement) && isExported(statement)) {
     checkInterface(statement);
+  } else if (ts.isClassDeclaration(statement) && isExported(statement)) {
+    checkClass(statement);
   } else if (ts.isTypeAliasDeclaration(statement) && isExported(statement)) {
     checkDocumentedNode(statement, `type ${declarationName(statement)}`);
   } else if (ts.isFunctionDeclaration(statement) && isExported(statement)) {

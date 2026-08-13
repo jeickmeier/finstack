@@ -34,8 +34,8 @@
 //!
 //! # References
 //!
-//! - Duffie, D., & Singleton, K. J. (1999). "Modeling Term Structures of Defaultable Bonds."
-//! - O'Kane, D. (2008). *Modelling Single-name and Multi-name Credit Derivatives*.
+//! - Duffie, D., & Singleton, K. J. (1999). "Modeling Term Structures of Defaultable Bonds." `docs/REFERENCES.md#duffie-singleton-1999`
+//! - O'Kane, D. (2008). *Modelling Single-name and Multi-name Credit Derivatives*. `docs/REFERENCES.md#o-kane-2008`
 
 use super::traits::{MacroCreditFactors, StochasticDefault};
 use finstack_quant_core::market_data::term_structures::HazardCurve;

@@ -19,6 +19,7 @@ from typing import Any, Final
 import pandas as pd
 
 from finstack_quant.core.market_data import DiscountCurve, HazardCurve
+from finstack_quant.margin import schema as schema
 
 __all__ = [
     "ImMethodology",
@@ -61,6 +62,7 @@ __all__ = [
     "SaCcrEngine",
     "frtb_sba_charge",
     "saccr_ead",
+    "schema",
 ]
 
 CONSTANTS: Final[dict[str, str]] = ...
@@ -94,6 +96,10 @@ class ImMethodology:
         ImMethodology
             Haircut methodology.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> ImMethodology.haircut()
@@ -110,6 +116,10 @@ class ImMethodology:
         -------
         ImMethodology
             SIMM methodology.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -128,6 +138,10 @@ class ImMethodology:
         ImMethodology
             Schedule methodology.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> ImMethodology.schedule()
@@ -145,6 +159,10 @@ class ImMethodology:
         ImMethodology
             Internal model methodology.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> ImMethodology.internal_model()
@@ -161,6 +179,10 @@ class ImMethodology:
         -------
         ImMethodology
             CCP methodology.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -202,7 +224,7 @@ class ImMethodology:
 
 class MarginTenor:
     """
-    Margin call frequency.
+    How often variation margin is exchanged under the CSA.
 
     Parameters
     ----------
@@ -229,6 +251,10 @@ class MarginTenor:
         MarginTenor
             Daily tenor.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> str(MarginTenor.daily())
@@ -239,12 +265,16 @@ class MarginTenor:
     @staticmethod
     def weekly() -> MarginTenor:
         """
-        Weekly margin calls.
+        Weekly variation-margin call frequency.
 
         Returns
         -------
         MarginTenor
             Weekly tenor.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -256,12 +286,16 @@ class MarginTenor:
     @staticmethod
     def monthly() -> MarginTenor:
         """
-        Monthly margin calls.
+        Monthly variation-margin call frequency.
 
         Returns
         -------
         MarginTenor
             Monthly tenor.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -273,12 +307,16 @@ class MarginTenor:
     @staticmethod
     def on_demand() -> MarginTenor:
         """
-        On-demand margin calls.
+        Margin calls issued when a threshold breach is observed, not on a calendar.
 
         Returns
         -------
         MarginTenor
             On-demand tenor.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -290,7 +328,7 @@ class MarginTenor:
     @staticmethod
     def from_str(s: str) -> MarginTenor:
         """
-        Parse from string.
+        Parse this variant from its canonical name string.
 
         Parameters
         ----------
@@ -321,7 +359,7 @@ class MarginTenor:
 
 class MarginCallType:
     """
-    Type of margin call.
+    Kind of margin call (top-up, return, or on-demand).
 
     Parameters
     ----------
@@ -348,6 +386,10 @@ class MarginCallType:
         MarginCallType
             Initial margin call type.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> MarginCallType.initial_margin()
@@ -364,6 +406,10 @@ class MarginCallType:
         -------
         MarginCallType
             VM delivery type.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -382,6 +428,10 @@ class MarginCallType:
         MarginCallType
             VM return type.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> MarginCallType.variation_margin_return()
@@ -392,12 +442,16 @@ class MarginCallType:
     @staticmethod
     def top_up() -> MarginCallType:
         """
-        Top-up margin call.
+        Margin call that posts additional collateral to restore the threshold.
 
         Returns
         -------
         MarginCallType
             Top-up type.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -415,6 +469,10 @@ class MarginCallType:
         -------
         MarginCallType
             Substitution type.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -455,6 +513,10 @@ class ClearingStatus:
         ClearingStatus
             Bilateral status.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> ClearingStatus.bilateral().is_bilateral
@@ -477,6 +539,10 @@ class ClearingStatus:
         ClearingStatus
             Cleared status with CCP id.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> ClearingStatus.cleared("LCH").is_cleared
@@ -494,6 +560,10 @@ class ClearingStatus:
         bool
             True if bilateral.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> ClearingStatus.bilateral().is_bilateral
@@ -510,6 +580,10 @@ class ClearingStatus:
         -------
         bool
             True if cleared.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -544,12 +618,16 @@ class CollateralAssetClass:
     @staticmethod
     def cash() -> CollateralAssetClass:
         """
-        Cash collateral class.
+        Eligible-collateral class for cash balances.
 
         Returns
         -------
         CollateralAssetClass
             Cash.
+
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
 
         Examples
         --------
@@ -561,12 +639,16 @@ class CollateralAssetClass:
     @staticmethod
     def government_bonds() -> CollateralAssetClass:
         """
-        Government bonds class.
+        Eligible-collateral class for government bonds.
 
         Returns
         -------
         CollateralAssetClass
             Government bonds.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -578,12 +660,16 @@ class CollateralAssetClass:
     @staticmethod
     def agency_bonds() -> CollateralAssetClass:
         """
-        Agency bonds class.
+        Eligible-collateral class for agency (GSE) bonds.
 
         Returns
         -------
         CollateralAssetClass
             Agency bonds.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -595,12 +681,16 @@ class CollateralAssetClass:
     @staticmethod
     def covered_bonds() -> CollateralAssetClass:
         """
-        Covered bonds class.
+        Eligible-collateral class for covered bonds.
 
         Returns
         -------
         CollateralAssetClass
             Covered bonds.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -612,12 +702,16 @@ class CollateralAssetClass:
     @staticmethod
     def corporate_bonds() -> CollateralAssetClass:
         """
-        Corporate bonds class.
+        Eligible-collateral class for corporate bonds.
 
         Returns
         -------
         CollateralAssetClass
             Corporate bonds.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -637,6 +731,10 @@ class CollateralAssetClass:
         CollateralAssetClass
             Equity.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> CollateralAssetClass.equity()
@@ -655,6 +753,10 @@ class CollateralAssetClass:
         CollateralAssetClass
             Gold.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> CollateralAssetClass.gold()
@@ -665,12 +767,16 @@ class CollateralAssetClass:
     @staticmethod
     def mutual_funds() -> CollateralAssetClass:
         """
-        Mutual funds class.
+        Eligible-collateral class for mutual-fund shares.
 
         Returns
         -------
         CollateralAssetClass
             Mutual funds.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -682,7 +788,7 @@ class CollateralAssetClass:
     @staticmethod
     def from_str(s: str) -> CollateralAssetClass:
         """
-        Parse from string.
+        Parse this variant from its canonical name string.
 
         Parameters
         ----------
@@ -788,6 +894,10 @@ class NettingSetId:
         NettingSetId
             Bilateral netting set id.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> NettingSetId.bilateral("A", "CSA").is_cleared
@@ -810,6 +920,10 @@ class NettingSetId:
         NettingSetId
             Cleared netting set id.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> NettingSetId.cleared("LCH").is_cleared
@@ -826,6 +940,10 @@ class NettingSetId:
         -------
         bool
             True if cleared.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -844,6 +962,10 @@ class NettingSetId:
         -------
         str
             Counterparty id string.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -864,6 +986,10 @@ class NettingSetId:
         str or None
             CSA id string, or ``None`` for cleared netting sets.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> NettingSetId.bilateral("X", "CSA-001").csa_id
@@ -882,6 +1008,10 @@ class NettingSetId:
         -------
         str or None
             CCP id string, or ``None`` for bilateral netting sets.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -1020,6 +1150,10 @@ class CsaSpec:
             CSA id.
 
             The id exposed by this `CsaSpec`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         Examples
         --------
         >>> isinstance(CsaSpec.usd_regulatory().id, str)
@@ -1030,12 +1164,16 @@ class CsaSpec:
     @property
     def base_currency(self) -> str:
         """
-        Base currency code.
+        ISO currency code in which CSA amounts are expressed.
 
         Returns
         -------
         str
             ISO currency code.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -1053,6 +1191,10 @@ class CsaSpec:
         -------
         str
             The calendar id exposed by this `CsaSpec`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1065,6 +1207,10 @@ class CsaSpec:
         -------
         bool
             True if IM required.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -1097,7 +1243,7 @@ class EligibleCollateralSchedule:
     @staticmethod
     def cash_only() -> EligibleCollateralSchedule:
         """
-        Cash-only schedule.
+        Eligible-collateral schedule that accepts cash only.
 
         Returns
         -------
@@ -1164,7 +1310,7 @@ class EligibleCollateralSchedule:
     @staticmethod
     def from_json(json: str) -> EligibleCollateralSchedule:
         """
-        Deserialize from JSON.
+        Parse this object from a JSON object or JSON string.
 
         Parameters
         ----------
@@ -1192,7 +1338,7 @@ class EligibleCollateralSchedule:
 
     def to_json(self) -> str:
         """
-        Serialize to JSON.
+        Serialize this object to a JSON-compatible dict.
 
         Returns
         -------
@@ -1221,6 +1367,10 @@ class EligibleCollateralSchedule:
         bool
             Rehypothecation flag.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> isinstance(EligibleCollateralSchedule.cash_only().rehypothecation_allowed, bool)
@@ -1237,6 +1387,10 @@ class EligibleCollateralSchedule:
         -------
         int
             Count of eligible entries.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -1259,6 +1413,10 @@ class EligibleCollateralSchedule:
         bool
             True if eligible under this schedule.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> s = EligibleCollateralSchedule.cash_only()
@@ -1280,6 +1438,10 @@ class EligibleCollateralSchedule:
         -------
         float or None
             Haircut if defined, else None.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -1321,6 +1483,10 @@ class VmResult:
         float
             Gross exposure.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> r = VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", 2024, 6, 15)
@@ -1338,6 +1504,10 @@ class VmResult:
         -------
         float
             Net exposure.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -1357,6 +1527,10 @@ class VmResult:
         float
             Delivery amount.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> r = VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", 2024, 6, 15)
@@ -1374,6 +1548,10 @@ class VmResult:
         -------
         float
             Return amount.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -1393,6 +1571,10 @@ class VmResult:
         float
             Net margin.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> r = VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", 2024, 6, 15)
@@ -1410,6 +1592,10 @@ class VmResult:
         -------
         bool
             Call required flag.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -1435,6 +1621,11 @@ class VmResult:
         -------
         pd.DataFrame
             One row describing the variation-margin result.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -1469,6 +1660,10 @@ class VmCalculator:
         csa : CsaSpec
             Thresholds, transfer minimums, rounding rules, eligible
             currencies, and calendar terms applied to each margin call.
+
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -1551,6 +1746,9 @@ class ImResult:
         float
             IM notional.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1564,6 +1762,9 @@ class ImResult:
         str
             ISO currency.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1577,6 +1778,9 @@ class ImResult:
         ImMethodology
             IM methodology.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1590,6 +1794,9 @@ class ImResult:
         int
             MPOR in days.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1604,6 +1811,9 @@ class ImResult:
             Whether the amount is a conservative approximation (proxy) rather
             than an exact computation under the named methodology.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1616,6 +1826,10 @@ class ImResult:
         -------
         str
             ISO 8601 date string.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1628,6 +1842,9 @@ class ImResult:
         list[str]
             Keys present in the breakdown map.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1645,6 +1862,9 @@ class ImResult:
         float or None
             Amount if present.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1667,6 +1887,11 @@ class ImResult:
         -------
         pd.DataFrame
             One row describing the initial-margin result.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -1687,6 +1912,10 @@ class ImResult:
         -------
         pd.DataFrame
             One row per risk class, sorted by ``risk_class``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1770,6 +1999,11 @@ class SimmSensitivities:
         -------
         str
             JSON string containing all populated buckets and the base currency.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -1829,6 +2063,10 @@ class SimmSensitivities:
             Credit tenor bucket, such as ``"5Y"``.
         amount : float
             Signed CS01-style currency amount per 1bp move.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1867,6 +2105,10 @@ class SimmSensitivities:
             Equity underlier or index identifier.
         amount : float
             Signed currency sensitivity amount.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1880,12 +2122,16 @@ class SimmSensitivities:
             Equity underlier or index identifier.
         amount : float
             Signed currency vega amount.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
     def add_fx_delta(self, currency: str, amount: float) -> None:
         """
-        Add an FX delta bucket.
+        Add an FX delta sensitivity to a SIMM bucket.
 
         Parameters
         ----------
@@ -1932,6 +2178,10 @@ class SimmSensitivities:
             such as ``"energy"``.
         amount : float
             Signed currency sensitivity amount.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1966,6 +2216,10 @@ class SimmSensitivities:
         bool
             ``True`` when every SIMM bucket map is empty. A populated bucket
             with a zero net amount still makes the container non-empty.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1978,6 +2232,10 @@ class SimmSensitivities:
         -------
         str
             ISO currency code for sensitivity amounts.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2017,6 +2275,11 @@ class SimmSensitivities:
         -------
         pd.DataFrame
             One row per populated sensitivity bucket.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -2065,6 +2328,10 @@ class SimmCalculator:
         -------
         str
             Normalized SIMM version label.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2077,6 +2344,10 @@ class SimmCalculator:
         -------
         int
             MPOR in calendar days.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2219,6 +2490,11 @@ class ScheduleImCalculator:
         -------
         ScheduleImCalculator
             Copy of this calculator with the default maturity changed.
+
+        Notes
+        -----
+        This builder returns a copy with the field set and does not raise.
+
         """
         ...
 
@@ -2415,6 +2691,10 @@ class HaircutImCalculator:
         HaircutImCalculator
             Calculator backed by ``schedule``.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.margin import CollateralAssetClass, EligibleCollateralSchedule, HaircutImCalculator
@@ -2437,6 +2717,11 @@ class HaircutImCalculator:
         -------
         HaircutImCalculator
             Copy of this calculator with the default asset class changed.
+
+        Notes
+        -----
+        This builder returns a copy with the field set and does not raise.
+
         """
         ...
 
@@ -2607,6 +2892,10 @@ class FundingConfig:
         float
             Spread in bp.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> FundingConfig(10.0).funding_spread_bp
@@ -2623,6 +2912,10 @@ class FundingConfig:
         -------
         float or None
             Benefit bp if asymmetric.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -2641,6 +2934,10 @@ class FundingConfig:
         ImProfile or None
             The IM profile when MVA is enabled.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> FundingConfig(10.0).im_profile is None
@@ -2657,6 +2954,10 @@ class FundingConfig:
         -------
         float or None
             Explicit IM funding spread, when overridden.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -2677,6 +2978,10 @@ class FundingConfig:
         float
             Effective IM funding spread in bp.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> FundingConfig(10.0).effective_margin_spread_bp()
@@ -2692,6 +2997,10 @@ class FundingConfig:
         -------
         float
             Effective benefit bp.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -2752,13 +3061,17 @@ class XvaConfig:
         funding : FundingConfig or None, default None
             Funding and collateral spread assumptions for FVA; ``None``
             disables explicit funding configuration.
+
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
     @staticmethod
     def from_json(json: str) -> XvaConfig:
         """
-        Deserialize from JSON.
+        Parse this object from a JSON object or JSON string.
 
         Parameters
         ----------
@@ -2785,7 +3098,7 @@ class XvaConfig:
 
     def to_json(self) -> str:
         """
-        Serialize to JSON.
+        Serialize this object to a JSON-compatible dict.
 
         Returns
         -------
@@ -2831,7 +3144,11 @@ class XvaConfig:
         Returns
         -------
         list[float]
-            Time points in years.
+            Exposure or IM observation times in years from the valuation date.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -2850,6 +3167,10 @@ class XvaConfig:
         float
             Recovery fraction.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> 0 <= XvaConfig().recovery_rate <= 1
@@ -2866,6 +3187,10 @@ class XvaConfig:
         -------
         float or None
             Own recovery if set.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -2908,6 +3233,9 @@ class ExposureDiagnostics:
         int
             Failure count.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2921,6 +3249,9 @@ class ExposureDiagnostics:
         int
             Failure count.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2934,6 +3265,9 @@ class ExposureDiagnostics:
         int
             Point count.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2946,7 +3280,7 @@ class ExposureProfile:
     Parameters
     ----------
     times : list[float]
-        Time points in years.
+        Exposure or IM observation times in years from the valuation date.
     mtm_values : list[float]
         Portfolio MtM at each time.
     epe : list[float]
@@ -2986,13 +3320,17 @@ class ExposureProfile:
             Expected positive exposure amounts at the corresponding times.
         ene : list[float]
             Expected negative exposure amounts at the corresponding times.
+
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
     @staticmethod
     def from_json(json: str) -> ExposureProfile:
         """
-        Deserialize from JSON.
+        Parse this object from a JSON object or JSON string.
 
         Parameters
         ----------
@@ -3020,7 +3358,7 @@ class ExposureProfile:
 
     def to_json(self) -> str:
         """
-        Serialize to JSON.
+        Serialize this object to a JSON-compatible dict.
 
         Returns
         -------
@@ -3061,12 +3399,16 @@ class ExposureProfile:
     @property
     def times(self) -> list[float]:
         """
-        Time points in years.
+        Exposure or IM observation times in years from the valuation date.
 
         Returns
         -------
         list[float]
             Times.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -3085,6 +3427,10 @@ class ExposureProfile:
         list[float]
             MtM path.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> ExposureProfile([0.0], [1.0], [0.0], [0.0]).mtm_values
@@ -3102,6 +3448,10 @@ class ExposureProfile:
         list[float]
             EPE series.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> ExposureProfile([0.0], [0.0], [2.0], [0.0]).epe
@@ -3118,6 +3468,10 @@ class ExposureProfile:
         -------
         list[float]
             ENE series.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -3151,6 +3505,11 @@ class ExposureProfile:
         -------
         pd.DataFrame
             Exposure profile as a DataFrame.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -3187,7 +3546,7 @@ class XvaResult:
     @staticmethod
     def from_json(json: str) -> XvaResult:
         """
-        Deserialize from JSON.
+        Parse this object from a JSON object or JSON string.
 
         Parameters
         ----------
@@ -3219,7 +3578,7 @@ class XvaResult:
 
     def to_json(self) -> str:
         """
-        Serialize to JSON.
+        Serialize this object to a JSON-compatible dict.
 
         Returns
         -------
@@ -3244,6 +3603,9 @@ class XvaResult:
         float
             CVA amount.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3257,6 +3619,9 @@ class XvaResult:
         float or None
             DVA if computed.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3270,6 +3635,9 @@ class XvaResult:
         float or None
             FVA if computed.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3284,6 +3652,10 @@ class XvaResult:
         -------
         float or None
             MVA if computed; positive is a cost to the desk.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3299,6 +3671,10 @@ class XvaResult:
         -------
         float
             Total XVA.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3313,6 +3689,10 @@ class XvaResult:
             Peak PFE.
 
             The max pfe exposed by this `XvaResult`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3326,6 +3706,9 @@ class XvaResult:
         float
             Effective EPE.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3339,6 +3722,9 @@ class XvaResult:
         list[tuple[float, float]]
             (time, EPE) pairs.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3352,6 +3738,9 @@ class XvaResult:
         list[tuple[float, float]]
             (time, ENE) pairs.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3365,6 +3754,9 @@ class XvaResult:
         list[tuple[float, float]]
             (time, PFE) pairs.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3378,6 +3770,9 @@ class XvaResult:
         list[tuple[float, float]]
             (time, effective EPE) pairs.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3399,6 +3794,11 @@ class XvaResult:
         pd.DataFrame
             Single-row DataFrame, so a portfolio of netting sets stacks with
             ``pd.concat``.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -3413,6 +3813,10 @@ class XvaResult:
         -------
         pd.DataFrame
             Profile DataFrame.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -3465,6 +3869,10 @@ class CsaTerms:
             Margin period of risk in calendar days.
         independent_amount : float
             Independent amount or initial margin in the reporting currency.
+
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -3477,6 +3885,10 @@ class CsaTerms:
         -------
         float
             Threshold amount.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -3496,6 +3908,10 @@ class CsaTerms:
             MTA.
 
             The mta exposed by this `CsaTerms`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         Examples
         --------
         >>> CsaTerms(0.0, 5e4, 5, 0.0).mta
@@ -3514,6 +3930,10 @@ class CsaTerms:
             MPOR days.
 
             The mpor days exposed by this `CsaTerms`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         Examples
         --------
         >>> CsaTerms(0.0, 0.0, 14, 0.0).mpor_days
@@ -3531,6 +3951,10 @@ class CsaTerms:
         float
             IA amount.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> CsaTerms(0.0, 0.0, 5, 1e5).independent_amount
@@ -3547,7 +3971,7 @@ class XvaNettingSet:
     Parameters
     ----------
     id : str
-        Netting set identifier.
+        Identifier of the XVA netting set in the CSA graph.
     counterparty_id : str
         Counterparty identifier.
     csa : CsaTerms | None, optional
@@ -3604,7 +4028,7 @@ class XvaNettingSet:
     @property
     def id(self) -> str:
         """
-        Netting set identifier.
+        Identifier of the XVA netting set in the CSA graph.
 
         Returns
         -------
@@ -3612,6 +4036,10 @@ class XvaNettingSet:
             Id string.
 
             The id exposed by this `XvaNettingSet`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         Examples
         --------
         >>> XvaNettingSet("A", "B").id
@@ -3629,6 +4057,10 @@ class XvaNettingSet:
         str
             Counterparty id.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> XvaNettingSet("A", "CP").counterparty_id
@@ -3645,6 +4077,10 @@ class XvaNettingSet:
         -------
         bool
             True if CSA terms are set.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -3687,6 +4123,10 @@ class ImDecayProfile:
         -------
         ImDecayProfile
             Decay profile with ``factor(t) == 1`` for all ``t``.
+
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
 
         Examples
         --------
@@ -3751,7 +4191,7 @@ class ImDecayProfile:
 
     def factor(self, t: float) -> float:
         """
-        Decay factor at time ``t``.
+        IM decay multiplier applied at time ``t`` in the MVA profile.
 
         Parameters
         ----------
@@ -3778,7 +4218,7 @@ class ImDecayProfile:
     @staticmethod
     def from_json(json: str) -> ImDecayProfile:
         """
-        Deserialize from JSON.
+        Parse this object from a JSON object or JSON string.
 
         Parameters
         ----------
@@ -3804,12 +4244,17 @@ class ImDecayProfile:
 
     def to_json(self) -> str:
         """
-        Serialize to JSON.
+        Serialize this object to a JSON-compatible dict.
 
         Returns
         -------
         str
             Pretty-printed JSON.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
 
         Examples
         --------
@@ -3880,7 +4325,7 @@ class ImProfile:
     @staticmethod
     def from_json(json: str) -> ImProfile:
         """
-        Deserialize from JSON.
+        Parse this object from a JSON object or JSON string.
 
         Parameters
         ----------
@@ -3906,12 +4351,17 @@ class ImProfile:
 
     def to_json(self) -> str:
         """
-        Serialize to JSON.
+        Serialize this object to a JSON-compatible dict.
 
         Returns
         -------
         str
             Pretty-printed JSON.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
 
         Examples
         --------
@@ -3940,12 +4390,16 @@ class ImProfile:
     @property
     def times(self) -> list[float]:
         """
-        Time points in years.
+        Exposure or IM observation times in years from the valuation date.
 
         Returns
         -------
         list[float]
             Strictly increasing, positive time points.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -3963,6 +4417,10 @@ class ImProfile:
         -------
         list[float]
             Non-negative IM values in the profile's aggregation currency.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -3995,6 +4453,11 @@ class ImProfile:
         -------
         pandas.DataFrame
             Single column ``im``, indexed by time in years.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
 
         Examples
         --------
@@ -4032,7 +4495,7 @@ class MvaResult:
     @staticmethod
     def from_json(json: str) -> MvaResult:
         """
-        Deserialize from JSON.
+        Parse this object from a JSON object or JSON string.
 
         Parameters
         ----------
@@ -4059,13 +4522,17 @@ class MvaResult:
 
     def to_json(self) -> str:
         """
-        Serialize to JSON.
+        Serialize this object to a JSON-compatible dict.
 
         Returns
         -------
         str
             Pretty-printed JSON.
 
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -4079,6 +4546,9 @@ class MvaResult:
         float
             MVA amount in the IM profile's currency.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4093,6 +4563,9 @@ class MvaResult:
             ``(1/T) * integral_0^T IM(t) dt`` under the same trapezoid
             convention as ``mva``, in the IM profile's currency.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4106,6 +4579,9 @@ class MvaResult:
         list[tuple[float, float]]
             ``(time_years, im_value)`` pairs echoing the input profile.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4118,6 +4594,10 @@ class MvaResult:
         pandas.DataFrame
             Single column ``im``, indexed by time in years.
 
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -4130,9 +4610,9 @@ class MarginUtilization:
     Parameters
     ----------
     posted_amount : float
-        Posted margin amount.
+        Margin amount actually posted, in the CSA currency.
     required_amount : float
-        Required margin amount.
+        Margin amount required by the CSA calculation, in the CSA currency.
     currency : str
         ISO currency code (both amounts use this currency).
 
@@ -4182,12 +4662,16 @@ class MarginUtilization:
     @property
     def posted(self) -> float:
         """
-        Posted margin amount.
+        Margin amount actually posted, in the CSA currency.
 
         Returns
         -------
         float
             Posted amount.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -4199,12 +4683,16 @@ class MarginUtilization:
     @property
     def required(self) -> float:
         """
-        Required margin amount.
+        Margin amount required by the CSA calculation, in the CSA currency.
 
         Returns
         -------
         float
             Required amount.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -4224,6 +4712,10 @@ class MarginUtilization:
             Ratio.
 
             The ratio exposed by this `MarginUtilization`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         Examples
         --------
         >>> MarginUtilization(50.0, 100.0, "EUR").ratio
@@ -4240,6 +4732,10 @@ class MarginUtilization:
         bool
             Adequacy flag.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> MarginUtilization(100.0, 100.0, "USD").is_adequate()
@@ -4255,6 +4751,10 @@ class MarginUtilization:
         -------
         float
             Shortfall in currency units.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -4280,6 +4780,11 @@ class MarginUtilization:
         -------
         pd.DataFrame
             One row describing margin utilization.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -4341,12 +4846,16 @@ class ExcessCollateral:
     @property
     def collateral_value(self) -> float:
         """
-        Collateral value.
+        Market value of posted collateral in the CSA currency.
 
         Returns
         -------
         float
             Collateral mark.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -4366,6 +4875,10 @@ class ExcessCollateral:
         float
             Requirement.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> ExcessCollateral(10.0, 5.0, "USD").required_value
@@ -4383,6 +4896,10 @@ class ExcessCollateral:
         float
             Net excess.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> ExcessCollateral(10.0, 5.0, "USD").excess > 0
@@ -4398,6 +4915,10 @@ class ExcessCollateral:
         -------
         bool
             True if excess > 0.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -4415,6 +4936,10 @@ class ExcessCollateral:
         bool
             True if under-collateralized.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> ExcessCollateral(1.0, 2.0, "USD").has_shortfall()
@@ -4430,6 +4955,10 @@ class ExcessCollateral:
         -------
         float
             Fractional excess vs required.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -4456,6 +4985,11 @@ class ExcessCollateral:
         -------
         pd.DataFrame
             One row describing the collateral position.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -4466,11 +5000,11 @@ class MarginFundingCost:
     Parameters
     ----------
     margin_posted : float
-        Posted margin amount.
+        Margin amount actually posted, in the CSA currency.
     funding_rate : float
         Funding rate (annualized).
     collateral_rate : float
-        Collateral return rate.
+        Rate earned on posted collateral, as a decimal.
     currency : str
         ISO currency code.
 
@@ -4523,12 +5057,16 @@ class MarginFundingCost:
     @property
     def margin_posted(self) -> float:
         """
-        Posted margin amount.
+        Margin amount actually posted, in the CSA currency.
 
         Returns
         -------
         float
             Margin posted.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -4547,6 +5085,10 @@ class MarginFundingCost:
         float
             Funding rate.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> MarginFundingCost(1.0, 0.06, 0.02, "USD").funding_rate
@@ -4557,12 +5099,16 @@ class MarginFundingCost:
     @property
     def collateral_rate(self) -> float:
         """
-        Collateral return rate.
+        Rate earned on posted collateral, as a decimal.
 
         Returns
         -------
         float
             Collateral rate.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -4581,6 +5127,10 @@ class MarginFundingCost:
         float
             Annual cost amount.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> MarginFundingCost(1e6, 0.05, 0.0, "USD").annual_cost > 0
@@ -4596,6 +5146,10 @@ class MarginFundingCost:
         -------
         float
             Net spread.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -4617,6 +5171,10 @@ class MarginFundingCost:
         -------
         float
             Cost over the period.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -4642,6 +5200,11 @@ class MarginFundingCost:
         -------
         pd.DataFrame
             One row describing the funding cost.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -4704,12 +5267,16 @@ class Haircut01:
     @property
     def collateral_value(self) -> float:
         """
-        Collateral value.
+        Market value of posted collateral in the CSA currency.
 
         Returns
         -------
         float
             Collateral mark.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -4729,6 +5296,10 @@ class Haircut01:
             Haircut.
 
             The current haircut exposed by this `Haircut01`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         Examples
         --------
         >>> Haircut01(100.0, 0.1, "USD").current_haircut
@@ -4746,6 +5317,10 @@ class Haircut01:
         float
             Sensitivity amount.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> isinstance(Haircut01(1e6, 0.05, "USD").pv_change, float)
@@ -4761,6 +5336,10 @@ class Haircut01:
         -------
         float
             Haircut in bp.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -4847,6 +5426,11 @@ class FrtbSensitivities:
         -------
         str
             JSON serialization of the sensitivity portfolio.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -4884,6 +5468,10 @@ class FrtbSensitivities:
             Credit tenor bucket.
         amount : float
             Signed sensitivity amount per 1bp move.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -4899,6 +5487,10 @@ class FrtbSensitivities:
             Equity bucket number.
         amount : float
             Signed sensitivity amount per 1bp move.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -4936,6 +5528,10 @@ class FrtbSensitivities:
             Commodity tenor bucket.
         amount : float
             Signed sensitivity amount per 1bp move.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -4981,6 +5577,10 @@ class FrtbSensitivities:
             Option maturity bucket.
         amount : float
             Signed vega amount.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -5040,6 +5640,10 @@ class FrtbSensitivities:
             Curvature sensitivity for upward shock.
         cvr_down : float
             Curvature sensitivity for downward shock.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -5077,6 +5681,10 @@ class FrtbSensitivities:
             Notional amount for the RRAO position.
         is_exotic : bool, default False
             Whether the instrument is exotic (higher RRAO weight).
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -5089,6 +5697,10 @@ class FrtbSensitivities:
         -------
         str
             ISO currency code for FRTB reporting.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5133,6 +5745,11 @@ class FrtbSensitivities:
         -------
         pd.DataFrame
             One row per populated sensitivity bucket.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -5284,6 +5901,11 @@ class SaCcrTrade:
         -------
         str
             JSON serialization of the trade.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -5296,18 +5918,26 @@ class SaCcrTrade:
         -------
         str
             Trade id string.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def asset_class(self) -> str:
         """
-        Asset class label.
+        SA-CCR asset-class label used to select supervisory factors.
 
         Returns
         -------
         str
             One of ``"ir"``, ``"fx"``, ``"credit"``, ``"equity"``, ``"commodity"``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5320,6 +5950,10 @@ class SaCcrTrade:
         -------
         float
             Notional amount.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5332,6 +5966,10 @@ class SaCcrTrade:
         -------
         float
             MtM value.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     def __repr__(self) -> str: ...
@@ -5494,6 +6132,11 @@ class SaCcrNettingSetConfig:
         -------
         str
             JSON serialization of the netting-set config.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -5506,6 +6149,10 @@ class SaCcrNettingSetConfig:
         -------
         bool
             True if subject to daily margin agreement.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5518,6 +6165,10 @@ class SaCcrNettingSetConfig:
         -------
         float
             Collateral amount.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5728,7 +6379,20 @@ def frtb_sba_charge(
     """
     ...
 
-def saccr_ead(trades: list[SaCcrTrade], margined: bool = False, collateral: float = 0.0) -> tuple[float, float, float]:
+def saccr_ead(
+    trades: list[SaCcrTrade],
+    as_of_year: int,
+    as_of_month: int,
+    as_of_day: int,
+    margined: bool = False,
+    collateral: float = 0.0,
+    threshold: float | None = None,
+    mta: float | None = None,
+    nica: float | None = None,
+    mpor_days: int | None = None,
+    counterparty_id: str = "CPTY",
+    csa_id: str = "CSA",
+) -> tuple[float, float, float]:
     """
     Compute SA-CCR Exposure at Default per BCBS 279.
 
@@ -5736,10 +6400,28 @@ def saccr_ead(trades: list[SaCcrTrade], margined: bool = False, collateral: floa
     ----------
     trades : list[SaCcrTrade]
         Derivative trades making up the netting set.
+    as_of_year : int
+        Valuation-date calendar year used for remaining maturity.
+    as_of_month : int
+        Valuation-date month in ``1..12``.
+    as_of_day : int
+        Valuation-date day of month.
     margined : bool, default False
         Whether the netting set is subject to a daily margin agreement.
     collateral : float, default 0.0
         Net collateral currently held (positive = bank holds collateral).
+    threshold : float or None
+        CSA threshold; only consumed when ``margined`` is ``True``.
+    mta : float or None
+        Minimum transfer amount; only consumed when ``margined`` is ``True``.
+    nica : float or None
+        Net independent collateral amount; only consumed when ``margined`` is ``True``.
+    mpor_days : int or None
+        Margin period of risk in business days; only consumed when ``margined`` is ``True``.
+    counterparty_id : str, default ``CPTY``
+        Counterparty identifier used to build the bilateral netting-set id.
+    csa_id : str, default ``CSA``
+        CSA identifier used to build the bilateral netting-set id.
 
     Returns
     -------
@@ -5749,8 +6431,10 @@ def saccr_ead(trades: list[SaCcrTrade], margined: bool = False, collateral: floa
     Raises
     ------
     ValueError
-        If ``collateral`` or a trade numeric field is non-finite, or a trade's
-        direction and supervisory-delta fields are inconsistent.
+        If ``trades`` is empty, ``collateral`` or a trade numeric field is
+        non-finite, a trade's direction and supervisory-delta fields are
+        inconsistent, the as-of date is invalid, or margined-only CSA terms
+        are supplied when ``margined`` is ``False``.
 
     Examples
     --------
@@ -5771,7 +6455,7 @@ def saccr_ead(trades: list[SaCcrTrade], margined: bool = False, collateral: floa
     ...     "option_type": None,
     ... }
     >>> trade = SaCcrTrade.from_json(json.dumps(payload))
-    >>> tuple(round(value, 2) for value in saccr_ead([trade]))
+    >>> tuple(round(value, 2) for value in saccr_ead([trade], 2025, 1, 1))
     (0.0, 22130.59, 30982.83)
     """
     ...

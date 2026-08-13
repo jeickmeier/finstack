@@ -41,7 +41,7 @@
 //!
 //! - Overhaus, M., Bermudez, A., Buehler, H., Ferraris, A., Jordinson, C., &
 //!   Lamnouar, A. (2007). *Equity Derivatives: Theory and Applications*. Wiley.
-//!   Chapter 6: Autocallables.
+//!   Chapter 6: Autocallables. `docs/REFERENCES.md#overhaus-2007-equity-derivatives`
 //!
 //! # See Also
 //!

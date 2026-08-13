@@ -28,10 +28,10 @@
 //!
 //! # References
 //!
-//! - IFRS 9 Financial Instruments, Section 5.5 -- Impairment
-//! - IFRS 9 B5.5.17 -- Qualitative indicators of SICR
-//! - IFRS 9 B5.5.19 -- 30 days past due rebuttable presumption
-//! - IFRS 9 B5.5.37 -- 90 days past due default presumption
+//! - IFRS 9 Financial Instruments, Section 5.5 -- Impairment `docs/REFERENCES.md#ifrs-9-impairment`
+//! - IFRS 9 B5.5.17 -- Qualitative indicators of SICR `docs/REFERENCES.md#ifrs-9-impairment`
+//! - IFRS 9 B5.5.19 -- 30 days past due rebuttable presumption `docs/REFERENCES.md#ifrs-9-impairment`
+//! - IFRS 9 B5.5.37 -- 90 days past due default presumption `docs/REFERENCES.md#ifrs-9-impairment`
 
 use finstack_quant_core::credit::migration::RatingScale;
 use finstack_quant_core::Result;
@@ -112,6 +112,46 @@ pub enum StagingTrigger {
     },
     /// No triggers active: Stage 1 default.
     NoTrigger,
+}
+
+impl core::fmt::Display for StagingTrigger {
+    /// Render the trigger as a short human-readable reason string.
+    ///
+    /// This is the canonical trigger-reason wire text consumed by the host
+    /// bindings (e.g. Python `classify_stage`); treat the exact format as a
+    /// stable contract.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            StagingTrigger::DpdStage3 { dpd, threshold } => {
+                write!(f, "dpd_stage3 (dpd={} > {})", dpd, threshold)
+            }
+            StagingTrigger::DpdStage2 { dpd, threshold } => {
+                write!(f, "dpd_stage2 (dpd={} > {})", dpd, threshold)
+            }
+            StagingTrigger::PdDeltaAbsolute { delta, threshold } => {
+                write!(
+                    f,
+                    "pd_delta_absolute (delta={:.4} > {:.4})",
+                    delta, threshold
+                )
+            }
+            StagingTrigger::PdDeltaRelative { ratio, threshold } => {
+                write!(
+                    f,
+                    "pd_delta_relative (ratio={:.2}x > {:.2}x)",
+                    ratio, threshold
+                )
+            }
+            StagingTrigger::RatingDowngrade { notches, threshold } => {
+                write!(f, "rating_downgrade ({} >= {} notches)", notches, threshold)
+            }
+            StagingTrigger::Qualitative { flag } => write!(f, "qualitative:{}", flag),
+            StagingTrigger::Stage3Qualitative { flag } => {
+                write!(f, "stage3_qualitative:{}", flag)
+            }
+            StagingTrigger::NoTrigger => write!(f, "no_trigger"),
+        }
+    }
 }
 
 // Stage result
@@ -234,8 +274,8 @@ fn rating_downgrade_notches(orig: &str, curr: &str, config: &StagingConfig) -> O
 ///
 /// 1. **Stage 3 backstop**: DPD exceeds `dpd_stage3_threshold` (non-rebuttable)
 /// 2. **Stage 2 quantitative**: PD delta exceeds absolute OR relative
-///    threshold, or a rating downgrade exceeds `rating_downgrade_notches`
-///    (IFRS 9 B5.5.17(f))
+/// threshold, or a rating downgrade exceeds `rating_downgrade_notches`
+/// (IFRS 9 B5.5.17(f))
 /// 3. **Stage 2 qualitative**: Any qualitative flag is active (if enabled)
 /// 4. **Stage 2 DPD backstop**: DPD exceeds `dpd_stage2_threshold`
 /// 5. **Curing**: Previous stage was higher, sufficient performing periods
@@ -613,6 +653,65 @@ mod tests {
         // Ratings absent from the configured scale: skipped.
         let result = classify_stage(&exposure, &pd, &config).unwrap();
         assert_eq!(result.stage, Stage::Stage1);
+    }
+
+    #[test]
+    fn staging_trigger_display_is_the_stable_reason_contract() {
+        // The exact strings are consumed by host bindings (Python
+        // `classify_stage` trigger reasons); a change here is a wire break.
+        let cases: Vec<(StagingTrigger, &str)> = vec![
+            (
+                StagingTrigger::DpdStage3 {
+                    dpd: 91,
+                    threshold: 90,
+                },
+                "dpd_stage3 (dpd=91 > 90)",
+            ),
+            (
+                StagingTrigger::DpdStage2 {
+                    dpd: 31,
+                    threshold: 30,
+                },
+                "dpd_stage2 (dpd=31 > 30)",
+            ),
+            (
+                StagingTrigger::PdDeltaAbsolute {
+                    delta: 0.0123456,
+                    threshold: 0.01,
+                },
+                "pd_delta_absolute (delta=0.0123 > 0.0100)",
+            ),
+            (
+                StagingTrigger::PdDeltaRelative {
+                    ratio: 2.345,
+                    threshold: 2.0,
+                },
+                "pd_delta_relative (ratio=2.35x > 2.00x)",
+            ),
+            (
+                StagingTrigger::RatingDowngrade {
+                    notches: 3,
+                    threshold: 3,
+                },
+                "rating_downgrade (3 >= 3 notches)",
+            ),
+            (
+                StagingTrigger::Qualitative {
+                    flag: "watchlist".to_string(),
+                },
+                "qualitative:watchlist",
+            ),
+            (
+                StagingTrigger::Stage3Qualitative {
+                    flag: "bankruptcy".to_string(),
+                },
+                "stage3_qualitative:bankruptcy",
+            ),
+            (StagingTrigger::NoTrigger, "no_trigger"),
+        ];
+        for (trigger, expected) in cases {
+            assert_eq!(trigger.to_string(), expected);
+        }
     }
 
     #[test]

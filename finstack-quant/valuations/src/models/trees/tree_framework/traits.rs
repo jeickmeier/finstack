@@ -219,7 +219,7 @@ impl TreeGreeks {
     ///
     /// - Broadie, M. & Detemple, J. (1996). "American Option Valuation: New Bounds,
     ///   Approximations, and a Comparison of Existing Methods." Review of Financial
-    ///   Studies, 9(4), 1211-1250.
+    ///   Studies, 9(4), 1211-1250. `docs/REFERENCES.md#broadie-detemple-1996`
     #[must_use]
     pub fn richardson_extrapolate(coarse: &Self, fine: &Self) -> Self {
         Self {

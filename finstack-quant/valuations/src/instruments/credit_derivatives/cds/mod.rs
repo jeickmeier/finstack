@@ -97,17 +97,17 @@
 //!
 //! - O'Kane, D., & Turnbull, S. (2003). "Valuation of Credit Default Swaps."
 //!   *Fixed Income Quantitative Credit Research*, Lehman Brothers.
-//!   (Foundational CDS pricing methodology)
+//!   (Foundational CDS pricing methodology) `docs/REFERENCES.md#o-kane-2008`
 //!
 //! - Hull, J. C., & White, A. (2000). "Valuing Credit Default Swaps I: No
-//!   Counterparty Default Risk." *Journal of Derivatives*, 8(1), 29-40.
+//!   Counterparty Default Risk." *Journal of Derivatives*, 8(1), 29-40. `docs/REFERENCES.md#hull-white-2000-cds`
 //!
 //! - Duffie, D. (1999). "Credit Swap Valuation." *Financial Analysts Journal*,
 //!   55(1), 73-87.
 //!
 //! - O'Kane, D. (2008). *Modelling Single-name and Multi-name Credit Derivatives*.
 //!   Wiley Finance.
-//!   (Comprehensive reference for CDS pricing and risk)
+//!   (Comprehensive reference for CDS pricing and risk) `docs/REFERENCES.md#o-kane-2008`
 //!
 //! # Implementation Notes
 //!

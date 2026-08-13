@@ -6,7 +6,7 @@ use crate::bindings::pandas_utils::{
 };
 use crate::errors::display_to_py;
 use pyo3::prelude::*;
-use pyo3::types::PyAny;
+use pyo3::types::{PyAny, PyDict};
 use serde::Serialize;
 
 /// Column schema for [`PyScenarioPnl::to_dataframe`].
@@ -63,13 +63,17 @@ impl PyScenarioPnl {
     }
 
     /// Per-position scenario P&L, keyed by position id.
+    ///
+    /// The dict preserves the canonical Rust ``IndexMap`` iteration order
+    /// (stressed positions first, then base-only positions), matching
+    /// :meth:`to_dataframe`, :meth:`to_series`, and :meth:`to_json`.
     #[getter]
-    fn by_position(&self) -> std::collections::BTreeMap<String, f64> {
-        self.inner
-            .by_position
-            .iter()
-            .map(|(id, money)| (id.to_string(), money.amount()))
-            .collect()
+    fn by_position<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let out = PyDict::new(py);
+        for (id, money) in &self.inner.by_position {
+            out.set_item(id.as_str(), money.amount())?;
+        }
+        Ok(out)
     }
 
     /// Per-position P&L ladder as a :class:`pandas.DataFrame`.
@@ -108,6 +112,113 @@ impl PyScenarioPnl {
         let inner: finstack_quant_portfolio::scenarios::ScenarioPnl =
             serde_json::from_str(json).map_err(display_to_py)?;
         Ok(Self { inner })
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+}
+
+/// Column schema for [`PyScenarioPnlBatchItem::to_dataframe`].
+///
+/// The per-position ladder columns, prefixed with the owning scenario id so
+/// frames from a batch can be concatenated directly.
+const BATCH_PNL_ROW_COLUMNS: &[ColumnSchema<'static>] = &[
+    ("scenario_id", "str"),
+    ("position_id", "str"),
+    ("pnl", "float64"),
+];
+
+#[derive(Serialize)]
+struct BatchPnlRow<'a> {
+    scenario_id: &'a str,
+    position_id: &'a str,
+    pnl: f64,
+}
+
+/// One ordered result from :func:`scenario_pnl_batch`.
+///
+/// Carries the scenario identifier, its typed :class:`ScenarioPnl` ladder,
+/// and the scenario :class:`~finstack_quant.scenarios.ApplicationReport`.
+#[pyclass(
+    name = "ScenarioPnlBatchItem",
+    module = "finstack_quant.portfolio",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub struct PyScenarioPnlBatchItem {
+    pub(crate) inner: finstack_quant_portfolio::scenarios::ScenarioPnlBatchItem,
+}
+
+impl PyScenarioPnlBatchItem {
+    fn rows(&self) -> Vec<BatchPnlRow<'_>> {
+        self.inner
+            .pnl
+            .by_position
+            .iter()
+            .map(|(id, money)| BatchPnlRow {
+                scenario_id: &self.inner.scenario_id,
+                position_id: id.as_str(),
+                pnl: money.amount(),
+            })
+            .collect()
+    }
+}
+
+#[pymethods]
+impl PyScenarioPnlBatchItem {
+    /// Identifier copied from the input scenario.
+    #[getter]
+    fn scenario_id(&self) -> String {
+        self.inner.scenario_id.clone()
+    }
+
+    /// Scenario-attributable portfolio P&L ladder.
+    #[getter]
+    fn pnl(&self) -> PyScenarioPnl {
+        PyScenarioPnl {
+            inner: self.inner.pnl.clone(),
+        }
+    }
+
+    /// Application provenance and warnings for this scenario.
+    #[getter]
+    fn report(&self) -> crate::bindings::scenarios::engine::PyApplicationReport {
+        crate::bindings::scenarios::engine::PyApplicationReport {
+            inner: self.inner.report.clone(),
+        }
+    }
+
+    /// Per-position P&L ladder as a :class:`pandas.DataFrame`.
+    ///
+    /// Columns: ``scenario_id``, ``position_id``, ``pnl``.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_rows_to_dataframe_with_schema(py, &self.rows(), BATCH_PNL_ROW_COLUMNS)
+    }
+
+    /// Serialize to a compact JSON string.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Deserialize from a JSON string.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: finstack_quant_portfolio::scenarios::ScenarioPnlBatchItem =
+            serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "ScenarioPnlBatchItem(scenario_id={:?}, positions={})",
+            self.inner.scenario_id,
+            self.inner.pnl.by_position.len(),
+        )
     }
 
     /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).

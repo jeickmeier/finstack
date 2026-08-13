@@ -57,8 +57,8 @@ use finstack_quant_core::HashMap;
 ///
 /// # References
 ///
-/// - BCBS FRTB Minimum Capital Requirements:
-///   `docs/REFERENCES.md#bcbs-frtb-minimum-capital-requirements`
+/// - BCBS FRTB Minimum Capital Requirements: `docs/REFERENCES.md#bcbs-frtb-minimum-capital-requirements`
+///
 pub fn delta_charge(
     risk_class: FrtbRiskClass,
     sensitivities: &FrtbSensitivities,
@@ -317,7 +317,7 @@ fn girr_risk_weight(tenor: &str) -> f64 {
 /// rho_kl = rho_name(name_k, name_l)
 ///        * rho_tenor(tenor_k, tenor_l)
 ///        * rho_basis(basis_k, basis_l)
-/// ```
+///   ```
 ///
 /// where each component is 1 if the two dimensions match and the prescribed
 /// correlation otherwise. Because the sensitivity map carries only

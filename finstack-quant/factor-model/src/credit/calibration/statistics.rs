@@ -217,7 +217,7 @@ fn sample_variance_annualized(series: &[Option<f64>], annualization_factor: f64)
 ///
 /// - Longerstaey, J., & Spencer, M. (1996). *RiskMetrics — Technical
 ///   Document* (4th ed.). J.P. Morgan/Reuters. §5.2 (recommends λ = 0.94 for
-///   daily data, λ = 0.97 for monthly).
+///   daily data, λ = 0.97 for monthly). `docs/REFERENCES.md#jpmorgan1996RiskMetrics`
 pub(super) fn ewma_variance(series: &[Option<f64>], lambda: f64, annualization_factor: f64) -> f64 {
     let valid: Vec<f64> = series.iter().filter_map(|v| *v).collect();
     let n = valid.len();

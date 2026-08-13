@@ -249,15 +249,15 @@ pub enum InflationLag {
 /// # References
 ///
 /// - **TIPS Mechanics**:
-///   - US Treasury (2024). "TIPS In Depth." treasurydirect.gov.
+///   - US Treasury (2024). "TIPS In Depth." treasurydirect.gov. `docs/REFERENCES.md#deacon-derry-mirfendereski-2004`
 ///   - Deacon, M., Derry, A., & Mirfendereski, D. (2004). *Inflation-Indexed Securities*
-///     (2nd ed.). Wiley Finance. Chapter 2 (Index-linked bond mechanics).
+///   (2nd ed.). Wiley Finance. Chapter 2 (Index-linked bond mechanics). `docs/REFERENCES.md#deacon-derry-mirfendereski-2004`
 ///
 /// - **Index Lagging**:
 ///   - Kerkhof, J. (2005). "Inflation Derivatives Explained." *Journal of Derivatives
-///     Accounting*, 2(1), 1-19.
+///   Accounting*, 2(1), 1-19. `docs/REFERENCES.md#kerkhof-2005`
 ///   - Hurd, M., & Relleen, J. (2006). "Estimating the Inflation Risk Premium."
-///     Bank of England Quarterly Bulletin, Q2 2006.
+///   Bank of England Quarterly Bulletin, Q2 2006. `docs/REFERENCES.md#kerkhof-2005`
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, JsonSchema)]
 #[serde(try_from = "InflationIndexWire", into = "InflationIndexWire")]
 #[schemars(try_from = "InflationIndexWire")]

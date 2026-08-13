@@ -70,16 +70,36 @@ pub use kyle::KyleLambdaModel;
 
 /// Build and evaluate a uniform Almgren-Chriss market-impact estimate.
 ///
+/// The model's impact coefficients are derived from `avg_daily_volume` using
+/// the same empirical calibration as [`AlmgrenChrissModel::from_profile`],
+/// evaluated on a synthetic profile with a 0.2% (20 bp) proportional
+/// bid-ask spread around the reference price:
+///
+/// ```text
+/// gamma = permanent_impact_coef × spread / (2 · ADV)      // spread = 0.002 · mid
+/// eta   = temporary_impact_coef × volatility · mid / √ADV
+/// ```
+///
+/// so `permanent_impact_coef` and `temporary_impact_coef` are dimensionless
+/// multipliers on the ADV-derived base calibration (`1.0` keeps the base
+/// calibration; `0.0` disables that component), and a deeper market (larger
+/// ADV) produces a strictly smaller impact cost, all else equal. Callers who
+/// have externally calibrated *absolute* `gamma`/`eta` coefficients should
+/// construct [`AlmgrenChrissModel::new`] directly instead.
+///
 /// # Arguments
 ///
 /// * `position_size` - Signed quantity to execute; its sign determines trade
 ///   direction while its magnitude determines participation.
 /// * `avg_daily_volume` - Positive average daily tradable volume in the same
-///   quantity units as `position_size`.
+///   quantity units as `position_size`. Feeds the coefficient calibration
+///   above.
 /// * `volatility` - Positive daily volatility as a decimal fraction.
 /// * `execution_horizon_days` - Intended execution horizon in trading days.
-/// * `permanent_impact_coef` - Permanent-impact coefficient for the model.
-/// * `temporary_impact_coef` - Temporary-impact coefficient for the model.
+/// * `permanent_impact_coef` - Dimensionless multiplier on the ADV-derived
+///   permanent-impact calibration.
+/// * `temporary_impact_coef` - Dimensionless multiplier on the ADV-derived
+///   temporary-impact calibration; must be positive.
 /// * `reference_price` - Optional positive mid price; `None` uses unit price
 ///   and reports scale-free impact.
 ///
@@ -115,7 +135,6 @@ pub fn almgren_chriss_uniform_impact(
         }
     }
 
-    let model = AlmgrenChrissModel::new(permanent_impact_coef, temporary_impact_coef, 0.5)?;
     let mid = reference_price.unwrap_or(1.0);
     let profile = LiquidityProfile::new(
         "AC_CALIBRATION",
@@ -126,6 +145,17 @@ pub fn almgren_chriss_uniform_impact(
         1.0,
         0.0,
     )?;
+    // Route ADV into the coefficients via the `from_profile` calibration
+    // (gamma = spread / (2·ADV), eta = σ·mid / √ADV); the caller's
+    // coefficients scale that base multiplicatively. Previously the raw
+    // coefficients were used directly, leaving `avg_daily_volume` validated
+    // but inert — ADV 1e6 and 1e9 produced bit-identical costs.
+    let base = AlmgrenChrissModel::from_profile(&profile, volatility)?;
+    let model = AlmgrenChrissModel::new(
+        permanent_impact_coef * base.gamma(),
+        temporary_impact_coef * base.eta(),
+        0.5,
+    )?;
     let params = TradeParams {
         quantity: position_size,
         horizon_days: execution_horizon_days,
@@ -135,4 +165,94 @@ pub fn almgren_chriss_uniform_impact(
         reference_price,
     };
     model.estimate_cost(&params)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `avg_daily_volume` was validated and then never used: the model was
+    /// built directly from the caller's raw coefficients, so an execution in
+    /// a name trading 1M shares/day cost bit-identically the same as one
+    /// trading 1B shares/day. ADV must be live: deeper markets => strictly
+    /// smaller impact cost, all else equal.
+    #[test]
+    fn uniform_impact_responds_to_avg_daily_volume() {
+        let cost = |adv: f64| {
+            almgren_chriss_uniform_impact(100_000.0, adv, 0.02, 5.0, 1.0, 1.0, Some(100.0))
+                .expect("valid inputs")
+                .total_cost
+        };
+        let thin = cost(1e6);
+        let deep = cost(1e9);
+        assert!(
+            (thin - deep).abs() > 0.0,
+            "ADV must change the cost (thin {thin}, deep {deep})"
+        );
+        assert!(
+            deep < thin,
+            "a deeper market must cost less (thin {thin}, deep {deep})"
+        );
+    }
+
+    /// The caller coefficients scale the ADV-derived calibration
+    /// multiplicatively, so doubling a coefficient doubles its component.
+    #[test]
+    fn uniform_impact_coefficients_scale_their_components() {
+        let base = almgren_chriss_uniform_impact(100_000.0, 1e6, 0.02, 5.0, 1.0, 1.0, Some(100.0))
+            .expect("valid inputs");
+        let scaled =
+            almgren_chriss_uniform_impact(100_000.0, 1e6, 0.02, 5.0, 2.0, 1.0, Some(100.0))
+                .expect("valid inputs");
+        assert!(
+            (scaled.permanent_impact - 2.0 * base.permanent_impact).abs()
+                <= 1e-9 * base.permanent_impact,
+            "doubling the permanent coefficient must double the permanent cost"
+        );
+        assert!(
+            (scaled.temporary_impact - base.temporary_impact).abs()
+                <= 1e-9 * base.temporary_impact.abs().max(1.0),
+            "the temporary component must be untouched"
+        );
+    }
+}
+
+/// JS/Python-friendly Almgren-Chriss impact view derived from
+/// [`ImpactEstimate`].
+///
+/// Field names follow the historical binding wire contract
+/// (`total_impact` for [`ImpactEstimate::total_cost`], `expected_cost_bp` for
+/// [`ImpactEstimate::cost_bp`]) and additionally expose
+/// [`ImpactEstimate::execution_risk`], which the hand-written binding maps
+/// previously dropped.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct AlmgrenChrissImpactView {
+    /// Permanent market-impact component, in model cost units.
+    pub permanent_impact: f64,
+    /// Temporary market-impact component, in model cost units.
+    pub temporary_impact: f64,
+    /// Total expected impact cost (`permanent + temporary`).
+    pub total_impact: f64,
+    /// Expected cost in basis points of traded notional.
+    pub expected_cost_bp: f64,
+    /// Timing-risk standard deviation of execution cost, in cost units.
+    pub execution_risk: f64,
+}
+
+/// Convert an [`ImpactEstimate`] into the binding view shared by the Python
+/// and WASM `almgren_chriss_impact` entry points.
+///
+/// # Arguments
+///
+/// * `estimate` - Impact estimate produced by
+///   [`almgren_chriss_uniform_impact`] or [`MarketImpactModel::estimate_cost`].
+#[must_use]
+pub fn almgren_chriss_impact_view(estimate: &ImpactEstimate) -> AlmgrenChrissImpactView {
+    AlmgrenChrissImpactView {
+        permanent_impact: estimate.permanent_impact,
+        temporary_impact: estimate.temporary_impact,
+        total_impact: estimate.total_cost,
+        expected_cost_bp: estimate.cost_bp,
+        execution_risk: estimate.execution_risk,
+    }
 }

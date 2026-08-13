@@ -25,7 +25,7 @@
 //!
 //! **Stable** — golden-tested, signatures preserved across releases:
 //! - `Portfolio` (typed handle: `fromSpec`, `toJson`, `id`, `asOf`,
-//!   `baseCcy`, `numPositions`)
+//!   `baseCurrency`, `numPositions`)
 //! - `parsePortfolioSpecJson`, `buildPortfolioFromSpecJson`
 //! - `valuePortfolio`, `valuePortfolioBuilt`,
 //!   `aggregateFullCashflows`, `aggregateFullCashflowsBuilt`,
@@ -45,8 +45,8 @@
 //!
 //! **Experimental** — calibration parameters or signatures still under
 //! review:
-//! - `lvarBangia` — endogenous-cost coefficient is a calibration default; see
-//!   `LiquidityConfig::endogenous_spread_coef` in the Rust crate.
+//! - `lvarBangia` — exogenous spread-cost model; calibration defaults live in
+//!   the Rust crate's `liquidity` module.
 //! - `almgrenChrissImpact` — `delta` is fixed at 0.5; the underlying
 //!   `optimal_trajectory` accepts only `delta = 1` (linear impact).
 //! - `kyleLambda`, `rollEffectiveSpread`, `amihudIlliquidity`,
@@ -114,7 +114,10 @@ impl JsPortfolio {
     }
 
     /// Base currency code.
-    #[wasm_bindgen(getter, js_name = baseCcy)]
+    ///
+    /// Renamed from the historical `baseCcy` to the full-word camelCase
+    /// convention used everywhere else (matches Python `base_currency`).
+    #[wasm_bindgen(getter, js_name = baseCurrency)]
     pub fn base_currency(&self) -> String {
         self.inner.base_currency.to_string()
     }
@@ -142,7 +145,7 @@ impl JsPortfolio {
 ///
 /// Wire/validator surface: returns the re-serialized canonical JSON **string**,
 /// suitable for storage or re-ingest by `Portfolio.fromSpec`.
-/// @param json_str - Canonical JSON string to validate, parse, or normalize for this API.
+/// @param json_str - Canonical JSON string to validate and re-serialize.
 ///
 /// # Errors
 ///
@@ -160,7 +163,7 @@ pub fn parse_portfolio_spec_json(json_str: &str) -> Result<String, JsValue> {
 ///
 /// Accepts a JSON array of `SectorPeriod` objects and returns a structured
 /// `BrinsonPeriodResult` object.
-/// @param sectors_json - Canonical JSON payload representing the sectors consumed by this API.
+/// @param sectors_json - Sector-classification JSON.
 ///
 /// # Errors
 ///
@@ -180,7 +183,7 @@ pub fn brinson_fachler(sectors_json: &str) -> Result<JsValue, JsValue> {
 /// Accepts a JSON array of periods, where each period is an array of
 /// `SectorPeriod` objects, and returns a structured `CarinoLinkedAttribution`
 /// object.
-/// @param periods_json - Canonical JSON payload representing the periods consumed by this API.
+/// @param periods_json - Chronological period-result JSON array.
 ///
 /// # Errors
 ///
@@ -521,7 +524,7 @@ pub fn factor_brinson_attribution(
 }
 
 /// Compute a Modified-Dietz TWRR sub-period return from period JSON.
-/// @param period_json - Canonical JSON payload representing the period consumed by this API.
+/// @param period_json - Single-period result JSON.
 ///
 /// # Errors
 ///
@@ -536,7 +539,7 @@ pub fn twrr_modified_dietz(period_json: &str) -> Result<f64, JsValue> {
 }
 
 /// Geometrically link TWRR sub-period returns from returns JSON.
-/// @param returns_json - Canonical JSON payload representing the returns consumed by this API.
+/// @param returns_json - Numeric return-series JSON.
 /// @param horizon_years - Return-linking horizon measured in years for annualization.
 ///
 /// # Errors
@@ -554,7 +557,7 @@ pub fn twrr_linked(returns_json: &str, horizon_years: f64) -> Result<JsValue, Js
 }
 
 /// Compute money-weighted return via XIRR from dated cashflow JSON.
-/// @param cashflows_json - Canonical JSON payload representing the cashflows consumed by this API.
+/// @param cashflows_json - Dated cashflow JSON.
 ///
 /// # Errors
 ///
@@ -593,7 +596,7 @@ pub fn build_portfolio_from_spec_json(spec_json: &str) -> Result<String, JsValue
 }
 
 /// Extract the total portfolio value from a JSON result.
-/// @param result_json - Canonical JSON payload representing the result consumed by this API.
+/// @param result_json - Result JSON produced by a prior call.
 ///
 /// # Errors
 ///
@@ -610,7 +613,7 @@ pub fn portfolio_result_total_value(result_json: &str) -> Result<f64, JsValue> {
 /// Extract a specific metric from a portfolio result JSON.
 ///
 /// Returns `undefined` (via `Option`) if the metric was not produced.
-/// @param result_json - Canonical JSON payload representing the result consumed by this API.
+/// @param result_json - Result JSON produced by a prior call.
 /// @param metric_id - Stable metric identifier used to select the required domain object.
 ///
 /// # Errors
@@ -629,7 +632,7 @@ pub fn portfolio_result_get_metric(
 }
 
 /// Aggregate portfolio metrics from a valuation JSON.
-/// @param valuation_json - Canonical JSON payload representing the valuation consumed by this API.
+/// @param valuation_json - Portfolio or instrument valuation JSON.
 /// @param base_currency - ISO-4217 base currency in which aggregate portfolio values are reported.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
@@ -664,21 +667,27 @@ pub fn aggregate_metrics(
 /// @param spec_json - Canonical portfolio specification JSON defining positions, quantities, and base currency.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param strict_risk - Whether unavailable risk metrics are treated as calculation errors.
+/// @param metrics - Optional exact risk-metric ids to compute. Omit for the
+///   standard set; an empty array performs PV-only valuation. Names are
+///   validated strictly against the standard `MetricId` set — an unknown
+///   name throws. Mirrors the Python `metrics=` keyword.
 ///
 /// # Errors
 ///
 /// Throws a JavaScript exception if the portfolio or market JSON is malformed,
-/// portfolio construction or valuation fails, strict risk calculation cannot
-/// produce a requested metric, a required FX conversion is unavailable, or the
-/// valuation cannot be converted to a JavaScript value.
+/// a requested metric name is unknown, portfolio construction or valuation
+/// fails, strict risk calculation cannot produce a requested metric, a
+/// required FX conversion is unavailable, or the valuation cannot be
+/// converted to a JavaScript value.
 #[wasm_bindgen(js_name = valuePortfolio)]
 pub fn value_portfolio(
     spec_json: &str,
     market_json: &str,
     strict_risk: bool,
+    metrics: Option<Vec<String>>,
 ) -> Result<JsValue, JsValue> {
     let portfolio = JsPortfolio::from_spec(spec_json)?;
-    value_portfolio_built(&portfolio, market_json, strict_risk)
+    value_portfolio_built(&portfolio, market_json, strict_risk, metrics)
 }
 
 /// Aggregate the full classified cashflow ladder for a portfolio.
@@ -730,25 +739,46 @@ pub fn aggregate_full_cashflows_built(
 /// @param portfolio - Built portfolio object whose positions and weights are used by the calculation.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param strict_risk - Whether unavailable risk metrics are treated as calculation errors.
+/// @param metrics - Optional exact risk-metric ids to compute. Omit for the
+///   standard set; an empty array performs PV-only valuation. Names are
+///   validated strictly against the standard `MetricId` set — an unknown
+///   name throws instead of silently degrading to PV-only valuation.
+///   Mirrors the Python `metrics=` keyword.
 ///
 /// # Errors
 ///
-/// Throws a JavaScript exception if `marketJson` is malformed, portfolio
-/// valuation fails, strict risk calculation cannot produce a requested metric,
-/// a required FX conversion is unavailable, or the valuation cannot be
-/// converted to a JavaScript value.
+/// Throws a JavaScript exception if `marketJson` is malformed, a requested
+/// metric name is unknown, portfolio valuation fails, strict risk calculation
+/// cannot produce a requested metric, a required FX conversion is unavailable,
+/// or the valuation cannot be converted to a JavaScript value.
 #[wasm_bindgen(js_name = valuePortfolioBuilt)]
 pub fn value_portfolio_built(
     portfolio: &JsPortfolio,
     market_json: &str,
     strict_risk: bool,
+    metrics: Option<Vec<String>>,
 ) -> Result<JsValue, JsValue> {
     let market: finstack_quant_core::market_data::context::MarketContext =
         serde_json::from_str(market_json).map_err(to_js_err)?;
     let config = finstack_quant_core::config::FinstackConfig::default();
+    // `MetricId::from_str` is infallible (typos become custom metrics and
+    // degrade to PV-only valuation), so this API boundary parses strictly —
+    // matching the Python `value_portfolio` binding.
+    let metrics = match metrics {
+        None => finstack_quant_portfolio::valuation::RequestedMetrics::Standard,
+        Some(names) => finstack_quant_portfolio::valuation::RequestedMetrics::Only(
+            names
+                .iter()
+                .map(|name| {
+                    finstack_quant_valuations::metrics::MetricId::parse_strict(name)
+                        .map_err(to_js_err)
+                })
+                .collect::<Result<Vec<_>, JsValue>>()?,
+        ),
+    };
     let options = finstack_quant_portfolio::valuation::PortfolioValuationOptions {
         strict_risk,
-        ..Default::default()
+        metrics,
     };
     let valuation = finstack_quant_portfolio::valuation::value_portfolio(
         &portfolio.inner,
@@ -763,7 +793,7 @@ pub fn value_portfolio_built(
 /// Apply a scenario to an already-built [`JsPortfolio`] handle and revalue.
 /// Returns a JS object with structured `valuation` and `report` values.
 /// @param portfolio - Built portfolio object whose positions and weights are used by the calculation.
-/// @param scenario_json - Canonical JSON payload representing the scenario consumed by this API.
+/// @param scenario_json - Scenario specification JSON.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 ///
 /// # Errors
@@ -796,7 +826,7 @@ pub fn apply_scenario_and_revalue_built(
 ///
 /// Returns a JS object with structured `valuation` and `report` values.
 /// @param spec_json - Canonical portfolio specification JSON defining positions, quantities, and base currency.
-/// @param scenario_json - Canonical JSON payload representing the scenario consumed by this API.
+/// @param scenario_json - Scenario specification JSON.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 ///
 /// # Errors
@@ -909,8 +939,8 @@ pub fn optimize_portfolio(spec_json: &str, market_json: &str) -> Result<JsValue,
 /// Accepts a portfolio spec, an array of dated market snapshots, and a
 /// replay configuration. Returns a structured `ReplayResult` object.
 /// @param spec_json - Canonical portfolio specification JSON defining positions, quantities, and base currency.
-/// @param snapshots_json - Canonical JSON payload representing the snapshots consumed by this API.
-/// @param config_json - Canonical JSON payload representing the config consumed by this API.
+/// @param snapshots_json - Market-snapshot JSON array.
+/// @param config_json - Configuration JSON for this call.
 ///
 /// # Errors
 ///
@@ -949,10 +979,13 @@ pub fn replay_portfolio(
 /// allocation. Inputs mirror the Python binding's signature.
 ///
 /// `covariance_json` must deserialize to an `n x n` row-major nested array.
-/// @param position_ids_json - Canonical JSON payload representing the position ids consumed by this API.
-/// @param weights_json - Canonical JSON payload representing the weights consumed by this API.
-/// @param covariance_json - Canonical JSON payload representing the covariance consumed by this API.
+/// @param position_ids_json - JSON array of position identifiers.
+/// @param weights_json - Position or asset weight-vector JSON.
+/// @param covariance_json - Covariance-matrix JSON.
 /// @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
+/// @param compute_incremental - Optional; when `true`, also computes
+///   incremental VaR (one full repricing per position). Defaults to `false`,
+///   mirroring the Python `compute_incremental=` keyword.
 ///
 /// # Errors
 ///
@@ -966,6 +999,7 @@ pub fn parametric_var_decomposition(
     weights_json: &str,
     covariance_json: &str,
     confidence: f64,
+    compute_incremental: Option<bool>,
 ) -> Result<JsValue, JsValue> {
     use finstack_quant_portfolio::factor_model::{
         parametric_var_decomposition_view, DecompositionConfig, ParametricPositionDecomposer,
@@ -979,8 +1013,10 @@ pub fn parametric_var_decomposition(
     let cov_flat = flatten_square_matrix(covariance, n, "covariance")?;
     let ids: Vec<PositionId> = ids.into_iter().map(PositionId::new).collect();
 
-    let mut config = DecompositionConfig::parametric_95();
-    config.confidence = confidence;
+    let mut config = DecompositionConfig::parametric(confidence);
+    if compute_incremental.unwrap_or(false) {
+        config = config.with_incremental();
+    }
 
     let decomposer = ParametricPositionDecomposer;
     let result = decomposer
@@ -998,9 +1034,9 @@ pub fn parametric_var_decomposition(
 /// ``{portfolio_var, portfolio_es, confidence, n_positions, contributions}``
 /// object whose ``contributions`` entries are
 /// ``{position_id, component_es, marginal_es, pct_contribution}``.
-/// @param position_ids_json - Canonical JSON payload representing the position ids consumed by this API.
-/// @param weights_json - Canonical JSON payload representing the weights consumed by this API.
-/// @param covariance_json - Canonical JSON payload representing the covariance consumed by this API.
+/// @param position_ids_json - JSON array of position identifiers.
+/// @param weights_json - Position or asset weight-vector JSON.
+/// @param covariance_json - Covariance-matrix JSON.
 /// @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
 ///
 /// # Errors
@@ -1028,8 +1064,7 @@ pub fn parametric_es_decomposition(
     let cov_flat = flatten_square_matrix(covariance, n, "covariance")?;
     let ids: Vec<PositionId> = ids.into_iter().map(PositionId::new).collect();
 
-    let mut config = DecompositionConfig::parametric_95();
-    config.confidence = confidence;
+    let config = DecompositionConfig::parametric(confidence);
 
     let decomposition = ParametricPositionDecomposer
         .decompose_positions(&weights, &cov_flat, &ids, &config)
@@ -1043,8 +1078,8 @@ pub fn parametric_es_decomposition(
 /// simulation.
 ///
 /// `position_pnls_json` is a nested array shaped `[n_positions][n_scenarios]`.
-/// @param position_ids_json - Canonical JSON payload representing the position ids consumed by this API.
-/// @param position_pnls_json - Canonical JSON payload representing the position pnls consumed by this API.
+/// @param position_ids_json - JSON array of position identifiers.
+/// @param position_pnls_json - Per-position P&L JSON.
 /// @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
 ///
 /// # Errors
@@ -1081,60 +1116,46 @@ pub fn historical_var_decomposition(
 }
 
 /// Evaluate a per-position risk budget against actual component VaRs.
-/// @param position_ids_json - Canonical JSON payload representing the position ids consumed by this API.
-/// @param actual_var_json - Canonical JSON payload representing the actual var consumed by this API.
-/// @param target_var_pct_json - Canonical JSON payload representing the target var pct consumed by this API.
+///
+/// Validation (array-length agreement, duplicate position-id rejection) and
+/// the default `utilizationThreshold` live in the canonical Rust
+/// `evaluate_risk_budget_arrays` / `DEFAULT_UTILIZATION_THRESHOLD` path
+/// shared with the Python binding.
+/// @param position_ids_json - JSON array of position identifiers.
+/// @param actual_var_json - Actual component-VaR JSON.
+/// @param target_var_pct_json - Target VaR-share JSON.
 /// @param portfolio_var - Total portfolio VaR used to convert risk-budget shares into absolute amounts.
-/// @param utilization_threshold - Actual-to-target risk ratio that flags a budget breach.
+/// @param utilization_threshold - Optional actual-to-target risk ratio that
+///   flags a budget breach; omit for the Rust default of 1.2.
 ///
 /// # Errors
 ///
 /// Throws a JavaScript exception if any JSON input is malformed, actual or
-/// target arrays do not match the identifier count, non-empty target shares do
-/// not sum to one within tolerance, nonzero component risk is paired with zero
-/// `portfolioVar`, or the result cannot be converted to a JavaScript value.
+/// target arrays do not match the identifier count, a position id is
+/// duplicated, non-empty target shares do not sum to one within tolerance,
+/// nonzero component risk is paired with zero `portfolioVar`, or the result
+/// cannot be converted to a JavaScript value.
 #[wasm_bindgen(js_name = evaluateRiskBudget)]
 pub fn evaluate_risk_budget(
     position_ids_json: &str,
     actual_var_json: &str,
     target_var_pct_json: &str,
     portfolio_var: f64,
-    utilization_threshold: f64,
+    utilization_threshold: Option<f64>,
 ) -> Result<JsValue, JsValue> {
-    use finstack_quant_portfolio::factor_model::{risk_budget_result_view, RiskBudget};
-    use finstack_quant_portfolio::types::PositionId;
-    use indexmap::IndexMap;
+    use finstack_quant_portfolio::factor_model::{
+        evaluate_risk_budget_arrays, risk_budget_result_view, DEFAULT_UTILIZATION_THRESHOLD,
+    };
 
     let ids: Vec<String> = serde_json::from_str(position_ids_json).map_err(to_js_err)?;
     let actual_var: Vec<f64> = serde_json::from_str(actual_var_json).map_err(to_js_err)?;
     let target_var_pct: Vec<f64> = serde_json::from_str(target_var_pct_json).map_err(to_js_err)?;
-    let n = ids.len();
-    if actual_var.len() != n {
-        return Err(to_js_err(format!(
-            "actual_var length ({}) must match position_ids length ({n})",
-            actual_var.len()
-        )));
-    }
-    if target_var_pct.len() != n {
-        return Err(to_js_err(format!(
-            "target_var_pct length ({}) must match position_ids length ({n})",
-            target_var_pct.len()
-        )));
-    }
+    let threshold = utilization_threshold.unwrap_or(DEFAULT_UTILIZATION_THRESHOLD);
 
-    let shared_ids: Vec<PositionId> = ids.into_iter().map(PositionId::new).collect();
-    let mut targets: IndexMap<PositionId, f64> = IndexMap::with_capacity(n);
-    for (id, &pct) in shared_ids.iter().zip(target_var_pct.iter()) {
-        targets.insert(id.clone(), pct);
-    }
-    let budget = RiskBudget::new(targets).with_threshold(utilization_threshold);
-    let result = budget
-        .evaluate_components(
-            shared_ids.iter().zip(actual_var.iter().copied()),
-            portfolio_var,
-        )
-        .map_err(to_js_err)?;
-    let out = risk_budget_result_view(&result, portfolio_var, utilization_threshold);
+    let result =
+        evaluate_risk_budget_arrays(ids, &actual_var, &target_var_pct, portfolio_var, threshold)
+            .map_err(to_js_err)?;
+    let out = risk_budget_result_view(&result, portfolio_var, threshold);
     to_js_value(&out)
 }
 
@@ -1154,7 +1175,7 @@ fn flatten_square_matrix(
 
 /// Effective bid-ask spread via Roll (1984). Returns `undefined` when the
 /// serial covariance is non-negative (Roll assumption violated) or inputs too short.
-/// @param returns_json - Canonical JSON payload representing the returns consumed by this API.
+/// @param returns_json - Numeric return-series JSON.
 ///
 /// # Errors
 ///
@@ -1169,8 +1190,8 @@ pub fn roll_effective_spread(returns_json: &str) -> Result<Option<f64>, JsValue>
 }
 
 /// Amihud (2002) illiquidity ratio from returns and volumes.
-/// @param returns_json - Canonical JSON payload representing the returns consumed by this API.
-/// @param volumes_json - Canonical JSON payload representing the volumes consumed by this API.
+/// @param returns_json - Numeric return-series JSON.
+/// @param volumes_json - Volume-series JSON.
 ///
 /// # Errors
 ///
@@ -1186,18 +1207,19 @@ pub fn amihud_illiquidity(returns_json: &str, volumes_json: &str) -> Result<Opti
 }
 
 /// Trading days required to liquidate at the given participation rate.
-/// @param position_value - Current position market value in the relevant currency units.
-/// @param avg_daily_volume - Average daily trading volume in the same units as the position size.
+///
+/// Share-space contract (matches the Rust `days_to_liquidate` signature):
+/// both quantity and ADV are counts of shares/contracts, not currency
+/// notionals. Mixing a notional with a share-count ADV silently mis-scales
+/// the result by the share price.
+/// @param position_quantity - Number of shares/contracts to liquidate (absolute value used).
+/// @param adv - Average daily traded volume in shares/contracts.
 /// @param participation_rate - Maximum fraction of average daily volume used for execution.
 #[wasm_bindgen(js_name = daysToLiquidate)]
-pub fn days_to_liquidate(
-    position_value: f64,
-    avg_daily_volume: f64,
-    participation_rate: f64,
-) -> f64 {
+pub fn days_to_liquidate(position_quantity: f64, adv: f64, participation_rate: f64) -> f64 {
     finstack_quant_portfolio::liquidity::days_to_liquidate(
-        position_value,
-        avg_daily_volume,
+        position_quantity,
+        adv,
         participation_rate,
     )
 }
@@ -1206,7 +1228,7 @@ pub fn days_to_liquidate(
 ///
 /// Uses the default `[1, 5, 20, 60]` trading-day thresholds. Returns one of
 /// `"tier1" .. "tier5"`.
-/// @param days_to_liquidate - Days to liquidate supplied to liquidity tier; follow the type and convention required by the surrounding API.
+/// @param days_to_liquidate - Trading days to liquidate; classified with default thresholds `[1, 5, 20, 60]`.
 #[wasm_bindgen(js_name = liquidityTier)]
 pub fn liquidity_tier(days_to_liquidate: f64) -> String {
     use finstack_quant_portfolio::liquidity::classify_tier;
@@ -1223,13 +1245,13 @@ pub fn liquidity_tier(days_to_liquidate: f64) -> String {
 /// @param var - Base market value-at-risk before adding the liquidity adjustment.
 /// @param spread_mean - Mean bid-ask spread in the quote units required by the liquidity model.
 /// @param spread_vol - Volatility of the bid-ask spread in the liquidity model's units.
-/// @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
+/// @param confidence - Tail confidence as a decimal probability strictly inside (0.5, 1), such as 0.95 for 95%.
 /// @param position_value - Current position market value in the relevant currency units.
 ///
 /// # Errors
 ///
 /// Throws a JavaScript exception if `var` is non-finite or positive; either
-/// spread input is non-finite or negative; `confidence` is outside `(0, 1)`;
+/// spread input is non-finite or negative; `confidence` is outside `(0.5, 1)`;
 /// `positionValue` is non-finite; or the result cannot be converted to a
 /// JavaScript value.
 #[wasm_bindgen(js_name = lvarBangia)]
@@ -1254,10 +1276,12 @@ pub fn lvar_bangia(
 /// Almgren-Chriss (2001) market impact decomposition for a uniform execution.
 ///
 /// Returns a structured object with `permanent_impact`, `temporary_impact`,
-/// `total_impact` and `expected_cost_bp`, matching the Python binding's dict.
+/// `total_impact`, `expected_cost_bp` and `execution_risk`, matching the
+/// Python binding's dict (both delegate to the canonical Rust
+/// `AlmgrenChrissImpactView`).
 /// @param position_size - Trade size in shares or notional units for the execution calculation.
 /// @param avg_daily_volume - Average daily trading volume in the same units as the position size.
-/// @param volatility - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
+/// @param volatility - Daily return volatility expressed as a decimal, such as 0.02 for 2% (per the Rust `almgren_chriss_uniform_impact` contract; do not pass annualized vol).
 /// @param execution_horizon_days - Planned execution horizon measured in trading days.
 /// @param permanent_impact_coef - Permanent market-impact coefficient in the execution-cost model.
 /// @param temporary_impact_coef - Temporary market-impact coefficient in the execution-cost model.
@@ -1290,18 +1314,13 @@ pub fn almgren_chriss_impact(
         reference_price,
     )
     .map_err(to_js_err)?;
-    to_js_value(&serde_json::json!({
-        "permanent_impact": out.permanent_impact,
-        "temporary_impact": out.temporary_impact,
-        "total_impact": out.total_cost,
-        "expected_cost_bp": out.cost_bp,
-    }))
+    to_js_value(&finstack_quant_portfolio::liquidity::almgren_chriss_impact_view(&out))
 }
 
 /// Kyle (1985) linear price impact lambda estimated from observed volumes
 /// and returns via the Amihud-ratio proxy. Returns `undefined` on invalid inputs.
-/// @param volumes_json - Canonical JSON payload representing the volumes consumed by this API.
-/// @param returns_json - Canonical JSON payload representing the returns consumed by this API.
+/// @param volumes_json - Volume-series JSON.
+/// @param returns_json - Numeric return-series JSON.
 /// @param reference_price - Positive price per share or contract used to convert the return-space ratio into price-space lambda.
 ///
 /// # Errors

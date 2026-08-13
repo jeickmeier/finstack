@@ -57,7 +57,7 @@ fn get_f64(value: &JsValue, key: &str) -> f64 {
 fn portfolio_result_get_metric_returns_undefined_for_missing() {
     let spec = portfolio_spec_json();
     let market = empty_market_json();
-    let valuation = value_portfolio(&spec, &market, false).unwrap();
+    let valuation = value_portfolio(&spec, &market, false, None).unwrap();
     let result = finstack_quant_portfolio::results::PortfolioResult::new(
         serde_wasm_bindgen::from_value(valuation).unwrap(),
         Default::default(),
@@ -72,7 +72,7 @@ fn portfolio_result_get_metric_returns_undefined_for_missing() {
 fn value_portfolio_returns_a_structured_object() {
     let spec = portfolio_spec_json();
     let market = empty_market_json();
-    let valuation = value_portfolio(&spec, &market, false).unwrap();
+    let valuation = value_portfolio(&spec, &market, false, None).unwrap();
     // Direct property reads: a `Map` would give `undefined` for each of these.
     for key in ["as_of", "position_values", "total_base_currency"] {
         assert!(
@@ -116,7 +116,7 @@ fn aggregate_full_cashflows_built_matches_the_spec_path() {
 fn aggregate_metrics_returns_a_structured_object() {
     let spec = portfolio_spec_json();
     let market = empty_market_json();
-    let valuation = value_portfolio(&spec, &market, false).unwrap();
+    let valuation = value_portfolio(&spec, &market, false, None).unwrap();
     let valuation_json = js_sys::JSON::stringify(&valuation)
         .unwrap()
         .as_string()
@@ -588,7 +588,7 @@ fn campisi_reconciliation_check_honours_tolerance_and_denies_unknown_fields() {
 #[wasm_bindgen_test]
 fn apply_scenario_and_revalue_empty_portfolio() {
     let spec = portfolio_spec_json();
-    let scenario = build_scenario_spec("stress", "[]", None, None, 0, None).unwrap();
+    let scenario = build_scenario_spec("stress", "[]", None, None, None, None).unwrap();
     let market = empty_market_json();
     let result = apply_scenario_and_revalue(&spec, &scenario, &market).unwrap();
     let obj = as_json(&result);
@@ -600,7 +600,7 @@ fn apply_scenario_and_revalue_empty_portfolio() {
 fn apply_scenario_and_revalue_built_empty_portfolio() {
     let spec = portfolio_spec_json();
     let portfolio = JsPortfolio::from_spec(&spec).unwrap();
-    let scenario = build_scenario_spec("stress", "[]", None, None, 0, None).unwrap();
+    let scenario = build_scenario_spec("stress", "[]", None, None, None, None).unwrap();
     let market = empty_market_json();
     let result = apply_scenario_and_revalue_built(&portfolio, &scenario, &market).unwrap();
     let obj = as_json(&result);

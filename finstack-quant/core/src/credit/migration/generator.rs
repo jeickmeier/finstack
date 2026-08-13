@@ -14,11 +14,11 @@
 //! # References
 //!
 //! - Israel, R., Rosenthal, J., & Wei, J. (2001). "Finding Generators for Markov
-//!   Chains via Empirical Transition Matrices." *Mathematical Finance*, 11(2), 245-265.
+//!   Chains via Empirical Transition Matrices." *Mathematical Finance*, 11(2), 245-265. `docs/REFERENCES.md#israel-rosenthal-wei-2001`
 //! - Kreinin, A., & Sidenius, J. (2001). "Regularization Algorithms for Transition
 //!   Matrices." *Algo Research Quarterly*, 4(1/2), 23-40.
 //! - Higham, N. J. (2008). *Functions of Matrices: Theory and Computation*. SIAM.
-//!   Chapter 11 (Matrix Logarithm).
+//!   Chapter 11 (Matrix Logarithm). `docs/REFERENCES.md#higham-accuracy-and-stability`
 
 use nalgebra::{linalg::Schur, DMatrix};
 use serde::{Deserialize, Serialize};
@@ -44,7 +44,7 @@ use super::{
 ///
 /// - Lando, D., & Skodeberg, T. M. (2002). "Analyzing Rating Transitions and
 ///   Rating Drift with Continuous Observations." *Journal of Banking & Finance*,
-///   26(2-3), 423-444.
+///   26(2-3), 423-444. `docs/REFERENCES.md#lando-skodeberg-2002`
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(try_from = "GeneratorMatrixWire")]
 pub struct GeneratorMatrix {

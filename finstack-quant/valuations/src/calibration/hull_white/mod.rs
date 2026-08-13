@@ -34,11 +34,11 @@
 //! # References
 //!
 //! - Hull, J. & White, A. (1990). "Pricing Interest-Rate-Derivative Securities."
-//!   *Review of Financial Studies*, 3(4), 573-592.
+//!   *Review of Financial Studies*, 3(4), 573-592. `docs/REFERENCES.md#hull-white-1990-pricing-ird`
 //! - Jamshidian, F. (1989). "An Exact Bond Option Formula."
-//!   *Journal of Finance*, 44(1), 205-209.
+//!   *Journal of Finance*, 44(1), 205-209. `docs/REFERENCES.md#jamshidian-1989-bond-option`
 //! - Brigo, D. & Mercurio, F. (2006). *Interest Rate Models — Theory and Practice*.
-//!   Springer Finance (2nd ed.), Chapter 3.
+//!   Springer Finance (2nd ed.), Chapter 3. `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
 
 use finstack_quant_core::math::piecewise::PiecewiseConstantCurve;
 use finstack_quant_core::math::solver::{BrentSolver, Solver};

@@ -3,17 +3,254 @@
 //! Binds `finstack_quant_portfolio::excess_return`: duration-cell base-return
 //! tables built either from a reference universe (Dynkin, Hyman & Vankudre
 //! 1998, Appendix B) or from discount-curve snapshots, plus position-level
-//! duration-matched excess returns measured against either table. Inputs and
-//! outputs are JSON strings matching the Rust `serde` shapes, except the
-//! curve-snapshot path, which takes the typed `DiscountCurve` objects
-//! directly (same pattern as the XVA bindings in
+//! duration-matched excess returns measured against either table. The typed
+//! entry points return `Py*` wrappers; the paired `*_json` functions keep the
+//! exact JSON wire strings. The curve-snapshot path takes typed
+//! `DiscountCurve` objects directly (same pattern as the XVA bindings in
 //! `crate::bindings::margin::xva`).
 
 use pyo3::prelude::*;
-use pyo3::types::PyModule;
+use pyo3::types::{PyAny, PyModule};
 
 use crate::bindings::core::market_data::curves::PyDiscountCurve;
-use crate::errors::{portfolio_to_py, serde_json_to_py};
+use crate::bindings::pandas_utils::{
+    serde_rows_to_dataframe_with_schema, serde_to_py, ColumnSchema,
+};
+use crate::errors::{display_to_py, portfolio_to_py, serde_json_to_py};
+
+/// Column schema for [`PyDurationCellTable::to_dataframe`].
+const CELL_COLUMNS: &[ColumnSchema<'static>] = &[
+    ("label", "str"),
+    ("lower", "float64"),
+    ("upper", "float64"),
+    ("base_return", "float64"),
+    ("observed", "bool"),
+];
+
+/// Column schema for [`PyExcessReturnResult::to_dataframe`].
+const POSITION_EXCESS_COLUMNS: &[ColumnSchema<'static>] = &[
+    ("id", "str"),
+    ("cell", "str"),
+    ("base_return", "float64"),
+    ("excess_return", "float64"),
+];
+
+/// Duration-cell base-return table.
+///
+/// Returned by :func:`cell_returns_from_reference` and
+/// :func:`cell_returns_from_curves`; consumed by :func:`excess_returns`
+/// (pass ``table.to_json()``).
+#[pyclass(
+    name = "DurationCellTable",
+    module = "finstack_quant.portfolio",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub struct PyDurationCellTable {
+    pub(crate) inner: finstack_quant_portfolio::DurationCellTable,
+}
+
+#[pymethods]
+impl PyDurationCellTable {
+    /// Label identifying the reference universe (e.g. ``"UST"``).
+    #[getter]
+    fn base_label(&self) -> String {
+        self.inner.base_label.clone()
+    }
+
+    /// Cells as a list of dicts, in ascending duration order.
+    #[getter]
+    fn cells<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.cells)
+    }
+
+    /// Cells as a :class:`pandas.DataFrame`.
+    ///
+    /// Columns: ``label``, ``lower``, ``upper``, ``base_return``,
+    /// ``observed``.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_rows_to_dataframe_with_schema(py, &self.inner.cells, CELL_COLUMNS)
+    }
+
+    /// Serialize to a compact JSON string.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Deserialize from a JSON string.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: finstack_quant_portfolio::DurationCellTable =
+            serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "DurationCellTable(base_label={:?}, cells={})",
+            self.inner.base_label,
+            self.inner.cells.len(),
+        )
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+}
+
+/// Per-position and portfolio-level duration-matched credit excess returns.
+///
+/// Returned by :func:`excess_returns`.
+#[pyclass(
+    name = "ExcessReturnResult",
+    module = "finstack_quant.portfolio",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub struct PyExcessReturnResult {
+    pub(crate) inner: finstack_quant_portfolio::ExcessReturnResult,
+}
+
+#[pymethods]
+impl PyExcessReturnResult {
+    /// Label of the base curve the excess returns were measured against.
+    #[getter]
+    fn base_label(&self) -> String {
+        self.inner.base_label.clone()
+    }
+
+    /// Per-position results as a list of dicts, in input order.
+    #[getter]
+    fn positions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.positions)
+    }
+
+    /// Weight-weighted portfolio total return.
+    #[getter]
+    fn portfolio_total_return(&self) -> f64 {
+        self.inner.portfolio_total_return
+    }
+
+    /// Weight-weighted portfolio base return.
+    #[getter]
+    fn portfolio_base_return(&self) -> f64 {
+        self.inner.portfolio_base_return
+    }
+
+    /// Weight-weighted portfolio excess return.
+    #[getter]
+    fn portfolio_excess_return(&self) -> f64 {
+        self.inner.portfolio_excess_return
+    }
+
+    /// Per-position excess returns as a :class:`pandas.DataFrame`.
+    ///
+    /// Columns: ``id``, ``cell``, ``base_return``, ``excess_return``.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_rows_to_dataframe_with_schema(py, &self.inner.positions, POSITION_EXCESS_COLUMNS)
+    }
+
+    /// Serialize to a compact JSON string.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Deserialize from a JSON string.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: finstack_quant_portfolio::ExcessReturnResult =
+            serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "ExcessReturnResult(positions={}, portfolio_excess_return={})",
+            self.inner.positions.len(),
+            self.inner.portfolio_excess_return,
+        )
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+}
+
+/// Parse inputs and build the canonical reference-universe cell table.
+fn run_cell_returns_from_reference(
+    py: Python<'_>,
+    reference_json: &str,
+    base_label: &str,
+    config_json: &str,
+) -> PyResult<finstack_quant_portfolio::DurationCellTable> {
+    let reference_json = reference_json.to_owned();
+    let base_label = base_label.to_owned();
+    let config_json = config_json.to_owned();
+    py.detach(move || {
+        let reference: Vec<finstack_quant_portfolio::ReferenceReturn> =
+            serde_json::from_str(&reference_json)
+                .map_err(|err| serde_json_to_py(err, "invalid reference JSON"))?;
+        let config: finstack_quant_portfolio::CellConfig = serde_json::from_str(&config_json)
+            .map_err(|err| serde_json_to_py(err, "invalid config JSON"))?;
+        finstack_quant_portfolio::cell_returns_from_reference(&reference, &base_label, &config)
+            .map_err(portfolio_to_py)
+    })
+}
+
+/// Parse inputs and build the canonical curve-snapshot cell table.
+fn run_cell_returns_from_curves(
+    py: Python<'_>,
+    start: &PyDiscountCurve,
+    end: &PyDiscountCurve,
+    horizon_years: f64,
+    max_duration: f64,
+    base_label: &str,
+    config_json: &str,
+) -> PyResult<finstack_quant_portfolio::DurationCellTable> {
+    let start_curve = std::sync::Arc::clone(&start.inner);
+    let end_curve = std::sync::Arc::clone(&end.inner);
+    let base_label = base_label.to_owned();
+    let config_json = config_json.to_owned();
+    py.detach(move || {
+        let config: finstack_quant_portfolio::CellConfig = serde_json::from_str(&config_json)
+            .map_err(|err| serde_json_to_py(err, "invalid config JSON"))?;
+        finstack_quant_portfolio::cell_returns_from_curves(
+            &start_curve,
+            &end_curve,
+            horizon_years,
+            max_duration,
+            &base_label,
+            &config,
+        )
+        .map_err(portfolio_to_py)
+    })
+}
+
+/// Parse inputs and run the canonical excess-return calculation.
+fn run_excess_returns(
+    py: Python<'_>,
+    positions_json: &str,
+    table_json: &str,
+) -> PyResult<finstack_quant_portfolio::ExcessReturnResult> {
+    let positions_json = positions_json.to_owned();
+    let table_json = table_json.to_owned();
+    py.detach(move || {
+        let positions: Vec<finstack_quant_portfolio::ExcessReturnPosition> =
+            serde_json::from_str(&positions_json)
+                .map_err(|err| serde_json_to_py(err, "invalid positions JSON"))?;
+        let table: finstack_quant_portfolio::DurationCellTable = serde_json::from_str(&table_json)
+            .map_err(|err| serde_json_to_py(err, "invalid table JSON"))?;
+        finstack_quant_portfolio::excess_returns(&positions, &table).map_err(portfolio_to_py)
+    })
+}
 
 /// Build a duration-cell base-return table from a reference universe.
 ///
@@ -37,8 +274,9 @@ use crate::errors::{portfolio_to_py, serde_json_to_py};
 ///
 /// Returns
 /// -------
-/// str
-///     JSON-serialized ``DurationCellTable``.
+/// DurationCellTable
+///     Typed cell table with ``to_dataframe()`` / ``to_json()`` exits. Use
+///     :func:`cell_returns_from_reference_json` for the raw wire string.
 ///
 /// Raises
 /// ------
@@ -63,8 +301,8 @@ use crate::errors::{portfolio_to_py, serde_json_to_py};
 /// >>> import json
 /// >>> from finstack_quant.portfolio import cell_returns_from_reference
 /// >>> reference = [{"duration": 1.0, "total_return": 0.02}]
-/// >>> table = json.loads(cell_returns_from_reference(json.dumps(reference), "UST", '{"width": 2.0}'))
-/// >>> table["cells"][0]["base_return"]
+/// >>> table = cell_returns_from_reference(json.dumps(reference), "UST", '{"width": 2.0}')
+/// >>> table.cells[0]["base_return"]
 /// 0.02
 #[pyfunction]
 #[pyo3(text_signature = "(reference_json, base_label, config_json)")]
@@ -73,22 +311,32 @@ fn cell_returns_from_reference(
     reference_json: &str,
     base_label: &str,
     config_json: &str,
-) -> PyResult<String> {
-    let reference_json = reference_json.to_owned();
-    let base_label = base_label.to_owned();
-    let config_json = config_json.to_owned();
-    py.detach(move || {
-        let reference: Vec<finstack_quant_portfolio::ReferenceReturn> =
-            serde_json::from_str(&reference_json)
-                .map_err(|err| serde_json_to_py(err, "invalid reference JSON"))?;
-        let config: finstack_quant_portfolio::CellConfig = serde_json::from_str(&config_json)
-            .map_err(|err| serde_json_to_py(err, "invalid config JSON"))?;
-        let table =
-            finstack_quant_portfolio::cell_returns_from_reference(&reference, &base_label, &config)
-                .map_err(portfolio_to_py)?;
-        serde_json::to_string(&table)
-            .map_err(|err| serde_json_to_py(err, "serialize DurationCellTable"))
+) -> PyResult<PyDurationCellTable> {
+    Ok(PyDurationCellTable {
+        inner: run_cell_returns_from_reference(py, reference_json, base_label, config_json)?,
     })
+}
+
+/// Build a reference-universe duration-cell table and return wire JSON.
+///
+/// Wire twin of :func:`cell_returns_from_reference`; same inputs,
+/// JSON-string output.
+///
+/// Returns
+/// -------
+/// str
+///     JSON-serialized ``DurationCellTable``.
+#[pyfunction]
+#[pyo3(text_signature = "(reference_json, base_label, config_json)")]
+fn cell_returns_from_reference_json(
+    py: Python<'_>,
+    reference_json: &str,
+    base_label: &str,
+    config_json: &str,
+) -> PyResult<String> {
+    let table = run_cell_returns_from_reference(py, reference_json, base_label, config_json)?;
+    serde_json::to_string(&table)
+        .map_err(|err| serde_json_to_py(err, "serialize DurationCellTable"))
 }
 
 /// Build a duration-cell base-return table from start/end discount curves.
@@ -120,8 +368,9 @@ fn cell_returns_from_reference(
 ///
 /// Returns
 /// -------
-/// str
-///     JSON-serialized ``DurationCellTable``.
+/// DurationCellTable
+///     Typed cell table with ``to_dataframe()`` / ``to_json()`` exits. Use
+///     :func:`cell_returns_from_curves_json` for the raw wire string.
 ///
 /// Raises
 /// ------
@@ -146,13 +395,12 @@ fn cell_returns_from_reference(
 /// Examples
 /// --------
 /// >>> from datetime import date
-/// >>> import json
 /// >>> from finstack_quant.core.market_data import DiscountCurve
 /// >>> from finstack_quant.portfolio import cell_returns_from_curves
 /// >>> start = DiscountCurve.flat("start", date(2025, 1, 1), 0.02)
 /// >>> end = DiscountCurve.flat("end", date(2025, 4, 1), 0.03)
-/// >>> table = json.loads(cell_returns_from_curves(start, end, 0.25, 2.0, "UST", '{"width": 1.0}'))
-/// >>> len(table["cells"])
+/// >>> table = cell_returns_from_curves(start, end, 0.25, 2.0, "UST", '{"width": 1.0}')
+/// >>> len(table.cells)
 /// 2
 #[pyfunction]
 #[pyo3(text_signature = "(start, end, horizon_years, max_duration, base_label, config_json)")]
@@ -164,26 +412,51 @@ fn cell_returns_from_curves(
     max_duration: f64,
     base_label: &str,
     config_json: &str,
-) -> PyResult<String> {
-    let start_curve = std::sync::Arc::clone(&start.inner);
-    let end_curve = std::sync::Arc::clone(&end.inner);
-    let base_label = base_label.to_owned();
-    let config_json = config_json.to_owned();
-    py.detach(move || {
-        let config: finstack_quant_portfolio::CellConfig = serde_json::from_str(&config_json)
-            .map_err(|err| serde_json_to_py(err, "invalid config JSON"))?;
-        let table = finstack_quant_portfolio::cell_returns_from_curves(
-            &start_curve,
-            &end_curve,
+) -> PyResult<PyDurationCellTable> {
+    Ok(PyDurationCellTable {
+        inner: run_cell_returns_from_curves(
+            py,
+            start,
+            end,
             horizon_years,
             max_duration,
-            &base_label,
-            &config,
-        )
-        .map_err(portfolio_to_py)?;
-        serde_json::to_string(&table)
-            .map_err(|err| serde_json_to_py(err, "serialize DurationCellTable"))
+            base_label,
+            config_json,
+        )?,
     })
+}
+
+/// Build a curve-snapshot duration-cell table and return wire JSON.
+///
+/// Wire twin of :func:`cell_returns_from_curves`; same inputs, JSON-string
+/// output.
+///
+/// Returns
+/// -------
+/// str
+///     JSON-serialized ``DurationCellTable``.
+#[pyfunction]
+#[pyo3(text_signature = "(start, end, horizon_years, max_duration, base_label, config_json)")]
+fn cell_returns_from_curves_json(
+    py: Python<'_>,
+    start: &PyDiscountCurve,
+    end: &PyDiscountCurve,
+    horizon_years: f64,
+    max_duration: f64,
+    base_label: &str,
+    config_json: &str,
+) -> PyResult<String> {
+    let table = run_cell_returns_from_curves(
+        py,
+        start,
+        end,
+        horizon_years,
+        max_duration,
+        base_label,
+        config_json,
+    )?;
+    serde_json::to_string(&table)
+        .map_err(|err| serde_json_to_py(err, "serialize DurationCellTable"))
 }
 
 /// Compute duration-matched credit excess returns against a base-return table.
@@ -202,13 +475,15 @@ fn cell_returns_from_curves(
 ///     ``1e-6``.
 /// table_json : str
 ///     JSON ``DurationCellTable``, as returned by
-///     :func:`cell_returns_from_reference` or :func:`cell_returns_from_curves`.
+///     :func:`cell_returns_from_reference_json`,
+///     :func:`cell_returns_from_curves_json`, or
+///     ``DurationCellTable.to_json()``.
 ///
 /// Returns
 /// -------
-/// str
-///     JSON-serialized ``ExcessReturnResult`` with per-position and
-///     portfolio-level total/base/excess returns.
+/// ExcessReturnResult
+///     Typed result with per-position and portfolio-level total/base/excess
+///     returns. Use :func:`excess_returns_json` for the raw wire string.
 ///
 /// Raises
 /// ------
@@ -234,31 +509,46 @@ fn cell_returns_from_curves(
 /// >>> reference = [{"duration": 1.0, "total_return": 0.02}]
 /// >>> table = cell_returns_from_reference(json.dumps(reference), "UST", '{"width": 2.0}')
 /// >>> positions = [{"id": "B1", "weight": 1.0, "duration": 1.0, "total_return": 0.03}]
-/// >>> result = json.loads(excess_returns(json.dumps(positions), table))
-/// >>> round(result["portfolio_excess_return"], 4)
+/// >>> result = excess_returns(json.dumps(positions), table.to_json())
+/// >>> round(result.portfolio_excess_return, 4)
 /// 0.01
 #[pyfunction]
 #[pyo3(text_signature = "(positions_json, table_json)")]
-fn excess_returns(py: Python<'_>, positions_json: &str, table_json: &str) -> PyResult<String> {
-    let positions_json = positions_json.to_owned();
-    let table_json = table_json.to_owned();
-    py.detach(move || {
-        let positions: Vec<finstack_quant_portfolio::ExcessReturnPosition> =
-            serde_json::from_str(&positions_json)
-                .map_err(|err| serde_json_to_py(err, "invalid positions JSON"))?;
-        let table: finstack_quant_portfolio::DurationCellTable = serde_json::from_str(&table_json)
-            .map_err(|err| serde_json_to_py(err, "invalid table JSON"))?;
-        let result = finstack_quant_portfolio::excess_returns(&positions, &table)
-            .map_err(portfolio_to_py)?;
-        serde_json::to_string(&result)
-            .map_err(|err| serde_json_to_py(err, "serialize ExcessReturnResult"))
+fn excess_returns(
+    py: Python<'_>,
+    positions_json: &str,
+    table_json: &str,
+) -> PyResult<PyExcessReturnResult> {
+    Ok(PyExcessReturnResult {
+        inner: run_excess_returns(py, positions_json, table_json)?,
     })
+}
+
+/// Compute duration-matched credit excess returns and return wire JSON.
+///
+/// Wire twin of :func:`excess_returns`; same inputs, JSON-string output.
+///
+/// Returns
+/// -------
+/// str
+///     JSON-serialized ``ExcessReturnResult``.
+#[pyfunction]
+#[pyo3(text_signature = "(positions_json, table_json)")]
+fn excess_returns_json(py: Python<'_>, positions_json: &str, table_json: &str) -> PyResult<String> {
+    let result = run_excess_returns(py, positions_json, table_json)?;
+    serde_json::to_string(&result)
+        .map_err(|err| serde_json_to_py(err, "serialize ExcessReturnResult"))
 }
 
 /// Register duration-matched credit excess return functions on the portfolio submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<PyDurationCellTable>()?;
+    m.add_class::<PyExcessReturnResult>()?;
     m.add_function(wrap_pyfunction!(cell_returns_from_reference, m)?)?;
+    m.add_function(wrap_pyfunction!(cell_returns_from_reference_json, m)?)?;
     m.add_function(wrap_pyfunction!(cell_returns_from_curves, m)?)?;
+    m.add_function(wrap_pyfunction!(cell_returns_from_curves_json, m)?)?;
     m.add_function(wrap_pyfunction!(excess_returns, m)?)?;
+    m.add_function(wrap_pyfunction!(excess_returns_json, m)?)?;
     Ok(())
 }

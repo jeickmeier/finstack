@@ -131,13 +131,16 @@ class Rate:
         Rate
             Rate stored as ``bp / 10_000`` in decimal-rate form.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
 
         Examples
         --------
         >>> from finstack_quant.core.types import Rate
         >>> Rate.from_bp(25).as_decimal
         0.0025
-
         """
         ...
 
@@ -150,6 +153,10 @@ class Rate:
         -------
         float
             The as decimal exposed by this `Rate`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -162,6 +169,10 @@ class Rate:
         -------
         float
             The as percent exposed by this `Rate`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -174,6 +185,10 @@ class Rate:
         -------
         int
             The as bp exposed by this `Rate`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -254,6 +269,10 @@ class Bps:
         float
 
             The as decimal exposed by this `Bps`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         Examples
         --------
         >>> from finstack_quant.core.types import Bps
@@ -272,6 +291,10 @@ class Bps:
         int
 
             The as bp exposed by this `Bps`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         Examples
         --------
         >>> from finstack_quant.core.types import Bps
@@ -355,6 +378,10 @@ class Percentage:
         float
 
             The as decimal exposed by this `Percentage`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         Examples
         --------
         >>> from finstack_quant.core.types import Percentage
@@ -366,13 +393,17 @@ class Percentage:
     @property
     def as_percent(self) -> float:
         """
-        Value in percent terms.
+        Value expressed in percent units (``5.0`` means five percent).
 
         Returns
         -------
         float
 
             The as percent exposed by this `Percentage`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         Examples
         --------
         >>> from finstack_quant.core.types import Percentage
@@ -500,6 +531,10 @@ class CreditRating:
         str
 
             The name exposed by this `CreditRating`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         Examples
         --------
         >>> from finstack_quant.core.types import CreditRating
@@ -517,6 +552,10 @@ class CreditRating:
         -------
         float
             The warf exposed by this `CreditRating`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -553,12 +592,15 @@ class CurveId:
         value : str
             Curve identifier.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
+
         Examples
         --------
         >>> from finstack_quant.core.types import CurveId
         >>> CurveId("USD-OIS").as_str()
         'USD-OIS'
-
         """
         ...
 
@@ -571,6 +613,10 @@ class CurveId:
         str
 
             Exact curve-identifier text supplied at construction.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         Examples
         --------
         >>> from finstack_quant.core.types import CurveId
@@ -647,12 +693,15 @@ class InstrumentId:
         value : str
             Instrument identifier.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
+
         Examples
         --------
         >>> from finstack_quant.core.types import InstrumentId
         >>> InstrumentId("BOND_A").as_str()
         'BOND_A'
-
         """
         ...
 
@@ -665,6 +714,10 @@ class InstrumentId:
         str
 
             Exact instrument-identifier text supplied at construction.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         Examples
         --------
         >>> from finstack_quant.core.types import InstrumentId
@@ -732,14 +785,20 @@ class Attributes:
 
     def __init__(self) -> None:
         """
-        Create an empty attribute set.
+        Create an empty metadata map with no keys.
 
+        The instance is ready for :meth:`set_meta` / :meth:`get_meta` without
+        further initialization.
+
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
     def get_meta(self, key: str) -> Optional[str]:
         """
-        Fetch metadata by key.
+        Return a metadata value by key, or ``None`` when the key is absent.
 
         Parameters
         ----------
@@ -751,6 +810,9 @@ class Attributes:
         str | None
             Value if present, otherwise ``None``.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -765,6 +827,9 @@ class Attributes:
         value : str
             Metadata value.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -782,6 +847,10 @@ class Attributes:
         bool
 
             ``True`` when the metadata map contains ``key``; otherwise ``False``.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -794,6 +863,10 @@ class Attributes:
         list[str]
 
             Metadata keys sorted lexicographically for deterministic iteration.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 

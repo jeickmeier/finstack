@@ -25,13 +25,19 @@ __all__ = [
 ]
 
 def cds_index_example_json() -> str:
-    """Example ``CDSIndex`` canonical instrument envelope.
+    """
+    Example ``CDSIndex`` canonical instrument envelope.
 
     Returns
     -------
     str
         ``finstack_quant.instrument/1`` envelope accepted by
         ``validate_instrument_json`` and ``price_instrument``.
+
+    Raises
+    ------
+    ValueError
+        If the example or catalog cannot be produced.
 
     Examples
     --------
@@ -42,13 +48,19 @@ def cds_index_example_json() -> str:
     """
 
 def cds_option_example_json() -> str:
-    """Example ``CDSOption`` canonical instrument envelope.
+    """
+    Example ``CDSOption`` canonical instrument envelope.
 
     Returns
     -------
     str
         ``finstack_quant.instrument/1`` envelope accepted by
         ``validate_instrument_json`` and ``price_instrument``.
+
+    Raises
+    ------
+    ValueError
+        If the example or catalog cannot be produced.
 
     Examples
     --------
@@ -59,13 +71,19 @@ def cds_option_example_json() -> str:
     """
 
 def cds_tranche_example_json() -> str:
-    """Example ``CDSTranche`` canonical instrument envelope.
+    """
+    Example ``CDSTranche`` canonical instrument envelope.
 
     Returns
     -------
     str
         ``finstack_quant.instrument/1`` envelope accepted by
         ``validate_instrument_json`` and ``price_instrument``.
+
+    Raises
+    ------
+    ValueError
+        If the example or catalog cannot be produced.
 
     Examples
     --------
@@ -76,13 +94,19 @@ def cds_tranche_example_json() -> str:
     """
 
 def credit_default_swap_example_json() -> str:
-    """Example ``CreditDefaultSwap`` canonical instrument envelope.
+    """
+    Example ``CreditDefaultSwap`` canonical instrument envelope.
 
     Returns
     -------
     str
         ``finstack_quant.instrument/1`` envelope accepted by
         ``validate_instrument_json`` and ``price_instrument``.
+
+    Raises
+    ------
+    ValueError
+        If the example or catalog cannot be produced.
 
     Examples
     --------

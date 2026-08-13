@@ -10,8 +10,8 @@
 //!
 //! # References
 //!
-//! - Cheyette, O. (1994). "Markov Representation of the Heath-Jarrow-Morton Model."
-//! - Bayer, C., Friz, P. & Gatheral, J. (2016). "Pricing under rough volatility."
+//! - Cheyette, O. (1994). "Markov Representation of the Heath-Jarrow-Morton Model." `docs/REFERENCES.md#jarrow-lando-turnbull-1997`
+//! - Bayer, C., Friz, P. & Gatheral, J. (2016). "Pricing under rough volatility." `docs/REFERENCES.md#bayer-friz-gatheral-2016`
 
 use crate::instruments::common_impl::helpers::year_fraction;
 use crate::instruments::common_impl::traits::Instrument;
@@ -86,7 +86,7 @@ impl Default for CheyetteRoughConfig {
 /// Bermudan swaption pricer using Cheyette + rough stochastic volatility.
 ///
 /// Uses Monte Carlo simulation with the Cheyette rough vol process and
-/// LSMC backward induction for optimal exercise decisions.  The Cheyette
+/// LSMC backward induction for optimal exercise decisions. The Cheyette
 /// state variables [x, y] are used as regression basis for the continuation
 /// value estimate.
 ///
@@ -183,7 +183,7 @@ impl BermudanSwaptionCheyetteRoughPricer {
     /// ```text
     /// P(t, T; x, y) = [P_M(0, T) / P_M(0, t)]
     ///                 * exp(-B(t, T)*x - 0.5*B(t, T)^2*y)
-    /// ```
+    ///   ```
     ///
     /// where `P_M(0, .)` is the market discount curve and `B(t, T)` the
     /// reconstruction factor above (Andersen & Piterbarg 2010, Vol. II, §12).

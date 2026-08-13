@@ -27,7 +27,7 @@
 //!
 //! # References
 //!
-//! - Hull, J. C. (2018). "Options, Futures, and Other Derivatives." Chapter 5.
+//! - Hull, J. C. (2018). "Options, Futures, and Other Derivatives." Chapter 5. `docs/REFERENCES.md#hull-options-futures`
 //! - CME Group. "E-mini S&P 500 Futures Contract Specifications."
 
 use super::pricer;

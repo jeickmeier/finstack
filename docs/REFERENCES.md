@@ -38,6 +38,14 @@ risk calculation with a standard reference.
 - International Organization for Standardization. *ISO 8601 Date and Time
   Format*. Canonical reference for calendar, week-date, and period notation.
 
+<a id="fed-k8-holidays"></a>
+
+### Fed K.8 Holidays
+
+- Board of Governors of the Federal Reserve System. *K.8 Holidays Observed by
+  the Federal Reserve System*. Saturday/Sunday substitution rules for Fed
+  holidays.
+
 ## Curves, Discounting, And Interest Rates
 
 <a id="hull-options-futures"></a>
@@ -54,6 +62,62 @@ risk calculation with a standard reference.
 - Andersen, L. B. G., and Piterbarg, V. V. *Interest Rate Modeling*. Multi-curve
   discounting, term-structure construction, and interest-rate modeling
   conventions.
+
+<a id="brigo-mercurio-2006-interest-rate-models"></a>
+
+### Brigo Mercurio 2006 Interest Rate Models
+
+- Brigo, D., and Mercurio, F. *Interest Rate Models — Theory and Practice*
+  (2nd ed.). Springer Finance. Caps, floors, swaptions, Hull-White, and
+  quanto-adjustment conventions.
+
+<a id="hull-white-1990-pricing-ird"></a>
+
+### Hull White 1990 Pricing Interest-Rate Derivatives
+
+- Hull, J., and White, A. "Pricing Interest-Rate-Derivative Securities."
+  *Review of Financial Studies*, 3(4), 573-592. One-factor Hull-White short-rate
+  model used by HW1F calibration and tree pricers.
+
+<a id="hull-white-1994-numerical-procedures"></a>
+
+### Hull White 1994 Numerical Procedures
+
+- Hull, J., and White, A. "Numerical Procedures for Implementing Term Structure
+  Models I: Single-Factor Models." *Journal of Derivatives*. Trinomial-tree
+  construction for the Hull-White short-rate model.
+
+<a id="jamshidian-1989-bond-option"></a>
+
+### Jamshidian 1989 Bond Option
+
+- Jamshidian, F. "An Exact Bond Option Formula." *Journal of Finance*, 44(1),
+  205-209. Closed-form zero-bond option used to decompose European swaptions
+  under Hull-White.
+
+<a id="isda-2021-definitions"></a>
+
+### ISDA 2021 Interest Rate Derivatives Definitions
+
+- International Swaps and Derivatives Association. *2021 ISDA Interest Rate
+  Derivatives Definitions*. Overnight RFR compounded-in-arrears swap
+  conventions.
+
+<a id="bloomberg-swpm"></a>
+
+### Bloomberg SWPM
+
+- Bloomberg L.P. *SWPM* (Swap Manager) help and screen conventions. Vendor
+  reference for IRS compounding labels, par-rate DV01, and production
+  swaption par-par quoting used to reconcile `InterestRateSwap` pricing.
+
+<a id="sadr-2009-irs"></a>
+
+### Sadr 2009 Interest Rate Swaps
+
+- Sadr, A. *Interest Rate Swaps and Their Derivatives: A Practitioner's
+  Guide*. Wiley. Practitioner reference for swap mechanics, multi-curve
+  discounting, and market quoting conventions.
 
 <a id="andersen-piterbarg-xccy-mtm-reset"></a>
 
@@ -95,6 +159,59 @@ risk calculation with a standard reference.
 - Bank of Japan. *Uncollateralized Overnight Call Rate*. Reference for the Tokyo
   overnight average rate and yen overnight money-market conventions.
 
+<a id="ametrano-bianchetti-2013"></a>
+
+### Ametrano Bianchetti 2013
+
+- Ametrano, F. M., and Bianchetti, M. "Everything You Always Wanted to Know
+  About Multiple Interest Rate Curve Bootstrapping but Were Afraid to Ask."
+  Multi-curve discounting and forwarding used by basis-swap pricing.
+
+<a id="fujii-shimada-takahashi-2010"></a>
+
+### Fujii Shimada Takahashi 2010
+
+- Fujii, M., Shimada, Y., and Takahashi, A. "A Note on Construction of
+  Multiple Swap Curves with and without Collateral." Collateralized
+  multi-curve construction.
+
+<a id="sifma-mbs-standard-formulas"></a>
+
+### SIFMA MBS Standard Formulas
+
+- SIFMA. *Standard Formulas for the Analysis of Mortgage-Backed Securities
+  and Other Related Securities* (2010 ed.). Weighted-average-life and related
+  MBS time metrics (actual/365).
+
+<a id="sifma-tba-good-delivery"></a>
+
+### SIFMA TBA Good Delivery
+
+- SIFMA. *Good Delivery Guidelines*. TBA allocation and pool-delivery
+  conventions, including Section 3.2.
+
+<a id="fabozzi-fixed-income-handbook"></a>
+
+### Fabozzi Fixed Income Handbook
+
+- Fabozzi, F. J. *The Handbook of Fixed Income Securities*. Practitioner
+  reference for MBS weighted-average life and related mortgage analytics.
+
+<a id="deacon-derry-mirfendereski-2004"></a>
+
+### Deacon Derry Mirfendereski 2004
+
+- Deacon, M., Derry, A., and Mirfendereski, D. *Inflation-Indexed Securities*
+  (2nd ed.). Wiley. Index-linked bond mechanics, lagging, and inflation-curve
+  construction.
+
+<a id="kerkhof-2005"></a>
+
+### Kerkhof 2005
+
+- Kerkhof, J. "Inflation Derivatives Explained." Inflation-index lagging and
+  inflation-derivative market conventions.
+
 <a id="hagan-west-monotone-convex"></a>
 
 ### Hagan West Monotone Convex
@@ -112,6 +229,55 @@ risk calculation with a standard reference.
 
 ## Credit, Correlation, And Portfolio Risk
 
+<a id="isda-2014-credit-definitions"></a>
+
+### ISDA 2014 Credit Derivatives Definitions
+
+- International Swaps and Derivatives Association. *2014 ISDA Credit
+  Derivatives Definitions*. Credit events, successor, and settlement
+  conventions used by CDS instruments.
+
+<a id="jarrow-lando-turnbull-1997"></a>
+
+### Jarrow Lando Turnbull 1997
+
+- Jarrow, R. A., Lando, D., and Turnbull, S. M. "A Markov Model for the Term
+  Structure of Credit Risk Spreads." *Review of Financial Studies*, 10(2),
+  481-523. Rating-transition generator used by credit-migration primitives.
+
+<a id="creditmetrics-1997"></a>
+
+### CreditMetrics 1997
+
+- Gupton, G. M., Finger, C. C., and Bhatia, M. *CreditMetrics — Technical
+  Document*. J.P. Morgan. Credit-migration and portfolio credit-risk
+  methodology.
+
+<a id="israel-rosenthal-wei-2001"></a>
+
+### Israel Rosenthal Wei 2001
+
+- Israel, R., Rosenthal, J., and Wei, J. "Finding Generators for Markov Chains
+  via Empirical Transition Matrices, with Applications to Credit Ratings."
+  *Mathematical Finance*, 11(2), 245-265. Generator extraction from
+  one-year transition matrices.
+
+<a id="laurent-gregory-2005-factor-copulas"></a>
+
+### Laurent Gregory 2005 Factor Copulas
+
+- Laurent, J.-P., and Gregory, J. "Basket Default Swaps, CDOs and Factor
+  Copulas." *Journal of Risk*, 7(4), 103-122. Factor-copula loss
+  distributions for CDS tranches.
+
+<a id="gibson-2004-synthetic-cdos"></a>
+
+### Gibson 2004 Synthetic CDOs
+
+- Gibson, M. S. "Understanding the Risk of Synthetic CDOs." *Finance and
+  Economics Discussion Series* 2004-36, Federal Reserve Board. Tranche loss
+  and mezzanine risk interpretation.
+
 <a id="isda-cds-standard-model"></a>
 
 ### ISDA CDS Standard Model
@@ -119,6 +285,29 @@ risk calculation with a standard reference.
 - ISDA CDS Standard Model documentation and related ISDA credit-derivatives
   conventions. Use for hazard-rate, survival-probability, and CDS-style
   accrual/settlement references.
+
+<a id="bloomberg-cds-model"></a>
+
+### Bloomberg CDS Model
+
+- Bloomberg L.P. Quantitative Analytics. *The Bloomberg CDS Model.* DOCS
+  2057273 ⟨GO⟩. CDSW screen conventions for clean principal, extra-day final
+  coupon, and par-spread annuity used by `CreditDefaultSwap`.
+
+<a id="bloomberg-cdso"></a>
+
+### Bloomberg CDSO
+
+- Bloomberg L.P. Quantitative Analytics. *Pricing Credit Index Options.* DOCS
+  2055833 ⟨GO⟩. Numerical-quadrature CDS-option model used by `CDSOption`.
+
+<a id="hull-white-2000-cds"></a>
+
+### Hull White 2000 CDS
+
+- Hull, J. C., and White, A. "Valuing Credit Default Swaps I: No Counterparty
+  Default Risk." *Journal of Derivatives*, 8(1), 29-40. Reduced-form CDS
+  pricing without counterparty default.
 
 <a id="sp-cds-indices-primer"></a>
 
@@ -138,12 +327,52 @@ risk calculation with a standard reference.
 - Altman, E. I. "Financial Ratios, Discriminant Analysis and the Prediction of
   Corporate Bankruptcy." Original Altman Z-Score reference.
 
+<a id="ohlson-1980"></a>
+
+### Ohlson 1980
+
+- Ohlson, J. A. "Financial Ratios and the Probabilistic Prediction of
+  Bankruptcy." *Journal of Accounting Research*, 18(1), 109-131. Logistic
+  O-score used by `ohlson_o_score`.
+
+<a id="zmijewski-1984"></a>
+
+### Zmijewski 1984
+
+- Zmijewski, M. E. "Methodological Issues Related to the Estimation of
+  Financial Distress Prediction Models." *Journal of Accounting Research*,
+  22, 59-82. Probit distress model used by `zmijewski_score`.
+
 <a id="diebold-li-2006"></a>
 
 ### Diebold Li 2006
 
 - Diebold, F. X., and Li, C. "Forecasting the Term Structure of Government Bond
   Yields." Nelson-Siegel factor dynamics and yield-curve forecasting.
+
+<a id="nelson-siegel-1987"></a>
+
+### Nelson Siegel 1987
+
+- Nelson, C. R., and Siegel, A. F. "Parsimonious Modeling of Yield Curves."
+  *Journal of Business*, 60(4), 473-489. Four-parameter yield-curve
+  parameterization used by `ParametricCurve`.
+
+<a id="svensson-1994"></a>
+
+### Svensson 1994
+
+- Svensson, L. E. O. "Estimating and Interpreting Forward Interest Rates:
+  Sweden 1992-1994." *NBER Working Paper* 4871. Six-parameter
+  Nelson-Siegel-Svensson extension.
+
+<a id="litterman-scheinkman-1991"></a>
+
+### Litterman Scheinkman 1991
+
+- Litterman, R., and Scheinkman, J. "Common Factors Affecting Bond Returns."
+  *Journal of Fixed Income*, 1(1), 54-61. Level/slope/curvature PCA of the
+  yield curve.
 
 <a id="mcneil-frey-embrechts-qrm"></a>
 
@@ -167,6 +396,22 @@ risk calculation with a standard reference.
 - Tasche, D. "Capital Allocation to Business Units and Sub-Portfolios: the Euler
   Principle." Canonical reference for Euler allocation of portfolio risk across
   factors or sub-portfolios.
+
+<a id="litterman-1996-hotspots"></a>
+
+### Litterman 1996 Hot Spots
+
+- Litterman, R. "Hot Spots and Hedges." *Journal of Portfolio Management*,
+  Special Issue. Practitioner reference for identifying concentrated risk
+  contributions inside a portfolio.
+
+<a id="hallerbach-2003-decomposing-var"></a>
+
+### Hallerbach 2003 Decomposing VaR
+
+- Hallerbach, W. G. "Decomposing Portfolio Value-at-Risk: A General Analysis."
+  *Journal of Risk*, 5(2). Historical and Euler-style VaR/ES contribution
+  analysis used by position-level decomposers.
 
 <a id="li-2000-gaussian-copula"></a>
 
@@ -225,6 +470,74 @@ risk calculation with a standard reference.
   and Recovery Rates: Theory, Empirical Evidence, and Implications."
   *Journal of Business*, 78(6). Canonical reference for the empirical
   relationship between default clustering and recovery outcomes.
+
+<a id="schuermann-2004-lgd"></a>
+
+### Schuermann 2004 LGD
+
+- Schuermann, T. "What Do We Know About Loss Given Default?" Wharton Financial
+  Institutions Center Working Paper 04-01. Recovery-rate evidence by seniority.
+
+<a id="vasicek-2002-loan-portfolio"></a>
+
+### Vasicek 2002 Loan Portfolio
+
+- Vasicek, O. A. "The Distribution of Loan Portfolio Value." *Risk*, 15(12),
+  160-162. Asymptotic single-factor portfolio-loss distribution used in IRB
+  PD mapping.
+
+<a id="basel-ii-2006"></a>
+
+### Basel II 2006
+
+- Basel Committee on Banking Supervision. *International Convergence of
+  Capital Measurement and Capital Standards: A Revised Framework*. IRB PD
+  floors, EAD/CCF, and asset-correlation formulas.
+
+<a id="lando-skodeberg-2002"></a>
+
+### Lando Skodeberg 2002
+
+- Lando, D., and Skodeberg, T. M. "Analyzing Rating Transitions and Rating
+  Drift with Continuous Observations." *Journal of Banking & Finance*,
+  26(2-3), 423-444. Continuous-time rating-migration generators.
+
+<a id="duffie-singleton-1999"></a>
+
+### Duffie Singleton 1999
+
+- Duffie, D., and Singleton, K. J. "Modeling Term Structures of Defaultable
+  Bonds." Reduced-form intensity modeling of defaultable discounting.
+
+<a id="lando-1998"></a>
+
+### Lando 1998
+
+- Lando, D. "On Cox Processes and Credit Risky Securities." Cox-process
+  (doubly stochastic) default intensity used by stochastic credit engines.
+
+<a id="richard-roll-1989"></a>
+
+### Richard Roll 1989
+
+- Richard, S. F., and Roll, R. "Prepayments on Fixed-Rate Mortgage-Backed
+  Securities." *Journal of Portfolio Management*, 15(3), 9-14. Refinancing,
+  seasoning, and burnout prepayment model.
+
+<a id="schwartz-torous-1989"></a>
+
+### Schwartz Torous 1989
+
+- Schwartz, E. S., and Torous, W. N. "Prepayment and the Valuation of
+  Mortgage-Backed Securities." Empirical prepayment and MBS valuation.
+
+<a id="moodys-rating-symbols"></a>
+
+### Moody's Rating Symbols
+
+- Moody's Investors Service. *Rating Symbols and Definitions*. Distressed
+  exchange and default-event definitions used in liability-management
+  classification.
 
 <a id="krekel-stumpp-2006-correlation-products"></a>
 
@@ -308,6 +621,62 @@ risk calculation with a standard reference.
   Practitioner reference for bilateral XVA decomposition and funding-adjustment
   conventions.
 
+## Liquidity And Market Microstructure
+
+<a id="roll-1984"></a>
+
+### Roll 1984
+
+- Roll, R. "A Simple Implicit Measure of the Effective Bid-Ask Spread in an
+  Efficient Market." Serial-covariance estimator used by
+  `roll_effective_spread`.
+
+<a id="amihud-2002"></a>
+
+### Amihud 2002
+
+- Amihud, Y. "Illiquidity and Stock Returns: Cross-Section and Time-Series
+  Effects." Average absolute-return-to-volume ratio used by
+  `amihud_illiquidity`.
+
+<a id="bangia-1999-lvar"></a>
+
+### Bangia 1999 LVaR
+
+- Bangia, A., Diebold, F. X., Schuermann, T., and Stroughair, J. D. "Modeling
+  Liquidity Risk, With Implications for Traditional Market Risk Measurement
+  and Management." Liquidity-adjusted VaR used by `lvar_bangia`.
+
+<a id="almgren-chriss-2000"></a>
+
+### Almgren Chriss 2000
+
+- Almgren, R., and Chriss, N. "Optimal Execution of Portfolio Transactions."
+  Permanent and temporary impact decomposition used by `almgren_chriss_impact`.
+
+<a id="kyle-1985"></a>
+
+### Kyle 1985
+
+- Kyle, A. S. "Continuous Auctions and Insider Trading." Price-impact
+  coefficient estimated by `kyle_lambda`.
+
+<a id="hasbrouck-2007"></a>
+
+### Hasbrouck 2007
+
+- Hasbrouck, J. *Empirical Market Microstructure*. Oxford University Press.
+  Bid-ask spread, mid-price, and related microstructure conventions used by
+  `LiquidityProfile`.
+
+<a id="aifmd-liquidity-management"></a>
+
+### AIFMD Liquidity Management
+
+- Directive 2011/61/EU (AIFMD), Article 16, and ESMA, *Guidelines on liquidity
+  stress testing in UCITS and AIFs* (ESMA34-39-897). Industry practice for
+  days-to-liquidate bucketing used by `LiquidityTier`.
+
 ## Volatility, Options, And Smile Models
 
 <a id="black-1976"></a>
@@ -316,6 +685,173 @@ risk calculation with a standard reference.
 
 - Black, F. "The Pricing of Commodity Contracts." The standard reference for the
   Black (1976) forward-style option pricing model.
+
+<a id="black-scholes-1973"></a>
+
+### Black Scholes 1973
+
+- Black, F., and Scholes, M. "The Pricing of Options and Corporate Liabilities."
+  Canonical European option pricing model on a non-dividend-paying underlying.
+
+<a id="merton-1973"></a>
+
+### Merton 1973
+
+- Merton, R. C. "Theory of Rational Option Pricing." Continuous-dividend-yield
+  extension of Black-Scholes used by the spot-style closed-form primitives.
+
+<a id="garman-kohlhagen-1983"></a>
+
+### Garman Kohlhagen 1983
+
+- Garman, M. B., and Kohlhagen, S. W. "Foreign Currency Option Values." FX
+  option formula recovered by treating the foreign rate as a continuous yield.
+
+<a id="merton-1976-jump"></a>
+
+### Merton 1976 Jump Diffusion
+
+- Merton, R. C. "Option Pricing When Underlying Stock Returns Are
+  Discontinuous." Jump-diffusion characteristic function used by the COS
+  pricer.
+
+<a id="madan-carr-chang-1998"></a>
+
+### Madan Carr Chang 1998
+
+- Madan, D. B., Carr, P. P., and Chang, E. C. "The Variance Gamma Process and
+  Option Pricing." Variance-gamma characteristic function used by the COS
+  pricer.
+
+<a id="fang-oosterlee-2008"></a>
+
+### Fang Oosterlee 2008
+
+- Fang, F., and Oosterlee, C. W. "A Novel Pricing Method for European Options
+  Based on Fourier-Cosine Series Expansions." COS method used by the Fourier
+  option primitives.
+
+<a id="andersen-2008-heston-qe"></a>
+
+### Andersen 2008 Heston QE
+
+- Andersen, L. "Simple and Efficient Simulation of the Heston Stochastic
+  Volatility Model." Quadratic-exponential discretization used by the Heston
+  Monte Carlo pricers.
+
+<a id="reiner-rubinstein-1991"></a>
+
+### Reiner Rubinstein 1991
+
+- Reiner, E., and Rubinstein, M. "Breaking Down the Barriers." Continuous-
+  monitoring barrier option formulae.
+
+<a id="kemna-vorst-1990"></a>
+
+### Kemna Vorst 1990
+
+- Kemna, A. G. Z., and Vorst, A. C. F. "A Pricing Method for Options Based on
+  Average Asset Values." Exact geometric-average Asian option formula.
+
+<a id="turnbull-wakeman-1991"></a>
+
+### Turnbull Wakeman 1991
+
+- Turnbull, S. M., and Wakeman, L. M. "A Quick Algorithm for Pricing European
+  Average Options." Moment-matching arithmetic-average Asian approximation.
+
+<a id="conze-viswanathan-1991"></a>
+
+### Conze Viswanathan 1991
+
+- Conze, A., and Viswanathan. "Path Dependent Options: The Case of Lookback
+  Options." Closed-form lookback option formulae.
+
+<a id="goldman-sosin-gatto-1979"></a>
+
+### Goldman Sosin Gatto 1979
+
+- Goldman, M. B., Sosin, H. B., and Gatto, M. A. "Path Dependent Options: Buy
+  at the Low, Sell at the High." *Journal of Finance*, 34(5), 1111-1127.
+  Continuous lookback option formulae.
+
+<a id="broadie-glasserman-kou-1997"></a>
+
+### Broadie Glasserman Kou 1997
+
+- Broadie, M., Glasserman, P., and Kou, S. G. "A Continuity Correction for
+  Discrete Barrier Options." *Mathematical Finance*, 7(4), 325-349. Discrete-
+  monitoring barrier continuity correction.
+
+<a id="levy-1992-asian-options"></a>
+
+### Levy 1992 Asian Options
+
+- Levy, E. "Pricing European Average Rate Currency Options." *Journal of
+  International Money and Finance*, 11(5), 474-491. Moment-matching arithmetic
+  Asian approximation.
+
+<a id="curran-1994-asian-options"></a>
+
+### Curran 1994 Asian Options
+
+- Curran, M. "Valuing Asian and Portfolio Options by Conditioning on the
+  Geometric Mean Price." *Management Science*, 40(12), 1705-1711. Geometric-
+  conditioning Asian approximation.
+
+<a id="haug-2007-option-formulas"></a>
+
+### Haug 2007 Option Pricing Formulas
+
+- Haug, E. G. *The Complete Guide to Option Pricing Formulas* (2nd ed.).
+  McGraw-Hill. Practitioner catalogue of closed-form exotic formulae.
+
+<a id="carr-madan-1999-fft"></a>
+
+### Carr Madan 1999 FFT
+
+- Carr, P., and Madan, D. "Option Valuation Using the Fast Fourier Transform."
+  *Journal of Computational Finance*, 2(4), 61-73. Fourier option pricing used
+  alongside the COS method.
+
+<a id="albrecher-2007-little-heston-trap"></a>
+
+### Albrecher 2007 Little Heston Trap
+
+- Albrecher, H., Mayer, P., Schoutens, W., and Tistaert, J. "The Little Heston
+  Trap." *Wilmott Magazine*, January 2007. Numerically stable Heston
+  characteristic-function branch.
+
+<a id="demeterfi-1999-volatility-swaps"></a>
+
+### Demeterfi 1999 Volatility Swaps
+
+- Demeterfi, K., Derman, E., Kamal, M., and Zou, J. "More Than You Ever Wanted
+  to Know About Volatility Swaps." Goldman Sachs Quantitative Strategies
+  Research Notes. Replication formula for variance swaps.
+
+<a id="rebonato-2004-volatility-correlation"></a>
+
+### Rebonato 2004 Volatility And Correlation
+
+- Rebonato, R. *Volatility and Correlation: The Perfect Hedger and the Fox*
+  (2nd ed.). Wiley. Swaption volatility, SABR, and LMM correlation.
+
+<a id="lord-koekkoek-vandijk-2010"></a>
+
+### Lord Koekkoek Van Dijk 2010
+
+- Lord, R., Koekkoek, R., and Van Dijk, D. "A Comparison of Biased Simulation
+  Schemes for Stochastic Volatility Models." *Quantitative Finance*, 10(2),
+  177-194. Heston discretization bias comparison.
+
+<a id="broadie-kaya-2006-exact-heston"></a>
+
+### Broadie Kaya 2006 Exact Heston
+
+- Broadie, M., and Kaya, Ö. "Exact Simulation of Stochastic Volatility and
+  Other Affine Jump Diffusion Processes." *Operations Research*, 54(2),
+  217-231. Exact Heston simulation (not the QE scheme).
 
 <a id="bachelier-1900"></a>
 
@@ -351,6 +887,118 @@ risk calculation with a standard reference.
 
 - Hagan, P. S., Kumar, D., Lesniewski, A., and Woodward, D. "Managing Smile
   Risk." Canonical SABR reference.
+
+<a id="hagan-2003-cms-convexity"></a>
+
+### Hagan 2003 CMS Convexity
+
+- Hagan, P. S. "Convexity Conundrums: Pricing CMS Swaps, Caps, and Floors."
+  *Wilmott Magazine*, March 2003. CMS convexity adjustment under the annuity
+  measure.
+
+<a id="bayer-friz-gatheral-2016"></a>
+
+### Bayer Friz Gatheral 2016
+
+- Bayer, C., Friz, P., and Gatheral, J. "Pricing under rough volatility."
+  *Quantitative Finance*, 16(6), 887-904. Rough Bergomi and forward-variance
+  curve inputs.
+
+<a id="gatheral-jaisson-rosenbaum-2018"></a>
+
+### Gatheral Jaisson Rosenbaum 2018
+
+- Gatheral, J., Jaisson, T., and Rosenbaum, M. "Volatility is rough."
+  *Quantitative Finance*, 18(6), 933-949. Empirical roughness of volatility
+  and the Hurst exponent near 0.1.
+
+<a id="el-euch-rosenbaum-2019"></a>
+
+### El Euch Rosenbaum 2019
+
+- El Euch, O., and Rosenbaum, M. "The characteristic function of rough Heston
+  models." *Mathematical Finance*, 29(1), 3-38. Rough Heston dynamics and
+  characteristic function.
+
+<a id="bennedsen-lunde-pakkanen-2017"></a>
+
+### Bennedsen Lunde Pakkanen 2017
+
+- Bennedsen, M., Lunde, A., and Pakkanen, M. S. "Hybrid scheme for Brownian
+  semistationary processes." *Finance and Stochastics*, 21(4), 931-965.
+  Hybrid simulation of Volterra / rough-volatility kernels.
+
+<a id="mccrickerd-pakkanen-2018"></a>
+
+### McCrickerd Pakkanen 2018
+
+- McCrickerd, R., and Pakkanen, M. S. "Turbocharging Monte Carlo pricing for
+  the rough Bergomi model." *Quantitative Finance*, 18(11), 1877-1886.
+
+<a id="schwartz-smith-2000"></a>
+
+### Schwartz Smith 2000
+
+- Schwartz, E., and Smith, J. E. "Short-Term Variations and Long-Term Dynamics
+  in Commodity Prices." *Management Science*, 46(7), 893-911. Two-factor
+  commodity spot model.
+
+<a id="kirk-1995"></a>
+
+### Kirk 1995
+
+- Kirk, E. "Correlation in the Energy Markets." *Managing Energy Price Risk*.
+  Kirk approximation for commodity spread options.
+
+<a id="tsiveriotis-fernandes-1998"></a>
+
+### Tsiveriotis Fernandes 1998
+
+- Tsiveriotis, K., and Fernandes, C. "Valuing Convertible Bonds with Credit
+  Risk." *Journal of Fixed Income*, 8(2), 95-102. Split-equity/debt
+  convertible pricing.
+
+<a id="ayache-forsyth-vetzal-2003"></a>
+
+### Ayache Forsyth Vetzal 2003
+
+- Ayache, E., Forsyth, P. A., and Vetzal, K. R. "Valuation of Convertible
+  Bonds with Credit Risk." *Journal of Derivatives*, 11(1), 9-29.
+
+<a id="whaley-2009-vix"></a>
+
+### Whaley 2009 VIX
+
+- Whaley, R. E. "Understanding the VIX." *Journal of Portfolio Management*,
+  35(3), 98-105. Volatility-index construction and VIX futures/options.
+
+<a id="cboe-vix-white-paper"></a>
+
+### CBOE VIX White Paper
+
+- CBOE. *VIX White Paper* and VIX futures/options contract specifications.
+  Replication formula and listed vol-index derivative conventions.
+
+<a id="carr-wu-2006"></a>
+
+### Carr Wu 2006
+
+- Carr, P., and Wu, L. "A Tale of Two Indices." *Journal of Derivatives*,
+  13(3), 13-29. Model-free vs VIX-style volatility indices.
+
+<a id="carr-lee-2009"></a>
+
+### Carr Lee 2009
+
+- Carr, P., and Lee, R. "Volatility Derivatives." *Annual Review of Financial
+  Economics*, 1, 319-339. Variance/volatility swaps and VIX-style options.
+
+<a id="cont-tankov-2004"></a>
+
+### Cont Tankov 2004
+
+- Cont, R., and Tankov, P. *Financial Modelling with Jump Processes*.
+  Characteristic functions and cumulants used by Fourier (COS) pricing.
 
 <a id="heston-1993"></a>
 
@@ -461,6 +1109,122 @@ risk calculation with a standard reference.
 - Fritsch, F. N., and Carlson, R. E. "Monotone Piecewise Cubic Interpolation."
   Canonical reference for shape-preserving (monotone) cubic Hermite
   interpolation.
+
+<a id="joe-kuo-2008-sobol"></a>
+
+### Joe Kuo 2008 Sobol
+
+- Joe, S., and Kuo, F. Y. "Constructing Sobol Sequences with Better
+  Two-Dimensional Projections." *SIAM Journal on Scientific Computing*, 30(5),
+  2635-2654. Direction numbers used by the Sobol generator.
+
+<a id="sobol-1967"></a>
+
+### Sobol 1967
+
+- Sobol, I. M. "Distribution of points in a cube and approximate evaluation of
+  integrals." *USSR Computational Mathematics and Mathematical Physics*, 7(4),
+  86-112. Original Sobol sequence.
+
+<a id="owen-1995-scrambling"></a>
+
+### Owen 1995 Scrambling
+
+- Owen, A. B. "Randomly Permuted (t,m,s)-Nets and (t,s)-Sequences." Monte Carlo
+  and Quasi-Monte Carlo Methods in Scientific Computing, 299-317. Owen
+  scrambling of Sobol nets.
+
+<a id="box-muller-1958"></a>
+
+### Box Muller 1958
+
+- Box, G. E. P., and Muller, M. E. "A Note on the Generation of Random Normal
+  Deviates." Polar/Box-Muller transform for Gaussian sampling.
+
+<a id="salmon-2011-philox"></a>
+
+### Salmon 2011 Philox
+
+- Salmon, J. K., Moraes, M. A., Dror, R. O., and Shaw, D. E. "Parallel Random
+  Numbers: As Easy as 1, 2, 3." *SC '11*. Counter-based Philox generator used
+  for splittable Monte Carlo streams.
+
+<a id="o-neill-2014-pcg"></a>
+
+### O'Neill 2014 PCG
+
+- O'Neill, M. E. "PCG: A Family of Simple Fast Space-Efficient Statistically
+  Good Algorithms for Random Number Generation." Permuted congruential
+  generators.
+
+<a id="mandelbrot-van-ness-1968"></a>
+
+### Mandelbrot Van Ness 1968
+
+- Mandelbrot, B., and Van Ness, J. "Fractional Brownian Motions, Fractional
+  Noises and Applications." *SIAM Review*, 10(4), 422-437. Fractional Brownian
+  motion and the Hurst exponent.
+
+<a id="in-t-hout-welfert-2009"></a>
+
+### In 't Hout Welfert 2009
+
+- In 't Hout, K. J., and Welfert, B. D. "Unconditional stability of second-order
+  ADI schemes applied to multi-dimensional diffusion equations with mixed
+  derivative terms." Modified Craig-Sneyd ADI used by 2D PDE engines.
+
+<a id="broadie-detemple-1996"></a>
+
+### Broadie Detemple 1996
+
+- Broadie, M., and Detemple, J. "American Option Valuation: New Bounds,
+  Approximations, and a Comparison of Existing Methods." *Review of Financial
+  Studies*, 9(4), 1211-1250. Tree/Richardson extrapolation for American
+  options.
+
+<a id="halton-1960"></a>
+
+### Halton 1960
+
+- Halton, J. H. "On the efficiency of certain quasi-random sequences of points
+  in evaluating multi-dimensional integrals." *Numerische Mathematik*, 2(1),
+  84-90. Halton low-discrepancy sequence used by multi-start calibration.
+
+<a id="gilli-maringer-schumann-2011"></a>
+
+### Gilli Maringer Schumann 2011
+
+- Gilli, M., Maringer, D., and Schumann, E. *Numerical Methods and Optimization
+  in Finance*. Multi-start and global-search practice for model calibration.
+
+<a id="levenshtein-1966"></a>
+
+### Levenshtein 1966
+
+- Levenshtein, V. I. "Binary codes capable of correcting deletions, insertions,
+  and reversals." Edit-distance used by identifier suggestion matching.
+
+<a id="wagner-fischer-1974"></a>
+
+### Wagner Fischer 1974
+
+- Wagner, R. A., and Fischer, M. J. "The String-to-String Correction Problem."
+  *Journal of the ACM*, 21(1), 168-173. Dynamic-programming edit distance.
+
+<a id="meeus-1991"></a>
+
+### Meeus 1991
+
+- Meeus, J. *Astronomical Algorithms*. Easter-date algorithms used by holiday
+  calendars.
+
+<a id="gillespie-1977"></a>
+
+### Gillespie 1977
+
+- Gillespie, D. T. "Exact Stochastic Simulation of Coupled Chemical Reactions."
+  *Journal of Physical Chemistry*, 81(25), 2340-2361. Exact continuous-time
+  Markov-chain simulation used by rating-path sampling.
 
 ## Performance Analytics, Portfolio Construction, And Risk Reporting
 
@@ -634,43 +1398,6 @@ risk calculation with a standard reference.
 - Cornish, E. A., and Fisher, R. A. "Moments and Cumulants in the Specification
   of Distributions." Canonical reference for the Cornish-Fisher expansion.
 
-<a id="bollerslev1986"></a>
-
-### Bollerslev 1986
-
-- Bollerslev, T. "Generalized Autoregressive Conditional Heteroskedasticity."
-  Canonical reference for the symmetric GARCH(1,1) volatility model.
-
-<a id="nelson1991"></a>
-
-### Nelson 1991
-
-- Nelson, D. B. "Conditional Heteroskedasticity in Asset Returns: A New
-  Approach." Canonical reference for EGARCH volatility dynamics.
-
-<a id="glosten1993"></a>
-
-### Glosten Jagannathan Runkle 1993
-
-- Glosten, L. R., Jagannathan, R., and Runkle, D. E. "On the Relation between
-  the Expected Value and the Volatility of the Nominal Excess Return on Stocks."
-  Canonical reference for GJR-GARCH asymmetric volatility dynamics.
-
-<a id="ljungBox1978"></a>
-
-### Ljung Box 1978
-
-- Ljung, G. M., and Box, G. E. P. "On a Measure of Lack of Fit in Time Series
-  Models." Canonical reference for the Ljung-Box serial-correlation test.
-
-<a id="engle1982Arch"></a>
-
-### Engle 1982 ARCH
-
-- Engle, R. F. "Autoregressive Conditional Heteroscedasticity with Estimates of
-  the Variance of United Kingdom Inflation." Canonical reference for ARCH and
-  ARCH-LM testing.
-
 <a id="chekhlov2005"></a>
 
 ### Chekhlov Uryasev Zabarankin 2005
@@ -705,3 +1432,52 @@ risk calculation with a standard reference.
 
 - Burke, G. "A Sharper Sharpe Ratio." Practitioner reference for Burke-style
   drawdown-adjusted performance ratios.
+
+## Corporate Valuation And Structured Products
+
+<a id="koller-valuation"></a>
+
+### Koller Valuation
+
+- Koller, T., Goedhart, M., and Wessels, D. *Valuation: Measuring and Managing
+  the Value of Companies*. Enterprise-value, LBO, and sources-and-uses
+  analysis.
+
+<a id="rosenbaum-pearl-2020"></a>
+
+### Rosenbaum Pearl 2020
+
+- Rosenbaum, J., and Pearl, J. *Investment Banking: Valuation, LBOs, M&A, and
+  IPOs*. LBO entry valuation, sources and uses, and exit-return analysis.
+
+<a id="overhaus-2007-equity-derivatives"></a>
+
+### Overhaus 2007 Equity Derivatives
+
+- Overhaus, M. et al. *Equity Derivatives: Theory and Applications*. Wiley.
+  Autocallable and related equity-structured-product mechanics.
+
+## Expected Credit Loss And Accounting Impairment
+
+<a id="ifrs-9-impairment"></a>
+
+### IFRS 9 Impairment
+
+- IFRS Foundation. *IFRS 9 Financial Instruments*, Section 5.5. Expected-credit-
+  loss staging and measurement used by `EclEngine`.
+
+<a id="asc-326-cecl"></a>
+
+### ASC 326 CECL
+
+- Financial Accounting Standards Board. *ASC 326-20 — Financial Instruments:
+  Credit Losses*. Current expected credit loss (CECL) measurement used by
+  `CeclEngine`.
+
+<a id="bcbs-2015-ecl-guidance"></a>
+
+### BCBS 2015 ECL Guidance
+
+- Basel Committee on Banking Supervision. "Guidance on credit risk and
+  accounting for expected credit losses" (2015). Supervisory interpretation of
+  lifetime ECL and staging.

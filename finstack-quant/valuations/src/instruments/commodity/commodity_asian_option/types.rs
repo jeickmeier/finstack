@@ -13,9 +13,9 @@
 //! # References
 //!
 //! - Kemna, A. G. Z., & Vorst, A. C. F. (1990). "A Pricing Method for Options
-//!   Based on Average Asset Values."
+//!   Based on Average Asset Values." `docs/REFERENCES.md#kemna-vorst-1990`
 //! - Turnbull, S. M., & Wakeman, L. M. (1991). "A Quick Algorithm for Pricing
-//!   European Average Options."
+//!   European Average Options." `docs/REFERENCES.md#turnbull-wakeman-1991`
 
 use crate::impl_instrument_base;
 use crate::instruments::common_impl::parameters::CommodityUnderlyingParams;

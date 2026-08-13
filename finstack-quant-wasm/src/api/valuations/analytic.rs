@@ -9,15 +9,14 @@
 //! `thetaDays` day-count (ACT/365 by default).
 
 use crate::utils::to_js_err;
+use finstack_quant_valuations::constants::DEFAULT_THETA_DAYS_PER_YEAR;
 use finstack_quant_valuations::models::closed_form::implied_vol::{
     black76_implied_vol as black76_implied_vol_core, bs_implied_vol as bs_implied_vol_core,
 };
 use finstack_quant_valuations::models::closed_form::{
-    arithmetic_asian_call_tw, arithmetic_asian_put_tw, bs_greeks_checked as bs_greeks_core,
-    bs_price_checked, checked_closed_form_value, down_in_call, down_out_call,
-    fixed_strike_lookback_call, fixed_strike_lookback_put, floating_strike_lookback_call,
-    floating_strike_lookback_put, geometric_asian_call, geometric_asian_put, option_type_from_bool,
-    quanto_call, quanto_put, up_in_call, up_out_call,
+    asian_option_price_str, barrier_call_str, bs_greeks_checked as bs_greeks_core,
+    bs_price_checked, lookback_option_price_str, option_type_from_bool,
+    quanto_option_price_checked,
 };
 use wasm_bindgen::prelude::*;
 
@@ -103,7 +102,7 @@ pub fn bs_greeks(
 ) -> Result<JsValue, JsValue> {
     // theta_days validation (finite, > 0) lives in `bs_greeks_checked` —
     // the single home for Greeks input validation.
-    let theta_days = theta_days.unwrap_or(365.0);
+    let theta_days = theta_days.unwrap_or(DEFAULT_THETA_DAYS_PER_YEAR);
     let g = bs_greeks_core(
         spot,
         strike,
@@ -164,9 +163,9 @@ pub fn bs_implied_vol(
 /// @param forward - Forward price or rate in the same quote convention as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param df - Discount factor from valuation to expiry, expressed as a positive decimal.
-/// @param t - Time from the curve base date in years on the documented day-count basis.
-/// @param price - Price in the documented quote convention for this instrument.
-/// @param is_call - Whether to value a call (`true`) or put (`false`); defaults follow the callable's contract.
+/// @param t - Time from the curve base date in years.
+/// @param price - Observed option price in the same units as the forward.
+/// @param is_call - Whether to value a call (`true`) or put (`false`).
 ///
 /// # Errors
 ///
@@ -199,13 +198,13 @@ pub fn black76_implied_vol(
 /// Reiner-Rubinstein continuous-monitoring barrier call price.
 ///
 /// `direction` is `"up"` or `"down"`, `knock` is `"in"` or `"out"`.
-/// @param spot - Current spot price or exchange rate in the documented quote convention.
+/// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param barrier - Continuously monitored barrier level in the same price units as spot.
 /// @param r - Continuously compounded risk-free rate, expressed as a decimal.
 /// @param q - Continuous dividend yield or foreign rate, expressed as a decimal.
 /// @param sigma - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-/// @param t - Time from the curve base date in years on the documented day-count basis.
+/// @param t - Time from the curve base date in years.
 /// @param direction - Barrier direction: `"up"` for an upper barrier or `"down"` for a lower barrier.
 /// @param knock - Barrier activation: `"in"` for knock-in or `"out"` for knock-out.
 ///
@@ -226,34 +225,19 @@ pub fn barrier_call(
     direction: &str,
     knock: &str,
 ) -> Result<f64, JsValue> {
-    let value = match (direction, knock) {
-        ("up", "in") => up_in_call(spot, strike, barrier, t, r, q, sigma),
-        ("up", "out") => up_out_call(spot, strike, barrier, t, r, q, sigma),
-        ("down", "in") => down_in_call(spot, strike, barrier, t, r, q, sigma),
-        ("down", "out") => down_out_call(spot, strike, barrier, t, r, q, sigma),
-        _ => {
-            return Err(to_js_err(format!(
-                "unknown barrier spec: direction='{direction}' knock='{knock}'"
-            )));
-        }
-    };
-    finstack_quant_valuations::models::closed_form::checked_closed_form_value(
-        value,
-        "barrier price",
-    )
-    .map_err(to_js_err)
+    barrier_call_str(spot, strike, barrier, t, r, q, sigma, direction, knock).map_err(to_js_err)
 }
 
 /// Arithmetic (Turnbull-Wakeman) or geometric (Kemna-Vorst) Asian option.
-/// @param spot - Current spot price or exchange rate in the documented quote convention.
+/// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param r - Continuously compounded risk-free rate, expressed as a decimal.
 /// @param q - Continuous dividend yield or foreign rate, expressed as a decimal.
 /// @param sigma - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-/// @param t - Time from the curve base date in years on the documented day-count basis.
+/// @param t - Time from the curve base date in years.
 /// @param num_fixings - Positive number of equally spaced averaging observations before expiry.
 /// @param averaging - Asian averaging convention: `"arithmetic"` (default) or `"geometric"`.
-/// @param is_call - Whether to value a call (`true`) or put (`false`); defaults follow the callable's contract.
+/// @param is_call - Whether to value a call (`true`) or put (`false`).
 ///
 /// # Errors
 ///
@@ -274,34 +258,34 @@ pub fn asian_option_price(
     is_call: Option<bool>,
 ) -> Result<f64, JsValue> {
     let averaging = averaging.as_deref().unwrap_or("arithmetic");
-    let is_call = is_call.unwrap_or(true);
-    let value = match (averaging, is_call) {
-        ("arithmetic", true) => arithmetic_asian_call_tw(spot, strike, t, r, q, sigma, num_fixings),
-        ("arithmetic", false) => arithmetic_asian_put_tw(spot, strike, t, r, q, sigma, num_fixings),
-        ("geometric", true) => geometric_asian_call(spot, strike, t, r, q, sigma, num_fixings),
-        ("geometric", false) => geometric_asian_put(spot, strike, t, r, q, sigma, num_fixings),
-        _ => {
-            return Err(to_js_err(format!(
-                "unknown averaging '{averaging}'; expected 'arithmetic' or 'geometric'"
-            )));
-        }
-    };
-    checked_closed_form_value(value, "asian option price").map_err(to_js_err)
+    let option_type = option_type_from_bool(is_call.unwrap_or(true));
+    asian_option_price_str(
+        spot,
+        strike,
+        t,
+        r,
+        q,
+        sigma,
+        num_fixings,
+        averaging,
+        option_type,
+    )
+    .map_err(to_js_err)
 }
 
 /// Conze-Viswanathan lookback option.
 ///
 /// `strike_type` is `"fixed"` (default) or `"floating"`. For `"floating"`,
 /// `strike` is ignored and `extremum` is the observed min/max to date.
-/// @param spot - Current spot price or exchange rate in the documented quote convention.
+/// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param r - Continuously compounded risk-free rate, expressed as a decimal.
 /// @param q - Continuous dividend yield or foreign rate, expressed as a decimal.
 /// @param sigma - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-/// @param t - Time from the curve base date in years on the documented day-count basis.
+/// @param t - Time from the curve base date in years.
 /// @param extremum - Observed running minimum for a call or maximum for a put, in spot-price units.
 /// @param strike_type - Lookback payoff convention: `"fixed"` (default) or `"floating"`.
-/// @param is_call - Whether to value a call (`true`) or put (`false`); defaults follow the callable's contract.
+/// @param is_call - Whether to value a call (`true`) or put (`false`).
 ///
 /// # Errors
 ///
@@ -322,34 +306,34 @@ pub fn lookback_option_price(
     is_call: Option<bool>,
 ) -> Result<f64, JsValue> {
     let strike_type = strike_type.as_deref().unwrap_or("fixed");
-    let is_call = is_call.unwrap_or(true);
-    let value = match (strike_type, is_call) {
-        ("fixed", true) => fixed_strike_lookback_call(spot, strike, t, r, q, sigma, extremum),
-        ("fixed", false) => fixed_strike_lookback_put(spot, strike, t, r, q, sigma, extremum),
-        ("floating", true) => floating_strike_lookback_call(spot, t, r, q, sigma, extremum),
-        ("floating", false) => floating_strike_lookback_put(spot, t, r, q, sigma, extremum),
-        _ => {
-            return Err(to_js_err(format!(
-                "unknown strike_type '{strike_type}'; expected 'fixed' or 'floating'"
-            )));
-        }
-    };
-    checked_closed_form_value(value, "lookback option price").map_err(to_js_err)
+    let option_type = option_type_from_bool(is_call.unwrap_or(true));
+    lookback_option_price_str(
+        spot,
+        strike,
+        t,
+        r,
+        q,
+        sigma,
+        extremum,
+        strike_type,
+        option_type,
+    )
+    .map_err(to_js_err)
 }
 
 /// Quanto option (FX-adjusted cross-currency) price in domestic currency.
 ///
 /// @throws If the inputs produce a non-finite price.
-/// @param spot - Current spot price or exchange rate in the documented quote convention.
+/// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
-/// @param t - Time from the curve base date in years on the documented day-count basis.
+/// @param t - Time from the curve base date in years.
 /// @param rate_domestic - Domestic continuously compounded risk-free rate, expressed as a decimal.
 /// @param rate_foreign - Foreign continuously compounded risk-free rate, expressed as a decimal.
 /// @param div_yield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
 /// @param vol_asset - Annualized asset-price volatility expressed as a decimal.
 /// @param vol_fx - Annualized FX-rate volatility expressed as a decimal.
-/// @param correlation - Instantaneous correlation between the documented asset and FX-rate shocks, from -1 to 1.
-/// @param is_call - Whether to value a call (`true`) or put (`false`); defaults follow the callable's contract.
+/// @param correlation - Instantaneous correlation between the asset and FX-rate shocks, from -1 to 1.
+/// @param is_call - Whether to value a call (`true`) or put (`false`).
 #[wasm_bindgen(js_name = quantoOptionPrice)]
 #[allow(clippy::too_many_arguments)]
 pub fn quanto_option_price(
@@ -364,32 +348,19 @@ pub fn quanto_option_price(
     correlation: f64,
     is_call: Option<bool>,
 ) -> Result<f64, JsValue> {
-    let price = if is_call.unwrap_or(true) {
-        quanto_call(
-            spot,
-            strike,
-            t,
-            rate_domestic,
-            rate_foreign,
-            div_yield,
-            vol_asset,
-            vol_fx,
-            correlation,
-        )
-    } else {
-        quanto_put(
-            spot,
-            strike,
-            t,
-            rate_domestic,
-            rate_foreign,
-            div_yield,
-            vol_asset,
-            vol_fx,
-            correlation,
-        )
-    };
-    checked_closed_form_value(price, "quanto option price").map_err(to_js_err)
+    quanto_option_price_checked(
+        spot,
+        strike,
+        t,
+        rate_domestic,
+        rate_foreign,
+        div_yield,
+        vol_asset,
+        vol_fx,
+        correlation,
+        option_type_from_bool(is_call.unwrap_or(true)),
+    )
+    .map_err(to_js_err)
 }
 
 #[cfg(test)]

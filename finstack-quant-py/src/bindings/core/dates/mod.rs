@@ -74,6 +74,15 @@ fn py_create_date<'py>(
 }
 
 /// Return the number of days since the Unix epoch (1970-01-01) for a date.
+///
+/// # Arguments
+///
+/// * `date` - Calendar date (`datetime.date` or date-like).
+///
+/// # Errors
+///
+/// Returns `TypeError` if `date` is not date-like, or `ValueError` if those
+/// attributes do not form a valid calendar date.
 #[pyfunction]
 #[pyo3(name = "days_since_epoch", text_signature = "(date)")]
 fn py_days_since_epoch(date: &Bound<'_, PyAny>) -> PyResult<i32> {

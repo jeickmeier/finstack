@@ -380,7 +380,7 @@ def test_structured_credit_analytics_function_accepts_keyword_arguments() -> Non
     market = (
         MarketContext()
         .insert(DiscountCurve.flat("USD-OIS", as_of, 0.04))
-        .insert(ForwardCurve("SOFR-3M", 0.25, [(0.0, 0.04), (10.0, 0.04)], as_of, day_count="act_360"))
+        .insert(ForwardCurve("SOFR-3M", 0.25, as_of, [(0.0, 0.04), (10.0, 0.04)], day_count="act_360"))
     )
     market.insert_series(ScalarTimeSeries("FIXING:SOFR-3M", [(datetime.date(2023, 12, 28), 0.04)]))
 

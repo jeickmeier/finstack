@@ -5,7 +5,7 @@
 //! # References
 //!
 //! - Altman, E. I. (1968). "Financial Ratios, Discriminant Analysis and the
-//!   Prediction of Corporate Bankruptcy." *Journal of Finance*, 23(4), 589-609.
+//!   Prediction of Corporate Bankruptcy." *Journal of Finance*, 23(4), 589-609. `docs/REFERENCES.md#altman-1968`
 //! - Altman, E. I. (2002). "Revisiting Credit Scoring Models in a Basel 2
 //!   Environment." Working paper.
 //! - Altman, E. I. (2005). "An Emerging Market Credit Scoring System for
@@ -34,7 +34,7 @@ pub enum AltmanPdCalibration {
 /// # References
 ///
 /// Altman, E. I. (1968). "Financial Ratios, Discriminant Analysis and the
-/// Prediction of Corporate Bankruptcy." *Journal of Finance*, 23(4), 589-609.
+/// Prediction of Corporate Bankruptcy." *Journal of Finance*, 23(4), 589-609. `docs/REFERENCES.md#altman-1968`
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct AltmanZScoreInput {
     /// X1: Working Capital / Total Assets.

@@ -20,9 +20,9 @@
 //! # References
 //!
 //! - Bayer, C., Friz, P., & Gatheral, J. (2016). "Pricing under rough
-//!   volatility." *Quantitative Finance*, 16(6), 887–904.
+//!   volatility." *Quantitative Finance*, 16(6), 887–904. `docs/REFERENCES.md#bayer-friz-gatheral-2016`
 //! - Gatheral, J., Jaisson, T., & Rosenbaum, M. (2018). "Volatility is rough."
-//!   *Quantitative Finance*, 18(6), 933–949.
+//!   *Quantitative Finance*, 18(6), 933–949. `docs/REFERENCES.md#gatheral-jaisson-rosenbaum-2018`
 
 /// Forward variance curve ξ₀(t) for rough volatility models.
 ///

@@ -48,9 +48,9 @@ use time::{Date, Duration, Month};
 ///
 /// # References
 ///
-/// - Meeus, J. (1991). *Astronomical Algorithms*. Willmann-Bell. Chapter 8.
-/// - Butcher, S. (1876). "Ecclesiastical Calendar." In *The Calculation of Easter*.
-/// - Algorithm widely known as "Anonymous Gregorian Algorithm" or "Meeus/Jones/Butcher"
+/// - Meeus, J. (1991). *Astronomical Algorithms*. Willmann-Bell. Chapter 8. `docs/REFERENCES.md#meeus-1991`
+/// - Butcher, S. (1876). "Ecclesiastical Calendar." In *The Calculation of Easter*. `docs/REFERENCES.md#meeus-1991`
+/// - Algorithm widely known as "Anonymous Gregorian Algorithm" or "Meeus/Jones/Butcher" `docs/REFERENCES.md#meeus-1991`
 ///
 /// # Examples
 ///

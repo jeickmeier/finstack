@@ -71,7 +71,7 @@ fn finite_returns_copy(returns: &[f64]) -> Option<Vec<f64>> {
 ///
 /// # References
 ///
-/// - J.P. Morgan RiskMetrics (1996): see docs/REFERENCES.md#jpmorgan1996RiskMetrics
+/// - J.P. Morgan RiskMetrics (1996): see docs/REFERENCES.md#jpmorgan1996RiskMetrics `docs/REFERENCES.md#jpmorgan1996RiskMetrics`
 #[must_use]
 pub(crate) fn value_at_risk(returns: &[f64], confidence: f64) -> f64 {
     if returns.is_empty() {
@@ -125,7 +125,7 @@ pub(crate) fn value_at_risk(returns: &[f64], confidence: f64) -> f64 {
 ///
 /// # References
 ///
-/// - Artzner et al. (1999): see docs/REFERENCES.md#artzner1999CoherentRisk
+/// - Artzner et al. (1999): see docs/REFERENCES.md#artzner1999CoherentRisk `docs/REFERENCES.md#artzner1999CoherentRisk`
 #[must_use]
 pub(crate) fn expected_shortfall(returns: &[f64], confidence: f64) -> f64 {
     if returns.is_empty() {
@@ -270,7 +270,7 @@ pub(crate) fn skewness(returns: &[f64]) -> f64 {
 ///
 /// ```text
 /// G₂ = [n(n+1) / ((n-1)(n-2)(n-3))] × Σ((r_i − x̄) / s)⁴
-///      − 3(n-1)² / ((n-2)(n-3))
+/// − 3(n-1)² / ((n-2)(n-3))
 /// ```
 ///
 /// where `s` is the sample standard deviation (n-1 denominator).
@@ -326,7 +326,7 @@ pub(crate) fn skew_kurt(returns: &[f64]) -> (f64, f64) {
 ///
 /// # References
 ///
-/// - J.P. Morgan RiskMetrics (1996): see docs/REFERENCES.md#jpmorgan1996RiskMetrics
+/// - J.P. Morgan RiskMetrics (1996): see docs/REFERENCES.md#jpmorgan1996RiskMetrics `docs/REFERENCES.md#jpmorgan1996RiskMetrics`
 #[must_use]
 pub(crate) fn parametric_var(returns: &[f64], confidence: f64, ann_factor: Option<f64>) -> f64 {
     if returns.is_empty() {

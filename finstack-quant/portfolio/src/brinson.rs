@@ -3,9 +3,13 @@
 //! # Single-period decomposition
 //!
 //! Given per-sector portfolio and benchmark weights and returns, the
-//! classical Brinson-Fachler (Brinson, Hood & Beebower 1986; Brinson &
-//! Fachler 1985) decomposition splits the portfolio's active return into
-//! three components per sector `i`:
+//! classical Brinson-Fachler (Brinson & Fachler 1985) decomposition splits
+//! the portfolio's active return into three components per sector `i`.
+//! (Brinson, Hood & Beebower 1986 is the *contrasting* form: its allocation
+//! term `(w_p,i − w_b,i) · r_b,i` omits the `− r_b` centring used here, so a
+//! BHB overweight in any positive-return sector scores positive allocation
+//! even when that sector underperformed the benchmark overall. This module
+//! implements the Brinson-Fachler centred form throughout.)
 //!
 //! ```text
 //! Allocation_i  = (w_p,i − w_b,i) · (r_b,i − r_b)      // sector weighting bet
@@ -56,13 +60,16 @@
 //! # References
 //!
 //! * Brinson, G. P., & Fachler, N. (1985). "Measuring Non-US Equity
-//!   Portfolio Performance." *Journal of Portfolio Management*, 11(3).
+//!   Portfolio Performance." *Journal of Portfolio Management*, 11(3). `docs/REFERENCES.md#brinson-fachler-1985`
+//!
 //! * Brinson, G. P., Hood, L. R., & Beebower, G. L. (1986). "Determinants
-//!   of Portfolio Performance." *Financial Analysts Journal*, 42(4).
+//!   of Portfolio Performance." *Financial Analysts Journal*, 42(4) — the
+//!   contrasting non-centred allocation form, *not* implemented here.
 //! * Carino, D. (1999). "Combining Attribution Effects over Time."
-//!   *Journal of Performance Measurement*, 3(4), 5–14.
+//!   *Journal of Performance Measurement*, 3(4), 5–14. `docs/REFERENCES.md#carino-1999`
+//!
 //! * Grinold, R. C., & Kahn, R. N. (2000). *Active Portfolio Management*
-//!   (2nd ed.), Chapter 17.
+//!   (2nd ed.), Chapter 17. `docs/REFERENCES.md#grinoldKahn1999ActivePortfolio`
 //!
 //! Factor-based attribution already exists in [`crate::attribution`];
 //! this module adds the classical Brinson-Fachler decomposition that
@@ -134,6 +141,30 @@ pub struct BrinsonPeriodResult {
 /// sum to 1.0 (within `1e-6` tolerance). A sector missing from either side
 /// should still be supplied with a zero weight on that side so the
 /// decomposition stays complete.
+///
+/// # Conventions
+///
+/// For a sector with **zero benchmark weight**, the supplied
+/// [`SectorPeriod::benchmark_return`] is *not* irrelevant: it never enters
+/// the benchmark total `r_b` (its weight is zero there), but it still
+/// selects the off-benchmark convention through the allocation term
+/// `(w_p,i − 0)(r_b,i − r_b)`:
+///
+/// * `benchmark_return = r_b` (the benchmark total return) makes the
+///   allocation charge exactly zero — the industry off-benchmark
+///   convention, under which the sector's active contribution flows through
+///   the interaction term `(w_p,i)(r_p,i − r_b)`.
+/// * `benchmark_return = 0.0` charges the full `−w_p,i · r_b` of
+///   allocation for merely holding the sector, with the interaction term
+///   `w_p,i · r_p,i` absorbing the difference.
+///
+/// Either choice reconstructs the active return exactly (the `r_b,i` terms
+/// carry coefficient `−w_b,i = 0` in the summed effects); the split between
+/// allocation and interaction is what the caller's choice controls. This
+/// function deliberately does not second-guess the input — callers wanting
+/// the off-benchmark convention must pass `benchmark_return = r_b`
+/// themselves ([`crate::fi_attribution::campisi_attribution`] applies it
+/// automatically).
 ///
 /// # Errors
 ///
@@ -503,7 +534,11 @@ mod tests {
                 portfolio_weight: 0.20,
                 benchmark_weight: 0.00,
                 portfolio_return: 0.12,
-                benchmark_return: 0.00, // irrelevant when benchmark weight is zero
+                // NOT irrelevant despite the zero benchmark weight: this
+                // value selects the off-benchmark convention via the
+                // allocation term (see `brinson_fachler`'s `# Conventions`).
+                // 0.0 here charges the full −w_p·r_b of allocation.
+                benchmark_return: 0.00,
             },
         ];
         let r = brinson_fachler(&sectors).expect("valid BF inputs");
@@ -512,6 +547,78 @@ mod tests {
             (reconstructed - r.total_excess_return).abs() < 1e-12,
             "A + S + I must reconstruct active return even with zero-weight sectors"
         );
+    }
+
+    /// Pins both branches of the zero-benchmark-weight convention documented
+    /// under `brinson_fachler`'s `# Conventions` (Mo-1): the supplied
+    /// `benchmark_return` for a zero-weight sector shifts value between
+    /// allocation and interaction (a 140 bp allocation swing in this
+    /// fixture) while the reconstructed active return is identical.
+    ///
+    /// Fixture: CORE (w_p 0.8, w_b 1.0, r 0.05/0.05), EXTRA (w_p 0.2,
+    /// w_b 0.0, r_p 0.12). `r_b = 0.05`, `r_p = 0.064`, active = 0.014.
+    ///
+    /// * `benchmark_return = r_b = 0.05` (off-benchmark convention):
+    ///   EXTRA allocation `= 0.2·(0.05 − 0.05) = 0`, interaction
+    ///   `= 0.2·(0.12 − 0.05) = 0.014`.
+    /// * `benchmark_return = 0.0`: EXTRA allocation
+    ///   `= 0.2·(0 − 0.05) = −0.01`, interaction `= 0.2·0.12 = 0.024`.
+    #[test]
+    fn zero_benchmark_weight_sector_return_selects_off_benchmark_convention() {
+        let build = |extra_benchmark_return: f64| {
+            brinson_fachler(&[
+                SectorPeriod {
+                    sector: "CORE".into(),
+                    portfolio_weight: 0.80,
+                    benchmark_weight: 1.00,
+                    portfolio_return: 0.05,
+                    benchmark_return: 0.05,
+                },
+                SectorPeriod {
+                    sector: "EXTRA".into(),
+                    portfolio_weight: 0.20,
+                    benchmark_weight: 0.00,
+                    portfolio_return: 0.12,
+                    benchmark_return: extra_benchmark_return,
+                },
+            ])
+            .expect("valid BF inputs")
+        };
+
+        // Branch 1: benchmark_return = r_b => zero allocation charge.
+        let off_benchmark = build(0.05);
+        let extra = &off_benchmark.sectors[1];
+        assert!(
+            (extra.allocation - 0.0).abs() < 1e-15,
+            "{}",
+            extra.allocation
+        );
+        assert!(
+            (extra.interaction - 0.014).abs() < 1e-15,
+            "{}",
+            extra.interaction
+        );
+
+        // Branch 2: benchmark_return = 0.0 => full −w_p·r_b allocation charge.
+        let zero_return = build(0.0);
+        let extra = &zero_return.sectors[1];
+        assert!(
+            (extra.allocation - (-0.01)).abs() < 1e-15,
+            "{}",
+            extra.allocation
+        );
+        assert!(
+            (extra.interaction - 0.024).abs() < 1e-15,
+            "{}",
+            extra.interaction
+        );
+
+        // Both conventions reconstruct the identical active return.
+        for r in [&off_benchmark, &zero_return] {
+            let reconstructed = r.total_allocation + r.total_selection + r.total_interaction;
+            assert!((r.total_excess_return - 0.014).abs() < 1e-15);
+            assert!((reconstructed - r.total_excess_return).abs() < 1e-12);
+        }
     }
 
     /// Carino linking must rescale the arithmetic effects so the linked

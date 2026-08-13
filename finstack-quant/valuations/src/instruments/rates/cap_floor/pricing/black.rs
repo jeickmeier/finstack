@@ -26,7 +26,7 @@
 //! # References
 //!
 //! - Black, F. (1976). "The pricing of commodity contracts."
-//!   *Journal of Financial Economics*, 3(1-2), 167-179.
+//!   *Journal of Financial Economics*, 3(1-2), 167-179. `docs/REFERENCES.md#black-1976`
 
 use super::payoff::CapletFloorletInputs;
 use crate::models::{d1_black76, d1_d2_black76};

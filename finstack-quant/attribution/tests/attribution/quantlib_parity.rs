@@ -203,38 +203,23 @@ fn quantlib_parity_metrics_based_bond_attribution() {
         ATTR_FACTOR_TOLERANCE
     );
 
-    // Reconciliation: sum of attributed factors + residual ≡ total_pnl.
-    // `metrics-based` total_pnl is the raw `val_t1 − val_t0` (plus any coupon
-    // income, which is zero for this 1-day brand-new-bond scenario).
-    let attributed_sum = attribution.carry.amount()
-        + attribution.rates_curves_pnl.amount()
-        + attribution.credit_curves_pnl.amount()
-        + attribution.inflation_curves_pnl.amount()
-        + attribution.correlations_pnl.amount()
-        + attribution.fx_pnl.amount()
-        + attribution.vol_pnl.amount()
-        + attribution.cross_factor_pnl.amount()
-        + attribution.model_params_pnl.amount()
-        + attribution.market_scalars_pnl.amount();
-    let recon = attributed_sum + attribution.residual.amount();
-    let recon_err = (recon - attribution.total_pnl.amount()).abs();
+    // NOTE: no "Σ factors + residual ≡ total" re-summation here — the library
+    // computes `residual := total − Σ factors` (`compute_residual`), so that
+    // check is tautological. The real explanatory-power check is a tight bound
+    // on the residual itself, with carry/rates independently pinned to the
+    // QL fixture above.
+    //
+    // Residual magnitude bound: measured 2026-08-12 the residual is
+    // 0.00081 USD on a total P&L of −0.0648 (≈1.2% of |total|); QL's own
+    // first-order residual is 0.000053. Bound at 0.002 absolute (≈2.5×
+    // measured) so a dropped or double-counted factor — carry (0.0137) or
+    // rates (−0.0793) landing in the residual — fails by >6×.
     assert!(
-        recon_err < 1e-9,
-        "reconciliation: Σ factors + residual = {}, total_pnl = {}, err = {}",
-        recon,
-        attribution.total_pnl.amount(),
-        recon_err
-    );
-
-    // Residual magnitude bound vs the QL fixture (parity tests):
-    // finstack-quant's metrics path includes the convexity term, so its residual
-    // must be no larger than QL's first-order residual plus the factor
-    // tolerance (scaled to face value).
-    assert!(
-        attribution.residual.amount().abs()
-            <= exp.residual_first_order.abs() + ATTR_FACTOR_TOLERANCE * 10_000.0,
-        "bond residual ({}) must not exceed QL's first-order residual ({})",
+        attribution.residual.amount().abs() <= 0.002,
+        "bond residual ({}) must stay tiny (measured ~0.0008 on total {}); \
+         QL first-order residual = {}",
         attribution.residual.amount(),
+        attribution.total_pnl.amount(),
         exp.residual_first_order
     );
 
@@ -368,16 +353,15 @@ fn build_irs(
     swap
 }
 
-/// Per-component IRS tolerances : a single $5k absolute
-/// tolerance was vacuous — the fixture's carry is $566 and rates P&L $4,198,
-/// so a zeroed or sign-flipped carry, and a fully dropped rates factor, all
-/// passed. Factor P&Ls are first differences, largely immune to the NPV-level
-/// schedule drift, so each component is bounded relative to its own expected
-/// magnitude: carry within max($100, 25%); rates within max($250, 5%) —
-/// consistent with the 5% relative DV01 drift documented in the valuations
-/// parity test.
+/// Per-component IRS tolerances. Purely relative — absolute floors made the
+/// carry check vacuous (a $100 floor against an expected carry of $68.36 let
+/// carry = 0 pass). Measured 2026-08-12: carry diff $1.80 vs QL's $68.36
+/// (2.6%), so 15% relative gives ~5.7× margin while carry = 0 (diff = 100%)
+/// fails. Rates diff measured $161.5 vs QL's $4,198.3 (3.8%); bounded at
+/// max($250, 5%) — consistent with the 5% relative DV01 drift documented in
+/// the valuations parity test.
 fn irs_carry_tolerance(expected: f64) -> f64 {
-    (0.25 * expected.abs()).max(100.0)
+    0.15 * expected.abs()
 }
 fn irs_rates_tolerance(expected: f64) -> f64 {
     (0.05 * expected.abs()).max(250.0)
@@ -453,33 +437,32 @@ fn quantlib_parity_metrics_based_irs_attribution() {
         rates_tol
     );
 
+    // Total pinned RELATIVE to QL's actual P&L. The old absolute tolerance
+    // max($1k, 0.05% notional) = $5k exceeded the whole $4,266 expected move,
+    // so total = 0 passed. Measured 2026-08-12: diff = $161.4 vs QL's
+    // $4,266.3 (3.8%, tracking the rates-factor drift above); 10% relative
+    // (= $426.6) gives ~2.6× margin while total = 0 (diff = 100%) fails.
     let total_diff = (attribution.total_pnl.amount() - exp.actual_pnl).abs();
+    let total_tol = 0.10 * exp.actual_pnl.abs();
     assert!(
-        // Total carries the NPV-level schedule drift: max($1k, 0.05% notional).
-        total_diff < (0.0005 * fixture.spec.notional).max(1_000.0),
-        "IRS total_pnl parity: finstack={}, ql_actual_pnl={}, diff={}",
+        total_diff < total_tol,
+        "IRS total_pnl parity: finstack={}, ql_actual_pnl={}, diff={} > tol {}",
         attribution.total_pnl.amount(),
         exp.actual_pnl,
-        total_diff
+        total_diff,
+        total_tol
     );
 
-    // Reconciliation invariant (previously missing on the IRS leg): the
-    // attribution must internally close, Σ factors + residual ≡ total.
-    let attributed_sum = attribution.carry.amount()
-        + attribution.rates_curves_pnl.amount()
-        + attribution.credit_curves_pnl.amount()
-        + attribution.inflation_curves_pnl.amount()
-        + attribution.correlations_pnl.amount()
-        + attribution.fx_pnl.amount()
-        + attribution.vol_pnl.amount()
-        + attribution.cross_factor_pnl.amount()
-        + attribution.model_params_pnl.amount()
-        + attribution.market_scalars_pnl.amount();
-    let recon_err =
-        (attributed_sum + attribution.residual.amount() - attribution.total_pnl.amount()).abs();
+    // NOTE: no "Σ factors + residual ≡ total" re-summation — `residual` is
+    // defined as that difference (`compute_residual`), so the check was
+    // tautological. Bound the residual itself instead: measured 2026-08-12 it
+    // is $1.30 on a $4,428 total; $10 (≈7.7× measured) still fails hard if a
+    // factor the size of carry ($66.6) or rates ($4,360) leaks into it.
+    // Carry and rates are independently pinned to the QL fixture above.
     assert!(
-        recon_err < 1e-6,
-        "IRS reconciliation: Σ factors + residual must equal total, err={recon_err}"
+        attribution.residual.amount().abs() < 10.0,
+        "IRS residual must stay small (measured ~$1.3), got {}",
+        attribution.residual.amount()
     );
 }
 
@@ -658,24 +641,18 @@ fn quantlib_parity_metrics_based_fx_forward_attribution() {
         total_diff
     );
 
-    // Reconciliation invariant: Σ factors + residual = total_pnl.
-    let attributed_sum = attribution.carry.amount()
-        + attribution.rates_curves_pnl.amount()
-        + attribution.credit_curves_pnl.amount()
-        + attribution.inflation_curves_pnl.amount()
-        + attribution.correlations_pnl.amount()
-        + attribution.fx_pnl.amount()
-        + attribution.vol_pnl.amount()
-        + attribution.cross_factor_pnl.amount()
-        + attribution.model_params_pnl.amount()
-        + attribution.market_scalars_pnl.amount();
-    let recon = attributed_sum + attribution.residual.amount();
-    let recon_err = (recon - attribution.total_pnl.amount()).abs();
+    // NOTE: no "Σ factors + residual ≡ total" re-summation — `residual` is
+    // defined as that difference (`compute_residual`), so the check was
+    // tautological. Bound the residual itself: a 1-day FX forward is nearly
+    // linear, so almost all P&L must be explained. Measured 2026-08-12 the
+    // residual is −$2.03 on a $531 total; $5 (≈2.5× measured) still fails if
+    // any pinned factor — carry (−$58.7), rates ($106.7), or the spot bucket
+    // ($485.2) — leaks into it. Those factors are independently pinned to the
+    // QL fixture below.
     assert!(
-        recon_err < 1e-6,
-        "FxForward reconciliation: Σ factors + residual = {}, total = {}",
-        recon,
-        attribution.total_pnl.amount()
+        attribution.residual.amount().abs() < 5.0,
+        "FxForward residual must stay small (measured ~−$2.0), got {}",
+        attribution.residual.amount()
     );
 
     // Per-factor parity (these assertions were previously

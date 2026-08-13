@@ -55,7 +55,7 @@ pub enum VolSurfaceExtrapolation {
     ///
     /// # References
     ///
-    /// - Gatheral, J. (2006). *The Volatility Surface*. Chapter 3.
+    /// - Gatheral, J. (2006). *The Volatility Surface*. Chapter 3. `docs/REFERENCES.md#gatheral-volatility-surface`
     /// - Fengler, M. R. (2009). "Arbitrage-free smoothing of the implied volatility surface."
     LinearInVariance,
 }

@@ -34,8 +34,8 @@
 //!
 //! # References
 //!
-//! - Brent, R. P. (1973), *Algorithms for Minimization Without Derivatives*.
-//! - Hull, J. C., *Options, Futures, and Other Derivatives*.
+//! - Brent, R. P. (1973), *Algorithms for Minimization Without Derivatives*. `docs/REFERENCES.md#brent-1973`
+//! - Hull, J. C., *Options, Futures, and Other Derivatives*. `docs/REFERENCES.md#hull-options-futures`
 
 use crate::dates::{Date, DayCount, DayCountContext};
 use crate::error::InputError;

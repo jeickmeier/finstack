@@ -165,7 +165,11 @@ impl MetricId {
     /// DV01 for foreign currency (FX Swap)
     pub const Dv01Foreign: Self = Self(Cow::Borrowed("dv01_foreign"));
 
-    /// FX spot rate sensitivity per basis point
+    /// FX spot rate sensitivity per 1% (percentage point) move of the FX rate
+    ///
+    /// The producer (`fx01.rs`) uses a ±1% relative spot bump (`BUMP_PCT = 1.0`)
+    /// and rescales the central difference to per percentage point — NOT per
+    /// basis point.
     pub const Fx01: Self = Self(Cow::Borrowed("fx01"));
 
     /// NPV sensitivity per basis point (inflation swaps)

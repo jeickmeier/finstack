@@ -26,8 +26,8 @@ use finstack_quant_core::HashMap;
 ///
 /// # References
 ///
-/// - BCBS FRTB Minimum Capital Requirements:
-///   `docs/REFERENCES.md#bcbs-frtb-minimum-capital-requirements`
+/// - BCBS FRTB Minimum Capital Requirements: `docs/REFERENCES.md#bcbs-frtb-minimum-capital-requirements`
+///
 pub fn vega_charge(
     risk_class: FrtbRiskClass,
     sensitivities: &FrtbSensitivities,
@@ -72,9 +72,9 @@ fn girr_vega(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 {
     let inter_gamma = scenario.scale_correlation(girr::GIRR_INTER_BUCKET_CORRELATION);
 
     // Intra-bucket aggregation with MAR21.89 correlation
-    //   rho = min(rho_opt_mat * rho_under_mat, 1)
-    //   rho_opt_mat   = exp(-alpha * |T_k - T_l| / min(T_k, T_l)), alpha=0.01
-    //   rho_under_mat = exp(-alpha * |U_k - U_l| / min(U_k, U_l)), alpha=0.03
+    // rho = min(rho_opt_mat * rho_under_mat, 1)
+    // rho_opt_mat = exp(-alpha * |T_k - T_l| / min(T_k, T_l)), alpha=0.01
+    // rho_under_mat = exp(-alpha * |U_k - U_l| / min(U_k, U_l)), alpha=0.03
     // (option-maturity alpha uses the standard Basel value; underlying-
     // tenor alpha reuses the GIRR delta tenor formula.)
     let mut bucket_results: Vec<(f64, f64)> = Vec::new();

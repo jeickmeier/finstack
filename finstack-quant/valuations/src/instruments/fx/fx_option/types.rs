@@ -446,8 +446,8 @@ impl FxOption {
     ///
     /// # References
     ///
-    /// - Wystup, U. (2006). *FX Options and Structured Products*. Chapter 2.
-    /// - Clark, I. J. (2011). *Foreign Exchange Option Pricing*. Chapter 3.
+    /// - Wystup, U. (2006). *FX Options and Structured Products*. Chapter 2. `docs/REFERENCES.md#wystup-fx-options`
+    /// - Clark, I. J. (2011). *Foreign Exchange Option Pricing*. Chapter 3. `docs/REFERENCES.md#clark-fx-options`
     pub fn atm_dns_strike_for_convention(
         forward: f64,
         vol: f64,

@@ -76,10 +76,10 @@
 //! # References
 //!
 //! - El Euch, O. & Rosenbaum, M. (2019). "The characteristic function of rough
-//!   Heston models." *Mathematical Finance*, 29(1), 3–38.
+//!   Heston models." *Mathematical Finance*, 29(1), 3–38. `docs/REFERENCES.md#el-euch-rosenbaum-2019`
 //! - El Euch, O., Fukasawa, M. & Rosenbaum, M. (2019). "The microstructural
 //!   foundations of leverage effect and rough volatility." *Finance and
-//!   Stochastics*, 22(2), 241–280.
+//!   Stochastics*, 22(2), 241–280. `docs/REFERENCES.md#el-euch-rosenbaum-2019`
 
 use super::super::process::rough_heston::RoughHestonProcess;
 use super::super::traits::Discretization;

@@ -6,7 +6,7 @@
 //! # References
 //!
 //! - Kyle, A.S. (1985). "Continuous Auctions and Insider Trading."
-//!   *Econometrica*, 53(6). `docs/REFERENCES.md#kyle1985ContinuousAuctions`
+//!   *Econometrica*, 53(6). `docs/REFERENCES.md#kyle-1985`
 
 use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
@@ -217,11 +217,19 @@ impl MarketImpactModel for KyleLambdaModel {
         let expected_cost = self.lambda * q * q * 0.5;
         let expected_cost_abs = expected_cost.abs();
 
-        // Variance of cost: depends on volatility and remaining inventory
+        // Variance of cost: Almgren-Chriss (2001), eq. (7), Var = σ² ∫ x(t)² dt.
+        // Inventory is piecewise linear between bucket boundaries, so each
+        // bucket's contribution is the exact integral
+        // ∫₀^dt (a + (b − a)·s/dt)² ds = (a² + a·b + b²)/3 · dt.
+        // A right-endpoint Riemann sum (σ²·b²·dt) is *not* an acceptable
+        // approximation here: with remaining[n] == 0 the final bucket
+        // contributes zero, making the variance exactly 0 at n = 1 and ~15%
+        // low at n = 5 versus the closed form used by `estimate_cost`.
         let sigma = params.daily_volatility * params.effective_reference_price();
         let mut cost_variance = 0.0;
         for j in 0..num_buckets {
-            cost_variance += sigma * sigma * remaining[j + 1] * remaining[j + 1] * dt;
+            let (a, b) = (remaining[j], remaining[j + 1]);
+            cost_variance += sigma * sigma * (a * a + a * b + b * b) / 3.0 * dt;
         }
 
         Ok(ExecutionTrajectory {
@@ -370,6 +378,30 @@ mod tests {
             assert!(
                 traj.remaining[i] <= traj.remaining[i - 1] + 1e-10,
                 "remaining should be monotonically decreasing"
+            );
+        }
+        Ok(())
+    }
+
+    /// Almgren-Chriss (2001), eq. (7): `Var = σ² ∫₀ᵀ x(t)² dt`. Kyle's
+    /// trajectory is always uniform, `x(t) = Q(1 − t/T)`, so the closed form
+    /// is `σ²Q²T/3` — exactly `estimate_cost`'s `execution_risk` squared.
+    /// The old right-endpoint Riemann sum used `remaining[j+1]` with
+    /// `remaining[n] == 0`, so the last bucket contributed zero: the variance
+    /// was exactly `0.0` at `n = 1` and `−15%` biased at `n = 5`.
+    #[test]
+    fn trajectory_cost_variance_matches_execution_risk_squared(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let model = KyleLambdaModel::new(0.001)?;
+        let params = test_params(10_000.0)?;
+        let expected = model.estimate_cost(&params)?.execution_risk.powi(2);
+        assert!(expected > 0.0);
+        for n in [1_usize, 5] {
+            let traj = model.optimal_trajectory(&params, n)?;
+            assert!(
+                ((traj.cost_variance - expected) / expected).abs() < 1e-9,
+                "n={n}: cost_variance {} must reproduce execution_risk^2 {expected}",
+                traj.cost_variance
             );
         }
         Ok(())

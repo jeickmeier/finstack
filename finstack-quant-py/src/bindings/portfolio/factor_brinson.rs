@@ -1,15 +1,171 @@
 //! Python bindings for Factor-Brinson unified attribution (Jeet & Partani 2023).
 //!
-//! Binds `finstack_quant_portfolio::factor_brinson_attribution`. The input
-//! payload and result are JSON strings matching the Rust `serde` shapes;
-//! `factor_returns` is a plain numeric list rather than embedded in the JSON
-//! payload because it is typically produced by
-//! `finstack_quant.analytics.constrained_least_squares`.
+//! Binds `finstack_quant_portfolio::factor_brinson_attribution`. The typed
+//! entry point returns a `Py*` wrapper; the paired `*_json` function keeps
+//! the exact JSON wire string. `factor_returns` is a plain numeric list
+//! rather than embedded in the JSON payload because it is typically produced
+//! by `finstack_quant.analytics.constrained_least_squares`.
 
 use pyo3::prelude::*;
-use pyo3::types::PyModule;
+use pyo3::types::{PyAny, PyModule};
 
-use crate::errors::{portfolio_to_py, serde_json_to_py};
+use crate::bindings::pandas_utils::{
+    serde_rows_to_dataframe_with_schema, serde_to_py, ColumnSchema,
+};
+use crate::errors::{display_to_py, portfolio_to_py, serde_json_to_py};
+
+/// Column schema for [`PyFactorBrinsonResult::to_dataframe`] (per-factor
+/// contributions).
+const FACTOR_CONTRIBUTION_COLUMNS: &[ColumnSchema<'static>] = &[
+    ("factor", "str"),
+    ("active_loading", "float64"),
+    ("factor_return", "float64"),
+    ("contribution", "float64"),
+];
+
+/// Column schema for
+/// [`PyFactorBrinsonResult::asset_contributions_to_dataframe`].
+const ASSET_CONTRIBUTION_COLUMNS: &[ColumnSchema<'static>] = &[
+    ("asset", "str"),
+    ("specific_return", "float64"),
+    ("active_weight", "float64"),
+    ("contribution", "float64"),
+];
+
+/// Factor-Brinson unified attribution result.
+///
+/// Returned by :func:`factor_brinson_attribution`.
+#[pyclass(
+    name = "FactorBrinsonResult",
+    module = "finstack_quant.portfolio",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub struct PyFactorBrinsonResult {
+    pub(crate) inner: finstack_quant_portfolio::FactorBrinsonResult,
+}
+
+#[pymethods]
+impl PyFactorBrinsonResult {
+    /// Portfolio total return.
+    #[getter]
+    fn portfolio_return(&self) -> f64 {
+        self.inner.portfolio_return
+    }
+
+    /// Benchmark total return.
+    #[getter]
+    fn benchmark_return(&self) -> f64 {
+        self.inner.benchmark_return
+    }
+
+    /// Active return, ``portfolio_return - benchmark_return``.
+    #[getter]
+    fn active_return(&self) -> f64 {
+        self.inner.active_return
+    }
+
+    /// Factor (allocation) contribution.
+    #[getter]
+    fn allocation(&self) -> f64 {
+        self.inner.allocation
+    }
+
+    /// Specific (selection) contribution.
+    #[getter]
+    fn selection(&self) -> f64 {
+        self.inner.selection
+    }
+
+    /// Per-factor breakdown of ``allocation`` as a list of dicts, in
+    /// ``factor_names`` order.
+    #[getter]
+    fn factor_contributions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.factor_contributions)
+    }
+
+    /// Per-asset breakdown of ``selection`` as a list of dicts, in
+    /// ``asset_ids`` order.
+    #[getter]
+    fn asset_contributions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.asset_contributions)
+    }
+
+    /// Per-factor contributions as a :class:`pandas.DataFrame`.
+    ///
+    /// The primary frame is the factor axis; the per-asset selection
+    /// breakdown is available from :meth:`asset_contributions_to_dataframe`.
+    ///
+    /// Columns: ``factor``, ``active_loading``, ``factor_return``,
+    /// ``contribution``.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_rows_to_dataframe_with_schema(
+            py,
+            &self.inner.factor_contributions,
+            FACTOR_CONTRIBUTION_COLUMNS,
+        )
+    }
+
+    /// Per-asset specific contributions as a :class:`pandas.DataFrame`.
+    ///
+    /// Columns: ``asset``, ``specific_return``, ``active_weight``,
+    /// ``contribution``.
+    fn asset_contributions_to_dataframe<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        serde_rows_to_dataframe_with_schema(
+            py,
+            &self.inner.asset_contributions,
+            ASSET_CONTRIBUTION_COLUMNS,
+        )
+    }
+
+    /// Serialize to a compact JSON string.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Deserialize from a JSON string.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: finstack_quant_portfolio::FactorBrinsonResult =
+            serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "FactorBrinsonResult(factors={}, assets={}, active_return={})",
+            self.inner.factor_contributions.len(),
+            self.inner.asset_contributions.len(),
+            self.inner.active_return,
+        )
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+}
+
+/// Parse the payload and run the canonical factor-Brinson attribution.
+fn run_factor_brinson_attribution(
+    py: Python<'_>,
+    input_json: &str,
+    factor_returns: Vec<f64>,
+) -> PyResult<finstack_quant_portfolio::FactorBrinsonResult> {
+    let input_json = input_json.to_owned();
+    py.detach(move || {
+        let input: finstack_quant_portfolio::FactorBrinsonInput = serde_json::from_str(&input_json)
+            .map_err(|err| serde_json_to_py(err, "invalid factor-Brinson input JSON"))?;
+        finstack_quant_portfolio::factor_brinson_attribution(&input, &factor_returns)
+            .map_err(portfolio_to_py)
+    })
+}
 
 /// Compute Jeet-Partani (2023) factor-Brinson unified attribution.
 ///
@@ -34,9 +190,10 @@ use crate::errors::{portfolio_to_py, serde_json_to_py};
 ///
 /// Returns
 /// -------
-/// str
-///     JSON-serialized ``FactorBrinsonResult`` with ``allocation``,
-///     ``selection``, and their per-factor / per-asset breakdowns.
+/// FactorBrinsonResult
+///     Typed result with ``allocation``, ``selection``, and their
+///     per-factor / per-asset breakdowns. Use
+///     :func:`factor_brinson_attribution_json` for the raw wire string.
 ///
 /// Raises
 /// ------
@@ -69,8 +226,8 @@ use crate::errors::{portfolio_to_py, serde_json_to_py};
 /// ...     "portfolio_weights": [1.0],
 /// ...     "benchmark_weights": [1.0],
 /// ... }
-/// >>> result = json.loads(factor_brinson_attribution(json.dumps(inputs), [0.02]))
-/// >>> result["active_return"]
+/// >>> result = factor_brinson_attribution(json.dumps(inputs), [0.02])
+/// >>> result.active_return
 /// 0.0
 #[pyfunction]
 #[pyo3(text_signature = "(input_json, factor_returns)")]
@@ -78,20 +235,37 @@ fn factor_brinson_attribution(
     py: Python<'_>,
     input_json: &str,
     factor_returns: Vec<f64>,
-) -> PyResult<String> {
-    let input_json = input_json.to_owned();
-    py.detach(move || {
-        let input: finstack_quant_portfolio::FactorBrinsonInput = serde_json::from_str(&input_json)
-            .map_err(|err| serde_json_to_py(err, "invalid factor-Brinson input JSON"))?;
-        let result = finstack_quant_portfolio::factor_brinson_attribution(&input, &factor_returns)
-            .map_err(portfolio_to_py)?;
-        serde_json::to_string(&result)
-            .map_err(|err| serde_json_to_py(err, "serialize FactorBrinsonResult"))
+) -> PyResult<PyFactorBrinsonResult> {
+    Ok(PyFactorBrinsonResult {
+        inner: run_factor_brinson_attribution(py, input_json, factor_returns)?,
     })
+}
+
+/// Compute factor-Brinson unified attribution and return wire JSON.
+///
+/// Wire twin of :func:`factor_brinson_attribution`; same inputs,
+/// JSON-string output.
+///
+/// Returns
+/// -------
+/// str
+///     JSON-serialized ``FactorBrinsonResult``.
+#[pyfunction]
+#[pyo3(text_signature = "(input_json, factor_returns)")]
+fn factor_brinson_attribution_json(
+    py: Python<'_>,
+    input_json: &str,
+    factor_returns: Vec<f64>,
+) -> PyResult<String> {
+    let result = run_factor_brinson_attribution(py, input_json, factor_returns)?;
+    serde_json::to_string(&result)
+        .map_err(|err| serde_json_to_py(err, "serialize FactorBrinsonResult"))
 }
 
 /// Register factor-Brinson attribution functions on the portfolio submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<PyFactorBrinsonResult>()?;
     m.add_function(wrap_pyfunction!(factor_brinson_attribution, m)?)?;
+    m.add_function(wrap_pyfunction!(factor_brinson_attribution_json, m)?)?;
     Ok(())
 }

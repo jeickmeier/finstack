@@ -337,6 +337,12 @@ pub struct PyPortfolioMetrics {
     inner: finstack_quant_portfolio::metrics::PortfolioMetrics,
 }
 
+impl PyPortfolioMetrics {
+    pub(crate) fn from_inner(inner: finstack_quant_portfolio::metrics::PortfolioMetrics) -> Self {
+        Self { inner }
+    }
+}
+
 #[pymethods]
 impl PyPortfolioMetrics {
     /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
@@ -395,6 +401,29 @@ impl PyPortfolioMetrics {
         serde_to_py(py, &self.inner.skipped_metrics)
     }
 
+    /// Positions that carried no risk measures because their valuation fell
+    /// back to PV-only.
+    ///
+    /// Such positions contribute zero to every total without producing a
+    /// ``skipped_metrics`` entry, so a non-empty list is the only signal that
+    /// the aggregate is partial.
+    #[getter]
+    fn degraded_positions(&self) -> Vec<String> {
+        self.inner
+            .degraded_positions
+            .iter()
+            .map(|id| id.as_str().to_owned())
+            .collect()
+    }
+
+    /// Metric identifiers present in ``by_position`` that were not aggregated
+    /// into a portfolio total because they are not summable across positions
+    /// (for example ``ytm`` or ``duration``). Sorted and de-duplicated.
+    #[getter]
+    fn unaggregated_metrics(&self) -> Vec<String> {
+        self.inner.unaggregated_metrics.clone()
+    }
+
     /// Return decoded components, total, and ordered entity breakdown by base metric.
     fn metric_series(&self, py: Python<'_>, base: &str) -> PyResult<Vec<PyMetricSeriesEntry>> {
         let base = finstack_quant_valuations::metrics::MetricId::custom(base);
@@ -411,32 +440,33 @@ impl PyPortfolioMetrics {
             .collect()
     }
 
+    /// Primary :class:`pandas.DataFrame` view: the aggregated metrics table.
+    ///
+    /// Delegates to :meth:`to_aggregated_dataframe`; the per-position long
+    /// table remains available from :meth:`to_position_dataframe`.
+    ///
+    /// Columns: ``metric_id``, ``total``.
+    #[pyo3(text_signature = "(self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.to_aggregated_dataframe(py)
+    }
+
     /// Export the portfolio-wide aggregated metrics as a pandas ``DataFrame``.
     ///
     /// One row per entry of the ``aggregated`` map, in canonical Rust
-    /// ``IndexMap`` insertion order. The per-entity breakdown is not flattened
-    /// here — reach it through :meth:`metric_series`.
+    /// ``IndexMap`` insertion order. Built from the canonical
+    /// ``finstack_quant_portfolio::aggregated_metrics_to_table`` envelope so
+    /// the frame cannot drift from the Rust table export. The per-entity
+    /// breakdown is not flattened here — reach it through
+    /// :meth:`metric_series`.
     ///
     /// Columns: ``metric_id``, ``total`` (sum across positions; only summable
     /// metrics are aggregated).
     #[pyo3(text_signature = "(self)")]
     fn to_aggregated_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let metric_ids: Vec<&str> = self
-            .inner
-            .aggregated
-            .values()
-            .map(|metric| metric.metric_id.as_str())
-            .collect();
-        let totals: Vec<f64> = self
-            .inner
-            .aggregated
-            .values()
-            .map(|metric| metric.total)
-            .collect();
-        let data = PyDict::new(py);
-        data.set_item("metric_id", metric_ids)?;
-        data.set_item("total", totals)?;
-        dict_to_dataframe(py, &data, None)
+        let table = finstack_quant_portfolio::aggregated_metrics_to_table(&self.inner)
+            .map_err(core_to_py)?;
+        table_to_dataframe(py, &table)
     }
 
     /// Export the raw per-position metric values as a long-format pandas
@@ -445,30 +475,16 @@ impl PyPortfolioMetrics {
     /// One row per ``(position, metric)`` pair — the row count is the total
     /// number of metric values across positions, not the number of positions.
     /// Pivot with ``df.pivot(index="position_id", columns="metric_id",
-    /// values="value")`` for a wide view.
+    /// values="value")`` for a wide view. Built from the canonical
+    /// ``finstack_quant_portfolio::metrics_to_table`` envelope so the frame
+    /// cannot drift from the Rust table export.
     ///
-    /// Columns: ``position_id``, ``currency`` (the position's native currency;
-    /// non-summable metrics are quoted in it), ``metric_id``, ``value``.
+    /// Columns: ``metric_id``, ``position_id``, ``currency`` (the position's
+    /// native currency; non-summable metrics are quoted in it), ``value``.
     #[pyo3(text_signature = "(self)")]
     fn to_position_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let mut position_ids: Vec<&str> = Vec::new();
-        let mut currencies: Vec<String> = Vec::new();
-        let mut metric_ids: Vec<&str> = Vec::new();
-        let mut values: Vec<f64> = Vec::new();
-        for (position_id, position_metrics) in &self.inner.by_position {
-            for (metric_id, value) in &position_metrics.metrics {
-                position_ids.push(position_id.as_str());
-                currencies.push(position_metrics.currency.to_string());
-                metric_ids.push(metric_id.as_str());
-                values.push(*value);
-            }
-        }
-        let data = PyDict::new(py);
-        data.set_item("position_id", position_ids)?;
-        data.set_item("currency", currencies)?;
-        data.set_item("metric_id", metric_ids)?;
-        data.set_item("value", values)?;
-        dict_to_dataframe(py, &data, None)
+        let table = finstack_quant_portfolio::metrics_to_table(&self.inner).map_err(core_to_py)?;
+        table_to_dataframe(py, &table)
     }
 
     fn __repr__(&self) -> String {
@@ -688,5 +704,6 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPortfolioMetrics>()?;
     m.add_class::<PyPortfolioCashflows>()?;
     m.add_class::<super::scenario_pnl::PyScenarioPnl>()?;
+    m.add_class::<super::scenario_pnl::PyScenarioPnlBatchItem>()?;
     Ok(())
 }

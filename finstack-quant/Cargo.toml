@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
-description = "Finstack Quant umbrella crate: deterministic, cross-platform financial computation with currency-safe Decimal arithmetic"
+description = "Finstack Quant umbrella crate: deterministic, cross-platform financial computation with currency-safe monetary types"
 
 [dependencies]
 finstack_quant_core = { package = "finstack-quant-core", path = "core", version = "0.7.0" }

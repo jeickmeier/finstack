@@ -73,6 +73,12 @@
 //!     .build()
 //!     .expect("test should succeed");
 //! ```
+//!
+//! # References
+//!
+//! - Brinson-Fachler attribution: `docs/REFERENCES.md#brinson-fachler-1985`
+//! - Euler capital allocation: `docs/REFERENCES.md#tasche-2008-capital-allocation`
+//! - Liquidity-adjusted VaR: `docs/REFERENCES.md#bangia-1999-lvar`
 
 macro_rules! define_string_id {
     ($(#[$meta:meta])* $vis:vis struct $name:ident;) => {
@@ -91,8 +97,8 @@ macro_rules! define_string_id {
         $vis struct $name(String);
 
         impl $name {
-            /// Create a new identifier.
-            ///
+ /// Create a new identifier.
+ ///
             /// # Arguments
             ///
             /// * `id` - The identifier string.

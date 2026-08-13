@@ -32,7 +32,7 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
 /// # References
 ///
 /// - Brigo, D., & Mercurio, F. (2006). *Interest Rate Models - Theory and
-///   Practice* (2nd ed.). Springer. Chapter 14: Exotic Derivatives.
+///   Practice* (2nd ed.). Springer. Chapter 14: Exotic Derivatives. `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
 #[derive(PartialEq, Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Tarn {

@@ -41,10 +41,10 @@
 //!
 //! # References
 //!
-//! - Active portfolio construction background:
-//!   `docs/REFERENCES.md#grinoldKahn1999ActivePortfolio`
-//! - Fixed-income risk and key-rate style metrics:
-//!   `docs/REFERENCES.md#tuckman-serrat-fixed-income`
+//! - Active portfolio construction background: `docs/REFERENCES.md#grinoldKahn1999ActivePortfolio`
+//!
+//! - Fixed-income risk and key-rate style metrics: `docs/REFERENCES.md#tuckman-serrat-fixed-income`
+//!
 
 mod constraints;
 mod decision;

@@ -82,4 +82,7 @@ Unseasoned, no lookback/shift, `as_of <= accrual_start`, single discount curve: 
 
 ## References
 
-ISDA 2006 Definitions (and 2021 RFR supplement for overnight swaps). Internal: `docs/REFERENCES.md` where cited from rustdoc.
+- ISDA 2006 / 2021 swap definitions: `docs/REFERENCES.md#isda-2006-definitions`,
+  `docs/REFERENCES.md#isda-2021-definitions`
+- Practitioner swap mechanics: `docs/REFERENCES.md#sadr-2009-irs`
+- Bloomberg SWPM screen conventions: `docs/REFERENCES.md#bloomberg-swpm`

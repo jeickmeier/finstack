@@ -113,13 +113,15 @@ class SifmaSettlementClass:
         SifmaSettlementClass
             Settlement class used to select the monthly SIFMA delivery date.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
         >>> from finstack_quant.core.dates import SifmaSettlementClass
         >>> SifmaSettlementClass.from_agency_term("FNMA", 30) == SifmaSettlementClass.A
         True
-
         """
         ...
 
@@ -143,7 +145,6 @@ def sifma_settlement_date(month: int, year: int) -> datetime.date | None:
     ------
     ValueError
         If *month* is outside ``1`` through ``12``.
-
 
     Examples
     --------
@@ -182,7 +183,6 @@ def sifma_settlement_date_for_class(
     ValueError
         If *month* is outside ``1`` through ``12``.
 
-
     Examples
     --------
     >>> import datetime
@@ -218,7 +218,6 @@ def estimated_sifma_settlement_date_for_class(
     ValueError
         If *month* is outside ``1`` through ``12``.
 
-
     Examples
     --------
     >>> import datetime
@@ -243,6 +242,13 @@ def next_sifma_settlement(date: datetime.date) -> datetime.date | None:
     datetime.date or None
         Earliest available settlement date not before ``date``, or ``None``.
 
+    Raises
+    ------
+    TypeError
+        If *date* is not a date-like object with integer ``year``, ``month``,
+        and ``day`` attributes.
+    ValueError
+        If those attributes do not form a valid calendar date.
 
     Examples
     --------
@@ -314,6 +320,7 @@ class DayCount:
         DayCount
 
             Day-count convention corresponding to the exact canonical lowercase name.
+
         Raises
         ------
         ValueError
@@ -406,6 +413,13 @@ class DayCount:
         int
             Signed number of calendar days (end - start).
 
+        Raises
+        ------
+        TypeError
+            If *start* or *end* is not date-like (``datetime.date``,
+            ``datetime.datetime``, or ``pandas.Timestamp``).
+        ValueError
+            If the year/month/day attributes do not form a valid calendar date.
 
         Examples
         --------
@@ -413,7 +427,6 @@ class DayCount:
         >>> from finstack_quant.core.dates import DayCount
         >>> DayCount.calendar_days(datetime.date(2024, 1, 1), datetime.date(2024, 1, 31))
         30
-
         """
         ...
 
@@ -491,6 +504,10 @@ class DayCountContext:
         -------
         str | None
             The calendar id exposed by this `DayCountContext`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -503,6 +520,10 @@ class DayCountContext:
         -------
         Tenor | None
             The frequency exposed by this `DayCountContext`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -515,6 +536,10 @@ class DayCountContext:
         -------
         int | None
             The bus basis exposed by this `DayCountContext`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -526,6 +551,10 @@ class DayCountContext:
         Returns
         -------
         tuple[datetime.date, datetime.date] | None
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -538,6 +567,10 @@ class DayCountContext:
         -------
         bool
             The end is termination date exposed by this `DayCountContext`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -548,6 +581,10 @@ class DayCountContext:
         Returns
         -------
         DayCountContextState
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -584,7 +621,7 @@ class DayCountContextState:
         end_is_termination_date: bool = False,
     ) -> None:
         """
-        Create a context state.
+        Create a day-count context snapshot for year-fraction calculations.
 
         Parameters
         ----------
@@ -599,6 +636,9 @@ class DayCountContextState:
         end_is_termination_date : bool
             Whether the accrual end is the instrument termination date.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -611,6 +651,10 @@ class DayCountContextState:
         DayCountContext
             New runtime context with every snapshot field copied; calendar
             resolution remains deferred until a calculation needs it.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -623,6 +667,10 @@ class DayCountContextState:
         -------
         str | None
             The calendar id exposed by this `DayCountContextState`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -635,6 +683,10 @@ class DayCountContextState:
         -------
         Tenor | None
             The frequency exposed by this `DayCountContextState`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -647,6 +699,10 @@ class DayCountContextState:
         -------
         int | None
             The bus basis exposed by this `DayCountContextState`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -658,6 +714,10 @@ class DayCountContextState:
         Returns
         -------
         tuple[datetime.date, datetime.date] | None
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -670,6 +730,10 @@ class DayCountContextState:
         -------
         bool
             The end is termination date exposed by this `DayCountContextState`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -743,6 +807,7 @@ class TenorUnit:
 
             Day, week, month, or year unit selected by the case-insensitive
             ``D``, ``W``, ``M``, or ``Y`` designator.
+
         Raises
         ------
         ValueError
@@ -807,7 +872,7 @@ class Tenor:
     @classmethod
     def parse(cls, s: str) -> Tenor:
         """
-        Parse a tenor string.
+        Parse a tenor string such as ``3M`` or ``10Y`` into a ``Tenor``.
 
         Parameters
         ----------
@@ -819,6 +884,7 @@ class Tenor:
         Tenor
 
             Validated tenor preserving the positive count and unit parsed from ``s``.
+
         Raises
         ------
         ValueError
@@ -844,12 +910,15 @@ class Tenor:
         Tenor
             One-calendar-day tenor.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.dates import Tenor
         >>> Tenor.daily().days
         1
-
         """
         ...
 
@@ -864,12 +933,15 @@ class Tenor:
         Tenor
             One-week tenor, equivalent to seven calendar days.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.dates import Tenor
         >>> Tenor.weekly().days
         7
-
         """
         ...
 
@@ -884,12 +956,15 @@ class Tenor:
         Tenor
             Two-week tenor, equivalent to fourteen calendar days.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.dates import Tenor
         >>> Tenor.biweekly().days
         14
-
         """
         ...
 
@@ -904,12 +979,15 @@ class Tenor:
         Tenor
             One-month tenor.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.dates import Tenor
         >>> Tenor.monthly().months
         1
-
         """
         ...
 
@@ -924,12 +1002,15 @@ class Tenor:
         Tenor
             Two-month tenor.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.dates import Tenor
         >>> Tenor.bimonthly().months
         2
-
         """
         ...
 
@@ -943,12 +1024,15 @@ class Tenor:
         Tenor
             Three-month tenor.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.dates import Tenor
         >>> Tenor.quarterly().months
         3
-
         """
         ...
 
@@ -962,12 +1046,15 @@ class Tenor:
         Tenor
             Six-month tenor.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.dates import Tenor
         >>> Tenor.semi_annual().months
         6
-
         """
         ...
 
@@ -981,12 +1068,15 @@ class Tenor:
         Tenor
             One-year ``1Y`` tenor.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.dates import Tenor
         >>> Tenor.annual().months
         12
-
         """
         ...
 
@@ -1005,6 +1095,7 @@ class Tenor:
         Tenor
 
             Month tenor with ``12 / payments`` months per coupon period.
+
         Raises
         ------
         ValueError
@@ -1029,18 +1120,26 @@ class Tenor:
         -------
         int
             The count exposed by this `Tenor`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def unit(self) -> TenorUnit:
         """
-        Unit of the tenor.
+        Calendar unit of this tenor (days, months, or years).
 
         Returns
         -------
         TenorUnit
             The unit exposed by this `Tenor`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1053,6 +1152,10 @@ class Tenor:
         -------
         int | None
             The months exposed by this `Tenor`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1065,6 +1168,10 @@ class Tenor:
         -------
         int | None
             The days exposed by this `Tenor`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1078,6 +1185,10 @@ class Tenor:
             Approximate years using days divided by 365, weeks multiplied by
             seven and divided by 365, months divided by 12, or the stored year
             count.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1090,6 +1201,10 @@ class Tenor:
         int
             Nearest whole-day length using seven-day weeks, ``365 / 12`` days
             per month, and 365-day years.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1103,7 +1218,7 @@ class Tenor:
 
 class PeriodKind:
     """
-    Period frequency kind.
+    Frequency kind used to label schedule periods (month, quarter, year).
 
     Immutable, hashable enum-style type.
 
@@ -1143,6 +1258,7 @@ class PeriodKind:
         PeriodKind
 
             Canonical frequency represented by the exact canonical lowercase name.
+
         Raises
         ------
         ValueError
@@ -1166,6 +1282,10 @@ class PeriodKind:
         -------
         int
             The periods per year exposed by this `PeriodKind`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1178,6 +1298,10 @@ class PeriodKind:
         -------
         float
             The annualization factor exposed by this `PeriodKind`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1217,6 +1341,7 @@ class PeriodId:
         PeriodId
 
             Validated calendar or ``FY`` period encoded by ``code``.
+
         Raises
         ------
         ValueError
@@ -1253,7 +1378,6 @@ class PeriodId:
         ValueError
             If *month* is outside ``1`` through ``12``.
 
-
         Examples
         --------
         >>> from finstack_quant.core.dates import PeriodId
@@ -1285,7 +1409,6 @@ class PeriodId:
         ValueError
             If *quarter* is outside ``1`` through ``4``.
 
-
         Examples
         --------
         >>> from finstack_quant.core.dates import PeriodId
@@ -1310,13 +1433,15 @@ class PeriodId:
         PeriodId
             Calendar-year identifier formatted as ``YYYY``.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
         >>> from finstack_quant.core.dates import PeriodId
         >>> PeriodId.annual(2025).code
         '2025'
-
         """
         ...
 
@@ -1341,7 +1466,6 @@ class PeriodId:
         ------
         ValueError
             If *half* is not ``1`` or ``2``.
-
 
         Examples
         --------
@@ -1374,7 +1498,6 @@ class PeriodId:
         ValueError
             If *week* is not a valid ISO week number for *year*.
 
-
         Examples
         --------
         >>> from finstack_quant.core.dates import PeriodId
@@ -1406,7 +1529,6 @@ class PeriodId:
         ValueError
             If *ordinal* is not a valid day of *year*.
 
-
         Examples
         --------
         >>> from finstack_quant.core.dates import PeriodId
@@ -1425,6 +1547,10 @@ class PeriodId:
         -------
         str
             The code exposed by this `PeriodId`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1437,6 +1563,10 @@ class PeriodId:
         -------
         int
             The year exposed by this `PeriodId`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1449,6 +1579,10 @@ class PeriodId:
         -------
         int
             The index exposed by this `PeriodId`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1461,6 +1595,10 @@ class PeriodId:
         -------
         PeriodKind
             The kind exposed by this `PeriodId`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1473,6 +1611,10 @@ class PeriodId:
         -------
         bool
             Whether fiscal holds for this `PeriodId`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1485,6 +1627,10 @@ class PeriodId:
         -------
         int
             The periods per year exposed by this `PeriodId`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1497,6 +1643,7 @@ class PeriodId:
         PeriodId
 
             Following non-fiscal period of the same frequency, with year rollover.
+
         Raises
         ------
         ValueError
@@ -1514,6 +1661,7 @@ class PeriodId:
         PeriodId
 
             Preceding non-fiscal period of the same frequency, with year rollover.
+
         Raises
         ------
         ValueError
@@ -1599,36 +1747,48 @@ class Period:
     @property
     def id(self) -> PeriodId:
         """
-        Period identifier.
+        Stable string identifier for this schedule period.
 
         Returns
         -------
         PeriodId
             The id exposed by this `Period`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def start(self) -> datetime.date:
         """
-        Inclusive start date.
+        First date included in this schedule period.
 
         Returns
         -------
         datetime.date
             The start exposed by this `Period`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
     @property
     def end(self) -> datetime.date:
         """
-        Exclusive end date.
+        First date after the period; the period does not include it.
 
         Returns
         -------
         datetime.date
             The end exposed by this `Period`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1641,6 +1801,10 @@ class Period:
         -------
         bool
             Whether actual holds for this `Period`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1670,6 +1834,10 @@ class PeriodPlan:
         -------
         list[Period]
             The periods exposed by this `PeriodPlan`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1730,13 +1898,16 @@ class FiscalConfig:
         FiscalConfig
             Fiscal configuration beginning January 1.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.dates import FiscalConfig
         >>> config = FiscalConfig.calendar_year()
         >>> (config.start_month, config.start_day)
         (1, 1)
-
         """
         ...
 
@@ -1750,13 +1921,16 @@ class FiscalConfig:
         FiscalConfig
             US federal fiscal configuration beginning October 1.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.dates import FiscalConfig
         >>> config = FiscalConfig.us_federal()
         >>> (config.start_month, config.start_day)
         (10, 1)
-
         """
         ...
 
@@ -1770,13 +1944,16 @@ class FiscalConfig:
         FiscalConfig
             UK fiscal configuration beginning April 6.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.dates import FiscalConfig
         >>> config = FiscalConfig.uk()
         >>> (config.start_month, config.start_day)
         (4, 6)
-
         """
         ...
 
@@ -1790,13 +1967,16 @@ class FiscalConfig:
         FiscalConfig
             Japanese fiscal configuration beginning April 1.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.dates import FiscalConfig
         >>> config = FiscalConfig.japan()
         >>> (config.start_month, config.start_day)
         (4, 1)
-
         """
         ...
 
@@ -1810,13 +1990,16 @@ class FiscalConfig:
         FiscalConfig
             Canadian fiscal configuration beginning April 1.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.dates import FiscalConfig
         >>> config = FiscalConfig.canada()
         >>> (config.start_month, config.start_day)
         (4, 1)
-
         """
         ...
 
@@ -1830,13 +2013,16 @@ class FiscalConfig:
         FiscalConfig
             Australian fiscal configuration beginning July 1.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.dates import FiscalConfig
         >>> config = FiscalConfig.australia()
         >>> (config.start_month, config.start_day)
         (7, 1)
-
         """
         ...
 
@@ -1850,13 +2036,16 @@ class FiscalConfig:
         FiscalConfig
             German fiscal configuration beginning January 1.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.dates import FiscalConfig
         >>> config = FiscalConfig.germany()
         >>> (config.start_month, config.start_day)
         (1, 1)
-
         """
         ...
 
@@ -1870,13 +2059,16 @@ class FiscalConfig:
         FiscalConfig
             French fiscal configuration beginning January 1.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.dates import FiscalConfig
         >>> config = FiscalConfig.france()
         >>> (config.start_month, config.start_day)
         (1, 1)
-
         """
         ...
 
@@ -1889,6 +2081,10 @@ class FiscalConfig:
         -------
         int
             The start month exposed by this `FiscalConfig`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1901,6 +2097,10 @@ class FiscalConfig:
         -------
         int
             The start day exposed by this `FiscalConfig`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2005,7 +2205,7 @@ class BusinessDayConvention:
     @classmethod
     def from_name(cls, name: str) -> BusinessDayConvention:
         """
-        Parse from a string.
+        Parse this variant from its canonical name string.
 
         Parameters
         ----------
@@ -2055,24 +2255,32 @@ class CalendarMetadata:
     @property
     def id(self) -> str:
         """
-        Calendar short code.
+        Short identifier for this holiday calendar (for example ``NYSE``).
 
         Returns
         -------
         str
             The id exposed by this `CalendarMetadata`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def name(self) -> str:
         """
-        Human-readable name.
+        Display name of this holiday calendar.
 
         Returns
         -------
         str
             The name exposed by this `CalendarMetadata`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2085,6 +2293,10 @@ class CalendarMetadata:
         -------
         bool
             The ignore weekends exposed by this `CalendarMetadata`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2098,6 +2310,10 @@ class CalendarMetadata:
         str
             One of ``"saturday_sunday"``, ``"friday_saturday"``,
             ``"friday_only"``, or ``"none"``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2157,6 +2373,13 @@ class HolidayCalendar:
         bool
             Whether holiday holds for this `HolidayCalendar`.
 
+        Raises
+        ------
+        TypeError
+            If *date* is not date-like (``datetime.date``, ``datetime.datetime``,
+            or ``pandas.Timestamp``).
+        ValueError
+            If the year/month/day attributes do not form a valid calendar date.
         """
         ...
 
@@ -2174,6 +2397,13 @@ class HolidayCalendar:
         bool
             Whether business day holds for this `HolidayCalendar`.
 
+        Raises
+        ------
+        TypeError
+            If *date* is not date-like (``datetime.date``, ``datetime.datetime``,
+            or ``pandas.Timestamp``).
+        ValueError
+            If the year/month/day attributes do not form a valid calendar date.
         """
         ...
 
@@ -2185,6 +2415,10 @@ class HolidayCalendar:
         Returns
         -------
         CalendarMetadata | None
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -2198,6 +2432,10 @@ class HolidayCalendar:
         -------
         str
             The code exposed by this `HolidayCalendar`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2250,12 +2488,15 @@ def available_calendars() -> list[str]:
     list[str]
         Calendar code strings.
 
+    Notes
+    -----
+    This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
     Examples
     --------
     >>> from finstack_quant.core.dates import available_calendars
     >>> "usny" in available_calendars()
     True
-
     """
     ...
 
@@ -2289,7 +2530,7 @@ class StubKind:
     @classmethod
     def from_name(cls, name: str) -> StubKind:
         """
-        Parse from a string.
+        Parse this variant from its canonical name string.
 
         Parameters
         ----------
@@ -2302,6 +2543,7 @@ class StubKind:
 
             No-stub, front-stub, or back-stub rule represented by the exact
             canonical lowercase name.
+
         Raises
         ------
         ValueError
@@ -2372,6 +2614,10 @@ class Schedule:
         Returns
         -------
         list[datetime.date]
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -2383,6 +2629,10 @@ class Schedule:
         -------
         bool
             Whether this `Schedule` has warnings.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -2394,6 +2644,10 @@ class Schedule:
         -------
         bool
             ``True`` exactly when the schedule warnings include a graceful-fallback warning.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -2406,6 +2660,10 @@ class Schedule:
         -------
         list[str]
             The warnings exposed by this `Schedule`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2424,12 +2682,8 @@ class ScheduleBuilder:
     start : datetime.date
         Schedule start date.
     end : datetime.date
-        Schedule end date (must be after *start*).
-
-    Raises
-    ------
-    ValueError
-        If *start* >= *end*.
+        Schedule end date (must not be before *start*; validated by the
+        canonical Rust builder at ``build()`` time).
 
     Examples
     --------
@@ -2457,6 +2711,10 @@ class ScheduleBuilder:
         """
         Start a new schedule builder with start and end dates.
 
+        Range validation follows the canonical Rust builder and happens at
+        ``build()`` time: ``start > end`` is rejected there, while
+        ``start == end`` is accepted.
+
         Parameters
         ----------
         start : datetime.date
@@ -2466,8 +2724,11 @@ class ScheduleBuilder:
 
         Raises
         ------
+        TypeError
+            If *start* or *end* is not date-like (``datetime.date``,
+            ``datetime.datetime``, or ``pandas.Timestamp``).
         ValueError
-            If *start* >= *end*.
+            If the year/month/day attributes do not form a valid calendar date.
         """
         ...
 
@@ -2495,7 +2756,7 @@ class ScheduleBuilder:
 
     def stub_rule(self, stub: StubKind) -> ScheduleBuilder:
         """
-        Set the stub rule.
+        Set how a short first or last stub period is generated.
 
         Parameters
         ----------
@@ -2507,6 +2768,9 @@ class ScheduleBuilder:
         ScheduleBuilder
             Same builder instance after replacing its stub rule with ``stub``.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -2527,6 +2791,9 @@ class ScheduleBuilder:
             Same builder instance after storing the convention and calendar ID
             used to adjust dates during ``build()``.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -2544,6 +2811,9 @@ class ScheduleBuilder:
         ScheduleBuilder
             Same builder instance after enabling or disabling end-of-month rolling.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -2554,6 +2824,10 @@ class ScheduleBuilder:
         -------
         ScheduleBuilder
             This builder.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -2564,12 +2838,16 @@ class ScheduleBuilder:
         -------
         ScheduleBuilder
             This builder.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
     def error_policy(self, policy: ScheduleErrorPolicy) -> ScheduleBuilder:
         """
-        Set the error policy.
+        Set how invalid schedule dates are reported or skipped.
 
         Setting a policy fully replaces any previous policy; calls are
         order-independent and idempotent.
@@ -2584,15 +2862,20 @@ class ScheduleBuilder:
         ScheduleBuilder
             Same builder instance after fully replacing its schedule-build error policy.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
     def build(self) -> Schedule:
         """
-        Build the schedule.
+        Materialize the date schedule from the builder settings.
 
-        Under the default ``STRICT`` policy any build warnings raise
-        ``ValueError``. Under ``MISSING_CALENDAR_WARNING`` or
+        Delegates entirely to the canonical Rust ``ScheduleSpec::build``:
+        under the default ``STRICT`` policy an invalid range (``start`` after
+        ``end``) or any build warning raises ``ValueError`` (strict fails
+        closed in Rust). Under ``MISSING_CALENDAR_WARNING`` or
         ``GRACEFUL_EMPTY`` the schedule is returned carrying its warnings
         (inspect via ``Schedule.warnings`` / ``Schedule.has_warnings()``).
 
@@ -2630,6 +2913,7 @@ def create_date(year: int, month: int, day: int) -> datetime.date:
     -------
     datetime.date
         The calendar date represented by *year*, *month*, and *day*.
+
     Raises
     ------
     ValueError
@@ -2659,6 +2943,13 @@ def days_since_epoch(date: datetime.date) -> int:
     int
         Signed number of days since 1970-01-01.
 
+    Raises
+    ------
+    TypeError
+        If *date* is not a date-like object with integer ``year``, ``month``,
+        and ``day`` attributes.
+    ValueError
+        If those attributes do not form a valid calendar date.
 
     Examples
     --------
@@ -2684,6 +2975,7 @@ def date_from_epoch_days(days: int) -> datetime.date:
     datetime.date
         The calendar date exactly *days* days from 1970-01-01; negative values
         denote dates before the Unix epoch.
+
     Raises
     ------
     ValueError
@@ -2775,6 +3067,13 @@ def next_imm(date: datetime.date) -> datetime.date:
     datetime.date
         Next March/June/September/December IMM date after *date*.
 
+    Raises
+    ------
+    TypeError
+        If *date* is not a date-like object with integer ``year``, ``month``,
+        and ``day`` attributes.
+    ValueError
+        If those attributes do not form a valid calendar date.
 
     Examples
     --------
@@ -2800,6 +3099,13 @@ def is_imm_date(date: datetime.date) -> bool:
     bool
         ``True`` when *date* is the third Wednesday of a quarterly month.
 
+    Raises
+    ------
+    TypeError
+        If *date* is not a date-like object with integer ``year``, ``month``,
+        and ``day`` attributes.
+    ValueError
+        If those attributes do not form a valid calendar date.
 
     Examples
     --------
@@ -2825,6 +3131,13 @@ def is_cds_date(date: datetime.date) -> bool:
     bool
         ``True`` when *date* is a standard CDS roll date.
 
+    Raises
+    ------
+    TypeError
+        If *date* is not a date-like object with integer ``year``, ``month``,
+        and ``day`` attributes.
+    ValueError
+        If those attributes do not form a valid calendar date.
 
     Examples
     --------
@@ -2850,6 +3163,14 @@ def next_cds_date(date: datetime.date) -> datetime.date:
     datetime.date
         Next standard CDS roll date.
 
+    Raises
+    ------
+    TypeError
+        If *date* is not a date-like object with integer ``year``, ``month``,
+        and ``day`` attributes.
+    ValueError
+        If those attributes do not form a valid calendar date.
+
     Examples
     --------
     >>> import datetime
@@ -2874,6 +3195,13 @@ def prev_cds_date(date: datetime.date) -> datetime.date:
     datetime.date
         Most recent standard CDS roll date.
 
+    Raises
+    ------
+    TypeError
+        If *date* is not a date-like object with integer ``year``, ``month``,
+        and ``day`` attributes.
+    ValueError
+        If those attributes do not form a valid calendar date.
 
     Examples
     --------
@@ -2901,6 +3229,13 @@ def prev_cds_semiannual_roll(date: datetime.date) -> datetime.date:
     datetime.date
         Most recent March or September CDS roll date.
 
+    Raises
+    ------
+    TypeError
+        If *date* is not a date-like object with integer ``year``, ``month``,
+        and ``day`` attributes.
+    ValueError
+        If those attributes do not form a valid calendar date.
 
     Examples
     --------
@@ -2926,6 +3261,13 @@ def next_semiannual_cds_maturity(date: datetime.date) -> datetime.date:
     datetime.date
         Next semi-annual CDS maturity date.
 
+    Raises
+    ------
+    TypeError
+        If *date* is not a date-like object with integer ``year``, ``month``,
+        and ``day`` attributes.
+    ValueError
+        If those attributes do not form a valid calendar date.
 
     Examples
     --------
@@ -2981,6 +3323,13 @@ def next_imm_option_expiry(date: datetime.date) -> datetime.date:
     datetime.date
         Next quarterly IMM option expiry.
 
+    Raises
+    ------
+    TypeError
+        If *date* is not a date-like object with integer ``year``, ``month``,
+        and ``day`` attributes.
+    ValueError
+        If those attributes do not form a valid calendar date.
 
     Examples
     --------
@@ -3005,6 +3354,14 @@ def next_equity_option_expiry(date: datetime.date) -> datetime.date:
     -------
     datetime.date
         Next third-Friday expiry strictly after *date*.
+
+    Raises
+    ------
+    TypeError
+        If *date* is not a date-like object with integer ``year``, ``month``,
+        and ``day`` attributes.
+    ValueError
+        If those attributes do not form a valid calendar date.
 
     Examples
     --------

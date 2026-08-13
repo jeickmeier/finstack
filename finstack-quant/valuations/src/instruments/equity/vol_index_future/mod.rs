@@ -42,10 +42,10 @@
 //!
 //! # References
 //!
-//! - CBOE (2019). "VIX Futures Contract Specifications."
+//! - CBOE (2019). "VIX Futures Contract Specifications." `docs/REFERENCES.md#cboe-vix-white-paper`
 //! - Alexander, C. (2008). *Pricing, Hedging and Trading Financial Instruments*.
 //!   Chapter 12: Volatility indices and derivatives.
-//! - Whaley, R. E. (2009). "Understanding the VIX." *Journal of Portfolio Management*.
+//! - Whaley, R. E. (2009). "Understanding the VIX." *Journal of Portfolio Management*. `docs/REFERENCES.md#whaley-2009-vix`
 //!
 //! # See Also
 //!

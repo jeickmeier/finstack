@@ -79,12 +79,12 @@
 //! # Academic References
 //!
 //! - Kemna, A. G. Z., & Vorst, A. C. F. (1990). "A Pricing Method for Options
-//!   Based on Average Asset Values." *Journal of Banking & Finance*.
+//!   Based on Average Asset Values." *Journal of Banking & Finance*. `docs/REFERENCES.md#kemna-vorst-1990`
 //! - Turnbull, S. M., & Wakeman, L. M. (1991). "A Quick Algorithm for Pricing
-//!   European Average Options."
-//! - Reiner, E., & Rubinstein, M. (1991). "Breaking Down the Barriers."
+//!   European Average Options." `docs/REFERENCES.md#turnbull-wakeman-1991`
+//! - Reiner, E., & Rubinstein, M. (1991). "Breaking Down the Barriers." `docs/REFERENCES.md#reiner-rubinstein-1991`
 //! - Conze, A., & Viswanathan (1991). "Path Dependent Options: The Case of
-//!   Lookback Options."
+//!   Lookback Options." `docs/REFERENCES.md#conze-viswanathan-1991`
 //!
 //! # See Also
 //!

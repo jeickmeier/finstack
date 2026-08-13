@@ -12,9 +12,8 @@ The crate provides:
 - serde-first JSON construction and validation
 
 Add `finstack-quant-cashflows` as a direct dependency when using these APIs;
-the Rust import path is `finstack_quant_cashflows`. See the
-[API documentation](https://docs.rs/finstack-quant-cashflows/latest/finstack_quant_cashflows/)
-for the complete surface.
+the Rust import path is `finstack_quant_cashflows`. Build the crate docs with
+`cargo doc -p finstack-quant-cashflows --open`.
 
 Amounts use `Money` with an explicit currency. Coupon rates are decimals
 (`0.05` means 5%); fields named with `_bp` are basis points. `ScheduleParams`

@@ -452,7 +452,7 @@ pub fn dynamic_recovery_constant_json(recovery: f64) -> Result<String, JsValue> 
 /// to JSON.
 /// @param base_hazard - Reference annual default intensity used by the leverage-to-hazard mapping.
 /// @param base_leverage - Positive reference debt-to-assets leverage ratio for the hazard mapping.
-/// @param exponent - Positive exponent controlling sensitivity in the documented power-law mapping.
+/// @param exponent - Power-law exponent in `lambda(L) = baseHazard * (L / baseLeverage)^exponent`.
 #[wasm_bindgen(js_name = endogenousHazardPowerLawJson)]
 pub fn endogenous_hazard_power_law_json(
     base_hazard: f64,

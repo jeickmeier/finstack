@@ -34,7 +34,7 @@
 ///
 /// # References
 ///
-/// - Roll, R. (1984). `docs/REFERENCES.md#roll1984EffectiveSpread`
+/// - Roll, R. (1984). `docs/REFERENCES.md#roll-1984`
 pub fn roll_effective_spread(returns: &[f64]) -> Option<f64> {
     if returns.len() < 2 {
         return None;
@@ -83,7 +83,7 @@ pub fn roll_effective_spread(returns: &[f64]) -> Option<f64> {
 ///
 /// # References
 ///
-/// - Amihud, Y. (2002). `docs/REFERENCES.md#amihud2002Illiquidity`
+/// - Amihud, Y. (2002). `docs/REFERENCES.md#amihud-2002`
 pub fn amihud_illiquidity(returns: &[f64], volumes: &[f64]) -> Option<f64> {
     if returns.is_empty() || returns.len() != volumes.len() {
         return None;

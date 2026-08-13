@@ -94,20 +94,39 @@
 //! split exact; the three-way split used in [`crate::brinson`] would need a
 //! per-component interaction bucket.
 //!
+//! ## Off-benchmark sectors
+//!
+//! A sector held in the portfolio but absent from the benchmark has no
+//! observable `r_b,i`. This module adopts the industry convention
+//! `r_b,i := R_b` (the benchmark *total* return; componentwise the
+//! benchmark-wide component returns, which sum to `R_b`): the allocation
+//! term for such a sector is then identically zero —
+//! `(w_p,i − 0)(R_b − R_b) = 0` — and its entire active contribution flows
+//! through the four component effects. The naive alternative `r_b,i := 0`
+//! charges `−w_p,i · R_b` of allocation for merely holding the sector, an
+//! arbitrary penalty scaled by the benchmark's overall return level rather
+//! than by any bet the manager took. The telescoping identity above is
+//! insensitive to the choice: every `r_b,i` in the summed effects carries the
+//! coefficient `−w_b,i`, which is zero for exactly these sectors, so the
+//! substitution moves value between allocation and the component terms
+//! without changing their sum. Symmetrically, a sector absent from the
+//! portfolio reports `r_p,i := r_b,i` (reporting-only, since every effect
+//! multiplies it by `w_p,i = 0`).
+//!
 //! # References
 //!
 //! * Campisi, S. (2000). "Primer on Fixed Income Performance Attribution."
-//!   *Journal of Portfolio Management*, 26(4), 14–25.
-//!   `docs/REFERENCES.md#campisi-2000`
+//!   *Journal of Portfolio Management*, 26(4), 14–25. `docs/REFERENCES.md#campisi-2000`
+//!
 //! * Ben Dor, A., Dynkin, L., Hyman, J., Houweling, P., van Leeuwen, E., &
 //!   Penninga, O. (2007). "DTS (Duration Times Spread)." *Journal of
 //!   Portfolio Management*, 33(2), 77–100 — source of the DTS convention
-//!   deliberately *not* offered here; see "Why there is no DTS spread mode".
-//!   `docs/REFERENCES.md#ben-dor-2007-dts`
+//!   deliberately *not* offered here; see "Why there is no DTS spread mode". `docs/REFERENCES.md#ben-dor-2007-dts`
+//!
 //! * Brinson, G. P., & Fachler, N. (1985). "Measuring Non-US Equity Portfolio
 //!   Performance." *Journal of Portfolio Management*, 11(3) — source of the
-//!   `(w_p − w_b)(r_b,i − r_b)` allocation form used above.
-//!   `docs/REFERENCES.md#brinson-fachler-1985`
+//!   `(w_p − w_b)(r_b,i − r_b)` allocation form used above. `docs/REFERENCES.md#brinson-fachler-1985`
+//!
 //! * Carino, D. (1999). "Combining Attribution Effects over Time." *Journal of
 //!   Performance Measurement*, 3(4), 5–14 — multi-period smoothing applied by
 //!   [`campisi_carino_link`]. `docs/REFERENCES.md#carino-1999`
@@ -294,8 +313,18 @@ pub struct FiSectorEffect {
     /// Benchmark weight in the sector.
     pub benchmark_weight: f64,
     /// Portfolio sector return (weighted, per unit of sector weight).
+    ///
+    /// For a sector absent from the portfolio this mirrors
+    /// [`Self::benchmark_return`] (`r_p,i := r_b,i`) — reporting-only, since
+    /// every effect multiplies it by the zero portfolio weight.
     pub portfolio_return: f64,
     /// Benchmark sector return (weighted, per unit of sector weight).
+    ///
+    /// For a sector absent from the benchmark this is the benchmark *total*
+    /// return `R_b` (the off-benchmark convention; see "Off-benchmark
+    /// sectors" in the module docs), so [`Self::allocation`] is identically
+    /// zero for such sectors and their active contribution flows through the
+    /// component effects instead.
     pub benchmark_return: f64,
     /// Brinson-Fachler allocation `(w_p − w_b)(r_b,i − r_b)`.
     pub allocation: f64,
@@ -606,7 +635,13 @@ fn aggregate_side(
 /// reconciliation proof).
 ///
 /// A sector missing from one side is treated with zero weight on that side,
-/// so the decomposition stays complete. A sector that is *present* on a side
+/// so the decomposition stays complete. A sector absent from the *benchmark*
+/// uses the off-benchmark convention `r_b,i := R_b` (componentwise, the
+/// benchmark-wide component returns): its allocation effect is identically
+/// zero and its full active contribution appears in the component effects —
+/// see "Off-benchmark sectors" in the module docs. A sector absent from the
+/// *portfolio* reports `r_p,i := r_b,i` (reporting-only). A sector that is
+/// *present* on a side
 /// but whose positions net to zero — or to a weight smaller than `1e-6` of its
 /// own gross weight (a long/short pair, a CDS hedge against a cash bond in the
 /// same bucket, exactly or nearly offsetting) — has a per-unit rate that is
@@ -702,13 +737,47 @@ pub fn campisi_attribution(
     let mut sector_effects = Vec::with_capacity(sectors.len());
 
     for (sector, (p, b)) in sectors {
-        let r_p = p.rate(p.ret);
-        let r_b = b.rate(b.ret);
+        // Off-benchmark convention (see the module docs): a sector absent
+        // from the benchmark inherits the benchmark's *total* rates —
+        // `r_b,i := R_b`, componentwise the benchmark-wide component returns,
+        // which sum to `R_b` exactly. Its allocation term is then identically
+        // zero (`(w_p,i − 0)(R_b − R_b)`), instead of the `−w_p,i · R_b`
+        // penalty the naive `r_b,i = 0` convention charges for merely holding
+        // an off-benchmark sector, and the whole active effect flows through
+        // the component terms. The telescoping identity is untouched: every
+        // `r_b,i` term in the summed effects carries the coefficient
+        // `−w_b,i`, which is zero for exactly these sectors.
+        let benchmark_absent = b.abs_weight == 0.0;
+        let (r_b, carry_b, treasury_b, spread_b, selection_b) = if benchmark_absent {
+            (
+                benchmark_return,
+                benchmark_components.carry,
+                benchmark_components.treasury,
+                benchmark_components.spread,
+                benchmark_components.selection,
+            )
+        } else {
+            (
+                b.rate(b.ret),
+                b.rate(b.carry),
+                b.rate(b.treasury),
+                b.rate(b.spread),
+                b.rate(b.selection),
+            )
+        };
+        // Mirror convention for sectors absent from the portfolio:
+        // `r_p,i := r_b,i`. Purely reporting — every effect multiplies the
+        // portfolio rate by `w_p,i = 0`.
+        let r_p = if p.abs_weight == 0.0 {
+            r_b
+        } else {
+            p.rate(p.ret)
+        };
         let allocation = (p.weight - b.weight) * (r_b - benchmark_return);
-        let active_carry = p.weight * (p.rate(p.carry) - b.rate(b.carry));
-        let active_treasury = p.weight * (p.rate(p.treasury) - b.rate(b.treasury));
-        let active_spread = p.weight * (p.rate(p.spread) - b.rate(b.spread));
-        let selection = p.weight * (p.rate(p.selection) - b.rate(b.selection));
+        let active_carry = p.weight * (p.rate(p.carry) - carry_b);
+        let active_treasury = p.weight * (p.rate(p.treasury) - treasury_b);
+        let active_spread = p.weight * (p.rate(p.spread) - spread_b);
+        let selection = p.weight * (p.rate(p.selection) - selection_b);
 
         total_allocation.add(allocation);
         total_active_carry.add(active_carry);
@@ -1243,11 +1312,97 @@ mod tests {
         assert_eq!(extra.sector, "EXTRA");
         assert_close(extra.portfolio_weight, 0.20, "extra w_p");
         assert_close(extra.benchmark_weight, 0.0, "extra w_b");
-        assert_close(extra.benchmark_return, 0.0, "extra r_b");
+        // Off-benchmark convention (M-2 fix): r_b,EXTRA := R_b = 0.0140, so
+        // no allocation is charged for merely holding the sector. This pin
+        // was deliberately updated from the old `0.0` convention.
+        assert_close(extra.benchmark_return, 0.0140, "extra r_b := R_b");
+        assert_close(extra.allocation, 0.0, "extra allocation is zero");
         assert!(
             extra.active_carry.abs() > 0.0,
             "an absent benchmark sector must still produce real portfolio-side effects"
         );
+    }
+
+    /// M-2 regression: an off-benchmark sector must not be charged the
+    /// `−w_p,i · R_b` allocation penalty that the old `r_b,i = 0` convention
+    /// produced. Under the documented convention (`r_b,i := R_b` for sectors
+    /// absent from the benchmark) its allocation is exactly zero and the
+    /// whole active effect flows through the component terms, while the
+    /// telescoping identity and the headline active return are unchanged.
+    /// Fixture (from the audit): portfolio CORE 80% @ 1.50% + EXTRA 20% @
+    /// 2.10%; benchmark CORE 100% @ 1.40%; all component inputs zero so each
+    /// side's return is pure selection. Hand-worked expectations:
+    ///
+    /// ```text
+    /// R_p = 0.8·0.015 + 0.2·0.021 = 0.0162, R_b = 0.014, active = +22 bp
+    /// CORE : alloc = (0.8−1.0)(0.014−0.014) = 0, sel = 0.8(0.015−0.014) = 0.0008
+    /// EXTRA: r_b,EXTRA := R_b = 0.014
+    ///        alloc = (0.2−0)(0.014−0.014) = 0, sel = 0.2(0.021−0.014) = 0.0014
+    /// totals: allocation = 0, selection = 0.0022 = active
+    /// ```
+    #[test]
+    fn campisi_off_benchmark_sector_uses_benchmark_total_return_convention() {
+        let config = FiAttributionConfig::new(0.25);
+        let portfolio = vec![
+            snap("CORE", 0.80, 0.0150, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            snap("EXTRA", 0.20, 0.0210, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        ];
+        let benchmark = vec![snap("CORE", 1.0, 0.0140, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)];
+
+        let r = campisi_attribution(&portfolio, &benchmark, &config).expect("valid inputs");
+        assert_close(r.active_return, 0.0022, "active_return");
+
+        let core = &r.sectors[0];
+        assert_eq!(core.sector, "CORE");
+        assert_close(core.allocation, 0.0, "core allocation");
+        assert_close(core.selection, 0.0008, "core selection");
+
+        let extra = &r.sectors[1];
+        assert_eq!(extra.sector, "EXTRA");
+        assert_close(
+            extra.benchmark_return,
+            0.0140,
+            "off-benchmark sector reports r_b,i := R_b",
+        );
+        assert_close(extra.allocation, 0.0, "extra allocation must be zero");
+        assert_close(extra.selection, 0.0014, "extra selection");
+
+        assert_close(r.total_allocation, 0.0, "total_allocation");
+        assert_close(r.total_selection, 0.0022, "total_selection");
+        assert!(r.reconciliation_check(1e-12).is_reconciled);
+    }
+
+    /// Companion convention for sectors absent from the *portfolio*: the
+    /// reported `portfolio_return` mirrors the sector's benchmark rate
+    /// (`r_p,i := r_b,i`) instead of a spurious 0. This is reporting-only —
+    /// every effect multiplies it by `w_p,i = 0` — and the allocation charge
+    /// for the underweight is unchanged.
+    #[test]
+    fn campisi_benchmark_only_sector_reports_benchmark_rate_for_portfolio_return() {
+        let config = FiAttributionConfig::new(0.25);
+        let portfolio = vec![snap("CORE", 1.0, 0.0150, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)];
+        let benchmark = vec![
+            snap("CORE", 0.80, 0.0140, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            snap("BONLY", 0.20, 0.0180, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        ];
+
+        let r = campisi_attribution(&portfolio, &benchmark, &config).expect("valid inputs");
+        // R_b = 0.8·0.014 + 0.2·0.018 = 0.0148
+        assert_close(r.benchmark_return, 0.0148, "benchmark_return");
+        let bonly = r
+            .sectors
+            .iter()
+            .find(|s| s.sector == "BONLY")
+            .expect("BONLY sector present");
+        assert_close(
+            bonly.portfolio_return,
+            0.0180,
+            "portfolio-absent sector reports r_p,i := r_b,i",
+        );
+        // Allocation for the underweight is the ordinary Brinson-Fachler
+        // charge: (0 − 0.2)(0.018 − 0.0148) = −0.00064.
+        assert_close(bonly.allocation, -0.00064, "BONLY allocation");
+        assert!(r.reconciliation_check(1e-12).is_reconciled);
     }
 
     /// A sector that is *present* on a side but whose positions net to exactly
@@ -1419,13 +1574,24 @@ mod tests {
         assert_close(short.portfolio_weight, -0.20, "short w_p");
         // r_p = (−0.2 × 0.0100) / −0.2 = 0.0100; carry rate = 0.030 × 0.25.
         assert_close(short.portfolio_return, 0.0100, "short r_p");
-        assert_close(short.active_carry, -0.20 * 0.0075, "short active_carry");
-        // −MD·Δy = −2.0 × −0.0010 = 0.0020, benchmark absent.
+        // SHORT is absent from the benchmark, so under the off-benchmark
+        // convention (M-2 fix; see the module docs) its benchmark component
+        // rates are the benchmark-wide ones: Carry_b = 0.044 × 0.25 = 0.011,
+        // Treasury_b = −5.5 × −0.0010 = 0.0055. These pins were deliberately
+        // updated from the old `r_b,i = 0` convention.
+        assert_close(
+            short.active_carry,
+            -0.20 * (0.0075 - 0.011),
+            "short active_carry",
+        );
+        // treasury_p = −2.0 × −0.0010 = 0.0020.
         assert_close(
             short.active_treasury,
-            -0.20 * 0.0020,
+            -0.20 * (0.0020 - 0.0055),
             "short active_treasury",
         );
+        // Off-benchmark allocation is identically zero under the convention.
+        assert_close(short.allocation, 0.0, "short allocation");
         assert!(r.reconciliation_check(1e-12).is_reconciled);
     }
 

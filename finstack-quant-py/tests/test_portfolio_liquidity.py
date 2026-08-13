@@ -6,7 +6,7 @@ from finstack_quant.portfolio import almgren_chriss_impact, kyle_lambda
 
 
 def test_almgren_chriss_impact_preserves_host_shape() -> None:
-    """The Python projection exposes only the documented four keys."""
+    """The Python projection exposes the five canonical ``AlmgrenChrissImpactView`` keys."""
     result = almgren_chriss_impact(
         position_size=10_000.0,
         avg_daily_volume=1_000_000.0,
@@ -22,9 +22,11 @@ def test_almgren_chriss_impact_preserves_host_shape() -> None:
         "temporary_impact",
         "total_impact",
         "expected_cost_bp",
+        "execution_risk",
     }
     assert result["total_impact"] == pytest.approx(result["permanent_impact"] + result["temporary_impact"])
     assert result["expected_cost_bp"] == pytest.approx(result["total_impact"] / (10_000.0 * 100.0) * 10_000.0)
+    assert result["execution_risk"] >= 0.0
 
 
 def test_kyle_lambda_uses_reference_price() -> None:

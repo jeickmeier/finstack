@@ -675,9 +675,9 @@ impl CashFlowSchedule {
     /// - SIFMA, *Standard Formulas for the Analysis of Mortgage-Backed
     ///   Securities and Other Related Securities* (2010 ed.), §II.B
     ///   (Weighted Average Life), which prescribes actual days / 365 as
-    ///   the market standard time metric.
+    ///   the market standard time metric. `docs/REFERENCES.md#sifma-mbs-standard-formulas`
     /// - Fabozzi, *The Handbook of Fixed Income Securities* (8th ed.,
-    ///   2012), ch. 24, "Mortgage-Backed Securities", WAL definition.
+    ///   2012), ch. 24, "Mortgage-Backed Securities", WAL definition. `docs/REFERENCES.md#fabozzi-fixed-income-handbook`
     ///
     /// Returns `Ok(0.0)` if there are no future principal flows.
     ///

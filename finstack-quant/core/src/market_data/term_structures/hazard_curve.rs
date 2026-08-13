@@ -56,15 +56,16 @@
 //! # References
 //!
 //! - **CDS Pricing**:
-//!   - O'Kane, D. (2008). *Modelling Single-name and Multi-name Credit Derivatives*.
-//!     Wiley Finance. Chapters 3-5.
-//!   - ISDA (2009). "ISDA CDS Standard Model." Version 1.8.2.
+//! - O'Kane, D. (2008). *Modelling Single-name and Multi-name Credit Derivatives*.
+//!   Wiley Finance. Chapters 3-5. `docs/REFERENCES.md#o-kane-2008`
+//! - ISDA (2009). "ISDA CDS Standard Model." Version 1.8.2. `docs/REFERENCES.md#isda-cds-standard-model`
+//!
 //!
 //! - **Hazard Rate Models**:
 //!   - Duffie, D., & Singleton, K. J. (1999). "Modeling Term Structures of Defaultable
-//!     Bonds." *Review of Financial Studies*, 12(4), 687-720.
+//!   Bonds." *Review of Financial Studies*, 12(4), 687-720. `docs/REFERENCES.md#duffie-singleton-1999`
 //!   - Lando, D. (1998). "On Cox Processes and Credit Risky Securities."
-//!     *Review of Derivatives Research*, 2(2-3), 99-120.
+//!   *Review of Derivatives Research*, 2(2-3), 99-120. `docs/REFERENCES.md#lando-1998`
 //!
 //! - **Industry Practice**:
 //!   - Markit (2009). "CDS Curve Bootstrapping Guide."

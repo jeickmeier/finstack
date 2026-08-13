@@ -70,6 +70,11 @@
 //! assert!((yf - 1.0).abs() < 1e-9);
 //! ```
 //!
+//! # References
+//!
+//! - ISDA 2006 Definitions: `docs/REFERENCES.md#isda-2006-definitions`
+//! - ICMA Rule Book: `docs/REFERENCES.md#icma-rule-book`
+//!
 //! # Bus/252 Convention
 //!
 //! The Bus/252 convention counts business days between dates and divides by 252 (typical trading days per year).
@@ -502,7 +507,7 @@ pub enum DayCount {
     ///
     /// # References
     ///
-    /// - ISDA (2006). "2006 ISDA Definitions." Section 4.16(b).
+    /// - ISDA (2006). "2006 ISDA Definitions." Section 4.16(b). `docs/REFERENCES.md#isda-2006-definitions`
     #[serde(rename = "act_act")]
     ActAct,
 
@@ -558,7 +563,7 @@ pub enum DayCount {
     ///
     /// # References
     ///
-    /// - ICMA (2010). "ICMA Rule Book." Rule 251.
+    /// - ICMA (2010). "ICMA Rule Book." Rule 251. `docs/REFERENCES.md#icma-rule-book`
     /// - ISMA (1999). "Recommendations for Accrued Interest Calculations."
     #[serde(rename = "act_act_isma")]
     ActActIsma,

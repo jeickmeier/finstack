@@ -73,9 +73,9 @@
 //! # References
 //!
 //! - Wystup, U. (2006). *FX Options and Structured Products*. Wiley.
-//!   Chapter 1 (FX volatility surface conventions).
+//!   Chapter 1 (FX volatility surface conventions). `docs/REFERENCES.md#wystup-fx-options`
 //! - Clark, I. J. (2011). *Foreign Exchange Option Pricing: A Practitioner's Guide*.
-//!   Wiley. Chapters 3-4 (Delta conventions and smile construction).
+//!   Wiley. Chapters 3-4 (Delta conventions and smile construction). `docs/REFERENCES.md#clark-fx-options`
 //! - Castagna, A. (2010). *FX Options and Smile Risk*. Wiley.
 
 use crate::{error::InputError, types::CurveId};

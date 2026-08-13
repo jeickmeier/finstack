@@ -103,9 +103,9 @@
 //!
 //! # References
 //!
-//! The fuzzy matching algorithm uses Levenshtein edit distance:
+//! The fuzzy matching algorithm uses Levenshtein edit distance: `docs/REFERENCES.md#levenshtein-1966`
 //! - Levenshtein, V. I. (1966). "Binary codes capable of correcting deletions,
-//!   insertions, and reversals." *Soviet Physics Doklady*, 10(8), 707-710.
+//!   insertions, and reversals." *Soviet Physics Doklady*, 10(8), 707-710. `docs/REFERENCES.md#levenshtein-1966`
 
 mod inputs;
 mod suggestions;

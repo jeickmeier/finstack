@@ -76,15 +76,18 @@ fn test_compensated_summation_large_portfolio() {
     // Compensated summation should maintain accuracy
     let total = valuation.total_base_currency.amount();
 
-    // Verify that compensated summation produces a reasonable result
-    // The exact value depends on discounting, but should be finite and not NaN/Inf
+    // Verify that compensated summation produces an accurate result
     assert!(total.is_finite(), "Total should be finite");
-    // With flat curve (DF=1) and alternating ±1e12 positions,
-    // the total should be very close to 0
-    // Allow for small discounting effects from the 30-day deposit
+    // The 500 long and 500 short positions are identical up to sign, so their
+    // values cancel pairwise EXACTLY and the true total is 0. Measured
+    // 2026-08-12: Neumaier lands on exactly 0.0. The old 1e9 tolerance was
+    // vacuous (any summation, however broken, sits within 1e9 of 0 here);
+    // 1.0 absolute keeps ULP headroom (ulp of the 5e14-scale running sum is
+    // ~0.06) while catching a regression to naive accumulation, whose
+    // rounding drift at that magnitude is order tens or more.
     assert!(
-        total.abs() < 1e9, // Much tighter than 1e15
-        "Compensated sum of alternating ±1e12 should be near 0, got: {}",
+        total.abs() < 1.0,
+        "Compensated sum of alternating ±1e12 should be ~exactly 0, got: {}",
         total
     );
 }

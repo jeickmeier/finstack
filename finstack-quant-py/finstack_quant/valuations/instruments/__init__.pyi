@@ -85,12 +85,14 @@ __all__ = [
     "list_standard_metrics_grouped",
     "price_instrument",
     "price_instrument_with_metrics",
+    "pretty_instrument_json",
     "structured_credit_tranche_breakeven_cdr",
     "structured_credit_tranche_discount_margin",
     "structured_credit_tranche_metrics",
     "structured_credit_tranche_oas",
     "structured_credit_tranche_scenario_table",
     "validate_instrument_json",
+    "validate_typed_instrument_json",
 ]
 
 class Bond:
@@ -125,12 +127,16 @@ class Bond:
     @property
     def id(self) -> str:
         """
-        Instrument identifier.
+        Stable instrument identifier used in market lookup and results.
 
         Returns
         -------
         str
             The unique instrument identifier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -320,6 +326,11 @@ class Bond:
         str
             Canonical instrument envelope accepted by :func:`price_instrument`
             and :meth:`Bond.from_json`.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -412,6 +423,10 @@ class BarrierCrossing:
             misses excursions between steps and so understates default risk on
             coarse grids. The default for terminal-barrier models.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import BarrierCrossing
@@ -432,6 +447,10 @@ class BarrierCrossing:
             against the analytic crossing probability, which removes the
             discretisation bias. The default for first-passage models and the
             more expensive of the two.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -477,6 +496,11 @@ class BarrierCrossing:
         -------
         str
             JSON-encoded barrier-crossing policy.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -489,8 +513,8 @@ class MertonMcConfig:
     >>> from finstack_quant.valuations.instruments import MertonMcConfig, PikMode, PikSchedule
     >>> from finstack_quant.valuations.models.credit import MertonModel
     >>> config = MertonMcConfig(MertonModel(100.0, 0.25, 80.0, 0.04)).num_paths(1000)
-    >>> config.num_paths(1000).seed(1).pik_schedule(PikSchedule.uniform(PikMode.cash()))
-    MertonMcConfig(...)
+    >>> isinstance(config.seed(1).pik_schedule(PikSchedule.uniform(PikMode.cash())), MertonMcConfig)
+    True
     """
 
     def __init__(self, merton: MertonModel) -> None:
@@ -501,12 +525,16 @@ class MertonMcConfig:
         ----------
         merton : MertonModel
             Structural credit model driving asset dynamics and default.
+
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
     def pik_schedule(self, s: PikSchedule) -> MertonMcConfig:
         """
-        Set the PIK schedule.
+        Set the payment-in-kind schedule for the Merton MC config.
 
         Parameters
         ----------
@@ -517,6 +545,10 @@ class MertonMcConfig:
         -------
         MertonMcConfig
             Updated configuration (fluent).
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -535,12 +567,16 @@ class MertonMcConfig:
         -------
         MertonMcConfig
             Updated configuration (fluent).
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
     def seed(self, s: int) -> MertonMcConfig:
         """
-        Set the RNG seed.
+        Set the Monte Carlo RNG seed for reproducible paths.
 
         Parameters
         ----------
@@ -551,6 +587,10 @@ class MertonMcConfig:
         -------
         MertonMcConfig
             Updated configuration (fluent).
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -567,6 +607,10 @@ class MertonMcConfig:
         -------
         MertonMcConfig
             Updated configuration (fluent).
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -583,6 +627,10 @@ class MertonMcConfig:
         -------
         MertonMcConfig
             Updated configuration (fluent).
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -599,6 +647,10 @@ class MertonMcConfig:
         -------
         MertonMcConfig
             Updated configuration (fluent).
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -615,6 +667,10 @@ class MertonMcConfig:
         -------
         MertonMcConfig
             Updated configuration (fluent).
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -631,6 +687,10 @@ class MertonMcConfig:
         -------
         MertonMcConfig
             Updated configuration (fluent).
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -647,6 +707,10 @@ class MertonMcConfig:
         -------
         MertonMcConfig
             Updated configuration (fluent).
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -663,6 +727,10 @@ class MertonMcConfig:
         -------
         MertonMcConfig
             Updated configuration (fluent).
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -704,6 +772,11 @@ class MertonMcConfig:
         -------
         str
             JSON-encoded configuration.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -713,7 +786,34 @@ class MertonMcResult:
 
     Examples
     --------
-    >>> result.clean_price_pct >= 0.0
+    >>> import datetime
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.money import Money
+    >>> from finstack_quant.core.types import Rate
+    >>> from finstack_quant.valuations.instruments import (
+    ...     BarrierCrossing,
+    ...     Bond,
+    ...     MertonMcConfig,
+    ...     PikMode,
+    ...     PikSchedule,
+    ... )
+    >>> from finstack_quant.valuations.models.credit import MertonModel
+    >>> config = (
+    ...     MertonMcConfig(MertonModel(100.0, 0.25, 60.0, 0.04))
+    ...     .num_paths(64)
+    ...     .seed(7)
+    ...     .pik_schedule(PikSchedule.uniform(PikMode.pik()))
+    ...     .barrier_crossing(BarrierCrossing.discrete())
+    ... )
+    >>> bond = Bond.fixed(
+    ...     "PIK-1",
+    ...     Money(100.0, Currency("USD")),
+    ...     Rate(0.08),
+    ...     datetime.date(2024, 1, 15),
+    ...     datetime.date(2029, 1, 15),
+    ...     "USD-OIS",
+    ... )
+    >>> bond.price_merton_mc(config, 0.04, datetime.date(2024, 1, 15)).clean_price_pct > 0.0
     True
     """
 
@@ -728,6 +828,10 @@ class MertonMcResult:
             Mean discounted path value divided by notional, times 100, so
             ``98.7`` means 98.7% of par. Quoted on the same discount basis the
             configuration supplied.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -742,6 +846,10 @@ class MertonMcResult:
             Always equal to :attr:`clean_price_pct`: the Monte Carlo engine
             works in continuous time and never separates accrued interest. Use
             the pricer's metrics pipeline for a genuine clean/dirty split.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -757,6 +865,10 @@ class MertonMcResult:
             haircut. The benchmark PV accretes notional under the configured
             PIK schedule, and the value turns negative when the simulated PV
             exceeds that benchmark.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -771,6 +883,10 @@ class MertonMcResult:
             Dispersion of the loss distribution as a fraction of par, not a
             percentage: ``0.05`` here is comparable to 5 points on
             :attr:`clean_price_pct`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -785,6 +901,10 @@ class MertonMcResult:
             Mean of the worst 5% of path PVs, expressed as a percentage of par
             like :attr:`clean_price_pct`. It is a price level rather than a
             loss, so lower is worse and it never exceeds the clean price.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -800,6 +920,10 @@ class MertonMcResult:
             Counts whole elections, so a 50/50 split coupon still registers as
             one election. Identical to
             ``path_statistics.pik_exercise_rate``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -815,6 +939,10 @@ class MertonMcResult:
             discount factor scaled by ``exp(-s * t)`` equal to the mean
             simulated PV. Solved on whichever discount basis priced the bond,
             so curve shape stays out of the spread.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -828,6 +956,10 @@ class MertonMcResult:
         PathStatistics
             Default frequency, timing, recovery, and PIK-election diagnostics
             for the same run that produced these prices.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -842,6 +974,10 @@ class MertonMcResult:
             Paths actually retained, matching the configured
             ``MertonMcConfig.num_paths``. Antithetic mirrors count toward this
             total instead of doubling it.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -858,6 +994,10 @@ class MertonMcResult:
             either side of the price. With antithetic variates the estimate
             comes from pair averages, which keeps the negatively correlated
             legs from understating it.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -867,7 +1007,34 @@ class PathStatistics:
 
     Examples
     --------
-    >>> stats.default_rate >= 0.0
+    >>> import datetime
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.money import Money
+    >>> from finstack_quant.core.types import Rate
+    >>> from finstack_quant.valuations.instruments import (
+    ...     BarrierCrossing,
+    ...     Bond,
+    ...     MertonMcConfig,
+    ...     PikMode,
+    ...     PikSchedule,
+    ... )
+    >>> from finstack_quant.valuations.models.credit import MertonModel
+    >>> config = (
+    ...     MertonMcConfig(MertonModel(100.0, 0.25, 60.0, 0.04))
+    ...     .num_paths(64)
+    ...     .seed(7)
+    ...     .pik_schedule(PikSchedule.uniform(PikMode.pik()))
+    ...     .barrier_crossing(BarrierCrossing.discrete())
+    ... )
+    >>> bond = Bond.fixed(
+    ...     "PIK-1",
+    ...     Money(100.0, Currency("USD")),
+    ...     Rate(0.08),
+    ...     datetime.date(2024, 1, 15),
+    ...     datetime.date(2029, 1, 15),
+    ...     "USD-OIS",
+    ... )
+    >>> 0.0 <= bond.price_merton_mc(config, 0.04, datetime.date(2024, 1, 15)).path_statistics.default_rate <= 1.0
     True
     """
 
@@ -882,6 +1049,10 @@ class PathStatistics:
             Defaulted paths divided by simulated paths, in ``[0, 1]``. This is
             a cumulative default probability to maturity, not an annualised
             hazard rate.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -896,6 +1067,10 @@ class PathStatistics:
             Mean time from the valuation date to the barrier crossing,
             averaged over defaulted paths only. Exactly ``0.0`` when no path
             defaulted, so check :attr:`default_rate` before reading it.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -910,6 +1085,10 @@ class PathStatistics:
             Currency-unit notional at maturity averaged over surviving paths,
             so it exceeds the issued notional whenever coupons were PIKed.
             Falls back to the issued notional when every path defaulted.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -925,6 +1104,10 @@ class PathStatistics:
             recovery on the notional accreted up to the default time,
             averaged over defaulted paths. Exactly ``0.0`` when no path
             defaulted.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -940,6 +1123,10 @@ class PathStatistics:
             ``[0, 1]``: a uniform cash schedule pins it to ``0.0`` and a
             uniform PIK schedule to ``1.0``, so only toggle and split
             schedules put it in between.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -965,6 +1152,10 @@ class PikMode:
             Cash mode, the default a schedule falls back to before its first
             step and whenever a toggle model is missing.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import PikMode
@@ -983,6 +1174,10 @@ class PikMode:
         PikMode
             Payment-in-kind mode: the coupon pays no cash and instead raises
             the notional that later coupons and recovery are computed on.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -1011,6 +1206,10 @@ class PikMode:
             one; the engine rejects anything else when the bond is priced, not
             when this mode is built.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import PikMode
@@ -1030,6 +1229,10 @@ class PikMode:
             Toggle mode, which decides cash versus PIK per path from
             ``MertonMcConfig.toggle_model``. Without that model set the coupon
             silently falls back to cash.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -1075,6 +1278,11 @@ class PikMode:
         -------
         str
             JSON-encoded PIK mode.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -1104,6 +1312,10 @@ class PikSchedule:
         PikSchedule
             Uniform schedule; every coupon date resolves to ``mode`` for the
             whole life of the bond.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -1157,6 +1369,10 @@ class PikSchedule:
         -------
         PikMode
             Active mode at ``t``.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1196,6 +1412,11 @@ class PikSchedule:
         -------
         str
             JSON-encoded PIK schedule.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -1221,12 +1442,16 @@ class TermLoan:
     @property
     def id(self) -> str:
         """
-        Instrument identifier.
+        Stable instrument identifier used in market lookup and results.
 
         Returns
         -------
         str
             The unique instrument identifier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1295,6 +1520,11 @@ class TermLoan:
         str
             Canonical instrument envelope accepted by :func:`price_instrument`
             and :meth:`TermLoan.from_json`.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -1629,12 +1859,16 @@ class InterestRateSwap:
     @property
     def id(self) -> str:
         """
-        Instrument identifier.
+        Stable instrument identifier used in market lookup and results.
 
         Returns
         -------
         str
             The unique instrument identifier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1648,13 +1882,16 @@ class InterestRateSwap:
         InterestRateSwapBuilder
             A builder with fluent, consuming setter methods.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import InterestRateSwap
         >>> builder = InterestRateSwap.builder()
         >>> builder.id("EXAMPLE") is builder
         True
-
         """
         ...
 
@@ -1702,6 +1939,11 @@ class InterestRateSwap:
         str
             Canonical instrument envelope accepted by :func:`price_instrument`
             and :meth:`InterestRateSwap.from_json`.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -1909,12 +2151,16 @@ class Swaption:
     @property
     def id(self) -> str:
         """
-        Instrument identifier.
+        Stable instrument identifier used in market lookup and results.
 
         Returns
         -------
         str
             The unique instrument identifier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1928,13 +2174,16 @@ class Swaption:
         SwaptionBuilder
             A builder with fluent, consuming setter methods.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import Swaption
         >>> builder = Swaption.builder()
         >>> builder.id("EXAMPLE") is builder
         True
-
         """
         ...
 
@@ -1982,6 +2231,11 @@ class Swaption:
         str
             Canonical instrument envelope accepted by :func:`price_instrument`
             and :meth:`Swaption.from_json`.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -2089,7 +2343,7 @@ class SwaptionBuilder:
 
     def exercise_style(self, value: Literal["european", "bermudan", "american"]) -> SwaptionBuilder:
         """
-        Set the exercise style.
+        Set whether exercise is European, American, or Bermudan.
 
         Parameters
         ----------
@@ -2324,12 +2578,16 @@ class CapFloor:
     @property
     def id(self) -> str:
         """
-        Instrument identifier.
+        Stable instrument identifier used in market lookup and results.
 
         Returns
         -------
         str
             The unique instrument identifier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2343,13 +2601,16 @@ class CapFloor:
         CapFloorBuilder
             A builder with fluent, consuming setter methods.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import CapFloor
         >>> builder = CapFloor.builder()
         >>> builder.id("EXAMPLE") is builder
         True
-
         """
         ...
 
@@ -2397,6 +2658,11 @@ class CapFloor:
         str
             Canonical instrument envelope accepted by :func:`price_instrument`
             and :meth:`CapFloor.from_json`.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -2436,7 +2702,7 @@ class CapFloorBuilder:
 
     def rate_option_type(self, value: Literal["cap", "floor", "caplet", "floorlet"]) -> CapFloorBuilder:
         """
-        Set the option type.
+        Set whether this contract is a call, put, cap, or floor.
 
         Parameters
         ----------
@@ -2821,12 +3087,16 @@ class CreditDefaultSwap:
     @property
     def id(self) -> str:
         """
-        Instrument identifier.
+        Stable instrument identifier used in market lookup and results.
 
         Returns
         -------
         str
             The unique instrument identifier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2840,13 +3110,16 @@ class CreditDefaultSwap:
         CreditDefaultSwapBuilder
             A builder with fluent, consuming setter methods.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
         >>> builder = CreditDefaultSwap.builder()
         >>> builder.id("EXAMPLE") is builder
         True
-
         """
         ...
 
@@ -2894,6 +3167,11 @@ class CreditDefaultSwap:
         str
             Canonical instrument envelope accepted by :func:`price_instrument`
             and :meth:`CreditDefaultSwap.from_json`.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -3169,12 +3447,16 @@ class CDSIndex:
     @property
     def id(self) -> str:
         """
-        Instrument identifier.
+        Stable instrument identifier used in market lookup and results.
 
         Returns
         -------
         str
             The unique instrument identifier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3193,13 +3475,16 @@ class CDSIndex:
         CDSIndexBuilder
             A builder with fluent, consuming setter methods.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import CDSIndex
         >>> builder = CDSIndex.builder()
         >>> builder.id("EXAMPLE") is builder
         True
-
         """
         ...
 
@@ -3247,6 +3532,11 @@ class CDSIndex:
         str
             Canonical instrument envelope accepted by :func:`price_instrument`
             and :meth:`CDSIndex.from_json`.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -3286,7 +3576,7 @@ class CDSIndexBuilder:
 
     def index_name(self, value: str) -> CDSIndexBuilder:
         """
-        Set the index name.
+        Set the CDS index name (for example ``CDX.NA.IG``).
 
         Parameters
         ----------
@@ -3309,7 +3599,7 @@ class CDSIndexBuilder:
 
     def series(self, value: int) -> CDSIndexBuilder:
         """
-        Set the series number.
+        Set the CDS index series number (for example ``40``).
 
         Parameters
         ----------
@@ -3621,12 +3911,16 @@ class CDSTranche:
     @property
     def id(self) -> str:
         """
-        Instrument identifier.
+        Stable instrument identifier used in market lookup and results.
 
         Returns
         -------
         str
             The unique instrument identifier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3645,13 +3939,16 @@ class CDSTranche:
         CDSTrancheBuilder
             A builder with fluent, consuming setter methods.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import CDSTranche
         >>> builder = CDSTranche.builder()
         >>> builder.id("EXAMPLE") is builder
         True
-
         """
         ...
 
@@ -3699,6 +3996,11 @@ class CDSTranche:
         str
             Canonical instrument envelope accepted by :func:`price_instrument`
             and :meth:`CDSTranche.from_json`.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -3761,7 +4063,7 @@ class CDSTrancheBuilder:
 
     def series(self, value: int) -> CDSTrancheBuilder:
         """
-        Set the series number.
+        Set the CDS index series number (for example ``40``).
 
         Parameters
         ----------
@@ -3878,7 +4180,7 @@ class CDSTrancheBuilder:
 
     def running_coupon_bp(self, value: float) -> CDSTrancheBuilder:
         """
-        Set the running coupon.
+        Set the CDS tranche running coupon in basis points.
 
         Parameters
         ----------
@@ -4169,12 +4471,16 @@ class ConvertibleBond:
     @property
     def id(self) -> str:
         """
-        Instrument identifier.
+        Stable instrument identifier used in market lookup and results.
 
         Returns
         -------
         str
             The unique instrument identifier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4188,13 +4494,16 @@ class ConvertibleBond:
         ConvertibleBondBuilder
             A builder with fluent, consuming setter methods.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import ConvertibleBond
         >>> builder = ConvertibleBond.builder()
         >>> builder.id("EXAMPLE") is builder
         True
-
         """
         ...
 
@@ -4243,6 +4552,11 @@ class ConvertibleBond:
         str
             Canonical instrument envelope accepted by :func:`price_instrument`
             and :meth:`ConvertibleBond.from_json`.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -4305,7 +4619,7 @@ class ConvertibleBondBuilder:
 
     def issue_date(self, value: datetime.date) -> ConvertibleBondBuilder:
         """
-        Set the issue date.
+        Set the convertible bond's issue/dated date.
 
         Parameters
         ----------
@@ -4328,7 +4642,7 @@ class ConvertibleBondBuilder:
 
     def maturity(self, value: datetime.date) -> ConvertibleBondBuilder:
         """
-        Set the maturity date.
+        Set the convertible bond's maturity date.
 
         Parameters
         ----------
@@ -4496,7 +4810,7 @@ class ConvertibleBondBuilder:
 
     def settlement_days(self, value: int) -> ConvertibleBondBuilder:
         """
-        Set the settlement lag.
+        Set the convertible bond's settlement lag in business days.
 
         Parameters
         ----------
@@ -4640,12 +4954,16 @@ class FxForward:
     @property
     def id(self) -> str:
         """
-        Instrument identifier.
+        Stable instrument identifier used in market lookup and results.
 
         Returns
         -------
         str
             The unique instrument identifier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4659,13 +4977,16 @@ class FxForward:
         FxForwardBuilder
             A builder with fluent, consuming setter methods.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import FxForward
         >>> builder = FxForward.builder()
         >>> builder.id("EXAMPLE") is builder
         True
-
         """
         ...
 
@@ -4713,6 +5034,11 @@ class FxForward:
         str
             Canonical instrument envelope accepted by :func:`price_instrument`
             and :meth:`FxForward.from_json`.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -5037,12 +5363,16 @@ class FxOption:
     @property
     def id(self) -> str:
         """
-        Instrument identifier.
+        Stable instrument identifier used in market lookup and results.
 
         Returns
         -------
         str
             The unique instrument identifier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5056,13 +5386,16 @@ class FxOption:
         FxOptionBuilder
             A builder with fluent, consuming setter methods.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import FxOption
         >>> builder = FxOption.builder()
         >>> builder.id("EXAMPLE") is builder
         True
-
         """
         ...
 
@@ -5110,6 +5443,11 @@ class FxOption:
         str
             Canonical instrument envelope accepted by :func:`price_instrument`
             and :meth:`FxOption.from_json`.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -5240,7 +5578,7 @@ class FxOptionBuilder:
 
     def exercise_style(self, value: Literal["european", "american", "bermudan"]) -> FxOptionBuilder:
         """
-        Set the exercise style.
+        Set whether exercise is European, American, or Bermudan.
 
         Parameters
         ----------
@@ -5430,12 +5768,16 @@ class EquityOption:
     @property
     def id(self) -> str:
         """
-        Instrument identifier.
+        Stable instrument identifier used in market lookup and results.
 
         Returns
         -------
         str
             The unique instrument identifier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5449,13 +5791,16 @@ class EquityOption:
         EquityOptionBuilder
             A builder with fluent, consuming setter methods.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import EquityOption
         >>> builder = EquityOption.builder()
         >>> builder.id("EXAMPLE") is builder
         True
-
         """
         ...
 
@@ -5503,6 +5848,11 @@ class EquityOption:
         str
             Canonical instrument envelope accepted by :func:`price_instrument`
             and :meth:`EquityOption.from_json`.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -5565,7 +5915,7 @@ class EquityOptionBuilder:
 
     def strike(self, value: float) -> EquityOptionBuilder:
         """
-        Set the strike price.
+        Set the option strike in the underlying's price units.
 
         Parameters
         ----------
@@ -5588,7 +5938,7 @@ class EquityOptionBuilder:
 
     def option_type(self, value: Literal["call", "put"]) -> EquityOptionBuilder:
         """
-        Set the option type.
+        Set whether this contract is a call, put, cap, or floor.
 
         Parameters
         ----------
@@ -5610,7 +5960,7 @@ class EquityOptionBuilder:
 
     def exercise_style(self, value: Literal["european", "american", "bermudan"]) -> EquityOptionBuilder:
         """
-        Set the exercise style.
+        Set whether exercise is European, American, or Bermudan.
 
         Parameters
         ----------
@@ -6100,13 +6450,16 @@ class Tranche:
         TrancheBuilder
             A builder with fluent, consuming setter methods.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import Tranche
         >>> builder = Tranche.builder()
         >>> builder.id("EXAMPLE") is builder
         True
-
         """
         ...
 
@@ -6494,13 +6847,16 @@ class StructuredCredit:
         StructuredCreditBuilder
             A builder with fluent, consuming setter methods.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import StructuredCredit
         >>> builder = StructuredCredit.builder()
         >>> builder.id("EXAMPLE") is builder
         True
-
         """
         ...
 
@@ -6853,18 +7209,27 @@ class StructuredCredit:
         str
             Canonical instrument envelope accepted by :func:`price_instrument`
             and :meth:`StructuredCredit.from_json`.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
     @property
     def id(self) -> str:
         """
-        Instrument identifier.
+        Stable instrument identifier used in market lookup and results.
 
         Returns
         -------
         str
             The unique instrument identifier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -6924,7 +7289,7 @@ class StructuredCreditBuilder:
 
     def pool(self, value: AssetPool) -> StructuredCreditBuilder:
         """
-        Set the asset pool.
+        Set the structured-credit asset pool backing the deal.
 
         Parameters
         ----------
@@ -7329,6 +7694,69 @@ def validate_instrument_json(json: str) -> str:
     """
     ...
 
+def validate_typed_instrument_json(type_tag: str, json: str) -> str:
+    """
+    Validate a payload as one exact instrument type and return the envelope.
+
+    Parameters
+    ----------
+    type_tag : str
+        Canonical instrument discriminator, such as ``"term_loan"`` or
+        ``"fx_forward"``.
+    json : str
+        A ``finstack_quant.instrument/1`` envelope whose instrument type must
+        match *type_tag*.
+
+    Returns
+    -------
+    str
+        Canonical instrument envelope for the validated instrument.
+
+    Raises
+    ------
+    ValueError
+        If ``json`` is malformed, carries a different instrument type, or
+        fails instrument validation.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.valuations.instruments import TermLoan, validate_typed_instrument_json
+    >>> envelope = TermLoan.example().to_json()
+    >>> json.loads(validate_typed_instrument_json("term_loan", envelope))["instrument"]["type"]
+    'term_loan'
+
+    """
+    ...
+
+def pretty_instrument_json(json: str) -> str:
+    """
+    Re-render a canonical instrument envelope as pretty-printed JSON.
+
+    Parameters
+    ----------
+    json : str
+        A canonical ``finstack_quant.instrument/1`` envelope.
+
+    Returns
+    -------
+    str
+        The same envelope, pretty-printed.
+
+    Raises
+    ------
+    ValueError
+        If ``json`` is malformed or cannot be rendered.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.instruments import TermLoan, pretty_instrument_json
+    >>> "term_loan" in pretty_instrument_json(TermLoan.example().to_json())
+    True
+
+    """
+    ...
+
 def price_instrument(
     instrument_json: str
     | Bond
@@ -7521,7 +7949,8 @@ def instrument_cashflows_json(
     as_of : datetime.date | str
         Valuation date, either a date-like object or an ISO 8601 string.
     model : str
-        ``"discounting"`` or ``"hazard_rate"``.
+        Must be ``"discounting"`` or ``"hazard_rate"``. ``"default"`` is not
+        accepted on cashflow export.
 
     Returns
     -------
@@ -7569,13 +7998,16 @@ def list_models() -> list[str]:
         Canonical model keys such as ``"discounting"`` or ``"black76"``,
         deduplicated and sorted.
 
+    Notes
+    -----
+    This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
     Examples
     --------
     >>> from finstack_quant.valuations.instruments import list_models
     >>> models = list_models()
     >>> (len(models), "discounting" in models, "black76" in models)
     (29, True, True)
-
     """
     ...
 
@@ -7591,13 +8023,16 @@ def list_models_grouped() -> dict[str, list[str]]:
     dict[str, list[str]]
         Mapping from canonical instrument-type name to its sorted model keys.
 
+    Notes
+    -----
+    This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
     Examples
     --------
     >>> from finstack_quant.valuations.instruments import list_models_grouped
     >>> grouped = list_models_grouped()
     >>> ("bond" in grouped, "discounting" in grouped["bond"])
     (True, True)
-
     """
     ...
 
@@ -7610,13 +8045,16 @@ def list_standard_metrics() -> list[str]:
     list[str]
         Sorted list of fully qualified metric keys.
 
+    Notes
+    -----
+    This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
     Examples
     --------
     >>> from finstack_quant.valuations.instruments import list_standard_metrics
     >>> metrics = list_standard_metrics()
     >>> (len(metrics), "dirty_price" in metrics, "dv01" in metrics)
-    (211, True, True)
-
+    (214, True, True)
     """
     ...
 
@@ -7629,13 +8067,16 @@ def list_standard_metrics_grouped() -> dict[str, list[str]]:
     dict[str, list[str]]
         Mapping from group label to sorted metric ID lists.
 
+    Notes
+    -----
+    This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
     Examples
     --------
     >>> from finstack_quant.valuations.instruments import list_standard_metrics_grouped
     >>> grouped = list_standard_metrics_grouped()
     >>> ("Credit" in grouped, "Rates" in grouped)
     (True, True)
-
     """
     ...
 
@@ -7707,6 +8148,11 @@ class OasResult:
         -------
         str
             JSON-encoded ``OasResult``.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -7719,6 +8165,10 @@ class OasResult:
         -------
         float
             The option-adjusted spread.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -7731,6 +8181,10 @@ class OasResult:
         -------
         float
             The model price.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -7743,6 +8197,10 @@ class OasResult:
         -------
         float
             The target market price.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -7755,6 +8213,10 @@ class OasResult:
         -------
         int
             The scenario count.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -7768,6 +8230,10 @@ class OasResult:
         -------
         float
             The standard error.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -7784,6 +8250,11 @@ class OasResult:
         pd.DataFrame
             Single-row DataFrame of the OAS solve, so a book of tranches
             stacks with ``pd.concat``.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -7866,6 +8337,11 @@ class TrancheMetrics:
         -------
         str
             JSON-encoded ``TrancheMetrics``.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -7878,6 +8354,10 @@ class TrancheMetrics:
         -------
         str
             The tranche identifier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -7891,6 +8371,10 @@ class TrancheMetrics:
         -------
         str
             The ISO-4217 currency code, or an empty string for legacy payloads.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -7903,6 +8387,10 @@ class TrancheMetrics:
         -------
         float
             The present value.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -7915,6 +8403,10 @@ class TrancheMetrics:
         -------
         float
             The model price.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -7927,6 +8419,10 @@ class TrancheMetrics:
         -------
         float
             The weighted-average life.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -7939,6 +8435,10 @@ class TrancheMetrics:
         -------
         float
             The z-spread in basis points.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -7952,6 +8452,10 @@ class TrancheMetrics:
         -------
         float
             The credit-spread DV01.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -7964,6 +8468,10 @@ class TrancheMetrics:
         -------
         float
             The spread duration.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -7976,6 +8484,10 @@ class TrancheMetrics:
         -------
         float
             The modified duration.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -7988,6 +8500,10 @@ class TrancheMetrics:
         -------
         float
             The modified convexity.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8001,6 +8517,10 @@ class TrancheMetrics:
         -------
         float
             The target price.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8019,6 +8539,11 @@ class TrancheMetrics:
             Single-row DataFrame, so a capital structure stacks with
             ``pd.concat``. ``pv`` and ``cs01`` are in ``currency`` units and
             are only additive across tranches sharing one currency.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -8083,6 +8608,11 @@ class ScenarioTable:
         -------
         str
             JSON-encoded ``ScenarioTable``.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -8095,6 +8625,10 @@ class ScenarioTable:
         -------
         str
             The tranche identifier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8111,6 +8645,10 @@ class ScenarioTable:
         -------
         list[dict[str, float]]
             One dict per evaluated scenario cell.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -8128,6 +8666,11 @@ class ScenarioTable:
         pd.DataFrame
             One row per scenario cell. A grid that evaluated no cells yields a
             zero-row frame that still carries the columns above.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 

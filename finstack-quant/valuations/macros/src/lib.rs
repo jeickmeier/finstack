@@ -20,10 +20,11 @@
 
 //! Procedural macros for the finstack-quant-valuations crate.
 //!
-//! This crate provides derive and attribute macros to reduce boilerplate
-//! and improve type safety in the valuations module:
+//! This crate is not umbrella-re-exported and is not intended for direct
+//! application use. It currently provides:
 //!
-//! - `FinancialBuilder`: Generates type-safe builder patterns for instruments
+//! - `FinancialBuilder`: generates type-safe builder patterns for instrument
+//!   structs in `finstack-quant-valuations`
 
 use proc_macro::TokenStream;
 

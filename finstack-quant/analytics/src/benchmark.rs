@@ -134,7 +134,7 @@ pub(crate) fn tracking_error(
 ///
 /// ```text
 /// IR = (mean active return × ann_factor) / (σ active return × sqrt(ann_factor))
-///    = mean active return × sqrt(ann_factor) / σ active return
+/// = mean active return × sqrt(ann_factor) / σ active return
 /// ```
 ///
 /// A higher IR indicates more reliable outperformance relative to the
@@ -925,7 +925,7 @@ where
 /// # References
 ///
 /// - Fama & French (1993): see docs/REFERENCES.md#fama-french-1993
-/// - Higham: see docs/REFERENCES.md#higham-accuracy-and-stability
+/// - Higham: see docs/REFERENCES.md#higham-accuracy-and-stability `docs/REFERENCES.md#higham-accuracy-and-stability`
 #[tracing::instrument(level = "debug", skip(returns, factors), fields(n = returns.len(), k = factors.len(), ann_factor = ann_factor))]
 pub(crate) fn multi_factor_greeks(
     returns: &[f64],

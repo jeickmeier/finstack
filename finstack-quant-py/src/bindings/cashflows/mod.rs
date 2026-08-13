@@ -135,11 +135,23 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(build_cashflow_schedule_json, &m)?)?;
     m.add_function(wrap_pyfunction!(dated_flows_json, &m)?)?;
     m.add_function(wrap_pyfunction!(validate_cashflow_schedule_json, &m)?)?;
+    // Prepayment/default rate-convention conversions. The Rust crate root
+    // re-exports these from `builder::credit_rates`, so they are exposed both
+    // flat here (mirroring the crate root, and the WASM facade) and on the
+    // typed `builder` submodule (mirroring `builder::`).
+    m.add_function(wrap_pyfunction!(builder::cdr_to_mdr, &m)?)?;
+    m.add_function(wrap_pyfunction!(builder::cpr_to_smm, &m)?)?;
+    m.add_function(wrap_pyfunction!(builder::mdr_to_cdr, &m)?)?;
+    m.add_function(wrap_pyfunction!(builder::smm_to_cpr, &m)?)?;
 
     for name in [
         "accrued_interest",
         "build_cashflow_schedule_json",
+        "cdr_to_mdr",
+        "cpr_to_smm",
         "dated_flows_json",
+        "mdr_to_cdr",
+        "smm_to_cpr",
         "validate_cashflow_schedule_json",
     ] {
         m.getattr(name)?
@@ -154,9 +166,13 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "aggregation",
             "build_cashflow_schedule_json",
             "builder",
+            "cdr_to_mdr",
+            "cpr_to_smm",
             "dated_flows_json",
+            "mdr_to_cdr",
             "primitives",
             "schema",
+            "smm_to_cpr",
             "validate_cashflow_schedule_json",
         ],
     )?;

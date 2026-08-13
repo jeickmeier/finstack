@@ -48,6 +48,11 @@
 //! conservative lower-side complement to the in-sample upper-biased estimate.
 //! Standard error rises by roughly √2 because only half the paths drive the
 //! aggregation; combine the two bounds for an unbiased bracket.
+//!
+//! # References
+//!
+//! - Longstaff-Schwartz LSMC and Monte Carlo exercise: `docs/REFERENCES.md#glasserman-2004-monte-carlo`
+//! - Hull-White short-rate context: `docs/REFERENCES.md#hull-options-futures`
 
 use crate::instruments::rates::hw1f::bank_account::bank_step_factor;
 use crate::instruments::rates::hw1f::exercise::ExerciseBoundaryPayoff;

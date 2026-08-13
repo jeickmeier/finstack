@@ -397,7 +397,7 @@ impl SourceLine {
 /// # Reference
 ///
 /// Bloomberg PORT decomposes carry into Carry (coupon/funding), Curve Roll-Down,
-/// and Shift as distinct P&L components.
+/// and Shift as distinct P&L components. `docs/REFERENCES.md#campisi-2000`
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct CarryDetail {
     /// Total carry P&L. Equals the `CarryTotal` metric on the metrics-based
@@ -410,7 +410,14 @@ pub struct CarryDetail {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub coupon_income: Option<SourceLine>,
 
-    /// PV convergence toward par (time effect at flat yield). Unsplit (v1).
+    /// PV convergence toward par (time effect at flat yield).
+    ///
+    /// The wire field is a single unsplit `Money` (v1 schema). When a
+    /// `CreditFactorModel` drives the carry split, its rates / credit shares
+    /// (same `s / (r + s)` ratio as `coupon_income`) enter
+    /// [`CreditCarryDecomposition::rates_carry_total`] and
+    /// [`CreditCarryDecomposition::credit_carry_total`], so those two totals
+    /// partition [`CarryDetail::total`] exactly.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pull_to_par: Option<Money>,
 
@@ -434,9 +441,17 @@ pub struct CarryDetail {
 ///
 /// # Reconciliation invariants (§7.4, all at 1e-8 absolute tolerance)
 ///
-/// - `credit_carry_total ≡ Σ_lines SourceLine.credit_part` (lines = coupon + roll)
+/// With `w = s / (r + s)` the credit share used for the coupon split
+/// (see `compute_carry_credit_split_and_decomposition`):
+///
+/// - `rates_carry_total + credit_carry_total ≡ carry_detail.total` — the two
+///   legs partition the full carry, **including `pull_to_par`**, which is
+///   split on the same `w` (its wire field stays a single unsplit `Money`)
+/// - `credit_carry_total ≡ Σ_lines SourceLine.credit_part + w × pull_to_par`
+///   (lines = coupon + roll)
 /// - `credit_carry_total ≡ generic + Σ_levels(level.total) + adder_total`
-/// - `rates_carry_total ≡ Σ_lines SourceLine.rates_part − funding_cost`
+/// - `rates_carry_total ≡ Σ_lines SourceLine.rates_part
+///   + (1 − w) × pull_to_par − funding_cost`
 ///
 /// # Attribution method coverage
 ///

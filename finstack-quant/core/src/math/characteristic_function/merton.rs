@@ -16,7 +16,7 @@ use num_complex::Complex64;
 /// # References
 ///
 /// - Merton, R. C. (1976). "Option Pricing When Underlying Stock Returns
-///   Are Discontinuous." *J. Financial Economics*, 3, 125-144.
+///   Are Discontinuous." *J. Financial Economics*, 3, 125-144. `docs/REFERENCES.md#merton-1976-jump`
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct MertonJumpCf {
     /// Risk-free rate.

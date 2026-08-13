@@ -40,8 +40,8 @@
 //!
 //! # References
 //!
-//! - ISDA CDS Standard Model v1.8.2 (October 2009)
-//! - O'Kane, D. (2008). *Modelling Single-name and Multi-name Credit Derivatives*
+//! - ISDA CDS Standard Model v1.8.2 (October 2009) `docs/REFERENCES.md#isda-cds-standard-model`
+//! - O'Kane, D. (2008). *Modelling Single-name and Multi-name Credit Derivatives* `docs/REFERENCES.md#o-kane-2008`
 //!
 //! # See Also
 //!

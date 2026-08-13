@@ -35,7 +35,7 @@ pub(super) const HESTON_TAIL_DIAGNOSTIC_THRESHOLD: f64 = 1e-4;
 /// # References
 ///
 /// - Heston, S. L. (1993). "A Closed-Form Solution for Options with Stochastic Volatility
-///   with Applications to Bond and Currency Options." *Review of Financial Studies*, 6(2), 327-343.
+///   with Applications to Bond and Currency Options." *Review of Financial Studies*, 6(2), 327-343. `docs/REFERENCES.md#heston-1993`
 pub struct HestonParams {
     /// Risk-free interest rate
     pub r: f64,

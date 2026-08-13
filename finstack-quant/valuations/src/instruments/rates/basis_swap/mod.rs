@@ -39,10 +39,10 @@
 //!
 //! - Ametrano, F. M., & Bianchetti, M. (2013). "Everything You Always Wanted
 //!   to Know About Multiple Interest Rate Curve Bootstrapping but Were Afraid
-//!   to Ask." *SSRN Working Paper*.
+//!   to Ask." *SSRN Working Paper*. `docs/REFERENCES.md#ametrano-bianchetti-2013`
 //!
 //! - Fujii, M., Shimada, Y., & Takahashi, A. (2010). "A Note on Construction
-//!   of Multiple Swap Curves with and without Collateral." *CARF Working Paper*.
+//!   of Multiple Swap Curves with and without Collateral." *CARF Working Paper*. `docs/REFERENCES.md#fujii-shimada-takahashi-2010`
 //!
 //! # See Also
 //!

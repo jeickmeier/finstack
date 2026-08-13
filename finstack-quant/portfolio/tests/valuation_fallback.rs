@@ -274,8 +274,18 @@ fn empty_metric_request_uses_the_pv_only_path() {
         .expect("position value");
 
     assert_eq!(position.value_native.amount(), 321.0);
+    // No metrics were requested, so nothing risk-related is missing...
     assert!(position.risk_metrics_complete);
-    assert!(position.risk_error.is_none());
+    // ...but the position silently switched pricing paths (canonical pricer
+    // failed, `Instrument::value` supplied the PV). That must be auditable.
+    assert!(
+        position
+            .risk_error
+            .as_deref()
+            .is_some_and(|msg| msg.contains("Invalid")),
+        "PV-only fallback must record the canonical pricing failure, got {:?}",
+        position.risk_error
+    );
     assert!(!valuation.has_degraded_risk());
     assert!(position
         .valuation_result

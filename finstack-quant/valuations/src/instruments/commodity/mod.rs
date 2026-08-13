@@ -47,7 +47,7 @@
 //!
 //! # References
 //!
-//! - Black, F. (1976). "The Pricing of Commodity Contracts."
+//! - Black, F. (1976). "The Pricing of Commodity Contracts." `docs/REFERENCES.md#black-1976`
 //! - Schwartz, E. S. (1997). "The Stochastic Behavior of Commodity Prices."
 //!
 //! # See Also

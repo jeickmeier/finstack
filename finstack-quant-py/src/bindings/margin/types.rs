@@ -499,6 +499,14 @@ impl PyCsaSpec {
         self.inner.requires_im()
     }
 
+    /// Validate CSA identifiers and the contractual holiday calendar.
+    ///
+    /// Raises ``ValueError`` if the spec fails the Rust-side validation that
+    /// ``from_json`` also applies on ingest.
+    fn validate(&self) -> PyResult<()> {
+        self.inner.validate().map_err(core_to_py)
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "CsaSpec(id={:?}, currency={}, requires_im={})",

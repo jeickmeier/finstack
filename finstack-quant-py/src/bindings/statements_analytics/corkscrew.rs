@@ -310,13 +310,11 @@ pub struct PyCorkscrewReport {
 
 #[pymethods]
 impl PyCorkscrewReport {
-    /// ``"success"`` or ``"failed"``.
+    /// ``"success"`` or ``"failed"`` — the canonical serde discriminant of
+    /// the Rust ``CorkscrewStatus`` enum.
     #[getter]
     fn status(&self) -> String {
-        match self.inner.status {
-            rust_corkscrew::CorkscrewStatus::Success => "success".to_string(),
-            rust_corkscrew::CorkscrewStatus::Failed => "failed".to_string(),
-        }
+        super::serde_variant_str(&self.inner.status)
     }
 
     /// Human-readable summary of the validation run.
@@ -415,10 +413,7 @@ impl PyCorkscrewReport {
     fn __repr__(&self) -> String {
         format!(
             "CorkscrewReport(status='{}', warnings={}, errors={})",
-            match self.inner.status {
-                rust_corkscrew::CorkscrewStatus::Success => "success",
-                rust_corkscrew::CorkscrewStatus::Failed => "failed",
-            },
+            self.status(),
             self.inner.warnings.len(),
             self.inner.errors.len()
         )

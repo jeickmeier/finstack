@@ -36,9 +36,9 @@
 //!
 //! # References
 //!
-//! - CBOE (2019). "VIX Options Contract Specifications."
+//! - CBOE (2019). "VIX Options Contract Specifications." `docs/REFERENCES.md#cboe-vix-white-paper`
 //! - Carr, P., & Lee, R. (2009). "Volatility Derivatives."
-//!   *Annual Review of Financial Economics*, 1, 319-339.
+//!   *Annual Review of Financial Economics*, 1, 319-339. `docs/REFERENCES.md#carr-lee-2009`
 
 use super::pricer;
 use crate::contract_specs::{embedded_registry, ContractSpecRegistry};

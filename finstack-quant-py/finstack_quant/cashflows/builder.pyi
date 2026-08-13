@@ -57,7 +57,11 @@ __all__ = [
     "RollRule",
     "ScheduleParams",
     "StepUpCouponSpec",
+    "cdr_to_mdr",
+    "cpr_to_smm",
+    "mdr_to_cdr",
     "merge_cashflow_schedules",
+    "smm_to_cpr",
 ]
 
 class AmortizationSpec:
@@ -94,6 +98,10 @@ class AmortizationSpec:
         -------
         AmortizationSpec
             A linear-paydown amortization rule.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -156,6 +164,10 @@ class AmortizationSpec:
         -------
         AmortizationSpec
             A sinking-fund style amortization rule.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -596,6 +608,10 @@ class CashFlowMeta:
             One of ``"contractual"``, ``"projected"``, ``"placeholder"``,
             or ``"no_residual"``, describing the schedule's meaning
             relative to waterfall policy.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -608,6 +624,10 @@ class CashFlowMeta:
         -------
         list[str]
             Calendar ids referenced while generating schedule dates.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -621,6 +641,10 @@ class CashFlowMeta:
         Money, optional
             The facility limit for instruments like RCFs, or ``None`` when
             not applicable.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -634,6 +658,10 @@ class CashFlowMeta:
         datetime.date, optional
             The issue date used by the accrual engine to establish the
             first coupon period start, or ``None`` when unset.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -646,6 +674,10 @@ class CashFlowMeta:
         -------
         datetime.date, optional
             The final maturity date, or ``None`` when unset.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -684,6 +716,10 @@ class CashFlowSchedule:
         CashFlowBuilder
             A fresh, empty builder ready for chained configuration.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> from finstack_quant.cashflows.builder import CashFlowSchedule
@@ -701,6 +737,10 @@ class CashFlowSchedule:
         list[CashFlow]
             All cashflows in the schedule (coupons, principal payments,
             fees) sorted into deterministic schedule order.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -713,6 +753,10 @@ class CashFlowSchedule:
         list[CashFlow]
             Flows whose kind is Fixed, FloatReset, InflationCoupon, or
             Stub, in schedule order.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -724,6 +768,10 @@ class CashFlowSchedule:
         -------
         list[datetime.date]
             One date per flow, matching the order of :meth:`get_flows`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -735,6 +783,10 @@ class CashFlowSchedule:
         -------
         Notional
             The representative notional amount and amortization rule.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -746,6 +798,10 @@ class CashFlowSchedule:
         -------
         DayCount
             The day-count convention recorded on the schedule.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -758,6 +814,10 @@ class CashFlowSchedule:
         CashFlowMeta
             The representation label, calendar ids, facility limit, and
             issue/maturity dates recorded on the schedule.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -901,6 +961,11 @@ class CashFlowSchedule:
             :func:`finstack_quant.cashflows.validate_cashflow_schedule_json`
             and other JSON-bridge functions on
             ``finstack_quant.cashflows``.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -953,6 +1018,11 @@ class CashFlowSchedule:
         pandas.DataFrame
             One row per flow with columns ``date``, ``kind``, ``amount``,
             ``currency``, in schedule order.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -1042,6 +1112,10 @@ class DefaultModelSpec:
         DefaultModelSpec
             A default model using a flat annual CDR.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.cashflows.builder import DefaultModelSpec
@@ -1065,6 +1139,10 @@ class DefaultModelSpec:
         DefaultModelSpec
             A default model driven by the SDA seasoning ramp.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.cashflows.builder import DefaultModelSpec
@@ -1082,6 +1160,10 @@ class DefaultModelSpec:
         -------
         DefaultModelSpec
             A default model with a flat 2% annual CDR.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -1101,6 +1183,10 @@ class DefaultModelSpec:
         float
             The configured annual CDR, ignored when a seasoning curve
             supplies its own terminal rate.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1177,6 +1263,10 @@ class FeeBase:
         -------
         FeeBase
             A fee base tied to the undrawn balance.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -1349,12 +1439,16 @@ class FixedCouponSpec:
     @property
     def rate(self) -> Decimal:
         """
-        Annual coupon rate.
+        Annual coupon rate in decimal terms (``0.05`` is 5%).
 
         Returns
         -------
         decimal.Decimal
             The coupon rate as an exact decimal (e.g. ``Decimal("0.05")``).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1367,6 +1461,10 @@ class FixedCouponSpec:
         -------
         ScheduleParams
             The schedule-generation parameters for this coupon.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1409,6 +1507,9 @@ class FloatingCouponSpec:
         coupon_type : CouponType, optional
             Cash (default), PIK, or split settlement.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -1421,6 +1522,10 @@ class FloatingCouponSpec:
         -------
         FloatingRateSpec
             The index, spread, floor/cap, and reset configuration.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1578,6 +1683,10 @@ class FloatingRateSpec:
         -------
         str
             The forward curve id this spec projects from.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1590,6 +1699,10 @@ class FloatingRateSpec:
         -------
         decimal.Decimal
             The spread quote, preserved at full precision.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1683,6 +1796,10 @@ class Notional:
         -------
         Money
             The principal amount outstanding at leg inception.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1694,6 +1811,10 @@ class Notional:
         -------
         Currency
             The currency of the initial notional amount.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1865,6 +1986,10 @@ class PrepaymentModelSpec:
         PrepaymentModelSpec
             A prepayment model using a flat annual CPR.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.cashflows.builder import PrepaymentModelSpec
@@ -1888,6 +2013,10 @@ class PrepaymentModelSpec:
         PrepaymentModelSpec
             A prepayment model driven by the PSA seasoning ramp.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.cashflows.builder import PrepaymentModelSpec
@@ -1905,6 +2034,10 @@ class PrepaymentModelSpec:
         -------
         PrepaymentModelSpec
             A prepayment model at the 100% PSA speed.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -1954,6 +2087,10 @@ class PrepaymentModelSpec:
         float
             The configured annual CPR, ignored when the PSA curve supplies
             its own terminal rate.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2042,18 +2179,26 @@ class PrincipalEvent:
         -------
         datetime.date
             The date on which this principal event occurs.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
     @property
     def delta(self) -> Money:
         """
-        Outstanding delta.
+        Signed change in outstanding principal for this event.
 
         Returns
         -------
         Money
             The balance movement (positive increases, negative repays).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2066,6 +2211,10 @@ class PrincipalEvent:
         -------
         Money
             The settled cash amount, which may differ from *delta*.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2078,6 +2227,10 @@ class PrincipalEvent:
         -------
         CFKind
             The classification recorded on the emitted cashflow.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2127,18 +2280,26 @@ class RecoveryModelSpec:
         -------
         float
             The configured recovery rate, expected in ``[0.0, 1.0]``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def recovery_lag(self) -> int:
         """
-        Recovery lag in months.
+        Months between default and recovery cash receipt.
 
         Returns
         -------
         int
             The number of months between default and recovery cashflow.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2250,6 +2411,10 @@ class ScheduleParams:
         ScheduleParams
             Generic quarterly preset with a weekends-only calendar.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.cashflows.builder import ScheduleParams
@@ -2267,6 +2432,10 @@ class ScheduleParams:
         -------
         ScheduleParams
             Generic semi-annual preset with a weekends-only calendar.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -2286,6 +2455,10 @@ class ScheduleParams:
         ScheduleParams
             Generic annual preset with a weekends-only calendar.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.cashflows.builder import ScheduleParams
@@ -2303,6 +2476,10 @@ class ScheduleParams:
         -------
         ScheduleParams
             Market-convention preset for USD SOFR swap legs.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -2322,6 +2499,10 @@ class ScheduleParams:
         ScheduleParams
             Market-convention preset for USD corporate bonds.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.cashflows.builder import ScheduleParams
@@ -2339,6 +2520,10 @@ class ScheduleParams:
         -------
         ScheduleParams
             Market-convention preset for US Treasury securities.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -2358,6 +2543,10 @@ class ScheduleParams:
         ScheduleParams
             Market-convention preset for EUR ESTR swap legs.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.cashflows.builder import ScheduleParams
@@ -2375,6 +2564,10 @@ class ScheduleParams:
         -------
         ScheduleParams
             Market-convention preset for EUR government bonds.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -2394,6 +2587,10 @@ class ScheduleParams:
         ScheduleParams
             Market-convention preset for GBP SONIA swap legs.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.cashflows.builder import ScheduleParams
@@ -2412,6 +2609,10 @@ class ScheduleParams:
         ScheduleParams
             Market-convention preset for JPY TONA swap legs.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.cashflows.builder import ScheduleParams
@@ -2429,19 +2630,27 @@ class ScheduleParams:
         -------
         Tenor
             The frequency used to generate schedule boundaries.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def day_count(self) -> DayCount:
         """
-        Day-count convention.
+        Day-count convention used to accrue this coupon schedule.
 
         Returns
         -------
         DayCount
             The convention used to convert accrual periods to year
             fractions.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2454,6 +2663,10 @@ class ScheduleParams:
         -------
         str
             The calendar id used together with the business-day convention.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2466,6 +2679,10 @@ class ScheduleParams:
         -------
         int
             Business days added after the adjusted accrual end date.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2478,6 +2695,10 @@ class ScheduleParams:
         -------
         bool
             ``True`` when schedule generation preserves end-of-month dates.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2492,6 +2713,10 @@ class ScheduleParams:
             ``True`` for the swap/ISDA convention (both boundaries
             adjusted), ``False`` for the bond convention (only payment
             dates adjusted).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2618,5 +2843,123 @@ def merge_cashflow_schedules(
     >>> merged = merge_cashflow_schedules([schedule], Notional.par(1_000_000.0, "USD"), DayCount.ACT_360)
     >>> len(merged.get_flows())
     6
+    """
+    ...
+
+def cpr_to_smm(cpr: float) -> float:
+    """
+    Convert an annual CPR (constant prepayment rate) to a monthly SMM.
+
+    Uses the standard relationship ``SMM = 1 - (1 - CPR)^(1/12)`` (Fabozzi's
+    MBS handbook).
+
+    Parameters
+    ----------
+    cpr : float
+        Annualized CPR as a decimal in ``[0, 1]`` (``0.06`` means 6%).
+
+    Returns
+    -------
+    float
+        Monthly SMM as a decimal fraction.
+
+    Raises
+    ------
+    ValueError
+        If ``cpr`` is negative, non-finite, or above ``1.0``.
+
+    Examples
+    --------
+    >>> from finstack_quant.cashflows.builder import cpr_to_smm
+    >>> round(cpr_to_smm(0.06), 6)
+    0.005143
+    """
+    ...
+
+def smm_to_cpr(smm: float) -> float:
+    """
+    Convert a monthly SMM (single monthly mortality) to an annual CPR.
+
+    Uses ``CPR = 1 - (1 - SMM)^12``.
+
+    Parameters
+    ----------
+    smm : float
+        Monthly SMM as a decimal in ``[0, 1]``.
+
+    Returns
+    -------
+    float
+        Annualized CPR as a decimal fraction.
+
+    Raises
+    ------
+    ValueError
+        If ``smm`` is negative, non-finite, or above ``1.0``.
+
+    Examples
+    --------
+    >>> from finstack_quant.cashflows.builder import cpr_to_smm, smm_to_cpr
+    >>> round(smm_to_cpr(cpr_to_smm(0.06)), 10)
+    0.06
+    """
+    ...
+
+def cdr_to_mdr(cdr: float) -> float:
+    """
+    Convert an annual CDR (constant default rate) to a monthly MDR.
+
+    Default and prepayment mortality rates share the same annual-to-monthly
+    conversion kernel: ``MDR = 1 - (1 - CDR)^(1/12)``.
+
+    Parameters
+    ----------
+    cdr : float
+        Constant annual default rate as a decimal in ``[0, 1]``.
+
+    Returns
+    -------
+    float
+        Monthly MDR as a decimal fraction.
+
+    Raises
+    ------
+    ValueError
+        If ``cdr`` is negative, non-finite, or above ``1.0``.
+
+    Examples
+    --------
+    >>> from finstack_quant.cashflows.builder import cdr_to_mdr
+    >>> round(cdr_to_mdr(0.02), 6)
+    0.001682
+    """
+    ...
+
+def mdr_to_cdr(mdr: float) -> float:
+    """
+    Convert a monthly MDR (monthly default rate) to an annual CDR.
+
+    Uses ``CDR = 1 - (1 - MDR)^12``.
+
+    Parameters
+    ----------
+    mdr : float
+        Monthly default rate as a decimal in ``[0, 1]``.
+
+    Returns
+    -------
+    float
+        Annualized CDR as a decimal fraction.
+
+    Raises
+    ------
+    ValueError
+        If ``mdr`` is negative, non-finite, or above ``1.0``.
+
+    Examples
+    --------
+    >>> from finstack_quant.cashflows.builder import cdr_to_mdr, mdr_to_cdr
+    >>> round(mdr_to_cdr(cdr_to_mdr(0.02)), 10)
+    0.02
     """
     ...

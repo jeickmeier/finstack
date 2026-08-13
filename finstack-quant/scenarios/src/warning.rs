@@ -1,6 +1,6 @@
 //! Structured warnings emitted during scenario application.
 //!
-//! [`ApplicationReport`](crate::engine::ApplicationReport) carries a
+//! [`ApplicationReport`] carries a
 //! `Vec<Warning>` instead of a `Vec<String>` so that operations alerting
 //! pipelines can pattern-match on warning categories without parsing free-text
 //! strings. The `Display` impl produces the same human-readable form as the

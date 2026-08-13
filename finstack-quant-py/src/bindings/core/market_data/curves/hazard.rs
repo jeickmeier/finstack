@@ -47,34 +47,32 @@ impl PyHazardCurve {
     /// knots : list[tuple[float, float]]
     ///     ``(time_years, hazard_rate)`` pairs.
     /// recovery_rate : float, optional
-    ///     Recovery rate. Defaults to the credit assumptions registry value.
+    ///     Recovery rate. When omitted, the Rust builder default (the credit
+    ///     assumptions registry value) applies.
     /// day_count : str, optional
-    ///     Day-count convention (default ``"act_365f"``).
+    ///     Day-count convention. When omitted, the Rust builder default
+    ///     (``"act_365f"``) applies.
     /// par_spreads : list[tuple[float, float]], optional
     ///     Market par-spread quotes in basis points used for rebootstrap risks.
     #[new]
-    #[pyo3(signature = (id, base_date, knots, recovery_rate=None, day_count="act_365f", par_spreads=None))]
+    #[pyo3(signature = (id, base_date, knots, recovery_rate=None, day_count=None, par_spreads=None))]
     fn new(
         id: &str,
         base_date: &Bound<'_, PyAny>,
         knots: Vec<(f64, f64)>,
         recovery_rate: Option<f64>,
-        day_count: &str,
+        day_count: Option<&str>,
         par_spreads: Option<Vec<(f64, f64)>>,
     ) -> PyResult<Self> {
         let base = py_to_date(base_date)?;
-        let day_count = parse_day_count(day_count)?;
-        let recovery_rate = match recovery_rate {
-            Some(r) => r,
-            None => finstack_quant_core::credit::registry::default_market_recovery_rate()
-                .map_err(core_to_py)?,
-        };
 
-        let mut builder = HazardCurve::builder(id)
-            .base_date(base)
-            .recovery_rate(recovery_rate)
-            .day_count(day_count)
-            .knots(knots);
+        let mut builder = HazardCurve::builder(id).base_date(base).knots(knots);
+        if let Some(recovery_rate) = recovery_rate {
+            builder = builder.recovery_rate(recovery_rate);
+        }
+        if let Some(day_count) = day_count {
+            builder = builder.day_count(parse_day_count(day_count)?);
+        }
         if let Some(points) = par_spreads {
             builder = builder.par_spreads(points);
         }
@@ -107,6 +105,12 @@ impl PyHazardCurve {
     #[getter]
     fn base_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         date_to_py(py, self.inner.base_date())
+    }
+
+    /// Recovery rate assumed on default.
+    #[getter]
+    fn recovery_rate(&self) -> f64 {
+        self.inner.recovery_rate()
     }
 
     fn __repr__(&self) -> String {

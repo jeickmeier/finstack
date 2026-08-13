@@ -14,15 +14,13 @@
 //!   want a business-day convention).
 
 use crate::errors::display_to_py;
+use finstack_quant_valuations::constants::DEFAULT_THETA_DAYS_PER_YEAR;
 use finstack_quant_valuations::models::closed_form::implied_vol::{
     black76_implied_vol, bs_implied_vol,
 };
 use finstack_quant_valuations::models::closed_form::{
-    arithmetic_asian_call_tw, arithmetic_asian_put_tw, bs_greeks_checked, bs_price_checked,
-    checked_closed_form_value, down_in_call, down_out_call, fixed_strike_lookback_call,
-    fixed_strike_lookback_put, floating_strike_lookback_call, floating_strike_lookback_put,
-    geometric_asian_call, geometric_asian_put, option_type_from_bool, quanto_call, quanto_put,
-    up_in_call, up_out_call, BsGreeks,
+    asian_option_price_str, barrier_call_str, bs_greeks_checked, bs_price_checked,
+    lookback_option_price_str, option_type_from_bool, quanto_option_price_checked, BsGreeks,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -57,6 +55,12 @@ use pyo3::types::PyDict;
 /// ------
 /// ValueError
 ///     If the inputs produce a non-finite price (e.g. negative volatility).
+///
+/// Sources
+/// -------
+/// - Black-Scholes (1973): see docs/REFERENCES.md#black-scholes-1973
+/// - Merton (1973): see docs/REFERENCES.md#merton-1973
+/// - Garman-Kohlhagen (1983): see docs/REFERENCES.md#garman-kohlhagen-1983
 #[pyfunction(name = "bs_price")]
 #[pyo3(signature = (spot, strike, r, q, sigma, t, is_call))]
 fn bs_price_wrapper(
@@ -82,8 +86,20 @@ fn bs_price_wrapper(
 ///
 /// Parameters
 /// ----------
-/// spot, strike, r, q, sigma, t, is_call
-///     Same as :func:`bs_price`.
+/// spot : float
+///     Current spot price `S`.
+/// strike : float
+///     Strike price `K`.
+/// r : float
+///     Domestic / risk-free rate (continuously compounded, decimal).
+/// q : float
+///     Dividend yield or foreign rate (continuously compounded, decimal).
+/// sigma : float
+///     Annualized volatility (decimal, e.g. ``0.20`` for 20%).
+/// t : float
+///     Time to expiry in years.
+/// is_call : bool
+///     ``True`` for a call, ``False`` for a put.
 /// theta_days : float, optional
 ///     Day-count denominator for per-day theta (default ``365.0``). Pass
 ///     ``252.0`` for business-day-scaled theta, ``360.0`` for ACT/360.
@@ -92,8 +108,17 @@ fn bs_price_wrapper(
 /// -------
 /// dict
 ///     ``{"delta": ..., "gamma": ..., "vega": ..., "theta": ..., "rho": ..., "rho_q": ...}``.
+///
+/// Sources
+/// -------
+/// - Black-Scholes (1973): see docs/REFERENCES.md#black-scholes-1973
+/// - Merton (1973): see docs/REFERENCES.md#merton-1973
+/// - Garman-Kohlhagen (1983): see docs/REFERENCES.md#garman-kohlhagen-1983
 #[pyfunction(name = "bs_greeks")]
-#[pyo3(signature = (spot, strike, r, q, sigma, t, is_call, theta_days=365.0))]
+#[pyo3(
+    signature = (spot, strike, r, q, sigma, t, is_call, theta_days=DEFAULT_THETA_DAYS_PER_YEAR),
+    text_signature = "(spot, strike, r, q, sigma, t, is_call, theta_days=365.0)"
+)]
 #[allow(clippy::too_many_arguments)]
 fn bs_greeks_wrapper<'py>(
     py: Python<'py>,
@@ -139,15 +164,30 @@ fn bs_greeks_wrapper<'py>(
 ///
 /// Parameters
 /// ----------
-/// spot, strike, r, q, t, is_call
-///     Same as :func:`bs_price`.
+/// spot : float
+///     Current spot price `S`.
+/// strike : float
+///     Strike price `K`.
+/// r : float
+///     Domestic / risk-free rate (continuously compounded, decimal).
+/// q : float
+///     Dividend yield or foreign rate (continuously compounded, decimal).
+/// t : float
+///     Time to expiry in years.
 /// price : float
 ///     Target per-unit option price.
+/// is_call : bool
+///     ``True`` for a call, ``False`` for a put.
 ///
 /// Returns
 /// -------
 /// float
 ///     Implied volatility (annualized, decimal).
+///
+/// Sources
+/// -------
+/// - Black-Scholes (1973): see docs/REFERENCES.md#black-scholes-1973
+/// - Merton (1973): see docs/REFERENCES.md#merton-1973
 #[pyfunction(name = "bs_implied_vol")]
 #[pyo3(signature = (spot, strike, r, q, t, price, is_call))]
 fn bs_implied_vol_wrapper(
@@ -191,6 +231,10 @@ fn bs_implied_vol_wrapper(
 /// -------
 /// float
 ///     Implied volatility (annualized, decimal).
+///
+/// Sources
+/// -------
+/// - Black (1976): see docs/REFERENCES.md#black-1976
 #[pyfunction(name = "black76_implied_vol")]
 #[pyo3(signature = (forward, strike, df, t, price, is_call))]
 fn black76_implied_vol_wrapper(
@@ -218,10 +262,20 @@ fn black76_implied_vol_wrapper(
 ///
 /// Parameters
 /// ----------
-/// spot, strike, r, q, sigma, t
-///     Same as :func:`bs_price`.
+/// spot : float
+///     Current spot price `S`.
+/// strike : float
+///     Strike price `K`.
 /// barrier : float
 ///     Barrier level.
+/// r : float
+///     Domestic / risk-free rate (continuously compounded, decimal).
+/// q : float
+///     Dividend yield or foreign rate (continuously compounded, decimal).
+/// sigma : float
+///     Annualized volatility (decimal, e.g. ``0.20`` for 20%).
+/// t : float
+///     Time to expiry in years.
 /// direction : str
 ///     ``"up"`` or ``"down"`` (relative to spot / barrier).
 /// knock : str
@@ -231,6 +285,10 @@ fn black76_implied_vol_wrapper(
 /// -------
 /// float
 ///     Per-unit option price.
+///
+/// Sources
+/// -------
+/// - Reiner-Rubinstein (1991): see docs/REFERENCES.md#reiner-rubinstein-1991
 #[pyfunction(name = "barrier_call")]
 #[pyo3(signature = (spot, strike, barrier, r, q, sigma, t, direction, knock))]
 #[allow(clippy::too_many_arguments)]
@@ -245,31 +303,26 @@ fn barrier_call_wrapper(
     direction: &str,
     knock: &str,
 ) -> PyResult<f64> {
-    let value = match (direction, knock) {
-        ("up", "in") => up_in_call(spot, strike, barrier, t, r, q, sigma),
-        ("up", "out") => up_out_call(spot, strike, barrier, t, r, q, sigma),
-        ("down", "in") => down_in_call(spot, strike, barrier, t, r, q, sigma),
-        ("down", "out") => down_out_call(spot, strike, barrier, t, r, q, sigma),
-        _ => {
-            return Err(crate::errors::value_error(format!(
-                "unknown barrier spec: direction='{direction}' knock='{knock}'; \
-                 expected direction in {{'up','down'}} and knock in {{'in','out'}}"
-            )))
-        }
-    };
-    finstack_quant_valuations::models::closed_form::checked_closed_form_value(
-        value,
-        "barrier price",
-    )
-    .map_err(crate::errors::core_to_py)
+    barrier_call_str(spot, strike, barrier, t, r, q, sigma, direction, knock)
+        .map_err(crate::errors::core_to_py)
 }
 
 /// Arithmetic (Turnbull-Wakeman) or geometric (Kemna-Vorst) Asian option call.
 ///
 /// Parameters
 /// ----------
-/// spot, strike, r, q, sigma, t
-///     Same as :func:`bs_price`.
+/// spot : float
+///     Current spot price `S`.
+/// strike : float
+///     Strike price `K`.
+/// r : float
+///     Domestic / risk-free rate (continuously compounded, decimal).
+/// q : float
+///     Dividend yield or foreign rate (continuously compounded, decimal).
+/// sigma : float
+///     Annualized volatility (decimal, e.g. ``0.20`` for 20%).
+/// t : float
+///     Time to expiry in years.
 /// num_fixings : int
 ///     Number of averaging fixings.
 /// averaging : str, optional
@@ -277,6 +330,11 @@ fn barrier_call_wrapper(
 ///     (Kemna-Vorst exact).
 /// is_call : bool, optional
 ///     ``True`` for call (default), ``False`` for put.
+///
+/// Sources
+/// -------
+/// - Kemna-Vorst (1990): see docs/REFERENCES.md#kemna-vorst-1990
+/// - Turnbull-Wakeman (1991): see docs/REFERENCES.md#turnbull-wakeman-1991
 #[pyfunction(name = "asian_option_price")]
 #[pyo3(signature = (spot, strike, r, q, sigma, t, num_fixings, averaging="arithmetic", is_call=true))]
 #[allow(clippy::too_many_arguments)]
@@ -291,28 +349,36 @@ fn asian_option_wrapper(
     averaging: &str,
     is_call: bool,
 ) -> PyResult<f64> {
-    let value = match (averaging, is_call) {
-        ("arithmetic", true) => arithmetic_asian_call_tw(spot, strike, t, r, q, sigma, num_fixings),
-        ("arithmetic", false) => arithmetic_asian_put_tw(spot, strike, t, r, q, sigma, num_fixings),
-        ("geometric", true) => geometric_asian_call(spot, strike, t, r, q, sigma, num_fixings),
-        ("geometric", false) => geometric_asian_put(spot, strike, t, r, q, sigma, num_fixings),
-        _ => {
-            return Err(crate::errors::value_error(format!(
-                "unknown averaging '{averaging}'; expected 'arithmetic' or 'geometric'"
-            )))
-        }
-    };
-    // Reject non-finite results (e.g. degenerate sigma=0 / t=0 / num_fixings=0)
-    // at the host boundary, matching the barrier/quanto wrappers.
-    checked_closed_form_value(value, "asian option price").map_err(display_to_py)
+    asian_option_price_str(
+        spot,
+        strike,
+        t,
+        r,
+        q,
+        sigma,
+        num_fixings,
+        averaging,
+        option_type_from_bool(is_call),
+    )
+    .map_err(crate::errors::core_to_py)
 }
 
 /// Conze-Viswanathan lookback option price.
 ///
 /// Parameters
 /// ----------
-/// spot, strike, r, q, sigma, t
-///     Same as :func:`bs_price`. For floating-strike, ``strike`` is ignored.
+/// spot : float
+///     Current spot price `S`.
+/// strike : float
+///     Strike price `K`. Ignored when ``strike_type`` is ``"floating"``.
+/// r : float
+///     Domestic / risk-free rate (continuously compounded, decimal).
+/// q : float
+///     Dividend yield or foreign rate (continuously compounded, decimal).
+/// sigma : float
+///     Annualized volatility (decimal, e.g. ``0.20`` for 20%).
+/// t : float
+///     Time to expiry in years.
 /// extremum : float
 ///     Observed historical extremum — max for fixed-strike call / floating-
 ///     strike put, min for fixed-strike put / floating-strike call. For a
@@ -321,6 +387,10 @@ fn asian_option_wrapper(
 ///     ``"fixed"`` (default) or ``"floating"``.
 /// is_call : bool, optional
 ///     ``True`` for call (default), ``False`` for put.
+///
+/// Sources
+/// -------
+/// - Conze-Viswanathan (1991): see docs/REFERENCES.md#conze-viswanathan-1991
 #[pyfunction(name = "lookback_option_price")]
 #[pyo3(signature = (spot, strike, r, q, sigma, t, extremum, strike_type="fixed", is_call=true))]
 #[allow(clippy::too_many_arguments)]
@@ -335,19 +405,18 @@ fn lookback_option_wrapper(
     strike_type: &str,
     is_call: bool,
 ) -> PyResult<f64> {
-    let value = match (strike_type, is_call) {
-        ("fixed", true) => fixed_strike_lookback_call(spot, strike, t, r, q, sigma, extremum),
-        ("fixed", false) => fixed_strike_lookback_put(spot, strike, t, r, q, sigma, extremum),
-        ("floating", true) => floating_strike_lookback_call(spot, t, r, q, sigma, extremum),
-        ("floating", false) => floating_strike_lookback_put(spot, t, r, q, sigma, extremum),
-        _ => {
-            return Err(crate::errors::value_error(format!(
-                "unknown strike_type '{strike_type}'; expected 'fixed' or 'floating'"
-            )))
-        }
-    };
-    // Reject non-finite results at the host boundary, matching barrier/quanto.
-    checked_closed_form_value(value, "lookback option price").map_err(display_to_py)
+    lookback_option_price_str(
+        spot,
+        strike,
+        t,
+        r,
+        q,
+        sigma,
+        extremum,
+        strike_type,
+        option_type_from_bool(is_call),
+    )
+    .map_err(crate::errors::core_to_py)
 }
 
 /// Quanto option (cross-currency, FX-adjusted) price in domestic currency.
@@ -377,6 +446,10 @@ fn lookback_option_wrapper(
 /// ------
 /// ValueError
 ///     If the inputs produce a non-finite price.
+///
+/// Sources
+/// -------
+/// - Garman-Kohlhagen (1983): see docs/REFERENCES.md#garman-kohlhagen-1983
 #[pyfunction(name = "quanto_option_price")]
 #[pyo3(signature = (spot, strike, t, rate_domestic, rate_foreign, div_yield, vol_asset, vol_fx, correlation, is_call=true))]
 #[allow(clippy::too_many_arguments)]
@@ -392,32 +465,19 @@ fn quanto_option_wrapper(
     correlation: f64,
     is_call: bool,
 ) -> PyResult<f64> {
-    let price = if is_call {
-        quanto_call(
-            spot,
-            strike,
-            t,
-            rate_domestic,
-            rate_foreign,
-            div_yield,
-            vol_asset,
-            vol_fx,
-            correlation,
-        )
-    } else {
-        quanto_put(
-            spot,
-            strike,
-            t,
-            rate_domestic,
-            rate_foreign,
-            div_yield,
-            vol_asset,
-            vol_fx,
-            correlation,
-        )
-    };
-    checked_closed_form_value(price, "quanto option price").map_err(display_to_py)
+    quanto_option_price_checked(
+        spot,
+        strike,
+        t,
+        rate_domestic,
+        rate_foreign,
+        div_yield,
+        vol_asset,
+        vol_fx,
+        correlation,
+        option_type_from_bool(is_call),
+    )
+    .map_err(crate::errors::core_to_py)
 }
 
 // Registration

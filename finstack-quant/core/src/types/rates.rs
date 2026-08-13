@@ -313,15 +313,26 @@ impl Bps {
         Self(bp)
     }
 
-    /// Create a Bps value from a floating-point basis-point amount, rejecting non-finite inputs.
+    /// Create a Bps value from a floating-point basis-point amount.
     ///
-    /// Accepts a `f64` (e.g., `25.0` for 25 bp), validates finiteness, then rounds to
-    /// the nearest integer. Use this when the raw input originates from an external source
-    /// that could supply NaN or infinity.
+    /// Accepts a `f64` (e.g., `25.0` for 25 bp) and validates that it is a
+    /// finite, **whole** number of basis points. `Bps` is integer-backed, so
+    /// silently rounding a sub-bp spread (e.g. an FRN margin of 62.5 bp)
+    /// would change instrument economics; fractional input is rejected.
+    /// Use a decimal [`Rate`] when sub-bp precision matters.
     ///
     /// # Errors
     ///
-    /// Returns `Error::Input(InputError::NonFiniteValue { .. })` when `bp` is NaN or infinite.
+    /// - `Error::Input(InputError::NonFiniteValue { .. })` when `bp` is NaN or infinite.
+    /// - `Error::Input(InputError::FractionalBasisPoints { .. })` when `bp` is not a
+    ///   whole number of basis points.
+    /// - `Error::Input(InputError::ConversionOverflow)` when `bp` cannot be
+    ///   represented as an `i32` basis-point quote.
+    ///
+    /// # Arguments
+    ///
+    /// * `bp` - Finite whole number of basis points (for example `25.0` for
+    ///   25 bp). Fractional values are rejected because `Bps` is integer-backed.
     pub fn try_new(bp: f64) -> Result<Self> {
         if !bp.is_finite() {
             return Err(InputError::NonFiniteValue {
@@ -329,11 +340,13 @@ impl Bps {
             }
             .into());
         }
-        let rounded = bp.round();
-        if rounded < i32::MIN as f64 || rounded > i32::MAX as f64 {
+        if bp.fract() != 0.0 {
+            return Err(InputError::FractionalBasisPoints { value: bp }.into());
+        }
+        if bp < i32::MIN as f64 || bp > i32::MAX as f64 {
             return Err(InputError::ConversionOverflow.into());
         }
-        Ok(Self(rounded as i32))
+        Ok(Self(bp as i32))
     }
 
     /// Return the integer basis-point quote.
@@ -687,8 +700,8 @@ impl From<f64> for Percentage {
 impl TryFrom<f64> for Bps {
     type Error = Error;
 
-    /// Fallible conversion from basis-point `f64`. Rejects `NaN` and
-    /// `±Infinity`.
+    /// Fallible conversion from basis-point `f64`. Rejects `NaN`,
+    /// `±Infinity`, and fractional basis points (see [`Bps::try_new`]).
     fn try_from(bp: f64) -> Result<Self> {
         Self::try_new(bp)
     }
@@ -847,13 +860,28 @@ mod tests {
 
     #[test]
     fn bp_try_new_and_try_from_reject_non_finite_values() {
-        assert_eq!(Bps::try_new(12.4).expect("finite bp").as_bp(), 12);
-        assert_eq!(Bps::try_from(12.6).expect("finite bp").as_bp(), 13);
+        assert_eq!(Bps::try_new(12.0).expect("whole bp").as_bp(), 12);
+        assert_eq!(Bps::try_from(13.0).expect("whole bp").as_bp(), 13);
 
         for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
             assert!(Bps::try_new(bad).is_err(), "try_new must reject {bad}");
             assert!(Bps::try_from(bad).is_err(), "TryFrom must reject {bad}");
         }
+    }
+
+    #[test]
+    fn bp_try_new_rejects_fractional_basis_points() {
+        for fractional in [12.4, 62.5, -0.5, 12.6] {
+            let err = Bps::try_new(fractional).expect_err("fractional bp must be rejected");
+            assert!(
+                err.to_string().contains("whole number"),
+                "unexpected error for {fractional}: {err}"
+            );
+            assert!(Bps::try_from(fractional).is_err());
+        }
+        // Whole-valued floats (including negatives and zero) are accepted.
+        assert_eq!(Bps::try_new(-25.0).unwrap().as_bp(), -25);
+        assert_eq!(Bps::try_new(0.0).unwrap().as_bp(), 0);
     }
 
     #[test]

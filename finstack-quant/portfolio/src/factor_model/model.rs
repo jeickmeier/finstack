@@ -12,12 +12,12 @@
 //!
 //! # References
 //!
-//! - Factor-model portfolio construction:
-//!   `docs/REFERENCES.md#meucci-risk-and-asset-allocation`
-//! - Euler-style capital allocation background:
-//!   `docs/REFERENCES.md#tasche-2008-capital-allocation`
-//! - Parametric VaR conventions:
-//!   `docs/REFERENCES.md#jpmorgan1996RiskMetrics`
+//! - Factor-model portfolio construction: `docs/REFERENCES.md#meucci-risk-and-asset-allocation`
+//!
+//! - Euler-style capital allocation background: `docs/REFERENCES.md#tasche-2008-capital-allocation`
+//!
+//! - Parametric VaR conventions: `docs/REFERENCES.md#jpmorgan1996RiskMetrics`
+//!
 
 use super::assignment::{assign_position_factors, FactorAssignmentReport};
 use super::whatif::{StressResult, WhatIfEngine};
@@ -553,7 +553,19 @@ impl FactorModel {
         if self.credit_idiosyncratic_variance.is_empty() {
             return Ok(());
         }
-        let mut residual_contributions = Vec::new();
+        // Positions sharing an issuer load the *same* idiosyncratic shock,
+        // so the issuer's idio variance is (Σ_p e_p)² · σ²_i on the netted
+        // exposure — not Σ_p e_p² · σ²_i per position. First pass: collect
+        // per-position exposures and accumulate the (net, gross) exposure per
+        // issuer in deterministic order.
+        let mut per_position: Vec<(
+            crate::types::PositionId,
+            finstack_quant_core::types::IssuerId,
+            f64,
+            f64,
+        )> = Vec::new();
+        let mut issuer_exposures: BTreeMap<finstack_quant_core::types::IssuerId, (f64, f64)> =
+            BTreeMap::new();
         for (position_idx, position) in portfolio.positions.iter().enumerate() {
             let Some(issuer_id_str) = position
                 .instrument
@@ -584,17 +596,41 @@ impl FactorModel {
                     )?;
                 }
             }
-            let residual_variance = exposure * exposure * idio_variance;
-            if residual_variance > 0.0 {
-                residual_contributions.push(PositionResidualContribution {
-                    position_id: position.position_id.clone(),
-                    residual_variance,
-                    source: ResidualContributionSource::FromCreditModel { issuer_id },
-                });
-            }
+            let entry = issuer_exposures
+                .entry(issuer_id.clone())
+                .or_insert((0.0, 0.0));
+            entry.0 += exposure;
+            entry.1 += exposure.abs();
+            per_position.push((
+                position.position_id.clone(),
+                issuer_id,
+                exposure,
+                idio_variance,
+            ));
         }
-        apply_residual_contributions(decomposition, residual_contributions);
-        Ok(())
+        // Second pass: total issuer variance net² · σ² allocated back to
+        // positions pro-rata e_p / Σ e_p, which reduces to net · e_p · σ²
+        // (Euler-consistent; a hedge leg receives a negative allocation). A
+        // flat book (net ≈ 0 relative to gross) carries zero idio risk: every
+        // position keeps its row, allocated 0.
+        let mut residual_contributions = Vec::with_capacity(per_position.len());
+        for (position_id, issuer_id, exposure, idio_variance) in per_position {
+            let (net, gross) = issuer_exposures
+                .get(&issuer_id)
+                .copied()
+                .unwrap_or((0.0, 0.0));
+            let residual_variance = if net.abs() <= 1e-12 * gross {
+                0.0
+            } else {
+                net * exposure * idio_variance
+            };
+            residual_contributions.push(PositionResidualContribution {
+                position_id,
+                residual_variance,
+                source: ResidualContributionSource::FromCreditModel { issuer_id },
+            });
+        }
+        apply_residual_contributions(decomposition, residual_contributions)
     }
 
     /// Create a what-if engine anchored to a base decomposition and sensitivity matrix.
@@ -807,21 +843,26 @@ fn collect_credit_idiosyncratic_variance(
 fn apply_residual_contributions(
     decomposition: &mut RiskDecomposition,
     residual_contributions: Vec<PositionResidualContribution>,
-) {
+) -> Result<()> {
     let residual_variance: f64 = residual_contributions
         .iter()
         .map(|contribution| contribution.residual_variance)
         .sum();
     if residual_variance <= 0.0 {
-        return;
+        // Zero total idio variance (e.g. a flat single-name book): keep the
+        // per-position rows visible without rescaling the decomposition.
+        decomposition
+            .position_residual_contributions
+            .extend(residual_contributions);
+        return Ok(());
     }
     let systematic_variance =
-        variance_from_measure(decomposition.measure, decomposition.total_risk);
+        variance_from_measure(decomposition.measure, decomposition.total_risk)?;
     let combined_variance = systematic_variance + residual_variance;
     let (combined_total, combined_component_scale) =
-        risk_total_and_component_scale(decomposition.measure, combined_variance);
+        risk_total_and_component_scale(decomposition.measure, combined_variance)?;
     let (_, systematic_component_scale) =
-        risk_total_and_component_scale(decomposition.measure, systematic_variance);
+        risk_total_and_component_scale(decomposition.measure, systematic_variance)?;
     let factor_rescale = if systematic_component_scale.abs() > 0.0 {
         combined_component_scale / systematic_component_scale
     } else {
@@ -864,10 +905,23 @@ fn apply_residual_contributions(
         },
         "residual overlay broke Euler additivity of the risk decomposition"
     );
+    Ok(())
 }
 
-fn variance_from_measure(measure: RiskMeasure, total_risk: f64) -> f64 {
-    match measure {
+/// Error for a risk measure the credit residual overlay cannot invert.
+///
+/// `RiskMeasure` is `#[non_exhaustive]` and defined in another crate; the
+/// decomposition engines reject unsupported measures before the overlay runs,
+/// so this is a defensive error rather than a silent zero.
+fn unsupported_residual_measure(measure: RiskMeasure) -> Error {
+    Error::validation(format!(
+        "credit residual overlay does not support RiskMeasure::{measure:?}; \
+         supported measures are Variance, Volatility, VaR and ExpectedShortfall"
+    ))
+}
+
+fn variance_from_measure(measure: RiskMeasure, total_risk: f64) -> Result<f64> {
+    let variance = match measure {
         RiskMeasure::Variance => total_risk.max(0.0),
         RiskMeasure::Volatility => total_risk * total_risk,
         RiskMeasure::VaR { confidence } => {
@@ -887,14 +941,15 @@ fn variance_from_measure(measure: RiskMeasure, total_risk: f64) -> f64 {
                 0.0
             }
         }
-        _ => 0.0,
-    }
+        other => return Err(unsupported_residual_measure(other)),
+    };
+    Ok(variance)
 }
 
-fn risk_total_and_component_scale(measure: RiskMeasure, variance: f64) -> (f64, f64) {
+fn risk_total_and_component_scale(measure: RiskMeasure, variance: f64) -> Result<(f64, f64)> {
     let variance = variance.max(0.0);
     let sigma = variance.sqrt();
-    match measure {
+    let scaled = match measure {
         RiskMeasure::Variance => (variance, 1.0),
         RiskMeasure::Volatility => {
             if sigma > 0.0 {
@@ -920,8 +975,9 @@ fn risk_total_and_component_scale(measure: RiskMeasure, variance: f64) -> (f64, 
                 (0.0, 0.0)
             }
         }
-        _ => (0.0, 0.0),
-    }
+        other => return Err(unsupported_residual_measure(other)),
+    };
+    Ok(scaled)
 }
 
 fn uses_assignment_driven_credit_shock(factor: &FactorDefinition) -> bool {
@@ -2281,8 +2337,10 @@ mod tests {
         );
     }
 
-    #[test]
-    fn credit_hierarchy_analysis_adds_idiosyncratic_residual_variance() {
+    /// Credit-hierarchical model with a single issuer (`ISSUER-B`, unit
+    /// betas, `adder_vol_annualized = 3.0`) used by the idiosyncratic
+    /// residual-variance tests.
+    fn credit_hierarchy_model() -> FactorModel {
         use finstack_quant_factor_model::credit::hierarchy::{
             AdderVolSource, CreditHierarchySpec, HierarchyDimension, IssuerBetaMode, IssuerBetaRow,
             IssuerBetas, IssuerTags,
@@ -2290,9 +2348,6 @@ mod tests {
         use finstack_quant_factor_model::matching::CreditHierarchicalConfig;
         use std::collections::BTreeMap;
 
-        let as_of = date!(2024 - 01 - 01);
-        let curve_id = CurveId::new("ISSUER-B-HAZ");
-        let market = credit_market(as_of, curve_id.clone());
         let mut tags = BTreeMap::new();
         tags.insert("rating".to_string(), "B".to_string());
         let issuer_row = IssuerBetaRow {
@@ -2334,7 +2389,7 @@ mod tests {
             vec![1.0, 0.0, 0.0, 1.0],
         )
         .unwrap();
-        let model = FactorModelBuilder::new()
+        FactorModelBuilder::new()
             .config(FactorModelConfig {
                 factors,
                 covariance,
@@ -2352,22 +2407,42 @@ mod tests {
                 unmatched_policy: Some(UnmatchedPolicy::Residual),
             })
             .build()
-            .unwrap();
-        let position = Position::new(
-            "pos-credit",
-            DUMMY_ENTITY_ID,
-            "inst-credit",
-            Arc::new(canonical_credit_bond(curve_id)),
-            1.0,
-            PositionUnit::Units,
-        )
-        .unwrap();
-        let portfolio = Portfolio::builder("portfolio")
+            .unwrap()
+    }
+
+    /// Portfolio holding `canonical_credit_bond` positions with the given
+    /// `(position_id, quantity)` pairs, all on the same issuer curve.
+    fn credit_bond_portfolio(
+        as_of: Date,
+        curve_id: &CurveId,
+        holdings: &[(&str, f64)],
+    ) -> Portfolio {
+        let mut builder = Portfolio::builder("portfolio")
             .base_currency(Currency::USD)
-            .as_of(as_of)
-            .position(position)
-            .build()
-            .unwrap();
+            .as_of(as_of);
+        for (position_id, quantity) in holdings {
+            builder = builder.position(
+                Position::new(
+                    *position_id,
+                    DUMMY_ENTITY_ID,
+                    format!("inst-{position_id}"),
+                    Arc::new(canonical_credit_bond(curve_id.clone())),
+                    *quantity,
+                    PositionUnit::Units,
+                )
+                .unwrap(),
+            );
+        }
+        builder.build().unwrap()
+    }
+
+    #[test]
+    fn credit_hierarchy_analysis_adds_idiosyncratic_residual_variance() {
+        let as_of = date!(2024 - 01 - 01);
+        let curve_id = CurveId::new("ISSUER-B-HAZ");
+        let market = credit_market(as_of, curve_id.clone());
+        let model = credit_hierarchy_model();
+        let portfolio = credit_bond_portfolio(as_of, &curve_id, &[("pos-credit", 1.0)]);
 
         let decomposition = model.analyze(&portfolio, &market, as_of).expect("analysis");
 
@@ -2382,5 +2457,63 @@ mod tests {
             (systematic + decomposition.residual_risk - decomposition.total_risk).abs() < 1e-8,
             "systematic plus idiosyncratic residual variance should exhaust total variance"
         );
+    }
+
+    // B3 regression: the idiosyncratic diagonal is per ISSUER, not per
+    // position. Positions on the same issuer load the same residual shock,
+    // so their exposures must be netted before squaring.
+
+    #[test]
+    fn credit_idiosyncratic_variance_nets_positions_sharing_an_issuer() {
+        let as_of = date!(2024 - 01 - 01);
+        let curve_id = CurveId::new("ISSUER-B-HAZ");
+        let market = credit_market(as_of, curve_id.clone());
+        let model = credit_hierarchy_model();
+
+        let single = credit_bond_portfolio(as_of, &curve_id, &[("pos-1", 2.0)]);
+        let split = credit_bond_portfolio(as_of, &curve_id, &[("pos-a", 1.0), ("pos-b", 1.0)]);
+
+        let single_decomposition = model.analyze(&single, &market, as_of).expect("single");
+        let split_decomposition = model.analyze(&split, &market, as_of).expect("split");
+
+        assert!(single_decomposition.residual_risk > 0.0);
+        assert_eq!(split_decomposition.position_residual_contributions.len(), 2);
+        assert!(
+            (single_decomposition.residual_risk - split_decomposition.residual_risk).abs()
+                <= 1e-8 * single_decomposition.residual_risk,
+            "splitting one holding into two rows must not change the issuer idio variance: \
+             single = {}, split = {}",
+            single_decomposition.residual_risk,
+            split_decomposition.residual_risk
+        );
+    }
+
+    #[test]
+    fn credit_idiosyncratic_variance_is_zero_for_flat_issuer_book() {
+        let as_of = date!(2024 - 01 - 01);
+        let curve_id = CurveId::new("ISSUER-B-HAZ");
+        let market = credit_market(as_of, curve_id.clone());
+        let model = credit_hierarchy_model();
+
+        // +1 / -1 on the same issuer: the net spread exposure is zero, so
+        // the issuer-level idiosyncratic shock cannot move the book.
+        let flat =
+            credit_bond_portfolio(as_of, &curve_id, &[("pos-long", 1.0), ("pos-short", -1.0)]);
+        let decomposition = model.analyze(&flat, &market, as_of).expect("flat book");
+
+        assert!(
+            decomposition.residual_risk.abs() < 1e-9,
+            "flat single-name book must carry zero idio risk, got {}",
+            decomposition.residual_risk
+        );
+        assert_eq!(decomposition.position_residual_contributions.len(), 2);
+        for contribution in &decomposition.position_residual_contributions {
+            assert!(
+                contribution.residual_variance.abs() < 1e-9,
+                "flat-book rows must be present with zero residual variance, got {} for {}",
+                contribution.residual_variance,
+                contribution.position_id
+            );
+        }
     }
 }

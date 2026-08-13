@@ -19,7 +19,7 @@
 //!
 //! # References
 //!
-//! - Hull-White short-rate model: Hull & White (1990).
+//! - Hull-White short-rate model: Hull & White (1990). `docs/REFERENCES.md#hull-white-1990-pricing-ird`
 //! - Templated on the agency-MBS Monte-Carlo OAS
 //!   ([`crate::instruments::fixed_income::mbs_passthrough`]).
 
@@ -439,7 +439,7 @@ fn ou_discount_factor(deviation: &[f64], month: usize) -> f64 {
 ///
 /// # References
 /// - Brigo & Mercurio (2006), *Interest Rate Models — Theory and Practice*,
-///   §3.3 (Hull-White bond reconstitution / convexity).
+///   §3.3 (Hull-White bond reconstitution / convexity). `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
 fn ou_integral_convexity_adjustments(kappa: f64, sigma: f64, num_months: usize) -> Vec<f64> {
     let dt = 1.0 / 12.0;
     let a = (-kappa * dt).exp();

@@ -30,8 +30,8 @@ typed result classes may gain fields between releases:
 **Experimental** — calibration constants and convenience defaults still
 under review; signatures or default coefficients may change:
 
-* ``lvar_bangia`` — endogenous-cost coefficient is a calibration default
-  (see ``LiquidityConfig::endogenous_spread_coef`` in the Rust crate).
+* ``lvar_bangia`` — exogenous spread-cost model; calibration defaults live
+  in the Rust crate's ``liquidity`` module.
 * ``almgren_chriss_impact`` — fixes ``delta`` at 0.5; the underlying
   ``optimal_trajectory`` accepts only ``delta = 1`` (linear impact).
 * ``kyle_lambda``, ``roll_effective_spread``, ``amihud_illiquidity``,
@@ -85,26 +85,46 @@ InstrumentArtifactCache = _portfolio.InstrumentArtifactCache
 MaterializationReport = _portfolio.MaterializationReport
 PortfolioValuation = _portfolio.PortfolioValuation
 ScenarioPnl = _portfolio.ScenarioPnl
+ScenarioPnlBatchItem = _portfolio.ScenarioPnlBatchItem
 PortfolioResult = _portfolio.PortfolioResult
 PortfolioMetrics = _portfolio.PortfolioMetrics
 PortfolioCashflows = _portfolio.PortfolioCashflows
 PortfolioAttribution = _portfolio.PortfolioAttribution
+
+# Typed attribution/performance result wrappers
+BrinsonPeriodResult = _portfolio.BrinsonPeriodResult
+CarinoLinkedAttribution = _portfolio.CarinoLinkedAttribution
+DurationCellTable = _portfolio.DurationCellTable
+ExcessReturnResult = _portfolio.ExcessReturnResult
+FactorBrinsonResult = _portfolio.FactorBrinsonResult
+FiAttributionResult = _portfolio.FiAttributionResult
+FiCarinoLinkedResult = _portfolio.FiCarinoLinkedResult
+FiReconciliationReport = _portfolio.FiReconciliationReport
+GridAttributionResult = _portfolio.GridAttributionResult
+GridCarinoLinkedResult = _portfolio.GridCarinoLinkedResult
+LinkedReturn = _portfolio.LinkedReturn
+ReplayResult = _portfolio.ReplayResult
+WeightAllocationResult = _portfolio.WeightAllocationResult
 
 parse_portfolio_spec = _portfolio.parse_portfolio_spec
 build_portfolio_from_spec = _portfolio.build_portfolio_from_spec
 portfolio_result_total_value = _portfolio.portfolio_result_total_value
 portfolio_result_get_metric = _portfolio.portfolio_result_get_metric
 aggregate_metrics = _portfolio.aggregate_metrics
+aggregate_metrics_json = _portfolio.aggregate_metrics_json
 value_portfolio = _portfolio.value_portfolio
 aggregate_full_cashflows = _portfolio.aggregate_full_cashflows
 apply_scenario_and_revalue = _portfolio.apply_scenario_and_revalue
 scenario_pnl = _portfolio.scenario_pnl
 scenario_pnl_batch = _portfolio.scenario_pnl_batch
+scenario_pnl_batch_json = _portfolio.scenario_pnl_batch_json
 attribute_portfolio_pnl = _portfolio.attribute_portfolio_pnl
 allocate_weights = _portfolio.allocate_weights
+allocate_weights_json = _portfolio.allocate_weights_json
 validate_allocation_json = _portfolio.validate_allocation_json
 optimize_portfolio = _portfolio.optimize_portfolio
 replay_portfolio = _portfolio.replay_portfolio
+replay_portfolio_json = _portfolio.replay_portfolio_json
 parametric_var_decomposition = _portfolio.parametric_var_decomposition
 parametric_es_decomposition = _portfolio.parametric_es_decomposition
 historical_var_decomposition = _portfolio.historical_var_decomposition
@@ -117,19 +137,32 @@ lvar_bangia = _portfolio.lvar_bangia
 almgren_chriss_impact = _portfolio.almgren_chriss_impact
 kyle_lambda = _portfolio.kyle_lambda
 brinson_fachler = _portfolio.brinson_fachler
+brinson_fachler_json = _portfolio.brinson_fachler_json
 carino_link = _portfolio.carino_link
+carino_link_json = _portfolio.carino_link_json
 campisi_attribution = _portfolio.campisi_attribution
+campisi_attribution_json = _portfolio.campisi_attribution_json
 campisi_carino_link = _portfolio.campisi_carino_link
+campisi_carino_link_json = _portfolio.campisi_carino_link_json
 campisi_carino_link_from_snapshots = _portfolio.campisi_carino_link_from_snapshots
+campisi_carino_link_from_snapshots_json = _portfolio.campisi_carino_link_from_snapshots_json
 campisi_reconciliation_check = _portfolio.campisi_reconciliation_check
+campisi_reconciliation_check_json = _portfolio.campisi_reconciliation_check_json
 cell_returns_from_curves = _portfolio.cell_returns_from_curves
+cell_returns_from_curves_json = _portfolio.cell_returns_from_curves_json
 cell_returns_from_reference = _portfolio.cell_returns_from_reference
+cell_returns_from_reference_json = _portfolio.cell_returns_from_reference_json
 excess_returns = _portfolio.excess_returns
+excess_returns_json = _portfolio.excess_returns_json
 factor_brinson_attribution = _portfolio.factor_brinson_attribution
+factor_brinson_attribution_json = _portfolio.factor_brinson_attribution_json
 grid_attribution = _portfolio.grid_attribution
+grid_attribution_json = _portfolio.grid_attribution_json
 grid_carino_link = _portfolio.grid_carino_link
+grid_carino_link_json = _portfolio.grid_carino_link_json
 twrr_modified_dietz = _portfolio.twrr_modified_dietz
 twrr_linked = _portfolio.twrr_linked
+twrr_linked_json = _portfolio.twrr_linked_json
 mwr_xirr = _portfolio.mwr_xirr
 
 # Factor-model decomposition results
@@ -193,24 +226,35 @@ if "finstack_quant.portfolio.schema" not in sys.modules:
     sys.modules["finstack_quant.portfolio.schema"] = schema
 
 __all__: list[str] = [
+    "BrinsonPeriodResult",
     "CandidatePosition",
+    "CarinoLinkedAttribution",
     "Constraint",
     "ContractLimitExceededError",
     "ContractValidationError",
     "CreditVolReport",
     "DecompositionConfig",
+    "DurationCellTable",
+    "ExcessReturnResult",
     "FactorAssignmentReport",
+    "FactorBrinsonResult",
     "FactorContribution",
     "FactorContributionDelta",
     "FactorPnlProfile",
     "FactorRiskDecomposition",
+    "FiAttributionResult",
+    "FiCarinoLinkedResult",
+    "FiReconciliationReport",
     "FinstackError",
     "FinstackFxError",
     "FinstackOptimizationError",
     "FinstackValuationError",
+    "GridAttributionResult",
+    "GridCarinoLinkedResult",
     "Inequality",
     "InstrumentArtifactCache",
     "LevelVolContribution",
+    "LinkedReturn",
     "MalformedContractSchemaError",
     "MaterializationReport",
     "MetricExpr",
@@ -237,9 +281,11 @@ __all__: list[str] = [
     "PositionRiskDecomposition",
     "PositionVarContribution",
     "PositionVolContribution",
+    "ReplayResult",
     "RiskBudgetResult",
     "RiskDecomposition",
     "ScenarioPnl",
+    "ScenarioPnlBatchItem",
     "SensitivityMatrix",
     "StressAttribution",
     "StressPositionEntry",
@@ -252,36 +298,51 @@ __all__: list[str] = [
     "UnmatchedEntry",
     "UnsupportedContractVersionError",
     "VolHorizon",
+    "WeightAllocationResult",
     "WeightingScheme",
     "WhatIfResult",
     "aggregate_full_cashflows",
     "aggregate_metrics",
+    "aggregate_metrics_json",
     "allocate_weights",
+    "allocate_weights_json",
     "almgren_chriss_impact",
     "amihud_illiquidity",
     "apply_scenario_and_revalue",
     "attribute_portfolio_pnl",
     "brinson_fachler",
+    "brinson_fachler_json",
     "build_credit_vol_report",
     "build_portfolio_from_spec",
     "build_stress_attribution",
     "campisi_attribution",
+    "campisi_attribution_json",
     "campisi_carino_link",
     "campisi_carino_link_from_snapshots",
+    "campisi_carino_link_from_snapshots_json",
+    "campisi_carino_link_json",
     "campisi_reconciliation_check",
+    "campisi_reconciliation_check_json",
     "carino_link",
+    "carino_link_json",
     "cell_returns_from_curves",
+    "cell_returns_from_curves_json",
     "cell_returns_from_reference",
+    "cell_returns_from_reference_json",
     "compute_factor_sensitivities",
     "compute_pnl_profiles",
     "days_to_liquidate",
     "decompose_factor_risk",
     "evaluate_risk_budget",
     "excess_returns",
+    "excess_returns_json",
     "factor_brinson_attribution",
+    "factor_brinson_attribution_json",
     "factor_stress",
     "grid_attribution",
+    "grid_attribution_json",
     "grid_carino_link",
+    "grid_carino_link_json",
     "historical_var_decomposition",
     "kyle_lambda",
     "liquidity_tier",
@@ -296,11 +357,14 @@ __all__: list[str] = [
     "position_component_var",
     "position_what_if",
     "replay_portfolio",
+    "replay_portfolio_json",
     "roll_effective_spread",
     "scenario_pnl",
     "scenario_pnl_batch",
+    "scenario_pnl_batch_json",
     "schema",
     "twrr_linked",
+    "twrr_linked_json",
     "twrr_modified_dietz",
     "validate_allocation_json",
     "value_portfolio",

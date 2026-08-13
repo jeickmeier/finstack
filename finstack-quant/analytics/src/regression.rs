@@ -148,7 +148,7 @@ const RANK_TOLERANCE_FACTOR: f64 = 1.0e-10;
 ///
 /// - Jeet, V., & Partani, A. (2023). "Brinson-Style Attribution over
 ///   Continuous Factors." *The Journal of Portfolio Management*, Quantitative
-///   Special Issue 2023, 216-223. See `docs/REFERENCES.md#jeet-partani-2023`.
+///   Special Issue 2023, 216-223. See . `docs/REFERENCES.md#jeet-partani-2023`
 pub fn constrained_least_squares(
     exposures: &[f64],
     n_factors: usize,
@@ -175,8 +175,8 @@ pub fn constrained_least_squares(
 
     // Solve both right-hand sides from one factorization of the scaled
     // exposure matrix:
-    //   f̂ = argmin ‖r − Xf‖²
-    //   g = argmin ‖w − Xg‖² = (X'X)⁻¹X'w
+    // f̂ = argmin ‖r − Xf‖²
+    // g = argmin ‖w − Xg‖² = (X'X)⁻¹X'w
     let targets = DMatrix::from_columns(&[r_vector.clone(), w_vector.clone()]);
     let solutions = normalized_svd_least_squares(x_matrix.clone(), &targets)?;
     ensure_finite(solutions.as_slice())?;

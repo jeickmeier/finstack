@@ -89,20 +89,20 @@
 //! # References
 //!
 //! - **Curve Construction and Bootstrapping**:
-//!   - Hull, J. C. (2018). *Options, Futures, and Other Derivatives* (10th ed.).
-//!     Pearson. Chapters 4-7.
-//!   - Andersen, L., & Piterbarg, V. (2010). *Interest Rate Modeling* (3 vols).
-//!     Atlantic Financial Press. Volume 1, Chapters 2-3.
+//! - Hull, J. C. (2018). *Options, Futures, and Other Derivatives* (10th ed.).
+//!   Pearson. Chapters 4-7. `docs/REFERENCES.md#hull-options-futures`
+//! - Andersen, L., & Piterbarg, V. (2010). *Interest Rate Modeling* (3 vols).
+//!   Atlantic Financial Press. Volume 1, Chapters 2-3. `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
 //!
 //! - **Interpolation Methods**:
 //!   - Hagan, P. S., & West, G. (2006). "Interpolation Methods for Curve Construction."
-//!     *Applied Mathematical Finance*, 13(2), 89-129.
+//!   *Applied Mathematical Finance*, 13(2), 89-129.
 //!   - Hagan, P. S., & West, G. (2008). "Methods for Constructing a Yield Curve."
-//!     *Wilmott Magazine*, May 2008.
+//!   *Wilmott Magazine*, May 2008.
 //!
 //! - **Industry Standards**:
 //!   - OpenGamma (2013). "Interest Rate Instruments and Market Conventions Guide."
-//!   - ISDA (2006). "2006 ISDA Definitions." Sections on discount factors and rates.
+//! - ISDA (2006). "2006 ISDA Definitions." Sections on discount factors and rates. `docs/REFERENCES.md#isda-2006-definitions`
 
 mod builder;
 mod curve;

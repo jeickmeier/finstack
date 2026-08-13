@@ -33,11 +33,11 @@
 //! # References
 //!
 //! - Nelson, C. R., & Siegel, A. F. (1987). "Parsimonious Modeling of Yield Curves."
-//!   *Journal of Business*, 60(4), 473-489.
+//!   *Journal of Business*, 60(4), 473-489. `docs/REFERENCES.md#nelson-siegel-1987`
 //! - Svensson, L. E. O. (1994). "Estimating and Interpreting Forward Interest Rates:
-//!   Sweden 1992-1994." *NBER Working Paper No. 4871*.
+//!   Sweden 1992-1994." *NBER Working Paper No. 4871*. `docs/REFERENCES.md#svensson-1994`
 //! - Diebold, F. X., & Li, C. (2006). "Forecasting the Term Structure of Government
-//!   Bond Yields." *Journal of Econometrics*, 130(2), 337-364.
+//!   Bond Yields." *Journal of Econometrics*, 130(2), 337-364. `docs/REFERENCES.md#diebold-li-2006`
 
 use crate::{
     dates::{Date, DayCount},

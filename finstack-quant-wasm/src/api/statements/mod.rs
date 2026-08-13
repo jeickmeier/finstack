@@ -16,6 +16,26 @@
 use crate::utils::to_js_err;
 use wasm_bindgen::prelude::*;
 
+/// Deserialize a `FinancialModelSpec` JSON string and run semantic validation.
+///
+/// Every WASM entry point that ingests a model routes through this helper so
+/// structurally invalid specs (empty periods, invalid node ids, bad formulas)
+/// are rejected identically here and in the typed Python `from_json` path —
+/// otherwise the same input would diverge between the two bindings.
+///
+/// # Errors
+///
+/// Rejects malformed or schema-incompatible `json` and any semantic-validation
+/// failure, with the same error shaping as the other statements entry points.
+pub(crate) fn parse_validated_model(
+    json: &str,
+) -> Result<finstack_quant_statements::FinancialModelSpec, JsValue> {
+    let mut model: finstack_quant_statements::FinancialModelSpec =
+        serde_json::from_str(json).map_err(to_js_err)?;
+    model.validate_semantics().map_err(to_js_err)?;
+    Ok(model)
+}
+
 // Validators
 
 /// Validate a `FinancialModelSpec` JSON string.
@@ -32,9 +52,7 @@ use wasm_bindgen::prelude::*;
 /// @param json - Canonical JSON string defining the object to deserialize or normalize.
 #[wasm_bindgen(js_name = validateFinancialModelJson)]
 pub fn validate_financial_model_json(json: &str) -> Result<String, JsValue> {
-    let mut model: finstack_quant_statements::FinancialModelSpec =
-        serde_json::from_str(json).map_err(to_js_err)?;
-    model.validate_semantics().map_err(to_js_err)?;
+    let model = parse_validated_model(json)?;
     serde_json::to_string(&model).map_err(to_js_err)
 }
 
@@ -149,12 +167,7 @@ pub fn validate_pik_toggle_spec_json(json: &str) -> Result<String, JsValue> {
 /// @param model_json - JSON-serialized FinancialModelSpec to evaluate across its statement periods.
 #[wasm_bindgen(js_name = evaluateModel)]
 pub fn evaluate_model(model_json: &str) -> Result<JsValue, JsValue> {
-    let mut model: finstack_quant_statements::FinancialModelSpec =
-        serde_json::from_str(model_json).map_err(to_js_err)?;
-    // Validate up-front so WASM rejects the same structurally-invalid specs
-    // (empty periods, invalid node ids) that the Python `from_json` path does;
-    // otherwise identical input diverges between the two bindings.
-    model.validate_semantics().map_err(to_js_err)?;
+    let model = parse_validated_model(model_json)?;
     let mut evaluator = finstack_quant_statements::evaluator::Evaluator::new();
     let result = evaluator.evaluate(&model).map_err(to_js_err)?;
     crate::utils::to_js_value(&result)
@@ -180,9 +193,7 @@ pub fn evaluate_model_with_market(
     market_json: &str,
     as_of: &str,
 ) -> Result<JsValue, JsValue> {
-    let mut model: finstack_quant_statements::FinancialModelSpec =
-        serde_json::from_str(model_json).map_err(to_js_err)?;
-    model.validate_semantics().map_err(to_js_err)?;
+    let model = parse_validated_model(model_json)?;
     let market: finstack_quant_core::market_data::context::MarketContext =
         serde_json::from_str(market_json).map_err(to_js_err)?;
     // Use the shared ISO date parser for a consistent `YYYY-MM-DD` grammar and
@@ -202,16 +213,15 @@ pub fn evaluate_model_with_market(
 ///
 /// # Errors
 ///
-/// Rejects malformed model or configuration JSON, zero simulation paths, a
-/// model containing capital structure, model compilation or dependency
-/// failures, any path-evaluation failure, or failure to serialize the results
-/// to JavaScript.
-/// @param model_json - Canonical JSON payload representing the statement model.
-/// @param config_json - Canonical JSON payload representing the Monte Carlo configuration.
+/// Rejects malformed model or configuration JSON, model semantic failures,
+/// zero simulation paths, a model containing capital structure, model
+/// compilation or dependency failures, any path-evaluation failure, or failure
+/// to serialize the results to JavaScript.
+/// @param model_json - Financial-model specification JSON.
+/// @param config_json - Monte Carlo configuration JSON.
 #[wasm_bindgen(js_name = runMonteCarlo)]
 pub fn run_monte_carlo(model_json: &str, config_json: &str) -> Result<JsValue, JsValue> {
-    let model: finstack_quant_statements::FinancialModelSpec =
-        serde_json::from_str(model_json).map_err(to_js_err)?;
+    let model = parse_validated_model(model_json)?;
     let config: finstack_quant_statements::evaluator::MonteCarloConfig =
         serde_json::from_str(config_json).map_err(to_js_err)?;
     let mut evaluator = finstack_quant_statements::evaluator::Evaluator::new();

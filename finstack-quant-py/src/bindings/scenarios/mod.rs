@@ -384,30 +384,32 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     operation_spec::register(py, &m)?;
 
     schema::register(py, &m)?;
+    // Sorted; must agree with the pure-Python shim and the `.pyi` stub.
     let all = PyList::new(
         py,
         [
-            "parse_scenario_spec",
-            "build_scenario_spec",
-            "compose_scenarios",
-            "validate_scenario_spec",
-            "list_builtin_templates",
-            "list_builtin_template_metadata",
-            "build_from_template",
-            "list_template_components",
-            "build_template_component",
-            "apply_scenario",
-            "apply_scenario_to_market",
-            "compute_horizon_return",
+            "ApplicationReport",
+            "ApplicationResult",
+            "Compounding",
+            "CurveKind",
             "HorizonResult",
             "OperationSpec",
             "RateBindingSpec",
-            "CurveKind",
             "TenorMatchMode",
             "TimeRollMode",
-            "Compounding",
-            // Schema
+            "apply_scenario",
+            "apply_scenario_to_market",
+            "build_from_template",
+            "build_scenario_spec",
+            "build_template_component",
+            "compose_scenarios",
+            "compute_horizon_return",
+            "list_builtin_template_metadata",
+            "list_builtin_templates",
+            "list_template_components",
+            "parse_scenario_spec",
             "schema",
+            "validate_scenario_spec",
         ],
     )?;
     m.setattr("__all__", all)?;

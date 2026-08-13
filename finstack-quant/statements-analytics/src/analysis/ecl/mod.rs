@@ -53,10 +53,10 @@
 //!
 //! # References
 //!
-//! - IFRS 9 Financial Instruments, Section 5.5 -- Impairment
-//! - ASC 326-20 -- Financial Instruments: Credit Losses
+//! - IFRS 9 Financial Instruments, Section 5.5 -- Impairment `docs/REFERENCES.md#ifrs-9-impairment`
+//! - ASC 326-20 -- Financial Instruments: Credit Losses `docs/REFERENCES.md#asc-326-cecl`
 //! - Basel Committee on Banking Supervision (2015), "Guidance on credit risk
-//!   and accounting for expected credit losses"
+//!   and accounting for expected credit losses" `docs/REFERENCES.md#bcbs-2015-ecl-guidance`
 
 pub(crate) mod cecl;
 pub(crate) mod engine;

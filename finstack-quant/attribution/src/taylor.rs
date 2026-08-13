@@ -92,24 +92,33 @@ impl TaylorAttributionConfig {
     /// # Errors
     ///
     /// Returns [`finstack_quant_core::Error::Validation`] unless each rate and
-    /// credit bump lies in `(0, 100]` bp and the volatility bump lies in
-    /// `(0, 0.20]`.
+    /// credit bump lies in `[0.01, 100]` bp and the volatility bump lies in
+    /// `[1e-4, 0.20]`.
+    ///
+    /// The lower bounds guard the second-difference noise floor: a bump `h`
+    /// far below the optimal finite-difference step makes the gamma estimate
+    /// `(PV(+h) − 2·PV₀ + PV(−h))/h²` pure floating-point cancellation noise
+    /// (Press et al., *Numerical Recipes*, §5.7) and can overflow the Decimal
+    /// arithmetic used for repriced values.
     pub fn validate(&self) -> Result<()> {
-        if self.rate_bump_bp <= 0.0 || self.rate_bump_bp > 100.0 {
+        if self.rate_bump_bp < 0.01 || self.rate_bump_bp > 100.0 {
             return Err(finstack_quant_core::Error::Validation(format!(
-                "Rate bump size must be strictly positive and no greater than 100bp, got {:.4}",
+                "Rate bump size must lie in [0.01, 100] bp (below 0.01bp the second-difference \
+                 gamma is cancellation noise), got {:.6}",
                 self.rate_bump_bp
             )));
         }
-        if self.credit_bump_bp <= 0.0 || self.credit_bump_bp > 100.0 {
+        if self.credit_bump_bp < 0.01 || self.credit_bump_bp > 100.0 {
             return Err(finstack_quant_core::Error::Validation(format!(
-                "Credit bump size must be strictly positive and no greater than 100bp, got {:.4}",
+                "Credit bump size must lie in [0.01, 100] bp (below 0.01bp the second-difference \
+                 gamma is cancellation noise), got {:.6}",
                 self.credit_bump_bp
             )));
         }
-        if self.vol_bump <= 0.0 || self.vol_bump > 0.20 {
+        if self.vol_bump < 1e-4 || self.vol_bump > 0.20 {
             return Err(finstack_quant_core::Error::Validation(format!(
-                "Volatility bump size must be strictly positive and no greater than 20% (0.20), got {:.4}",
+                "Volatility bump size must lie in [1e-4, 0.20] absolute vol (below 1e-4 the \
+                 second-difference volga is cancellation noise), got {:.6}",
                 self.vol_bump
             )));
         }
@@ -121,20 +130,29 @@ impl TaylorAttributionConfig {
 /// of bump-and-reprice calls the factor performed — a key-rate factor bumps
 /// every bucket up and down, so it is far more than the 2 a single parallel
 /// bump would cost.
+///
+/// On failure the factor is recorded in `notes` and `result_invalid` is set:
+/// every factor routed through here is backed by a curve/surface that appears
+/// in the instrument's market dependencies, so a failure means part of the
+/// declared risk decomposition is silently missing and the result cannot be
+/// trusted (previously the failure only reached the tracing log).
+#[allow(clippy::too_many_arguments)]
 fn record_taylor_factor_result(
     factor_kind: &str,
     factor_id: &CurveId,
     result: Result<TaylorFactorResult>,
     factors: &mut Vec<TaylorFactorResult>,
-    total_explained: &mut f64,
+    total_explained: &mut finstack_quant_core::math::NeumaierAccumulator,
     num_repricings: &mut usize,
     repricings: usize,
+    notes: &mut Vec<String>,
+    result_invalid: &mut bool,
 ) {
     match result {
         Ok(result) => {
-            *total_explained += result.explained_pnl;
+            total_explained.add(result.explained_pnl);
             if let Some(g) = result.gamma_pnl {
-                *total_explained += g;
+                total_explained.add(g);
             }
             *num_repricings += repricings;
             factors.push(result);
@@ -146,6 +164,10 @@ fn record_taylor_factor_result(
                 error = %e,
                 "Taylor attribution: factor computation failed"
             );
+            notes.push(format!(
+                "Taylor {factor_kind} factor '{factor_id}' failed: {e}"
+            ));
+            *result_invalid = true;
         }
     }
 }
@@ -165,18 +187,33 @@ fn record_taylor_factor_result(
 /// For vol factors `sensitivity` is $ per vol point and `market_move` is in
 /// vol points (percentage points of absolute vol), matching the convention of
 /// `measure_vol_surface_shift` which multiplies the absolute move by 100.
+///
+/// For key-rate-aware factors (rates / forward / key-rate credit) the
+/// authoritative first-order number is `explained_pnl`, the per-bucket sum
+/// `Σ sensitivityᵢ × moveᵢ`. The scalar `sensitivity` (total across buckets)
+/// and `market_move` (average across buckets) are diagnostics: their product
+/// does **not** equal `explained_pnl` for non-parallel curve moves.
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub(crate) struct TaylorFactorResult {
     /// Human-readable factor name (e.g. "Rates:USD-OIS").
     pub factor_name: String,
-    /// First-order sensitivity (DV01, CS01, vega per vol point, etc.).
+    /// First-order sensitivity (DV01, CS01, vega per vol point, etc.). For
+    /// key-rate factors this is the parallel-equivalent total across buckets —
+    /// a diagnostic, not the multiplier that produced `explained_pnl`.
     pub sensitivity: f64,
     /// Observed market move between T0 and T1 (basis points for rates/credit,
-    /// vol points for vol factors).
+    /// vol points for vol factors). For key-rate factors this is the average
+    /// per-bucket move — a diagnostic, not the multiplier that produced
+    /// `explained_pnl`.
     pub market_move: f64,
-    /// First-order explained P&L: sensitivity × move.
+    /// First-order explained P&L. For key-rate factors this is the per-bucket
+    /// sum `Σ sensitivityᵢ × moveᵢ` and is the authoritative number; for
+    /// non-parallel moves it deliberately differs from
+    /// `sensitivity × market_move`.
     pub explained_pnl: f64,
-    /// Second-order (gamma) P&L if requested: ½ × gamma × move².
+    /// Second-order (gamma) P&L if requested: ½ × γ_par × Δ̄², where γ_par is
+    /// measured from a single parallel up/down reprice and Δ̄ is the
+    /// sensitivity-weighted average bucket move.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gamma_pnl: Option<f64>,
 }
@@ -184,11 +221,17 @@ pub(crate) struct TaylorFactorResult {
 /// Complete result of Taylor-based attribution.
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub(crate) struct TaylorAttributionResult {
-    /// Actual P&L (PV_T1 - PV_T0).
+    /// Actual P&L on a total-return basis: `PV_T1 − PV_T0` plus the period
+    /// coupon income captured by the theta factor. The explained factors
+    /// include coupon income (theta is total-return), so `actual_pnl` uses the
+    /// same basis — otherwise `unexplained` would be biased by exactly the
+    /// period coupons. When theta computation fails the coupon component is
+    /// unavailable and `actual_pnl` degrades to the price-only difference
+    /// (recorded in `notes`).
     pub actual_pnl: f64,
     /// Sum of all first-order (+ optional second-order) explained P&L.
     pub total_explained: f64,
-    /// Unexplained residual: actual - explained.
+    /// Unexplained residual: actual - explained (both total-return basis).
     pub unexplained: f64,
     /// Unexplained as percentage of actual P&L.
     pub unexplained_pct: f64,
@@ -206,6 +249,16 @@ pub(crate) struct TaylorAttributionResult {
     /// cashflows (fix).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub theta_coupon_income: Option<f64>,
+    /// Diagnostic notes accumulated during factor computation (failed factors,
+    /// surface-averaged vol moves, missing T0 FX). Threaded into
+    /// `PnlAttribution::meta.notes` by `attribute_pnl_taylor`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<String>,
+    /// True when a factor backed by a declared market dependency failed to
+    /// compute — part of the risk decomposition is missing, so downstream
+    /// consumers must not trust the residual split.
+    #[serde(default)]
+    pub result_invalid: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -274,8 +327,12 @@ fn compute_taylor_result(
     let actual_pnl = pv_t1.checked_sub(pv_t0)?.amount();
 
     let mut factors = Vec::new();
-    let mut total_explained = 0.0;
+    let mut total_explained = finstack_quant_core::math::NeumaierAccumulator::new();
     let mut num_repricings: usize = 2;
+    let mut notes: Vec<String> = Vec::new();
+    let mut result_invalid = false;
+    // Extra parallel up/down reprice per curve factor when gamma is requested.
+    let gamma_repricings = if config.include_gamma { 2 } else { 0 };
 
     // Rate sensitivities (parallel DV01 per discount curve)
     let market_deps = instrument.market_dependencies()?;
@@ -309,7 +366,9 @@ fn compute_taylor_result(
             &mut factors,
             &mut total_explained,
             &mut num_repricings,
-            2 * KEY_RATE_BUCKETS_YEARS.len(),
+            2 * KEY_RATE_BUCKETS_YEARS.len() + gamma_repricings,
+            &mut notes,
+            &mut result_invalid,
         );
     }
 
@@ -344,7 +403,9 @@ fn compute_taylor_result(
             &mut factors,
             &mut total_explained,
             &mut num_repricings,
-            2 * KEY_RATE_BUCKETS_YEARS.len(),
+            2 * KEY_RATE_BUCKETS_YEARS.len() + gamma_repricings,
+            &mut notes,
+            &mut result_invalid,
         );
     }
 
@@ -403,22 +464,63 @@ fn compute_taylor_result(
             &mut factors,
             &mut total_explained,
             &mut num_repricings,
-            2,
+            2 + gamma_repricings,
+            &mut notes,
+            &mut result_invalid,
         );
     }
 
-    // Volatility sensitivity (vega)
-    if let Some(dependency) = market_deps.volatility_dependencies.first() {
-        let vol_surface_id = dependency.vol_surface_id.clone();
-        let result = compute_vol_factor(
-            instrument,
-            market_t0,
-            market_t1,
-            as_of_t0,
-            pv_t0,
-            &vol_surface_id,
-            config,
-        );
+    // Volatility sensitivities (vega) — one factor per vol-surface dependency,
+    // iterated exactly like rates/credit (previously only the FIRST dependency
+    // was priced and every other surface's move fell silently into residual).
+    //
+    // The realized vol move is measured at the instrument's own reference
+    // point (expiry from `Instrument::expiry`, strike from the dependency)
+    // when available; otherwise it falls back to the surface average and the
+    // fallback is recorded in the notes, because an averaged move nets a
+    // term-structure twist toward zero.
+    let reference_expiry_years = instrument
+        .expiry()
+        .map(|expiry| (expiry - as_of_t0).whole_days() as f64 / 365.0)
+        .filter(|t| *t > 0.0);
+    for dependency in &market_deps.volatility_dependencies {
+        if reference_expiry_years.is_none() || dependency.reference_strike.is_none() {
+            notes.push(format!(
+                "Taylor vol factor '{}': no reference expiry/strike available; \
+                 vol move is surface-averaged",
+                dependency.vol_surface_id
+            ));
+        }
+    }
+    let compute_vol =
+        |dependency: &finstack_quant_valuations::instruments::VolatilityDependency| {
+            (
+                dependency.vol_surface_id.clone(),
+                compute_vol_factor(
+                    instrument,
+                    market_t0,
+                    market_t1,
+                    as_of_t0,
+                    pv_t0,
+                    dependency,
+                    reference_expiry_years,
+                    config,
+                ),
+            )
+        };
+    let vol_results = match execution_policy {
+        ExecutionPolicy::Parallel => market_deps
+            .volatility_dependencies
+            .par_iter()
+            .map(compute_vol)
+            .collect::<Vec<_>>(),
+        ExecutionPolicy::Serial => market_deps
+            .volatility_dependencies
+            .iter()
+            .map(compute_vol)
+            .collect::<Vec<_>>(),
+    };
+    for (vol_surface_id, result) in vol_results {
         record_taylor_factor_result(
             "vol",
             &vol_surface_id,
@@ -427,17 +529,28 @@ fn compute_taylor_result(
             &mut total_explained,
             &mut num_repricings,
             2,
+            &mut notes,
+            &mut result_invalid,
         );
     }
 
     // FX-exposure factor: pricing impact of FX-rate changes on cross-currency
-    // instruments. Only attempted when the T0 market actually carries an FX
-    // matrix; otherwise there is nothing to restore and the factor is omitted
-    // (single-currency instruments stay at zero FX P&L).
-    if market_t0.fx().is_some() {
+    // instruments. Attempted when EITHER market carries an FX matrix: FX
+    // introduced at T1 is still an FX-rate move (restoring the T0 state clears
+    // the matrix), so gating on T0 alone silently pushed that P&L into
+    // residual. When neither market has FX there is nothing to restore and the
+    // factor is omitted (single-currency instruments stay at zero FX P&L).
+    if market_t0.fx().is_some() || market_t1.fx().is_some() {
+        if market_t0.fx().is_none() {
+            notes.push(
+                "Taylor FX factor: T0 market has no FX matrix; FX-exposure P&L is measured \
+                 against an FX-less T0 restore"
+                    .to_string(),
+            );
+        }
         match compute_fx_factor(instrument, market_t0, market_t1, as_of_t1, pv_t1) {
             Ok(result) => {
-                total_explained += result.explained_pnl;
+                total_explained.add(result.explained_pnl);
                 num_repricings += 1;
                 factors.push(result);
             }
@@ -446,6 +559,7 @@ fn compute_taylor_result(
                     error = %e,
                     "Taylor attribution: FX factor computation failed"
                 );
+                notes.push(format!("Taylor FX factor failed: {e}"));
             }
         }
     }
@@ -460,7 +574,7 @@ fn compute_taylor_result(
                 factor: result,
                 coupon_income,
             } = outcome;
-            total_explained += result.explained_pnl;
+            total_explained.add(result.explained_pnl);
             num_repricings += 1;
             theta_coupon_income = Some(coupon_income);
             factors.push(result);
@@ -470,14 +584,26 @@ fn compute_taylor_result(
                 error = %e,
                 "Taylor attribution: theta factor computation failed"
             );
+            notes.push(format!(
+                "Taylor theta factor failed: {e}; actual_pnl excludes period coupon income"
+            ));
         }
     }
 
+    // Total-return basis: the theta factor's explained P&L includes period
+    // coupon income, so the actual P&L it is reconciled against must include
+    // it too — otherwise `unexplained` is biased by exactly the coupons paid.
+    let actual_pnl = actual_pnl + theta_coupon_income.unwrap_or(0.0);
+
+    let total_explained = total_explained.total();
     let unexplained = actual_pnl - total_explained;
-    let unexplained_pct = if actual_pnl.abs() > 1e-10 {
-        (unexplained / actual_pnl) * 100.0
-    } else {
+    // Zero test via the RoundingContext money epsilon (consistent with
+    // `PnlAttribution`'s zero checks) rather than a hardcoded 1e-10.
+    let rounding = finstack_quant_core::config::RoundingContext::default();
+    let unexplained_pct = if rounding.is_effectively_zero_money(actual_pnl, pv_t0.currency()) {
         0.0
+    } else {
+        (unexplained / actual_pnl) * 100.0
     };
 
     Ok(TaylorAttributionResult {
@@ -490,6 +616,8 @@ fn compute_taylor_result(
         pv_t0,
         pv_t1,
         theta_coupon_income,
+        notes,
+        result_invalid,
     })
 }
 
@@ -601,6 +729,14 @@ fn attribute_pnl_taylor_impl(
     // Policy-visibility invariant: stamp the execution policy the
     // attribution ran under (workspace rule: results carry the parallel flag).
     attribution.meta.execution_policy = Some(execution.policy);
+
+    // Surface the factor-level diagnostics collected during computation
+    // (failed factors, surface-averaged vol moves, missing T0 FX) and
+    // propagate the invalid flag when a dependency-backed factor failed.
+    attribution.meta.notes.extend(taylor.notes.iter().cloned());
+    if taylor.result_invalid {
+        attribution.result_invalid = true;
+    }
 
     // Taylor factor P&Ls arrive as raw f64s; a degenerate curve or bump can
     // make one non-finite. Route every f64 → Money construction through
@@ -748,10 +884,75 @@ const KEY_RATE_BUCKETS_YEARS: [f64; 11] =
 struct KeyRateBucket {
     /// Per-bucket DV01 (currency / bp) from a triangular key-rate bump.
     dv01: f64,
-    /// Per-bucket DV01 gamma (currency / bp²), only when `include_gamma`.
-    gamma: f64,
     /// Realized zero-rate move at this bucket's tenor (basis points).
     move_bp: f64,
+}
+
+/// Convexity (gamma) P&L from a single **parallel** up/down reprice of
+/// `curve_id`.
+///
+/// The key-rate decomposition is first-order only. Summing per-bucket second
+/// differences captures only the diagonal of the Hessian, and because
+/// triangular bucket weights form a partition of unity (`Σ wᵢ(t) = 1`), an
+/// exposure at a knot between two buckets picks up weight `w` from each bump
+/// so its diagonal terms scale by `Σ wᵢ² < 1` — audit B7 measured a 2×
+/// convexity understatement for a knot midway between buckets (w = 0.5/0.5).
+/// Cross-bucket Hessian terms would need O(n²) repricings, so instead the
+/// second-order term comes from one parallel bump:
+///
+/// ```text
+///   γ_par     = (PV(+h) − 2·PV₀ + PV(−h)) / h²         (h = bump_bp)
+///   gamma_pnl = ½ · γ_par · Δ̄²
+/// ```
+///
+/// where `Δ̄` is the sensitivity-weighted average bucket move
+/// `Σ sᵢΔᵢ / Σ sᵢ` (the parallel-equivalent move for this exposure profile),
+/// falling back to the simple mean of the bucket moves when `Σ sᵢ ≈ 0`.
+///
+/// See Press, Teukolsky, Vetterling & Flannery, *Numerical Recipes* (3rd ed.),
+/// §5.7 for the finite-difference step-size / noise-floor considerations that
+/// motivate the bump bounds in [`TaylorAttributionConfig::validate`].
+#[allow(clippy::too_many_arguments)]
+fn parallel_gamma_pnl(
+    instrument: &Arc<dyn Instrument>,
+    market_t0: &MarketContext,
+    as_of_t0: Date,
+    pv_t0: Money,
+    curve_id: &CurveId,
+    bump_bp: f64,
+    sensitivities: &[f64],
+    moves_bp: &[f64],
+) -> Result<f64> {
+    let up = market_t0.bump([MarketBump::Curve {
+        id: curve_id.clone(),
+        spec: BumpSpec::parallel_bp(bump_bp),
+    }])?;
+    let pv_up = reprice_instrument(instrument, &up, as_of_t0)?;
+
+    let down = market_t0.bump([MarketBump::Curve {
+        id: curve_id.clone(),
+        spec: BumpSpec::parallel_bp(-bump_bp),
+    }])?;
+    let pv_down = reprice_instrument(instrument, &down, as_of_t0)?;
+
+    let gamma_par =
+        (pv_up.amount() - 2.0 * pv_t0.amount() + pv_down.amount()) / (bump_bp * bump_bp);
+
+    let total_sens = finstack_quant_core::math::neumaier_sum(sensitivities.iter().copied());
+    let avg_move_bp = if total_sens.abs() > 1e-12 {
+        finstack_quant_core::math::neumaier_sum(
+            sensitivities
+                .iter()
+                .zip(moves_bp.iter())
+                .map(|(s, m)| s * m),
+        ) / total_sens
+    } else if moves_bp.is_empty() {
+        0.0
+    } else {
+        finstack_quant_core::math::neumaier_sum(moves_bp.iter().copied()) / moves_bp.len() as f64
+    };
+
+    Ok(0.5 * gamma_par * avg_move_bp * avg_move_bp)
 }
 
 /// Triangular key-rate bump spec for bucket `i` of `KEY_RATE_BUCKETS_YEARS`.
@@ -823,17 +1024,7 @@ fn compute_rate_factor(
 
         // Central difference per bucket: O(h²) accuracy.
         let dv01 = (pv_up.amount() - pv_down.amount()) / (2.0 * config.rate_bump_bp);
-        let gamma = if config.include_gamma {
-            (pv_up.amount() - 2.0 * pv_t0.amount() + pv_down.amount())
-                / (config.rate_bump_bp * config.rate_bump_bp)
-        } else {
-            0.0
-        };
-        buckets.push(KeyRateBucket {
-            dv01,
-            gamma,
-            move_bp,
-        });
+        buckets.push(KeyRateBucket { dv01, move_bp });
     }
 
     // Key-rate-aware explained P&L: Σ DV01_bucket × Δr_bucket. Compensated
@@ -848,13 +1039,23 @@ fn compute_rate_factor(
             / buckets.len() as f64
     };
 
-    // Second-order term, also key-rate aware: Σ ½ γ_bucket × Δr_bucket².
+    // Second-order term from a single parallel reprice (see
+    // `parallel_gamma_pnl`): the key-rate decomposition stays first-order
+    // only, because a per-bucket gamma sum captures just the Hessian diagonal
+    // and understates cross-bucket convexity.
     let gamma_pnl = if config.include_gamma {
-        Some(finstack_quant_core::math::neumaier_sum(
-            buckets
-                .iter()
-                .map(|b| 0.5 * b.gamma * b.move_bp * b.move_bp),
-        ))
+        let dv01s: Vec<f64> = buckets.iter().map(|b| b.dv01).collect();
+        let moves: Vec<f64> = buckets.iter().map(|b| b.move_bp).collect();
+        Some(parallel_gamma_pnl(
+            instrument,
+            market_t0,
+            as_of_t0,
+            pv_t0,
+            curve_id,
+            config.rate_bump_bp,
+            &dv01s,
+            &moves,
+        )?)
     } else {
         None
     };
@@ -908,17 +1109,7 @@ fn compute_forward_factor(
         let pv_down = reprice_instrument(instrument, &down, as_of_t0)?;
 
         let dv01 = (pv_up.amount() - pv_down.amount()) / (2.0 * config.rate_bump_bp);
-        let gamma = if config.include_gamma {
-            (pv_up.amount() - 2.0 * pv_t0.amount() + pv_down.amount())
-                / (config.rate_bump_bp * config.rate_bump_bp)
-        } else {
-            0.0
-        };
-        buckets.push(KeyRateBucket {
-            dv01,
-            gamma,
-            move_bp,
-        });
+        buckets.push(KeyRateBucket { dv01, move_bp });
     }
 
     let explained =
@@ -931,12 +1122,21 @@ fn compute_forward_factor(
             / buckets.len() as f64
     };
 
+    // Second-order term from a single parallel reprice (see
+    // `parallel_gamma_pnl`); identical treatment to the discount-curve path.
     let gamma_pnl = if config.include_gamma {
-        Some(finstack_quant_core::math::neumaier_sum(
-            buckets
-                .iter()
-                .map(|b| 0.5 * b.gamma * b.move_bp * b.move_bp),
-        ))
+        let dv01s: Vec<f64> = buckets.iter().map(|b| b.dv01).collect();
+        let moves: Vec<f64> = buckets.iter().map(|b| b.move_bp).collect();
+        Some(parallel_gamma_pnl(
+            instrument,
+            market_t0,
+            as_of_t0,
+            pv_t0,
+            curve_id,
+            config.rate_bump_bp,
+            &dv01s,
+            &moves,
+        )?)
     } else {
         None
     };
@@ -1005,15 +1205,31 @@ fn compute_credit_factor(inputs: CreditFactorInputs<'_>) -> Result<TaylorFactorR
         } else {
             finstack_quant_core::math::neumaier_sum(shifts.iter().copied()) / shifts.len() as f64
         };
+        // Credit convexity from a single parallel reprice (see
+        // `parallel_gamma_pnl`), so `include_gamma` yields a second-order term
+        // on the key-rate path just like the parallel-bump fallback below
+        // (previously this path silently dropped credit gamma).
+        let gamma_pnl = if config.include_gamma {
+            let cs01s: Vec<f64> = buckets.iter().map(|(_, c)| *c).collect();
+            Some(parallel_gamma_pnl(
+                instrument,
+                market_t0,
+                as_of_t0,
+                pv_t0,
+                curve_id,
+                config.credit_bump_bp,
+                &cs01s,
+                &shifts,
+            )?)
+        } else {
+            None
+        };
         return Ok(TaylorFactorResult {
             factor_name: format!("Credit:{}", curve_id),
             sensitivity: total_cs01,
             market_move: avg_move,
             explained_pnl: explained,
-            // Key-rate path is first-order only; per-tenor CS-gamma is not
-            // modelled. `include_gamma` credit convexity is available via the
-            // parallel-bump fallback below.
-            gamma_pnl: None,
+            gamma_pnl,
         });
     }
 
@@ -1062,16 +1278,28 @@ fn compute_credit_factor(inputs: CreditFactorInputs<'_>) -> Result<TaylorFactorR
     })
 }
 
-/// Compute volatility (vega) attribution for a vol surface.
+/// Compute volatility (vega) attribution for a single vol-surface dependency.
+///
+/// The realized move is measured at the instrument's own reference point when
+/// available — `reference_expiry_years` derived from [`Instrument::expiry`]
+/// (Act/365) and the dependency's `reference_strike` — because the fallback
+/// surface-averaged move (sampled across expiries at the middle strike) nets a
+/// term-structure twist toward zero and mis-states the move the instrument
+/// actually experienced. When either reference coordinate is missing,
+/// `measure_vol_surface_shift` falls back to the surface average and the
+/// caller records a metadata note.
+#[allow(clippy::too_many_arguments)]
 fn compute_vol_factor(
     instrument: &Arc<dyn Instrument>,
     market_t0: &MarketContext,
     market_t1: &MarketContext,
     as_of_t0: Date,
     pv_t0: Money,
-    vol_surface_id: &CurveId,
+    dependency: &finstack_quant_valuations::instruments::VolatilityDependency,
+    reference_expiry_years: Option<f64>,
     config: &TaylorAttributionConfig,
 ) -> Result<TaylorFactorResult> {
+    let vol_surface_id = &dependency.vol_surface_id;
     let bumped_up = bump_surface_vol_absolute(market_t0, vol_surface_id.as_str(), config.vol_bump)?;
     let pv_up = reprice_instrument(instrument, &bumped_up, as_of_t0)?;
 
@@ -1090,9 +1318,16 @@ fn compute_vol_factor(
     let vol_bump_points = config.vol_bump * 100.0; // convert bump to vol-point units
     let vega_per_point = (pv_up.amount() - pv_down.amount()) / (2.0 * vol_bump_points);
 
-    // vol_move is in vol points (percentage points of absolute vol).
-    let vol_move =
-        measure_vol_surface_shift(vol_surface_id.as_str(), market_t0, market_t1, None, None)?;
+    // vol_move is in vol points (percentage points of absolute vol), measured
+    // at the instrument's reference point when both coordinates are known
+    // (surface-averaged otherwise — see the function docs).
+    let vol_move = measure_vol_surface_shift(
+        vol_surface_id.as_str(),
+        market_t0,
+        market_t1,
+        reference_expiry_years,
+        dependency.reference_strike,
+    )?;
 
     let explained = vega_per_point * vol_move;
 
@@ -1633,5 +1868,798 @@ mod tests {
                 "validation error must mention 'bump', got: {msg}"
             );
         }
+    }
+
+    // ── Audit-fix regression tests (2026-08) ───────────────────────────────
+    //
+    // Cover: B7 cross-bucket gamma, credit key-rate gamma, multi-surface vega,
+    // vol reference-point measurement, factor-failure visibility, bump noise
+    // floor, total-return unexplained basis, and FX presence on either side.
+
+    use finstack_quant_core::dates::DayCount;
+    use finstack_quant_core::market_data::surfaces::VolSurface;
+    use finstack_quant_core::market_data::term_structures::DiscountCurve;
+    use finstack_quant_valuations::instruments::VolatilityDependency;
+
+    /// Payoff shapes for [`MockInstrument`].
+    #[derive(Clone)]
+    enum MockPayoff {
+        /// `notional × df(tenor)` read from a discount curve.
+        DiscountZero {
+            curve: &'static str,
+            tenor: f64,
+            notional: f64,
+        },
+        /// `scale × exp(−rate(tenor)·tenor)` read from a forward curve.
+        ForwardConvex {
+            curve: &'static str,
+            tenor: f64,
+            scale: f64,
+        },
+        /// `scale × Σ surface.value_clamped(expiry, strike)` over `reads`.
+        VolSum {
+            reads: Vec<(&'static str, f64, f64)>,
+            scale: f64,
+        },
+        /// EUR notional converted at the market FX rate when an FX matrix is
+        /// present; face value in USD otherwise.
+        FxOptional { eur_notional: f64 },
+        /// Market-independent constant USD value.
+        Constant(f64),
+    }
+
+    /// Flexible market-reading mock used by the audit-fix regression tests.
+    #[derive(Clone)]
+    struct MockInstrument {
+        id: String,
+        payoff: MockPayoff,
+        discount_curves: Vec<CurveId>,
+        forward_curves: Vec<CurveId>,
+        credit_curves: Vec<CurveId>,
+        vol_deps: Vec<VolatilityDependency>,
+        expiry: Option<Date>,
+        /// `(measure key, value)` pairs surfaced through `price_with_metrics`.
+        keyrate_measures: Vec<(String, f64)>,
+        /// Optional fixed coupon `(date, USD amount)` for the theta window.
+        coupon: Option<(Date, f64)>,
+    }
+
+    impl MockInstrument {
+        fn new(id: &str, payoff: MockPayoff) -> Self {
+            Self {
+                id: id.to_string(),
+                payoff,
+                discount_curves: Vec::new(),
+                forward_curves: Vec::new(),
+                credit_curves: Vec::new(),
+                vol_deps: Vec::new(),
+                expiry: None,
+                keyrate_measures: Vec::new(),
+                coupon: None,
+            }
+        }
+    }
+
+    impl finstack_quant_cashflows::traits::CashflowScheduleSource for MockInstrument {
+        fn notional(&self) -> Option<Money> {
+            None
+        }
+
+        fn raw_cashflow_schedule(
+            &self,
+            _market: &MarketContext,
+            _as_of: Date,
+        ) -> Result<finstack_quant_cashflows::builder::CashFlowSchedule> {
+            use finstack_quant_core::cashflow::{CFKind, CashFlow};
+            let flows: Vec<CashFlow> = self
+                .coupon
+                .iter()
+                .map(|(date, amount)| {
+                    CashFlow::new(
+                        *date,
+                        None,
+                        Money::new(*amount, Currency::USD),
+                        CFKind::Fixed,
+                        0.0,
+                        None,
+                    )
+                })
+                .collect();
+            Ok(
+                finstack_quant_cashflows::traits::schedule_from_classified_flows(
+                    flows,
+                    DayCount::Act365F,
+                    finstack_quant_cashflows::traits::ScheduleBuildOpts::default(),
+                ),
+            )
+        }
+    }
+
+    impl Instrument for MockInstrument {
+        fn id(&self) -> &str {
+            &self.id
+        }
+
+        fn key(&self) -> finstack_quant_valuations::pricer::InstrumentType {
+            finstack_quant_valuations::pricer::InstrumentType::Bond
+        }
+
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
+
+        fn attributes(&self) -> &finstack_quant_valuations::instruments::Attributes {
+            use std::sync::OnceLock;
+            static ATTRS: OnceLock<finstack_quant_valuations::instruments::Attributes> =
+                OnceLock::new();
+            ATTRS.get_or_init(finstack_quant_valuations::instruments::Attributes::default)
+        }
+
+        fn attributes_mut(&mut self) -> &mut finstack_quant_valuations::instruments::Attributes {
+            unreachable!("MockInstrument::attributes_mut should not be called")
+        }
+
+        fn clone_box(&self) -> Box<dyn Instrument> {
+            Box::new(self.clone())
+        }
+
+        fn expiry(&self) -> Option<Date> {
+            self.expiry
+        }
+
+        fn market_dependencies(
+            &self,
+        ) -> Result<finstack_quant_valuations::instruments::MarketDependencies> {
+            let mut deps = finstack_quant_valuations::instruments::MarketDependencies::new();
+            for id in &self.discount_curves {
+                deps.add_discount_curve(id.clone());
+            }
+            for id in &self.forward_curves {
+                deps.add_forward_curve(id.clone());
+            }
+            for id in &self.credit_curves {
+                deps.add_credit_curve(id.clone());
+            }
+            for dep in &self.vol_deps {
+                deps.add_volatility_dependency(dep.clone());
+            }
+            Ok(deps)
+        }
+
+        fn base_value(&self, market: &MarketContext, as_of: Date) -> Result<Money> {
+            match &self.payoff {
+                MockPayoff::DiscountZero {
+                    curve,
+                    tenor,
+                    notional,
+                } => {
+                    let df = market.get_discount(curve)?.df(*tenor);
+                    Ok(Money::new(notional * df, Currency::USD))
+                }
+                MockPayoff::ForwardConvex {
+                    curve,
+                    tenor,
+                    scale,
+                } => {
+                    let rate = market.get_forward(curve)?.rate(*tenor);
+                    Ok(Money::new(scale * (-rate * tenor).exp(), Currency::USD))
+                }
+                MockPayoff::VolSum { reads, scale } => {
+                    let mut total = 0.0;
+                    for (surface_id, expiry, strike) in reads {
+                        total += market
+                            .get_surface(surface_id)?
+                            .value_clamped(*expiry, *strike);
+                    }
+                    Ok(Money::new(scale * total, Currency::USD))
+                }
+                MockPayoff::FxOptional { eur_notional } => {
+                    if market.fx().is_some() {
+                        market.convert_money(
+                            Money::new(*eur_notional, Currency::EUR),
+                            Currency::USD,
+                            as_of,
+                        )
+                    } else {
+                        Ok(Money::new(*eur_notional, Currency::USD))
+                    }
+                }
+                MockPayoff::Constant(value) => Ok(Money::new(*value, Currency::USD)),
+            }
+        }
+
+        fn price_with_metrics(
+            &self,
+            market: &MarketContext,
+            as_of: Date,
+            _metrics: &[finstack_quant_valuations::metrics::MetricId],
+            _options: finstack_quant_valuations::instruments::PricingOptions,
+        ) -> Result<finstack_quant_valuations::results::ValuationResult> {
+            let mut result = finstack_quant_valuations::results::ValuationResult::stamped(
+                self.id(),
+                as_of,
+                self.value(market, as_of)?,
+            );
+            for (key, value) in &self.keyrate_measures {
+                result.measures.insert(
+                    finstack_quant_valuations::metrics::MetricId::custom(key.clone()),
+                    *value,
+                );
+            }
+            Ok(result)
+        }
+    }
+
+    /// Discount curve with a flat continuously-compounded zero rate `z`,
+    /// knotted densely across the key-rate bucket grid (plus 1.5y).
+    fn flat_zero_curve(id: &'static str, base: Date, z: f64) -> DiscountCurve {
+        let tenors = [
+            0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0, 7.0, 10.0, 15.0, 20.0, 30.0,
+        ];
+        let mut knots = vec![(0.0, 1.0)];
+        knots.extend(tenors.iter().map(|&t| (t, (-z * t).exp())));
+        DiscountCurve::builder(id)
+            .base_date(base)
+            .day_count(DayCount::Act365F)
+            .knots(knots)
+            .build()
+            .expect("discount curve")
+    }
+
+    /// Forward curve with a flat rate `r`, knotted densely across the bucket
+    /// grid (plus 1.5y).
+    fn flat_forward_curve(id: &'static str, base: Date, r: f64) -> ForwardCurve {
+        let tenors = [
+            0.0, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0, 7.0, 10.0, 15.0, 20.0, 30.0,
+        ];
+        ForwardCurve::builder(CurveId::new(id), 0.25)
+            .base_date(base)
+            .day_count(DayCount::Act365F)
+            .knots(tenors.iter().map(|&t| (t, r)).collect::<Vec<_>>())
+            .build()
+            .expect("forward curve")
+    }
+
+    use finstack_quant_core::market_data::term_structures::ForwardCurve;
+
+    /// Two-expiry (0.5y / 5y) surface with per-expiry flat vols.
+    fn two_expiry_surface(id: &'static str, front: f64, back: f64) -> VolSurface {
+        VolSurface::builder(id)
+            .expiries(&[0.5, 5.0])
+            .strikes(&[90.0, 110.0])
+            .row(&[front, front])
+            .row(&[back, back])
+            .build()
+            .expect("vol surface")
+    }
+
+    /// B7: key-rate gamma must capture cross-bucket convexity. A zero maturing
+    /// between two buckets (t = 1.5y, triangular weights 0.5/0.5) under a
+    /// +100bp parallel move has analytic convexity P&L ½·t²·PV₀·Δz²; the old
+    /// diagonal-only per-bucket sum recovered only ~half of it.
+    #[test]
+    fn keyrate_gamma_captures_cross_bucket_convexity() {
+        let as_of_t0 = date!(2025 - 01 - 15);
+        let as_of_t1 = date!(2025 - 01 - 16);
+        let notional = 100_000_000.0;
+        let tenor = 1.5;
+        let (z0, z1) = (0.03, 0.04);
+
+        let market_t0 = MarketContext::new().insert(flat_zero_curve("USD-OIS", as_of_t0, z0));
+        let market_t1 = MarketContext::new().insert(flat_zero_curve("USD-OIS", as_of_t1, z1));
+
+        let mut mock = MockInstrument::new(
+            "ZC-1.5Y",
+            MockPayoff::DiscountZero {
+                curve: "USD-OIS",
+                tenor,
+                notional,
+            },
+        );
+        mock.discount_curves = vec![CurveId::new("USD-OIS")];
+        let instrument: Arc<dyn Instrument> = Arc::new(mock);
+
+        let config = TaylorAttributionConfig {
+            include_gamma: true,
+            ..TaylorAttributionConfig::default()
+        };
+        let result = compute_taylor_result(
+            &instrument,
+            &market_t0,
+            &market_t1,
+            as_of_t0,
+            as_of_t1,
+            &config,
+            TaylorExecution::standalone(ExecutionPolicy::Serial),
+        )
+        .expect("taylor attribution should succeed");
+
+        let factor = result
+            .factors
+            .iter()
+            .find(|f| f.factor_name == "Rates:USD-OIS")
+            .expect("rates factor must be present");
+        let pv0 = notional * (-z0 * tenor).exp();
+        let dz = z1 - z0;
+        let expected_gamma = 0.5 * tenor * tenor * pv0 * dz * dz;
+        let gamma = factor.gamma_pnl.expect("gamma requested via include_gamma");
+        assert!(
+            ((gamma - expected_gamma) / expected_gamma).abs() < 0.01,
+            "gamma_pnl {gamma:.2} must be within 1% of analytic {expected_gamma:.2} \
+             (diagonal-only key-rate gamma understates it ~2x)"
+        );
+    }
+
+    /// B7 (forward-curve copy): same cross-bucket convexity check for the
+    /// forward-curve factor path.
+    #[test]
+    fn forward_keyrate_gamma_captures_cross_bucket_convexity() {
+        let as_of_t0 = date!(2025 - 01 - 15);
+        let as_of_t1 = date!(2025 - 01 - 16);
+        let scale = 100_000_000.0;
+        let tenor = 1.5;
+        let (r0, r1) = (0.03, 0.04);
+
+        let market_t0 = MarketContext::new().insert(flat_forward_curve("TEST-FWD", as_of_t0, r0));
+        let market_t1 = MarketContext::new().insert(flat_forward_curve("TEST-FWD", as_of_t1, r1));
+
+        let mut mock = MockInstrument::new(
+            "FWD-CONVEX",
+            MockPayoff::ForwardConvex {
+                curve: "TEST-FWD",
+                tenor,
+                scale,
+            },
+        );
+        mock.forward_curves = vec![CurveId::new("TEST-FWD")];
+        let instrument: Arc<dyn Instrument> = Arc::new(mock);
+
+        let config = TaylorAttributionConfig {
+            include_gamma: true,
+            ..TaylorAttributionConfig::default()
+        };
+        let result = compute_taylor_result(
+            &instrument,
+            &market_t0,
+            &market_t1,
+            as_of_t0,
+            as_of_t1,
+            &config,
+            TaylorExecution::standalone(ExecutionPolicy::Serial),
+        )
+        .expect("taylor attribution should succeed");
+
+        let factor = result
+            .factors
+            .iter()
+            .find(|f| f.factor_name == "Forward:TEST-FWD")
+            .expect("forward factor must be present");
+        let pv0 = scale * (-r0 * tenor).exp();
+        let dr = r1 - r0;
+        let expected_gamma = 0.5 * tenor * tenor * pv0 * dr * dr;
+        let gamma = factor.gamma_pnl.expect("gamma requested via include_gamma");
+        assert!(
+            ((gamma - expected_gamma) / expected_gamma).abs() < 0.01,
+            "forward gamma_pnl {gamma:.2} must be within 1% of analytic {expected_gamma:.2}"
+        );
+    }
+
+    /// Credit convexity must not vanish on the BucketedCs01 (key-rate) path:
+    /// with `include_gamma = true` a discount-style credit zero must report a
+    /// second-order term matching the analytic ½·t²·PV₀·Δz².
+    #[test]
+    fn credit_keyrate_path_computes_parallel_gamma() {
+        let as_of_t0 = date!(2025 - 01 - 15);
+        let as_of_t1 = date!(2025 - 01 - 16);
+        let notional = 50_000_000.0;
+        let tenor = 5.0;
+        let (z0, z1) = (0.02, 0.03);
+
+        let market_t0 = MarketContext::new().insert(flat_zero_curve("CR-DISC", as_of_t0, z0));
+        let market_t1 = MarketContext::new().insert(flat_zero_curve("CR-DISC", as_of_t1, z1));
+
+        let pv0 = notional * (-z0 * tenor).exp();
+        // Analytic zero-rate CS01 ($/bp) for the 5y bucket.
+        let cs01 = -notional * tenor * (-z0 * tenor).exp() / 10_000.0;
+
+        let mut mock = MockInstrument::new(
+            "RISKY-ZC",
+            MockPayoff::DiscountZero {
+                curve: "CR-DISC",
+                tenor,
+                notional,
+            },
+        );
+        mock.credit_curves = vec![CurveId::new("CR-DISC")];
+        mock.keyrate_measures = vec![("bucketed_cs01::CR-DISC::5y".to_string(), cs01)];
+        let instrument: Arc<dyn Instrument> = Arc::new(mock);
+
+        let config = TaylorAttributionConfig {
+            include_gamma: true,
+            ..TaylorAttributionConfig::default()
+        };
+        let result = compute_taylor_result(
+            &instrument,
+            &market_t0,
+            &market_t1,
+            as_of_t0,
+            as_of_t1,
+            &config,
+            TaylorExecution::standalone(ExecutionPolicy::Serial),
+        )
+        .expect("taylor attribution should succeed");
+
+        let factor = result
+            .factors
+            .iter()
+            .find(|f| f.factor_name == "Credit:CR-DISC")
+            .expect("credit factor must be present");
+        // Key-rate first-order path must still drive explained P&L.
+        assert!(
+            (factor.explained_pnl - cs01 * 100.0).abs() < 1.0,
+            "key-rate first-order explained P&L must be CS01 x 100bp, got {}",
+            factor.explained_pnl
+        );
+        let dz = z1 - z0;
+        let expected_gamma = 0.5 * tenor * tenor * pv0 * dz * dz;
+        let gamma = factor
+            .gamma_pnl
+            .expect("credit gamma must be computed on the key-rate path too");
+        assert!(
+            ((gamma - expected_gamma) / expected_gamma).abs() < 0.01,
+            "credit gamma_pnl {gamma:.2} must be within 1% of analytic {expected_gamma:.2}"
+        );
+    }
+
+    /// Vega must cover every volatility dependency, not just the first: with
+    /// two moved surfaces both must appear as factors with their own P&L.
+    #[test]
+    fn vega_covers_all_volatility_dependencies() {
+        let as_of_t0 = date!(2025 - 01 - 15);
+        let as_of_t1 = date!(2025 - 01 - 16);
+
+        let market_t0 = MarketContext::new()
+            .insert_surface(two_expiry_surface("VOL-A", 0.20, 0.20))
+            .insert_surface(two_expiry_surface("VOL-B", 0.20, 0.20));
+        // A: +2 vol points, B: +4 vol points.
+        let market_t1 = MarketContext::new()
+            .insert_surface(two_expiry_surface("VOL-A", 0.22, 0.22))
+            .insert_surface(two_expiry_surface("VOL-B", 0.24, 0.24));
+
+        let mut mock = MockInstrument::new(
+            "TWO-VOL",
+            MockPayoff::VolSum {
+                reads: vec![("VOL-A", 1.0, 100.0), ("VOL-B", 1.0, 100.0)],
+                scale: 1_000_000.0,
+            },
+        );
+        mock.vol_deps = vec![
+            VolatilityDependency::new("VOL-A", None, None),
+            VolatilityDependency::new("VOL-B", None, None),
+        ];
+        let instrument: Arc<dyn Instrument> = Arc::new(mock);
+
+        let config = TaylorAttributionConfig::default();
+        let result = compute_taylor_result(
+            &instrument,
+            &market_t0,
+            &market_t1,
+            as_of_t0,
+            as_of_t1,
+            &config,
+            TaylorExecution::standalone(ExecutionPolicy::Serial),
+        )
+        .expect("taylor attribution should succeed");
+
+        let factor_a = result
+            .factors
+            .iter()
+            .find(|f| f.factor_name == "Vol:VOL-A")
+            .expect("first vol surface factor must be present");
+        let factor_b = result
+            .factors
+            .iter()
+            .find(|f| f.factor_name == "Vol:VOL-B")
+            .expect("second vol surface factor must not be silently dropped");
+
+        // Linear payoff: vega = $10k/pt per surface; moves +2 / +4 points.
+        assert!(
+            (factor_a.explained_pnl - 20_000.0).abs() < 1.0,
+            "VOL-A explained {}",
+            factor_a.explained_pnl
+        );
+        assert!(
+            (factor_b.explained_pnl - 40_000.0).abs() < 1.0,
+            "VOL-B explained {}",
+            factor_b.explained_pnl
+        );
+    }
+
+    /// The vol move must be measured at the instrument's own reference
+    /// expiry/strike when available: a front-up/back-down term-structure
+    /// inversion averages to ~0 across the surface, but a front-expiry
+    /// instrument experienced ≈ +4 vol points.
+    #[test]
+    fn vol_move_uses_instrument_reference_point() {
+        let as_of_t0 = date!(2025 - 01 - 15);
+        let as_of_t1 = date!(2025 - 01 - 16);
+
+        // Front +4 pts, back −4 pts: surface-average move ≈ 0.
+        let market_t0 =
+            MarketContext::new().insert_surface(two_expiry_surface("VOL-TS", 0.20, 0.28));
+        let market_t1 =
+            MarketContext::new().insert_surface(two_expiry_surface("VOL-TS", 0.24, 0.24));
+
+        let mut mock = MockInstrument::new(
+            "FRONT-VOL",
+            MockPayoff::VolSum {
+                reads: vec![("VOL-TS", 0.5, 100.0)],
+                scale: 1_000_000.0,
+            },
+        );
+        mock.vol_deps = vec![VolatilityDependency::new("VOL-TS", None, Some(100.0))];
+        // 183 days ≈ 0.5y to expiry — the front of the surface.
+        mock.expiry = Some(date!(2025 - 07 - 17));
+        let instrument: Arc<dyn Instrument> = Arc::new(mock);
+
+        let config = TaylorAttributionConfig::default();
+        let result = compute_taylor_result(
+            &instrument,
+            &market_t0,
+            &market_t1,
+            as_of_t0,
+            as_of_t1,
+            &config,
+            TaylorExecution::standalone(ExecutionPolicy::Serial),
+        )
+        .expect("taylor attribution should succeed");
+
+        let factor = result
+            .factors
+            .iter()
+            .find(|f| f.factor_name == "Vol:VOL-TS")
+            .expect("vol factor must be present");
+        assert!(
+            (factor.market_move - 4.0).abs() < 0.1,
+            "vol move must be measured at the instrument's front expiry (≈ +4 pts), got {}",
+            factor.market_move
+        );
+    }
+
+    /// Without a reference expiry/strike the vol move stays surface-averaged,
+    /// and the attribution metadata must say so.
+    #[test]
+    fn vol_without_reference_point_notes_surface_average() {
+        let as_of_t0 = date!(2025 - 01 - 15);
+        let as_of_t1 = date!(2025 - 01 - 16);
+
+        let market_t0 =
+            MarketContext::new().insert_surface(two_expiry_surface("VOL-X", 0.20, 0.20));
+        let market_t1 =
+            MarketContext::new().insert_surface(two_expiry_surface("VOL-X", 0.22, 0.22));
+
+        let mut mock = MockInstrument::new(
+            "NO-REF-VOL",
+            MockPayoff::VolSum {
+                reads: vec![("VOL-X", 1.0, 100.0)],
+                scale: 1_000_000.0,
+            },
+        );
+        mock.vol_deps = vec![VolatilityDependency::new("VOL-X", None, None)];
+        let instrument: Arc<dyn Instrument> = Arc::new(mock);
+
+        let attribution = attribute_pnl_taylor(
+            &instrument,
+            &market_t0,
+            &market_t1,
+            as_of_t0,
+            as_of_t1,
+            &TaylorAttributionConfig::default(),
+            ExecutionPolicy::Serial,
+        )
+        .expect("taylor attribution should succeed");
+
+        assert!(
+            attribution
+                .meta
+                .notes
+                .iter()
+                .any(|n| n.contains("VOL-X") && n.contains("surface-averaged")),
+            "metadata must note that the vol move is surface-averaged, got {:?}",
+            attribution.meta.notes
+        );
+    }
+
+    /// Factor failures must be visible: a curve present in market dependencies
+    /// but missing from one market must be recorded in metadata notes and flag
+    /// the result invalid — while the run still completes.
+    #[test]
+    fn failed_factor_is_recorded_in_notes_and_flags_invalid() {
+        use finstack_quant_core::math::interp::InterpStyle;
+
+        let as_of_t0 = date!(2025 - 01 - 15);
+        let as_of_t1 = date!(2025 - 01 - 16);
+
+        let instrument: Arc<dyn Instrument> = Arc::new(
+            TestInstrument::new("FAIL-001", Money::new(1000.0, Currency::USD))
+                .with_discount_curves(&["USD-OIS"]),
+        );
+
+        let curve = DiscountCurve::builder("USD-OIS")
+            .base_date(as_of_t0)
+            .knots(vec![(0.0, 1.0), (30.0, 0.5)])
+            .interp(InterpStyle::Linear)
+            .build()
+            .expect("discount curve");
+        let market_t0 = MarketContext::new().insert(curve);
+        // T1 lacks the curve entirely → the rates factor must fail.
+        let market_t1 = MarketContext::new();
+
+        let attribution = attribute_pnl_taylor(
+            &instrument,
+            &market_t0,
+            &market_t1,
+            as_of_t0,
+            as_of_t1,
+            &TaylorAttributionConfig::default(),
+            ExecutionPolicy::Serial,
+        )
+        .expect("attribution must complete despite the failed factor");
+
+        assert!(
+            attribution
+                .meta
+                .notes
+                .iter()
+                .any(|n| n.contains("USD-OIS") && n.contains("failed")),
+            "failed factor must be recorded in metadata notes, got {:?}",
+            attribution.meta.notes
+        );
+        assert!(
+            attribution.result_invalid,
+            "a failed dependency-backed factor must flag the result invalid"
+        );
+    }
+
+    /// Bumps below the second-difference noise floor must be rejected at
+    /// validation (Press et al., Numerical Recipes §5.7).
+    #[test]
+    fn taylor_rejects_sub_noise_floor_bumps() {
+        for bad in [
+            TaylorAttributionConfig {
+                rate_bump_bp: 1e-6,
+                ..TaylorAttributionConfig::default()
+            },
+            TaylorAttributionConfig {
+                rate_bump_bp: 0.009,
+                ..TaylorAttributionConfig::default()
+            },
+            TaylorAttributionConfig {
+                credit_bump_bp: 1e-6,
+                ..TaylorAttributionConfig::default()
+            },
+            TaylorAttributionConfig {
+                vol_bump: 1e-5,
+                ..TaylorAttributionConfig::default()
+            },
+        ] {
+            assert!(
+                bad.validate().is_err(),
+                "sub-noise-floor bump must fail validation: {bad:?}"
+            );
+        }
+
+        // Boundary values remain valid.
+        let ok = TaylorAttributionConfig {
+            rate_bump_bp: 0.01,
+            credit_bump_bp: 0.01,
+            vol_bump: 1e-4,
+            ..TaylorAttributionConfig::default()
+        };
+        assert!(ok.validate().is_ok());
+    }
+
+    /// `unexplained` must be computed on the same total-return basis as the
+    /// explained factors: a period coupon flows into theta's explained P&L, so
+    /// it must also be part of `actual_pnl`.
+    #[test]
+    fn unexplained_uses_total_return_actual_pnl() {
+        let as_of_t0 = date!(2025 - 01 - 15);
+        let as_of_t1 = date!(2025 - 02 - 15);
+
+        let mut mock = MockInstrument::new("COUPON-001", MockPayoff::Constant(1_000_000.0));
+        mock.coupon = Some((date!(2025 - 02 - 01), 5_000.0));
+        let instrument: Arc<dyn Instrument> = Arc::new(mock);
+
+        let result = compute_taylor_result(
+            &instrument,
+            &MarketContext::new(),
+            &MarketContext::new(),
+            as_of_t0,
+            as_of_t1,
+            &TaylorAttributionConfig::default(),
+            TaylorExecution::standalone(ExecutionPolicy::Serial),
+        )
+        .expect("taylor attribution should succeed");
+
+        assert!(
+            (result.actual_pnl - 5_000.0).abs() < 1e-6,
+            "actual_pnl must include the period coupon (total-return basis), got {}",
+            result.actual_pnl
+        );
+        assert!(
+            result.unexplained.abs() < 1e-6,
+            "coupon income must not bias unexplained, got {}",
+            result.unexplained
+        );
+    }
+
+    /// The FX-exposure factor must run when either side carries an FX matrix;
+    /// previously a missing T0 matrix silently skipped it even though T1 had
+    /// FX-driven P&L.
+    #[test]
+    fn fx_factor_runs_when_only_t1_has_fx() {
+        use finstack_quant_core::money::fx::{FxConversionPolicy, FxMatrix, FxProvider};
+        use finstack_quant_core::Error;
+
+        struct FixedFx(f64);
+        impl FxProvider for FixedFx {
+            fn rate(
+                &self,
+                from: Currency,
+                to: Currency,
+                _on: Date,
+                _policy: FxConversionPolicy,
+            ) -> Result<f64> {
+                if from == to {
+                    Ok(1.0)
+                } else if from == Currency::EUR && to == Currency::USD {
+                    Ok(self.0)
+                } else if from == Currency::USD && to == Currency::EUR {
+                    Ok(1.0 / self.0)
+                } else {
+                    Err(Error::Validation("FX rate not found".to_string()))
+                }
+            }
+        }
+
+        let as_of_t0 = date!(2025 - 01 - 15);
+        let as_of_t1 = date!(2025 - 01 - 16);
+
+        let instrument: Arc<dyn Instrument> = Arc::new(MockInstrument::new(
+            "FX-T1-ONLY",
+            MockPayoff::FxOptional {
+                eur_notional: 1_000_000.0,
+            },
+        ));
+
+        let market_t0 = MarketContext::new();
+        let market_t1 = MarketContext::new().insert_fx(FxMatrix::new(Arc::new(FixedFx(1.20))));
+
+        let result = compute_taylor_result(
+            &instrument,
+            &market_t0,
+            &market_t1,
+            as_of_t0,
+            as_of_t1,
+            &TaylorAttributionConfig::default(),
+            TaylorExecution::standalone(ExecutionPolicy::Serial),
+        )
+        .expect("taylor attribution should succeed");
+
+        let fx = result
+            .factors
+            .iter()
+            .find(|f| f.factor_name == "Fx")
+            .expect("Fx factor must run when only T1 carries an FX matrix");
+        assert!(
+            (fx.explained_pnl - 200_000.0).abs() < 1e-6,
+            "Fx factor must capture the T1 FX-driven P&L, got {}",
+            fx.explained_pnl
+        );
     }
 }

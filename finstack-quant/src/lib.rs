@@ -38,6 +38,27 @@
 //! | `statements_analytics` | [`finstack_quant_statements_analytics`] |
 //! | `portfolio`        | [`finstack_quant_portfolio`]            |
 //! | `scenarios`        | [`finstack_quant_scenarios`]            |
+//!
+//! [`schema`] is defined on this crate: it indexes JSON Schema artifacts from
+//! every domain crate so a single validator can follow `$ref` across documents.
+//!
+//! # Quick start
+//!
+//! ```
+//! use finstack_quant::core::currency::Currency;
+//! use finstack_quant::core::money::Money;
+//!
+//! let amount = Money::new(100.0, Currency::USD);
+//! assert_eq!(amount.currency(), Currency::USD);
+//! ```
+//!
+//! # Crates not re-exported
+//!
+//! Depend on these packages directly when you need them:
+//!
+//! - `finstack-quant-arrow` — Arrow `RecordBatch` export for `TableEnvelope`
+//! - `finstack-quant-test-utils` — workspace golden-test helpers
+//! - `finstack-quant-valuations-macros` — `FinancialBuilder` derive used by valuations
 
 pub use finstack_quant_analytics as analytics;
 pub use finstack_quant_attribution as attribution;

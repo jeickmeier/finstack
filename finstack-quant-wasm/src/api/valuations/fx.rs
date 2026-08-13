@@ -16,7 +16,7 @@ use super::pricing::{
     price_instrument_with_metrics_context, standard_option_greeks_with_context,
     validate_pricing_instrument_json,
 };
-use crate::utils::{to_js_err, to_js_value};
+use crate::utils::{to_js_err, to_js_error, to_js_value};
 use finstack_quant_valuations::pricer::{
     instrument_envelope_from_spec, pretty_instrument_json, validate_typed_instrument_json,
 };
@@ -37,6 +37,17 @@ fn from_json_payload(type_tag: &str, json: &str) -> Result<String, JsValue> {
 
 fn pretty_json(json: &str) -> Result<String, JsValue> {
     pretty_instrument_json(json).map_err(to_js_err)
+}
+
+/// Shared body for the `id` getter emitted by the FX-class macro.
+///
+/// Re-parses the stored (already validated) canonical envelope and reads the
+/// instrument identifier through the canonical `Instrument` trait, matching
+/// the Python typed wrappers' `id` property.
+fn instrument_id_from_json(json: &str) -> Result<String, JsValue> {
+    finstack_quant_valuations::pricer::parse_boxed_instrument_json(json, None)
+        .map(|instrument| instrument.id().to_string())
+        .map_err(|e| to_js_error(&e))
 }
 
 fn price_payload(
@@ -173,6 +184,18 @@ macro_rules! fx_class {
                 pretty_json(&self.json)
             }
 
+            /// Instrument identifier (mirrors the Python wrappers' `id` property).
+            ///
+            /// # Errors
+            ///
+            /// Throws a JavaScript exception if the stored canonical instrument
+            /// envelope cannot be re-parsed (should not happen for a validated
+            /// instance).
+            #[wasm_bindgen(getter)]
+            pub fn id(&self) -> Result<String, JsValue> {
+                instrument_id_from_json(&self.json)
+            }
+
             /// Price the instrument against a market JSON snapshot.
             /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
             /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
@@ -245,6 +268,7 @@ macro_rules! fx_option_class {
             /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
             /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
             /// @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+            /// @returns Spot delta: change in value per unit spot.
             ///
             /// # Errors
             ///
@@ -264,6 +288,7 @@ macro_rules! fx_option_class {
             /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
             /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
             /// @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+            /// @returns Spot gamma: change in delta per unit spot.
             ///
             /// # Errors
             ///
@@ -283,6 +308,7 @@ macro_rules! fx_option_class {
             /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
             /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
             /// @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+            /// @returns Vega: change in value per 1.0 absolute move in implied volatility.
             ///
             /// # Errors
             ///
@@ -302,6 +328,7 @@ macro_rules! fx_option_class {
             /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
             /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
             /// @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+            /// @returns Theta: change in value per year of calendar time.
             ///
             /// # Errors
             ///
@@ -321,6 +348,7 @@ macro_rules! fx_option_class {
             /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
             /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
             /// @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+            /// @returns Domestic rho: change in value per 1.0 absolute move in the domestic rate.
             ///
             /// # Errors
             ///
@@ -340,6 +368,7 @@ macro_rules! fx_option_class {
             /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
             /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
             /// @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+            /// @returns Foreign rho: change in value per 1.0 absolute move in the foreign rate.
             ///
             /// # Errors
             ///
@@ -360,6 +389,7 @@ macro_rules! fx_option_class {
             /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
             /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
             /// @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+            /// @returns Vanna: cross sensitivity of delta to implied volatility.
             ///
             /// # Errors
             ///
@@ -379,6 +409,7 @@ macro_rules! fx_option_class {
             /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
             /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
             /// @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+            /// @returns Volga: change in vega per 1.0 absolute move in implied volatility.
             ///
             /// # Errors
             ///
@@ -398,6 +429,7 @@ macro_rules! fx_option_class {
             /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
             /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
             /// @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+            /// @returns Map of greek name to value, such as `delta`, `gamma`, and `vega`.
             ///
             /// # Errors
             ///

@@ -28,12 +28,12 @@
 //!
 //! # References
 //!
-//! - Meucci, factor risk and covariance aggregation:
-//!   `docs/REFERENCES.md#meucci-risk-and-asset-allocation`
-//! - Parametric VaR conventions:
-//!   `docs/REFERENCES.md#jpmorgan1996RiskMetrics`
-//! - Coherent/tail-risk measures:
-//!   `docs/REFERENCES.md#artzner1999CoherentRisk`
+//! - Meucci, factor risk and covariance aggregation: `docs/REFERENCES.md#meucci-risk-and-asset-allocation`
+//!
+//! - Parametric VaR conventions: `docs/REFERENCES.md#jpmorgan1996RiskMetrics`
+//!
+//! - Coherent/tail-risk measures: `docs/REFERENCES.md#artzner1999CoherentRisk`
+//!
 
 mod assignment;
 mod credit_vol_forecast;
@@ -61,7 +61,10 @@ pub use position_risk::{
     PositionRiskDecomposition, PositionVarContribution, StressAttribution, StressPositionEntry,
     TailScenarioBreakdown,
 };
-pub use risk_budget::{PositionBudgetEntry, RiskBudget, RiskBudgetResult};
+pub use risk_budget::{
+    evaluate_risk_budget_arrays, PositionBudgetEntry, RiskBudget, RiskBudgetResult,
+    DEFAULT_UTILIZATION_THRESHOLD,
+};
 pub use simulation::SimulationDecomposer;
 pub use traits::RiskDecomposer;
 pub use types::{
@@ -76,6 +79,32 @@ pub use weight_allocation::{
 pub use whatif::{
     FactorContributionDelta, PositionChange, StressResult, WhatIfEngine, WhatIfResult,
 };
+
+/// Snap tolerance used by [`tail_scenario_count`] when deciding whether a
+/// float tail-size product is "really" an integer.
+pub(crate) const TAIL_COUNT_SNAP_TOLERANCE: f64 = 1e-9;
+
+/// Number of tail scenarios implied by a confidence level.
+///
+/// Convention (shared by every tail engine in this module): take the ceiling
+/// of `(1 - confidence) * n_scenarios` evaluated on the **exact rational**.
+/// `1 - confidence` is generally not representable in binary floating point
+/// (`1 - 0.99 = 0.010000000000000009…`), so a naive `ceil` on the float
+/// product overshoots by exactly one scenario in every standard configuration
+/// (99% of 1000 scenarios gave 11 instead of 10, understating VaR), while a
+/// naive `floor` undershoots (90% of 1000 scenarios gave 99 instead of 100).
+/// Products within [`TAIL_COUNT_SNAP_TOLERANCE`] of an integer are snapped to
+/// that integer before the ceiling is taken; genuine fractions still round up
+/// (99% of 250 scenarios is exactly 2.5 and yields 3).
+pub(crate) fn tail_scenario_count(confidence: f64, n_scenarios: usize) -> usize {
+    let raw = (1.0 - confidence) * n_scenarios as f64;
+    let snapped = if (raw - raw.round()).abs() < TAIL_COUNT_SNAP_TOLERANCE {
+        raw.round()
+    } else {
+        raw.ceil()
+    };
+    snapped as usize
+}
 
 /// JS/Python-friendly ES contribution row derived from
 /// [`PositionEsContribution`].
@@ -149,9 +178,13 @@ pub struct PositionBudgetEntryView {
     pub actual_component_var: f64,
     /// Target component VaR.
     pub target_component_var: f64,
-    /// Target share of portfolio VaR.
+    /// Target share of portfolio VaR (`inf` when the portfolio VaR is zero
+    /// but the target level is not).
+    #[serde(with = "finstack_quant_core::wire::non_finite_f64")]
     pub target_pct: f64,
-    /// Utilization ratio.
+    /// Utilization ratio (negative for diversifiers, `±inf` for a non-zero
+    /// component against a zero target).
+    #[serde(with = "finstack_quant_core::wire::non_finite_f64")]
     pub utilization: f64,
     /// Over-budget amount.
     pub excess: f64,
@@ -374,6 +407,39 @@ pub fn flatten_position_pnls(
 #[cfg(test)]
 mod tests {
     use super::flatten_square_matrix;
+
+    #[test]
+    fn tail_scenario_count_uses_exact_rational_ceil() {
+        // Float artifacts snapped to the exact rational.
+        assert_eq!(super::tail_scenario_count(0.99, 1000), 10);
+        assert_eq!(super::tail_scenario_count(0.99, 200), 2);
+        assert_eq!(super::tail_scenario_count(0.995, 200), 1);
+        assert_eq!(super::tail_scenario_count(0.90, 1000), 100);
+        // 0.01 * 250 = 2.5 genuinely rounds up — not a float artifact.
+        assert_eq!(super::tail_scenario_count(0.99, 250), 3);
+    }
+
+    #[test]
+    fn budget_entry_view_serializes_non_finite_fields() {
+        let view = super::PositionBudgetEntryView {
+            position_id: "A".to_string(),
+            actual_component_var: 1.0,
+            target_component_var: 1.0,
+            target_pct: f64::INFINITY,
+            utilization: f64::NEG_INFINITY,
+            excess: 0.0,
+            breach: false,
+        };
+        let json = serde_json::to_string(&view).expect("serialize");
+        assert!(
+            json.contains("\"target_pct\":\"inf\""),
+            "infinite target_pct must survive the wire, got {json}"
+        );
+        assert!(
+            json.contains("\"utilization\":\"-inf\""),
+            "negative-infinite utilization must survive the wire, got {json}"
+        );
+    }
 
     #[test]
     fn flatten_square_matrix_round_trip() {

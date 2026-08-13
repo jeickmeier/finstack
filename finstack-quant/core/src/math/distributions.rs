@@ -70,15 +70,15 @@
 //!
 //! - **Binomial Distribution**:
 //!   - Johnson, N. L., Kotz, S., & Kemp, A. W. (1993). *Univariate Discrete Distributions*
-//!     (2nd ed.). Wiley. Chapter 3.
+//!   (2nd ed.). Wiley. Chapter 3. `docs/REFERENCES.md#press-numerical-recipes`
 //!
 //! - **Continuous Distributions**:
 //!   - Johnson, N. L., Kotz, S., & Balakrishnan, N. (1994, 1995). *Continuous Univariate
-//!     Distributions, Volumes 1 & 2* (2nd ed.). Wiley.
+//!   Distributions, Volumes 1 & 2* (2nd ed.). Wiley. `docs/REFERENCES.md#press-numerical-recipes`
 //!
 //! - **Gamma Sampling**:
 //!   - Marsaglia, G., & Tsang, W. W. (2000). "A Simple Method for Generating Gamma
-//!     Variables." *ACM Transactions on Mathematical Software*, 26(3), 363-372.
+//!   Variables." *ACM Transactions on Mathematical Software*, 26(3), 363-372. `docs/REFERENCES.md#press-numerical-recipes`
 
 use super::random::RandomNumberGenerator;
 
@@ -134,7 +134,7 @@ use super::random::RandomNumberGenerator;
 /// # References
 ///
 /// - Johnson, N. L., Kotz, S., & Kemp, A. W. (1993). *Univariate Discrete Distributions*
-///   (2nd ed.). Wiley. Chapter 3.
+///   (2nd ed.). Wiley. Chapter 3. `docs/REFERENCES.md#press-numerical-recipes`
 pub fn binomial_distribution(n: usize, p: f64) -> crate::Result<Vec<f64>> {
     use statrs::distribution::{Binomial, Discrete};
 
@@ -224,7 +224,7 @@ pub fn binomial_distribution(n: usize, p: f64) -> crate::Result<Vec<f64>> {
 /// # References
 ///
 /// - Johnson, N. L., Kotz, S., & Kemp, A. W. (1993). *Univariate Discrete Distributions*
-///   (2nd ed.). Wiley. Chapter 3.
+///   (2nd ed.). Wiley. Chapter 3. `docs/REFERENCES.md#press-numerical-recipes`
 pub fn binomial_probability(n: usize, k: usize, p: f64) -> f64 {
     use statrs::distribution::{Binomial, Discrete};
 
@@ -255,7 +255,7 @@ pub fn binomial_probability(n: usize, k: usize, p: f64) -> f64 {
 /// forward recurrence
 ///
 /// ```text
-/// P(0)     = (1 - p)^n
+/// P(0) = (1 - p)^n
 /// P(k + 1) = P(k) · (n - k) / (k + 1) · p / (1 - p)
 /// ```
 ///
@@ -285,7 +285,7 @@ pub fn binomial_probability(n: usize, k: usize, p: f64) -> f64 {
 /// # References
 ///
 /// - Johnson, N. L., Kotz, S., & Kemp, A. W. (1993). *Univariate Discrete Distributions*
-///   (2nd ed.). Wiley. Chapter 3.
+///   (2nd ed.). Wiley. Chapter 3. `docs/REFERENCES.md#press-numerical-recipes`
 #[must_use]
 pub fn binomial_pmf_all(n: usize, p: f64) -> Vec<f64> {
     let mut pmf = Vec::new();
@@ -378,7 +378,7 @@ pub fn log_factorial(n: usize) -> f64 {
 /// - α > β: Right-skewed (mode near 1)
 /// - α < β: Left-skewed (mode near 0)
 /// - α = β > 1: Symmetric, bell-shaped
-/// ```
+///   ```
 ///
 /// # Arguments
 ///
@@ -431,11 +431,11 @@ pub fn log_factorial(n: usize) -> f64 {
 /// # References
 ///
 /// - Johnson, N. L., Kotz, S., & Balakrishnan, N. (1995). *Continuous Univariate
-///   Distributions, Volume 2* (2nd ed.). Wiley. Chapter 25 (Beta distribution).
+///   Distributions, Volume 2* (2nd ed.). Wiley. Chapter 25 (Beta distribution). `docs/REFERENCES.md#press-numerical-recipes`
 /// - Devroye, L. (1986). *Non-Uniform Random Variate Generation*. Springer.
 ///   Chapter 9 (Beta distribution sampling via gamma ratio).
 /// - Marsaglia, G., & Tsang, W. W. (2000). "A Simple Method for Generating Gamma
-///   Variables." *ACM Transactions on Mathematical Software*, 26(3), 363-372.
+///   Variables." *ACM Transactions on Mathematical Software*, 26(3), 363-372. `docs/REFERENCES.md#press-numerical-recipes`
 pub fn sample_beta(
     rng: &mut dyn RandomNumberGenerator,
     alpha: f64,
@@ -525,7 +525,7 @@ pub fn sample_beta(
 /// # References
 ///
 /// - Marsaglia, G., & Tsang, W. W. (2000). "A Simple Method for Generating Gamma
-///   Variables." *ACM Transactions on Mathematical Software*, 26(3), 363-372.
+///   Variables." *ACM Transactions on Mathematical Software*, 26(3), 363-372. `docs/REFERENCES.md#press-numerical-recipes`
 pub fn sample_gamma(rng: &mut dyn RandomNumberGenerator, shape: f64) -> crate::Result<f64> {
     if !shape.is_finite() || shape <= 0.0 {
         return Err(crate::Error::Validation(format!(

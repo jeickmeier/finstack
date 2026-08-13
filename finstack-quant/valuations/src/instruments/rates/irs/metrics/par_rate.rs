@@ -35,9 +35,9 @@
 //!
 //! # References
 //!
-//! - **ISDA 2006 Definitions**: Section 7.1 - Par Swap Rates
-//! - Hull, J. C. (2018). *Options, Futures, and Other Derivatives*. Chapter 7.
-//! - Kahan, W. (1965). "Further Remarks on Reducing Truncation Errors."
+//! - **ISDA 2006 Definitions**: Section 7.1 - Par Swap Rates `docs/REFERENCES.md#isda-2006-definitions`
+//! - Hull, J. C. (2018). *Options, Futures, and Other Derivatives*. Chapter 7. `docs/REFERENCES.md#hull-options-futures`
+//! - Kahan, W. (1965). "Further Remarks on Reducing Truncation Errors." `docs/REFERENCES.md#kahan-1965`
 
 use crate::instruments::common_impl::pricing::swap_legs::ANNUITY_EPSILON;
 use crate::instruments::rates::irs::{FloatingLegCompounding, ParRateMethod};

@@ -6,9 +6,9 @@
 //! # References
 //!
 //! - Basel Committee (2006). "International Convergence of Capital
-//!   Measurement and Capital Standards" (Basel II), paragraphs 310-316.
+//!   Measurement and Capital Standards" (Basel II), paragraphs 310-316. `docs/REFERENCES.md#basel-ii-2006`
 //! - Jacobs, M. (2010). "An Empirical Study of Exposure at Default."
-//!   Journal of Advanced Studies in Finance.
+//!   Journal of Advanced Studies in Finance. `docs/REFERENCES.md#basel-ii-2006`
 
 use crate::error::InputError;
 use crate::Result;

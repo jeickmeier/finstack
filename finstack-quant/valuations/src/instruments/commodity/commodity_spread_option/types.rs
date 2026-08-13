@@ -13,7 +13,7 @@
 //! # References
 //!
 //! - Kirk, E. (1995). "Correlation in the Energy Markets." Managing Energy
-//!   Price Risk, Risk Publications.
+//!   Price Risk, Risk Publications. `docs/REFERENCES.md#kirk-1995`
 
 use crate::impl_instrument_base;
 use crate::instruments::common_impl::traits::{Attributes, Instrument};

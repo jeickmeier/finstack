@@ -168,6 +168,38 @@ pub enum RequestedMetrics {
     Only(Vec<MetricId>),
 }
 
+impl RequestedMetrics {
+    /// Build a metric selection from binding-supplied metric-id strings.
+    ///
+    /// This is the canonical conversion behind the Python `value_portfolio`
+    /// `metrics=` keyword and the WASM `valuePortfolio` `metrics` parameter,
+    /// so both hosts resolve names identically:
+    ///
+    /// - `None` requests [`RequestedMetrics::Standard`].
+    /// - `Some(names)` requests [`RequestedMetrics::Only`] with each name
+    ///   resolved through [`std::str::FromStr`], falling back to
+    ///   [`MetricId::custom`] for non-standard identifiers. An empty list
+    ///   therefore performs a PV-only valuation.
+    ///
+    /// # Arguments
+    ///
+    /// * `metrics` - Optional exact metric-id strings to request.
+    #[must_use]
+    pub fn from_metric_names(metrics: Option<Vec<String>>) -> Self {
+        use std::str::FromStr;
+        metrics.map_or(Self::Standard, |metrics| {
+            Self::Only(
+                metrics
+                    .into_iter()
+                    .map(|metric| {
+                        MetricId::from_str(&metric).unwrap_or_else(|_| MetricId::custom(metric))
+                    })
+                    .collect(),
+            )
+        })
+    }
+}
+
 /// Options controlling portfolio valuation behaviour.
 ///
 /// By default, risk metrics are treated as best-effort: if metrics fail for
@@ -251,8 +283,8 @@ pub struct PortfolioValuationOptions {
 ///
 /// # References
 ///
-/// - Numerically stable aggregation:
-///   `docs/REFERENCES.md#kahan-1965`
+/// - Numerically stable aggregation: `docs/REFERENCES.md#kahan-1965`
+///
 pub fn value_portfolio(
     portfolio: &Portfolio,
     market: &MarketContext,
@@ -362,8 +394,8 @@ fn value_portfolio_with_execution_at(
 ///
 /// # References
 ///
-/// - Numerically stable aggregation:
-///   `docs/REFERENCES.md#kahan-1965`
+/// - Numerically stable aggregation: `docs/REFERENCES.md#kahan-1965`
+///
 pub fn revalue_affected(
     portfolio: &Portfolio,
     market: &MarketContext,

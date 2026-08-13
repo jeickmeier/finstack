@@ -60,6 +60,13 @@
 //!   the pricing stack, which sits above this crate.
 //!
 //! See the [crate README](../README.md) for detailed workflows and embedded data.
+//!
+//! # References
+//!
+//! - ISDA SIMM: `docs/REFERENCES.md#isda-simm`
+//! - BCBS-IOSCO uncleared margin: `docs/REFERENCES.md#bcbs-iosco-uncleared-margin`
+//! - SA-CCR: `docs/REFERENCES.md#bcbs-279-saccr`
+//! - XVA: `docs/REFERENCES.md#gregory-xva-challenge`
 
 /// Margin calculation engines.
 pub mod calculators;

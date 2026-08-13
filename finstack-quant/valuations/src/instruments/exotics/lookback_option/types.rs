@@ -40,7 +40,7 @@
 //!
 //! - Goldman, M. B., Sosin, H. B., & Gatto, M. A. (1979). "Path Dependent Options."
 //! - Broadie, M., Glasserman, P., & Kou, S. G. (1997). "A Continuity Correction
-//!   for Discrete Barrier Options."
+//!   for Discrete Barrier Options." `docs/REFERENCES.md#glasserman-2004-monte-carlo` `docs/REFERENCES.md#broadie-glasserman-kou-1997`
 
 use crate::impl_instrument_base;
 use crate::instruments::common_impl::traits::Attributes;

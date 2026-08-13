@@ -181,17 +181,12 @@ impl PyBps {
     #[pyo3(text_signature = "(bp)")]
     /// Construct from a whole basis-point value.
     ///
-    /// Raises ``ValueError`` for fractional input: ``Bps`` is integer-backed,
-    /// and silently rounding a sub-bp spread (e.g. an FRN margin of 62.5bp)
+    /// Raises ``ValueError`` for fractional input: the canonical Rust
+    /// ``Bps::try_new`` is integer-backed and rejects sub-bp quotes, because
+    /// silently rounding a sub-bp spread (e.g. an FRN margin of 62.5bp)
     /// would change instrument economics. Use a decimal ``Rate`` or the JSON
     /// instrument path for sub-bp precision.
     fn new(bp: f64) -> PyResult<Self> {
-        if bp.is_finite() && bp.fract() != 0.0 {
-            return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                "Bps requires a whole number of basis points; got {bp}. \
-                 For sub-bp precision use a decimal Rate or the JSON instrument path."
-            )));
-        }
         Bps::try_new(bp).map(Self::from_inner).map_err(core_to_py)
     }
 

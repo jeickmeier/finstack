@@ -65,6 +65,27 @@ pub fn portfolio_result_get_metric(
     Ok(result.get_metric(metric_id))
 }
 
+/// Run the canonical Rust metric aggregation for both entry points.
+fn run_aggregate_metrics(
+    py: Python<'_>,
+    valuation: &Bound<'_, PyAny>,
+    base_currency: &str,
+    market: &Bound<'_, PyAny>,
+    as_of: &Bound<'_, PyAny>,
+) -> PyResult<finstack_quant_portfolio::metrics::PortfolioMetrics> {
+    let valuation = extract_valuation_ref(py, valuation)?;
+    let ccy: finstack_quant_core::currency::Currency =
+        base_currency.parse().map_err(display_to_py)?;
+    let market = extract_market_ref(py, market)?;
+    let date = crate::bindings::date_utils::extract_date(as_of)?;
+    let valuation_ref: &finstack_quant_portfolio::valuation::PortfolioValuation = &valuation;
+    let market_ref: &finstack_quant_core::market_data::context::MarketContext = &market;
+    py.detach(|| {
+        finstack_quant_portfolio::metrics::aggregate_metrics(valuation_ref, ccy, market_ref, date)
+    })
+    .map_err(portfolio_to_py)
+}
+
 /// Aggregate portfolio metrics from a valuation.
 ///
 /// Parameters
@@ -78,31 +99,43 @@ pub fn portfolio_result_get_metric(
 /// as_of : datetime.date | str
 ///     Valuation date, either a date-like object (``datetime.date``,
 ///     ``pandas.Timestamp``) or an ISO 8601 string.
+///
+/// Returns
+/// -------
+/// PortfolioMetrics
+///     Typed aggregate-metrics wrapper. Use :func:`aggregate_metrics_json`
+///     for the raw wire string.
 #[pyfunction]
+#[pyo3(text_signature = "(valuation, base_currency, market, as_of)")]
 pub fn aggregate_metrics(
     py: Python<'_>,
     valuation: &Bound<'_, PyAny>,
     base_currency: &str,
     market: &Bound<'_, PyAny>,
     as_of: &Bound<'_, PyAny>,
+) -> PyResult<crate::bindings::portfolio::types::PyPortfolioMetrics> {
+    let metrics = run_aggregate_metrics(py, valuation, base_currency, market, as_of)?;
+    Ok(crate::bindings::portfolio::types::PyPortfolioMetrics::from_inner(metrics))
+}
+
+/// Aggregate portfolio metrics from a valuation and return wire JSON.
+///
+/// Wire twin of :func:`aggregate_metrics`; same inputs, JSON-string output.
+///
+/// Returns
+/// -------
+/// str
+///     JSON-serialized ``PortfolioMetrics``.
+#[pyfunction]
+#[pyo3(text_signature = "(valuation, base_currency, market, as_of)")]
+pub fn aggregate_metrics_json(
+    py: Python<'_>,
+    valuation: &Bound<'_, PyAny>,
+    base_currency: &str,
+    market: &Bound<'_, PyAny>,
+    as_of: &Bound<'_, PyAny>,
 ) -> PyResult<String> {
-    let valuation = extract_valuation_ref(py, valuation)?;
-    let ccy: finstack_quant_core::currency::Currency =
-        base_currency.parse().map_err(display_to_py)?;
-    let market = extract_market_ref(py, market)?;
-    let date = crate::bindings::date_utils::extract_date(as_of)?;
-    let valuation_ref: &finstack_quant_portfolio::valuation::PortfolioValuation = &valuation;
-    let market_ref: &finstack_quant_core::market_data::context::MarketContext = &market;
-    let metrics = py
-        .detach(|| {
-            finstack_quant_portfolio::metrics::aggregate_metrics(
-                valuation_ref,
-                ccy,
-                market_ref,
-                date,
-            )
-        })
-        .map_err(portfolio_to_py)?;
+    let metrics = run_aggregate_metrics(py, valuation, base_currency, market, as_of)?;
     py.detach(move || serde_json::to_string(&metrics))
         .map_err(display_to_py)
 }
@@ -114,5 +147,6 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(portfolio_result_total_value, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(portfolio_result_get_metric, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(aggregate_metrics, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(aggregate_metrics_json, m)?)?;
     Ok(())
 }

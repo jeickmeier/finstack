@@ -33,9 +33,9 @@
 //!
 //! # References
 //!
-//! - IFRS 9 B5.5.28-33 -- Measurement of expected credit losses
-//! - IFRS 9 B5.5.44 -- Discount rate (effective interest rate)
-//! - IFRS 9 B5.5.42 -- Probability-weighted scenarios
+//! - IFRS 9 B5.5.28-33 -- Measurement of expected credit losses `docs/REFERENCES.md#ifrs-9-impairment`
+//! - IFRS 9 B5.5.44 -- Discount rate (effective interest rate) `docs/REFERENCES.md#ifrs-9-impairment`
+//! - IFRS 9 B5.5.42 -- Probability-weighted scenarios `docs/REFERENCES.md#ifrs-9-impairment`
 
 use finstack_quant_core::credit::lgd::DownturnLgd;
 use finstack_quant_core::{Error, Result};
@@ -89,12 +89,12 @@ pub struct MacroScenario {
 ///   `lgd_override` sets the base and the downturn stress is layered on top
 ///   of it):
 ///   - Stressed (`DownturnMethod::StressedApproximation`):
-///     `LGD_eff = clamp(base + s·√ρ·Φ⁻¹(q)·√(base·(1−base)), 0, 1)`, core's
-///     documented mean-plus-Bernoulli-stdev approximation (see
-///     `core/src/credit/lgd/downturn.rs` Methodology Note; Frye & Jacobs
-///     (2012) is related literature only, not the formula implemented here).
+///   `LGD_eff = clamp(base + s·√ρ·Φ⁻¹(q)·√(base·(1−base)), 0, 1)`, core's
+///   documented mean-plus-Bernoulli-stdev approximation (see
+///   `core/src/credit/lgd/downturn.rs` Methodology Note; Frye & Jacobs
+///   (2012) is related literature only, not the formula implemented here).
 ///   - Regulatory floor (`DownturnMethod::RegulatoryFloor`):
-///     `LGD_eff = clamp(max(base + add_on, floor), 0, 1)`.
+///   `LGD_eff = clamp(max(base + add_on, floor), 0, 1)`.
 ///
 /// # References
 ///
@@ -634,8 +634,8 @@ fn effective_lgd(config: &EclConfig, base_lgd: f64) -> Result<f64> {
 ///
 /// # References
 ///
-/// - IFRS 9 B5.5.28-33 -- Measurement of expected credit losses.
-/// - Duffie & Singleton (2003), *Credit Risk: Pricing, Measurement and Management*.
+/// - IFRS 9 B5.5.28-33 -- Measurement of expected credit losses. `docs/REFERENCES.md#ifrs-9-impairment`
+/// - Duffie & Singleton (2003), *Credit Risk: Pricing, Measurement and Management*. `docs/REFERENCES.md#duffie-singleton-1999`
 ///
 /// # Arguments
 ///
@@ -818,7 +818,7 @@ pub fn compute_ecl_single(
 ///
 /// # References
 ///
-/// - IFRS 9 B5.5.42 -- Probability-weighted scenarios.
+/// - IFRS 9 B5.5.42 -- Probability-weighted scenarios. `docs/REFERENCES.md#ifrs-9-impairment`
 pub fn compute_ecl_weighted(
     exposure: &Exposure,
     stage: Stage,

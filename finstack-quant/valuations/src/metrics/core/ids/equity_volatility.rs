@@ -257,7 +257,10 @@ impl MetricId {
 
     /// Credit spread gamma, the second derivative with respect to spreads.
     ///
-    /// Units: currency per bp squared when computed under bp bump conventions.
+    /// Units: $ per (decimal spread)². The producer normalises the central
+    /// second difference by the DECIMAL bump squared (1bp = 1e-4, divisor
+    /// 1e-8), so consumers must square a decimal spread move — NOT a bp move —
+    /// when forming `½ × CsGamma × (Δs)²`.
     pub const CsGamma: Self = Self(Cow::Borrowed("cs_gamma"));
 
     /// Inflation convexity, the second derivative with respect to inflation moves.

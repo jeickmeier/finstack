@@ -48,8 +48,8 @@ impl std::fmt::Display for CmsSpreadOptionType {
 ///
 /// # References
 ///
-/// - Hagan, P. S. (2003). "Convexity Conundrums." *Wilmott Magazine*.
-/// - Antonov, A., Konikov, M., & Spector, M. (2013). "SABR Spreads." *Risk*.
+/// - Hagan, P. S. (2003). "Convexity Conundrums." *Wilmott Magazine*. `docs/REFERENCES.md#hagan-2003-cms-convexity`
+/// - Antonov, A., Konikov, M., & Spector, M. (2013). "SABR Spreads." *Risk*. `docs/REFERENCES.md#hagan-2002-sabr`
 #[derive(PartialEq, Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CmsSpreadOption {

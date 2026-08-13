@@ -56,10 +56,10 @@
 //! # References
 //!
 //! - Salmon et al. (2011). "Parallel Random Numbers: As Easy as 1, 2, 3."
-//!   SC '11 Proceedings. DOI: 10.1145/2063384.2063405
+//!   SC '11 Proceedings. DOI: 10.1145/2063384.2063405 `docs/REFERENCES.md#salmon-2011-philox`
 //! - Matsumoto & Nishimura (1998). "Mersenne Twister: A 623-dimensionally
 //!   equidistributed uniform pseudo-random number generator."
-//!   ACM TOMACS 8(1):3-30.
+//!   ACM TOMACS 8(1):3-30. `docs/REFERENCES.md#press-numerical-recipes`
 
 pub mod fbm;
 pub mod philox;

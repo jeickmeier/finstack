@@ -20,7 +20,7 @@
 //!
 //! # References
 //!
-//! - Gatheral, J. (2006). *The Volatility Surface*. Wiley. Chapter 3.
+//! - Gatheral, J. (2006). *The Volatility Surface*. Wiley. Chapter 3. `docs/REFERENCES.md#gatheral-volatility-surface`
 //! - Roper, M. (2010). *Arbitrage Free Implied Volatility Surfaces*.
 
 use super::{classify_severity, ArbitrageCheck};

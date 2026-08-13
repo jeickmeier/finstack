@@ -3,7 +3,8 @@
 //! Computes derivatives by differentiating the payoff with respect to parameters
 //! along each path. Works best for smooth payoffs without discontinuities.
 //!
-//! Reference: Glasserman (2003) - "Monte Carlo Methods in Financial Engineering"
+//! Reference: Glasserman (2003) - "Monte Carlo Methods in Financial Engineering".
+//!
 
 use crate::online_stats::OnlineStats;
 
@@ -118,7 +119,7 @@ pub fn pathwise_delta_put(
 ///
 /// # References
 ///
-/// Glasserman (2003) - "Monte Carlo Methods in Financial Engineering", Chapter 7
+/// Glasserman (2003) - "Monte Carlo Methods in Financial Engineering", Chapter 7 `docs/REFERENCES.md#glasserman-2004-monte-carlo`
 #[must_use]
 #[allow(clippy::too_many_arguments)]
 pub fn pathwise_vega(

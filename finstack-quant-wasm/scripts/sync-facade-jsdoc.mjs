@@ -101,9 +101,9 @@ function normalizeParameterTags(documentationText, node) {
 }
 
 function convertRustArguments(documentationText, node) {
-  if (!documentationText || !('parameters' in node)) return documentationText;
+  if (!documentationText) return documentationText;
   const names = new Map(
-    node.parameters.map((parameter) => {
+    ('parameters' in node ? node.parameters : []).map((parameter) => {
       const name = parameter.name.getText(facade);
       return [canonicalParameterName(name), name];
     })
@@ -113,14 +113,25 @@ function convertRustArguments(documentationText, node) {
     .split('\n')
     .map((line) => line.replace(/^\s*\* ?/, '').trimEnd());
   const converted = [];
+  let skippingSection = false;
   let inArguments = false;
   for (const line of body) {
     const stripped = line.trim();
     if (stripped === '# Arguments') {
       inArguments = true;
+      skippingSection = false;
       continue;
     }
-    if (inArguments && stripped.startsWith('#')) inArguments = false;
+    if (stripped === '# Returns' || stripped === '# Errors') {
+      inArguments = false;
+      skippingSection = true;
+      continue;
+    }
+    if ((inArguments || skippingSection) && stripped.startsWith('#')) {
+      inArguments = false;
+      skippingSection = false;
+    }
+    if (skippingSection) continue;
     if (inArguments) {
       const argument = stripped.match(/^\*\s*`([A-Za-z_][A-Za-z0-9_]*)`\s*-\s*(.+)$/);
       if (argument) {
@@ -138,8 +149,12 @@ function convertRustArguments(documentationText, node) {
   return `/**\n${converted.map((line) => ` *${line ? ` ${line}` : ''}`).join('\n')}\n */`;
 }
 
+function documentationIndent(node) {
+  return ts.isInterfaceDeclaration(node.parent) || ts.isClassDeclaration(node.parent) ? '  ' : '';
+}
+
 function formatDocumentation(documentationText, node) {
-  const indent = ts.isInterfaceDeclaration(node.parent) ? '  ' : '';
+  const indent = documentationIndent(node);
   const body = documentationText
     .replace(/^\/\*\*\s*|\s*\*\/$/g, '')
     .split('\n')
@@ -212,6 +227,28 @@ function tagsFromRustdoc(documentationText, parameterNames) {
   return tags;
 }
 
+function stripRustdocHeadings(documentationText) {
+  if (!documentationText) return documentationText;
+  if (!/# (?:Arguments|Returns|Errors)\b/.test(documentationText)) return documentationText;
+  const body = documentationText
+    .replace(/^\/\*\*\s*|\s*\*\/$/g, '')
+    .split('\n')
+    .map((line) => line.replace(/^\s*\* ?/, '').trimEnd());
+  const kept = [];
+  let skipping = false;
+  for (const line of body) {
+    const stripped = line.trim();
+    if (stripped === '# Arguments' || stripped === '# Returns' || stripped === '# Errors') {
+      skipping = true;
+      continue;
+    }
+    if (skipping && stripped.startsWith('#')) skipping = false;
+    if (skipping) continue;
+    kept.push(line);
+  }
+  return `/**\n${kept.map((line) => ` *${line ? ` ${line}` : ''}`).join('\n')}\n */`;
+}
+
 function synchronizeTags(rawDocumentationText, facadeDocumentationText, node) {
   if (!rawDocumentationText) {
     if (!facadeDocumentationText) return null;
@@ -234,7 +271,9 @@ function synchronizeTags(rawDocumentationText, facadeDocumentationText, node) {
       rawTags.filter((tag) => tag.startsWith(`@${kind}`)),
     ])
   );
-  let blocks = documentationBlocks(facadeDocumentationText ?? rawDocumentationText).filter(
+  let blocks = documentationBlocks(
+    stripRustdocHeadings(facadeDocumentationText ?? rawDocumentationText)
+  ).filter(
     (block) =>
       !(
         block.kind === 'throws' &&
@@ -287,22 +326,33 @@ const replacements = [];
 let synchronized = 0;
 
 function synchronizeNode(node, rawDocumentationText) {
-  const rawCandidate = convertRustArguments(
-    normalizeParameterTags(rawDocumentationText, node),
-    node
-  );
+  const normalized = normalizeParameterTags(rawDocumentationText, node);
+  const stripped = convertRustArguments(normalized, node);
   const existing = leadingJsdoc(facadeText, node, facade);
-  const candidate = synchronizeTags(rawCandidate, existing?.text ?? null, node);
+  const candidate = synchronizeTags(normalized, existing?.text ?? stripped, node);
   const formattedCandidate = candidate && formatDocumentation(candidate, node);
   if (!formattedCandidate || formattedCandidate === existing?.text) return;
   replacements.push({
     start: existing?.start ?? node.getStart(facade, false),
     end: existing?.end ?? node.getStart(facade, false),
-    text: existing
-      ? formattedCandidate
-      : `${formattedCandidate}\n${ts.isInterfaceDeclaration(node.parent) ? '  ' : ''}`,
+    text: existing ? formattedCandidate : `${formattedCandidate}\n${documentationIndent(node)}`,
   });
   synchronized += 1;
+}
+
+function isPrivateMember(node) {
+  return (
+    node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.PrivateKeyword) ?? false
+  );
+}
+
+function classMemberDocumentation(member, source) {
+  const name = memberName(member, facade);
+  if (!name || !source) return null;
+  const scope = member.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.StaticKeyword)
+    ? 'static'
+    : 'instance';
+  return source.members.get(`${scope}:${name}`) ?? null;
 }
 
 for (const statement of facade.statements) {
@@ -310,6 +360,13 @@ for (const statement of facade.statements) {
     const interfaceName = statement.name.text;
     for (const node of [statement, ...statement.members]) {
       synchronizeNode(node, candidateDocumentation(node, interfaceName, facade, raw));
+    }
+  } else if (ts.isClassDeclaration(statement) && statement.name) {
+    const source = raw.classes.get(statement.name.text);
+    synchronizeNode(statement, source?.documentation ?? null);
+    for (const member of statement.members) {
+      if (isPrivateMember(member)) continue;
+      synchronizeNode(member, classMemberDocumentation(member, source));
     }
   } else if (ts.isFunctionDeclaration(statement) && statement.name) {
     synchronizeNode(statement, raw.functions.get(statement.name.text) ?? null);

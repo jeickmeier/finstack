@@ -570,7 +570,7 @@ pub enum FactorVolModel {
     /// # References
     ///
     /// - Longerstaey, J., & Spencer, M. (1996). *RiskMetrics — Technical
-    ///   Document* (4th ed.). J.P. Morgan/Reuters. §5.2.
+    ///   Document* (4th ed.). J.P. Morgan/Reuters. §5.2. `docs/REFERENCES.md#jpmorgan1996RiskMetrics`
     Ewma {
         /// Smoothing parameter λ ∈ (0, 1) used at calibration time.
         lambda: f64,
@@ -606,7 +606,7 @@ pub enum IdiosyncraticVolModel {
     /// # References
     ///
     /// - Longerstaey, J., & Spencer, M. (1996). *RiskMetrics — Technical
-    ///   Document* (4th ed.). J.P. Morgan/Reuters. §5.2.
+    ///   Document* (4th ed.). J.P. Morgan/Reuters. §5.2. `docs/REFERENCES.md#jpmorgan1996RiskMetrics`
     Ewma {
         /// Smoothing parameter λ ∈ (0, 1) used at calibration time.
         lambda: f64,

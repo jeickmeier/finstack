@@ -18,10 +18,10 @@
 //! # References
 //!
 //! - Gillespie, D. T. (1977). "Exact Stochastic Simulation of Coupled
-//!   Chemical Reactions." *Journal of Physical Chemistry*, 81(25), 2340-2361.
+//!   Chemical Reactions." *Journal of Physical Chemistry*, 81(25), 2340-2361. `docs/REFERENCES.md#gillespie-1977`
 //! - Lando, D., & Skodeberg, T. M. (2002). "Analyzing Rating Transitions and
 //!   Rating Drift with Continuous Observations." *Journal of Banking & Finance*,
-//!   26(2-3), 423-444.
+//!   26(2-3), 423-444. `docs/REFERENCES.md#lando-skodeberg-2002`
 
 use std::sync::Arc;
 

@@ -32,8 +32,8 @@
 //!
 //! * Dynkin, L., Hyman, J., & Vankudre, P. (1998). "Attribution of Portfolio
 //!   Performance Relative to an Index." Lehman Brothers Fixed Income
-//!   Research, March 1998, Appendix B.
-//!   `docs/REFERENCES.md#dynkin-hyman-vankudre-1998`
+//!   Research, March 1998, Appendix B. `docs/REFERENCES.md#dynkin-hyman-vankudre-1998`
+//!
 
 use crate::error::{Error, Result};
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
@@ -187,6 +187,40 @@ fn compute_num_cells(max_duration: f64, width: f64) -> Result<usize> {
     Ok(num_cells)
 }
 
+/// Map a duration onto the cell index of the grid whose cell `i` spans
+/// `[i * width, (i + 1) * width)`, with the top cell closed.
+///
+/// This is the single bucketing predicate shared by reference bucketing in
+/// [`cell_returns_from_reference`] and — via the lower bounds that function
+/// materializes into [`CellReturn::lower`] — position lookup in `find_cell`,
+/// which partitions on those same `i * width` values. A plain
+/// `(duration / width) as usize` truncation is *not* equivalent at grid
+/// edges: e.g. `4.3 / 0.1` truncates to `42` even though `43 * 0.1 <= 4.3`
+/// in f64, so truncation and the partition over materialized lowers would
+/// assign the same duration to different cells (audit finding M-1). The
+/// truncated quotient is therefore only a starting guess, corrected against
+/// the exact `i * width` bounds.
+///
+/// Callers must ensure `num_cells >= 1` (guaranteed by
+/// [`compute_num_cells`]) and `width` validated positive.
+fn cell_index_for(duration: f64, width: f64, num_cells: usize) -> usize {
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let mut idx = ((duration / width) as usize).min(num_cells - 1);
+    // Correct the guess against the exact grid bounds `i * width`, matching
+    // `find_cell`'s partition on `cell.lower <= duration`. Each loop moves at
+    // most one step in practice (the truncated quotient is within one cell of
+    // the true index), but is written as a loop for robustness.
+    #[allow(clippy::cast_precision_loss)]
+    while idx + 1 < num_cells && (idx + 1) as f64 * width <= duration {
+        idx += 1;
+    }
+    #[allow(clippy::cast_precision_loss)]
+    while idx > 0 && idx as f64 * width > duration {
+        idx -= 1;
+    }
+    idx
+}
+
 /// Validate one reference instrument's fields.
 fn validate_reference(r: &ReferenceReturn, index: usize) -> Result<()> {
     if !r.duration.is_finite() || r.duration < 0.0 {
@@ -281,14 +315,12 @@ pub fn cell_returns_from_reference(
         .fold(f64::MIN, f64::max);
     let num_cells = compute_num_cells(max_duration, width)?;
 
-    // Accumulate simple sums and counts per cell (index = floor(duration / width)).
+    // Accumulate simple sums and counts per cell, using the same
+    // grid-origin predicate as position lookup (see `cell_index_for`).
     let mut sums = vec![0.0_f64; num_cells];
     let mut counts = vec![0_u32; num_cells];
     for r in reference {
-        let mut idx = (r.duration / width) as usize;
-        if idx >= num_cells {
-            idx = num_cells - 1; // guards the exact-max-duration boundary case
-        }
+        let idx = cell_index_for(r.duration, width, num_cells);
         sums[idx] += r.total_return;
         counts[idx] += 1;
     }
@@ -306,9 +338,16 @@ pub fn cell_returns_from_reference(
 
     let cells: Vec<CellReturn> = (0..num_cells)
         .map(|i| {
+            // Both edges are computed from the grid origin. `lower + width`
+            // rounds differently from `(i + 1) * width` for widths that are
+            // not exactly representable in binary (0.1, 0.2, 0.3, ...), which
+            // desynchronised cell i's upper bound from cell i+1's lower bound
+            // by one ULP — either tripping `validate_cell_table`'s overlap
+            // rejection or opening a genuine gap.
             #[allow(clippy::cast_precision_loss)]
             let lower = i as f64 * width;
-            let upper = lower + width;
+            #[allow(clippy::cast_precision_loss)]
+            let upper = (i + 1) as f64 * width;
             CellReturn {
                 label: duration_cell_label(lower, upper),
                 lower,
@@ -431,8 +470,8 @@ pub fn cell_returns_from_reference(
 ///
 /// * Dynkin, L., Hyman, J., & Vankudre, P. (1998). "Attribution of Portfolio
 ///   Performance Relative to an Index." Lehman Brothers Fixed Income
-///   Research, March 1998, Appendix B.
-///   `docs/REFERENCES.md#dynkin-hyman-vankudre-1998`
+///   Research, March 1998, Appendix B. `docs/REFERENCES.md#dynkin-hyman-vankudre-1998`
+///
 pub fn cell_returns_from_curves(
     start: &DiscountCurve,
     end: &DiscountCurve,
@@ -459,10 +498,14 @@ pub fn cell_returns_from_curves(
 
     let mut cells = Vec::with_capacity(num_cells);
     for i in 0..num_cells {
+        // Grid-origin edges, mirroring `cell_returns_from_reference`: see the
+        // comment there for why `upper` must not be computed as
+        // `lower + width`.
         #[allow(clippy::cast_precision_loss)]
         let lower = i as f64 * width;
-        let upper = lower + width;
-        let mid = lower + width / 2.0;
+        #[allow(clippy::cast_precision_loss)]
+        let upper = (i + 1) as f64 * width;
+        let mid = 0.5 * (lower + upper);
         let label = duration_cell_label(lower, upper);
 
         if mid <= horizon_years {
@@ -881,8 +924,8 @@ fn find_cell<'a>(
 ///
 /// * Dynkin, L., Hyman, J., & Vankudre, P. (1998). "Attribution of Portfolio
 ///   Performance Relative to an Index." Lehman Brothers Fixed Income
-///   Research, March 1998, Appendix B.
-///   `docs/REFERENCES.md#dynkin-hyman-vankudre-1998`
+///   Research, March 1998, Appendix B. `docs/REFERENCES.md#dynkin-hyman-vankudre-1998`
+///
 pub fn excess_returns(
     positions: &[ExcessReturnPosition],
     table: &DurationCellTable,
@@ -1736,6 +1779,100 @@ mod tests {
         assert!((round_tripped.portfolio_base_return - result.portfolio_base_return).abs() < 1e-12);
         assert!(
             (round_tripped.portfolio_excess_return - result.portfolio_excess_return).abs() < 1e-12
+        );
+    }
+
+    /// Regression for the non-dyadic-width edge desynchronisation (report
+    /// B-1): computing `upper = lower + width` accumulates a different
+    /// rounding error than cell `i+1`'s `lower = (i+1) * width`, so for
+    /// widths like 0.1/0.2/0.3/0.4 (not exactly representable in binary)
+    /// adjacent cells either overlap by one ULP — which
+    /// [`validate_cell_table`] rejects with an "overlaps" error even though
+    /// the width guidance in [`check_label_collisions`]'s own error message
+    /// recommends multiples of 0.1 — or open a genuine one-ULP gap. Both
+    /// edges must be computed from the grid origin so
+    /// `cells[i].upper == cells[i+1].lower` bit-for-bit.
+    #[test]
+    fn non_dyadic_width_tables_pass_downstream_validation() {
+        for width in [0.1, 0.2, 0.3, 0.4] {
+            let reference = vec![
+                ReferenceReturn {
+                    duration: 0.5 * width,
+                    total_return: 0.01,
+                },
+                ReferenceReturn {
+                    duration: 15.5 * width, // 16 cells: spans the first ULP mismatch
+                    total_return: 0.05,
+                },
+            ];
+            let table = cell_returns_from_reference(&reference, "UST", &CellConfig { width })
+                .expect("table construction");
+            for pair in table.cells.windows(2) {
+                assert_eq!(
+                    pair[0].upper.to_bits(),
+                    pair[1].lower.to_bits(),
+                    "width {width}: cell edge {} != next lower {}",
+                    pair[0].upper,
+                    pair[1].lower
+                );
+            }
+            let positions = vec![ExcessReturnPosition {
+                id: "P".into(),
+                weight: 1.0,
+                duration: 0.5 * width,
+                total_return: 0.02,
+            }];
+            excess_returns(&positions, &table).unwrap_or_else(|err| {
+                panic!("width {width}: generated table must pass its own validator: {err}")
+            });
+        }
+    }
+
+    /// Regression for M-1: the reference-bucketing index was derived by
+    /// truncating `duration / width`, while position lookup (`find_cell`)
+    /// partitions on the materialized lower bounds `i * width`. The two maps
+    /// disagree at grid edges — e.g. `4.3 / 0.1` truncates to 42 while
+    /// `43 * 0.1 <= 4.3` in f64, so `find_cell` returns cell 43. A bond
+    /// sitting at exactly the reference Treasury's duration then matched an
+    /// *interpolated* cell instead of the observed one. Both maps must use
+    /// the same predicate.
+    #[test]
+    fn reference_bucketing_agrees_with_position_lookup_at_grid_edges() {
+        let reference = vec![
+            ReferenceReturn {
+                duration: 4.3,
+                total_return: 0.05,
+            },
+            ReferenceReturn {
+                duration: 8.0,
+                total_return: 0.02,
+            },
+        ];
+        let table = cell_returns_from_reference(&reference, "UST", &CellConfig { width: 0.1 })
+            .expect("table construction");
+        let positions = vec![ExcessReturnPosition {
+            id: "AT_REF".into(),
+            weight: 1.0,
+            duration: 4.3, // exactly the reference Treasury's duration
+            total_return: 0.055,
+        }];
+        let result = excess_returns(&positions, &table).expect("lookup");
+        assert_eq!(
+            result.positions[0].base_return, 0.05,
+            "a position at the reference instrument's exact duration must match \
+             the observed cell holding that instrument, not an interpolated one \
+             (got cell '{}')",
+            result.positions[0].cell
+        );
+        let cell = table
+            .cells
+            .iter()
+            .find(|c| c.label == result.positions[0].cell)
+            .expect("matched cell exists");
+        assert!(
+            cell.observed,
+            "matched cell '{}' must be the observed one",
+            cell.label
         );
     }
 

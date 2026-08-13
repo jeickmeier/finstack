@@ -29,8 +29,8 @@
 //! # Reference
 //!
 //! - Hagan, P. (2003). "Convexity Conundrums: Pricing CMS Swaps, Caps, and Floors."
-//!   Wilmott Magazine, March, 38-44.
-//! - Hull, J. (2018). "Options, Futures, and Other Derivatives."
+//!   Wilmott Magazine, March, 38-44. `docs/REFERENCES.md#hagan-2003-cms-convexity`
+//! - Hull, J. (2018). "Options, Futures, and Other Derivatives." `docs/REFERENCES.md#hull-options-futures`
 
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::rates::cms_option::types::CmsOption;
@@ -412,8 +412,8 @@ pub(crate) fn compute_pv(inst: &CmsOption, curves: &MarketContext, as_of: Date) 
 /// # References
 ///
 /// - Hagan, P. S. (2003). "Convexity Conundrums: Pricing CMS Swaps, Caps, and Floors."
-///   Wilmott Magazine, March, 38-44.
-/// - Andersen, L. B., & Piterbarg, V. V. (2010). *Interest Rate Modeling*, Vol. 3, §16.2.
+///   Wilmott Magazine, March, 38-44. `docs/REFERENCES.md#hagan-2003-cms-convexity`
+/// - Andersen, L. B., & Piterbarg, V. V. (2010). *Interest Rate Modeling*, Vol. 3, §16.2. `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
 pub fn convexity_adjustment(
     volatility: f64,
     time_to_fixing: f64,

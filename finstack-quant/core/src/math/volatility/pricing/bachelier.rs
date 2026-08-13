@@ -12,8 +12,10 @@
 //!
 //! # References
 //!
-//! - Bachelier, L. (1900), "Theorie de la speculation".
-//! - Hull, J. C., *Options, Futures, and Other Derivatives*.
+//! - Bachelier, L. (1900), "Theorie de la speculation". `docs/REFERENCES.md#bachelier-1900`
+//!
+//! - Hull, J. C., *Options, Futures, and Other Derivatives*. `docs/REFERENCES.md#hull-options-futures`
+//!
 
 use crate::math::{norm_cdf, norm_pdf};
 

@@ -54,6 +54,7 @@ impl JsDayCountContext {
 
     /// Return a copy with the calendar used by Bus/252.
     /// @param calendar_code - Registered holiday-calendar identifier used by the Bus/252 convention.
+    /// @returns A new `DayCountContext` handle.
     #[wasm_bindgen(js_name = withCalendar)]
     pub fn with_calendar(&self, calendar_code: &str) -> JsDayCountContext {
         let mut next = self.clone();
@@ -63,6 +64,7 @@ impl JsDayCountContext {
 
     /// Return a copy with the coupon frequency used by Act/Act ISMA.
     /// @param frequency - Coupon-frequency Tenor required by Actual/Actual ICMA calculations.
+    /// @returns A new `DayCountContext` handle.
     #[wasm_bindgen(js_name = withFrequency)]
     pub fn with_frequency(&self, frequency: &JsTenor) -> JsDayCountContext {
         let mut next = self.clone();
@@ -72,6 +74,7 @@ impl JsDayCountContext {
 
     /// Return a copy with the business-day basis used by Bus/252.
     /// @param bus_basis - Business-day denominator for Bus/252, normally 252.
+    /// @returns A new `DayCountContext` handle.
     #[wasm_bindgen(js_name = withBusBasis)]
     pub fn with_bus_basis(&self, bus_basis: u16) -> JsDayCountContext {
         let mut next = self.clone();
@@ -84,6 +87,7 @@ impl JsDayCountContext {
     /// `start >= end`.
     /// @param start_epoch_days - Reference coupon-period start as days since 1970-01-01.
     /// @param end_epoch_days - Reference coupon-period end as days since 1970-01-01.
+    /// @returns A new `DayCountContext` handle.
     ///
     /// # Errors
     ///
@@ -108,6 +112,7 @@ impl JsDayCountContext {
     /// Return a copy indicating whether the accrual end is the instrument's
     /// termination date (required by 30E/360 ISDA February-end handling).
     /// @param value - Whether the accrual end is the contractual termination date for 30E/360 ISDA.
+    /// @returns A new `DayCountContext` handle.
     #[wasm_bindgen(js_name = withEndIsTerminationDate)]
     pub fn with_end_is_termination_date(&self, value: bool) -> JsDayCountContext {
         let mut next = self.clone();
@@ -321,6 +326,7 @@ impl JsDayCount {
     /// Count the calendar days between two dates (epoch days).
     /// @param start_epoch_days - Start date as days since 1970-01-01.
     /// @param end_epoch_days - End date as days since 1970-01-01.
+    /// @returns Signed calendar-day count from start to end.
     ///
     /// # Errors
     ///
@@ -433,7 +439,7 @@ impl JsTenor {
         }
     }
 
-    /// Numeric count.
+    /// Unit count of this tenor, such as `3` for `"3M"`.
     #[wasm_bindgen(getter, js_name = count)]
     pub fn count(&self) -> u32 {
         self.inner.count()

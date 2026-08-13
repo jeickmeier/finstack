@@ -87,9 +87,9 @@
 //!
 //! # References
 //!
-//! - ISDA 2006 Definitions for swap conventions
-//! - Black (1976) for cap/floor and swaption pricing
-//! - Hull-White (1990) for short rate models
+//! - ISDA 2006 Definitions for swap conventions `docs/REFERENCES.md#isda-2006-definitions`
+//! - Black (1976) for cap/floor and swaption pricing `docs/REFERENCES.md#black-1976`
+//! - Hull-White (1990) for short rate models `docs/REFERENCES.md#hull-white-1990-pricing-ird`
 //!
 //! # See Also
 //!

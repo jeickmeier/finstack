@@ -49,6 +49,14 @@ impl PyReturnContributionResult {
         serde_to_py(py, &self.inner.factor_contribution)
     }
 
+    /// Idiosyncratic residual when factor rows were supplied:
+    /// ``portfolio_return - sum(factor contributions)``. ``None`` when the
+    /// spec carried no factors.
+    #[getter]
+    fn specific_return(&self) -> Option<f64> {
+        self.inner.specific_return
+    }
+
     /// Brinson-Fachler benchmark-relative block, when benchmark inputs were
     /// supplied.
     #[getter]

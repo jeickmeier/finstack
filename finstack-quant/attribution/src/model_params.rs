@@ -106,6 +106,18 @@ pub fn with_model_params(
 /// `Prepayment01` metric, which is `$ per 1bp` of CPR:
 /// `model_params_pnl ≈ Prepayment01 × measure_prepayment_shift(t0, t1)`.
 ///
+/// # PSA terminal-CPR proxy
+///
+/// PSA multiplier changes are converted linearly at the **terminal** rate
+/// (100% PSA ≈ 6% CPR after the 30-month seasoning ramp), i.e.
+/// `Δmult × 600bp`. This proxy is exact only for fully-seasoned (≥ 30 month)
+/// collateral; on-ramp collateral's effective CPR is `age/30 × 6% × mult`,
+/// so the proxy overstates the shift by up to 2.5× for new collateral.
+/// Collateral age is not part of [`ModelParamsSnapshot`], so no
+/// seasoning-aware conversion is possible here. A `(Psa, None)` /
+/// `(None, Psa)` curve pair treats the `None` side as multiplier 0 (with a
+/// `tracing::warn!`) instead of silently reporting a 0bp shift.
+///
 /// # Arguments
 ///
 /// * `snapshot_t0` - Parameters at T₀
@@ -137,14 +149,53 @@ fn prepayment_shift(
                         speed_multiplier: mult_t1,
                     }),
                 ) => {
-                    // PSA multiplier change (convert to CPR change approximation)
-                    // PSA 100% ≈ 6% CPR terminal, so multiply difference by 6%
+                    // PSA multiplier change converted via the TERMINAL CPR:
+                    // 100% PSA ≈ 6% CPR after the 30-month seasoning ramp, so
+                    // Δmultiplier × 600bp. This linear conversion is a
+                    // terminal-CPR proxy valid for fully-seasoned (≥ 30
+                    // month) collateral; for collateral still on the ramp
+                    // (age < 30m) the effective CPR is age/30 × 6% × mult and
+                    // this proxy overstates the shift by up to 2.5×.
+                    // Collateral age is not available from the snapshots, so
+                    // the proxy is documented rather than seasoning-adjusted
+                    // (audit Mo11).
                     Some((mult_t1 - mult_t0) * 600.0) // Convert to basis points
                 }
                 (None, None)
                 | (Some(PrepaymentCurve::Constant), Some(PrepaymentCurve::Constant)) => {
                     // Direct CPR difference in basis points
                     Some((prep_t1.cpr - prep_t0.cpr) * 10000.0)
+                }
+                // Audit Mo11: a (PSA, None) pair used to fall through to
+                // `None` and be silently zeroed by the caller. The None side
+                // is treated as PSA multiplier 0 (zero prepayment baseline;
+                // its `cpr` field is ignored, matching the PSA branch which
+                // also ignores `cpr`) so the Some side's shift is measured.
+                (
+                    Some(PrepaymentCurve::Psa {
+                        speed_multiplier: mult_t0,
+                    }),
+                    None,
+                ) => {
+                    tracing::warn!(
+                        mult_t0,
+                        "prepayment shift: T1 snapshot has no prepayment curve; \
+                         treated as PSA multiplier 0 (terminal-CPR proxy)"
+                    );
+                    Some((0.0 - mult_t0) * 600.0)
+                }
+                (
+                    None,
+                    Some(PrepaymentCurve::Psa {
+                        speed_multiplier: mult_t1,
+                    }),
+                ) => {
+                    tracing::warn!(
+                        mult_t1,
+                        "prepayment shift: T0 snapshot has no prepayment curve; \
+                         treated as PSA multiplier 0 (terminal-CPR proxy)"
+                    );
+                    Some(mult_t1 * 600.0)
                 }
                 _ => None, // Mixed or unsupported model types
             }
@@ -342,6 +393,30 @@ mod tests {
         let shift = measure_prepayment_shift(&params_t0, &params_t1);
         // PSA increased by 0.5, which is 0.5 * 600bp = 300bp
         assert_eq!(shift, 300.0);
+    }
+
+    /// Audit Mo11: a (PSA, None) prepayment-curve pair used to fall through
+    /// the match to `None` and be silently reported as a 0bp shift. The None
+    /// side is treated as PSA multiplier 0 (zero baseline), so the Some side's
+    /// shift is measured rather than dropped.
+    #[test]
+    fn test_measure_prepayment_shift_psa_none_pair_uses_zero_baseline() {
+        let psa_side = ModelParamsSnapshot::StructuredCredit {
+            prepayment_spec: PrepaymentModelSpec::psa(1.0),
+            default_spec: DefaultModelSpec::constant_cdr(0.02),
+            recovery_spec: RecoveryModelSpec::with_lag(0.60, 12),
+        };
+        // `constant_cpr` carries `curve: None`.
+        let none_side = ModelParamsSnapshot::StructuredCredit {
+            prepayment_spec: PrepaymentModelSpec::constant_cpr(0.0),
+            default_spec: DefaultModelSpec::constant_cdr(0.02),
+            recovery_spec: RecoveryModelSpec::with_lag(0.60, 12),
+        };
+
+        // PSA 1.0 → (none ≡ 0): shift = (0 − 1.0) × 600bp = −600bp.
+        assert_eq!(measure_prepayment_shift(&psa_side, &none_side), -600.0);
+        // And symmetrically for the (None, PSA) direction.
+        assert_eq!(measure_prepayment_shift(&none_side, &psa_side), 600.0);
     }
 
     #[test]

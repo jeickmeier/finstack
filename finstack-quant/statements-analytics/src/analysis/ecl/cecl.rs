@@ -21,7 +21,7 @@
 //!
 //! # References
 //!
-//! - ASC 326-20 -- Financial Instruments: Credit Losses
+//! - ASC 326-20 -- Financial Instruments: Credit Losses `docs/REFERENCES.md#asc-326-cecl`
 //! - FASB Staff Q&A 2019 -- Reasonable and Supportable Forecast Periods
 
 use finstack_quant_core::{Error, Result};
@@ -72,9 +72,9 @@ pub enum CeclMethodology {
     ///
     /// - ASC 326-20-30-3 (methodology flexibility); FASB Staff Q&A (2019),
     ///   "Whether the WARM Method Is Acceptable" — WARM is an acceptable
-    ///   CECL loss-rate method for less complex pools.
+    ///   CECL loss-rate method for less complex pools. `docs/REFERENCES.md#asc-326-cecl`
     /// - Fed/FASB/SEC interagency webinar (April 2019): "CECL:
-    ///   Weighted-Average Remaining Maturity (WARM) Method."
+    ///   Weighted-Average Remaining Maturity (WARM) Method." `docs/REFERENCES.md#asc-326-cecl`
     Warm,
 }
 

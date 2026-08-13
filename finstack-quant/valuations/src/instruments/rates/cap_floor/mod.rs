@@ -67,14 +67,14 @@
 //!
 //! - Black, F. (1976). "The Pricing of Commodity Contracts." *Journal of
 //!   Financial Economics*, 3(1-2), 167-179.
-//!   (Black model for options on forwards/futures)
+//!   (Black model for options on forwards/futures) `docs/REFERENCES.md#black-1976`
 //!
 //! - Rebonato, R. (2004). *Volatility and Correlation: The Perfect Hedger and
 //!   the Fox* (2nd ed.). Wiley.
-//!   (Market practice for caps/floors)
+//!   (Market practice for caps/floors) `docs/REFERENCES.md#rebonato-2004-volatility-correlation`
 //!
 //! - Brigo, D., & Mercurio, F. (2006). *Interest Rate Models - Theory and Practice*
-//!   (2nd ed.). Springer. Chapters 1-2.
+//!   (2nd ed.). Springer. Chapters 1-2. `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
 //!
 //! # Examples
 //!

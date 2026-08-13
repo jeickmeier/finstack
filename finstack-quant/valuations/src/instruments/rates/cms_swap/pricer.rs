@@ -15,7 +15,7 @@
 //! # Reference
 //!
 //! Hagan, P. S. (2003). "Convexity Conundrums: Pricing CMS Swaps, Caps, and Floors."
-//! *Wilmott Magazine*, March, 38-44.
+//! *Wilmott Magazine*, March, 38-44. `docs/REFERENCES.md#hagan-2003-cms-convexity`
 
 use crate::instruments::common_impl::pricing::time::{
     rate_between_on_dates, relative_df_discount_curve,
@@ -217,7 +217,7 @@ impl Pricer for CmsSwapPricer {
 ///
 /// ```text
 /// E[min(max(S + spread, floor), cap)]
-///   = E[S] + spread − Caplet(cap − spread)/DF + Floorlet(floor − spread)/DF
+/// = E[S] + spread − Caplet(cap − spread)/DF + Floorlet(floor − spread)/DF
 /// ```
 ///
 /// Seasoned (fixed-but-unpaid) coupons are valued off recorded fixings,

@@ -1,7 +1,7 @@
 """
 P&L attribution: decompose portfolio P&L into risk-factor contributions.
 
-Bindings for ``finstack_quant_core::attribution``. Provides the
+Bindings for ``finstack_quant_attribution``. Provides the
 :class:`PnlAttribution` result type and the :func:`attribute_pnl` /
 :func:`attribute_return_contribution` entry points, along with validation
 helpers and default metric / waterfall ordering utilities.
@@ -21,6 +21,8 @@ from typing import Any
 
 import pandas as pd
 
+from finstack_quant.attribution import schema as schema
+
 __all__ = [
     "PnlAttribution",
     "ReturnContributionResult",
@@ -29,6 +31,7 @@ __all__ = [
     "attribute_return_contribution",
     "default_attribution_metrics",
     "default_waterfall_order",
+    "schema",
     "validate_attribution_json",
     "validate_return_contribution_json",
 ]
@@ -97,6 +100,10 @@ class PnlAttribution:
         str
             Compact JSON string.
 
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -109,6 +116,9 @@ class PnlAttribution:
         dict[str, object]
             Attribution payload as a Python dict.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -125,6 +135,10 @@ class PnlAttribution:
         -------
         float
             Total P&L in :attr:`currency`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -143,6 +157,10 @@ class PnlAttribution:
         -------
         float or None
             Raw MTM P&L in :attr:`currency`, or ``None`` when not stored.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -155,6 +173,10 @@ class PnlAttribution:
         -------
         float
             Carry bucket P&L in :attr:`currency`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -168,6 +190,10 @@ class PnlAttribution:
         float
             Rates-curve bucket P&L in :attr:`currency`. Use
             :meth:`to_long_dataframe` for per-curve and per-tenor detail.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -182,6 +208,10 @@ class PnlAttribution:
             Credit-curve bucket P&L in :attr:`currency`. Use
             :meth:`to_credit_factor_dataframe` when a credit factor model was
             supplied.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -194,6 +224,10 @@ class PnlAttribution:
         -------
         float
             Inflation-curve bucket P&L in :attr:`currency`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -206,6 +240,10 @@ class PnlAttribution:
         -------
         float
             Correlation-curve bucket P&L in :attr:`currency`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -221,6 +259,10 @@ class PnlAttribution:
         -------
         float
             FX pricing bucket P&L in :attr:`currency`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -237,6 +279,10 @@ class PnlAttribution:
         -------
         float
             Translation bucket P&L in the reporting currency.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -249,6 +295,10 @@ class PnlAttribution:
         -------
         float
             Volatility bucket P&L in :attr:`currency`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -261,6 +311,10 @@ class PnlAttribution:
         -------
         float
             Cross-factor bucket P&L in :attr:`currency`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -273,6 +327,10 @@ class PnlAttribution:
         -------
         float
             Model-parameter bucket P&L in :attr:`currency`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -285,6 +343,10 @@ class PnlAttribution:
         -------
         float
             Market-scalar bucket P&L in :attr:`currency` (dividends, repo, etc.).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -298,6 +360,10 @@ class PnlAttribution:
         float
             ``total_pnl`` minus the sum of explained factor buckets, in
             :attr:`currency`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -310,18 +376,26 @@ class PnlAttribution:
         -------
         str
             The currency exposed by this `PnlAttribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def instrument_id(self) -> str:
         """
-        Instrument identifier.
+        Identifier of the instrument whose P&L was attributed.
 
         Returns
         -------
         str
             The instrument id exposed by this `PnlAttribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -335,6 +409,10 @@ class PnlAttribution:
         -------
         str
             The method exposed by this `PnlAttribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -347,6 +425,10 @@ class PnlAttribution:
         -------
         str
             The t0 exposed by this `PnlAttribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -359,6 +441,10 @@ class PnlAttribution:
         -------
         str
             The t1 exposed by this `PnlAttribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -371,6 +457,10 @@ class PnlAttribution:
         -------
         int
             The num repricings exposed by this `PnlAttribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -383,6 +473,10 @@ class PnlAttribution:
         -------
         float
             The residual pct exposed by this `PnlAttribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -395,6 +489,10 @@ class PnlAttribution:
         -------
         list[str]
             The notes exposed by this `PnlAttribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -407,6 +505,303 @@ class PnlAttribution:
         -------
         bool
             The result invalid exposed by this `PnlAttribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def tolerance_abs(self) -> float:
+        """
+        Absolute tolerance used for residual validation.
+
+        Returns
+        -------
+        float
+            The stored ``meta.tolerance_abs`` threshold for this attribution.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def tolerance_pct(self) -> float:
+        """
+        Percentage tolerance used for residual validation.
+
+        Returns
+        -------
+        float
+            The stored ``meta.tolerance_pct`` threshold for this attribution.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def rounding(self) -> dict[str, Any]:
+        """
+        Rounding context in force for the attribution run.
+
+        Returns
+        -------
+        dict[str, Any]
+            Serde-shaped rounding-context payload (policy stamp).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def fx_policy(self) -> dict[str, Any] | None:
+        """
+        FX policy metadata stamped on the attribution.
+
+        Returns
+        -------
+        dict[str, Any] or None
+            Serde-shaped FX policy payload, or ``None`` when no FX
+            conversions were applied.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def execution_policy(self) -> str | None:
+        """
+        Execution policy the attribution ran under.
+
+        Returns
+        -------
+        str or None
+            ``"serial"`` or ``"parallel"``, or ``None`` for methods without a
+            policy knob (metrics-based).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def carry_detail(self) -> dict[str, Any] | None:
+        """
+        Carry decomposition detail payload.
+
+        Returns
+        -------
+        dict[str, Any] or None
+            Serde-shaped ``CarryDetail`` (``total``, ``coupon_income``,
+            ``pull_to_par``, ``roll_down``, ``funding_cost``), or ``None``
+            when not populated.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def rates_detail(self) -> dict[str, Any] | None:
+        """
+        Rates-curves detail payload.
+
+        Returns
+        -------
+        dict[str, Any] or None
+            Serde-shaped ``RatesCurvesAttribution`` (``by_curve``,
+            ``by_tenor``, ``discount_total``, ``forward_total``), or ``None``
+            when not populated.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def credit_detail(self) -> dict[str, Any] | None:
+        """
+        Credit-curves detail payload.
+
+        Returns
+        -------
+        dict[str, Any] or None
+            Serde-shaped ``CreditCurvesAttribution`` (``by_curve``,
+            ``by_tenor``), or ``None`` when not populated.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def inflation_detail(self) -> dict[str, Any] | None:
+        """
+        Inflation-curves detail payload.
+
+        Returns
+        -------
+        dict[str, Any] or None
+            Serde-shaped ``InflationCurvesAttribution`` (``by_curve``,
+            optional ``by_tenor``), or ``None`` when not populated.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def correlations_detail(self) -> dict[str, Any] | None:
+        """
+        Base-correlation detail payload.
+
+        Returns
+        -------
+        dict[str, Any] or None
+            Serde-shaped ``CorrelationsAttribution`` (``by_curve``), or
+            ``None`` when not populated.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def fx_detail(self) -> dict[str, Any] | None:
+        """
+        Per-pair FX contribution detail for this attribution result.
+
+        Returns
+        -------
+        dict[str, Any] or None
+            Serde-shaped ``FxAttribution`` (``by_pair`` keyed ``"FROM/TO"``),
+            or ``None`` when not populated.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def vol_detail(self) -> dict[str, Any] | None:
+        """
+        Volatility surface detail payload.
+
+        Returns
+        -------
+        dict[str, Any] or None
+            Serde-shaped ``VolAttribution`` (``by_surface``), or ``None``
+            when not populated.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def cross_factor_detail(self) -> dict[str, Any] | None:
+        """
+        Cross-factor interaction detail payload.
+
+        Returns
+        -------
+        dict[str, Any] or None
+            Serde-shaped ``CrossFactorDetail`` (``total``, ``by_pair``), or
+            ``None`` when not populated.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def model_params_detail(self) -> dict[str, Any] | None:
+        """
+        Model-parameter detail payload.
+
+        Returns
+        -------
+        dict[str, Any] or None
+            Serde-shaped ``ModelParamsAttribution`` (``prepayment``,
+            ``default_rate``, ``recovery_rate``, ``conversion_ratio``,
+            ``other``), or ``None`` when not populated.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def scalars_detail(self) -> dict[str, Any] | None:
+        """
+        Market-scalars detail payload.
+
+        Returns
+        -------
+        dict[str, Any] or None
+            Serde-shaped ``ScalarsAttribution`` (``dividends``,
+            ``inflation``, ``equity_prices``, ``commodity_prices``), or
+            ``None`` when not populated.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def credit_factor_detail(self) -> dict[str, Any] | None:
+        """
+        Credit-factor hierarchy decomposition payload.
+
+        Returns
+        -------
+        dict[str, Any] or None
+            Serde-shaped ``CreditFactorAttribution`` (``model_id``,
+            ``generic_pnl``, ``levels``, ``adder_pnl_total``,
+            ``curve_shape_pnl``, ...), or ``None`` when no
+            ``credit_factor_model`` was supplied.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def credit_carry_decomposition(self) -> dict[str, Any] | None:
+        """
+        Factor-cut decomposition of carry under a credit factor model.
+
+        Returns
+        -------
+        dict[str, Any] or None
+            Serde-shaped ``CreditCarryDecomposition`` (``rates_carry_total``,
+            ``credit_carry_total``, ``credit_by_level``), or ``None`` when
+            not populated.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -432,6 +827,9 @@ class PnlAttribution:
         bool
             ``True`` if residual is within tolerance.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -445,6 +843,10 @@ class PnlAttribution:
             ``True`` when the residual satisfies the absolute or percentage
             tolerance stored in the attribution metadata; ``False`` for an
             invalid result or an out-of-tolerance residual.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -471,6 +873,9 @@ class PnlAttribution:
         str
             Multi-line string with tree structure showing P&L breakdown.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -483,6 +888,9 @@ class PnlAttribution:
         str
             Multi-line string with tree structure showing all factors.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -500,6 +908,10 @@ class PnlAttribution:
         pd.DataFrame
             Single-row DataFrame.
 
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -537,6 +949,9 @@ class PnlAttribution:
         pd.DataFrame
             Long-format DataFrame.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -557,6 +972,9 @@ class PnlAttribution:
         pd.DataFrame
             Carry-decomposition DataFrame.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -577,6 +995,9 @@ class PnlAttribution:
         pd.DataFrame
             Credit-factor DataFrame.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -620,6 +1041,10 @@ class ReturnContributionResult:
             Period return as a decimal fraction (``0.01`` is 1%). Equal to the
             sum of the ``contribution`` field across
             :attr:`instrument_contribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -633,6 +1058,10 @@ class ReturnContributionResult:
         list[dict[str, Any]]
             One record per instrument with ``id``, ``weight``, ``return``,
             ``contribution``, and ``active_contribution`` keys.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -647,6 +1076,10 @@ class ReturnContributionResult:
             Maps each group dimension name (for example ``"sector"``) to its
             list of bucket records, each with a ``key`` bucket label and the
             summed ``contribution`` of the instruments in that bucket.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -658,6 +1091,27 @@ class ReturnContributionResult:
         Returns
         -------
         list[dict[str, Any]]
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def specific_return(self) -> float | None:
+        """
+        Idiosyncratic residual when factor rows were supplied.
+
+        Returns
+        -------
+        float or None
+            ``portfolio_return - sum(factor contributions)``; ``None`` when
+            the spec carried no factors.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -670,19 +1124,27 @@ class ReturnContributionResult:
         -------
         dict[str, Any] or None
             ``None`` unless benchmark inputs were supplied on the spec.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
     @property
     def warnings(self) -> list[str]:
         """
-        Diagnostic warnings.
+        Non-fatal diagnostic warnings from the contribution run.
 
         Returns
         -------
         list[str]
             For example leveraged weights from a near-flat net-market-value
             book.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -695,6 +1157,11 @@ class ReturnContributionResult:
         pd.DataFrame
             One row per instrument with ``id``, ``weight``, ``return``,
             ``contribution``, and ``active_contribution`` columns.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -706,6 +1173,11 @@ class ReturnContributionResult:
         -------
         pd.Series
             Named ``contribution``.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -718,6 +1190,11 @@ class ReturnContributionResult:
         str
             Canonical JSON representation, suitable for a matching
             :meth:`from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -986,6 +1463,10 @@ def default_waterfall_order() -> list[str]:
     list[str]
         Canonical snake-case factor names in the default waterfall order.
 
+    Notes
+    -----
+    This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
     Examples
     --------
     >>> from finstack_quant.attribution import default_waterfall_order
@@ -1002,6 +1483,10 @@ def default_attribution_metrics() -> list[str]:
     -------
     list[str]
         Metric identifier strings.
+
+    Notes
+    -----
+    This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
     Examples
     --------

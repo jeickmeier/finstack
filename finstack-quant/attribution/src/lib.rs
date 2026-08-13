@@ -112,6 +112,11 @@
 //! # Ok(())
 //! # }
 //! ```
+//!
+//! # References
+//!
+//! - Fixed-income sensitivity intuition: `docs/REFERENCES.md#tuckman-serrat-fixed-income`
+//! - Risk decomposition: `docs/REFERENCES.md#meucci-risk-and-asset-allocation`
 
 pub(crate) mod credit_cascade;
 pub(crate) mod credit_decomposition;
@@ -119,6 +124,7 @@ pub(crate) mod credit_factor;
 pub(crate) mod execution;
 pub(crate) mod factors;
 pub(crate) mod helpers;
+pub mod long_rows;
 pub(crate) mod metrics_based;
 pub(crate) mod model_params;
 pub(crate) mod parallel;
@@ -147,6 +153,10 @@ pub use types::result::{
 };
 
 // Re-export attribution functions
+pub use long_rows::{
+    pnl_attribution_carry_rows, pnl_attribution_credit_factor_rows, pnl_attribution_long_rows,
+    LongDetailRow,
+};
 pub use metrics_based::attribute_pnl_metrics_based;
 pub use model_params::{
     extract_model_params, measure_conversion_shift, measure_default_shift,
@@ -161,8 +171,9 @@ pub use return_contribution::{
     ReturnContributionWeighting,
 };
 pub use spec::{
-    default_attribution_metrics, AttributionConfig, AttributionEnvelope, AttributionResult,
-    AttributionResultEnvelope, AttributionSchema, AttributionSpec, ATTRIBUTION_SCHEMA,
+    default_attribution_metrics, validate_attribution_json, AttributionConfig, AttributionEnvelope,
+    AttributionResult, AttributionResultEnvelope, AttributionSchema, AttributionSpec,
+    ATTRIBUTION_SCHEMA,
 };
 pub use target_currency::translate_to_target_currency;
 pub use taylor::{attribute_pnl_taylor, TaylorAttributionConfig};

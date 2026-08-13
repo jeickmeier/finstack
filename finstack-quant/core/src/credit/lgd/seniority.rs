@@ -5,9 +5,9 @@
 //!
 //! # References
 //!
-//! - Altman, E. I., Resti, A., & Sironi, A. (2005). "Recovery Risk." Risk Books.
+//! - Altman, E. I., Resti, A., & Sironi, A. (2005). "Recovery Risk." Risk Books. `docs/REFERENCES.md#altman-et-al-2005-recovery`
 //! - Schuermann, T. (2004). "What Do We Know About Loss Given Default?"
-//!   Wharton Financial Institutions Center Working Paper 04-01.
+//!   Wharton Financial Institutions Center Working Paper 04-01. `docs/REFERENCES.md#schuermann-2004-lgd`
 
 use crate::error::InputError;
 use crate::math::random::Pcg64Rng;
@@ -73,16 +73,16 @@ impl std::str::FromStr for SeniorityClass {
 ///
 /// ```text
 /// alpha = mean * ((mean * (1 - mean) / variance) - 1)
-/// beta  = (1 - mean) * ((mean * (1 - mean) / variance) - 1)
+/// beta = (1 - mean) * ((mean * (1 - mean) / variance) - 1)
 /// ```
 ///
 /// Constraint: variance < mean * (1 - mean), ensuring alpha > 0 and beta > 0.
 ///
 /// # References
 ///
-/// - Altman, E. I., Resti, A., & Sironi, A. (2005). "Recovery Risk." Risk Books.
+/// - Altman, E. I., Resti, A., & Sironi, A. (2005). "Recovery Risk." Risk Books. `docs/REFERENCES.md#altman-et-al-2005-recovery`
 /// - Schuermann, T. (2004). "What Do We Know About Loss Given Default?"
-///   Wharton Financial Institutions Center Working Paper 04-01.
+///   Wharton Financial Institutions Center Working Paper 04-01. `docs/REFERENCES.md#schuermann-2004-lgd`
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(try_from = "BetaRecoveryWire")]
 pub struct BetaRecovery {

@@ -50,7 +50,7 @@ fn init_optional_column<T>(enabled: bool, capacity: usize, existing: &mut Option
 ///
 /// - ISDA 2006 Definitions §4.16 (Day Count Fractions). Sign convention for
 ///   pre-base dates follows the standard "discount-back" treatment used by
-///   `finstack_quant_core::cashflow::npv`.
+///   `finstack_quant_core::cashflow::npv`. `docs/REFERENCES.md#isda-2006-definitions`
 fn compute_discount_time(
     cf_date: Date,
     base: Date,
@@ -118,8 +118,8 @@ fn compute_notional_columns(
 ///
 /// - ISDA 2021 IBOR Fallbacks Supplement, §7. Spreads are quoted as simple
 ///   additive spreads over the index, consistent with the affine-rate model
-///   used by `FloatingRateSpec`.
-/// - Andersen & Piterbarg, *Interest Rate Modeling, Vol I* (2010), §6.3.
+///   used by `FloatingRateSpec`. `docs/REFERENCES.md#isda-2021-definitions`
+/// - Andersen & Piterbarg, *Interest Rate Modeling, Vol I* (2010), §6.3. `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
 fn compute_floating_decomposition(
     cf: &finstack_quant_core::cashflow::CashFlow,
 ) -> (Option<f64>, Option<f64>) {

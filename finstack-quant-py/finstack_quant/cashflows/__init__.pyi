@@ -31,9 +31,13 @@ __all__ = [
     "aggregation",
     "build_cashflow_schedule_json",
     "builder",
+    "cdr_to_mdr",
+    "cpr_to_smm",
     "dated_flows_json",
+    "mdr_to_cdr",
     "primitives",
     "schema",
+    "smm_to_cpr",
     "validate_cashflow_schedule_json",
 ]
 
@@ -222,3 +226,125 @@ def accrued_interest(schedule_json: str, as_of: datetime.date | str, config_json
     True
 
     """
+
+def cpr_to_smm(cpr: float) -> float:
+    """
+    Convert an annual CPR (constant prepayment rate) to a monthly SMM.
+
+    Flat re-export of :func:`finstack_quant.cashflows.builder.cpr_to_smm`,
+    mirroring the Rust crate-root re-export. Uses
+    ``SMM = 1 - (1 - CPR)^(1/12)``.
+
+    Parameters
+    ----------
+    cpr : float
+        Annualized CPR as a decimal in ``[0, 1]`` (``0.06`` means 6%).
+
+    Returns
+    -------
+    float
+        Monthly SMM as a decimal fraction.
+
+    Raises
+    ------
+    ValueError
+        If ``cpr`` is negative, non-finite, or above ``1.0``.
+
+    Examples
+    --------
+    >>> from finstack_quant.cashflows import cpr_to_smm
+    >>> round(cpr_to_smm(0.06), 6)
+    0.005143
+    """
+    ...
+
+def smm_to_cpr(smm: float) -> float:
+    """
+    Convert a monthly SMM (single monthly mortality) to an annual CPR.
+
+    Flat re-export of :func:`finstack_quant.cashflows.builder.smm_to_cpr`,
+    mirroring the Rust crate-root re-export. Uses ``CPR = 1 - (1 - SMM)^12``.
+
+    Parameters
+    ----------
+    smm : float
+        Monthly SMM as a decimal in ``[0, 1]``.
+
+    Returns
+    -------
+    float
+        Annualized CPR as a decimal fraction.
+
+    Raises
+    ------
+    ValueError
+        If ``smm`` is negative, non-finite, or above ``1.0``.
+
+    Examples
+    --------
+    >>> from finstack_quant.cashflows import cpr_to_smm, smm_to_cpr
+    >>> round(smm_to_cpr(cpr_to_smm(0.06)), 10)
+    0.06
+    """
+    ...
+
+def cdr_to_mdr(cdr: float) -> float:
+    """
+    Convert an annual CDR (constant default rate) to a monthly MDR.
+
+    Flat re-export of :func:`finstack_quant.cashflows.builder.cdr_to_mdr`,
+    mirroring the Rust crate-root re-export. Default and prepayment mortality
+    rates share the same kernel: ``MDR = 1 - (1 - CDR)^(1/12)``.
+
+    Parameters
+    ----------
+    cdr : float
+        Constant annual default rate as a decimal in ``[0, 1]``.
+
+    Returns
+    -------
+    float
+        Monthly MDR as a decimal fraction.
+
+    Raises
+    ------
+    ValueError
+        If ``cdr`` is negative, non-finite, or above ``1.0``.
+
+    Examples
+    --------
+    >>> from finstack_quant.cashflows import cdr_to_mdr
+    >>> round(cdr_to_mdr(0.02), 6)
+    0.001682
+    """
+    ...
+
+def mdr_to_cdr(mdr: float) -> float:
+    """
+    Convert a monthly MDR (monthly default rate) to an annual CDR.
+
+    Flat re-export of :func:`finstack_quant.cashflows.builder.mdr_to_cdr`,
+    mirroring the Rust crate-root re-export. Uses ``CDR = 1 - (1 - MDR)^12``.
+
+    Parameters
+    ----------
+    mdr : float
+        Monthly default rate as a decimal in ``[0, 1]``.
+
+    Returns
+    -------
+    float
+        Annualized CDR as a decimal fraction.
+
+    Raises
+    ------
+    ValueError
+        If ``mdr`` is negative, non-finite, or above ``1.0``.
+
+    Examples
+    --------
+    >>> from finstack_quant.cashflows import cdr_to_mdr, mdr_to_cdr
+    >>> round(mdr_to_cdr(cdr_to_mdr(0.02)), 10)
+    0.02
+    """
+    ...

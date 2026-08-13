@@ -23,9 +23,9 @@
 //! # References
 //!
 //! - Bennedsen, M., Lunde, A. & Pakkanen, M. S. (2017). Hybrid scheme for
-//!   Brownian semistationary processes. *Finance and Stochastics*, 21(4), 931–965.
+//!   Brownian semistationary processes. *Finance and Stochastics*, 21(4), 931–965. `docs/REFERENCES.md#bennedsen-lunde-pakkanen-2017`
 //! - Bayer, C., Friz, P. & Gatheral, J. (2016). Pricing under rough volatility.
-//!   *Quantitative Finance*, 16(6), 887–904.
+//!   *Quantitative Finance*, 16(6), 887–904. `docs/REFERENCES.md#bayer-friz-gatheral-2016`
 
 use finstack_quant_core::math::fractional::{
     fbm_increment_covariance, fbm_increment_covariance_matrix, HurstExponent,

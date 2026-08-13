@@ -61,8 +61,8 @@
 //!
 //! # References
 //!
-//! - Hull, J. C. (2018). *Options, Futures, and Other Derivatives* (10th ed.). Chapter 17.
-//! - Haug, E. G. (2007). *The Complete Guide to Option Pricing Formulas* (2nd ed.). Section 2.8.
+//! - Hull, J. C. (2018). *Options, Futures, and Other Derivatives* (10th ed.). Chapter 17. `docs/REFERENCES.md#hull-options-futures`
+//! - Haug, E. G. (2007). *The Complete Guide to Option Pricing Formulas* (2nd ed.). Section 2.8. `docs/REFERENCES.md#haug-2007-option-formulas`
 //! - QuantLib: `AnalyticEuropeanEngine` with `DividendVanillaOption`
 
 // pricing formulas are implemented in the pricing engine; keep this module free of direct math imports

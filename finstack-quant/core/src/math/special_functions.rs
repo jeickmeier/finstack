@@ -76,20 +76,20 @@
 //!
 //! - **Error Function**:
 //!   - Abramowitz, M., & Stegun, I. A. (1964). *Handbook of Mathematical Functions*.
-//!     National Bureau of Standards.
+//!   National Bureau of Standards.
 //!
 //! - **Normal Distribution**:
 //!   - Johnson, N. L., Kotz, S., & Balakrishnan, N. (1995). *Continuous Univariate
-//!     Distributions, Volume 1* (2nd ed.). Wiley. Chapter 13.
+//!   Distributions, Volume 1* (2nd ed.). Wiley. Chapter 13. `docs/REFERENCES.md#press-numerical-recipes`
 //!
 //! - **Inverse Normal CDF**:
 //!   - statrs 0.18 computes `inverse_cdf` via a Boost-Math-derived inverse
-//!     complementary error function (`erfc_inv`) rational approximation, not
-//!     Wichura's AS 241. Observed accuracy: ~5e-12 absolute on round-trips in
-//!     the central region, ~1e-6 *relative* accuracy on the quantile in the
-//!     far tails (p ≲ 1e-10).
+//!   complementary error function (`erfc_inv`) rational approximation, not
+//!   Wichura's AS 241. Observed accuracy: ~5e-12 absolute on round-trips in
+//!   the central region, ~1e-6 *relative* accuracy on the quantile in the
+//!   far tails (p ≲ 1e-10).
 //!   - Boost Math Toolkit, `erf_inv`/`erfc_inv` documentation:
-//!     <https://www.boost.org/doc/libs/release/libs/math/doc/html/math_toolkit/sf_erf/error_inv.html>
+//!   <https://www.boost.org/doc/libs/release/libs/math/doc/html/math_toolkit/sf_erf/error_inv.html>
 
 use std::sync::LazyLock;
 

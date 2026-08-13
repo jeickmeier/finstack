@@ -20,7 +20,28 @@
 //! # Notes
 //!
 //! - Factors are isolated independently, so cross-effects appear in residual
+//!   unless captured by a cross pair (below)
 //! - Model parameters attribution requires instrument-specific support (see model_params.rs)
+//!
+//! # Default cross-factor pairs
+//!
+//! The default (non-`full_cross_attribution`) path extracts exactly these
+//! pairwise interaction terms into `cross_factor_detail`; any interaction
+//! between factor pairs NOT in this list still falls into the residual:
+//!
+//! 1. Rates×Credit
+//! 2. Rates×Vol
+//! 3. Spot×Vol
+//! 4. Spot×Credit
+//! 5. FX×Vol
+//! 6. FX×Rates
+//! 7. Credit×Vol
+//! 8. Rates×Inflation
+//! 9. Credit×Correlations
+//!
+//! For exhaustive pairwise coverage (all active factor pairs, including
+//! ModelParameters), use `full_cross_attribution = true` on
+//! [`attribute_pnl_parallel_with_credit_model`].
 
 use super::credit_cascade::{
     build_credit_factor_attribution, plan_credit_cascade, shift_credit_curves_par_spread,
@@ -214,6 +235,8 @@ fn restored_factor_has_data(factor: ParallelRestoredFactor, snapshot: &MarketSna
         ParallelRestoredFactor::Rates => {
             !snapshot.discount_curves.is_empty()
                 || !snapshot.forward_curves.is_empty()
+                || !snapshot.basis_spread_curves.is_empty()
+                || !snapshot.parametric_curves.is_empty()
                 || !snapshot.fixing_series.is_empty()
         }
         ParallelRestoredFactor::Credit => !snapshot.hazard_curves.is_empty(),
@@ -223,16 +246,21 @@ fn restored_factor_has_data(factor: ParallelRestoredFactor, snapshot: &MarketSna
             !snapshot.surfaces.is_empty()
                 || !snapshot.vol_cubes.is_empty()
                 || !snapshot.fx_delta_vol_surfaces.is_empty()
+                || !snapshot.vol_index_curves.is_empty()
         }
         ParallelRestoredFactor::MarketScalars => {
             !snapshot.prices.is_empty()
                 || !snapshot.series.is_empty()
                 || !snapshot.inflation_indices.is_empty()
                 || !snapshot.dividends.is_empty()
+                || !snapshot.price_curves.is_empty()
         }
         ParallelRestoredFactor::Discount => !snapshot.discount_curves.is_empty(),
         ParallelRestoredFactor::Forward => {
-            !snapshot.forward_curves.is_empty() || !snapshot.fixing_series.is_empty()
+            !snapshot.forward_curves.is_empty()
+                || !snapshot.basis_spread_curves.is_empty()
+                || !snapshot.parametric_curves.is_empty()
+                || !snapshot.fixing_series.is_empty()
         }
         ParallelRestoredFactor::FX => snapshot.fx.is_some(),
     }
@@ -644,7 +672,7 @@ fn attribute_pnl_parallel_impl(
                 snapshot: Box::new(discount_snap),
             });
         }
-        if !forward_snap.forward_curves.is_empty() || !forward_snap.fixing_series.is_empty() {
+        if restored_factor_has_data(ParallelRestoredFactor::Forward, &forward_snap) {
             factor_specs.push(ParallelLatentFactorSpec::Market {
                 factor: ParallelRestoredFactor::Forward,
                 flags: MarketRestoreFlags::FORWARD,
@@ -681,18 +709,17 @@ fn attribute_pnl_parallel_impl(
                 snapshot: Box::new(fx_snap),
             });
         }
-        if !vol_snap.surfaces.is_empty() {
+        // Audit M4: gate on the shared helper, which also checks SABR vol
+        // cubes, FX delta-quoted surfaces and vol-index curves — a cube-only
+        // vol market must still receive vol repricing.
+        if restored_factor_has_data(ParallelRestoredFactor::Volatility, &vol_snap) {
             factor_specs.push(ParallelLatentFactorSpec::Market {
                 factor: ParallelRestoredFactor::Volatility,
                 flags: MarketRestoreFlags::VOL,
                 snapshot: Box::new(vol_snap),
             });
         }
-        let has_scalars = !scalars_snap.prices.is_empty()
-            || !scalars_snap.series.is_empty()
-            || !scalars_snap.inflation_indices.is_empty()
-            || !scalars_snap.dividends.is_empty();
-        if has_scalars {
+        if restored_factor_has_data(ParallelRestoredFactor::MarketScalars, &scalars_snap) {
             factor_specs.push(ParallelLatentFactorSpec::Market {
                 factor: ParallelRestoredFactor::MarketScalars,
                 flags: MarketRestoreFlags::SCALARS,
@@ -985,6 +1012,8 @@ fn attribute_pnl_parallel_impl(
                 .map(eval_pre_fx)
                 .collect::<Result<Vec<_>>>()?,
         };
+        let mut val_with_t0_inflation: Option<Money> = None;
+        let mut val_with_t0_correlation: Option<Money> = None;
         for eval in pre_fx_evals {
             let RestoredFactorEval {
                 factor,
@@ -1005,8 +1034,14 @@ fn attribute_pnl_parallel_impl(
                         attribution.credit_curves_pnl = pnl;
                         val_with_t0_credit = Some(reprice);
                     }
-                    ParallelRestoredFactor::Inflation => attribution.inflation_curves_pnl = pnl,
-                    ParallelRestoredFactor::Correlations => attribution.correlations_pnl = pnl,
+                    ParallelRestoredFactor::Inflation => {
+                        attribution.inflation_curves_pnl = pnl;
+                        val_with_t0_inflation = Some(reprice);
+                    }
+                    ParallelRestoredFactor::Correlations => {
+                        attribution.correlations_pnl = pnl;
+                        val_with_t0_correlation = Some(reprice);
+                    }
                     _ => {}
                 }
             }
@@ -1049,14 +1084,11 @@ fn attribute_pnl_parallel_impl(
         let post_fx_specs = [(ParallelRestoredFactor::Volatility, MarketRestoreFlags::VOL)];
         for (factor, flags) in post_fx_specs {
             let snapshot = MarketSnapshot::extract(market_t0, flags);
+            // Audit M4: use the shared has-data helper so cube-only /
+            // FX-delta-only / vol-index-only markets are not silently skipped.
+            let has_vol = restored_factor_has_data(factor, &snapshot);
             if let Some((pnl, reprice)) = reprice_factor_restored_once(
-                instrument,
-                market_t1,
-                &snapshot,
-                flags,
-                !snapshot.surfaces.is_empty(),
-                as_of_t1,
-                val_t1,
+                instrument, market_t1, &snapshot, flags, has_vol, as_of_t1, val_t1,
             )? {
                 num_repricings += 1;
                 match factor {
@@ -1118,10 +1150,7 @@ fn attribute_pnl_parallel_impl(
         )];
         for (factor, flags) in post_model_specs {
             let snapshot = MarketSnapshot::extract(market_t0, flags);
-            let has_scalars = !snapshot.prices.is_empty()
-                || !snapshot.series.is_empty()
-                || !snapshot.inflation_indices.is_empty()
-                || !snapshot.dividends.is_empty();
+            let has_scalars = restored_factor_has_data(factor, &snapshot);
             if let Some((pnl, reprice)) = reprice_factor_restored_once(
                 instrument,
                 market_t1,
@@ -1158,7 +1187,7 @@ fn attribute_pnl_parallel_impl(
             Option<Money>,
             Option<Money>,
         );
-        let cross_specs: [CrossSpec<'_>; 7] = [
+        let cross_specs: [CrossSpec<'_>; 9] = [
             (
                 "Rates×Credit",
                 MarketRestoreFlags::RATES,
@@ -1203,13 +1232,32 @@ fn attribute_pnl_parallel_impl(
             ),
             // Credit×Vol captures convertibles, where equity volatility drives
             // the conversion option while credit curves discount the bond floor.
-            // It remains last so the preceding pair reduction order stays stable.
             (
                 "Credit×Vol",
                 MarketRestoreFlags::CREDIT,
                 MarketRestoreFlags::VOL,
                 val_with_t0_credit,
                 val_with_t0_vol,
+            ),
+            // Audit Mo7: Rates×Inflation captures linkers (real-rate exposure
+            // is the product of nominal rates and the CPI projection) and
+            // Credit×Correlations captures tranches (loss allocation is
+            // jointly driven by hazard levels and base correlation). Both are
+            // appended after the historical seven pairs so the preceding pair
+            // reduction order stays stable.
+            (
+                "Rates×Inflation",
+                MarketRestoreFlags::RATES,
+                MarketRestoreFlags::INFLATION,
+                val_with_t0_rates,
+                val_with_t0_inflation,
+            ),
+            (
+                "Credit×Correlations",
+                MarketRestoreFlags::CREDIT,
+                MarketRestoreFlags::CORRELATION,
+                val_with_t0_credit,
+                val_with_t0_correlation,
             ),
         ];
 

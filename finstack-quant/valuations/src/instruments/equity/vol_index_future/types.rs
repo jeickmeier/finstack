@@ -37,8 +37,8 @@
 //!
 //! # References
 //!
-//! - CBOE (2019). "VIX Futures Contract Specifications."
-//! - Whaley, R. E. (2009). "Understanding the VIX." *Journal of Portfolio Management*.
+//! - CBOE (2019). "VIX Futures Contract Specifications." `docs/REFERENCES.md#cboe-vix-white-paper`
+//! - Whaley, R. E. (2009). "Understanding the VIX." *Journal of Portfolio Management*. `docs/REFERENCES.md#whaley-2009-vix`
 
 use super::pricer;
 use crate::contract_specs::{embedded_registry, ContractSpecRegistry};

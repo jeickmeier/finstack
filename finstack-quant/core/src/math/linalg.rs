@@ -45,19 +45,19 @@
 //! # References
 //!
 //! - **Pivoted Cholesky**:
-//!   - Higham, N. J. (2002). *Accuracy and Stability of Numerical Algorithms* (2nd ed.).
-//!     SIAM. Algorithm 10.2 (Cholesky with complete pivoting).
-//!   - Golub, G. H., & Van Loan, C. F. (2013). *Matrix Computations* (4th ed.).
-//!     Johns Hopkins University Press. Algorithm 4.2.5.
+//! - Higham, N. J. (2002). *Accuracy and Stability of Numerical Algorithms* (2nd ed.).
+//!   SIAM. Algorithm 10.2 (Cholesky with complete pivoting). `docs/REFERENCES.md#higham-accuracy-and-stability`
+//! - Golub, G. H., & Van Loan, C. F. (2013). *Matrix Computations* (4th ed.).
+//!   Johns Hopkins University Press. Algorithm 4.2.5. `docs/REFERENCES.md#golub-van-loan-matrix-computations`
 //!
 //! - **Correlation Matrices**:
-//!   - Rebonato, R., & Jäckel, P. (2000). "The Most General Methodology to Create
-//!     a Valid Correlation Matrix for Risk Management and Option Pricing Purposes."
-//!     *Journal of Risk*, 2(2), 17-27.
+//! - Rebonato, R., & Jäckel, P. (2000). "The Most General Methodology to Create
+//!   a Valid Correlation Matrix for Risk Management and Option Pricing Purposes."
+//!   *Journal of Risk*, 2(2), 17-27. `docs/REFERENCES.md#rebonato-2004-volatility-correlation`
 //!
 //! - **Monte Carlo Applications**:
-//!   - Glasserman, P. (2003). *Monte Carlo Methods in Financial Engineering*.
-//!     Springer. Section 2.4 (Generating multivariate samples).
+//! - Glasserman, P. (2003). *Monte Carlo Methods in Financial Engineering*.
+//!   Springer. Section 2.4 (Generating multivariate samples). `docs/REFERENCES.md#glasserman-2004-monte-carlo`
 
 use crate::{error, Result};
 use thiserror::Error;
@@ -172,7 +172,7 @@ pub enum CholeskyError {
 /// # References
 ///
 /// - Higham, N. J. (2002). *Accuracy and Stability of Numerical Algorithms* (2nd ed.).
-///   SIAM. Algorithm 10.2 (Cholesky with complete pivoting).
+///   SIAM. Algorithm 10.2 (Cholesky with complete pivoting). `docs/REFERENCES.md#higham-accuracy-and-stability`
 ///
 /// [`apply`]: CorrelationFactor::apply
 /// [`factor_matrix`]: CorrelationFactor::factor_matrix
@@ -801,10 +801,10 @@ pub fn apply_correlation(
 ///
 /// - Glasserman, P. (2003). *Monte Carlo Methods in Financial Engineering*.
 ///   Springer. Section 2.3.3, pp. 71-73 (generating correlated normals from a
-///   Cholesky factor).
+///   Cholesky factor). `docs/REFERENCES.md#glasserman-2004-monte-carlo`
 /// - Golub, G. H., & Van Loan, C. F. (2013). *Matrix Computations* (4th ed.).
 ///   Johns Hopkins University Press. Section 3.1 (triangular matrix-vector
-///   products).
+///   products). `docs/REFERENCES.md#golub-van-loan-matrix-computations`
 ///
 /// # See Also
 ///
@@ -1087,7 +1087,7 @@ pub struct LedoitWolfResult {
 ///
 /// - Ledoit, O., & Wolf, M. (2004). "A well-conditioned estimator for
 ///   large-dimensional covariance matrices." *Journal of Multivariate
-///   Analysis*, 88(2), 365–411. Lemmas 3.2–3.4.
+///   Analysis*, 88(2), 365–411. Lemmas 3.2–3.4. `docs/REFERENCES.md#ledoitwolf2004`
 pub fn ledoit_wolf_shrinkage(
     observations: &[f64],
     t: usize,
@@ -1776,20 +1776,20 @@ mod ledoit_wolf_tests {
     /// Hand-worked golden example (arithmetic reproduced in the rustdoc).
     ///
     /// T = 4 observations of N = 2 zero-mean factors, row-major:
-    ///   X = [(1, 1), (−1, −1), (2, −2), (−2, 2)]
+    /// X = [(1, 1), (−1, −1), (2, −2), (−2, 2)]
     ///
-    ///   S    = XᵀX/T = [[2.5, −1.5], [−1.5, 2.5]]
-    ///   μ    = tr(S)/N = 2.5
-    ///   d²   = ‖S − μI‖² = (0² + 1.5² + 1.5² + 0²)/2 = 2.25
-    ///   per-observation norms ‖x_t x_tᵀ − S‖²:
-    ///     t1/t2: outer = [[1,1],[1,1]],  diff = [[−1.5,2.5],[2.5,−1.5]],
-    ///            Σ(entries²)/2 = (2·2.25 + 2·6.25)/2 = 8.5
-    ///     t3/t4: outer = [[4,−4],[−4,4]], diff = [[1.5,−2.5],[−2.5,1.5]],
-    ///            Σ(entries²)/2 = 8.5
-    ///   b̄²   = (1/T²)·Σ_t ‖x_t x_tᵀ − S‖² = (4 · 8.5)/16 = 2.125
-    ///   b²   = min(b̄², d²) = 2.125  ⇒  δ* = b²/d² = 2.125/2.25 = 17/18
-    ///   Σ*   = δ*·μ·I + (1 − δ*)·S
-    ///        = [[2.5, −1.5/18], [−1.5/18, 2.5]] = [[2.5, −1/12], [−1/12, 2.5]]
+    /// S = XᵀX/T = [[2.5, −1.5], [−1.5, 2.5]]
+    /// μ = tr(S)/N = 2.5
+    /// d² = ‖S − μI‖² = (0² + 1.5² + 1.5² + 0²)/2 = 2.25
+    /// per-observation norms ‖x_t x_tᵀ − S‖²:
+    /// t1/t2: outer = [[1,1],[1,1]], diff = [[−1.5,2.5],[2.5,−1.5]],
+    /// Σ(entries²)/2 = (2·2.25 + 2·6.25)/2 = 8.5
+    /// t3/t4: outer = [[4,−4],[−4,4]], diff = [[1.5,−2.5],[−2.5,1.5]],
+    /// Σ(entries²)/2 = 8.5
+    /// b̄² = (1/T²)·Σ_t ‖x_t x_tᵀ − S‖² = (4 · 8.5)/16 = 2.125
+    /// b² = min(b̄², d²) = 2.125 ⇒ δ* = b²/d² = 2.125/2.25 = 17/18
+    /// Σ* = δ*·μ·I + (1 − δ*)·S
+    /// = [[2.5, −1.5/18], [−1.5/18, 2.5]] = [[2.5, −1/12], [−1/12, 2.5]]
     #[test]
     fn ledoit_wolf_matches_hand_worked_two_factor_example() {
         let observations = [1.0, 1.0, -1.0, -1.0, 2.0, -2.0, -2.0, 2.0];

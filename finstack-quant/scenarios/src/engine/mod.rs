@@ -1,7 +1,7 @@
 //! Deterministic scenario execution engine.
 //!
 //! The engine glues together adapters from this crate to compose multiple
-//! [`ScenarioSpec`](crate::spec::ScenarioSpec) definitions and apply them to
+//! [`ScenarioSpec`] definitions and apply them to
 //! a mutable [`ExecutionContext`]. Its responsibilities are:
 //! - enforce a repeatable ordering of operations
 //! - dispatch each `OperationSpec` variant to the appropriate adapter function

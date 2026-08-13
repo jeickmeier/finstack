@@ -25,9 +25,10 @@
 //! # References
 //!
 //! - Diebold, F. X., & Li, C. (2006). "Forecasting the Term Structure of
-//!   Government Bond Yields." *Journal of Econometrics*, 130(2), 337-364.
+//!   Government Bond Yields." *Journal of Econometrics*, 130(2), 337-364. `docs/REFERENCES.md#diebold-li-2006`
+//!
 //! - Diebold, F. X., & Rudebusch, G. D. (2013). *Yield Curve Modeling and
-//!   Forecasting: The Dynamic Nelson-Siegel Approach*. Princeton UP.
+//!   Forecasting: The Dynamic Nelson-Siegel Approach*. Princeton UP. `docs/REFERENCES.md#nelson-siegel-1987`
 
 use nalgebra::{DMatrix, DVector};
 use serde::{Deserialize, Serialize};
@@ -601,9 +602,9 @@ pub(crate) fn ns_loading_matrix(lambda: f64, tenors: &[f64]) -> DMatrix<f64> {
 /// # References
 ///
 /// - Nelson, C. R., & Siegel, A. F. (1987). "Parsimonious Modeling of Yield
-///   Curves." *Journal of Business*, 60(4), 473-489.
+///   Curves." *Journal of Business*, 60(4), 473-489. `docs/REFERENCES.md#nelson-siegel-1987`
 /// - Diebold, F. X., & Li, C. (2006). "Forecasting the Term Structure of
-///   Government Bond Yields." *Journal of Econometrics*, 130(2), 337-364.
+///   Government Bond Yields." *Journal of Econometrics*, 130(2), 337-364. `docs/REFERENCES.md#diebold-li-2006`
 pub fn nelson_siegel_yields(
     lambda: f64,
     factors: [f64; 3],

@@ -19,9 +19,9 @@
 //! # References
 //!
 //! - Litterman, R., & Scheinkman, J. (1991). "Common Factors Affecting
-//!   Bond Returns." *Journal of Fixed Income*, 1(1), 54-61.
+//!   Bond Returns." *Journal of Fixed Income*, 1(1), 54-61. `docs/REFERENCES.md#litterman-scheinkman-1991`
 //! - Rebonato, R. (2018). *Bond Pricing and Yield Curve Modeling:
-//!   A Structural Approach*. Cambridge UP. Ch. 4.
+//!   A Structural Approach*. Cambridge UP. Ch. 4. `docs/REFERENCES.md#rebonato-2004-volatility-correlation`
 
 use nalgebra::{DMatrix, DVector, SymmetricEigen};
 use serde::{Deserialize, Serialize};

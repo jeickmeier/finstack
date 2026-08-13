@@ -390,6 +390,13 @@ run = [
   "uv run --no-sync python scripts/check_pyo3_doc_placeholders.py",
 ]
 
+[tasks.python-doctest]
+description = "Build Python bindings and run stub/module doctest examples"
+run = """
+mise run python-build
+uv run --no-sync pytest finstack-quant-py/tests/test_stub_doctests.py -q
+"""
+
 [tasks.python-typecheck]
 description = "Type-check Python bindings with ty"
 run = "uv run --no-sync ty check finstack-quant-py/finstack_quant"

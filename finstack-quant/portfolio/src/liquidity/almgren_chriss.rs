@@ -7,8 +7,8 @@
 //! # References
 //!
 //! - Almgren, R. & Chriss, N. (2001). "Optimal Execution of Portfolio
-//!   Transactions." *Journal of Risk*, 3(2).
-//!   `docs/REFERENCES.md#almgrenChriss2001OptimalExecution`
+//!   Transactions." *Journal of Risk*, 3(2). `docs/REFERENCES.md#almgren-chriss-2000`
+//!
 
 use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
@@ -112,6 +112,20 @@ impl AlmgrenChrissModel {
         let delta = 0.5;
 
         Self::new(gamma, eta, delta)
+    }
+
+    /// Permanent impact coefficient (gamma).
+    #[inline]
+    #[must_use]
+    pub fn gamma(&self) -> f64 {
+        self.gamma
+    }
+
+    /// Temporary impact coefficient (eta).
+    #[inline]
+    #[must_use]
+    pub fn eta(&self) -> f64 {
+        self.eta
     }
 }
 
@@ -286,8 +300,15 @@ impl MarketImpactModel for AlmgrenChrissModel {
             // Temporary impact cost contribution
             expected_cost += self.eta * trade_rate.abs().powf(self.delta) * quantities[j].abs();
 
-            // Variance contribution: sigma^2 * remaining^2 * dt
-            cost_variance += sigma * sigma * remaining[j + 1] * remaining[j + 1] * dt;
+            // Variance contribution: Almgren-Chriss (2001), eq. (7),
+            // Var = σ² ∫ x(t)² dt. Inventory is piecewise linear across the
+            // bucket, so the exact per-bucket integral is
+            // (a² + a·b + b²)/3 · dt. The former right-endpoint Riemann sum
+            // (σ²·b²·dt) dropped the final bucket entirely (remaining[n] ==
+            // 0): exactly 0 at n = 1, ~15% low at n = 5 for the uniform
+            // trajectory versus the closed form used by `estimate_cost`.
+            let (a, b) = (remaining[j], remaining[j + 1]);
+            cost_variance += sigma * sigma * (a * a + a * b + b * b) / 3.0 * dt;
         }
 
         Ok(ExecutionTrajectory {
@@ -495,6 +516,31 @@ mod tests {
             "expected closed-form cost {expected_total}, got {}",
             traj.expected_cost
         );
+        Ok(())
+    }
+
+    /// Almgren-Chriss (2001), eq. (7): `Var = σ² ∫₀ᵀ x(t)² dt`. For the
+    /// zero-risk-aversion (uniform, `x(t) = Q(1 − t/T)`) trajectory the
+    /// closed form is `σ²Q²T/3` — exactly `estimate_cost`'s `execution_risk`
+    /// squared. The old right-endpoint Riemann sum (`remaining[j+1]`, with
+    /// `remaining[n] == 0`) contributed zero for the last bucket: exactly
+    /// `0.0` at `n = 1`, `−15%` biased at `n = 5`.
+    #[test]
+    fn trajectory_cost_variance_matches_execution_risk_squared_for_uniform(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let model = AlmgrenChrissModel::new(0.001, 0.01, 1.0)?;
+        let mut params = test_params(10_000.0)?;
+        params.risk_aversion = Some(0.0);
+        let expected = model.estimate_cost(&params)?.execution_risk.powi(2);
+        assert!(expected > 0.0);
+        for n in [1_usize, 5] {
+            let traj = model.optimal_trajectory(&params, n)?;
+            assert!(
+                ((traj.cost_variance - expected) / expected).abs() < 1e-9,
+                "n={n}: cost_variance {} must reproduce execution_risk^2 {expected}",
+                traj.cost_variance
+            );
+        }
         Ok(())
     }
 

@@ -1061,6 +1061,435 @@ fn test_notional_weighting_implied_quantities_use_notional_denominator() {
     assert_eq!(result.implied_quantities.get("POS_2"), Some(&3.0));
 }
 
+/// MO-19: an unfiltered `ValueWeightedAverage` objective is lowered to the
+/// plain linear form `Σ wᵢ·mᵢ`, which equals the true average only when the
+/// weights sum to 1. With `Budget { rhs: -1.0 }` over two short positions the
+/// reported objective is sign-flipped by `Σw = -1`, so the solver maximizes
+/// the *lowest*-yield allocation. The optimizer must reject the combination
+/// instead of returning Optimal with the wrong weights.
+#[test]
+fn mo19_unfiltered_vwa_objective_with_non_unit_budget_is_rejected() {
+    let as_of = create_date(2024, Month::January, 1).unwrap();
+    let mut high_measures = IndexMap::new();
+    high_measures.insert(MetricId::Ytm, 0.10);
+    let mut low_measures = IndexMap::new();
+    low_measures.insert(MetricId::Ytm, 0.01);
+
+    let high = Position::new(
+        "POS_HI",
+        "ENT_A",
+        "HI_INST",
+        Arc::new(MetricInstrument::new(
+            "HI_INST",
+            Money::new(-100.0, Currency::USD),
+            high_measures,
+        )),
+        1.0,
+        PositionUnit::Units,
+    )
+    .unwrap();
+    let low = Position::new(
+        "POS_LO",
+        "ENT_A",
+        "LO_INST",
+        Arc::new(MetricInstrument::new(
+            "LO_INST",
+            Money::new(-100.0, Currency::USD),
+            low_measures,
+        )),
+        1.0,
+        PositionUnit::Units,
+    )
+    .unwrap();
+
+    let portfolio = PortfolioBuilder::new("NET_SHORT_BOOK")
+        .base_currency(Currency::USD)
+        .as_of(as_of)
+        .entity(Entity::new("ENT_A"))
+        .position(high)
+        .position(low)
+        .build()
+        .unwrap();
+
+    let mut problem = PortfolioOptimizationProblem::new(
+        portfolio,
+        Objective::Maximize(MetricExpr::ValueWeightedAverage {
+            metric: PerPositionMetric::Metric(MetricId::Ytm),
+            filter: None,
+        }),
+    );
+    problem.constraints =
+        vec![finstack_quant_portfolio::optimization::Constraint::Budget { rhs: -1.0 }];
+
+    let err = DefaultLpOptimizer
+        .optimize(&problem, &MarketContext::new(), &FinstackConfig::default())
+        .expect_err("MO-19: VWA objective with Σw = -1 budget must fail, not sign-flip");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("MO-19") && msg.contains("Budget"),
+        "error should carry the MO-19 tag and mention the budget: {msg}"
+    );
+}
+
+/// Companion to MO-19: with an explicit `Budget { rhs: 1.0 }` (Σw = 1) the
+/// unfiltered average objective is exactly `Σ wᵢ·mᵢ`, so the problem must
+/// still solve and pick the high-yield name.
+#[test]
+fn mo19_unfiltered_vwa_objective_with_unit_budget_picks_high_yield() {
+    let as_of = create_date(2024, Month::January, 1).unwrap();
+    let mut high_measures = IndexMap::new();
+    high_measures.insert(MetricId::Ytm, 0.10);
+    let mut low_measures = IndexMap::new();
+    low_measures.insert(MetricId::Ytm, 0.01);
+
+    let high = Position::new(
+        "POS_HI",
+        "ENT_A",
+        "HI_INST",
+        Arc::new(MetricInstrument::new(
+            "HI_INST",
+            Money::new(100.0, Currency::USD),
+            high_measures,
+        )),
+        1.0,
+        PositionUnit::Units,
+    )
+    .unwrap();
+    let low = Position::new(
+        "POS_LO",
+        "ENT_A",
+        "LO_INST",
+        Arc::new(MetricInstrument::new(
+            "LO_INST",
+            Money::new(100.0, Currency::USD),
+            low_measures,
+        )),
+        1.0,
+        PositionUnit::Units,
+    )
+    .unwrap();
+
+    let portfolio = PortfolioBuilder::new("LONG_BOOK")
+        .base_currency(Currency::USD)
+        .as_of(as_of)
+        .entity(Entity::new("ENT_A"))
+        .position(high)
+        .position(low)
+        .build()
+        .unwrap();
+
+    let mut problem = PortfolioOptimizationProblem::new(
+        portfolio,
+        Objective::Maximize(MetricExpr::ValueWeightedAverage {
+            metric: PerPositionMetric::Metric(MetricId::Ytm),
+            filter: None,
+        }),
+    );
+    problem.constraints =
+        vec![finstack_quant_portfolio::optimization::Constraint::Budget { rhs: 1.0 }];
+
+    let result = DefaultLpOptimizer
+        .optimize(&problem, &MarketContext::new(), &FinstackConfig::default())
+        .expect("MO-19: unit budget keeps the VWA objective well-posed");
+    assert!(
+        result.status.is_feasible(),
+        "unit-budget VWA objective should solve, got {:?}",
+        result.status
+    );
+    assert!(
+        (result.optimal_weights.get("POS_HI").copied().unwrap_or(0.0) - 1.0).abs() < 1e-8,
+        "maximizing the average yield should allocate to the high-yield name: {:?}",
+        result.optimal_weights
+    );
+}
+
+/// An infeasible result must not report `turnover() == 0.0` — that is
+/// indistinguishable from "already optimal, nothing to trade". It reports
+/// NaN, consistent with `objective_value = NaN` on failed solves.
+#[test]
+fn infeasible_result_turnover_is_nan() {
+    let as_of = create_date(2024, Month::January, 1).unwrap();
+    let position = Position::new(
+        "POS_A",
+        "ENT_A",
+        "A_INST",
+        Arc::new(MetricInstrument::new(
+            "A_INST",
+            Money::new(100.0, Currency::USD),
+            IndexMap::new(),
+        )),
+        1.0,
+        PositionUnit::Units,
+    )
+    .unwrap();
+    let portfolio = PortfolioBuilder::new("INFEASIBLE_BOOK")
+        .base_currency(Currency::USD)
+        .as_of(as_of)
+        .entity(Entity::new("ENT_A"))
+        .position(position)
+        .build()
+        .unwrap();
+
+    let mut problem = PortfolioOptimizationProblem::new(
+        portfolio,
+        Objective::Maximize(MetricExpr::WeightedSum {
+            metric: PerPositionMetric::Constant(1.0),
+            filter: None,
+        }),
+    );
+    // w >= 0.8 for the only position, but the budget demands Σw = 0.5.
+    problem.constraints = vec![
+        finstack_quant_portfolio::optimization::Constraint::WeightBounds {
+            label: Some("pin high".to_string()),
+            filter: finstack_quant_portfolio::optimization::PositionFilter::ByPositionIds(vec![
+                "POS_A".into(),
+            ]),
+            min: 0.8,
+            max: 1.0,
+        },
+        finstack_quant_portfolio::optimization::Constraint::Budget { rhs: 0.5 },
+    ];
+
+    let result = DefaultLpOptimizer
+        .optimize(&problem, &MarketContext::new(), &FinstackConfig::default())
+        .expect("infeasible problems return a status-carrying result, not Err");
+    assert!(
+        !result.status.is_feasible(),
+        "conflicting bounds/budget should be infeasible, got {:?}",
+        result.status
+    );
+    assert!(
+        result.turnover().is_nan(),
+        "turnover of an infeasible result must be NaN (no solution), got {}",
+        result.turnover()
+    );
+    assert!(result.to_trade_list().is_empty());
+    assert!(result.binding_constraints().is_empty());
+}
+
+/// `MissingMetricPolicy::Exclude` positions keep their current weight and are
+/// excluded from constraint evaluation — they must not sit in a
+/// `ValueWeightedAverage` bound denominator with metric 0, where each frozen
+/// weight contributes `−w·rhs` and can declare a feasible average infeasible.
+#[test]
+fn exclude_policy_removes_missing_metric_positions_from_vwa_bound_denominator() {
+    let as_of = create_date(2024, Month::January, 1).unwrap();
+    let mut scored_measures = IndexMap::new();
+    scored_measures.insert(MetricId::Ytm, 700.0);
+
+    let scored = Position::new(
+        "POS_SCORED",
+        "ENT_A",
+        "SCORED_INST",
+        Arc::new(MetricInstrument::new(
+            "SCORED_INST",
+            Money::new(50.0, Currency::USD),
+            scored_measures,
+        )),
+        1.0,
+        PositionUnit::Units,
+    )
+    .unwrap();
+    let unscored = Position::new(
+        "POS_UNSCORED",
+        "ENT_A",
+        "UNSCORED_INST",
+        Arc::new(MetricInstrument::new(
+            "UNSCORED_INST",
+            Money::new(50.0, Currency::USD),
+            IndexMap::new(),
+        )),
+        1.0,
+        PositionUnit::Units,
+    )
+    .unwrap();
+
+    let portfolio = PortfolioBuilder::new("SCORED_BOOK")
+        .base_currency(Currency::USD)
+        .as_of(as_of)
+        .entity(Entity::new("ENT_A"))
+        .position(scored)
+        .position(unscored)
+        .build()
+        .unwrap();
+
+    let mut problem = PortfolioOptimizationProblem::new(
+        portfolio,
+        Objective::Maximize(MetricExpr::WeightedSum {
+            metric: PerPositionMetric::Metric(MetricId::Ytm),
+            filter: None,
+        }),
+    );
+    problem.missing_metric_policy = MissingMetricPolicy::Exclude;
+    problem.constraints.push(
+        finstack_quant_portfolio::optimization::Constraint::MetricBound {
+            label: Some("avg score floor".to_string()),
+            metric: MetricExpr::ValueWeightedAverage {
+                metric: PerPositionMetric::Metric(MetricId::Ytm),
+                filter: None,
+            },
+            op: finstack_quant_portfolio::optimization::Inequality::Ge,
+            rhs: 500.0,
+        },
+    );
+
+    let result = DefaultLpOptimizer
+        .optimize(&problem, &MarketContext::new(), &FinstackConfig::default())
+        .expect("Exclude policy problem should solve");
+    assert!(
+        result.status.is_feasible(),
+        "average of the scored basket is 700 >= 500 and must be feasible, got {:?}",
+        result.status
+    );
+    // The unscored position is frozen at its current weight, not distorted
+    // into the average.
+    assert_eq!(result.optimal_weights.get("POS_UNSCORED"), Some(&0.5));
+    assert_eq!(result.optimal_weights.get("POS_SCORED"), Some(&0.5));
+}
+
+/// `ValueWeightedAverage` bound slacks are reported in metric units
+/// (`rhs − achieved average`), not in the internal weight×metric units of the
+/// `Σ_F wᵢ(mᵢ − rhs)` linearization — with a filtered weight sum of 0.5 the
+/// raw row slack is half the metric-unit headroom.
+#[test]
+fn vwa_bound_slack_is_reported_in_metric_units() {
+    let as_of = create_date(2024, Month::January, 1).unwrap();
+    let mut scored_measures = IndexMap::new();
+    scored_measures.insert(MetricId::Ytm, 8.0);
+
+    let scored = Position::new(
+        "POS_SCORED",
+        "ENT_A",
+        "SCORED_INST",
+        Arc::new(MetricInstrument::new(
+            "SCORED_INST",
+            Money::new(100.0, Currency::USD),
+            scored_measures,
+        )),
+        1.0,
+        PositionUnit::Units,
+    )
+    .unwrap();
+    let other = Position::new(
+        "POS_OTHER",
+        "ENT_A",
+        "OTHER_INST",
+        Arc::new(MetricInstrument::new(
+            "OTHER_INST",
+            Money::new(100.0, Currency::USD),
+            IndexMap::new(),
+        )),
+        1.0,
+        PositionUnit::Units,
+    )
+    .unwrap();
+
+    let portfolio = PortfolioBuilder::new("SLACK_BOOK")
+        .base_currency(Currency::USD)
+        .as_of(as_of)
+        .entity(Entity::new("ENT_A"))
+        .position(scored)
+        .position(other)
+        .build()
+        .unwrap();
+
+    let mut problem = PortfolioOptimizationProblem::new(
+        portfolio,
+        Objective::Maximize(MetricExpr::WeightedSum {
+            metric: PerPositionMetric::Constant(1.0),
+            filter: None,
+        }),
+    );
+    problem.constraints = vec![
+        finstack_quant_portfolio::optimization::Constraint::WeightBounds {
+            label: Some("pin scored".to_string()),
+            filter: finstack_quant_portfolio::optimization::PositionFilter::ByPositionIds(vec![
+                "POS_SCORED".into(),
+            ]),
+            min: 0.5,
+            max: 0.5,
+        },
+        finstack_quant_portfolio::optimization::Constraint::MetricBound {
+            label: Some("vwa_slack".to_string()),
+            metric: MetricExpr::ValueWeightedAverage {
+                metric: PerPositionMetric::Metric(MetricId::Ytm),
+                filter: Some(
+                    finstack_quant_portfolio::optimization::PositionFilter::ByPositionIds(vec![
+                        "POS_SCORED".into(),
+                    ]),
+                ),
+            },
+            op: finstack_quant_portfolio::optimization::Inequality::Le,
+            rhs: 10.0,
+        },
+    ];
+
+    let result = DefaultLpOptimizer
+        .optimize(&problem, &MarketContext::new(), &FinstackConfig::default())
+        .expect("VWA slack problem should solve");
+    assert!(result.status.is_feasible(), "got {:?}", result.status);
+
+    // Achieved filtered average = 8.0, bound rhs = 10.0 → headroom is 2.0
+    // metric units regardless of the filtered weight sum (0.5 here).
+    let slack = result
+        .constraint_slacks
+        .get("vwa_slack")
+        .copied()
+        .expect("VWA bound slack is reported");
+    assert!(
+        (slack - 2.0).abs() < 1e-8,
+        "slack must be in metric units (rhs − achieved average = 2.0), got {slack}"
+    );
+}
+
+/// Duplicate `Budget` constraints are ambiguous (two Σw = rhs equalities) and
+/// must be rejected up-front, mirroring the M-9 duplicate-turnover rejection.
+#[test]
+fn mo21_duplicate_budget_constraints_are_rejected() {
+    let as_of = create_date(2024, Month::January, 1).unwrap();
+    let position = Position::new(
+        "POS_A",
+        "ENT_A",
+        "A_INST",
+        Arc::new(MetricInstrument::new(
+            "A_INST",
+            Money::new(100.0, Currency::USD),
+            IndexMap::new(),
+        )),
+        1.0,
+        PositionUnit::Units,
+    )
+    .unwrap();
+    let portfolio = PortfolioBuilder::new("DUPLICATE_BUDGET_BOOK")
+        .base_currency(Currency::USD)
+        .as_of(as_of)
+        .entity(Entity::new("ENT_A"))
+        .position(position)
+        .build()
+        .unwrap();
+
+    let mut problem = PortfolioOptimizationProblem::new(
+        portfolio,
+        Objective::Maximize(MetricExpr::WeightedSum {
+            metric: PerPositionMetric::Constant(1.0),
+            filter: None,
+        }),
+    );
+    problem.constraints = vec![
+        finstack_quant_portfolio::optimization::Constraint::Budget { rhs: 0.6 },
+        finstack_quant_portfolio::optimization::Constraint::Budget { rhs: 0.4 },
+    ];
+
+    let err = DefaultLpOptimizer
+        .optimize(&problem, &MarketContext::new(), &FinstackConfig::default())
+        .expect_err("MO-21: duplicate Budget constraints must fail fast");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("MO-21") && msg.contains("Budget"),
+        "error should carry the MO-21 tag and mention Budget: {msg}"
+    );
+}
+
 #[test]
 fn mo9_unit_scaling_without_budget_does_not_synthesize_sum_multiplier_budget() {
     let as_of = create_date(2024, Month::January, 1).unwrap();

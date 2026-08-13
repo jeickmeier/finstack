@@ -385,7 +385,7 @@ pub struct DcfSensitivityResult {
 ///
 /// - Koller, T., Goedhart, M., & Wessels, D. (2020). *Valuation: Measuring and
 ///   Managing the Value of Companies* (7th ed.). Wiley. Ch. 15 (continuing
-///   value) on the sensitivity of `1/(WACC − g)` to the assumed spread.
+///   value) on the sensitivity of `1/(WACC − g)` to the assumed spread. `docs/REFERENCES.md#koller-valuation`
 /// - Damodaran, A. (2012). *Investment Valuation* (3rd ed.). Wiley. Ch. 12 on
 ///   stable-growth constraints (`g < WACC`).
 #[allow(clippy::too_many_arguments)]
@@ -622,7 +622,7 @@ const WACC_WEIGHT_SUM_TOLERANCE: f64 = 1e-6;
 ///   Cost of Capital: A Correction." *American Economic Review*, 53(3),
 ///   433-443 — the source of the `(1 − T)` debt tax shield.
 /// - Koller, T., Goedhart, M., & Wessels, D. (2020). *Valuation: Measuring and
-///   Managing the Value of Companies* (7th ed.). Wiley. Ch. 13.
+///   Managing the Value of Companies* (7th ed.). Wiley. Ch. 13. `docs/REFERENCES.md#koller-valuation`
 pub fn wacc(
     equity_weight: f64,
     cost_of_equity: f64,
@@ -706,9 +706,9 @@ pub(crate) fn evaluate_dcf_from_results_impl(
             continue;
         }
         if let Some(ufcf_value) = results.get(ufcf_node, &period.id) {
-            // Use the last inclusive day of the period.  Periods use
+            // Use the last inclusive day of the period. Periods use
             // half-open semantics [start, end), so `end` is the first
-            // day of the *next* period.  Subtracting one day gives the
+            // day of the *next* period. Subtracting one day gives the
             // correct economic period-end for discounting.
             let date = period.end - time::Duration::days(1);
             flows.push((date, ufcf_value));

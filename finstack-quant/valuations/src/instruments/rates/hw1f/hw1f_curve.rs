@@ -33,7 +33,7 @@
 //! # Reference
 //!
 //! Brigo & Mercurio (2006) *Interest Rate Models — Theory and Practice*
-//! §3.3.1 (HW1F affine bond price, eqs. 3.39–3.40); Hull & White (1990).
+//! §3.3.1 (HW1F affine bond price, eqs. 3.39–3.40); Hull & White (1990). `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models` `docs/REFERENCES.md#hull-white-1990-pricing-ird`
 
 use crate::calibration::hull_white::{hw_b, HullWhiteModelParams, HullWhiteParams};
 use finstack_quant_core::dates::{Date, DayCountContext};

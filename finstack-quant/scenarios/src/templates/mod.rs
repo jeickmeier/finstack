@@ -1,7 +1,7 @@
 //! Historical stress-template metadata, builders, and registry APIs.
 //!
 //! This module provides the reusable template layer that sits above raw
-//! [`ScenarioSpec`](crate::ScenarioSpec) values. Most callers start with
+//! [`ScenarioSpec`] values. Most callers start with
 //! [`TemplateRegistry`] to discover the built-in templates and then use
 //! [`ScenarioSpecBuilder`] to override identifiers before building a concrete
 //! scenario.

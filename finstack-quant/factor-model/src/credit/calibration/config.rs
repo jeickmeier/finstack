@@ -49,7 +49,7 @@ pub enum VolModelChoice {
     /// # References
     ///
     /// - Longerstaey, J., & Spencer, M. (1996). *RiskMetrics — Technical
-    ///   Document* (4th ed.). J.P. Morgan/Reuters. §5.2.
+    ///   Document* (4th ed.). J.P. Morgan/Reuters. §5.2. `docs/REFERENCES.md#jpmorgan1996RiskMetrics`
     Ewma {
         /// Smoothing parameter λ ∈ (0, 1) (RiskMetrics daily default 0.94).
         #[schemars(extend("exclusiveMinimum" = 0.0, "exclusiveMaximum" = 1.0))]

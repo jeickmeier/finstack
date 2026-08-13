@@ -20,6 +20,7 @@ from finstack_quant.attribution import PnlAttribution
 from finstack_quant.core.dates import DayCount
 from finstack_quant.core.market_data import MarketContext
 from finstack_quant.statements import FinancialModelSpec
+from finstack_quant.scenarios import schema as schema
 
 __all__ = [
     "parse_scenario_spec",
@@ -43,6 +44,7 @@ __all__ = [
     "TenorMatchMode",
     "TimeRollMode",
     "Compounding",
+    "schema",
 ]
 
 def parse_scenario_spec(json_str: str) -> str:
@@ -187,6 +189,11 @@ def list_builtin_templates() -> list[str]:
     list[str]
         Template identifier strings.
 
+    Raises
+    ------
+    ValueError
+        If the example or catalog cannot be produced.
+
     Examples
     --------
     >>> from finstack_quant.scenarios import list_builtin_templates
@@ -203,6 +210,11 @@ def list_builtin_template_metadata() -> str:
     -------
     str
         JSON list of ``TemplateMetadata`` objects.
+
+    Raises
+    ------
+    ValueError
+        If the example or catalog cannot be produced.
 
     Examples
     --------
@@ -328,6 +340,10 @@ class ApplicationReport:
         int
             Count of applied effects. One user-level operation can expand into
             several effects, so this is always ``>=`` :attr:`user_operations`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -340,6 +356,10 @@ class ApplicationReport:
         -------
         int
             Count of operations as written in the ``ScenarioSpec``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -354,6 +374,10 @@ class ApplicationReport:
             Count of post-expansion operations, which may exceed
             :attr:`user_operations` when an operation fans out over a
             hierarchy.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -367,6 +391,10 @@ class ApplicationReport:
         list[str]
             Rendered warning messages, in the order the engine emitted them.
             Empty when the scenario applied cleanly.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -381,6 +409,10 @@ class ApplicationReport:
             Policy stamp with ``numeric_mode``, ``rounding``,
             ``fx_policy_applied``, and ``version`` keys, or ``None`` when the
             engine recorded no stamp.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -396,6 +428,10 @@ class ApplicationReport:
             ``changed_instrument_indices``, ``as_of_changed``,
             ``portfolio_shape_changed``, and ``all_dirty`` keys, used
             downstream for precise cache invalidation.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -409,6 +445,10 @@ class ApplicationReport:
         -------
         dict[str, Any] or None
             Roll details, or ``None`` when the scenario performed no time roll.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -421,6 +461,11 @@ class ApplicationReport:
         pd.DataFrame
             One row holding the operation counters and the serialized
             ``changes``/``warnings`` fields.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -433,6 +478,11 @@ class ApplicationReport:
         str
             Canonical JSON representation, suitable for a matching
             :meth:`from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -493,6 +543,10 @@ class ApplicationResult:
         -------
         MarketContext
             The market after every scenario effect was applied.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -505,6 +559,10 @@ class ApplicationResult:
         -------
         FinancialModelSpec or None
             Always ``None`` for :func:`apply_scenario_to_market`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -518,6 +576,10 @@ class ApplicationResult:
         ApplicationReport
             Operation counters, warnings, invalidation metadata, and the
             policy stamp.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -533,6 +595,11 @@ class ApplicationResult:
         str
             Canonical JSON representation, suitable for a matching
             :meth:`from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -701,6 +768,9 @@ class HorizonResult:
             Carry, rate, credit, inflation, FX, volatility, and model-parameter
             contributions.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -713,6 +783,10 @@ class HorizonResult:
         -------
         float
             Present value at the original valuation date.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -725,6 +799,10 @@ class HorizonResult:
         -------
         float
             Present value after scenario shocks and time roll.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -738,6 +816,10 @@ class HorizonResult:
         int or None
             Number of days rolled forward, or ``None`` when the scenario
             contains no ``time_roll_forward`` operation.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -750,6 +832,10 @@ class HorizonResult:
         -------
         float
             ``(terminal_value - initial_value) / initial_value``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -763,6 +849,10 @@ class HorizonResult:
         float or None
             Annualized total return, or ``None`` when ``horizon_days`` is
             ``None`` or zero.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -775,6 +865,10 @@ class HorizonResult:
         -------
         int
             Count of operations executed after hierarchy expansion.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -787,6 +881,10 @@ class HorizonResult:
         -------
         int
             Count of operations in the original ``ScenarioSpec``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -799,6 +897,10 @@ class HorizonResult:
         -------
         int
             Count of unique operations after template hierarchy expansion.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -811,6 +913,10 @@ class HorizonResult:
         -------
         list[str]
             Human-readable warning strings.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -827,6 +933,10 @@ class HorizonResult:
         -------
         str
             JSON array of structured warning objects.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -863,6 +973,11 @@ class HorizonResult:
         -------
         str
             JSON-serialized ``HorizonResult`` envelope.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -913,6 +1028,11 @@ class HorizonResult:
         -------
         pandas.DataFrame
             One-row summary frame.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -924,6 +1044,10 @@ class HorizonResult:
         -------
         str
             Multi-line text suitable for notebook display.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1004,12 +1128,16 @@ class CurveKind:
     @classmethod
     def discount(cls) -> CurveKind:
         """
-        Discount factor curve.
+        Curve kind for a discount-factor (zero) curve.
 
         Returns
         -------
         CurveKind
             The ``discount`` variant.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -1022,12 +1150,16 @@ class CurveKind:
     @classmethod
     def forward(cls) -> CurveKind:
         """
-        Forward rate curve.
+        Curve kind for a forward/projection rate curve.
 
         Returns
         -------
         CurveKind
             The ``forward`` variant.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -1040,12 +1172,16 @@ class CurveKind:
     @classmethod
     def par_cds(cls) -> CurveKind:
         """
-        Par CDS spread curve.
+        Curve kind for a par CDS spread (hazard) curve.
 
         Returns
         -------
         CurveKind
             The ``par_cds`` variant.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -1058,12 +1194,16 @@ class CurveKind:
     @classmethod
     def inflation(cls) -> CurveKind:
         """
-        Inflation index curve.
+        Curve kind for an inflation/CPI index curve.
 
         Returns
         -------
         CurveKind
             The ``inflation`` variant.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -1083,6 +1223,10 @@ class CurveKind:
         CurveKind
             The ``commodity`` variant.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.scenarios import CurveKind
@@ -1100,6 +1244,10 @@ class CurveKind:
         -------
         str
             Pascal-case variant name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1112,6 +1260,10 @@ class CurveKind:
         -------
         str
             Snake-case wire value used in JSON serialization.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1136,6 +1288,10 @@ class TenorMatchMode:
         TenorMatchMode
             The ``exact`` variant.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.scenarios import TenorMatchMode
@@ -1154,6 +1310,10 @@ class TenorMatchMode:
         TenorMatchMode
             The ``interpolate`` variant.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.scenarios import TenorMatchMode
@@ -1171,6 +1331,10 @@ class TenorMatchMode:
         -------
         str
             Pascal-case variant name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1183,6 +1347,10 @@ class TenorMatchMode:
         -------
         str
             Snake-case wire value used in JSON serialization.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1207,6 +1375,10 @@ class TimeRollMode:
         TimeRollMode
             The ``business_days`` variant.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.scenarios import TimeRollMode
@@ -1224,6 +1396,10 @@ class TimeRollMode:
         -------
         TimeRollMode
             The ``calendar_days`` variant.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -1243,6 +1419,10 @@ class TimeRollMode:
         TimeRollMode
             The ``approximate`` variant.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.scenarios import TimeRollMode
@@ -1260,6 +1440,10 @@ class TimeRollMode:
         -------
         str
             Pascal-case variant name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1272,6 +1456,10 @@ class TimeRollMode:
         -------
         str
             Snake-case wire value used in JSON serialization.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1296,6 +1484,10 @@ class Compounding:
         Compounding
             The ``simple`` variant.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.scenarios import Compounding
@@ -1314,6 +1506,10 @@ class Compounding:
         Compounding
             The ``continuous`` variant.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.scenarios import Compounding
@@ -1325,12 +1521,16 @@ class Compounding:
     @classmethod
     def annual(cls) -> Compounding:
         """
-        Annual compounding.
+        Annual compounding convention for the bound rate.
 
         Returns
         -------
         Compounding
             The ``annual`` variant.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -1350,6 +1550,10 @@ class Compounding:
         Compounding
             The ``semi_annual`` variant.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.scenarios import Compounding
@@ -1361,12 +1565,16 @@ class Compounding:
     @classmethod
     def quarterly(cls) -> Compounding:
         """
-        Quarterly compounding.
+        Quarterly compounding convention for the bound rate.
 
         Returns
         -------
         Compounding
             The ``quarterly`` variant.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -1379,12 +1587,16 @@ class Compounding:
     @classmethod
     def monthly(cls) -> Compounding:
         """
-        Monthly compounding.
+        Monthly compounding convention for the bound rate.
 
         Returns
         -------
         Compounding
             The ``monthly`` variant.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -1403,6 +1615,10 @@ class Compounding:
         -------
         str
             Pascal-case variant name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1415,6 +1631,10 @@ class Compounding:
         -------
         str
             Snake-case wire value used in JSON serialization.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1450,7 +1670,7 @@ class RateBindingSpec:
         tenor : str
             Tenor string (e.g. ``"5Y"``).
         compounding : Compounding, optional
-            Compounding convention. Defaults to ``None`` (use curve default).
+            Compounding convention used when converting the bound rate. Defaults to ``None`` (use curve default).
         day_count : DayCount, optional
             Typed day-count convention. Defaults to ``None`` (use curve default).
 
@@ -1470,6 +1690,10 @@ class RateBindingSpec:
         -------
         str
             Node ID string.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1482,6 +1706,10 @@ class RateBindingSpec:
         -------
         str
             Curve ID string (e.g. ``"USD-OIS"``).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1495,41 +1723,58 @@ class RateBindingSpec:
         -------
         str
             Tenor label (e.g. ``"5Y"``).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def compounding(self) -> Compounding:
         """
-        Compounding convention.
+        Compounding convention used when converting the bound rate.
 
         Returns
         -------
         Compounding
             Compounding enum value, or the curve default when not specified.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def day_count(self) -> DayCount | None:
         """
-        Day-count convention.
+        Day-count convention used when converting the bound rate.
 
         Returns
         -------
         DayCount or None
             Typed day-count convention, or ``None`` when not specified.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     def to_json(self) -> str:
         """
-        Serialize to JSON.
+        Serialize this rate binding to a JSON-compatible dict.
 
         Returns
         -------
         str
             JSON-serialized ``RateBindingSpec``.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -1629,6 +1874,10 @@ class OperationSpec:
         OperationSpec
             The ``equity_price_pct`` operation.
 
+        Notes
+        -----
+        This factory constructs a spec object and does not raise; validation occurs when the spec is applied.
+
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
@@ -1655,6 +1904,10 @@ class OperationSpec:
         -------
         OperationSpec
             The ``instrument_price_pct_by_attr`` operation.
+
+        Notes
+        -----
+        This factory constructs a spec object and does not raise; validation occurs when the spec is applied.
 
         Examples
         --------
@@ -1690,6 +1943,10 @@ class OperationSpec:
         -------
         OperationSpec
             The ``curve_parallel_bp`` operation.
+
+        Notes
+        -----
+        This factory constructs a spec object and does not raise; validation occurs when the spec is applied.
 
         Examples
         --------
@@ -1729,6 +1986,10 @@ class OperationSpec:
         OperationSpec
             The ``curve_node_bp`` operation.
 
+        Notes
+        -----
+        This factory constructs a spec object and does not raise; validation occurs when the spec is applied.
+
         Examples
         --------
         >>> from finstack_quant.scenarios import CurveKind, OperationSpec
@@ -1753,6 +2014,10 @@ class OperationSpec:
         -------
         OperationSpec
             The ``vol_index_parallel_pts`` operation.
+
+        Notes
+        -----
+        This factory constructs a spec object and does not raise; validation occurs when the spec is applied.
 
         Examples
         --------
@@ -1786,6 +2051,10 @@ class OperationSpec:
         OperationSpec
             The ``vol_index_node_pts`` operation.
 
+        Notes
+        -----
+        This factory constructs a spec object and does not raise; validation occurs when the spec is applied.
+
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
@@ -1810,6 +2079,10 @@ class OperationSpec:
         -------
         OperationSpec
             The ``base_corr_parallel_pts`` operation.
+
+        Notes
+        -----
+        This factory constructs a spec object and does not raise; validation occurs when the spec is applied.
 
         Examples
         --------
@@ -1843,6 +2116,10 @@ class OperationSpec:
         OperationSpec
             The ``base_corr_bucket_pts`` operation.
 
+        Notes
+        -----
+        This factory constructs a spec object and does not raise; validation occurs when the spec is applied.
+
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
@@ -1867,6 +2144,10 @@ class OperationSpec:
         -------
         OperationSpec
             The ``vol_surface_parallel_pct`` operation.
+
+        Notes
+        -----
+        This factory constructs a spec object and does not raise; validation occurs when the spec is applied.
 
         Examples
         --------
@@ -1903,6 +2184,10 @@ class OperationSpec:
         OperationSpec
             The ``vol_surface_bucket_pct`` operation.
 
+        Notes
+        -----
+        This factory constructs a spec object and does not raise; validation occurs when the spec is applied.
+
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
@@ -1927,6 +2212,10 @@ class OperationSpec:
         -------
         OperationSpec
             The ``stmt_forecast_percent`` operation.
+
+        Notes
+        -----
+        This factory constructs a spec object and does not raise; validation occurs when the spec is applied.
 
         Examples
         --------
@@ -1953,6 +2242,10 @@ class OperationSpec:
         OperationSpec
             The ``stmt_forecast_assign`` operation.
 
+        Notes
+        -----
+        This factory constructs a spec object and does not raise; validation occurs when the spec is applied.
+
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
@@ -1975,6 +2268,10 @@ class OperationSpec:
         -------
         OperationSpec
             The ``rate_binding`` operation.
+
+        Notes
+        -----
+        This factory constructs a spec object and does not raise; validation occurs when the spec is applied.
 
         Examples
         --------
@@ -2001,6 +2298,10 @@ class OperationSpec:
         -------
         OperationSpec
             The ``instrument_spread_bp_by_attr`` operation.
+
+        Notes
+        -----
+        This factory constructs a spec object and does not raise; validation occurs when the spec is applied.
 
         Examples
         --------
@@ -2085,6 +2386,10 @@ class OperationSpec:
         OperationSpec
             The ``asset_correlation_pts`` operation.
 
+        Notes
+        -----
+        This factory constructs a spec object and does not raise; validation occurs when the spec is applied.
+
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
@@ -2107,6 +2412,10 @@ class OperationSpec:
         -------
         OperationSpec
             The ``prepay_default_correlation_pts`` operation.
+
+        Notes
+        -----
+        This factory constructs a spec object and does not raise; validation occurs when the spec is applied.
 
         Examples
         --------
@@ -2276,6 +2585,10 @@ class OperationSpec:
         OperationSpec
             The ``time_roll_forward`` operation.
 
+        Notes
+        -----
+        This factory constructs a spec object and does not raise; validation occurs when the spec is applied.
+
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
@@ -2292,6 +2605,11 @@ class OperationSpec:
         -------
         str
             JSON-serialized ``OperationSpec``.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -2332,5 +2650,9 @@ class OperationSpec:
         -------
         str
             Snake-case operation kind string.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...

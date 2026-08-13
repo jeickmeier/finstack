@@ -209,6 +209,11 @@ impl PortfolioOptimizationResult {
     ///
     /// Sorted trade list covering existing positions and candidate additions
     /// whose weight changes are materially non-zero.
+    ///
+    /// When `!self.status.is_feasible()` there is no solution and the list is
+    /// empty — an empty list from a failed solve does **not** mean "already
+    /// optimal, nothing to trade"; check [`OptimizationStatus::is_feasible`]
+    /// before consuming it.
     #[must_use]
     pub fn to_trade_list(&self) -> Vec<TradeSpec> {
         let mut trades: Vec<TradeSpec> = self
@@ -289,6 +294,9 @@ impl PortfolioOptimizationResult {
     /// # Returns
     ///
     /// Trade specifications whose `trade_type` is [`TradeType::NewPosition`].
+    ///
+    /// When `!self.status.is_feasible()` there is no solution and the list is
+    /// empty; check [`OptimizationStatus::is_feasible`] before consuming it.
     #[must_use]
     pub fn new_position_trades(&self) -> Vec<TradeSpec> {
         self.to_trade_list()
@@ -302,6 +310,10 @@ impl PortfolioOptimizationResult {
     /// # Returns
     ///
     /// Constraint names and slack values for approximately binding constraints.
+    ///
+    /// When `!self.status.is_feasible()` no slacks exist and the list is
+    /// empty — meaningless rather than "no constraint binds"; check
+    /// [`OptimizationStatus::is_feasible`] before consuming it.
     #[must_use]
     pub fn binding_constraints(&self) -> Vec<(&str, f64)> {
         // See `optimization::tolerances::SLACK_TOL` for the rationale behind
@@ -317,9 +329,15 @@ impl PortfolioOptimizationResult {
     ///
     /// # Returns
     ///
-    /// Gross turnover implied by the optimized weights.
+    /// Gross turnover implied by the optimized weights, or `NaN` when
+    /// `!self.status.is_feasible()` — there is no solution, so "no turnover"
+    /// would be indistinguishable from "already optimal". This mirrors the
+    /// `objective_value = NaN` convention on failed solves.
     #[must_use]
     pub fn turnover(&self) -> f64 {
+        if !self.status.is_feasible() {
+            return f64::NAN;
+        }
         self.weight_deltas.values().map(|d| d.abs()).sum()
     }
 }

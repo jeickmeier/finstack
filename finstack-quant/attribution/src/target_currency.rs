@@ -37,7 +37,9 @@ use finstack_quant_core::money::fx::{FxConversionPolicy, FxPolicyMeta};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
 
-use crate::types::{CarryDetail, PnlAttribution, SourceLine};
+use crate::types::{
+    CarryDetail, CreditCarryDecomposition, CreditFactorAttribution, PnlAttribution, SourceLine,
+};
 
 /// Translate a populated `PnlAttribution` from its native pricing currency
 /// into `target_currency`.
@@ -63,10 +65,15 @@ use crate::types::{CarryDetail, PnlAttribution, SourceLine};
 /// - Otherwise every factor P&L is converted via `market_t1.convert_money`
 ///   at `as_of_t1`; `fx_translation_pnl` is set to
 ///   `val_t0 × (T1_fx − T0_fx)`; `total_pnl` is replaced by
-///   `val_t1_target − val_t0_target`. Detail breakdowns (rates_detail,
-///   credit_detail, fx_detail, ...) are NOT translated by this helper —
-///   their key amounts remain in native currency. The aggregate fields are
-///   the supported reporting surface in target_currency.
+///   `val_t1_target − val_t0_target`. The credit-model structs
+///   (`credit_factor_detail`, `credit_carry_decomposition`) and
+///   `carry_detail` ARE translated — every Money leaf, including bucket and
+///   per-issuer maps, moves to target currency at T1 FX so their documented
+///   reconciliation invariants keep closing after translation (audit M5).
+///   The remaining per-curve detail maps (rates_detail.by_curve,
+///   fx_detail.by_pair, ...) are NOT translated by this helper — their key
+///   amounts remain in native currency. The aggregate fields are the
+///   supported reporting surface in target_currency.
 /// - The `meta.fx_policy` is stamped with `target_currency` and a note describing
 ///   the translation.
 ///
@@ -134,8 +141,8 @@ pub fn translate_to_target_currency(
         attribution.mark_to_market_pnl = Some(translated_mtm);
     }
 
-    // Residual is recomputed against the translated sum.
-    attribution.residual = Money::new(0.0, target_currency);
+    // Residual is recomputed against the translated sum by the
+    // `compute_residual` call below.
 
     // Stamp the FX policy so downstream consumers know the report currency is
     // a translation, not native.
@@ -156,7 +163,79 @@ pub fn translate_to_target_currency(
         translate_carry_detail(d, target_currency, market_t1, as_of_t1)?;
     }
 
+    // Audit M5: the credit-model structs are populated BEFORE this
+    // translation runs (execution.rs), so their Money leaves must move to
+    // target currency with the same T1 FX as the aggregate factor fields —
+    // otherwise `generic + Σ levels + adder + curve_shape ≡ credit_curves_pnl`
+    // and the carry partition break by the FX rate across currencies.
+    if let Some(d) = attribution.credit_factor_detail.as_mut() {
+        translate_credit_factor_detail(d, target_currency, market_t1, as_of_t1)?;
+    }
+    if let Some(d) = attribution.credit_carry_decomposition.as_mut() {
+        translate_credit_carry_decomposition(d, target_currency, market_t1, as_of_t1)?;
+    }
+
     attribution.compute_residual()?;
+    Ok(())
+}
+
+/// Translate every Money leaf of a [`CreditFactorAttribution`] (aggregates,
+/// per-level totals, bucket maps, per-issuer adder map, adder magnitude) to
+/// `target_currency` at T1 FX.
+fn translate_credit_factor_detail(
+    detail: &mut CreditFactorAttribution,
+    target_currency: Currency,
+    market_t1: &MarketContext,
+    as_of_t1: Date,
+) -> Result<()> {
+    let convert =
+        |m: Money| -> Result<Money> { market_t1.convert_money(m, target_currency, as_of_t1) };
+    detail.generic_pnl = convert(detail.generic_pnl)?;
+    detail.adder_pnl_total = convert(detail.adder_pnl_total)?;
+    detail.curve_shape_pnl = convert(detail.curve_shape_pnl)?;
+    for level in &mut detail.levels {
+        level.total = convert(level.total)?;
+        for v in level.by_bucket.values_mut() {
+            *v = convert(*v)?;
+        }
+    }
+    if let Some(by_issuer) = detail.adder_pnl_by_issuer.as_mut() {
+        for v in by_issuer.values_mut() {
+            *v = convert(*v)?;
+        }
+    }
+    if let Some(m) = detail.adder_magnitude.as_mut() {
+        *m = convert(*m)?;
+    }
+    Ok(())
+}
+
+/// Translate every Money leaf of a [`CreditCarryDecomposition`] (both carry
+/// totals, generic / level / adder breakdown, bucket and per-issuer maps) to
+/// `target_currency` at T1 FX.
+fn translate_credit_carry_decomposition(
+    detail: &mut CreditCarryDecomposition,
+    target_currency: Currency,
+    market_t1: &MarketContext,
+    as_of_t1: Date,
+) -> Result<()> {
+    let convert =
+        |m: Money| -> Result<Money> { market_t1.convert_money(m, target_currency, as_of_t1) };
+    detail.rates_carry_total = convert(detail.rates_carry_total)?;
+    detail.credit_carry_total = convert(detail.credit_carry_total)?;
+    detail.credit_by_level.generic = convert(detail.credit_by_level.generic)?;
+    detail.credit_by_level.adder_total = convert(detail.credit_by_level.adder_total)?;
+    for level in &mut detail.credit_by_level.levels {
+        level.total = convert(level.total)?;
+        for v in level.by_bucket.values_mut() {
+            *v = convert(*v)?;
+        }
+    }
+    if let Some(by_issuer) = detail.credit_by_level.adder_by_issuer.as_mut() {
+        for v in by_issuer.values_mut() {
+            *v = convert(*v)?;
+        }
+    }
     Ok(())
 }
 
@@ -397,6 +476,138 @@ mod tests {
         let policy = attr.meta.fx_policy.as_ref().expect("fx policy stamped");
         assert_eq!(policy.target_currency, Some(Currency::USD));
         assert!(policy.notes.contains("translated"));
+    }
+
+    /// Audit M5: `credit_factor_detail` and `credit_carry_decomposition` are
+    /// populated before the target-currency translation runs, so every Money
+    /// leaf of both structs must be translated at the same T1 FX as the
+    /// top-level factor fields — otherwise the documented invariants
+    /// (`generic + Σ levels + adder + curve_shape ≡ credit_curves_pnl`, and
+    /// the carry partition) break by the FX rate and the two sides of one
+    /// identity carry different currency tags.
+    #[test]
+    fn translate_converts_credit_detail_structs() {
+        use crate::types::{
+            CreditCarryByLevel, CreditCarryDecomposition, CreditFactorAttribution, LevelCarry,
+            LevelPnl,
+        };
+        use finstack_quant_core::types::IssuerId;
+        use std::collections::BTreeMap;
+
+        let eur = |v: f64| Money::new(v, Currency::EUR);
+        let mut attr = PnlAttribution::new(
+            eur(20.0),
+            "EUR-BOND",
+            date!(2025 - 01 - 15),
+            date!(2025 - 01 - 16),
+            AttributionMethod::Parallel,
+        );
+        attr.credit_curves_pnl = eur(20.0);
+        attr.compute_residual().expect("residual");
+
+        // Detail closes in EUR: 10 + 5 + 3 + 2 = 20 = credit_curves_pnl.
+        attr.credit_factor_detail = Some(CreditFactorAttribution {
+            model_id: "model".into(),
+            generic_pnl: eur(10.0),
+            levels: vec![LevelPnl {
+                level_name: "rating".into(),
+                total: eur(5.0),
+                by_bucket: BTreeMap::from([("IG".to_string(), eur(5.0))]),
+            }],
+            adder_pnl_total: eur(3.0),
+            curve_shape_pnl: eur(2.0),
+            adder_pnl_by_issuer: Some(BTreeMap::from([(IssuerId::new("ISS"), eur(3.0))])),
+            adder_magnitude: Some(eur(3.0)),
+        });
+        attr.credit_carry_decomposition = Some(CreditCarryDecomposition {
+            model_id: "model".into(),
+            rates_carry_total: eur(7.0),
+            credit_carry_total: eur(6.0),
+            credit_by_level: CreditCarryByLevel {
+                generic: eur(4.0),
+                levels: vec![LevelCarry {
+                    level_name: "rating".into(),
+                    total: eur(1.5),
+                    by_bucket: BTreeMap::from([("IG".to_string(), eur(1.5))]),
+                }],
+                adder_total: eur(0.5),
+                adder_by_issuer: Some(BTreeMap::from([(IssuerId::new("ISS"), eur(0.5))])),
+            },
+        });
+
+        translate_to_target_currency(
+            &mut attr,
+            Money::new(1000.0, Currency::EUR),
+            Currency::USD,
+            &market(1.10),
+            &market(1.20),
+            date!(2025 - 01 - 15),
+            date!(2025 - 01 - 16),
+        )
+        .expect("translate");
+
+        let assert_usd = |m: Money, native: f64, label: &str| {
+            assert_eq!(m.currency(), Currency::USD, "{label} must be USD");
+            assert!(
+                (m.amount() - native * 1.20).abs() < 1e-9,
+                "{label}: expected {} USD (native {native} × 1.20), got {}",
+                native * 1.20,
+                m.amount()
+            );
+        };
+
+        let d = attr.credit_factor_detail.as_ref().expect("detail");
+        assert_usd(d.generic_pnl, 10.0, "generic_pnl");
+        assert_usd(d.levels[0].total, 5.0, "levels[0].total");
+        assert_usd(d.levels[0].by_bucket["IG"], 5.0, "levels[0].by_bucket");
+        assert_usd(d.adder_pnl_total, 3.0, "adder_pnl_total");
+        assert_usd(d.curve_shape_pnl, 2.0, "curve_shape_pnl");
+        assert_usd(
+            d.adder_pnl_by_issuer.as_ref().expect("by issuer")[&IssuerId::new("ISS")],
+            3.0,
+            "adder_pnl_by_issuer",
+        );
+        assert_usd(
+            d.adder_magnitude.expect("adder_magnitude"),
+            3.0,
+            "adder_magnitude",
+        );
+
+        // The detail invariant must still close in USD against the translated
+        // credit_curves_pnl (types/detail.rs invariant).
+        let detail_sum = d.generic_pnl.amount()
+            + d.levels.iter().map(|l| l.total.amount()).sum::<f64>()
+            + d.adder_pnl_total.amount()
+            + d.curve_shape_pnl.amount();
+        assert!(
+            (detail_sum - attr.credit_curves_pnl.amount()).abs() < 1e-9,
+            "generic + levels + adder + curve_shape ({detail_sum}) must equal \
+             translated credit_curves_pnl ({})",
+            attr.credit_curves_pnl.amount()
+        );
+
+        let c = attr
+            .credit_carry_decomposition
+            .as_ref()
+            .expect("carry decomposition");
+        assert_usd(c.rates_carry_total, 7.0, "rates_carry_total");
+        assert_usd(c.credit_carry_total, 6.0, "credit_carry_total");
+        assert_usd(c.credit_by_level.generic, 4.0, "credit_by_level.generic");
+        assert_usd(c.credit_by_level.levels[0].total, 1.5, "carry level total");
+        assert_usd(
+            c.credit_by_level.levels[0].by_bucket["IG"],
+            1.5,
+            "carry level by_bucket",
+        );
+        assert_usd(c.credit_by_level.adder_total, 0.5, "adder_total");
+        assert_usd(
+            c.credit_by_level
+                .adder_by_issuer
+                .as_ref()
+                .expect("by issuer")[&IssuerId::new("ISS")],
+            0.5,
+            "carry adder_by_issuer",
+        );
     }
 
     #[test]

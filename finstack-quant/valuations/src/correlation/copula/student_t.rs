@@ -55,10 +55,10 @@
 //!
 //! # References
 //!
-//! - Student-t copula theory:
-//!   `docs/REFERENCES.md#demarta-mcneil-2005-t-copula`
-//! - Correlation-dependent credit valuation:
-//!   `docs/REFERENCES.md#hull-predescu-white-2005`
+//! - Student-t copula theory: `docs/REFERENCES.md#demarta-mcneil-2005-t-copula` `docs/REFERENCES.md#mcneil-frey-embrechts-qrm`
+//!
+//! - Correlation-dependent credit valuation: `docs/REFERENCES.md#hull-predescu-white-2005`
+//!
 
 use super::{get_cached_quadrature, Copula, DEFAULT_QUADRATURE_ORDER};
 use finstack_quant_core::math::distributions::chi_squared_quantile;
@@ -89,7 +89,7 @@ const MAX_CORRELATION: f64 = 0.99;
 ///
 /// # References
 ///
-/// - `docs/REFERENCES.md#demarta-mcneil-2005-t-copula`
+/// - `docs/REFERENCES.md#demarta-mcneil-2005-t-copula` `docs/REFERENCES.md#mcneil-frey-embrechts-qrm`
 /// - `docs/REFERENCES.md#hull-predescu-white-2005`
 pub struct StudentTCopula {
     /// Degrees of freedom (ν > 2 required for finite variance)

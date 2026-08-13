@@ -37,9 +37,9 @@
 //! # References
 //!
 //! - Online variance accumulation follows
-//!   [`docs/REFERENCES.md#welford-1962`](docs/REFERENCES.md#welford-1962).
+//!   `docs/REFERENCES.md#welford-1962`.
 //! - Discounting conventions should be consistent with
-//!   [`docs/REFERENCES.md#hull-options-futures`](docs/REFERENCES.md#hull-options-futures).
+//!   `docs/REFERENCES.md#hull-options-futures`.
 
 mod config;
 mod path_capture;

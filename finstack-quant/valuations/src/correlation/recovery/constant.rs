@@ -12,8 +12,8 @@
 //!
 //! # References
 //!
-//! - Recovery-rate empirical context:
-//!   `docs/REFERENCES.md#altman-et-al-2005-recovery`
+//! - Recovery-rate empirical context: `docs/REFERENCES.md#altman-et-al-2005-recovery`
+//!
 
 use super::RecoveryModel;
 

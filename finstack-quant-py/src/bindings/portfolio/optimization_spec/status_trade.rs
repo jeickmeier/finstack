@@ -12,12 +12,37 @@ use super::enums::{PyTradeDirection, PyTradeType};
 #[pyclass(
     name = "OptimizationStatus",
     module = "finstack_quant.portfolio",
+    eq,
+    hash,
     frozen,
     from_py_object
 )]
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(super) struct PyOptimizationStatus {
     pub(crate) inner: OptimizationStatus,
+}
+
+impl std::hash::Hash for PyOptimizationStatus {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // `OptimizationStatus` does not derive `Hash` in the Rust crate, so
+        // hash a variant tag plus the payload. Equal values (derived
+        // `PartialEq`) hash equally by construction.
+        match &self.inner {
+            OptimizationStatus::Optimal => 0u8.hash(state),
+            OptimizationStatus::FeasibleButSuboptimal => 1u8.hash(state),
+            OptimizationStatus::Unbounded => 2u8.hash(state),
+            OptimizationStatus::Infeasible {
+                conflicting_constraints,
+            } => {
+                3u8.hash(state);
+                conflicting_constraints.hash(state);
+            }
+            OptimizationStatus::Error { message } => {
+                4u8.hash(state);
+                message.hash(state);
+            }
+        }
+    }
 }
 
 impl PyOptimizationStatus {

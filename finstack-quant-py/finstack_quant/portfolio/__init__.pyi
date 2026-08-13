@@ -43,7 +43,38 @@ __all__ = [
     "PortfolioResult",
     "PortfolioValuation",
     "ScenarioPnl",
+    "ScenarioPnlBatchItem",
     "UnsupportedContractVersionError",
+    "BrinsonPeriodResult",
+    "CarinoLinkedAttribution",
+    "DurationCellTable",
+    "ExcessReturnResult",
+    "FactorBrinsonResult",
+    "FiAttributionResult",
+    "FiCarinoLinkedResult",
+    "FiReconciliationReport",
+    "GridAttributionResult",
+    "GridCarinoLinkedResult",
+    "LinkedReturn",
+    "ReplayResult",
+    "WeightAllocationResult",
+    "aggregate_metrics_json",
+    "allocate_weights_json",
+    "brinson_fachler_json",
+    "campisi_attribution_json",
+    "campisi_carino_link_from_snapshots_json",
+    "campisi_carino_link_json",
+    "campisi_reconciliation_check_json",
+    "carino_link_json",
+    "cell_returns_from_curves_json",
+    "cell_returns_from_reference_json",
+    "excess_returns_json",
+    "factor_brinson_attribution_json",
+    "grid_attribution_json",
+    "grid_carino_link_json",
+    "replay_portfolio_json",
+    "scenario_pnl_batch_json",
+    "twrr_linked_json",
     "aggregate_full_cashflows",
     "aggregate_metrics",
     "almgren_chriss_impact",
@@ -85,6 +116,7 @@ __all__ = [
     "roll_effective_spread",
     "scenario_pnl",
     "scenario_pnl_batch",
+    "schema",
     "twrr_linked",
     "twrr_modified_dietz",
     "validate_allocation_json",
@@ -314,6 +346,10 @@ class InstrumentArtifactCache:
         -------
         int
             Entry count between zero and the configured capacity.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
     @property
     def decode_count(self) -> int:
@@ -324,6 +360,10 @@ class InstrumentArtifactCache:
         -------
         int
             Non-negative decode count for this cache instance.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
     def __len__(self) -> int:
         """
@@ -364,6 +404,10 @@ class MaterializationReport:
         list[dict[str, Any]]
             Diagnostic dictionaries with stable codes, phases, severities,
             messages, optional JSON pointers, and artifact context.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
     @property
     def truncated(self) -> bool:
@@ -374,6 +418,10 @@ class MaterializationReport:
         -------
         bool
             ``True`` when one or more diagnostics were not retained.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
     @property
     def unique_instruments(self) -> int:
@@ -384,6 +432,10 @@ class MaterializationReport:
         -------
         int
             Non-negative artifact count.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
     @property
     def positions(self) -> int:
@@ -394,6 +446,10 @@ class MaterializationReport:
         -------
         int
             Non-negative position count.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
     @property
     def dependencies(self) -> int:
@@ -404,6 +460,10 @@ class MaterializationReport:
         -------
         int
             Non-negative dependency count before position fan-out.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
     @property
     def cache_hits(self) -> int:
@@ -414,6 +474,10 @@ class MaterializationReport:
         -------
         int
             Non-negative hit count no greater than ``unique_instruments``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
     @property
     def input_bytes(self) -> int:
@@ -424,6 +488,10 @@ class MaterializationReport:
         -------
         int
             Positive encoded byte count for the source document.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
     @property
     def timing_available(self) -> bool:
@@ -435,6 +503,10 @@ class MaterializationReport:
         bool
             ``True`` for native Python builds, where ``time::Instant`` backs
             every phase measurement.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
     @property
     def phase_nanos(self) -> dict[str, int]:
@@ -446,6 +518,10 @@ class MaterializationReport:
         dict[str, int]
             Nanosecond timings for parse, version validation, instrument
             decode, position build, and index build phases.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
 
     def to_dataframe(self) -> pd.DataFrame:
@@ -468,6 +544,11 @@ class MaterializationReport:
         pd.DataFrame
             Exactly one row. The ``phase_*`` columns are zero — not measured
             durations — whenever ``timing_available`` is ``False``.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -576,14 +657,73 @@ class Portfolio:
         """
         ...
 
+    @staticmethod
+    def validate_materialization(
+        bundle: str | bytes | bytearray,
+        cache: InstrumentArtifactCache | None = None,
+    ) -> MaterializationReport | dict[str, object]:
+        """
+        Strictly validate a materialization bundle without building a portfolio.
+
+        Twin of the WASM ``Portfolio.validateMaterializationJson``: contract
+        diagnostics are *returned* rather than raised, so ingestion-form
+        callers get structured feedback without exception handling.
+
+        Parameters
+        ----------
+        bundle : str | bytes | bytearray
+            Complete UTF-8 JSON document using the
+            ``finstack_quant.portfolio_materialization/1`` contract.
+        cache : InstrumentArtifactCache | None, default None
+            Shared artifact cache, or ``None`` to use an ephemeral bounded
+            cache for this call.
+
+        Returns
+        -------
+        MaterializationReport | dict[str, object]
+            On success, a :class:`MaterializationReport` whose
+            ``build_positions`` and ``index_build`` phase counters are always
+            zero (those phases are outside this API). When validation finds
+            contract errors, a ``dict`` with ``diagnostics`` (list of
+            diagnostic dicts) and ``truncated`` (bool).
+
+        Raises
+        ------
+        TypeError
+            If ``bundle`` is not ``str``, ``bytes``, or ``bytearray``.
+        ContractLimitExceededError
+            If the bundle exceeds a configured resource bound.
+        PortfolioError
+            If a native failure occurs outside contract validation.
+
+        Examples
+        --------
+        >>> import json
+        >>> from finstack_quant.portfolio import Portfolio
+        >>> bundle = {
+        ...     "schema": "finstack_quant.portfolio_materialization/1",
+        ...     "portfolio": {"id": "empty", "base_currency": "USD", "as_of": "2025-01-01", "entities": {}},
+        ...     "instruments": [],
+        ...     "positions": [],
+        ... }
+        >>> report = Portfolio.validate_materialization(json.dumps(bundle))
+        >>> report.positions
+        0
+        """
+        ...
+
     @property
     def id(self) -> str:
         """
-        Portfolio identifier.
+        Stable identifier of this portfolio in the registry.
         Returns
         -------
         str
             The id exposed by this `Portfolio`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -595,6 +735,10 @@ class Portfolio:
         -------
         str
             The as of exposed by this `Portfolio`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -606,6 +750,10 @@ class Portfolio:
         -------
         str
             The base ccy exposed by this `Portfolio`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -624,6 +772,10 @@ class Portfolio:
         -------
         str
             Compact canonical JSON reconstructed as a ``PortfolioSpec``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -659,6 +811,11 @@ class PortfolioAttribution:
         -------
         str
             Canonical JSON representation of this `PortfolioAttribution`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -704,6 +861,10 @@ class PortfolioAttribution:
         -------
         str
             Compact position-keyed attribution JSON in canonical insertion order.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -721,6 +882,11 @@ class PortfolioAttribution:
         -------
         dict[str, float | bool]
             Base-currency ``total_residual``, ``is_reconciled`` flag, and ``tolerance``.
+
+        Notes
+        -----
+        This method does not raise for a finite *tolerance*; the report is
+        always returned.
         """
         ...
 
@@ -743,6 +909,11 @@ class PortfolioAttribution:
         pd.DataFrame
             Exactly one row; concatenate rows across attribution runs to build
             a P&L time series.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -755,6 +926,10 @@ class PortfolioAttribution:
         -------
         Money
             Base-currency total; the factor components below decompose it.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -767,6 +942,10 @@ class PortfolioAttribution:
         -------
         Money
             Base-currency carry. Positive when the passage of time earns income.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -779,6 +958,10 @@ class PortfolioAttribution:
         -------
         Money
             Base-currency rates component. Excludes credit and inflation curves, which are reported separately.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -791,6 +974,10 @@ class PortfolioAttribution:
         -------
         Money
             Base-currency credit component, from spread and hazard-rate moves only.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -803,6 +990,10 @@ class PortfolioAttribution:
         -------
         Money
             Base-currency inflation component, from index-curve moves only.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -815,6 +1006,10 @@ class PortfolioAttribution:
         -------
         Money
             Base-currency correlation component, from correlation inputs only.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -828,6 +1023,10 @@ class PortfolioAttribution:
         Money
             Distinct from :attr:`fx_translation_pnl`, which covers restating
             unchanged foreign-currency values into the base currency.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -840,6 +1039,10 @@ class PortfolioAttribution:
         -------
         Money
             Base-currency translation effect only; economic FX exposure is reported in ``fx_pnl``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -852,6 +1055,10 @@ class PortfolioAttribution:
         -------
         Money
             Base-currency interaction term. Non-zero only when factors move jointly, and not attributable to any single factor.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -864,6 +1071,10 @@ class PortfolioAttribution:
         -------
         Money
             Base-currency volatility component, from implied-vol surface moves only.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -876,6 +1087,10 @@ class PortfolioAttribution:
         -------
         Money
             Base-currency model component, from recalibration rather than market moves.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -888,6 +1103,10 @@ class PortfolioAttribution:
         -------
         Money
             Base-currency scalar component, covering inputs that are not curves or surfaces.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -901,6 +1120,10 @@ class PortfolioAttribution:
         Money
             ``total_pnl`` less the sum of all factor components. Check it
             against a tolerance with :meth:`reconciliation_check`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -915,6 +1138,10 @@ class PortfolioAttribution:
             ``True`` when at least one position produced non-finite
             sensitivities or failed residual computation. Aggregating an
             invalid result across instruments is not meaningful.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -985,6 +1212,11 @@ class PortfolioValuation:
         -------
         str
             Canonical JSON representation of this `PortfolioValuation`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -996,6 +1228,10 @@ class PortfolioValuation:
         -------
         float
             The total value exposed by this `PortfolioValuation`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1007,6 +1243,10 @@ class PortfolioValuation:
         -------
         str
             The base ccy exposed by this `PortfolioValuation`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1018,6 +1258,10 @@ class PortfolioValuation:
         -------
         str
             The as of exposed by this `PortfolioValuation`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1033,6 +1277,10 @@ class PortfolioValuation:
         -------
         ArrowTable
             Arrow table with one row per valued position.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1053,6 +1301,11 @@ class PortfolioValuation:
             Values are floats and currency codes are strings. Prefer
             :meth:`to_arrow_positions` when a zero-copy handoff matters more
             than pandas ergonomics.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -1129,6 +1382,11 @@ class PortfolioCashflows:
         -------
         str
             Canonical JSON representation of this `PortfolioCashflows`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -1139,6 +1397,10 @@ class PortfolioCashflows:
         -------
         str
             Compact JSON array of all dated cashflow events in ladder order.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1149,6 +1411,10 @@ class PortfolioCashflows:
         -------
         str
             Compact JSON for totals grouped by payment date, currency, and cashflow kind.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1159,6 +1425,10 @@ class PortfolioCashflows:
         -------
         str
             Compact JSON array of cashflow-schedule extraction issues.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1181,6 +1451,11 @@ class PortfolioCashflows:
         -------
         pd.DataFrame
             One row per event; ``len(df)`` equals ``len(cashflows)``.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -1191,6 +1466,10 @@ class PortfolioCashflows:
         -------
         int
             Number of positions with schedule entries, including empty schedules.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1201,6 +1480,10 @@ class PortfolioCashflows:
         -------
         int
             Number of cashflow-schedule extraction issues recorded in the ladder.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1349,6 +1632,11 @@ class PortfolioResult:
         -------
         str
             Canonical JSON representation of this `PortfolioResult`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -1360,6 +1648,10 @@ class PortfolioResult:
         -------
         float
             The total value exposed by this `PortfolioResult`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1377,6 +1669,10 @@ class PortfolioResult:
         float | None
             Aggregated scalar stored under ``metric_id``, or ``None`` when the
             result contains no matching metric.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1458,6 +1754,11 @@ class PortfolioMetrics:
         -------
         str
             Canonical JSON representation of this `PortfolioMetrics`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -1472,6 +1773,10 @@ class PortfolioMetrics:
             Each value carries ``metric_id``, ``total`` and the ``by_entity``
             breakdown, in canonical Rust ``IndexMap`` insertion order. Only
             summable metrics are aggregated.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1485,6 +1790,10 @@ class PortfolioMetrics:
         dict[str, Any]
             Each value carries the position's native ``currency`` — non-summable
             metrics are quoted in it — and its ``metrics`` mapping.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1498,6 +1807,47 @@ class PortfolioMetrics:
         list[Any]
             A non-empty list means aggregation is incomplete; each entry records
             the ``position_id``, ``metric_id`` and the offending ``value``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def degraded_positions(self) -> list[str]:
+        """
+        Positions that carried no risk measures because their valuation fell
+        back to PV-only.
+
+        Returns
+        -------
+        list[str]
+            Position identifiers contributing zero to every total without a
+            ``skipped_metrics`` entry — the only signal that the aggregate is
+            partial.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def unaggregated_metrics(self) -> list[str]:
+        """
+        Metric identifiers present in ``by_position`` that were not aggregated
+        into a portfolio total because they are not summable across positions.
+
+        Returns
+        -------
+        list[str]
+            Sorted, de-duplicated metric ids (for example ``ytm`` or
+            ``duration``); per-position values remain in ``by_position``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1522,6 +1872,11 @@ class PortfolioMetrics:
         list[tuple[list[str], float, dict[str, float]]]
             Ordered ``(components, total, by_entity)`` entries below ``base``;
             the scalar base entry is excluded.
+
+        Notes
+        -----
+        This method does not raise for a documented *base* string; an unknown
+        prefix returns an empty list.
         """
         ...
 
@@ -1530,7 +1885,9 @@ class PortfolioMetrics:
         Export the portfolio-wide aggregated metrics as a pandas DataFrame.
 
         One row per entry of the ``aggregated`` map, in canonical Rust
-        ``IndexMap`` insertion order. The per-entity breakdown is not
+        ``IndexMap`` insertion order. Built from the canonical Rust
+        ``aggregated_metrics_to_table`` envelope so the frame cannot drift
+        from the Rust table export. The per-entity breakdown is not
         flattened here — reach it through :meth:`metric_series`.
 
         Columns: ``metric_id``, ``total`` (sum across positions; only summable
@@ -1540,6 +1897,10 @@ class PortfolioMetrics:
         -------
         pd.DataFrame
             One row per aggregated metric.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1550,15 +1911,22 @@ class PortfolioMetrics:
         One row per ``(position, metric)`` pair — the row count is the total
         number of metric values across positions, not the number of positions.
         Pivot with ``df.pivot(index="position_id", columns="metric_id",
-        values="value")`` for a wide view.
+        values="value")`` for a wide view. Built from the canonical Rust
+        ``metrics_to_table`` envelope so the frame cannot drift from the Rust
+        table export.
 
-        Columns: ``position_id``, ``currency`` (the position's native currency;
-        non-summable metrics are quoted in it), ``metric_id``, ``value``.
+        Columns: ``metric_id``, ``position_id``, ``currency`` (the position's
+        native currency; non-summable metrics are quoted in it), ``value``.
 
         Returns
         -------
         pd.DataFrame
             Long-format per-position metric values.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -1592,6 +1960,10 @@ class ScenarioPnl:
         -------
         float
             Sum of :attr:`by_position`, quoted in :attr:`currency`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1604,6 +1976,10 @@ class ScenarioPnl:
         -------
         str
             ISO 4217 code of the portfolio base currency.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1617,6 +1993,10 @@ class ScenarioPnl:
         dict[str, float]
             Base-currency amounts ordered by position id. Sums to
             :attr:`total`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1631,6 +2011,11 @@ class ScenarioPnl:
         -------
         pd.DataFrame
             One row per position, with float ``pnl`` in :attr:`currency`.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -1642,6 +2027,11 @@ class ScenarioPnl:
         -------
         pd.Series
             Float base-currency amounts named ``pnl``.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -1654,6 +2044,11 @@ class ScenarioPnl:
         str
             Canonical JSON representation, suitable for a matching
             :meth:`from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -1686,6 +2081,161 @@ class ScenarioPnl:
         >>> doc = {"total": {"amount": "0", "currency": "USD"}, "by_position": {}}
         >>> ScenarioPnl.from_json(_json.dumps(doc)).total
         0.0
+        """
+        ...
+
+class ScenarioPnlBatchItem:
+    """
+    One ordered result from :func:`scenario_pnl_batch`.
+
+    Carries the scenario identifier, its typed :class:`ScenarioPnl` ladder,
+    and the scenario :class:`~finstack_quant.scenarios.ApplicationReport`.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import ScenarioPnlBatchItem
+    >>> doc = {
+    ...     "scenario_id": "up_10bp",
+    ...     "pnl": {"total": {"amount": "0", "currency": "USD"}, "by_position": {}},
+    ...     "report": {
+    ...         "operations_applied": 0,
+    ...         "user_operations": 0,
+    ...         "expanded_operations": 0,
+    ...         "changes": {
+    ...             "market_targets": [],
+    ...             "changed_instrument_indices": [],
+    ...             "as_of_changed": False,
+    ...             "portfolio_shape_changed": False,
+    ...             "all_dirty": False,
+    ...         },
+    ...         "warnings": [],
+    ...     },
+    ... }
+    >>> ScenarioPnlBatchItem.from_json(json.dumps(doc)).scenario_id
+    'up_10bp'
+    """
+
+    @property
+    def scenario_id(self) -> str:
+        """
+        Identifier copied from the input scenario.
+
+        Returns
+        -------
+        str
+            The stored label from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def pnl(self) -> ScenarioPnl:
+        """
+        Scenario-attributable portfolio P&L ladder.
+
+        Returns
+        -------
+        ScenarioPnl
+            Typed P&L ladder in the portfolio base currency.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def report(self) -> ApplicationReport:
+        """
+        Application provenance and warnings for this scenario.
+
+        Returns
+        -------
+        ApplicationReport
+            Scenario application report with counts and warnings.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Per-position P&L ladder as a pandas DataFrame.
+
+        Columns: ``scenario_id``, ``position_id``, ``pnl``. The schema is pinned, so an empty result keeps the
+        same dtypes as a populated one.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry, with the pinned column schema above.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize this result to canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON representation, suitable for a matching
+            :meth:`from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> ScenarioPnlBatchItem:
+        """
+        Deserialize a ``ScenarioPnlBatchItem`` from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Canonical payload produced by :meth:`to_json` or the paired
+            ``*_json`` wire function.
+
+        Returns
+        -------
+        ScenarioPnlBatchItem
+            Validated instance reconstructed from the canonical JSON payload.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed or does not match the serialized
+            ``ScenarioPnlBatchItem`` schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import ScenarioPnlBatchItem
+        >>> doc = (
+        ...     '{"scenario_id": "up", "pnl": {"total": {"amount": "0",'
+        ...     ' "currency": "USD"}, "by_position": {}}, "report":'
+        ...     ' {"operations_applied": 0, "user_operations": 0,'
+        ...     ' "expanded_operations": 0, "changes": {"market_targets": [],'
+        ...     ' "changed_instrument_indices": [], "as_of_changed": false,'
+        ...     ' "portfolio_shape_changed": false, "all_dirty": false},'
+        ...     ' "warnings": []}}'
+        ... )
+        >>> ScenarioPnlBatchItem.from_json(doc).scenario_id
+        'up'
         """
         ...
 
@@ -1865,7 +2415,7 @@ def aggregate_metrics(
     base_currency: str,
     market: MarketContext | str,
     as_of: datetime.date | str,
-) -> str:
+) -> PortfolioMetrics:
     """
     Aggregate portfolio metrics from a valuation.
 
@@ -1885,8 +2435,10 @@ def aggregate_metrics(
 
     Returns
     -------
-    str
-        Canonical JSON for totals, per-position metrics, and skipped non-finite values.
+    PortfolioMetrics
+        Typed aggregate-metrics wrapper with ``aggregated`` /
+        ``by_position`` getters and DataFrame exits; use
+        :func:`aggregate_metrics_json` for the raw wire string.
 
     Raises
     ------
@@ -1907,7 +2459,59 @@ def aggregate_metrics(
     >>> from finstack_quant.portfolio import Portfolio, aggregate_metrics, value_portfolio
     >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
     >>> valuation = value_portfolio(Portfolio.from_spec(spec), MarketContext())
-    >>> json.loads(aggregate_metrics(valuation, "USD", MarketContext(), "2025-01-01"))["aggregated"]
+    >>> aggregate_metrics(valuation, "USD", MarketContext(), "2025-01-01").aggregated
+    {}
+    """
+    ...
+
+def aggregate_metrics_json(
+    valuation: PortfolioValuation | str,
+    base_currency: str,
+    market: MarketContext | str,
+    as_of: datetime.date | str,
+) -> str:
+    """
+    Aggregate portfolio metrics from a valuation and return wire JSON.
+
+    Wire twin of :func:`aggregate_metrics`: same inputs and validation,
+    returning the canonical JSON string instead of the typed wrapper.
+
+    Parameters
+    ----------
+    valuation : PortfolioValuation or str
+        Typed valuation or canonical valuation JSON to aggregate.
+    base_currency : str
+        ISO base-currency code in which aggregate values are stated.
+    market : MarketContext or str
+        Market context object or JSON supplying conversion inputs.
+    as_of : datetime.date | str
+        Valuation date, either a date-like object or an ISO 8601 string.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``PortfolioMetrics`` wire document.
+
+    Raises
+    ------
+    TypeError
+        If ``valuation`` or ``market`` is neither its typed wrapper nor a
+        JSON string.
+    ValueError
+        If supplied JSON, ``base_currency``, or ``as_of`` is invalid.
+    PortfolioError
+        If the valuation is inconsistent with the aggregation context.
+    FinstackFxError
+        If a required FX rate is unavailable.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.portfolio import Portfolio, aggregate_metrics_json, value_portfolio
+    >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+    >>> valuation = value_portfolio(Portfolio.from_spec(spec), MarketContext())
+    >>> json.loads(aggregate_metrics_json(valuation, "USD", MarketContext(), "2025-01-01"))["aggregated"]
     {}
     """
     ...
@@ -1935,7 +2539,9 @@ def value_portfolio(
         than being recorded as diagnostics.
     metrics : list[str] or None, default None
         Exact metric identifiers to compute. ``None`` requests the standard
-        portfolio risk set; an empty list performs PV-only valuation.
+        portfolio risk set; an empty list performs PV-only valuation. Names
+        are validated strictly against the standard ``MetricId`` set; an
+        unknown name raises ``ValueError`` listing the available metrics.
 
     Returns
     -------
@@ -1944,6 +2550,8 @@ def value_portfolio(
 
     Raises
     ------
+    ValueError
+        If a requested metric name is not a standard metric identifier.
     PortfolioError
         If portfolio construction, market lookup, FX conversion, pricing, or
         strict risk evaluation fails.
@@ -2102,7 +2710,7 @@ def scenario_pnl_batch(
     portfolio: Portfolio | str,
     scenarios_json: str,
     market: MarketContext | str,
-) -> str:
+) -> list[ScenarioPnlBatchItem]:
     """
     Compute ordered scenario P&L results while reusing one base valuation.
 
@@ -2119,17 +2727,18 @@ def scenario_pnl_batch(
         avoids rebuilding the portfolio for the batch.
     scenarios_json : str
         Canonical JSON array of ``ScenarioSpec`` objects. Array order is
-        preserved exactly. ``"[]"`` returns ``"[]"`` without valuation.
+        preserved exactly. ``"[]"`` returns an empty list without valuation.
     market : MarketContext or str
         Unshocked market context or canonical market JSON used for the shared
         base valuation and each scenario application.
 
     Returns
     -------
-    str
-        Canonical JSON array. Each item has ``scenario_id``, ``pnl`` (the same
-        base-currency ``ScenarioPnl`` shape returned by :func:`scenario_pnl`),
-        and ``report`` (the corresponding scenario application report).
+    list[ScenarioPnlBatchItem]
+        One ordered item per input scenario, each carrying ``scenario_id``,
+        a typed ``pnl`` (:class:`ScenarioPnl`) and ``report``
+        (:class:`~finstack_quant.scenarios.ApplicationReport`); use
+        :func:`scenario_pnl_batch_json` for the raw wire string.
 
     Raises
     ------
@@ -2146,7 +2755,54 @@ def scenario_pnl_batch(
     >>> from finstack_quant.core.market_data import MarketContext
     >>> from finstack_quant.portfolio import Portfolio, scenario_pnl_batch
     >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
-    >>> json.loads(scenario_pnl_batch(Portfolio.from_spec(spec), "[]", MarketContext()))
+    >>> scenario_pnl_batch(Portfolio.from_spec(spec), "[]", MarketContext())
+    []
+    """
+    ...
+
+def scenario_pnl_batch_json(
+    portfolio: Portfolio | str,
+    scenarios_json: str,
+    market: MarketContext | str,
+) -> str:
+    """
+    Compute ordered batch scenario P&L and return wire JSON.
+
+    Wire twin of :func:`scenario_pnl_batch`: same inputs and validation,
+    returning the canonical JSON array string instead of typed items.
+
+    Parameters
+    ----------
+    portfolio : Portfolio or str
+        Built portfolio or canonical ``PortfolioSpec`` JSON.
+    scenarios_json : str
+        Canonical JSON array of ``ScenarioSpec`` objects; order is preserved.
+    market : MarketContext or str
+        Unshocked market context or canonical market JSON.
+
+    Returns
+    -------
+    str
+        Canonical JSON array. Each item has ``scenario_id``, ``pnl`` (the
+        same base-currency ``ScenarioPnl`` shape returned by
+        :func:`scenario_pnl`), and ``report``. ``"[]"`` in, ``"[]"`` out.
+
+    Raises
+    ------
+    ValueError
+        If ``scenarios_json`` cannot deserialize to an ordered array of
+        valid ``ScenarioSpec`` values.
+    PortfolioError
+        If scenario application, valuation, or base-currency P&L
+        differencing fails.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.portfolio import Portfolio, scenario_pnl_batch_json
+    >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+    >>> json.loads(scenario_pnl_batch_json(Portfolio.from_spec(spec), "[]", MarketContext()))
     []
     """
     ...
@@ -2208,7 +2864,138 @@ def attribute_portfolio_pnl(
     """
     ...
 
-def allocate_weights(spec_json: str) -> str:
+class WeightAllocationResult:
+    """
+    Strategy weight-allocation result.
+
+    Returned by :func:`allocate_weights`.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import allocate_weights
+    >>> spec = '{"scheme":"equal","total_capital":1000.0,"strategies":[{"id":"a"},{"id":"b"}]}'
+    >>> [row["weight"] for row in allocate_weights(spec).allocations]
+    [0.5, 0.5]
+    """
+
+    @property
+    def scheme(self) -> str:
+        """
+        Allocation scheme applied (e.g. ``"inverse_volatility"``).
+
+        Returns
+        -------
+        str
+            The stored label from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def allocations(self) -> list[dict[str, object]]:
+        """
+        Per-strategy allocation rows as records.
+
+        Returns
+        -------
+        list[dict[str, object]]
+            JSON-shaped view of the canonical Rust field.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def diagnostics(self) -> dict[str, object]:
+        """
+        Portfolio-level diagnostics (``weights_sum``, ``leverage``).
+
+        Returns
+        -------
+        dict[str, object]
+            JSON-shaped view of the canonical Rust field.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Per-strategy allocations as a pandas DataFrame.
+
+        Columns: ``id``, ``weight``, ``capital``, ``volatility``, ``risk_contribution``. The schema is pinned, so an empty result keeps the
+        same dtypes as a populated one.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry, with the pinned column schema above.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize this result to canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON wire document, byte-identical to the paired
+            ``*_json`` function's output for the same inputs.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> WeightAllocationResult:
+        """
+        Deserialize a ``WeightAllocationResult`` from JSON produced by :meth:`to_json`.
+
+        Completes the wire round-trip, which is also what makes this type
+        picklable.
+
+        Parameters
+        ----------
+        json : str
+            Canonical JSON produced by :meth:`to_json`.
+
+        Returns
+        -------
+        WeightAllocationResult
+            Validated instance reconstructed from the canonical JSON payload.
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or does not match the serialized schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import WeightAllocationResult, allocate_weights
+        >>> spec = '{"scheme":"equal","total_capital":1000.0,"strategies":[{"id":"a"},{"id":"b"}]}'
+        >>> result = allocate_weights(spec)
+        >>> WeightAllocationResult.from_json(result.to_json()).to_json() == result.to_json()
+        True
+        """
+        ...
+
+def allocate_weights(spec_json: str) -> WeightAllocationResult:
     """
     Allocate strategy weights from a JSON specification.
 
@@ -2225,9 +3012,10 @@ def allocate_weights(spec_json: str) -> str:
 
     Returns
     -------
-    str
-        JSON allocation result with the selected scheme and per-strategy
-        ``id``, ``weight``, and allocated capital fields.
+    WeightAllocationResult
+        Typed result with ``scheme``, ``allocations`` and ``diagnostics``
+        getters plus ``to_dataframe()``; use :func:`allocate_weights_json`
+        for the raw wire string.
 
     Raises
     ------
@@ -2240,7 +3028,41 @@ def allocate_weights(spec_json: str) -> str:
     >>> import json
     >>> from finstack_quant.portfolio import allocate_weights
     >>> spec = '{"scheme":"equal","total_capital":1000.0,"strategies":[{"id":"a"},{"id":"b"}]}'
-    >>> [entry["weight"] for entry in json.loads(allocate_weights(spec))["allocations"]]
+    >>> [entry["weight"] for entry in allocate_weights(spec).allocations]
+    [0.5, 0.5]
+    """
+    ...
+
+def allocate_weights_json(spec_json: str) -> str:
+    """
+    Allocate strategy weights from a JSON specification as wire JSON.
+
+    Wire twin of :func:`allocate_weights`: same input and validation,
+    returning the canonical JSON string instead of the typed wrapper.
+
+    Parameters
+    ----------
+    spec_json : str
+        JSON-serialized ``WeightAllocationSpec`` selecting the scheme,
+        strategy inputs, and any covariance data.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``WeightAllocationResult`` wire document.
+
+    Raises
+    ------
+    ValueError
+        If the JSON is malformed, required fields are missing, the scheme is
+        unsupported, or the selected scheme cannot be evaluated.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import allocate_weights_json
+    >>> spec = '{"scheme":"equal","total_capital":1000.0,"strategies":[{"id":"a"},{"id":"b"}]}'
+    >>> [entry["weight"] for entry in json.loads(allocate_weights_json(spec))["allocations"]]
     [0.5, 0.5]
     """
     ...
@@ -2271,11 +3093,126 @@ def validate_allocation_json(spec_json: str) -> None:
     """
     ...
 
+class ReplayResult:
+    """
+    Full output of a historical portfolio replay run.
+
+    Returned by :func:`replay_portfolio`. Carries per-step valuations, the
+    aggregate summary, and any best-effort skipped snapshots.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import ReplayResult
+    >>> money = {"amount": "0", "currency": "USD"}
+    >>> doc = {
+    ...     "steps": [],
+    ...     "summary": {
+    ...         "start_date": "2025-01-15",
+    ...         "end_date": "2025-01-15",
+    ...         "num_steps": 0,
+    ...         "start_value": money,
+    ...         "end_value": money,
+    ...         "total_pnl": money,
+    ...         "max_drawdown": money,
+    ...         "max_drawdown_pct": 0.0,
+    ...         "max_drawdown_peak_date": "2025-01-15",
+    ...         "max_drawdown_trough_date": "2025-01-15",
+    ...     },
+    ... }
+    >>> ReplayResult.from_json(json.dumps(doc)).summary["num_steps"]
+    0
+    """
+
+    @property
+    def steps(self) -> list[dict[str, object]]:
+        """
+        Per-step output as records, full valuations included.
+
+        Returns
+        -------
+        list[dict[str, object]]
+            JSON-shaped view of the canonical Rust field.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def summary(self) -> dict[str, object]:
+        """
+        Aggregate statistics across the full replay.
+
+        Returns
+        -------
+        dict[str, object]
+            JSON-shaped view of the canonical Rust field.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def skipped_dates(self) -> list[list[object]]:
+        """
+        Best-effort skipped snapshots as ``(date, reason)`` pairs.
+
+        Returns
+        -------
+        list[list[object]]
+            ``[date, reason]`` pairs; empty for strict-mode runs.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Per-step value and P&L ladder as a pandas DataFrame.
+
+        Columns: ``date``, ``value``, ``daily_pnl``, ``cumulative_pnl``. The schema is pinned, so an empty result keeps the
+        same dtypes as a populated one.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry, with the pinned column schema above.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize this result to canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON wire document, byte-identical to the paired
+            ``*_json`` function's output for the same inputs.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
+        """
+        ...
+
 def replay_portfolio(
     portfolio: Portfolio | str,
     snapshots_json: str,
     config_json: str,
-) -> str:
+) -> ReplayResult:
     """
     Replay a portfolio through dated market snapshots.
 
@@ -2291,8 +3228,10 @@ def replay_portfolio(
 
     Returns
     -------
-    str
-        JSON replay result containing dated valuations and diagnostics.
+    ReplayResult
+        Typed result with ``steps``, ``summary`` and ``skipped_dates``
+        getters plus ``to_dataframe()``; use :func:`replay_portfolio_json`
+        for the raw wire string.
 
     Raises
     ------
@@ -2306,6 +3245,50 @@ def replay_portfolio(
     >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
     >>> try:
     ...     replay_portfolio(spec, "[]", '{"mode":"pv_only"}')
+    ... except ValueError as exc:
+    ...     print("must be non-empty" in str(exc))
+    True
+    """
+    ...
+
+def replay_portfolio_json(
+    portfolio: Portfolio | str,
+    snapshots_json: str,
+    config_json: str,
+) -> str:
+    """
+    Replay a portfolio through dated market snapshots and return wire JSON.
+
+    Wire twin of :func:`replay_portfolio`: same inputs and validation,
+    returning the canonical JSON string instead of the typed wrapper.
+
+    Parameters
+    ----------
+    portfolio : Portfolio or str
+        Typed :class:`Portfolio` or JSON ``PortfolioSpec``.
+    snapshots_json : str
+        JSON array or envelope of market snapshots.
+    config_json : str
+        JSON replay configuration controlling dates, valuation options, and
+        output detail.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``ReplayResult`` wire document.
+
+    Raises
+    ------
+    PortfolioError
+        If the portfolio, snapshots, or replay config are invalid, or if a
+        snapshot valuation fails.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import replay_portfolio_json
+    >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
+    >>> try:
+    ...     replay_portfolio_json(spec, "[]", '{"mode":"pv_only"}')
     ... except ValueError as exc:
     ...     print("must be non-empty" in str(exc))
     True
@@ -2332,7 +3315,7 @@ def parametric_var_decomposition(
         Square covariance matrix aligned with ``position_ids``. C-contiguous
         ``float64`` arrays use the direct buffer path.
     confidence : float, default 0.95
-        VaR confidence level in ``(0, 1)``.
+        VaR confidence level strictly inside ``(0.5, 1)``.
     compute_incremental : bool, default False
         Whether to calculate leave-one-out incremental VaR for each position.
 
@@ -2375,7 +3358,7 @@ def parametric_es_decomposition(
         Square covariance matrix aligned with ``position_ids``. C-contiguous
         ``float64`` arrays use the direct buffer path.
     confidence : float, default 0.95
-        ES confidence level in ``(0, 1)``.
+        ES confidence level strictly inside ``(0.5, 1)``.
 
     Returns
     -------
@@ -2414,7 +3397,7 @@ def historical_var_decomposition(
         ``len(position_ids) x n_scenarios``. C-contiguous ``float64`` arrays
         use the direct buffer path.
     confidence : float, default 0.95
-        Historical VaR confidence level in ``(0, 1)``.
+        Historical VaR confidence level strictly inside ``(0.5, 1)``.
 
     Returns
     -------
@@ -2430,9 +3413,9 @@ def historical_var_decomposition(
     Examples
     --------
     >>> from finstack_quant.portfolio import historical_var_decomposition
-    >>> pnl = [list(range(-10, 10)), [2 * value for value in range(-10, 10)]]
-    >>> historical_var_decomposition(["A", "B"], pnl).portfolio_var
-    -30.0
+    >>> pnl = [[float(i) for i in range(-50, 50)], [2.0 * i for i in range(-50, 50)]]
+    >>> historical_var_decomposition(["A", "B"], pnl).portfolio_var < 0.0
+    True
     """
     ...
 
@@ -2498,11 +3481,19 @@ def roll_effective_spread(returns: list[float]) -> float | None:
     float | None
         Effective spread as a decimal, or ``None`` when the estimate is unavailable.
 
+    Notes
+    -----
+    This helper does not raise; unavailable estimates return ``None``.
+
     Examples
     --------
     >>> from finstack_quant.portfolio import roll_effective_spread
     >>> roll_effective_spread([0.01, -0.01, 0.01, -0.01])
     0.02
+
+    Sources
+    -------
+    - Roll (1984): see docs/REFERENCES.md#roll-1984
     """
     ...
 
@@ -2523,40 +3514,54 @@ def amihud_illiquidity(returns: list[float], volumes: list[float]) -> float | No
         Average ``abs(return) / volume`` over positive-volume observations, or
         ``None`` when no valid observations are available.
 
+    Notes
+    -----
+    This helper does not raise; unavailable estimates return ``None``.
+
     Examples
     --------
     >>> from finstack_quant.portfolio import amihud_illiquidity
     >>> amihud_illiquidity([0.01, 0.02], [100.0, 200.0])
     0.0001
+
+    Sources
+    -------
+    - Amihud (2002): see docs/REFERENCES.md#amihud-2002
     """
     ...
 
 def days_to_liquidate(
-    position_value: float,
-    avg_daily_volume: float,
+    position_quantity: float,
+    adv: float,
     participation_rate: float,
 ) -> float:
     """
     Estimate liquidation horizon in trading days.
 
+    Share-space contract (matches the Rust ``days_to_liquidate`` signature):
+    both quantity and ADV are counts of shares/contracts, not currency
+    notionals. Mixing a notional with a share-count ADV silently mis-scales
+    the result by the share price.
+
     Parameters
     ----------
-    position_value : float
-        Position market value to liquidate.
-    avg_daily_volume : float
-        Average daily market volume in the same notional units.
+    position_quantity : float
+        Number of shares/contracts to liquidate (absolute value used).
+    adv : float
+        Average daily traded volume in shares/contracts.
     participation_rate : float
         Maximum fraction of daily volume the liquidation may consume.
 
     Returns
     -------
     float
-        ``position_value / (avg_daily_volume * participation_rate)``.
+        ``position_quantity / (adv * participation_rate)``; ``inf`` if ADV or
+        participation rate is non-positive.
 
-    Raises
-    ------
-    ValueError
-        If volume or participation inputs are non-positive.
+    Notes
+    -----
+    This helper does not raise; non-positive ADV or participation rate returns
+    ``inf`` rather than an exception.
 
     Examples
     --------
@@ -2578,7 +3583,13 @@ def liquidity_tier(days_to_liquidate: float) -> str:
     Returns
     -------
     str
-        Bucket label derived from the supplied trading and market inputs.
+        One of ``"tier1"``, ``"tier2"``, ``"tier3"``, ``"tier4"``, or
+        ``"tier5"``, using the default thresholds ``[1.0, 5.0, 20.0, 60.0]``
+        trading days (Tier 1 most liquid).
+
+    Notes
+    -----
+    This helper does not raise; the horizon is classified into a tier label.
 
     Examples
     --------
@@ -2601,27 +3612,31 @@ def lvar_bangia(
     Parameters
     ----------
     var : float
-        Base market VaR.
+        Market VaR under the loss sign convention (non-positive; ``-10_000.0``
+        is a $10,000 loss). ``0.0`` is accepted for a zero-risk position.
     spread_mean : float
-        Mean bid-ask spread.
+        Mean relative bid-ask spread over the lookback, e.g. ``0.001`` for 10bp.
     spread_vol : float
-        Spread volatility.
+        Standard deviation of the relative bid-ask spread.
     confidence : float
-        Confidence level for the liquidity adjustment.
+        Confidence level for the liquidity adjustment, strictly inside
+        ``(0.5, 1)``.
     position_value : float
-        Position value used to scale spread cost.
+        Market value of the position; only the magnitude is used.
 
     Returns
     -------
     dict[str, float]
-        Dict containing the base VaR, liquidity add-on, and adjusted LVaR.
+        ``{var, spread_cost, lvar, lvar_ratio}`` where ``spread_cost`` is a
+        non-negative magnitude, ``lvar <= var <= 0``, and ``lvar_ratio =
+        lvar / var`` (or ``NaN`` if VaR is zero).
 
     Raises
     ------
     ValueError
-        If ``var`` is non-finite or non-positive; ``spread_mean`` or
+        If ``var`` is non-finite or positive; ``spread_mean`` or
         ``spread_vol`` is non-finite or negative; ``confidence`` is outside
-        ``(0, 1)``; or ``position_value`` is non-finite.
+        ``(0.5, 1)``; or ``position_value`` is non-finite.
 
     Examples
     --------
@@ -2629,6 +3644,11 @@ def lvar_bangia(
     >>> result = lvar_bangia(-100.0, 0.01, 0.005, 0.99, 1_000_000)
     >>> round(result["lvar"], 2)
     -10915.87
+
+    Sources
+    -------
+    - Bangia, Diebold, Schuermann, and Stroughair (1999): see
+      docs/REFERENCES.md#bangia-1999-lvar
     """
     ...
 
@@ -2680,7 +3700,11 @@ def almgren_chriss_impact(
     >>> from finstack_quant.portfolio import almgren_chriss_impact
     >>> result = almgren_chriss_impact(100_000, 1_000_000, 0.20, 5.0, 0.10, 0.20)
     >>> round(result["expected_cost_bp"], 2)
-    50282842.71
+    56.62
+
+    Sources
+    -------
+    - Almgren and Chriss (2000): see docs/REFERENCES.md#almgren-chriss-2000
     """
     ...
 
@@ -2707,15 +3731,431 @@ def kyle_lambda(volumes: list[float], returns: list[float], reference_price: flo
         Estimated price-space Kyle lambda, or ``None`` for invalid samples or
         a non-positive or non-finite reference price.
 
+    Notes
+    -----
+    This helper does not raise; unavailable estimates return ``None``.
+
     Examples
     --------
     >>> from finstack_quant.portfolio import kyle_lambda
     >>> kyle_lambda([100.0, 200.0], [0.01, -0.02], 50.0)
     0.005
+
+    Sources
+    -------
+    - Kyle (1985): see docs/REFERENCES.md#kyle-1985
     """
     ...
 
-def brinson_fachler(sectors_json: str) -> str:
+class BrinsonPeriodResult:
+    """
+    Single-period Brinson-Fachler attribution result.
+
+    Returned by :func:`brinson_fachler`. Sector effects preserve the input
+    sector order; the three effect totals sum to
+    :attr:`total_excess_return`.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import brinson_fachler
+    >>> sectors = [
+    ...     {
+    ...         "sector": "A",
+    ...         "portfolio_weight": 1.0,
+    ...         "benchmark_weight": 1.0,
+    ...         "portfolio_return": 0.02,
+    ...         "benchmark_return": 0.01,
+    ...     }
+    ... ]
+    >>> brinson_fachler(json.dumps(sectors)).total_excess_return
+    0.01
+    """
+
+    @property
+    def sectors(self) -> list[dict[str, object]]:
+        """
+        Per-sector effects as records, in the order supplied.
+
+        Returns
+        -------
+        list[dict[str, object]]
+            JSON-shaped view of the canonical Rust field.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def total_allocation(self) -> float:
+        """
+        Sum of allocation effects across sectors.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def total_selection(self) -> float:
+        """
+        Sum of selection effects across sectors.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def total_interaction(self) -> float:
+        """
+        Sum of interaction effects across sectors.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def portfolio_return(self) -> float:
+        """
+        Portfolio total return for the period.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def benchmark_return(self) -> float:
+        """
+        Benchmark total return for the period.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def total_excess_return(self) -> float:
+        """
+        Active return; equals the sum of the three effect totals.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Per-sector effects as a pandas DataFrame.
+
+        Columns: ``sector``, ``allocation``, ``selection``, ``interaction``, ``total``. The schema is pinned, so an empty result keeps the
+        same dtypes as a populated one.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry, with the pinned column schema above.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize this result to canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON representation, suitable for a matching
+            :meth:`from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> BrinsonPeriodResult:
+        """
+        Deserialize a ``BrinsonPeriodResult`` from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Canonical payload produced by :meth:`to_json` or the paired
+            ``*_json`` wire function.
+
+        Returns
+        -------
+        BrinsonPeriodResult
+            Validated instance reconstructed from the canonical JSON payload.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed or does not match the serialized
+            ``BrinsonPeriodResult`` schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import BrinsonPeriodResult
+        >>> doc = '{"sectors": [], "total_allocation": 0.0, "total_selection": 0.0, "total_interaction": 0.0, "portfolio_return": 0.0, "benchmark_return": 0.0, "total_excess_return": 0.0}'
+        >>> BrinsonPeriodResult.from_json(doc).total_excess_return
+        0.0
+        """
+        ...
+
+class CarinoLinkedAttribution:
+    """
+    Carino-linked multi-period Brinson attribution result.
+
+    Returned by :func:`carino_link`. The linked per-sector effects sum to the
+    geometrically compounded active return exactly.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import carino_link
+    >>> period = [
+    ...     {
+    ...         "sector": "A",
+    ...         "portfolio_weight": 1.0,
+    ...         "benchmark_weight": 1.0,
+    ...         "portfolio_return": 0.02,
+    ...         "benchmark_return": 0.01,
+    ...     }
+    ... ]
+    >>> result = carino_link(json.dumps([period, period]))
+    >>> round(result.linked_selection, 4)
+    0.0203
+    """
+
+    @property
+    def periods(self) -> list[dict[str, object]]:
+        """
+        Per-period decompositions as records, in chronological order.
+
+        Returns
+        -------
+        list[dict[str, object]]
+            JSON-shaped view of the canonical Rust field.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def portfolio_return_compounded(self) -> float:
+        """
+        Geometrically compounded portfolio return.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def benchmark_return_compounded(self) -> float:
+        """
+        Geometrically compounded benchmark return.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def linked_sectors(self) -> list[dict[str, object]]:
+        """
+        Per-sector Carino-smoothed effects summed across periods.
+
+        Returns
+        -------
+        list[dict[str, object]]
+            JSON-shaped view of the canonical Rust field.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def linked_allocation(self) -> float:
+        """
+        Sum of per-sector linked allocation effects.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def linked_selection(self) -> float:
+        """
+        Sum of per-sector linked selection effects.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def linked_interaction(self) -> float:
+        """
+        Sum of per-sector linked interaction effects.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Linked per-sector effects as a pandas DataFrame.
+
+        Columns: ``sector``, ``allocation``, ``selection``, ``interaction``, ``total``. The schema is pinned, so an empty result keeps the
+        same dtypes as a populated one.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry, with the pinned column schema above.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize this result to canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON representation, suitable for a matching
+            :meth:`from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> CarinoLinkedAttribution:
+        """
+        Deserialize a ``CarinoLinkedAttribution`` from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Canonical payload produced by :meth:`to_json` or the paired
+            ``*_json`` wire function.
+
+        Returns
+        -------
+        CarinoLinkedAttribution
+            Validated instance reconstructed from the canonical JSON payload.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed or does not match the serialized
+            ``CarinoLinkedAttribution`` schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import CarinoLinkedAttribution
+        >>> doc = '{"periods": [], "portfolio_return_compounded": 0.0, "benchmark_return_compounded": 0.0, "linked_sectors": [], "linked_allocation": 0.0, "linked_selection": 0.0, "linked_interaction": 0.0}'
+        >>> CarinoLinkedAttribution.from_json(doc).linked_allocation
+        0.0
+        """
+        ...
+
+def brinson_fachler(sectors_json: str) -> BrinsonPeriodResult:
     """
     Compute single-period Brinson-Fachler attribution from sector JSON.
 
@@ -2729,9 +4169,10 @@ def brinson_fachler(sectors_json: str) -> str:
 
     Returns
     -------
-    str
-        JSON-serialized ``BrinsonPeriodResult`` with allocation, selection, and
-        interaction effects plus total active return.
+    BrinsonPeriodResult
+        Typed result with per-sector effects, effect totals, and
+        ``to_dataframe()`` / ``to_json()`` exits; use
+        :func:`brinson_fachler_json` for the raw wire string.
 
     Raises
     ------
@@ -2757,12 +4198,55 @@ def brinson_fachler(sectors_json: str) -> str:
     ...         "benchmark_return": 0.01,
     ...     }
     ... ]
-    >>> json.loads(brinson_fachler(json.dumps(sectors)))["total_excess_return"]
+    >>> brinson_fachler(json.dumps(sectors)).total_excess_return
     0.01
     """
     ...
 
-def carino_link(periods_json: str) -> str:
+def brinson_fachler_json(sectors_json: str) -> str:
+    """
+    Compute single-period Brinson-Fachler attribution and return wire JSON.
+
+    Wire twin of :func:`brinson_fachler`: same inputs and validation,
+    returning the canonical JSON string instead of the typed wrapper.
+
+    Parameters
+    ----------
+    sectors_json : str
+        JSON array of ``SectorPeriod`` objects; same schema as
+        :func:`brinson_fachler`.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``BrinsonPeriodResult`` wire document.
+
+    Raises
+    ------
+    PortfolioError
+        If sector weights do not sum to one or returns are invalid.
+    ValueError
+        If ``sectors_json`` is malformed.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import brinson_fachler_json
+    >>> sectors = [
+    ...     {
+    ...         "sector": "A",
+    ...         "portfolio_weight": 1.0,
+    ...         "benchmark_weight": 1.0,
+    ...         "portfolio_return": 0.02,
+    ...         "benchmark_return": 0.01,
+    ...     }
+    ... ]
+    >>> json.loads(brinson_fachler_json(json.dumps(sectors)))["total_excess_return"]
+    0.01
+    """
+    ...
+
+def carino_link(periods_json: str) -> CarinoLinkedAttribution:
     """
     Compute Carino-linked multi-period Brinson attribution from period JSON.
 
@@ -2774,9 +4258,9 @@ def carino_link(periods_json: str) -> str:
 
     Returns
     -------
-    str
-        JSON-serialized ``CarinoLinkedAttribution`` with linked allocation,
-        selection, and interaction effects across periods.
+    CarinoLinkedAttribution
+        Typed result with linked per-sector effects and compounded returns;
+        use :func:`carino_link_json` for the raw wire string.
 
     Raises
     ------
@@ -2802,13 +4286,693 @@ def carino_link(periods_json: str) -> str:
     ...         "benchmark_return": 0.01,
     ...     }
     ... ]
-    >>> result = json.loads(carino_link(json.dumps([period, period])))
+    >>> result = carino_link(json.dumps([period, period]))
+    >>> round(result.linked_selection, 4)
+    0.0203
+    """
+    ...
+
+class FiAttributionResult:
+    """
+    Single-period Campisi benchmark-relative attribution result.
+
+    Returned by :func:`campisi_attribution`. The five effect totals sum to
+    :attr:`active_return`; sector effects preserve first-seen order.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import campisi_attribution
+    >>> snap = [
+    ...     {
+    ...         "sector": "GOVT",
+    ...         "weight": 1.0,
+    ...         "total_return": 0.02,
+    ...         "yield_annual": 0.04,
+    ...         "modified_duration": 5.0,
+    ...         "spread_duration": 0.0,
+    ...         "spread": 0.0,
+    ...         "delta_treasury_yield": -0.001,
+    ...         "delta_spread": 0.0,
+    ...     }
+    ... ]
+    >>> result = campisi_attribution(json.dumps(snap), json.dumps(snap), '{"period_years":0.25}')
+    >>> round(result.active_return, 6)
+    0.0
+    """
+
+    @property
+    def sectors(self) -> list[dict[str, object]]:
+        """
+        Per-sector benchmark-relative effects as records.
+
+        Returns
+        -------
+        list[dict[str, object]]
+            JSON-shaped view of the canonical Rust field.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def portfolio_components(self) -> dict[str, object]:
+        """
+        Portfolio-side absolute Campisi split (carry, treasury, spread, selection, total).
+
+        Returns
+        -------
+        dict[str, object]
+            JSON-shaped view of the canonical Rust field.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def benchmark_components(self) -> dict[str, object]:
+        """
+        Benchmark-side absolute Campisi split (carry, treasury, spread, selection, total).
+
+        Returns
+        -------
+        dict[str, object]
+            JSON-shaped view of the canonical Rust field.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def portfolio_return(self) -> float:
+        """
+        Portfolio total return for the period.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def benchmark_return(self) -> float:
+        """
+        Benchmark total return for the period.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def active_return(self) -> float:
+        """
+        Active return; portfolio minus benchmark total return.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def total_allocation(self) -> float:
+        """
+        Sum of sector allocation effects.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def total_active_carry(self) -> float:
+        """
+        Sum of sector active carry effects.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def total_active_treasury(self) -> float:
+        """
+        Sum of sector active treasury effects.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def total_active_spread(self) -> float:
+        """
+        Sum of sector active spread effects.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def total_selection(self) -> float:
+        """
+        Sum of sector selection effects.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Per-sector effects as a pandas DataFrame.
+
+        Columns: ``sector``, ``portfolio_weight``, ``benchmark_weight``, ``portfolio_return``, ``benchmark_return``, ``allocation``, ``active_carry``, ``active_treasury``, ``active_spread``, ``selection``, ``total_active``. The schema is pinned, so an empty result keeps the
+        same dtypes as a populated one.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry, with the pinned column schema above.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize this result to canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON representation, suitable for a matching
+            :meth:`from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> FiAttributionResult:
+        """
+        Deserialize a ``FiAttributionResult`` from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Canonical payload produced by :meth:`to_json` or the paired
+            ``*_json`` wire function.
+
+        Returns
+        -------
+        FiAttributionResult
+            Validated instance reconstructed from the canonical JSON payload.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed or does not match the serialized
+            ``FiAttributionResult`` schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import FiAttributionResult
+        >>> doc = '{"sectors": [], "portfolio_components": {"carry": 0.0, "treasury": 0.0, "spread": 0.0, "selection": 0.0, "total": 0.0}, "benchmark_components": {"carry": 0.0, "treasury": 0.0, "spread": 0.0, "selection": 0.0, "total": 0.0}, "portfolio_return": 0.0, "benchmark_return": 0.0, "active_return": 0.0, "total_allocation": 0.0, "total_active_carry": 0.0, "total_active_treasury": 0.0, "total_active_spread": 0.0, "total_selection": 0.0}'
+        >>> FiAttributionResult.from_json(doc).active_return
+        0.0
+        """
+        ...
+
+class FiCarinoLinkedResult:
+    """
+    Multi-period Carino-linked Campisi attribution result.
+
+    Returned by :func:`campisi_carino_link` and
+    :func:`campisi_carino_link_from_snapshots`. The five linked totals sum to
+    the geometrically compounded active return.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import FiCarinoLinkedResult
+    >>> doc = (
+    ...     '{"periods": [], "portfolio_return_compounded": 0.0404,'
+    ...     ' "benchmark_return_compounded": 0.0201, "linked_sectors": [],'
+    ...     ' "linked_allocation": 0.0, "linked_active_carry": 0.0,'
+    ...     ' "linked_active_treasury": 0.0, "linked_active_spread": 0.0,'
+    ...     ' "linked_selection": 0.0}'
+    ... )
+    >>> FiCarinoLinkedResult.from_json(doc).portfolio_return_compounded
+    0.0404
+    """
+
+    @property
+    def periods(self) -> list[dict[str, object]]:
+        """
+        Per-period single-period results as records, in chronological order.
+
+        Returns
+        -------
+        list[dict[str, object]]
+            JSON-shaped view of the canonical Rust field.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def portfolio_return_compounded(self) -> float:
+        """
+        Geometrically compounded portfolio return.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def benchmark_return_compounded(self) -> float:
+        """
+        Geometrically compounded benchmark return.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def linked_sectors(self) -> list[dict[str, object]]:
+        """
+        Per-sector linked effects as records.
+
+        Returns
+        -------
+        list[dict[str, object]]
+            JSON-shaped view of the canonical Rust field.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def linked_allocation(self) -> float:
+        """
+        Sum of linked allocation effects.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def linked_active_carry(self) -> float:
+        """
+        Sum of linked active carry effects.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def linked_active_treasury(self) -> float:
+        """
+        Sum of linked active treasury effects.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def linked_active_spread(self) -> float:
+        """
+        Sum of linked active spread effects.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def linked_selection(self) -> float:
+        """
+        Sum of linked selection effects.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Linked per-sector effects as a pandas DataFrame.
+
+        Columns: ``sector``, ``allocation``, ``active_carry``, ``active_treasury``, ``active_spread``, ``selection``, ``total_active``. The schema is pinned, so an empty result keeps the
+        same dtypes as a populated one.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry, with the pinned column schema above.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize this result to canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON representation, suitable for a matching
+            :meth:`from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> FiCarinoLinkedResult:
+        """
+        Deserialize a ``FiCarinoLinkedResult`` from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Canonical payload produced by :meth:`to_json` or the paired
+            ``*_json`` wire function.
+
+        Returns
+        -------
+        FiCarinoLinkedResult
+            Validated instance reconstructed from the canonical JSON payload.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed or does not match the serialized
+            ``FiCarinoLinkedResult`` schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import FiCarinoLinkedResult
+        >>> doc = '{"periods": [], "portfolio_return_compounded": 0.0, "benchmark_return_compounded": 0.0, "linked_sectors": [], "linked_allocation": 0.0, "linked_active_carry": 0.0, "linked_active_treasury": 0.0, "linked_active_spread": 0.0, "linked_selection": 0.0}'
+        >>> FiCarinoLinkedResult.from_json(doc).linked_selection
+        0.0
+        """
+        ...
+
+class FiReconciliationReport:
+    """
+    Reconciliation report for the five Campisi effect totals.
+
+    Returned by :func:`campisi_reconciliation_check`. A floating-point sanity
+    gate, not a model check: the Campisi decomposition reconciles by
+    construction because selection is the residual.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import FiReconciliationReport
+    >>> doc = '{"total_residual": 0.0, "is_reconciled": true, "tolerance": 1e-10}'
+    >>> FiReconciliationReport.from_json(doc).is_reconciled
+    True
+    """
+
+    @property
+    def total_residual(self) -> float:
+        """
+        Active return minus the sum of the five effect totals.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def is_reconciled(self) -> bool:
+        """
+        Whether the residual is within tolerance.
+
+        Returns
+        -------
+        bool
+            The stored flag from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def tolerance(self) -> float:
+        """
+        Absolute tolerance that was applied, in return units.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Single-row pandas DataFrame view of the report.
+
+        Columns: ``total_residual``, ``is_reconciled``, ``tolerance``. The schema is pinned, so an empty result keeps the
+        same dtypes as a populated one.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry, with the pinned column schema above.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize this result to canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON representation, suitable for a matching
+            :meth:`from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> FiReconciliationReport:
+        """
+        Deserialize a ``FiReconciliationReport`` from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Canonical payload produced by :meth:`to_json` or the paired
+            ``*_json`` wire function.
+
+        Returns
+        -------
+        FiReconciliationReport
+            Validated instance reconstructed from the canonical JSON payload.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed or does not match the serialized
+            ``FiReconciliationReport`` schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import FiReconciliationReport
+        >>> doc = '{"total_residual": 0.0, "is_reconciled": true, "tolerance": 1e-10}'
+        >>> FiReconciliationReport.from_json(doc).is_reconciled
+        True
+        """
+        ...
+
+def carino_link_json(periods_json: str) -> str:
+    """
+    Compute Carino-linked multi-period Brinson attribution and return wire JSON.
+
+    Wire twin of :func:`carino_link`: same inputs and validation, returning
+    the canonical JSON string instead of the typed wrapper.
+
+    Parameters
+    ----------
+    periods_json : str
+        JSON array of periods of ``SectorPeriod`` objects; same schema as
+        :func:`carino_link`.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``CarinoLinkedAttribution`` wire document.
+
+    Raises
+    ------
+    PortfolioError
+        If any period fails Brinson validation.
+    ValueError
+        If ``periods_json`` is malformed.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import carino_link_json
+    >>> period = [
+    ...     {
+    ...         "sector": "A",
+    ...         "portfolio_weight": 1.0,
+    ...         "benchmark_weight": 1.0,
+    ...         "portfolio_return": 0.02,
+    ...         "benchmark_return": 0.01,
+    ...     }
+    ... ]
+    >>> result = json.loads(carino_link_json(json.dumps([period, period])))
     >>> round(result["linked_selection"], 4)
     0.0203
     """
     ...
 
-def campisi_attribution(portfolio_json: str, benchmark_json: str, config_json: str) -> str:
+def campisi_attribution(portfolio_json: str, benchmark_json: str, config_json: str) -> FiAttributionResult:
     """
     Compute single-period Campisi fixed-income benchmark attribution.
 
@@ -2840,10 +5004,10 @@ def campisi_attribution(portfolio_json: str, benchmark_json: str, config_json: s
 
     Returns
     -------
-    str
-        JSON-serialized ``FiAttributionResult``. ``result["sectors"]`` is a
-        flat records array: ``pd.DataFrame(json.loads(result)["sectors"])``
-        yields the sector x component table directly.
+    FiAttributionResult
+        Typed result with per-sector effects, the five effect totals, and
+        ``to_dataframe()`` / ``to_json()`` exits; use
+        :func:`campisi_attribution_json` for the raw wire string.
 
     Raises
     ------
@@ -2892,13 +5056,66 @@ def campisi_attribution(portfolio_json: str, benchmark_json: str, config_json: s
     ...         "delta_spread": 0.0,
     ...     }
     ... ]
-    >>> result = json.loads(campisi_attribution(json.dumps(portfolio), json.dumps(benchmark), '{"period_years":0.25}'))
-    >>> result["active_return"]
+    >>> result = campisi_attribution(json.dumps(portfolio), json.dumps(benchmark), '{"period_years":0.25}')
+    >>> round(result.active_return, 4)
     0.01
     """
     ...
 
-def campisi_carino_link(periods_json: str) -> str:
+def campisi_attribution_json(portfolio_json: str, benchmark_json: str, config_json: str) -> str:
+    """
+    Compute single-period Campisi attribution and return wire JSON.
+
+    Wire twin of :func:`campisi_attribution`: same inputs and validation,
+    returning the canonical JSON string instead of the typed wrapper.
+
+    Parameters
+    ----------
+    portfolio_json : str
+        JSON array of ``FiPositionSnapshot`` objects; same schema and
+        Z-spread basis contract as :func:`campisi_attribution`.
+    benchmark_json : str
+        JSON array of ``FiPositionSnapshot`` objects for the benchmark side.
+    config_json : str
+        JSON ``FiAttributionConfig`` whose only field is ``period_years``.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``FiAttributionResult`` wire document.
+
+    Raises
+    ------
+    PortfolioError
+        If the canonical Rust validation rejects the inputs (same conditions
+        as :func:`campisi_attribution`).
+    ValueError
+        If any JSON argument is malformed.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import campisi_attribution_json
+    >>> snap = [
+    ...     {
+    ...         "sector": "GOVT",
+    ...         "weight": 1.0,
+    ...         "total_return": 0.02,
+    ...         "yield_annual": 0.04,
+    ...         "modified_duration": 5.0,
+    ...         "spread_duration": 0.0,
+    ...         "spread": 0.0,
+    ...         "delta_treasury_yield": -0.001,
+    ...         "delta_spread": 0.0,
+    ...     }
+    ... ]
+    >>> result = json.loads(campisi_attribution_json(json.dumps(snap), json.dumps(snap), '{"period_years":0.25}'))
+    >>> round(result["active_return"], 6)
+    0.0
+    """
+    ...
+
+def campisi_carino_link(periods_json: str) -> FiCarinoLinkedResult:
     """
     Carino-link already-computed single-period Campisi attribution results.
 
@@ -2915,14 +5132,16 @@ def campisi_carino_link(periods_json: str) -> str:
     ----------
     periods_json : str
         JSON array of ``FiAttributionResult`` objects in chronological order,
-        each the parsed output of :func:`campisi_attribution`. Every period
+        each the parsed output of :func:`campisi_attribution_json` (or
+        ``FiAttributionResult.to_json()``). Every period
         must carry the same sector ordering. Unknown fields are rejected.
 
     Returns
     -------
-    str
-        JSON-serialized ``FiCarinoLinkedResult`` whose five linked totals sum
-        to the geometrically compounded active return.
+    FiCarinoLinkedResult
+        Typed result whose five linked totals sum to the geometrically
+        compounded active return; use :func:`campisi_carino_link_json` for
+        the raw wire string.
 
     Raises
     ------
@@ -2947,7 +5166,7 @@ def campisi_carino_link(periods_json: str) -> str:
     Examples
     --------
     >>> import json
-    >>> from finstack_quant.portfolio import campisi_attribution, campisi_carino_link
+    >>> from finstack_quant.portfolio import campisi_attribution_json, campisi_carino_link
     >>> portfolio = [
     ...     {
     ...         "sector": "GOVT",
@@ -2974,14 +5193,67 @@ def campisi_carino_link(periods_json: str) -> str:
     ...         "delta_spread": 0.0,
     ...     }
     ... ]
-    >>> period = json.loads(campisi_attribution(json.dumps(portfolio), json.dumps(benchmark), '{"period_years":0.25}'))
-    >>> linked = json.loads(campisi_carino_link(json.dumps([period, period])))
-    >>> round(linked["linked_selection"], 6)
+    >>> period = json.loads(
+    ...     campisi_attribution_json(json.dumps(portfolio), json.dumps(benchmark), '{"period_years":0.25}')
+    ... )
+    >>> linked = campisi_carino_link(json.dumps([period, period]))
+    >>> round(linked.linked_selection, 6)
     0.013195
     """
     ...
 
-def campisi_carino_link_from_snapshots(periods_json: str, config_json: str) -> str:
+def campisi_carino_link_json(periods_json: str) -> str:
+    """
+    Carino-link single-period Campisi results and return wire JSON.
+
+    Wire twin of :func:`campisi_carino_link`: same inputs and validation,
+    returning the canonical JSON string instead of the typed wrapper.
+
+    Parameters
+    ----------
+    periods_json : str
+        JSON array of ``FiAttributionResult`` objects in chronological
+        order; same schema as :func:`campisi_carino_link`.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``FiCarinoLinkedResult`` wire document.
+
+    Raises
+    ------
+    PortfolioError
+        If linking validation rejects the periods (same conditions as
+        :func:`campisi_carino_link`).
+    ValueError
+        If ``periods_json`` is malformed or does not match the
+        ``FiAttributionResult`` schema.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import campisi_attribution_json, campisi_carino_link_json
+    >>> snap = [
+    ...     {
+    ...         "sector": "GOVT",
+    ...         "weight": 1.0,
+    ...         "total_return": 0.02,
+    ...         "yield_annual": 0.04,
+    ...         "modified_duration": 5.0,
+    ...         "spread_duration": 0.0,
+    ...         "spread": 0.0,
+    ...         "delta_treasury_yield": -0.001,
+    ...         "delta_spread": 0.0,
+    ...     }
+    ... ]
+    >>> period = json.loads(campisi_attribution_json(json.dumps(snap), json.dumps(snap), '{"period_years":0.25}'))
+    >>> linked = json.loads(campisi_carino_link_json(json.dumps([period, period])))
+    >>> round(linked["linked_selection"], 6)
+    0.0
+    """
+    ...
+
+def campisi_carino_link_from_snapshots(periods_json: str, config_json: str) -> FiCarinoLinkedResult:
     """
     Compute Carino-linked multi-period Campisi attribution from period JSON.
 
@@ -3005,9 +5277,11 @@ def campisi_carino_link_from_snapshots(periods_json: str, config_json: str) -> s
 
     Returns
     -------
-    str
-        JSON-serialized ``FiCarinoLinkedResult`` whose five linked totals sum
-        to the geometrically compounded active return.
+    FiCarinoLinkedResult
+        Typed result whose five linked totals sum to the geometrically
+        compounded active return; use
+        :func:`campisi_carino_link_from_snapshots_json` for the raw wire
+        string.
 
     Raises
     ------
@@ -3052,13 +5326,66 @@ def campisi_carino_link_from_snapshots(periods_json: str, config_json: str) -> s
     ...     }
     ... ]
     >>> periods = json.dumps([{"portfolio": portfolio, "benchmark": benchmark}])
-    >>> result = json.loads(campisi_carino_link_from_snapshots(periods, '{"period_years":0.25}'))
-    >>> round(result["linked_selection"], 4)
+    >>> result = campisi_carino_link_from_snapshots(periods, '{"period_years":0.25}')
+    >>> round(result.linked_selection, 4)
     0.0065
     """
     ...
 
-def campisi_reconciliation_check(result_json: str, tolerance: float) -> str:
+def campisi_carino_link_from_snapshots_json(periods_json: str, config_json: str) -> str:
+    """
+    Compute snapshot-level Carino-linked Campisi attribution as wire JSON.
+
+    Wire twin of :func:`campisi_carino_link_from_snapshots`: same inputs and
+    validation, returning the canonical JSON string instead of the typed
+    wrapper.
+
+    Parameters
+    ----------
+    periods_json : str
+        JSON array of period objects with ``portfolio`` and ``benchmark``
+        snapshot arrays; same schema as
+        :func:`campisi_carino_link_from_snapshots`.
+    config_json : str
+        JSON ``FiAttributionConfig`` shared across periods.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``FiCarinoLinkedResult`` wire document.
+
+    Raises
+    ------
+    PortfolioError
+        If any period fails Campisi validation or sector orderings differ.
+    ValueError
+        If any JSON argument is malformed.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import campisi_carino_link_from_snapshots_json
+    >>> snap = [
+    ...     {
+    ...         "sector": "GOVT",
+    ...         "weight": 1.0,
+    ...         "total_return": 0.02,
+    ...         "yield_annual": 0.04,
+    ...         "modified_duration": 5.0,
+    ...         "spread_duration": 0.0,
+    ...         "spread": 0.0,
+    ...         "delta_treasury_yield": -0.001,
+    ...         "delta_spread": 0.0,
+    ...     }
+    ... ]
+    >>> periods = json.dumps([{"portfolio": snap, "benchmark": snap}])
+    >>> result = json.loads(campisi_carino_link_from_snapshots_json(periods, '{"period_years":0.25}'))
+    >>> round(result["linked_selection"], 6)
+    0.0
+    """
+    ...
+
+def campisi_reconciliation_check(result_json: str, tolerance: float) -> FiReconciliationReport:
     """
     Reconcile the five Campisi effect totals against the active return.
 
@@ -3076,17 +5403,18 @@ def campisi_reconciliation_check(result_json: str, tolerance: float) -> str:
     ----------
     result_json : str
         JSON ``FiAttributionResult``, as returned by
-        :func:`campisi_attribution`. Unknown fields are rejected.
+        :func:`campisi_attribution_json` (or
+        ``FiAttributionResult.to_json()``). Unknown fields are rejected.
     tolerance : float
         Absolute tolerance in return units; ``1e-10`` is appropriate for
         return-space values.
 
     Returns
     -------
-    str
-        JSON-serialized ``FiReconciliationReport`` with ``total_residual``
-        (``active_return`` minus the five totals), ``is_reconciled`` and the
-        ``tolerance`` that was applied.
+    FiReconciliationReport
+        Typed report with ``total_residual`` (``active_return`` minus the
+        five totals), ``is_reconciled`` and the applied ``tolerance``; use
+        :func:`campisi_reconciliation_check_json` for the raw wire string.
 
     Raises
     ------
@@ -3100,7 +5428,7 @@ def campisi_reconciliation_check(result_json: str, tolerance: float) -> str:
     Examples
     --------
     >>> import json
-    >>> from finstack_quant.portfolio import campisi_attribution, campisi_reconciliation_check
+    >>> from finstack_quant.portfolio import campisi_attribution_json, campisi_reconciliation_check
     >>> portfolio = [
     ...     {
     ...         "sector": "GOVT",
@@ -3127,13 +5455,345 @@ def campisi_reconciliation_check(result_json: str, tolerance: float) -> str:
     ...         "delta_spread": 0.0,
     ...     }
     ... ]
-    >>> result = campisi_attribution(json.dumps(portfolio), json.dumps(benchmark), '{"period_years":0.25}')
-    >>> json.loads(campisi_reconciliation_check(result, 1e-10))["is_reconciled"]
+    >>> result = campisi_attribution_json(json.dumps(portfolio), json.dumps(benchmark), '{"period_years":0.25}')
+    >>> campisi_reconciliation_check(result, 1e-10).is_reconciled
     True
     """
     ...
 
-def cell_returns_from_reference(reference_json: str, base_label: str, config_json: str) -> str:
+def campisi_reconciliation_check_json(result_json: str, tolerance: float) -> str:
+    """
+    Reconcile the five Campisi effect totals and return wire JSON.
+
+    Wire twin of :func:`campisi_reconciliation_check`: same inputs and
+    validation, returning the canonical JSON string instead of the typed
+    report.
+
+    Parameters
+    ----------
+    result_json : str
+        JSON ``FiAttributionResult``, as returned by
+        :func:`campisi_attribution_json`.
+    tolerance : float
+        Absolute tolerance in return units; ``1e-10`` is appropriate for
+        return-space values.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``FiReconciliationReport`` wire document.
+
+    Raises
+    ------
+    ValueError
+        If ``result_json`` is malformed or carries unknown fields.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import campisi_attribution_json, campisi_reconciliation_check_json
+    >>> snap = [
+    ...     {
+    ...         "sector": "GOVT",
+    ...         "weight": 1.0,
+    ...         "total_return": 0.02,
+    ...         "yield_annual": 0.04,
+    ...         "modified_duration": 5.0,
+    ...         "spread_duration": 0.0,
+    ...         "spread": 0.0,
+    ...         "delta_treasury_yield": -0.001,
+    ...         "delta_spread": 0.0,
+    ...     }
+    ... ]
+    >>> result = campisi_attribution_json(json.dumps(snap), json.dumps(snap), '{"period_years":0.25}')
+    >>> json.loads(campisi_reconciliation_check_json(result, 1e-10))["is_reconciled"]
+    True
+    """
+    ...
+
+class DurationCellTable:
+    """
+    Duration-cell base-return table.
+
+    Returned by :func:`cell_returns_from_reference` and
+    :func:`cell_returns_from_curves`; pass ``to_json()`` to
+    :func:`excess_returns` as the base table.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import cell_returns_from_reference
+    >>> reference = [{"duration": 1.0, "total_return": 0.02}]
+    >>> table = cell_returns_from_reference(json.dumps(reference), "UST", '{"width":2.0}')
+    >>> table.cells[0]["base_return"]
+    0.02
+    """
+
+    @property
+    def base_label(self) -> str:
+        """
+        Label identifying the reference universe (e.g. ``"UST"``).
+
+        Returns
+        -------
+        str
+            The stored label from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def cells(self) -> list[dict[str, object]]:
+        """
+        Cells as records, in ascending duration order.
+
+        Returns
+        -------
+        list[dict[str, object]]
+            JSON-shaped view of the canonical Rust field.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Cells as a pandas DataFrame.
+
+        Columns: ``label``, ``lower``, ``upper``, ``base_return``, ``observed``. The schema is pinned, so an empty result keeps the
+        same dtypes as a populated one.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry, with the pinned column schema above.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize this result to canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON representation, suitable for a matching
+            :meth:`from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> DurationCellTable:
+        """
+        Deserialize a ``DurationCellTable`` from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Canonical payload produced by :meth:`to_json` or the paired
+            ``*_json`` wire function.
+
+        Returns
+        -------
+        DurationCellTable
+            Validated instance reconstructed from the canonical JSON payload.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed or does not match the serialized
+            ``DurationCellTable`` schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import DurationCellTable
+        >>> doc = '{"base_label": "UST", "cells": []}'
+        >>> DurationCellTable.from_json(doc).base_label
+        'UST'
+        """
+        ...
+
+class ExcessReturnResult:
+    """
+    Per-position and portfolio-level duration-matched credit excess returns.
+
+    Returned by :func:`excess_returns`.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import cell_returns_from_reference, excess_returns
+    >>> reference = [{"duration": 1.0, "total_return": 0.02}]
+    >>> table = cell_returns_from_reference(json.dumps(reference), "UST", '{"width":2.0}')
+    >>> positions = [{"id": "B1", "weight": 1.0, "duration": 1.0, "total_return": 0.03}]
+    >>> result = excess_returns(json.dumps(positions), table.to_json())
+    >>> round(result.portfolio_excess_return, 4)
+    0.01
+    """
+
+    @property
+    def base_label(self) -> str:
+        """
+        Label of the base curve the excess returns were measured against.
+
+        Returns
+        -------
+        str
+            The stored label from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def positions(self) -> list[dict[str, object]]:
+        """
+        Per-position results as records, in input order.
+
+        Returns
+        -------
+        list[dict[str, object]]
+            JSON-shaped view of the canonical Rust field.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def portfolio_total_return(self) -> float:
+        """
+        Weight-weighted portfolio total return.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def portfolio_base_return(self) -> float:
+        """
+        Weight-weighted portfolio base return.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def portfolio_excess_return(self) -> float:
+        """
+        Weight-weighted portfolio excess return.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Per-position excess returns as a pandas DataFrame.
+
+        Columns: ``id``, ``cell``, ``base_return``, ``excess_return``. The schema is pinned, so an empty result keeps the
+        same dtypes as a populated one.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry, with the pinned column schema above.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize this result to canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON representation, suitable for a matching
+            :meth:`from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> ExcessReturnResult:
+        """
+        Deserialize a ``ExcessReturnResult`` from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Canonical payload produced by :meth:`to_json` or the paired
+            ``*_json`` wire function.
+
+        Returns
+        -------
+        ExcessReturnResult
+            Validated instance reconstructed from the canonical JSON payload.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed or does not match the serialized
+            ``ExcessReturnResult`` schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import ExcessReturnResult
+        >>> doc = '{"base_label": "UST", "positions": [], "portfolio_total_return": 0.0, "portfolio_base_return": 0.0, "portfolio_excess_return": 0.0}'
+        >>> ExcessReturnResult.from_json(doc).base_label
+        'UST'
+        """
+        ...
+
+def cell_returns_from_reference(reference_json: str, base_label: str, config_json: str) -> DurationCellTable:
     """
     Build a duration-cell base-return table from a reference universe.
 
@@ -3158,8 +5818,9 @@ def cell_returns_from_reference(reference_json: str, base_label: str, config_jso
 
     Returns
     -------
-    str
-        JSON-serialized ``DurationCellTable``.
+    DurationCellTable
+        Typed cell table with ``to_dataframe()`` / ``to_json()`` exits; use
+        :func:`cell_returns_from_reference_json` for the raw wire string.
 
     Raises
     ------
@@ -3184,7 +5845,49 @@ def cell_returns_from_reference(reference_json: str, base_label: str, config_jso
     >>> import json
     >>> from finstack_quant.portfolio import cell_returns_from_reference
     >>> reference = [{"duration": 1.0, "total_return": 0.02}]
-    >>> table = json.loads(cell_returns_from_reference(json.dumps(reference), "UST", '{"width":2.0}'))
+    >>> table = cell_returns_from_reference(json.dumps(reference), "UST", '{"width":2.0}')
+    >>> table.cells[0]["base_return"]
+    0.02
+    """
+    ...
+
+def cell_returns_from_reference_json(reference_json: str, base_label: str, config_json: str) -> str:
+    """
+    Build a reference-universe duration-cell table and return wire JSON.
+
+    Wire twin of :func:`cell_returns_from_reference`: same inputs and
+    validation, returning the canonical JSON string instead of the typed
+    table.
+
+    Parameters
+    ----------
+    reference_json : str
+        JSON array of ``ReferenceReturn`` objects; same schema as
+        :func:`cell_returns_from_reference`.
+    base_label : str
+        Label identifying the resulting curve (e.g. ``"UST"``).
+    config_json : str
+        JSON ``CellConfig``; ``width`` is its only field and is required.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``DurationCellTable`` wire document.
+
+    Raises
+    ------
+    PortfolioError
+        If the canonical Rust validation rejects the inputs (same conditions
+        as :func:`cell_returns_from_reference`).
+    ValueError
+        If any JSON argument is malformed or carries unknown fields.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import cell_returns_from_reference_json
+    >>> reference = [{"duration": 1.0, "total_return": 0.02}]
+    >>> table = json.loads(cell_returns_from_reference_json(json.dumps(reference), "UST", '{"width":2.0}'))
     >>> table["cells"][0]["base_return"]
     0.02
     """
@@ -3197,7 +5900,7 @@ def cell_returns_from_curves(
     max_duration: float,
     base_label: str,
     config_json: str,
-) -> str:
+) -> DurationCellTable:
     """
     Build a duration-cell base-return table from start/end discount curves.
 
@@ -3228,8 +5931,9 @@ def cell_returns_from_curves(
 
     Returns
     -------
-    str
-        JSON-serialized ``DurationCellTable``.
+    DurationCellTable
+        Typed cell table with ``to_dataframe()`` / ``to_json()`` exits; use
+        :func:`cell_returns_from_curves_json` for the raw wire string.
 
     Raises
     ------
@@ -3259,13 +5963,71 @@ def cell_returns_from_curves(
     >>> from finstack_quant.portfolio import cell_returns_from_curves
     >>> start = DiscountCurve.flat("start", date(2025, 1, 1), 0.02)
     >>> end = DiscountCurve.flat("end", date(2025, 4, 1), 0.03)
-    >>> table = json.loads(cell_returns_from_curves(start, end, 0.25, 2.0, "UST", '{"width":1.0}'))
+    >>> table = cell_returns_from_curves(start, end, 0.25, 2.0, "UST", '{"width":1.0}')
+    >>> len(table.cells)
+    2
+    """
+    ...
+
+def cell_returns_from_curves_json(
+    start: DiscountCurve,
+    end: DiscountCurve,
+    horizon_years: float,
+    max_duration: float,
+    base_label: str,
+    config_json: str,
+) -> str:
+    """
+    Build a curve-snapshot duration-cell table and return wire JSON.
+
+    Wire twin of :func:`cell_returns_from_curves`: same inputs and
+    validation, returning the canonical JSON string instead of the typed
+    table.
+
+    Parameters
+    ----------
+    start : DiscountCurve
+        Discount curve observed at the start of the holding period.
+    end : DiscountCurve
+        Discount curve observed ``horizon_years`` later, at period end.
+    horizon_years : float
+        Length of the holding period, in years; finite and positive.
+    max_duration : float
+        Upper bound of the duration grid, in years; strictly greater than
+        ``horizon_years``.
+    base_label : str
+        Label identifying the base curve, stamped for policy visibility.
+    config_json : str
+        JSON ``CellConfig``; ``width`` is its only field and is required.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``DurationCellTable`` wire document.
+
+    Raises
+    ------
+    PortfolioError
+        If the canonical Rust validation rejects the inputs (same conditions
+        as :func:`cell_returns_from_curves`).
+    ValueError
+        If ``config_json`` is malformed.
+
+    Examples
+    --------
+    >>> from datetime import date
+    >>> import json
+    >>> from finstack_quant.core.market_data import DiscountCurve
+    >>> from finstack_quant.portfolio import cell_returns_from_curves_json
+    >>> start = DiscountCurve.flat("start", date(2025, 1, 1), 0.02)
+    >>> end = DiscountCurve.flat("end", date(2025, 4, 1), 0.03)
+    >>> table = json.loads(cell_returns_from_curves_json(start, end, 0.25, 2.0, "UST", '{"width":1.0}'))
     >>> len(table["cells"])
     2
     """
     ...
 
-def excess_returns(positions_json: str, table_json: str) -> str:
+def excess_returns(positions_json: str, table_json: str) -> ExcessReturnResult:
     """
     Compute duration-matched credit excess returns against a base-return table.
 
@@ -3283,13 +6045,16 @@ def excess_returns(positions_json: str, table_json: str) -> str:
         ``1e-6``.
     table_json : str
         JSON ``DurationCellTable``, as returned by
-        :func:`cell_returns_from_reference` or :func:`cell_returns_from_curves`.
+        :func:`cell_returns_from_reference_json`,
+        :func:`cell_returns_from_curves_json`, or
+        ``DurationCellTable.to_json()``.
 
     Returns
     -------
-    str
-        JSON-serialized ``ExcessReturnResult`` with per-position and
-        portfolio-level total/base/excess returns.
+    ExcessReturnResult
+        Typed result with per-position and portfolio-level
+        total/base/excess returns; use :func:`excess_returns_json` for the
+        raw wire string.
 
     Raises
     ------
@@ -3315,13 +6080,507 @@ def excess_returns(positions_json: str, table_json: str) -> str:
     >>> reference = [{"duration": 1.0, "total_return": 0.02}]
     >>> table = cell_returns_from_reference(json.dumps(reference), "UST", '{"width":2.0}')
     >>> positions = [{"id": "B1", "weight": 1.0, "duration": 1.0, "total_return": 0.03}]
-    >>> result = json.loads(excess_returns(json.dumps(positions), table))
+    >>> result = excess_returns(json.dumps(positions), table.to_json())
+    >>> round(result.portfolio_excess_return, 4)
+    0.01
+    """
+    ...
+
+def excess_returns_json(positions_json: str, table_json: str) -> str:
+    """
+    Compute duration-matched credit excess returns and return wire JSON.
+
+    Wire twin of :func:`excess_returns`: same inputs and validation,
+    returning the canonical JSON string instead of the typed wrapper.
+
+    Parameters
+    ----------
+    positions_json : str
+        JSON array of ``ExcessReturnPosition`` objects; same schema as
+        :func:`excess_returns`.
+    table_json : str
+        JSON ``DurationCellTable`` base-return table.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``ExcessReturnResult`` wire document.
+
+    Raises
+    ------
+    PortfolioError
+        If the canonical Rust validation rejects the table or positions
+        (same conditions as :func:`excess_returns`).
+    ValueError
+        If any JSON argument is malformed.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import cell_returns_from_reference_json, excess_returns_json
+    >>> reference = [{"duration": 1.0, "total_return": 0.02}]
+    >>> table = cell_returns_from_reference_json(json.dumps(reference), "UST", '{"width":2.0}')
+    >>> positions = [{"id": "B1", "weight": 1.0, "duration": 1.0, "total_return": 0.03}]
+    >>> result = json.loads(excess_returns_json(json.dumps(positions), table))
     >>> round(result["portfolio_excess_return"], 4)
     0.01
     """
     ...
 
-def grid_attribution(portfolio_json: str, benchmark_json: str) -> str:
+class GridAttributionResult:
+    """
+    Single-period hierarchical duration-cell x sector grid attribution result.
+
+    Returned by :func:`grid_attribution`. ``total_curve``, ``total_sector``
+    and ``total_selection`` sum to :attr:`active_return` to floating-point
+    precision for well-conditioned inputs.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import grid_attribution
+    >>> portfolio = [{"cell": "0-3", "sector": "GOVT", "weight": 1.0, "total_return": 0.02}]
+    >>> benchmark = [{"cell": "0-3", "sector": "GOVT", "weight": 1.0, "total_return": 0.01}]
+    >>> result = grid_attribution(json.dumps(portfolio), json.dumps(benchmark))
+    >>> round(result.total_selection, 4)
+    0.01
+    """
+
+    @property
+    def portfolio_return(self) -> float:
+        """
+        Portfolio total return for the period.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def benchmark_return(self) -> float:
+        """
+        Benchmark total return for the period.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def active_return(self) -> float:
+        """
+        Active return; portfolio minus benchmark total return.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def curve_effects(self) -> list[dict[str, object]]:
+        """
+        Per-cell curve effects as records, in first-appearance order.
+
+        Returns
+        -------
+        list[dict[str, object]]
+            JSON-shaped view of the canonical Rust field.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def sector_effects(self) -> list[dict[str, object]]:
+        """
+        Per-(cell, sector) allocation effects as records.
+
+        Returns
+        -------
+        list[dict[str, object]]
+            JSON-shaped view of the canonical Rust field.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def selection_effects(self) -> list[dict[str, object]]:
+        """
+        Per-(cell, sector) selection effects as records, aligned with ``sector_effects``.
+
+        Returns
+        -------
+        list[dict[str, object]]
+            JSON-shaped view of the canonical Rust field.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def total_curve(self) -> float:
+        """
+        Sum of the per-cell curve effects.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def total_sector(self) -> float:
+        """
+        Sum of the sector allocation effects.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def total_selection(self) -> float:
+        """
+        Sum of the selection effects.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Per-cell curve effects as a pandas DataFrame.
+
+        Columns: ``cell``, ``portfolio_weight``, ``benchmark_weight``, ``benchmark_cell_return``, ``curve_effect``. The schema is pinned, so an empty result keeps the
+        same dtypes as a populated one.
+        The primary frame is the duration-cell axis; the two (cell,
+        sector) tables come from :meth:`sector_effects_to_dataframe` and
+        :meth:`selection_effects_to_dataframe`.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry, with the pinned column schema above.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
+    def sector_effects_to_dataframe(self) -> pd.DataFrame:
+        """
+        Per-(cell, sector) allocation effects as a pandas DataFrame.
+
+        Columns: ``cell``, ``sector``, ``allocation_effect``. The schema is pinned, so an empty result keeps the
+        same dtypes as a populated one.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry, with the pinned column schema above.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
+    def selection_effects_to_dataframe(self) -> pd.DataFrame:
+        """
+        Per-(cell, sector) selection effects as a pandas DataFrame.
+
+        Columns: ``cell``, ``sector``, ``selection_effect``. The schema is pinned, so an empty result keeps the
+        same dtypes as a populated one.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry, with the pinned column schema above.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize this result to canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON representation, suitable for a matching
+            :meth:`from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> GridAttributionResult:
+        """
+        Deserialize a ``GridAttributionResult`` from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Canonical payload produced by :meth:`to_json` or the paired
+            ``*_json`` wire function.
+
+        Returns
+        -------
+        GridAttributionResult
+            Validated instance reconstructed from the canonical JSON payload.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed or does not match the serialized
+            ``GridAttributionResult`` schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import GridAttributionResult
+        >>> doc = '{"portfolio_return": 0.0, "benchmark_return": 0.0, "active_return": 0.0, "curve_effects": [], "sector_effects": [], "selection_effects": [], "total_curve": 0.0, "total_sector": 0.0, "total_selection": 0.0}'
+        >>> GridAttributionResult.from_json(doc).active_return
+        0.0
+        """
+        ...
+
+class GridCarinoLinkedResult:
+    """
+    Multi-period Carino-linked hierarchical grid attribution result.
+
+    Returned by :func:`grid_carino_link`. Only the three top-level effects
+    are linked; their sum reconstructs the compounded active return exactly.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import grid_attribution_json, grid_carino_link
+    >>> portfolio = [{"cell": "0-3", "sector": "GOVT", "weight": 1.0, "total_return": 0.02}]
+    >>> benchmark = [{"cell": "0-3", "sector": "GOVT", "weight": 1.0, "total_return": 0.01}]
+    >>> period = json.loads(grid_attribution_json(json.dumps(portfolio), json.dumps(benchmark)))
+    >>> result = grid_carino_link(json.dumps([period, period]))
+    >>> round(result.linked_selection, 4)
+    0.0203
+    """
+
+    @property
+    def periods(self) -> list[dict[str, object]]:
+        """
+        Per-period single-period results as records, in chronological order.
+
+        Returns
+        -------
+        list[dict[str, object]]
+            JSON-shaped view of the canonical Rust field.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def portfolio_return_compounded(self) -> float:
+        """
+        Geometrically compounded portfolio return.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def benchmark_return_compounded(self) -> float:
+        """
+        Geometrically compounded benchmark return.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def linked_curve(self) -> float:
+        """
+        Sum of per-period Carino-scaled curve effects.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def linked_sector(self) -> float:
+        """
+        Sum of per-period Carino-scaled sector allocation effects.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def linked_selection(self) -> float:
+        """
+        Sum of per-period Carino-scaled selection effects.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Single-row pandas DataFrame view of the linked totals.
+
+        Columns: ``portfolio_return_compounded``, ``benchmark_return_compounded``, ``linked_curve``, ``linked_sector``, ``linked_selection``. The schema is pinned, so an empty result keeps the
+        same dtypes as a populated one.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry, with the pinned column schema above.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize this result to canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON representation, suitable for a matching
+            :meth:`from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> GridCarinoLinkedResult:
+        """
+        Deserialize a ``GridCarinoLinkedResult`` from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Canonical payload produced by :meth:`to_json` or the paired
+            ``*_json`` wire function.
+
+        Returns
+        -------
+        GridCarinoLinkedResult
+            Validated instance reconstructed from the canonical JSON payload.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed or does not match the serialized
+            ``GridCarinoLinkedResult`` schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import GridCarinoLinkedResult
+        >>> doc = '{"periods": [], "portfolio_return_compounded": 0.0, "benchmark_return_compounded": 0.0, "linked_curve": 0.0, "linked_sector": 0.0, "linked_selection": 0.0}'
+        >>> GridCarinoLinkedResult.from_json(doc).linked_curve
+        0.0
+        """
+        ...
+
+def grid_attribution(portfolio_json: str, benchmark_json: str) -> GridAttributionResult:
     """
     Compute a single-period hierarchical duration-cell x sector grid attribution.
 
@@ -3342,8 +6601,8 @@ def grid_attribution(portfolio_json: str, benchmark_json: str) -> str:
 
     Returns
     -------
-    str
-        JSON-serialized ``GridAttributionResult`` whose ``total_curve``,
+    GridAttributionResult
+        Typed result whose ``total_curve``,
         ``total_sector`` and ``total_selection`` sum to ``active_return`` to
         floating-point precision for well-conditioned inputs; among
         *accepted* inputs (those that clear the near-zero-net-weight check
@@ -3373,13 +6632,53 @@ def grid_attribution(portfolio_json: str, benchmark_json: str) -> str:
     >>> from finstack_quant.portfolio import grid_attribution
     >>> portfolio = [{"cell": "0-3", "sector": "GOVT", "weight": 1.0, "total_return": 0.02}]
     >>> benchmark = [{"cell": "0-3", "sector": "GOVT", "weight": 1.0, "total_return": 0.01}]
-    >>> result = json.loads(grid_attribution(json.dumps(portfolio), json.dumps(benchmark)))
-    >>> result["total_selection"]
+    >>> result = grid_attribution(json.dumps(portfolio), json.dumps(benchmark))
+    >>> round(result.total_selection, 4)
     0.01
     """
     ...
 
-def grid_carino_link(periods_json: str) -> str:
+def grid_attribution_json(portfolio_json: str, benchmark_json: str) -> str:
+    """
+    Compute a single-period grid attribution and return wire JSON.
+
+    Wire twin of :func:`grid_attribution`: same inputs and validation,
+    returning the canonical JSON string instead of the typed wrapper.
+
+    Parameters
+    ----------
+    portfolio_json : str
+        JSON array of ``GridPosition`` objects for the portfolio side; same
+        schema as :func:`grid_attribution`.
+    benchmark_json : str
+        JSON array of ``GridPosition`` objects for the benchmark side.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``GridAttributionResult`` wire document.
+
+    Raises
+    ------
+    PortfolioError
+        If the canonical Rust validation rejects the inputs (same conditions
+        as :func:`grid_attribution`).
+    ValueError
+        If either JSON argument is malformed or carries unknown fields.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import grid_attribution_json
+    >>> portfolio = [{"cell": "0-3", "sector": "GOVT", "weight": 1.0, "total_return": 0.02}]
+    >>> benchmark = [{"cell": "0-3", "sector": "GOVT", "weight": 1.0, "total_return": 0.01}]
+    >>> result = json.loads(grid_attribution_json(json.dumps(portfolio), json.dumps(benchmark)))
+    >>> round(result["total_selection"], 4)
+    0.01
+    """
+    ...
+
+def grid_carino_link(periods_json: str) -> GridCarinoLinkedResult:
     """
     Carino-link multi-period hierarchical grid attribution results.
 
@@ -3395,12 +6694,14 @@ def grid_carino_link(periods_json: str) -> str:
     ----------
     periods_json : str
         JSON array of ``GridAttributionResult`` objects, in chronological
-        order, each the parsed output of :func:`grid_attribution`.
+        order, each the wire output of :func:`grid_attribution_json` (or
+        ``GridAttributionResult.to_json()``).
 
     Returns
     -------
-    str
-        JSON-serialized ``GridCarinoLinkedResult``.
+    GridCarinoLinkedResult
+        Typed result with the three linked effects and compounded returns;
+        use :func:`grid_carino_link_json` for the raw wire string.
 
     Raises
     ------
@@ -3424,17 +6725,280 @@ def grid_carino_link(periods_json: str) -> str:
     Examples
     --------
     >>> import json
-    >>> from finstack_quant.portfolio import grid_attribution, grid_carino_link
+    >>> from finstack_quant.portfolio import grid_attribution_json, grid_carino_link
     >>> portfolio = [{"cell": "0-3", "sector": "GOVT", "weight": 1.0, "total_return": 0.02}]
     >>> benchmark = [{"cell": "0-3", "sector": "GOVT", "weight": 1.0, "total_return": 0.01}]
-    >>> period = json.loads(grid_attribution(json.dumps(portfolio), json.dumps(benchmark)))
-    >>> result = json.loads(grid_carino_link(json.dumps([period, period])))
+    >>> period = json.loads(grid_attribution_json(json.dumps(portfolio), json.dumps(benchmark)))
+    >>> result = grid_carino_link(json.dumps([period, period]))
+    >>> round(result.linked_selection, 4)
+    0.0203
+    """
+    ...
+
+def grid_carino_link_json(periods_json: str) -> str:
+    """
+    Carino-link multi-period grid attribution results and return wire JSON.
+
+    Wire twin of :func:`grid_carino_link`: same inputs and validation,
+    returning the canonical JSON string instead of the typed wrapper.
+
+    Parameters
+    ----------
+    periods_json : str
+        JSON array of ``GridAttributionResult`` objects in chronological
+        order; same schema as :func:`grid_carino_link`.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``GridCarinoLinkedResult`` wire document.
+
+    Raises
+    ------
+    PortfolioError
+        If linking validation rejects the periods (same conditions as
+        :func:`grid_carino_link`).
+    ValueError
+        If ``periods_json`` is malformed or does not match the
+        ``GridAttributionResult`` schema.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import grid_attribution_json, grid_carino_link_json
+    >>> portfolio = [{"cell": "0-3", "sector": "GOVT", "weight": 1.0, "total_return": 0.02}]
+    >>> benchmark = [{"cell": "0-3", "sector": "GOVT", "weight": 1.0, "total_return": 0.01}]
+    >>> period = json.loads(grid_attribution_json(json.dumps(portfolio), json.dumps(benchmark)))
+    >>> result = json.loads(grid_carino_link_json(json.dumps([period, period])))
     >>> round(result["linked_selection"], 4)
     0.0203
     """
     ...
 
-def factor_brinson_attribution(input_json: str, factor_returns: list[float]) -> str:
+class FactorBrinsonResult:
+    """
+    Jeet-Partani factor-Brinson unified attribution result.
+
+    Returned by :func:`factor_brinson_attribution`.
+    ``allocation + selection`` reconstructs :attr:`active_return`.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import factor_brinson_attribution
+    >>> inputs = {
+    ...     "asset_ids": ["A"],
+    ...     "asset_returns": [0.02],
+    ...     "exposures": [1.0],
+    ...     "factor_names": ["Market"],
+    ...     "portfolio_weights": [1.0],
+    ...     "benchmark_weights": [1.0],
+    ... }
+    >>> factor_brinson_attribution(json.dumps(inputs), [0.02]).active_return
+    0.0
+    """
+
+    @property
+    def portfolio_return(self) -> float:
+        """
+        Portfolio total return for the period.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def benchmark_return(self) -> float:
+        """
+        Benchmark total return for the period.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def active_return(self) -> float:
+        """
+        Active return; portfolio minus benchmark total return.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def allocation(self) -> float:
+        """
+        Factor (allocation) contribution to the active return.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def selection(self) -> float:
+        """
+        Specific (selection) contribution to the active return.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def factor_contributions(self) -> list[dict[str, object]]:
+        """
+        Per-factor breakdown of ``allocation`` as records.
+
+        Returns
+        -------
+        list[dict[str, object]]
+            JSON-shaped view of the canonical Rust field.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def asset_contributions(self) -> list[dict[str, object]]:
+        """
+        Per-asset breakdown of ``selection`` as records.
+
+        Returns
+        -------
+        list[dict[str, object]]
+            JSON-shaped view of the canonical Rust field.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Per-factor contributions as a pandas DataFrame.
+
+        Columns: ``factor``, ``active_loading``, ``factor_return``, ``contribution``. The schema is pinned, so an empty result keeps the
+        same dtypes as a populated one.
+        The primary frame is the factor axis; the per-asset selection
+        breakdown comes from :meth:`asset_contributions_to_dataframe`.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry, with the pinned column schema above.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
+    def asset_contributions_to_dataframe(self) -> pd.DataFrame:
+        """
+        Per-asset specific contributions as a pandas DataFrame.
+
+        Columns: ``asset``, ``specific_return``, ``active_weight``, ``contribution``. The schema is pinned, so an empty result keeps the
+        same dtypes as a populated one.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry, with the pinned column schema above.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize this result to canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON representation, suitable for a matching
+            :meth:`from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> FactorBrinsonResult:
+        """
+        Deserialize a ``FactorBrinsonResult`` from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Canonical payload produced by :meth:`to_json` or the paired
+            ``*_json`` wire function.
+
+        Returns
+        -------
+        FactorBrinsonResult
+            Validated instance reconstructed from the canonical JSON payload.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed or does not match the serialized
+            ``FactorBrinsonResult`` schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import FactorBrinsonResult
+        >>> doc = '{"portfolio_return": 0.0, "benchmark_return": 0.0, "active_return": 0.0, "allocation": 0.0, "selection": 0.0, "factor_contributions": [], "asset_contributions": []}'
+        >>> FactorBrinsonResult.from_json(doc).allocation
+        0.0
+        """
+        ...
+
+def factor_brinson_attribution(input_json: str, factor_returns: list[float]) -> FactorBrinsonResult:
     """
     Compute Jeet-Partani (2023) factor-Brinson unified attribution.
 
@@ -3460,9 +7024,10 @@ def factor_brinson_attribution(input_json: str, factor_returns: list[float]) -> 
 
     Returns
     -------
-    str
-        JSON-serialized ``FactorBrinsonResult`` with ``allocation``,
-        ``selection``, and their per-factor / per-asset breakdowns.
+    FactorBrinsonResult
+        Typed result with ``allocation``, ``selection``, and their
+        per-factor / per-asset breakdowns; use
+        :func:`factor_brinson_attribution_json` for the raw wire string.
 
     Raises
     ------
@@ -3494,11 +7059,188 @@ def factor_brinson_attribution(input_json: str, factor_returns: list[float]) -> 
     ...     "portfolio_weights": [1.0],
     ...     "benchmark_weights": [1.0],
     ... }
-    >>> result = json.loads(factor_brinson_attribution(json.dumps(inputs), [0.02]))
-    >>> result["active_return"]
+    >>> factor_brinson_attribution(json.dumps(inputs), [0.02]).active_return
     0.0
     """
     ...
+
+def factor_brinson_attribution_json(input_json: str, factor_returns: list[float]) -> str:
+    """
+    Compute factor-Brinson unified attribution and return wire JSON.
+
+    Wire twin of :func:`factor_brinson_attribution`: same inputs and
+    validation, returning the canonical JSON string instead of the typed
+    wrapper.
+
+    Parameters
+    ----------
+    input_json : str
+        JSON ``FactorBrinsonInput``; same schema as
+        :func:`factor_brinson_attribution`.
+    factor_returns : list[float]
+        Caller-supplied benchmark factor returns, length
+        ``input.factor_names``.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``FactorBrinsonResult`` wire document.
+
+    Raises
+    ------
+    PortfolioError
+        If the canonical Rust validation rejects the inputs (same conditions
+        as :func:`factor_brinson_attribution`).
+    ValueError
+        If ``input_json`` is malformed or carries unknown fields.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import factor_brinson_attribution_json
+    >>> inputs = {
+    ...     "asset_ids": ["A"],
+    ...     "asset_returns": [0.02],
+    ...     "exposures": [1.0],
+    ...     "factor_names": ["Market"],
+    ...     "portfolio_weights": [1.0],
+    ...     "benchmark_weights": [1.0],
+    ... }
+    >>> json.loads(factor_brinson_attribution_json(json.dumps(inputs), [0.02]))["active_return"]
+    0.0
+    """
+    ...
+
+class LinkedReturn:
+    """
+    Result of geometrically linking TWRR sub-period returns.
+
+    Returned by :func:`twrr_linked`. For horizons below one year
+    :attr:`annualised` mirrors :attr:`cumulative` (GIPS 2020 reports such
+    horizons cumulatively).
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import twrr_linked
+    >>> result = twrr_linked("[0.05,0.03]", horizon_years=1.0)
+    >>> (round(result.cumulative, 4), result.num_periods)
+    (0.0815, 2)
+    """
+
+    @property
+    def cumulative(self) -> float:
+        """
+        Cumulative return over the full horizon.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def annualised(self) -> float:
+        """
+        Annualised return; mirrors ``cumulative`` below one year.
+
+        Returns
+        -------
+        float
+            The stored value from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def num_periods(self) -> int:
+        """
+        Number of sub-periods that were linked.
+
+        Returns
+        -------
+        int
+            The stored count from the canonical Rust result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Single-row pandas DataFrame view of the linked return.
+
+        Columns: ``cumulative``, ``annualised``, ``num_periods``. The schema is pinned, so an empty result keeps the
+        same dtypes as a populated one.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per entry, with the pinned column schema above.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize this result to canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON representation, suitable for a matching
+            :meth:`from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> LinkedReturn:
+        """
+        Deserialize a ``LinkedReturn`` from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Canonical payload produced by :meth:`to_json` or the paired
+            ``*_json`` wire function.
+
+        Returns
+        -------
+        LinkedReturn
+            Validated instance reconstructed from the canonical JSON payload.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed or does not match the serialized
+            ``LinkedReturn`` schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import LinkedReturn
+        >>> doc = '{"cumulative": 0.0815, "annualised": 0.0815, "num_periods": 2}'
+        >>> LinkedReturn.from_json(doc).num_periods
+        2
+        """
+        ...
 
 def twrr_modified_dietz(period_json: str) -> float:
     """
@@ -3532,7 +7274,7 @@ def twrr_modified_dietz(period_json: str) -> float:
     """
     ...
 
-def twrr_linked(returns_json: str, horizon_years: float) -> str:
+def twrr_linked(returns_json: str, horizon_years: float) -> LinkedReturn:
     """
     Geometrically link TWRR sub-period returns over a horizon.
 
@@ -3545,8 +7287,10 @@ def twrr_linked(returns_json: str, horizon_years: float) -> str:
 
     Returns
     -------
-    str
-        JSON-encoded linked return result.
+    LinkedReturn
+        Typed result with ``cumulative``, ``annualised`` and
+        ``num_periods``; use :func:`twrr_linked_json` for the raw wire
+        string.
 
     Raises
     ------
@@ -3558,7 +7302,42 @@ def twrr_linked(returns_json: str, horizon_years: float) -> str:
     --------
     >>> import json
     >>> from finstack_quant.portfolio import twrr_linked
-    >>> result = json.loads(twrr_linked("[0.05,0.03]", horizon_years=1.0))
+    >>> result = twrr_linked("[0.05,0.03]", horizon_years=1.0)
+    >>> round(result.cumulative, 4)
+    0.0815
+    """
+    ...
+
+def twrr_linked_json(returns_json: str, horizon_years: float) -> str:
+    """
+    Geometrically link TWRR sub-period returns and return wire JSON.
+
+    Wire twin of :func:`twrr_linked`: same inputs and validation, returning
+    the canonical JSON string instead of the typed wrapper.
+
+    Parameters
+    ----------
+    returns_json : str
+        JSON array of sub-period decimal returns.
+    horizon_years : float
+        Reporting horizon in years used to annualize the linked return.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``LinkedReturn`` wire document.
+
+    Raises
+    ------
+    ValueError
+        If ``returns_json`` is malformed, any sub-period return is
+        non-finite, or the compounded growth factor is non-positive.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import twrr_linked_json
+    >>> result = json.loads(twrr_linked_json("[0.05,0.03]", 1.0))
     >>> round(result["cumulative"], 4)
     0.0815
     """
@@ -3650,17 +7429,26 @@ class FactorContribution:
         -------
         str
             Canonical JSON representation of this `FactorContribution`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
     @property
     def factor_id(self) -> str:
         """
-        Factor identifier.
+        Identifier of the contributing risk factor in the model.
         Returns
         -------
         str
             The factor id exposed by this `FactorContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3672,6 +7460,10 @@ class FactorContribution:
         -------
         float
             The absolute risk exposed by this `FactorContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3683,6 +7475,10 @@ class FactorContribution:
         -------
         float
             The relative risk exposed by this `FactorContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3694,6 +7490,10 @@ class FactorContribution:
         -------
         float
             The marginal risk exposed by this `FactorContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3756,6 +7556,11 @@ class PositionFactorContribution:
         -------
         str
             Canonical JSON representation of this `PositionFactorContribution`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -3767,17 +7572,25 @@ class PositionFactorContribution:
         -------
         str
             The position id exposed by this `PositionFactorContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def factor_id(self) -> str:
         """
-        Factor identifier.
+        Identifier of the contributing risk factor in the model.
         Returns
         -------
         str
             The factor id exposed by this `PositionFactorContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3789,6 +7602,10 @@ class PositionFactorContribution:
         -------
         float
             The risk contribution exposed by this `PositionFactorContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3853,6 +7670,11 @@ class PositionResidualContribution:
         -------
         str
             Canonical JSON representation of this `PositionResidualContribution`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -3864,6 +7686,10 @@ class PositionResidualContribution:
         -------
         str
             The position id exposed by this `PositionResidualContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3875,6 +7701,10 @@ class PositionResidualContribution:
         -------
         float
             The residual variance exposed by this `PositionResidualContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3886,6 +7716,10 @@ class PositionResidualContribution:
         -------
         str
             The source kind exposed by this `PositionResidualContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3897,6 +7731,10 @@ class PositionResidualContribution:
         -------
         str or None
             The source issuer id exposed by this `PositionResidualContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3958,6 +7796,11 @@ class RiskDecomposition:
         -------
         str
             Canonical JSON representation of this `RiskDecomposition`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -3969,6 +7812,10 @@ class RiskDecomposition:
         -------
         float
             The total risk exposed by this `RiskDecomposition`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3980,6 +7827,10 @@ class RiskDecomposition:
         -------
         str
             The measure json exposed by this `RiskDecomposition`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -3991,6 +7842,10 @@ class RiskDecomposition:
         -------
         float
             The residual risk exposed by this `RiskDecomposition`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4001,6 +7856,10 @@ class RiskDecomposition:
         Returns
         -------
         list[FactorContribution]
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4011,6 +7870,10 @@ class RiskDecomposition:
         Returns
         -------
         list[PositionFactorContribution]
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4023,6 +7886,10 @@ class RiskDecomposition:
         list[PositionResidualContribution]
             Empty unless the decomposer had per-issuer idiosyncratic vol
             estimates (credit-aware position decomposers).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4039,6 +7906,11 @@ class RiskDecomposition:
         -------
         pd.DataFrame
             One row per entry of :attr:`factor_contributions`.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -4054,6 +7926,11 @@ class RiskDecomposition:
         -------
         pd.DataFrame
             One row per entry of :attr:`position_factor_contributions`.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -4072,6 +7949,10 @@ class RiskDecomposition:
             One row per entry of :attr:`position_residual_contributions`; zero
             rows — with the columns still present — when the decomposer
             produced no position-level residual allocation.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -4136,6 +8017,11 @@ class PositionVarContribution:
         -------
         str
             Canonical JSON representation of this `PositionVarContribution`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -4147,6 +8033,10 @@ class PositionVarContribution:
         -------
         str
             The position id exposed by this `PositionVarContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4158,6 +8048,10 @@ class PositionVarContribution:
         -------
         float
             The component var exposed by this `PositionVarContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4169,6 +8063,10 @@ class PositionVarContribution:
         -------
         float
             The relative var exposed by this `PositionVarContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4180,6 +8078,10 @@ class PositionVarContribution:
         -------
         float or None
             The marginal var exposed by this `PositionVarContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4191,6 +8093,10 @@ class PositionVarContribution:
         -------
         float or None
             The incremental var exposed by this `PositionVarContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4206,6 +8112,11 @@ class PositionVarContribution:
         pd.DataFrame
             Exactly one row, for symmetry with
             :meth:`PositionRiskDecomposition.to_dataframe`.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -4270,6 +8181,11 @@ class PositionEsContribution:
         -------
         str
             Canonical JSON representation of this `PositionEsContribution`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -4281,6 +8197,10 @@ class PositionEsContribution:
         -------
         str
             The position id exposed by this `PositionEsContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4292,6 +8212,10 @@ class PositionEsContribution:
         -------
         float
             The component es exposed by this `PositionEsContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4303,6 +8227,10 @@ class PositionEsContribution:
         -------
         float
             The relative es exposed by this `PositionEsContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4314,6 +8242,10 @@ class PositionEsContribution:
         -------
         float or None
             The marginal es exposed by this `PositionEsContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4375,6 +8307,11 @@ class PositionRiskDecomposition:
         -------
         str
             Canonical JSON representation of this `PositionRiskDecomposition`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -4387,6 +8324,10 @@ class PositionRiskDecomposition:
         float
             Portfolio-currency amount under the workspace loss convention, so
             losses are reported as **negative** numbers.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4398,6 +8339,10 @@ class PositionRiskDecomposition:
         -------
         float
             The portfolio es exposed by this `PositionRiskDecomposition`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4409,6 +8354,10 @@ class PositionRiskDecomposition:
         -------
         float
             The confidence exposed by this `PositionRiskDecomposition`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4420,6 +8369,10 @@ class PositionRiskDecomposition:
         -------
         int
             The n positions exposed by this `PositionRiskDecomposition`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4431,6 +8384,10 @@ class PositionRiskDecomposition:
         -------
         str
             The method exposed by this `PositionRiskDecomposition`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4442,6 +8399,10 @@ class PositionRiskDecomposition:
         -------
         float or None
             The euler residual exposed by this `PositionRiskDecomposition`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4452,6 +8413,10 @@ class PositionRiskDecomposition:
         Returns
         -------
         list[PositionVarContribution]
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4462,6 +8427,10 @@ class PositionRiskDecomposition:
         Returns
         -------
         list[PositionEsContribution]
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4486,6 +8455,11 @@ class PositionRiskDecomposition:
         -------
         pd.DataFrame
             One row per entry of :attr:`var_contributions`.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -4550,6 +8524,11 @@ class PositionBudgetEntry:
         -------
         str
             Canonical JSON representation of this `PositionBudgetEntry`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -4561,6 +8540,10 @@ class PositionBudgetEntry:
         -------
         str
             The position id exposed by this `PositionBudgetEntry`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4572,6 +8555,10 @@ class PositionBudgetEntry:
         -------
         float
             The actual component var exposed by this `PositionBudgetEntry`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4583,6 +8570,10 @@ class PositionBudgetEntry:
         -------
         float
             The target component var exposed by this `PositionBudgetEntry`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4594,6 +8585,10 @@ class PositionBudgetEntry:
         -------
         float
             The utilization exposed by this `PositionBudgetEntry`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4605,6 +8600,10 @@ class PositionBudgetEntry:
         -------
         float
             The excess exposed by this `PositionBudgetEntry`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4620,6 +8619,11 @@ class PositionBudgetEntry:
         pd.DataFrame
             Exactly one row, with the same schema
             :meth:`RiskBudgetResult.to_dataframe` emits.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -4679,6 +8683,11 @@ class RiskBudgetResult:
         -------
         str
             Canonical JSON representation of this `RiskBudgetResult`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -4690,6 +8699,10 @@ class RiskBudgetResult:
         -------
         float
             The total overbudget exposed by this `RiskBudgetResult`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4701,6 +8714,10 @@ class RiskBudgetResult:
         -------
         bool
             Whether this `RiskBudgetResult` has breach.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4711,6 +8728,10 @@ class RiskBudgetResult:
         Returns
         -------
         list[PositionBudgetEntry]
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4730,6 +8751,11 @@ class RiskBudgetResult:
         -------
         pd.DataFrame
             One row per budgeted position.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -4792,17 +8818,26 @@ class FactorContributionDelta:
         -------
         str
             Canonical JSON representation of this `FactorContributionDelta`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
     @property
     def factor_id(self) -> str:
         """
-        Factor identifier.
+        Identifier of the contributing risk factor in the model.
         Returns
         -------
         str
             The factor id exposed by this `FactorContributionDelta`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4814,6 +8849,10 @@ class FactorContributionDelta:
         -------
         float
             The absolute change exposed by this `FactorContributionDelta`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4825,6 +8864,10 @@ class FactorContributionDelta:
         -------
         float
             The relative change exposed by this `FactorContributionDelta`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4887,6 +8930,11 @@ class WhatIfResult:
         -------
         str
             Canonical JSON representation of this `WhatIfResult`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -4897,6 +8945,10 @@ class WhatIfResult:
         Returns
         -------
         RiskDecomposition
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4907,6 +8959,10 @@ class WhatIfResult:
         Returns
         -------
         RiskDecomposition
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4917,6 +8973,10 @@ class WhatIfResult:
         Returns
         -------
         list[FactorContributionDelta]
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4935,6 +8995,11 @@ class WhatIfResult:
         -------
         pd.DataFrame
             One row per changed factor.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -5001,6 +9066,11 @@ class StressResult:
         -------
         str
             Canonical JSON representation of this `StressResult`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -5012,16 +9082,24 @@ class StressResult:
         -------
         float
             The total pnl exposed by this `StressResult`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def position_pnl(self) -> list[tuple[str, float]]:
         """
-        Per-position P&L pairs.
+        Position identifier and scenario P&L pairs from the stress run.
         Returns
         -------
         list[tuple[str, float]]
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5032,6 +9110,10 @@ class StressResult:
         Returns
         -------
         RiskDecomposition
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5049,6 +9131,11 @@ class StressResult:
         -------
         pd.DataFrame
             One row per position with a stressed P&L contribution.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -5113,6 +9200,11 @@ class StressPositionEntry:
         -------
         str
             Canonical JSON representation of this `StressPositionEntry`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -5124,6 +9216,10 @@ class StressPositionEntry:
         -------
         str
             The position id exposed by this `StressPositionEntry`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5135,6 +9231,10 @@ class StressPositionEntry:
         -------
         float
             The avg tail pnl exposed by this `StressPositionEntry`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5146,6 +9246,10 @@ class StressPositionEntry:
         -------
         float
             The pct of tail loss exposed by this `StressPositionEntry`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5157,6 +9261,10 @@ class StressPositionEntry:
         -------
         float
             The worst scenario pnl exposed by this `StressPositionEntry`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5219,6 +9327,11 @@ class TailScenarioBreakdown:
         -------
         str
             Canonical JSON representation of this `TailScenarioBreakdown`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -5230,6 +9343,10 @@ class TailScenarioBreakdown:
         -------
         int
             The scenario index exposed by this `TailScenarioBreakdown`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5241,6 +9358,10 @@ class TailScenarioBreakdown:
         -------
         float
             The portfolio pnl exposed by this `TailScenarioBreakdown`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5254,6 +9375,10 @@ class TailScenarioBreakdown:
         -------
         list[float]
             The position pnls exposed by this `TailScenarioBreakdown`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5344,6 +9469,11 @@ class StressAttribution:
         -------
         str
             Canonical JSON representation of this `StressAttribution`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -5355,6 +9485,10 @@ class StressAttribution:
         -------
         float
             The var threshold exposed by this `StressAttribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5366,6 +9500,10 @@ class StressAttribution:
         -------
         int
             The n tail scenarios exposed by this `StressAttribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5378,6 +9516,10 @@ class StressAttribution:
         -------
         list[str]
             The position ids exposed by this `StressAttribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5388,6 +9530,10 @@ class StressAttribution:
         Returns
         -------
         list[StressPositionEntry]
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5398,6 +9544,10 @@ class StressAttribution:
         Returns
         -------
         list[TailScenarioBreakdown]
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5417,6 +9567,11 @@ class StressAttribution:
         -------
         pd.DataFrame
             One row per contributing position.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -5505,6 +9660,11 @@ class PositionAssignment:
         -------
         str
             Canonical JSON representation of this `PositionAssignment`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -5516,6 +9676,10 @@ class PositionAssignment:
         -------
         str
             The position id exposed by this `PositionAssignment`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5527,6 +9691,10 @@ class PositionAssignment:
         -------
         int
             The n mappings exposed by this `PositionAssignment`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5537,6 +9705,10 @@ class PositionAssignment:
         -------
         str
             Compact JSON for matched ``(dependency, factor_id, beta)`` triples.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -5548,6 +9720,10 @@ class PositionAssignment:
         -------
         list[str]
             The factor ids exposed by this `PositionAssignment`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5610,6 +9786,11 @@ class UnmatchedEntry:
         -------
         str
             Canonical JSON representation of this `UnmatchedEntry`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -5621,6 +9802,10 @@ class UnmatchedEntry:
         -------
         str
             The position id exposed by this `UnmatchedEntry`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5631,6 +9816,10 @@ class UnmatchedEntry:
         -------
         str
             Compact JSON for the unmatched market-data dependency.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -5693,6 +9882,11 @@ class FactorAssignmentReport:
         -------
         str
             Canonical JSON representation of this `FactorAssignmentReport`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -5703,6 +9897,10 @@ class FactorAssignmentReport:
         Returns
         -------
         list[PositionAssignment]
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5713,6 +9911,10 @@ class FactorAssignmentReport:
         Returns
         -------
         list[UnmatchedEntry]
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5787,11 +9989,15 @@ class LevelVolContribution:
     @property
     def level_name(self) -> str:
         """
-        Hierarchy level name.
+        Name of the hierarchy level that received this volatility contribution.
         Returns
         -------
         str
             The level name exposed by this `LevelVolContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5803,6 +10009,10 @@ class LevelVolContribution:
         -------
         float
             The total exposed by this `LevelVolContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5814,6 +10024,10 @@ class LevelVolContribution:
         -------
         dict[str, float]
             The by bucket exposed by this `LevelVolContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -5847,6 +10061,10 @@ class PositionVolContribution:
         -------
         str
             The position id exposed by this `PositionVolContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5858,6 +10076,10 @@ class PositionVolContribution:
         -------
         float
             The factor total exposed by this `PositionVolContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5869,6 +10091,10 @@ class PositionVolContribution:
         -------
         float
             The idiosyncratic exposed by this `PositionVolContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5880,6 +10106,10 @@ class PositionVolContribution:
         -------
         float
             The total exposed by this `PositionVolContribution`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5913,6 +10143,10 @@ class CreditVolReport:
         -------
         float
             The total exposed by this `CreditVolReport`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5924,6 +10158,10 @@ class CreditVolReport:
         -------
         str
             The measure json exposed by this `CreditVolReport`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -5935,6 +10173,10 @@ class CreditVolReport:
         -------
         float
             The generic exposed by this `CreditVolReport`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5946,6 +10188,10 @@ class CreditVolReport:
         -------
         float
             The idiosyncratic total exposed by this `CreditVolReport`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5956,6 +10202,10 @@ class CreditVolReport:
         Returns
         -------
         list[LevelVolContribution]
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5966,6 +10216,10 @@ class CreditVolReport:
         Returns
         -------
         list[PositionVolContribution] or None
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5983,6 +10237,11 @@ class CreditVolReport:
         -------
         pd.DataFrame
             One row per hierarchy level.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -6004,6 +10263,11 @@ class CreditVolReport:
         pd.DataFrame
             One row per position, or zero rows when :attr:`by_position` is
             ``None``.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -6036,6 +10300,10 @@ class VolHorizon:
         VolHorizon
             One-calibrated-period forecast horizon.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import VolHorizon
@@ -6053,6 +10321,10 @@ class VolHorizon:
         -------
         VolHorizon
             Unconditional long-run forecast horizon.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -6076,6 +10348,10 @@ class VolHorizon:
         -------
         VolHorizon
             Discrete forecast horizon spanning ``n`` calibrated periods.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -6146,11 +10422,15 @@ class VolHorizon:
     @property
     def kind(self) -> str:
         """
-        Horizon variant label.
+        Discriminator for the volatility-horizon variant.
         Returns
         -------
         str
             The kind exposed by this `VolHorizon`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -6162,6 +10442,10 @@ class VolHorizon:
         -------
         int or None
             The n exposed by this `VolHorizon`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -6173,6 +10457,10 @@ class VolHorizon:
         -------
         float or None
             The years value exposed by this `VolHorizon`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -6205,6 +10493,10 @@ class DecompositionConfig:
         DecompositionConfig
             Parametric 95% config with incremental VaR disabled and no explicit seed.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import DecompositionConfig
@@ -6223,6 +10515,10 @@ class DecompositionConfig:
         DecompositionConfig
             Parametric 99% config with incremental VaR disabled and no explicit seed.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import DecompositionConfig
@@ -6239,13 +10535,17 @@ class DecompositionConfig:
         Parameters
         ----------
         confidence : float
-            VaR confidence as a decimal probability in ``(0, 1)``, such as
+            VaR confidence as a decimal probability strictly inside ``(0.5, 1)``, such as
             ``0.95`` for a 95% confidence level.
 
         Returns
         -------
         DecompositionConfig
             Historical config at the supplied confidence with no incremental VaR or seed.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -6261,6 +10561,10 @@ class DecompositionConfig:
         Returns
         -------
         DecompositionConfig
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -6277,6 +10581,11 @@ class DecompositionConfig:
         -------
         DecompositionConfig
             Copy with ``seed`` recorded for simulation-path decompositions.
+
+        Notes
+        -----
+        This builder returns a copy with the field set and does not raise.
+
         """
         ...
 
@@ -6288,6 +10597,10 @@ class DecompositionConfig:
         -------
         float
             The confidence exposed by this `DecompositionConfig`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -6299,6 +10612,10 @@ class DecompositionConfig:
         -------
         str
             The method exposed by this `DecompositionConfig`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -6310,6 +10627,10 @@ class DecompositionConfig:
         -------
         bool
             The compute incremental exposed by this `DecompositionConfig`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -6321,6 +10642,10 @@ class DecompositionConfig:
         -------
         int or None
             The seed exposed by this `DecompositionConfig`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -6527,6 +10852,10 @@ def build_credit_vol_report(
         CreditVolReport with total, generic, level, idiosyncratic, and optional
         position-level volatility contribution fields.
 
+    Notes
+    -----
+    This helper does not raise; it aggregates the supplied decomposition in-process.
+
     Examples
     --------
     >>> from finstack_quant.portfolio import RiskDecomposition, build_credit_vol_report
@@ -6598,6 +10927,10 @@ class WeightingScheme:
         WeightingScheme
             Weights as shares of gross absolute base-currency portfolio PV.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import WeightingScheme
@@ -6615,6 +10948,10 @@ class WeightingScheme:
         -------
         WeightingScheme
             Weights as normalized shares of notional exposure.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -6634,6 +10971,10 @@ class WeightingScheme:
         WeightingScheme
             Existing weights as quantity multipliers and candidate weights as quantities.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import WeightingScheme
@@ -6650,6 +10991,10 @@ class WeightingScheme:
         -------
         str
             The label exposed by this `WeightingScheme`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -6682,6 +11027,10 @@ class MissingMetricPolicy:
         MissingMetricPolicy
             Policy substituting ``0.0`` for each missing required metric.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import MissingMetricPolicy
@@ -6699,6 +11048,10 @@ class MissingMetricPolicy:
         -------
         MissingMetricPolicy
             Policy excluding missing-metric positions and retaining their current weights.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -6718,6 +11071,10 @@ class MissingMetricPolicy:
         MissingMetricPolicy
             Policy failing optimization when any required metric is missing.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import MissingMetricPolicy
@@ -6734,6 +11091,10 @@ class MissingMetricPolicy:
         -------
         str
             The label exposed by this `MissingMetricPolicy`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -6766,6 +11127,10 @@ class Inequality:
         Inequality
             Operator encoding ``lhs <= rhs``.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import Inequality
@@ -6784,6 +11149,10 @@ class Inequality:
         Inequality
             Operator encoding ``lhs >= rhs``.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import Inequality
@@ -6795,12 +11164,16 @@ class Inequality:
     @classmethod
     def eq(cls) -> Inequality:
         """
-        Equality constraint.
+        Equality constraint requiring the metric to equal a bound.
 
         Returns
         -------
         Inequality
             Operator encoding ``lhs == rhs``.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -6819,6 +11192,10 @@ class Inequality:
         -------
         str
             The label exposed by this `Inequality`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -6852,6 +11229,10 @@ class TradeDirection:
         TradeDirection
             Direction for increasing an instrument exposure.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import TradeDirection
@@ -6871,6 +11252,10 @@ class TradeDirection:
         TradeDirection
             Direction for decreasing an instrument exposure.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import TradeDirection
@@ -6889,6 +11274,10 @@ class TradeDirection:
         TradeDirection
             Direction representing no change in exposure.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import TradeDirection
@@ -6900,11 +11289,15 @@ class TradeDirection:
     @property
     def label(self) -> str:
         """
-        Direction label.
+        Buy/sell/short label for the trade direction.
         Returns
         -------
         str
             The label exposed by this `TradeDirection`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -6937,6 +11330,10 @@ class TradeType:
         TradeType
             Trade type for adjusting an existing portfolio position.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import TradeType
@@ -6954,6 +11351,10 @@ class TradeType:
         -------
         TradeType
             Trade type for adding a candidate instrument as a new position.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -6973,6 +11374,10 @@ class TradeType:
         TradeType
             Trade type for fully closing an existing position.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import TradeType
@@ -6984,11 +11389,15 @@ class TradeType:
     @property
     def label(self) -> str:
         """
-        Trade-type label.
+        Human-readable label for the trade-type variant.
         Returns
         -------
         str
             The label exposed by this `TradeType`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -7014,23 +11423,32 @@ class PerPositionMetric:
     @classmethod
     def metric(cls, metric_id: str) -> PerPositionMetric:
         """
-        Use a valuation metric by fully qualified metric ID.
+        Use a standard valuation metric by its ``MetricId`` string.
 
         Parameters
         ----------
         metric_id : str
-            Per-position metric key, such as ``"pv01::usd_ois"`` or
-            ``"cs01::BOND_A"``.
+            Standard metric identifier, such as ``"dv01"`` or
+            ``"duration_mod"``. Validated strictly against the standard
+            metric set; for namespaced or custom measure keys (for example
+            ``"dv01::USD-OIS"``) use :meth:`custom_key`, which reads the same
+            ``measures`` map.
 
         Returns
         -------
         PerPositionMetric
             Metric source reading ``metric_id`` from each position valuation.
 
+        Raises
+        ------
+        ValueError
+            If ``metric_id`` is not a standard metric name; the message lists
+            the available metrics.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import PerPositionMetric
-        >>> PerPositionMetric.metric("duration").kind
+        >>> PerPositionMetric.metric("duration_mod").kind
         'metric'
         """
         ...
@@ -7050,6 +11468,10 @@ class PerPositionMetric:
         PerPositionMetric
             Metric source reading the custom measure named ``key``.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import PerPositionMetric
@@ -7068,6 +11490,10 @@ class PerPositionMetric:
         PerPositionMetric
             Metric source using each scaled position PV in portfolio base currency.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import PerPositionMetric
@@ -7085,6 +11511,10 @@ class PerPositionMetric:
         -------
         PerPositionMetric
             Metric source using each scaled position PV in its native currency.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -7109,6 +11539,10 @@ class PerPositionMetric:
         -------
         PerPositionMetric
             Metric source reading the numeric position attribute named ``key``.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -7174,6 +11608,10 @@ class PerPositionMetric:
         PerPositionMetric
             Metric source returning ``value`` for every selected position.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import PerPositionMetric
@@ -7219,6 +11657,11 @@ class PerPositionMetric:
         -------
         str
             Canonical JSON representation of this `PerPositionMetric`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -7230,6 +11673,10 @@ class PerPositionMetric:
         -------
         str
             The kind exposed by this `PerPositionMetric`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -7255,12 +11702,16 @@ class PositionFilter:
     @classmethod
     def all(cls) -> PositionFilter:
         """
-        Select all positions.
+        Filter that matches every position in the portfolio.
 
         Returns
         -------
         PositionFilter
             Filter matching every portfolio position.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -7284,6 +11735,10 @@ class PositionFilter:
         -------
         PositionFilter
             Filter matching positions assigned to ``entity_id``.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -7349,6 +11804,10 @@ class PositionFilter:
         PositionFilter
             Filter matching IDs contained in ``position_ids``.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import PositionFilter
@@ -7360,7 +11819,7 @@ class PositionFilter:
     @classmethod
     def not_(cls, inner: PositionFilter) -> PositionFilter:
         """
-        Negate another filter.
+        Filter that matches positions excluded by another filter.
 
         Parameters
         ----------
@@ -7371,6 +11830,10 @@ class PositionFilter:
         -------
         PositionFilter
             Filter matching positions not matched by ``inner``.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -7395,6 +11858,10 @@ class PositionFilter:
         PositionFilter
             Filter matching positions that satisfy every child filter.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import PositionFilter
@@ -7417,6 +11884,10 @@ class PositionFilter:
         -------
         PositionFilter
             Filter matching positions that satisfy at least one child filter.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -7463,17 +11934,26 @@ class PositionFilter:
         -------
         str
             Canonical JSON representation of this `PositionFilter`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
     @property
     def kind(self) -> str:
         """
-        Filter variant label.
+        Discriminator for the position-filter variant.
         Returns
         -------
         str
             The kind exposed by this `PositionFilter`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -7517,6 +11997,10 @@ class MetricExpr:
         MetricExpr
             Expression for ``sum_i(w_i * m_i)``, restricted by ``filter`` when supplied.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import MetricExpr, PerPositionMetric
@@ -7545,6 +12029,10 @@ class MetricExpr:
         -------
         MetricExpr
             Value-weighted average of the metric, restricted by ``filter`` when supplied.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -7591,6 +12079,11 @@ class MetricExpr:
         -------
         str
             Canonical JSON representation of this `MetricExpr`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -7602,6 +12095,10 @@ class MetricExpr:
         -------
         str
             The kind exposed by this `MetricExpr`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -7639,6 +12136,10 @@ class Objective:
         Objective
             Objective directing the optimizer to maximize ``expr``.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import MetricExpr, Objective, PerPositionMetric
@@ -7662,6 +12163,10 @@ class Objective:
         -------
         Objective
             Objective directing the optimizer to minimize ``expr``.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -7709,6 +12214,11 @@ class Objective:
         -------
         str
             Canonical JSON representation of this `Objective`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -7720,6 +12230,10 @@ class Objective:
         -------
         str
             The direction exposed by this `Objective`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -7731,6 +12245,10 @@ class Objective:
         -------
         MetricExpr
             The expr exposed by this `Objective`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -7779,6 +12297,10 @@ class Constraint:
         -------
         Constraint
             Constraint encoding ``metric op rhs`` with the optional diagnostic label.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -7985,6 +12507,11 @@ class Constraint:
         -------
         Constraint
             Copy carrying ``label``; budget constraints retain their fixed label.
+
+        Notes
+        -----
+        This builder returns a copy with the field set and does not raise.
+
         """
         ...
 
@@ -8025,6 +12552,11 @@ class Constraint:
         -------
         str
             Canonical JSON representation of this `Constraint`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -8036,6 +12568,10 @@ class Constraint:
         -------
         str
             The kind exposed by this `Constraint`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8047,6 +12583,10 @@ class Constraint:
         -------
         str or None
             The label exposed by this `Constraint`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8083,6 +12623,10 @@ class CandidatePosition:
         -------
         str
             The id exposed by this `CandidatePosition`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8094,6 +12638,10 @@ class CandidatePosition:
         -------
         str
             The entity id exposed by this `CandidatePosition`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8105,6 +12653,10 @@ class CandidatePosition:
         -------
         float
             The max weight exposed by this `CandidatePosition`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8116,6 +12668,10 @@ class CandidatePosition:
         -------
         float
             The min weight exposed by this `CandidatePosition`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8127,6 +12683,10 @@ class CandidatePosition:
         -------
         str
             The instrument id exposed by this `CandidatePosition`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8159,6 +12719,10 @@ class TradeUniverse:
         TradeUniverse
             Universe with all existing positions tradeable, no candidates, and no candidate shorts.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import TradeUniverse
@@ -8176,6 +12740,10 @@ class TradeUniverse:
         -------
         PositionFilter
             The tradeable filter exposed by this `TradeUniverse`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8186,6 +12754,10 @@ class TradeUniverse:
         Returns
         -------
         PositionFilter or None
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8196,6 +12768,10 @@ class TradeUniverse:
         Returns
         -------
         list[CandidatePosition]
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8207,6 +12783,10 @@ class TradeUniverse:
         -------
         bool
             The allow short candidates exposed by this `TradeUniverse`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8239,6 +12819,10 @@ class OptimizationStatus:
         OptimizationStatus
             Feasible status indicating that the solver proved optimality.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import OptimizationStatus
@@ -8257,6 +12841,10 @@ class OptimizationStatus:
         OptimizationStatus
             Usable status indicating feasibility without proven optimality.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import OptimizationStatus
@@ -8274,6 +12862,10 @@ class OptimizationStatus:
         -------
         OptimizationStatus
             Non-feasible status indicating an unbounded objective.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -8298,6 +12890,10 @@ class OptimizationStatus:
         OptimizationStatus
             Non-feasible status retaining the conflicting constraint labels.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.portfolio import OptimizationStatus
@@ -8321,6 +12917,10 @@ class OptimizationStatus:
         -------
         OptimizationStatus
             Non-feasible solver-error status retaining ``message`` for diagnostics.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -8367,17 +12967,26 @@ class OptimizationStatus:
         -------
         str
             Canonical JSON representation of this `OptimizationStatus`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
     @property
     def kind(self) -> str:
         """
-        Status variant label.
+        Discriminator for the optimization status variant.
         Returns
         -------
         str
             The kind exposed by this `OptimizationStatus`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8389,6 +12998,10 @@ class OptimizationStatus:
         -------
         bool
             Whether feasible holds for this `OptimizationStatus`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8400,6 +13013,10 @@ class OptimizationStatus:
         -------
         list[str]
             The conflicting constraints exposed by this `OptimizationStatus`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8411,6 +13028,31 @@ class OptimizationStatus:
         -------
         str or None
             The message exposed by this `OptimizationStatus`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """Structural equality on the underlying Rust ``OptimizationStatus``.
+
+        Two statuses are equal when they are the same variant with the same
+        payload, e.g. ``OptimizationStatus.optimal() ==
+        OptimizationStatus.optimal()``.
+
+        Returns
+        -------
+        bool
+        """
+        ...
+
+    def __hash__(self) -> int:
+        """Hash consistent with :meth:`__eq__` (usable as dict/set keys).
+        Returns
+        -------
+        int
         """
         ...
 
@@ -8479,6 +13121,11 @@ class TradeSpec:
         -------
         str
             Canonical JSON representation of this `TradeSpec`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -8490,6 +13137,10 @@ class TradeSpec:
         -------
         str
             The position id exposed by this `TradeSpec`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8501,6 +13152,10 @@ class TradeSpec:
         -------
         str
             The instrument id exposed by this `TradeSpec`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8513,39 +13168,55 @@ class TradeSpec:
         -------
         TradeType
             The trade type exposed by this `TradeSpec`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def direction(self) -> TradeDirection:
         """
-        Trade direction.
+        Buy, sell, or short direction for this trade spec.
         Returns
         -------
         TradeDirection
             The direction exposed by this `TradeSpec`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def current_quantity(self) -> float:
         """
-        Current quantity.
+        Quantity held before this trade is applied.
         Returns
         -------
         float
             The current quantity exposed by this `TradeSpec`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def target_quantity(self) -> float:
         """
-        Target quantity.
+        Desired post-trade quantity in instrument units.
         Returns
         -------
         float
             The target quantity exposed by this `TradeSpec`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8557,6 +13228,10 @@ class TradeSpec:
         -------
         float
             The delta quantity exposed by this `TradeSpec`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8568,6 +13243,10 @@ class TradeSpec:
         -------
         float
             The current weight exposed by this `TradeSpec`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8579,6 +13258,10 @@ class TradeSpec:
         -------
         float
             The target weight exposed by this `TradeSpec`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8596,6 +13279,11 @@ class TradeSpec:
             Exactly one row, with the same schema
             :meth:`PortfolioOptimizationResult.to_trade_dataframe` emits, so
             single-trade frames concatenate cleanly onto a full trade list.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -8670,6 +13358,11 @@ class PortfolioOptimizationSpec:
         -------
         PortfolioOptimizationSpec
             Copy with ``constraint`` appended after the existing constraints.
+
+        Notes
+        -----
+        This builder returns a copy with the field set and does not raise.
+
         """
         ...
 
@@ -8686,6 +13379,11 @@ class PortfolioOptimizationSpec:
         -------
         PortfolioOptimizationSpec
             Copy with the existing objective replaced by ``objective``.
+
+        Notes
+        -----
+        This builder returns a copy with the field set and does not raise.
+
         """
         ...
 
@@ -8702,6 +13400,11 @@ class PortfolioOptimizationSpec:
         -------
         PortfolioOptimizationSpec
             Copy with the existing weighting scheme replaced by ``weighting``.
+
+        Notes
+        -----
+        This builder returns a copy with the field set and does not raise.
+
         """
         ...
 
@@ -8718,6 +13421,11 @@ class PortfolioOptimizationSpec:
         -------
         PortfolioOptimizationSpec
             Copy with the existing missing-metric policy replaced by ``policy``.
+
+        Notes
+        -----
+        This builder returns a copy with the field set and does not raise.
+
         """
         ...
 
@@ -8734,6 +13442,11 @@ class PortfolioOptimizationSpec:
         -------
         PortfolioOptimizationSpec
             Copy with its audit and reporting label set to ``label``.
+
+        Notes
+        -----
+        This builder returns a copy with the field set and does not raise.
+
         """
         ...
 
@@ -8776,17 +13489,26 @@ class PortfolioOptimizationSpec:
         -------
         str
             Canonical JSON representation of this `PortfolioOptimizationSpec`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
     @property
     def objective(self) -> Objective:
         """
-        Optimization objective.
+        Objective maximized or minimized by this optimization spec.
         Returns
         -------
         Objective
             The objective exposed by this `PortfolioOptimizationSpec`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8798,6 +13520,10 @@ class PortfolioOptimizationSpec:
         -------
         list[Constraint]
             The constraints exposed by this `PortfolioOptimizationSpec`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8809,6 +13535,10 @@ class PortfolioOptimizationSpec:
         -------
         WeightingScheme
             The weighting exposed by this `PortfolioOptimizationSpec`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8819,6 +13549,10 @@ class PortfolioOptimizationSpec:
         Returns
         -------
         MissingMetricPolicy
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8830,6 +13564,10 @@ class PortfolioOptimizationSpec:
         -------
         str or None
             The label exposed by this `PortfolioOptimizationSpec`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8840,6 +13578,10 @@ class PortfolioOptimizationSpec:
         -------
         str
             Compact canonical JSON for the embedded ``PortfolioSpec``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -8872,16 +13614,25 @@ class PortfolioOptimizationResult:
         -------
         str
             Canonical JSON representation of this `PortfolioOptimizationResult`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
     @property
     def status(self) -> OptimizationStatus:
         """
-        Optimization status.
+        Solver status after the portfolio optimization run.
         Returns
         -------
         OptimizationStatus
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8893,6 +13644,10 @@ class PortfolioOptimizationResult:
         -------
         bool
             Whether feasible holds for this `PortfolioOptimizationResult`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8904,6 +13659,10 @@ class PortfolioOptimizationResult:
         -------
         float
             The objective value exposed by this `PortfolioOptimizationResult`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8915,6 +13674,10 @@ class PortfolioOptimizationResult:
         -------
         dict[str, float]
             The current weights exposed by this `PortfolioOptimizationResult`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8926,6 +13689,10 @@ class PortfolioOptimizationResult:
         -------
         dict[str, float]
             The optimal weights exposed by this `PortfolioOptimizationResult`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8937,6 +13704,10 @@ class PortfolioOptimizationResult:
         -------
         dict[str, float]
             The weight deltas exposed by this `PortfolioOptimizationResult`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8948,6 +13719,10 @@ class PortfolioOptimizationResult:
         -------
         dict[str, float]
             The implied quantities exposed by this `PortfolioOptimizationResult`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8959,6 +13734,10 @@ class PortfolioOptimizationResult:
         -------
         dict[str, float]
             The metric values exposed by this `PortfolioOptimizationResult`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8970,6 +13749,10 @@ class PortfolioOptimizationResult:
         -------
         dict[str, float]
             The constraint slacks exposed by this `PortfolioOptimizationResult`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8981,6 +13764,10 @@ class PortfolioOptimizationResult:
         -------
         float
             The turnover exposed by this `PortfolioOptimizationResult`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -8991,6 +13778,10 @@ class PortfolioOptimizationResult:
         -------
         list[TradeSpec]
             Material trades sorted by descending absolute quantity change.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -9001,6 +13792,10 @@ class PortfolioOptimizationResult:
         -------
         list[TradeSpec]
             New-candidate subset of ``to_trade_list()``, preserving its order.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -9023,6 +13818,11 @@ class PortfolioOptimizationResult:
         -------
         pd.DataFrame
             One row per position; the index holds the position ids.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -9044,6 +13844,10 @@ class PortfolioOptimizationResult:
         pd.DataFrame
             One row per trade; a solution that requires no trades yields a
             zero-row frame that still carries the column schema.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -9053,6 +13857,10 @@ class PortfolioOptimizationResult:
         Returns
         -------
         list[tuple[str, float]]
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -9149,6 +13957,10 @@ class SensitivityMatrix:
         -------
         list[str]
             The position ids exposed by this `SensitivityMatrix`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -9160,6 +13972,10 @@ class SensitivityMatrix:
         -------
         list[str]
             The factor ids exposed by this `SensitivityMatrix`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -9171,6 +13987,10 @@ class SensitivityMatrix:
         -------
         int
             The n positions exposed by this `SensitivityMatrix`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -9182,6 +14002,10 @@ class SensitivityMatrix:
         -------
         int
             The n factors exposed by this `SensitivityMatrix`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -9258,6 +14082,11 @@ class SensitivityMatrix:
         -------
         pd.DataFrame
             DataFrame indexed by position IDs with factor IDs as column names.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -9291,11 +14120,15 @@ class FactorPnlProfile:
     @property
     def factor_id(self) -> str:
         """
-        Factor identifier.
+        Identifier of the contributing risk factor in the model.
         Returns
         -------
         str
             The factor id exposed by this `FactorPnlProfile`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -9307,6 +14140,10 @@ class FactorPnlProfile:
         -------
         list[float]
             The shifts exposed by this `FactorPnlProfile`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -9318,6 +14155,10 @@ class FactorPnlProfile:
         -------
         list[list[float]]
             The position pnls exposed by this `FactorPnlProfile`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -9482,17 +14323,27 @@ class FactorRiskDecomposition:
         -------
         float
             The total risk exposed by this `FactorRiskDecomposition`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def measure(self) -> str:
         """
-        Risk measure used (e.g. ``"Variance"``, ``"Volatility"``).
+        Risk-measure tag in canonical snake_case serde form: ``"variance"``,
+        ``"volatility"``, ``"var"``, or ``"expected_shortfall"``. Matches the
+        tag reported by the WASM ``decomposeFactorRisk`` output.
         Returns
         -------
         str
             The measure exposed by this `FactorRiskDecomposition`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -9504,6 +14355,10 @@ class FactorRiskDecomposition:
         -------
         float
             The residual risk exposed by this `FactorRiskDecomposition`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -9518,6 +14373,10 @@ class FactorRiskDecomposition:
         -------
         list[dict[str, object]]
             List of per-factor contribution dicts.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -9532,6 +14391,30 @@ class FactorRiskDecomposition:
         -------
         list[dict[str, object]]
             List of per-position, per-factor contribution dicts.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    def position_residual_contributions(self) -> list[dict[str, Any]]:
+        """
+        Per-position residual (idiosyncratic) variance contributions.
+
+        Each dict contains ``position_id``, ``residual_variance`` (annualized
+        variance units), and a ``source`` object tagged by ``kind``. Empty for
+        the parametric decomposer used by :func:`decompose_factor_risk` —
+        populated only by credit-aware position decomposers.
+
+        Returns
+        -------
+        list[dict[str, Any]]
+            List of per-position residual contribution dicts.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -9546,6 +14429,11 @@ class FactorRiskDecomposition:
         -------
         pd.DataFrame
             DataFrame with one row per factor.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -9559,6 +14447,11 @@ class FactorRiskDecomposition:
         -------
         pd.DataFrame
             DataFrame with one row per position-factor pair.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 

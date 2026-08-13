@@ -1314,9 +1314,9 @@ mod tests {
     /// Weighted residuals are `[0.05, 0.0]`: weighted L2 = 0.05, weighted max = 0.05.
     /// With `success_tolerance = 0.1`, `max_residual_tolerance = 0.1·√2 ≈ 0.1414`.
     ///   * Pre-fix gate: `weighted_l2(0.05) ≤ 0.1` AND `UNWEIGHTED max(0.5) ≤ 0.1414`
-    ///     → false → spurious FAILURE despite the weighted fit being well in tolerance.
+    ///   → false → spurious FAILURE despite the weighted fit being well in tolerance.
     ///   * Post-fix gate: `weighted_l2(0.05) ≤ 0.1` AND `weighted max(0.05) ≤ 0.1414`
-    ///     → true → SUCCESS.
+    ///   → true → SUCCESS.
     #[test]
     fn success_gate_uses_weighted_max_residual_consistent_units() {
         let target = TestTarget::from_len(2, vec![0.5, 0.0]).with_weights(vec![0.01, 0.01]);

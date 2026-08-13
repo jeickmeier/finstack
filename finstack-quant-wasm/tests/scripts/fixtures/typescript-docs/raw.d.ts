@@ -36,3 +36,18 @@ export class Calculator {
    */
   static fromJson(json: string): Calculator;
 }
+
+export class ReportHandle {
+  /**
+   * Serialize this report to canonical JSON.
+   *
+   * # Returns
+   *
+   * Canonical JSON string for the report.
+   *
+   * # Errors
+   *
+   * Throws a JavaScript exception if serialization fails.
+   */
+  toJson(): string;
+}

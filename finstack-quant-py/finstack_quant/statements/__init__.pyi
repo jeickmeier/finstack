@@ -108,6 +108,9 @@ class MonteCarloConfig:
             Whether to retain the full per-path long table. Off by default
             because it grows as ``n_paths * metrics * forecast periods``.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -152,6 +155,10 @@ class MonteCarloConfig:
             Canonical JSON accepted by :meth:`from_json` and
             :func:`run_monte_carlo`.
 
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -165,6 +172,9 @@ class MonteCarloConfig:
         int
             Configured stochastic path count.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -181,6 +191,9 @@ class MonteCarloConfig:
         int
             Seed used to reproduce path sampling.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -195,6 +208,9 @@ class MonteCarloConfig:
             Sorted, deduplicated quantile levels — ``0.05`` is the 5th
             percentile, not ``5``.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -209,6 +225,9 @@ class MonteCarloConfig:
             ``True`` when the result includes path-level data, reachable via
             :meth:`MonteCarloResults.to_paths_dataframe`.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -265,6 +284,10 @@ class MonteCarloResults:
         str
             Canonical JSON accepted by :meth:`from_json`.
 
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -281,6 +304,9 @@ class MonteCarloResults:
         int
             Path count represented by the summaries.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -295,6 +321,9 @@ class MonteCarloResults:
             Sorted, deduplicated quantile levels as decimal fractions in
             [0, 1] — ``0.5`` is the median.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -311,6 +340,9 @@ class MonteCarloResults:
         list[str]
             Period identifier strings (e.g. ``"2025Q1"``).
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -334,6 +366,10 @@ class MonteCarloResults:
             ``None`` when the metric is unknown or the percentile was not
             configured for this run.
 
+        Notes
+        -----
+        This method does not raise; unknown metrics or unconfigured percentiles
+        return ``None``.
         """
         ...
 
@@ -387,6 +423,9 @@ class MonteCarloResults:
         pd.DataFrame
             Long-format per-path frame.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -455,12 +494,15 @@ class ForecastMethod:
         ForecastMethod
             Forward-fill forecast method.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import ForecastMethod
         >>> ForecastMethod.forward_fill() == ForecastMethod.forward_fill()
         True
-
         """
         ...
 
@@ -479,12 +521,15 @@ class ForecastMethod:
         ForecastMethod
             Growth-percentage forecast method.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import ForecastMethod
         >>> ForecastMethod.growth_pct() == ForecastMethod.growth_pct()
         True
-
         """
         ...
 
@@ -501,12 +546,15 @@ class ForecastMethod:
         ForecastMethod
             Curve-percentage forecast method.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import ForecastMethod
         >>> ForecastMethod.curve_pct() == ForecastMethod.curve_pct()
         True
-
         """
         ...
 
@@ -526,12 +574,15 @@ class ForecastMethod:
         ForecastMethod
             Normal distribution forecast method.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> from finstack_quant.statements import ForecastMethod
         >>> ForecastMethod.normal() == ForecastMethod.normal()
         True
-
         """
         ...
 
@@ -553,12 +604,15 @@ class ForecastMethod:
         ForecastMethod
             Log-normal forecast method.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import ForecastMethod
         >>> ForecastMethod.log_normal() == ForecastMethod.log_normal()
         True
-
         """
         ...
 
@@ -577,12 +631,15 @@ class ForecastMethod:
         ForecastMethod
             Override forecast method.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import ForecastMethod
         >>> ForecastMethod.override_method() == ForecastMethod.override_method()
         True
-
         """
         ...
 
@@ -600,12 +657,15 @@ class ForecastMethod:
         ForecastMethod
             External time-series forecast method.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import ForecastMethod
         >>> ForecastMethod.time_series() == ForecastMethod.time_series()
         True
-
         """
         ...
 
@@ -625,12 +685,15 @@ class ForecastMethod:
         ForecastMethod
             Seasonal forecast method.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import ForecastMethod
         >>> ForecastMethod.seasonal() == ForecastMethod.seasonal()
         True
-
         """
         ...
 
@@ -653,12 +716,15 @@ class ForecastMethod:
         ForecastMethod
             Fade-to-target forecast method.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import ForecastMethod
         >>> ForecastMethod.fade_to_target() == ForecastMethod.fade_to_target()
         True
-
         """
         ...
 
@@ -679,12 +745,15 @@ class ForecastMethod:
         ForecastMethod
             Mean-reverting forecast method.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import ForecastMethod
         >>> ForecastMethod.mean_reverting() == ForecastMethod.mean_reverting()
         True
-
         """
         ...
 
@@ -705,12 +774,15 @@ class ForecastMethod:
         ForecastMethod
             Bootstrap forecast method.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import ForecastMethod
         >>> ForecastMethod.bootstrap() == ForecastMethod.bootstrap()
         True
-
         """
         ...
 
@@ -776,13 +848,16 @@ class ForecastSpec:
         ForecastSpec
             A forward-fill forecast specification.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import ForecastSpec
         >>> spec = ForecastSpec.forward_fill()
         >>> ForecastSpec.from_json(spec.to_json()).to_json() == spec.to_json()
         True
-
         """
         ...
 
@@ -803,13 +878,16 @@ class ForecastSpec:
         ForecastSpec
             A constant-growth forecast specification.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import ForecastSpec
         >>> spec = ForecastSpec.growth(0.05)
         >>> ForecastSpec.from_json(spec.to_json()).to_json() == spec.to_json()
         True
-
         """
         ...
 
@@ -829,13 +907,16 @@ class ForecastSpec:
         ForecastSpec
             A curve-based forecast specification.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import ForecastSpec
         >>> spec = ForecastSpec.curve([0.03, 0.04])
         >>> ForecastSpec.from_json(spec.to_json()).to_json() == spec.to_json()
         True
-
         """
         ...
 
@@ -863,13 +944,16 @@ class ForecastSpec:
         ForecastSpec
             A normal-draw forecast specification.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
+
         Examples
         --------
         >>> from finstack_quant.statements import ForecastSpec
         >>> spec = ForecastSpec.normal(0.0, 0.1, 7)
         >>> ForecastSpec.from_json(spec.to_json()).to_json() == spec.to_json()
         True
-
         """
         ...
 
@@ -896,13 +980,16 @@ class ForecastSpec:
         ForecastSpec
             A log-normal-draw forecast specification.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import ForecastSpec
         >>> spec = ForecastSpec.lognormal(0.0, 0.1, 7)
         >>> ForecastSpec.from_json(spec.to_json()).to_json() == spec.to_json()
         True
-
         """
         ...
 
@@ -929,13 +1016,16 @@ class ForecastSpec:
         ForecastSpec
             A linear fade-to-target forecast specification.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import ForecastSpec
         >>> spec = ForecastSpec.fade_to_target(0.02)
         >>> ForecastSpec.from_json(spec.to_json()).to_json() == spec.to_json()
         True
-
         """
         ...
 
@@ -967,13 +1057,16 @@ class ForecastSpec:
         ForecastSpec
             A mean-reverting forecast specification.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import ForecastSpec
         >>> spec = ForecastSpec.mean_reverting(0.05, 0.25, 0.01, 7)
         >>> ForecastSpec.from_json(spec.to_json()).to_json() == spec.to_json()
         True
-
         """
         ...
 
@@ -1001,13 +1094,16 @@ class ForecastSpec:
         ForecastSpec
             A growth-mode bootstrap forecast specification.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import ForecastSpec
         >>> spec = ForecastSpec.bootstrap([100.0, 105.0, 110.0], 7)
         >>> ForecastSpec.from_json(spec.to_json()).to_json() == spec.to_json()
         True
-
         """
         ...
 
@@ -1050,6 +1146,10 @@ class ForecastSpec:
         str
             Canonical JSON representation of this forecast specification.
 
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -1086,12 +1186,15 @@ class NodeType:
         NodeType
             Value-only node type.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> from finstack_quant.statements import NodeType
         >>> NodeType.value() == NodeType.value()
         True
-
         """
         ...
 
@@ -1105,12 +1208,15 @@ class NodeType:
         NodeType
             Calculated node type.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import NodeType
         >>> NodeType.calculated() == NodeType.calculated()
         True
-
         """
         ...
 
@@ -1129,12 +1235,32 @@ class NodeType:
         NodeType
             Mixed node type.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import NodeType
         >>> NodeType.mixed() == NodeType.mixed()
         True
+        """
+        ...
 
+    @property
+    def kind(self) -> str:
+        """
+        Canonical snake-case wire discriminant for this node type.
+
+        Returns
+        -------
+        str
+            ``"value"``, ``"calculated"``, or ``"mixed"``, matching the JSON
+            schema rename for :class:`NodeType`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1173,12 +1299,15 @@ class NodeId:
             (for example ``"revenue"``). The value is stored verbatim — no
             case folding or trimming — so identifiers are matched exactly.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
+
         Examples
         --------
         >>> from finstack_quant.statements import NodeId
         >>> NodeId("ebitda").as_str()
         'ebitda'
-
         """
         ...
 
@@ -1191,12 +1320,15 @@ class NodeId:
         str
             The identifier exactly as supplied at construction.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import NodeId
         >>> NodeId("cogs").as_str()
         'cogs'
-
         """
         ...
 
@@ -1238,12 +1370,15 @@ class NumericMode:
         NumericMode
             IEEE-754 double-precision mode.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import NumericMode
         >>> NumericMode.float64() == NumericMode.float64()
         True
-
         """
         ...
 
@@ -1261,12 +1396,15 @@ class NumericMode:
         NumericMode
             Decimal arithmetic mode (reserved).
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import NumericMode
         >>> NumericMode.decimal() == NumericMode.decimal()
         True
-
         """
         ...
 
@@ -1365,6 +1503,10 @@ class FinancialModelSpec:
         -------
         str
             Unique model identifier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1379,6 +1521,10 @@ class FinancialModelSpec:
             Count in **periods** on the model's own cadence (quarters, months,
             years), not months. Their declared order *is* the evaluation
             timeline.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1390,6 +1536,10 @@ class FinancialModelSpec:
         -------
         int
             Number of nodes (line items / metrics) declared in the model.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1402,6 +1552,10 @@ class FinancialModelSpec:
         list[str]
             Ordered node id strings.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import ModelBuilder
@@ -1409,7 +1563,6 @@ class FinancialModelSpec:
         >>> _ = builder.periods("2025Q1..Q1")
         >>> builder.build().node_ids()
         []
-
         """
         ...
 
@@ -1427,6 +1580,10 @@ class FinancialModelSpec:
         bool
             ``True`` if present.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.statements import ModelBuilder
@@ -1434,7 +1591,6 @@ class FinancialModelSpec:
         >>> _ = builder.periods("2025Q1..Q1")
         >>> builder.build().has_node("revenue")
         False
-
         """
         ...
 
@@ -1448,6 +1604,10 @@ class FinancialModelSpec:
         int
             Only version ``1`` is accepted today; the field exists so persisted
             models can be migrated rather than silently misread.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1502,6 +1662,10 @@ class ModelBuilder:
         id:
             Model identifier assigned to the built ``FinancialModelSpec``.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
+
         Examples
         --------
         >>> from finstack_quant.statements import ModelBuilder
@@ -1509,7 +1673,6 @@ class ModelBuilder:
         >>> _ = builder.periods("2025Q1..Q1")
         >>> builder.build().id
         'demo'
-
         """
         ...
 
@@ -1737,6 +1900,9 @@ class ModelBuilder:
         ModelBuilder
             This builder, for chaining.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -2042,7 +2208,7 @@ class MixedNodeBuilder:
 
     def forecast(self, forecast_spec: ForecastSpec) -> MixedNodeBuilder:
         """
-        Set the forecast spec.
+        Set how this mixed node is projected in forecast periods.
 
         Parameters
         ----------
@@ -2086,7 +2252,7 @@ class MixedNodeBuilder:
 
     def name(self, name: str) -> MixedNodeBuilder:
         """
-        Set the display name.
+        Set the statement node's display name in reports.
 
         Parameters
         ----------
@@ -2115,6 +2281,10 @@ class MixedNodeBuilder:
         ModelBuilder
             The parent :class:`ModelBuilder` with the mixed node attached.
 
+        Raises
+        ------
+        ValueError
+            If required builder fields are missing or fail validation.
         """
         ...
 
@@ -2133,8 +2303,13 @@ class MetricRegistry:
 
     def __init__(self) -> None:
         """
-        Create an empty registry.
+        Create an empty metric registry with no built-in metrics loaded.
 
+        Call :meth:`load_builtins` or use :meth:`with_builtins` to populate it.
+
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -2148,19 +2323,28 @@ class MetricRegistry:
         MetricRegistry
             A registry containing all built-in statement metrics.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+
         Examples
         --------
         >>> from finstack_quant.statements import MetricRegistry
         >>> len(MetricRegistry.with_builtins()) > 0
         True
-
         """
         ...
 
     def load_builtins(self) -> None:
         """
-        Load built-in metrics into this registry.
+        Load the library's built-in statement metrics into this registry.
 
+        Existing entries with the same names are replaced by the built-in
+        definitions.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -2218,6 +2402,9 @@ class MetricRegistry:
         bool
             ``True`` if the metric is registered.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -2393,6 +2580,9 @@ class StatementResult:
             node's own units (currency amount for monetary nodes, unitless
             otherwise). ``None`` when the node is not in the result.
 
+        Notes
+        -----
+        This method does not raise; an unknown *node_id* returns ``None``.
         """
         ...
 
@@ -2405,6 +2595,9 @@ class StatementResult:
         list[str]
             Node ids as declared in the model graph.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -2417,6 +2610,10 @@ class StatementResult:
         -------
         int
             Count of evaluated nodes.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2430,6 +2627,10 @@ class StatementResult:
         int
             Count in **periods** on the model's own cadence (quarters, months,
             years), not months.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2446,6 +2647,10 @@ class StatementResult:
         int or None
             Elapsed milliseconds, or ``None`` when the producing run did not
             record it.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2461,6 +2666,10 @@ class StatementResult:
         -------
         int
             Warning count.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2478,6 +2687,10 @@ class StatementResult:
         -------
         list[str]
             One string per recorded warning.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2491,6 +2704,10 @@ class StatementResult:
         NumericMode
             Always ``NumericMode.float64()`` today; the reserved decimal mode
             exists only so persisted payloads can evolve.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2505,6 +2722,10 @@ class StatementResult:
             ``True`` when the DAG was traversed in parallel. Parallel and
             serial runs produce identical values, so this is an audit stamp,
             not a behavioural flag.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2556,6 +2777,10 @@ class StatementResult:
         -------
         ArrowTable
             Long-format Arrow table with one row per (node, period) pair.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -2570,6 +2795,10 @@ class StatementResult:
         -------
         ArrowTable
             Wide-format Arrow table with one row per period.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -2604,6 +2833,9 @@ class Evaluator:
         -------
         None
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -2741,13 +2973,16 @@ class NormalizationConfig:
         target_node:
             Node id whose values will be adjusted.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
+
         Examples
         --------
         >>> from finstack_quant.statements import NormalizationConfig
         >>> config = NormalizationConfig("adjusted_ebitda")
         >>> config.adjustment_count
         0
-
         """
         ...
 
@@ -2814,6 +3049,10 @@ class NormalizationConfig:
         -------
         str
             Node identifier of the metric being normalized (e.g. ``"ebitda"``).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2825,6 +3064,10 @@ class NormalizationConfig:
         -------
         int
             Number of add-back / deduction adjustments configured.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2945,6 +3188,10 @@ class CheckSuiteSpec:
         -------
         str
             The suite's name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2960,6 +3207,10 @@ class CheckSuiteSpec:
         -------
         int
             Count of built-in check entries.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2975,6 +3226,10 @@ class CheckSuiteSpec:
         -------
         int
             Count of formula check entries.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3067,6 +3322,10 @@ class CheckReport:
         -------
         bool
             ``True`` when zero error-severity findings were retained.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3079,6 +3338,10 @@ class CheckReport:
         -------
         int
             Count of check results in the report.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3096,6 +3359,10 @@ class CheckReport:
         -------
         int
             Retained error, warning and info findings combined.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3108,6 +3375,10 @@ class CheckReport:
         -------
         int
             Retained error-severity finding count.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3120,6 +3391,10 @@ class CheckReport:
         -------
         int
             Retained warning-severity finding count.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3145,6 +3420,11 @@ class CheckReport:
         -------
         pd.DataFrame
             One row per check result.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -3175,6 +3455,10 @@ class CheckReport:
         -------
         pd.DataFrame
             One row per retained finding.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -3233,6 +3517,9 @@ class EcfSweepSpec:
             Optional debt instrument receiving the ECF paydown; ``None`` uses
             the waterfall's eligible debt allocation.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
     @staticmethod
@@ -3272,6 +3559,11 @@ class EcfSweepSpec:
         -------
         str
             Canonical JSON representation of this `EcfSweepSpec`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -3286,6 +3578,10 @@ class EcfSweepSpec:
             A node id (``"ebitda"``) or an expression over nodes
             (``"revenue - cogs - opex"``), evaluated per period as a monetary
             amount.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3300,6 +3596,10 @@ class EcfSweepSpec:
             A **decimal fraction in [0, 1]**, not a percentage — 0.5 means a
             50% sweep. Values outside the unit interval are rejected by
             :meth:`WaterfallSpec.validate`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3313,6 +3613,10 @@ class EcfSweepSpec:
         str | None
             Instrument id, or ``None`` when the sweep applies to all term
             loans in the capital structure.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3358,6 +3662,9 @@ class PikToggleSpec:
             (not months): once triggered, PIK stays on for at least this many
             periods. Default 0 lets PIK toggle every period.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
     @staticmethod
@@ -3397,6 +3704,11 @@ class PikToggleSpec:
         -------
         str
             Canonical JSON representation of this `PikToggleSpec`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -3412,6 +3724,10 @@ class PikToggleSpec:
             (``"ebitda / interest_expense"``). Whether the value is monetary
             or a unitless ratio depends on the expression — the threshold must
             use the same units.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3427,6 +3743,10 @@ class PikToggleSpec:
             currency amount when the metric is a balance, a unitless ratio
             when it is a coverage ratio. PIK triggers when
             ``metric < threshold``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3441,6 +3761,10 @@ class PikToggleSpec:
             Count in **periods** on the model's own cadence (quarters for a
             quarterly model), not months. ``0`` disables hysteresis, letting
             PIK toggle every period.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3529,6 +3853,11 @@ class WaterfallSpec:
         -------
         str
             Canonical JSON representation of this `WaterfallSpec`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -3562,6 +3891,10 @@ class WaterfallSpec:
             the first entry before any of the next. Allocation *within* a
             category is single-class pro-rata across instruments; there is no
             tranche seniority, so a shortfall is shared proportionally.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3577,6 +3910,10 @@ class WaterfallSpec:
             period. ``None`` keeps the fully-funded behaviour, in which
             scheduled cashflows are paid in full without being capped against
             available cash.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3589,6 +3926,10 @@ class WaterfallSpec:
         -------
         bool
             ``True`` when an :class:`EcfSweepSpec` is attached.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3601,6 +3942,10 @@ class WaterfallSpec:
         -------
         bool
             ``True`` when a :class:`PikToggleSpec` is attached.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 

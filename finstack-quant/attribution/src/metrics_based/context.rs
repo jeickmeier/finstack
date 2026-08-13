@@ -69,13 +69,24 @@ impl<'a> AttributionInputs<'a> {
         // forward/projection (multi-curve swaps carry a joint
         // discount+forward DV01, and basis moves require measuring both
         // families). Order: discount first, then forward — deterministic.
-        let rates_curve_ids: Vec<CurveId> = market_deps
+        //
+        // Deduped preserving order (first occurrence wins): a curve that is
+        // both the discount and the projection curve (standard single-curve
+        // OIS/SOFR IRS, FRNs) must contribute to rates P&L — and to
+        // `average_rates` below — exactly once, not twice.
+        let mut rates_curve_ids: Vec<CurveId> = Vec::with_capacity(
+            market_deps.curves.discount_curves.len() + market_deps.curves.forward_curves.len(),
+        );
+        for id in market_deps
             .curves
             .discount_curves
             .iter()
             .chain(market_deps.curves.forward_curves.iter())
-            .cloned()
-            .collect();
+        {
+            if !rates_curve_ids.contains(id) {
+                rates_curve_ids.push(id.clone());
+            }
+        }
         let (avg_rate_shift_bp, rate_curves_measured) =
             average_rates(&rates_curve_ids, market_t0, market_t1);
         let (avg_credit_shift_bp, credit_curves_measured) =

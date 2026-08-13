@@ -13,7 +13,7 @@
 //! - Price [0, K₂] tranche using base correlation β(K₂)
 //! - Price [0, K₁] tranche using base correlation β(K₁)
 //! - Tranche price = Price[0,K₂] - Price[0,K₁]
-//! ```
+//!   ```
 //!
 //! # Why Base Correlation?
 //!
@@ -54,19 +54,19 @@
 //!
 //! - **Base Correlation Framework**:
 //!   - McGinty, L., Beinstein, E., Ahluwalia, R., & Watts, M. (2004). "Introducing
-//!     Base Correlations." JPMorgan Credit Derivatives Strategy.
-//!   - O'Kane, D., & Livesey, M. (2004). "Base Correlation Explained." Lehman Brothers
-//!     Quantitative Credit Research Quarterly, Q1 2004.
+//!   Base Correlations." JPMorgan Credit Derivatives Strategy.
+//! - O'Kane, D., & Livesey, M. (2004). "Base Correlation Explained." Lehman Brothers
+//!   Quantitative Credit Research Quarterly, Q1 2004. `docs/REFERENCES.md#o-kane-2008`
 //!
 //! - **Copula Models**:
-//!   - Li, D. X. (2000). "On Default Correlation: A Copula Function Approach."
-//!     *Journal of Fixed Income*, 9(4), 43-54.
+//! - Li, D. X. (2000). "On Default Correlation: A Copula Function Approach."
+//!   *Journal of Fixed Income*, 9(4), 43-54. `docs/REFERENCES.md#li-2000-gaussian-copula`
 //!   - Hull, J., & White, A. (2004). "Valuation of a CDO and an nth to Default CDS
-//!     Without Monte Carlo Simulation." *Journal of Derivatives*, 12(2), 8-23.
+//!   Without Monte Carlo Simulation." *Journal of Derivatives*, 12(2), 8-23.
 //!
 //! - **Textbooks**:
-//!   - O'Kane, D. (2008). *Modelling Single-name and Multi-name Credit Derivatives*.
-//!     Wiley Finance. Chapters 6-8 (Tranche pricing and base correlation).
+//! - O'Kane, D. (2008). *Modelling Single-name and Multi-name Credit Derivatives*.
+//!   Wiley Finance. Chapters 6-8 (Tranche pricing and base correlation). `docs/REFERENCES.md#o-kane-2008`
 
 use crate::error::InputError;
 use crate::math::interp::{types::Interp, ExtrapolationPolicy, InterpStyle};

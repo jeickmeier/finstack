@@ -44,7 +44,7 @@ use serde::{Deserialize, Serialize};
 /// # References
 ///
 /// - ISDA IBOR Fallbacks Protocol (2021)
-/// - ARRC SOFR Conventions (2020)
+/// - ARRC SOFR Conventions (2020) `docs/REFERENCES.md#arrc-sofr-users-guide`
 /// - Bank of England SONIA Conventions (2019)
 #[derive(
     Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
@@ -487,10 +487,10 @@ pub(crate) fn compounded_forward_projection(
 /// * **In-progress** (`accrual_start <= as_of < accrual_end`): the period
 ///   straddles `as_of`. The rate is a daily compound of two spliced sub-periods:
 ///   - **realized** overnight fixings for the daily sub-periods whose observation
-///     date is strictly before `as_of` (sourced from the historical `fixings`
-///     series), and
+///   date is strictly before `as_of` (sourced from the historical `fixings`
+///   series), and
 ///   - **projected** overnight forwards for the daily sub-periods on or after
-///     `as_of` (read from `fwd`, exactly as [`compounded_forward_projection`]).
+///   `as_of` (read from `fwd`, exactly as [`compounded_forward_projection`]).
 ///
 /// * **Fully accrued but unpaid** (`accrual_end <= as_of < payment_date`, i.e.
 ///   `payment_lag_days > 0`): every sub-period's observation date is strictly

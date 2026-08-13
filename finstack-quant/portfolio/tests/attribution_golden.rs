@@ -259,23 +259,13 @@ fn test_attribution_fx_translation() {
         translation_amount
     );
 
-    let explained_total = attribution.carry.amount()
-        + attribution.rates_curves_pnl.amount()
-        + attribution.credit_curves_pnl.amount()
-        + attribution.inflation_curves_pnl.amount()
-        + attribution.correlations_pnl.amount()
-        + attribution.fx_pnl.amount()
-        + attribution.fx_translation_pnl.amount()
-        + attribution.vol_pnl.amount()
-        + attribution.model_params_pnl.amount()
-        + attribution.market_scalars_pnl.amount()
-        + attribution.residual.amount();
-
+    // Reconciliation via the library's own check, which covers ALL factor
+    // buckets. The previous hand-rolled sum omitted `cross_factor_pnl`, so it
+    // only closed while that bucket happened to be zero.
     assert!(
-        (attribution.total_pnl.amount() - explained_total).abs() < 1.0e-8,
-        "portfolio attribution should close exactly: total={}, explained={}",
-        attribution.total_pnl.amount(),
-        explained_total
+        attribution.reconciliation_check(1.0e-8).is_reconciled,
+        "portfolio attribution should close exactly: total={}",
+        attribution.total_pnl.amount()
     );
 }
 
@@ -412,22 +402,12 @@ fn test_parallel_portfolio_attribution_closes_with_serial_inner_policy() {
 
     assert_eq!(attribution.by_position.len(), 80);
 
-    let explained_total = attribution.carry.amount()
-        + attribution.rates_curves_pnl.amount()
-        + attribution.credit_curves_pnl.amount()
-        + attribution.inflation_curves_pnl.amount()
-        + attribution.correlations_pnl.amount()
-        + attribution.fx_pnl.amount()
-        + attribution.fx_translation_pnl.amount()
-        + attribution.vol_pnl.amount()
-        + attribution.model_params_pnl.amount()
-        + attribution.market_scalars_pnl.amount()
-        + attribution.residual.amount();
-
+    // Reconciliation via the library's own check, which covers ALL factor
+    // buckets. The previous hand-rolled sum omitted `cross_factor_pnl`, so it
+    // only closed while that bucket happened to be zero.
     assert!(
-        (attribution.total_pnl.amount() - explained_total).abs() < 1.0e-8,
-        "portfolio attribution should close with serial inner attribution: total={}, explained={}",
-        attribution.total_pnl.amount(),
-        explained_total
+        attribution.reconciliation_check(1.0e-8).is_reconciled,
+        "portfolio attribution should close with serial inner attribution: total={}",
+        attribution.total_pnl.amount()
     );
 }

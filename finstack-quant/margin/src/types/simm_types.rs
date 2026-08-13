@@ -698,6 +698,14 @@ impl SimmSensitivities {
     /// sensitivity sets produced in different base currencies: `merge` sums raw
     /// amounts, so mixing currencies without first collapsing them violates
     /// currency safety and produces a wrong IM.
+    ///
+    /// # Arguments
+    ///
+    /// * `target_currency` - Currency that every sensitivity amount should be
+    ///   expressed in after the conversion.
+    /// * `fx_rate` - Spot value of one unit of the current
+    ///   [`base_currency`](Self::base_currency) in `target_currency`. Amounts
+    ///   are multiplied by this factor; risk-factor keys are unchanged.
     #[must_use]
     pub fn scaled_to_currency(&self, target_currency: Currency, fx_rate: f64) -> Self {
         let mut out = self.clone();
@@ -705,40 +713,71 @@ impl SimmSensitivities {
         if target_currency == self.base_currency {
             return out;
         }
-        for v in out.ir_delta.values_mut() {
-            *v *= fx_rate;
-        }
-        for v in out.ir_vega.values_mut() {
-            *v *= fx_rate;
-        }
-        for v in out.credit_qualifying_delta.values_mut() {
-            *v *= fx_rate;
-        }
-        for v in out.credit_non_qualifying_delta.values_mut() {
-            *v *= fx_rate;
-        }
-        for v in out.equity_delta.values_mut() {
-            *v *= fx_rate;
-        }
-        for v in out.equity_vega.values_mut() {
-            *v *= fx_rate;
-        }
-        for v in out.fx_delta.values_mut() {
-            *v *= fx_rate;
-        }
-        for v in out.fx_vega.values_mut() {
-            *v *= fx_rate;
-        }
-        for v in out.commodity_delta.values_mut() {
-            *v *= fx_rate;
-        }
-        for v in out.curvature.values_mut() {
-            *v *= fx_rate;
-        }
-        for v in out.credit_qualifying_delta_bucketed.values_mut() {
-            *v *= fx_rate;
-        }
+        out.scale_amounts(fx_rate);
         out
+    }
+
+    /// Return a copy of these sensitivities with every amount multiplied by a
+    /// signed scalar `factor`, keeping the base currency unchanged.
+    ///
+    /// This is the position-quantity counterpart of
+    /// [`scaled_to_currency`](Self::scaled_to_currency): a trade-level
+    /// sensitivity set produced per unit notional is converted to the HELD
+    /// sensitivity by multiplying every bucket by the signed position scale
+    /// factor before netting-set [`merge`](Self::merge). SIMM sensitivities
+    /// are signed (ISDA SIMM nets long/short risk within a netting set), so
+    /// `factor` MUST keep its sign — a short position (`factor < 0`) flips
+    /// each bucket so it offsets an equal long.
+    ///
+    /// # Arguments
+    ///
+    /// * `factor` - Signed multiplier applied uniformly to every sensitivity
+    ///   amount (e.g. position quantity for unit-notional trade sensitivities).
+    #[must_use]
+    pub fn scaled(&self, factor: f64) -> Self {
+        let mut out = self.clone();
+        out.scale_amounts(factor);
+        out
+    }
+
+    /// Multiply every sensitivity amount in place by `factor`.
+    ///
+    /// Keys (risk-factor names) and `base_currency` are untouched; only the
+    /// signed amounts are rescaled.
+    fn scale_amounts(&mut self, factor: f64) {
+        for v in self.ir_delta.values_mut() {
+            *v *= factor;
+        }
+        for v in self.ir_vega.values_mut() {
+            *v *= factor;
+        }
+        for v in self.credit_qualifying_delta.values_mut() {
+            *v *= factor;
+        }
+        for v in self.credit_non_qualifying_delta.values_mut() {
+            *v *= factor;
+        }
+        for v in self.equity_delta.values_mut() {
+            *v *= factor;
+        }
+        for v in self.equity_vega.values_mut() {
+            *v *= factor;
+        }
+        for v in self.fx_delta.values_mut() {
+            *v *= factor;
+        }
+        for v in self.fx_vega.values_mut() {
+            *v *= factor;
+        }
+        for v in self.commodity_delta.values_mut() {
+            *v *= factor;
+        }
+        for v in self.curvature.values_mut() {
+            *v *= factor;
+        }
+        for v in self.credit_qualifying_delta_bucketed.values_mut() {
+            *v *= factor;
+        }
     }
 
     /// Get total IR delta across all currencies and tenors.
@@ -1034,6 +1073,28 @@ mod tests {
         // Same-currency conversion is a no-op on amounts.
         let same = s.scaled_to_currency(Currency::EUR, 999.0);
         assert!((same.ir_delta[&(Currency::EUR, "5Y".to_string())] - 100.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn scaled_multiplies_all_amount_maps_by_signed_factor() {
+        let mut s = SimmSensitivities::new(Currency::USD);
+        s.add_ir_delta(Currency::USD, "5Y", 100.0);
+        s.equity_delta.insert("AAPL".to_string(), 50.0);
+        s.fx_delta.insert(Currency::EUR, 25.0);
+
+        // Positive quantity: uniform multiply, base currency untouched.
+        let long = s.scaled(10.0);
+        assert_eq!(long.base_currency, Currency::USD);
+        assert!((long.ir_delta[&(Currency::USD, "5Y".to_string())] - 1_000.0).abs() < 1e-9);
+        assert!((long.equity_delta["AAPL"] - 500.0).abs() < 1e-9);
+        assert!((long.fx_delta[&Currency::EUR] - 250.0).abs() < 1e-9);
+
+        // Signed factor: a short flips every bucket so it nets an equal long.
+        let mut net = long;
+        net.merge(&s.scaled(-10.0));
+        assert!(net.ir_delta[&(Currency::USD, "5Y".to_string())].abs() < 1e-9);
+        assert!(net.equity_delta["AAPL"].abs() < 1e-9);
+        assert!(net.fx_delta[&Currency::EUR].abs() < 1e-9);
     }
 
     #[test]

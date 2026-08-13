@@ -34,7 +34,7 @@ pub enum DownturnMethod {
     /// ```text
     /// LGD_downturn = LGD_base + sensitivity * sqrt(asset_correlation)
     ///              * Phi_inv(stress_quantile) * sqrt(LGD_base * (1 - LGD_base))
-    /// ```
+    ///   ```
     ///
     /// `sqrt(LGD_base * (1 - LGD_base))` is the standard deviation of a
     /// Bernoulli loss indicator with mean `LGD_base`. The adjustment captures

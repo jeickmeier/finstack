@@ -31,9 +31,9 @@
 //! # References
 //!
 //! - Andersen, L., & Piterbarg, V. (2010). *Interest Rate Modeling* (3 vols).
-//!   Atlantic Financial Press. Volume 1, Chapter 4.
+//!   Atlantic Financial Press. Volume 1, Chapter 4. `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
 //! - Fujii, M., Shimada, Y., & Takahashi, A. (2011). "A Note on Construction of
-//!   Multiple Swap Curves with and without Collateral." *FSA Research Review*, 7.
+//!   Multiple Swap Curves with and without Collateral." *FSA Research Review*, 7. `docs/REFERENCES.md#fujii-shimada-takahashi-2010`
 
 use super::common::{
     build_interp_allow_any_values, default_curve_base_date, roll_knots, split_points,

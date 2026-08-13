@@ -83,9 +83,9 @@
 //! # References
 //!
 //! - Deacon, M., Derry, A., & Mirfendereski, D. (2004). *Inflation-Indexed
-//!   Securities: Bonds, Swaps and Other Derivatives* (2nd ed.). Wiley.
+//!   Securities: Bonds, Swaps and Other Derivatives* (2nd ed.). Wiley. `docs/REFERENCES.md#deacon-derry-mirfendereski-2004`
 //!
-//! - Barclays Capital (2011). "The Barclays Capital Guide to Inflation-Linked Bonds."
+//! - Barclays Capital (2011). "The Barclays Capital Guide to Inflation-Linked Bonds." `docs/REFERENCES.md#deacon-derry-mirfendereski-2004`
 //!
 //! # See Also
 //!

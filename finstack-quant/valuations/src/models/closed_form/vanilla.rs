@@ -38,8 +38,10 @@
 //!
 //! # References
 //!
-//! - Black, F., & Scholes, M. (1973). "The Pricing of Options and Corporate Liabilities."
-//! - Garman, M. B., & Kohlhagen, S. W. (1983). "Foreign Currency Option Values."
+//! - Black, F., & Scholes, M. (1973). "The Pricing of Options and Corporate Liabilities." `docs/REFERENCES.md#black-scholes-1973`
+//!
+//! - Garman, M. B., & Kohlhagen, S. W. (1983). "Foreign Currency Option Values." `docs/REFERENCES.md#garman-kohlhagen-1983`
+//!
 
 use crate::instruments::common_impl::parameters::OptionType;
 use crate::models::volatility::black::{d1, d1_d2};

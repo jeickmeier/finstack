@@ -46,7 +46,7 @@ fn apply_with_context(
 /// Rejects malformed or schema-incompatible `json_str`, a blank scenario ID,
 /// multiple time-roll operations, invalid operation identifiers or numeric
 /// fields, variant-specific operation violations, or serialization failure.
-/// @param json_str - Canonical JSON string to validate, parse, or normalize for this API.
+/// @param json_str - Canonical JSON string to validate and re-serialize.
 #[wasm_bindgen(js_name = parseScenarioSpec)]
 pub fn parse_scenario_spec(json_str: &str) -> Result<String, JsValue> {
     let spec: finstack_quant_scenarios::ScenarioSpec =
@@ -91,7 +91,7 @@ fn compose_scenarios_json(specs_json: &str) -> Result<String, String> {
 /// Rejects malformed or schema-incompatible `json_str`, a blank scenario ID,
 /// multiple time-roll operations, invalid operation identifiers or numeric
 /// fields, or variant-specific operation violations.
-/// @param json_str - Canonical JSON string to validate, parse, or normalize for this API.
+/// @param json_str - Canonical JSON string to validate and re-serialize.
 #[wasm_bindgen(js_name = validateScenarioSpec)]
 pub fn validate_scenario_spec(json_str: &str) -> Result<bool, JsValue> {
     let spec: finstack_quant_scenarios::ScenarioSpec =
@@ -206,11 +206,13 @@ pub fn build_template_component(template_id: &str, component_id: &str) -> Result
 /// `resolution_mode`, a blank scenario ID, multiple time-roll operations,
 /// invalid operation identifiers or numeric fields, variant-specific operation
 /// violations, or failure to serialize the scenario.
-/// @param id - Stable identifier used to name and retrieve the supplied domain object.
+/// @param id - Scenario identifier stored on the constructed spec.
 /// @param operations_json - JSON array of scenario operation specifications in execution order.
 /// @param name - Optional human-readable scenario name.
 /// @param description - Optional human-readable description of the scenario purpose.
-/// @param priority - Execution priority; lower values run earlier during composition.
+/// @param priority - Optional execution priority; lower values run earlier
+///   during composition. Omit for the Rust serde default (`0`), matching the
+///   Python `priority=0` keyword default.
 /// @param resolution_mode - Optional hierarchy conflict policy:
 ///   `"most_specific_wins"` (default) or `"cumulative"`.
 #[wasm_bindgen(js_name = buildScenarioSpec)]
@@ -219,11 +221,13 @@ pub fn build_scenario_spec(
     operations_json: &str,
     name: Option<String>,
     description: Option<String>,
-    priority: i32,
+    priority: Option<i32>,
     resolution_mode: Option<String>,
 ) -> Result<String, JsValue> {
     let operations: Vec<finstack_quant_scenarios::OperationSpec> =
         serde_json::from_str(operations_json).map_err(to_js_err)?;
+    // Both defaults come from the same place as the Rust serde defaults on
+    // `ScenarioSpec` (`#[serde(default)]` = `Default::default()`).
     let resolution_mode = resolution_mode
         .map(|value| serde_json::from_value(serde_json::Value::String(value)))
         .transpose()
@@ -234,7 +238,7 @@ pub fn build_scenario_spec(
         name,
         description,
         operations,
-        priority,
+        priority: priority.unwrap_or_default(),
         resolution_mode,
     };
     spec.validate().map_err(to_js_err)?;
@@ -358,7 +362,6 @@ pub fn compute_horizon_return(
     config_json: Option<String>,
     calendar_id: Option<String>,
 ) -> Result<JsValue, JsValue> {
-    use finstack_quant_attribution::AttributionMethod;
     use std::sync::Arc;
 
     // Parse instrument
@@ -378,23 +381,11 @@ pub fn compute_horizon_return(
     let scenario: finstack_quant_scenarios::ScenarioSpec =
         serde_json::from_str(scenario_json).map_err(to_js_err)?;
 
-    // Parse method
+    // Parse method via the canonical scenarios-crate parser (shared with Python).
     let method_str = method.as_deref().unwrap_or("parallel");
-    let attribution_method = match method_str {
-        "parallel" => AttributionMethod::Parallel,
-        "waterfall" => {
-            AttributionMethod::Waterfall(finstack_quant_attribution::default_waterfall_order())
-        }
-        "metrics_based" => AttributionMethod::MetricsBased,
-        "taylor" => AttributionMethod::Taylor(
-            finstack_quant_attribution::TaylorAttributionConfig::default(),
-        ),
-        other => {
-            return Err(to_js_err(format!(
-                "Unknown attribution method '{other}'. Expected: parallel, waterfall, metrics_based, taylor"
-            )));
-        }
-    };
+    let attribution_method =
+        finstack_quant_scenarios::horizon::attribution_method_from_str(method_str)
+            .map_err(to_js_err)?;
 
     // Parse config
     let finstack_config: finstack_quant_core::config::FinstackConfig = match config_json.as_deref()
@@ -445,7 +436,7 @@ mod tests {
     #[test]
     fn build_validate_parse_compose_roundtrip_empty_operations() {
         let spec_json =
-            build_scenario_spec("test_id", "[]", Some("Test".to_string()), None, 0, None)
+            build_scenario_spec("test_id", "[]", Some("Test".to_string()), None, None, None)
                 .expect("build_scenario_spec");
         assert!(validate_scenario_spec(&spec_json).expect("validate"));
         let parsed = parse_scenario_spec(&spec_json).expect("parse");
@@ -464,7 +455,7 @@ mod tests {
             "[]",
             Some("Stress scenario".to_string()),
             Some("A description".to_string()),
-            10,
+            Some(10),
             Some("cumulative".to_string()),
         )
         .expect("build");
@@ -476,8 +467,8 @@ mod tests {
 
     #[test]
     fn compose_multiple_scenarios() {
-        let s1 = build_scenario_spec("s1", "[]", None, None, 0, None).expect("s1");
-        let s2 = build_scenario_spec("s2", "[]", None, None, 1, None).expect("s2");
+        let s1 = build_scenario_spec("s1", "[]", None, None, Some(0), None).expect("s1");
+        let s2 = build_scenario_spec("s2", "[]", None, None, Some(1), None).expect("s2");
         let arr = format!("[{s1},{s2}]");
         let composed = compose_scenarios(&arr).expect("compose");
         assert!(validate_scenario_spec(&composed).expect("valid"));

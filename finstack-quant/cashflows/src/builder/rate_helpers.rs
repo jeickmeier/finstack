@@ -25,8 +25,8 @@
 //!
 //! ## References
 //!
-//! - `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
-//! - `docs/REFERENCES.md#hull-options-futures`
+//! -
+//! -
 
 use finstack_quant_core::dates::{Date, DayCountContext};
 use finstack_quant_core::market_data::term_structures::ForwardCurve;

@@ -811,11 +811,16 @@ impl<'a> ScheduleBuilder<'a> {
     /// warning instead of propagating errors. Always check [`Schedule::has_warnings()`]
     /// when using graceful mode to detect potential pricing issues.
     ///
+    /// Under [`ScheduleErrorPolicy::Strict`] the build **fails closed on
+    /// warnings**: a schedule that would carry any [`ScheduleWarning`] is
+    /// rejected with a validation error instead of being returned.
+    ///
     /// # Errors
     ///
     /// Returns an error if:
     /// - Start date is after end date (and graceful mode is disabled)
     /// - Calendar lookup fails under [`ScheduleErrorPolicy::Strict`]
+    /// - Any warning is produced under [`ScheduleErrorPolicy::Strict`]
     pub fn build(self) -> crate::Result<Schedule> {
         if self.imm_mode && self.cds_imm_mode {
             return Err(crate::Error::Validation(
@@ -826,7 +831,7 @@ impl<'a> ScheduleBuilder<'a> {
         let result = self.build_impl();
 
         match result {
-            Ok(schedule) => Ok(schedule),
+            Ok(schedule) => strict_fail_closed_on_warnings(error_policy, schedule),
             Err(e) if error_policy == ScheduleErrorPolicy::GracefulEmpty => {
                 tracing::warn!(error = %e, "schedule build fell back to empty schedule");
                 // Capture the error as a warning instead of propagating
@@ -967,6 +972,30 @@ impl<'a> ScheduleBuilder<'a> {
     }
 }
 
+/// Enforce the strict policy's fail-closed contract on a built schedule.
+///
+/// [`ScheduleErrorPolicy::Strict`] means "no silent degradation": if any
+/// [`ScheduleWarning`] was attached during construction, the schedule is
+/// rejected rather than returned. Non-strict policies pass the schedule
+/// through carrying its warnings for the caller to inspect.
+fn strict_fail_closed_on_warnings(
+    policy: ScheduleErrorPolicy,
+    schedule: Schedule,
+) -> crate::Result<Schedule> {
+    if policy == ScheduleErrorPolicy::Strict && schedule.has_warnings() {
+        let joined = schedule
+            .warnings
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("; ");
+        return Err(crate::Error::Validation(format!(
+            "schedule build produced warnings; strict policy fails closed: {joined}"
+        )));
+    }
+    Ok(schedule)
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(try_from = "ScheduleSpecWire")]
 /// Serializable specification for building a schedule.
@@ -1088,5 +1117,49 @@ impl ScheduleSpec {
         }
 
         builder.build()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn warned_schedule() -> Schedule {
+        Schedule {
+            dates: Vec::new(),
+            warnings: vec![ScheduleWarning::MissingCalendarId {
+                calendar_id: "nope".to_string(),
+            }],
+        }
+    }
+
+    #[test]
+    fn strict_policy_fails_closed_on_warnings() {
+        let err = strict_fail_closed_on_warnings(ScheduleErrorPolicy::Strict, warned_schedule())
+            .expect_err("strict must reject schedules carrying warnings");
+        let msg = err.to_string();
+        assert!(msg.contains("strict policy fails closed"), "got: {msg}");
+        assert!(msg.contains("nope"), "got: {msg}");
+    }
+
+    #[test]
+    fn strict_policy_passes_clean_schedules_through() {
+        let clean = Schedule {
+            dates: Vec::new(),
+            warnings: Vec::new(),
+        };
+        assert!(strict_fail_closed_on_warnings(ScheduleErrorPolicy::Strict, clean).is_ok());
+    }
+
+    #[test]
+    fn non_strict_policies_pass_warnings_through() {
+        for policy in [
+            ScheduleErrorPolicy::MissingCalendarWarning,
+            ScheduleErrorPolicy::GracefulEmpty,
+        ] {
+            let schedule = strict_fail_closed_on_warnings(policy, warned_schedule())
+                .expect("non-strict policies keep warned schedules");
+            assert!(schedule.has_warnings());
+        }
     }
 }

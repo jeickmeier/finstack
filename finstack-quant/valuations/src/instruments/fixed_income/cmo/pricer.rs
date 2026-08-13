@@ -415,7 +415,7 @@ mod tests {
     /// expectations are:
     ///   - the PAC reference schedule has `Amortization` (scheduled) rows;
     ///   - the PAC reference schedule has **no** `PrePayment` rows while the
-    ///     pool runs inside the collar.
+    ///   pool runs inside the collar.
     #[test]
     fn test_pac_support_reference_schedule_preserves_prepayment_rows() {
         let cmo = AgencyCmo::example_pac_support().expect("PAC/support example is valid");

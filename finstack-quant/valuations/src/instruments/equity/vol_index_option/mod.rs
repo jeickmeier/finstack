@@ -36,8 +36,8 @@
 //!
 //! # References
 //!
-//! - Carr, P., & Lee, R. (2009). "Volatility Derivatives."
-//! - CBOE (2019). "VIX Options Contract Specifications."
+//! - Carr, P., & Lee, R. (2009). "Volatility Derivatives." `docs/REFERENCES.md#carr-lee-2009`
+//! - CBOE (2019). "VIX Options Contract Specifications." `docs/REFERENCES.md#cboe-vix-white-paper`
 //!
 //! # See Also
 //!

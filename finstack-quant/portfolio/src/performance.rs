@@ -40,7 +40,7 @@
 //!   Ch. 2–4 (Dietz formulas), Ch. 9 (money-weighted return).
 //! - Shaw, W. T. (1990). "On the solution of f(x) = 0 by Newton-Raphson
 //!   when f has no simple root." (Context for Newton+Brent fallback in
-//!   XIRR.)
+//!   XIRR.) `docs/REFERENCES.md#brent-1973`
 
 use finstack_quant_core::dates::Date;
 use serde::{Deserialize, Serialize};

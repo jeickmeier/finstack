@@ -75,24 +75,32 @@ pub struct DecompositionConfig {
 }
 
 impl DecompositionConfig {
-    /// Standard 95% parametric configuration.
-    pub fn parametric_95() -> Self {
+    /// Parametric configuration at an arbitrary confidence level.
+    ///
+    /// This is the canonical constructor behind the binding entry points
+    /// (`parametric_var_decomposition` / `parametric_es_decomposition`), which
+    /// accept the confidence directly rather than mutating a preset.
+    ///
+    /// # Arguments
+    ///
+    /// * `confidence` - Tail confidence as a decimal probability (e.g. `0.95`).
+    pub fn parametric(confidence: f64) -> Self {
         Self {
-            confidence: 0.95,
+            confidence,
             method: DecompositionMethod::Parametric,
             compute_incremental: false,
             seed: None,
         }
     }
 
+    /// Standard 95% parametric configuration.
+    pub fn parametric_95() -> Self {
+        Self::parametric(0.95)
+    }
+
     /// Standard 99% parametric configuration.
     pub fn parametric_99() -> Self {
-        Self {
-            confidence: 0.99,
-            method: DecompositionMethod::Parametric,
-            compute_incremental: false,
-            seed: None,
-        }
+        Self::parametric(0.99)
     }
 
     /// Historical simulation configuration.
@@ -345,7 +353,8 @@ pub struct TailScenarioBreakdown {
 /// P&L is stored at `position_pnls[s * n_positions + i]`. Tail scenarios are
 /// selected using the same boundary convention as
 /// [`HistoricalPositionDecomposer::decompose_from_pnls`]: sort portfolio P&Ls
-/// ascending, take `floor((1 - confidence) * n_scenarios)` scenarios, and set
+/// ascending, take the shared snapped-ceil tail count (see
+/// `super::tail_scenario_count`) of scenarios, and set
 /// `var_threshold` to the signed P&L of the least-bad tail scenario
 /// (losses-negative convention).
 ///
@@ -412,12 +421,14 @@ pub fn build_stress_attribution(
         )));
     }
 
-    let n_tail = ((1.0 - confidence) * n_scenarios as f64).floor() as usize;
-    if n_tail == 0 {
+    // Reject configurations whose exact tail is below one scenario before
+    // taking the shared snapped-ceil count (which would round 0.5 up to 1).
+    if ((1.0 - confidence) * (n_scenarios as f64)) < 1.0 - super::TAIL_COUNT_SNAP_TOLERANCE {
         return Err(finstack_quant_core::Error::Validation(format!(
             "confidence {confidence} with {n_scenarios} scenarios yields zero tail scenarios; lower confidence or provide more scenarios"
         )));
     }
+    let n_tail = super::tail_scenario_count(confidence, n_scenarios);
 
     let mut portfolio_pnls: Vec<(usize, f64)> = (0..n_scenarios)
         .map(|scenario| {
@@ -710,17 +721,20 @@ impl ParametricPositionDecomposer {
             sigma_w[i] = dot;
         }
 
-        // Portfolio variance = w' * Sigma * w.
+        // Portfolio variance = w' * Sigma * w. A materially negative value
+        // means the covariance matrix is not PSD at the supplied weights —
+        // reject it like the factor-level `ParametricDecomposer` does
+        // (`validated_variance`) instead of clamping to a silent VaR of -0.
+        // Only the numerical rounding band [-tolerance, 0) is clamped.
         let mut raw_variance = 0.0;
         for i in 0..n {
             raw_variance += weights[i] * sigma_w[i];
         }
-        if raw_variance < 0.0 {
-            warn!(
-                raw_variance,
-                "parametric decomposer: w' Sigma w was negative after Cholesky validation; \
-                 clamping to zero. Covariance matrix is likely numerically singular."
-            );
+        if raw_variance < -VARIANCE_TOLERANCE {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "Portfolio variance must be non-negative, got {raw_variance}; covariance \
+                 matrix is not positive semi-definite at the supplied weights"
+            )));
         }
         let variance = raw_variance.max(0.0);
         let sigma_p = variance.sqrt();
@@ -853,8 +867,8 @@ impl ParametricPositionDecomposer {
 ///
 /// # References
 ///
-/// - Hallerbach (2003): Decomposing portfolio Value-at-Risk.
-///   `docs/REFERENCES.md#hallerbach-2003-decomposing-var`
+/// - Hallerbach (2003): Decomposing portfolio Value-at-Risk. `docs/REFERENCES.md#hallerbach-2003-decomposing-var`
+///
 #[derive(Debug, Clone, Default)]
 pub struct HistoricalPositionDecomposer;
 
@@ -913,18 +927,27 @@ impl HistoricalPositionDecomposer {
             });
         }
 
-        // Reject configurations where the tail would contain less than one
-        // scenario. (1 - confidence) * n_scenarios < 1 means the stated
-        // confidence level cannot be resolved by the sample and any VaR/ES
-        // estimate would be dominated by a single extreme observation.
-        let expected_tail = (1.0 - config.confidence) * n_scenarios as f64;
-        if expected_tail < 1.0 {
+        // Number of tail scenarios: shared snapped-ceil convention (see
+        // `super::tail_scenario_count`), matching `SimulationDecomposer`.
+        // Require at least two tail observations like the simulation engine:
+        // a one-scenario tail collapses VaR and ES onto a single extreme
+        // observation and cannot support a VaR/ES split.
+        let n_tail = super::tail_scenario_count(config.confidence, n_scenarios);
+        if n_tail < 2 {
             return Err(finstack_quant_core::Error::Validation(format!(
-                "historical decomposition: (1 - confidence) * n_scenarios = {expected_tail} < 1; \
-                 need at least {:.0} scenarios at confidence {} to resolve the tail",
-                (1.0 / (1.0 - config.confidence)).ceil(),
+                "historical decomposition requires at least two tail scenarios for confidence {} \
+                 (got {n_tail} from {n_scenarios} scenarios); increase n_scenarios or lower \
+                 the confidence level",
                 config.confidence
             )));
+        }
+        if n_tail < 30 {
+            warn!(
+                n_tail,
+                n_scenarios,
+                confidence = config.confidence,
+                "Tail sample size is small; historical VaR/ES decomposition may lack statistical reliability"
+            );
         }
 
         // Pre-flight: any non-finite P&L corrupts the sort below
@@ -955,10 +978,6 @@ impl HistoricalPositionDecomposer {
         // Sort ascending by portfolio P&L (worst first).
         portfolio_pnls.sort_by(|a, b| a.1.total_cmp(&b.1));
 
-        // Number of tail scenarios = floor((1 - confidence) * n_scenarios).
-        // The C2 guard above ensures this is >= 1.
-        let n_tail = ((1.0 - config.confidence) * n_scenarios as f64).floor() as usize;
-
         // Portfolio VaR: the signed P&L at the tail boundary scenario. The
         // tail spans sorted indices 0..n_tail (ascending P&L), so the VaR
         // threshold is the least-bad scenario of the tail, index n_tail-1.
@@ -971,12 +990,12 @@ impl HistoricalPositionDecomposer {
         let portfolio_var = portfolio_pnls[var_idx].1.min(0.0);
 
         // Portfolio ES: average signed P&L in the tail scenarios.
-        let portfolio_es: f64 = (portfolio_pnls[..n_tail]
+        let raw_portfolio_es: f64 = portfolio_pnls[..n_tail]
             .iter()
             .map(|(_, pnl)| pnl)
             .sum::<f64>()
-            / n_tail as f64)
-            .min(0.0);
+            / n_tail as f64;
+        let portfolio_es = raw_portfolio_es.min(0.0);
 
         // Per-position Component ES: average of position-level losses in tail.
         //
@@ -1040,11 +1059,22 @@ impl HistoricalPositionDecomposer {
             *ces /= n_tail as f64;
         }
 
+        // Gain-clamp Euler consistency: when the tail mean is a gain the
+        // total ES clamps to zero above, so the components must be zeroed in
+        // the same branch or they no longer sum to the total (matching
+        // `SimulationDecomposer::tail_risk_decomposition`).
+        if raw_portfolio_es > 0.0 {
+            component_es_vec.fill(0.0);
+        }
+
         // Component VaR via Tasche scaling: CVaR_i = CES_i * (VaR / ES).
+        // Degenerate ES (~0): no proration — component VaR is zeroed rather
+        // than copied from the ES components, matching the simulation
+        // engine's fallback of 0.
         let var_es_ratio = if portfolio_es.abs() > VARIANCE_TOLERANCE {
             portfolio_var / portfolio_es
         } else {
-            1.0
+            0.0
         };
         let component_var_vec: Vec<f64> = component_es_vec
             .iter()
@@ -1208,8 +1238,10 @@ mod tests {
     /// mean, matching `SimulationDecomposer::tail_risk_decomposition`.
     #[test]
     fn historical_var_and_es_report_losses_as_negative() -> TestResult {
-        // 100 scenarios, single position, P&L = -50..49 (worst = -50).
-        let n_scenarios = 100;
+        // 200 scenarios, single position, P&L = -50..149 (worst = -50).
+        // (200 rather than 100 scenarios: the historical engine now requires
+        // at least two tail observations, like the simulation engine.)
+        let n_scenarios = 200;
         let pnls: Vec<f64> = (0..n_scenarios).map(|s| s as f64 - 50.0).collect();
         let ids = [PositionId::new("A")];
         let config = DecompositionConfig {
@@ -1222,13 +1254,14 @@ mod tests {
         let result =
             HistoricalPositionDecomposer.decompose_from_pnls(&pnls, &ids, n_scenarios, &config)?;
 
-        // 1% tail of 100 scenarios = 1 scenario: the -50 loss.
+        // 1% tail of 200 scenarios = 2 scenarios (-50, -49): VaR is the
+        // boundary P&L, ES the tail mean.
         assert!(
-            (result.portfolio_var - (-50.0)).abs() < 1e-12,
+            (result.portfolio_var - (-49.0)).abs() < 1e-12,
             "historical VaR must be the signed tail P&L, got {}",
             result.portfolio_var
         );
-        assert!((result.portfolio_es - (-50.0)).abs() < 1e-12);
+        assert!((result.portfolio_es - (-49.5)).abs() < 1e-12);
         let sum_ces: f64 = result.es_contributions.iter().map(|c| c.component_es).sum();
         assert!((sum_ces - result.portfolio_es).abs() < 1e-9);
         Ok(())
@@ -2043,6 +2076,110 @@ mod tests {
             );
         }
 
+        Ok(())
+    }
+
+    // Tail-count convention: ceil on the exact rational (B4 regression)
+
+    #[test]
+    fn historical_tail_count_is_exact_at_rational_boundaries() -> TestResult {
+        // (1 - 0.90) * 1000 is exactly 100 in the rationals; the float
+        // product is 99.99999999999999 and a plain floor() dropped a tail
+        // scenario, overstating VaR by one quantile step.
+        let n_scenarios = 1000;
+        let pnls: Vec<f64> = (0..n_scenarios).map(|s| s as f64 - 500.0).collect();
+        let ids = [PositionId::new("A")];
+        let config = DecompositionConfig::historical(0.90);
+
+        let result =
+            HistoricalPositionDecomposer.decompose_from_pnls(&pnls, &ids, n_scenarios, &config)?;
+
+        // Tail = worst 100 scenarios [-500, -401]; VaR = boundary index 99.
+        assert!(
+            (result.portfolio_var - (-401.0)).abs() < 1e-12,
+            "portfolio_var = {}, expected -401 (100-scenario tail)",
+            result.portfolio_var
+        );
+        assert!(
+            (result.portfolio_es - (-450.5)).abs() < 1e-9,
+            "portfolio_es = {}, expected -450.5",
+            result.portfolio_es
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn historical_requires_two_tail_scenarios() {
+        // 100 scenarios at 99%: the exact tail is a single observation. A
+        // one-scenario tail cannot support a VaR/ES split; it must be
+        // rejected like the simulation engine's tail >= 2 guard.
+        let n_scenarios = 100;
+        let pnls: Vec<f64> = (0..n_scenarios).map(|s| s as f64 - 50.0).collect();
+        let ids = [PositionId::new("A")];
+        let config = DecompositionConfig::historical(0.99);
+
+        let result =
+            HistoricalPositionDecomposer.decompose_from_pnls(&pnls, &ids, n_scenarios, &config);
+        assert!(
+            result.is_err(),
+            "single-observation tail must be rejected, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn stress_attribution_tail_count_is_exact_at_rational_boundaries() -> TestResult {
+        // Same exact-rational boundary as the historical engine: the tail
+        // at 90% of 1000 scenarios is exactly 100 scenarios.
+        let n_scenarios = 1000;
+        let pnls: Vec<f64> = (0..n_scenarios).map(|s| s as f64 - 500.0).collect();
+        let ids = [PositionId::new("A")];
+
+        let attr = build_stress_attribution(&ids, &pnls, n_scenarios, 0.90)?;
+        assert_eq!(attr.n_tail_scenarios, 100);
+        Ok(())
+    }
+
+    // B5 regression: negative w' Sigma w must error, not clamp to VaR = -0.
+
+    #[test]
+    fn parametric_rejects_negative_portfolio_variance() {
+        // Indefinite covariance producing w' Sigma w = -2.4e-11 < 0. The
+        // factor-level ParametricDecomposer rejects this via
+        // validated_variance; the position-level twin must match instead of
+        // clamping to zero risk with only a tracing warning.
+        let weights = [1.0, -2.5e-5];
+        let covariance = [1e-12, 1e-6, 1e-6, 0.04];
+        let ids = [PositionId::new("A"), PositionId::new("B")];
+        let config = DecompositionConfig::parametric_95();
+
+        let result =
+            ParametricPositionDecomposer.decompose_positions(&weights, &covariance, &ids, &config);
+        assert!(
+            result.is_err(),
+            "negative portfolio variance must error, got {result:?}"
+        );
+    }
+
+    // Gain-tail clamp: totals and components must clamp together.
+
+    #[test]
+    fn historical_gain_tail_zeroes_components_and_totals() -> TestResult {
+        // Every scenario is a gain: the tail quantile P&L is positive, so
+        // both totals clamp to zero. Components must clamp with them (Euler
+        // consistency) and the degenerate VaR/ES proration ratio falls back
+        // to 0 (no proration when ES ~ 0), matching the simulation engine.
+        let n_scenarios = 200;
+        let pnls: Vec<f64> = (0..n_scenarios).map(|s| 1.0 + s as f64).collect();
+        let ids = [PositionId::new("A")];
+        let config = DecompositionConfig::historical(0.95);
+
+        let result =
+            HistoricalPositionDecomposer.decompose_from_pnls(&pnls, &ids, n_scenarios, &config)?;
+
+        assert_eq!(result.portfolio_var, 0.0);
+        assert_eq!(result.portfolio_es, 0.0);
+        assert_eq!(result.var_contributions[0].component_var, 0.0);
+        assert_eq!(result.es_contributions[0].component_es, 0.0);
         Ok(())
     }
 }

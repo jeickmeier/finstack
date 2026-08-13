@@ -37,49 +37,8 @@ use finstack_quant_analytics::Performance;
 use finstack_quant_core::dates::{Date, Month, PeriodKind};
 ```
 
-## Quick start
-
-```rust
-use finstack_quant_analytics::Performance;
-use finstack_quant_core::dates::{Date, Month, PeriodKind};
-
-let dates: Vec<Date> = (1..=6)
-    .map(|d| Date::from_calendar_date(2025, Month::January, d).unwrap())
-    .collect();
-
-let benchmark = vec![100.0, 101.0, 99.0, 102.0, 101.0, 103.0];
-let portfolio = vec![100.0, 103.0, 100.0, 104.0, 102.0, 106.0];
-
-let mut perf = Performance::new(
-    dates,
-    vec![benchmark, portfolio],
-    vec!["SPY".to_string(), "ALPHA".to_string()],
-    Some("SPY"),
-    PeriodKind::Daily,
-)
-.expect("price matrix should be aligned and valid");
-
-let sharpe = perf.sharpe(0.02);
-let max_drawdown = perf.max_drawdown();
-let beta = perf.beta();
-let info_ratio = perf.information_ratio();
-let rolling = perf.rolling_sharpe(1, 3, 0.02).expect("valid ticker index");
-
-assert_eq!(sharpe.len(), 2);
-assert_eq!(beta.len(), 2);
-assert_eq!(rolling.values.len(), 3);
-
-perf.reset_date_range(
-    Date::from_calendar_date(2025, Month::January, 3).unwrap(),
-    Date::from_calendar_date(2025, Month::January, 6).unwrap(),
-);
-
-let windowed_cagr = perf.cagr().expect("valid active window");
-assert_eq!(windowed_cagr.len(), 2);
-```
-
-Use [`Performance::from_returns`](src/performance/mod.rs) when the panel is
-already simple returns instead of prices.
+A runnable construction example, plus return / drawdown / annualization
+conventions, lives in the crate rustdoc (`cargo doc -p finstack-quant-analytics --open`).
 
 ## Public API
 
@@ -94,17 +53,6 @@ already simple returns instead of prices.
 | `correlation` | `correlation` | Shared row-major correlation validation / repair infrastructure used by valuations and factor-model crates |
 
 All other analytics building-block functions are crate-internal (`pub(crate)`).
-
-## Conventions
-
-- **Returns are simple decimal returns** unless a function explicitly says otherwise. `0.01` means `+1%`.
-- **Drawdown depths are non-positive fractions**. A 25% drawdown is `-0.25`.
-- **CDaR is non-negative** (absolute tail drawdown depth).
-- **Benchmark alignment is the caller's responsibility**. `Performance` assumes the benchmark column aligns with the panel date grid.
-- **Annualization comes from `PeriodKind`** when called through `Performance`.
-- **Rolling series are right-labeled**: each output date is the last date in its window.
-- **`Performance::new` expects price paths** and derives simple returns internally.
-- **Per-ticker methods** (`rolling_*`, `drawdown_details`, `period_stats`, `multi_factor_greeks`) take a zero-based ticker index and return `Result` when the index is invalid.
 
 ## Numerical behavior
 

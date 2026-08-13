@@ -161,6 +161,10 @@ class Money:
         -------
         float
             The amount exposed by this `Money`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -176,6 +180,10 @@ class Money:
         -------
         decimal.Decimal
             The amount decimal exposed by this `Money`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -189,6 +197,10 @@ class Money:
         -------
         Currency
             The currency exposed by this `Money`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -211,6 +223,9 @@ class Money:
         str
             Formatted string such as ``"USD 100.00"``.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -269,6 +284,10 @@ class Money:
         tuple[float, str]
             Binary-float amount, which may lose Decimal precision, and the
             ISO-4217 alphabetic currency code.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 

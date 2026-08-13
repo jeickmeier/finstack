@@ -7,9 +7,9 @@
 //! # References
 //!
 //! - Vasicek, O. A. (2002). "The Distribution of Loan Portfolio Value."
-//!   *Risk*, 15(12), 160-162.
+//!   *Risk*, 15(12), 160-162. `docs/REFERENCES.md#vasicek-2002-loan-portfolio`
 //! - BCBS (2006). "International Convergence of Capital Measurement and
-//!   Capital Standards: A Revised Framework (Basel II)." Section 272.
+//!   Capital Standards: A Revised Framework (Basel II)." Section 272. `docs/REFERENCES.md#basel-ii-2006`
 
 use serde::{Deserialize, Serialize};
 
@@ -51,9 +51,9 @@ pub fn apply_basel_irb_pd_floor(pd: f64) -> f64 {
 /// # References
 ///
 /// - Vasicek, O. A. (2002). "The Distribution of Loan Portfolio Value."
-///   *Risk*, 15(12), 160-162.
+///   *Risk*, 15(12), 160-162. `docs/REFERENCES.md#vasicek-2002-loan-portfolio`
 /// - BCBS (2006). "International Convergence of Capital Measurement and
-///   Capital Standards: A Revised Framework (Basel II)." Section 272.
+///   Capital Standards: A Revised Framework (Basel II)." Section 272. `docs/REFERENCES.md#basel-ii-2006`
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct PdCycleParams {
     /// Asset correlation rho in (0, 1).

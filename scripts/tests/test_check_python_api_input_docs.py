@@ -38,6 +38,10 @@ def scale(value: float) -> float:
     float
         Twice the supplied scalar.
 
+    Notes
+    -----
+    This helper does not raise for documented inputs.
+
     Examples
     --------
     >>> scale(2.0)
@@ -49,6 +53,46 @@ def scale(value: float) -> float:
     )
 
     assert _MODULE.public_callable_errors(fixture) == []
+
+
+def test_module_level_parameterized_callable_requires_exception_behavior(tmp_path: Path) -> None:
+    """Module-level helpers must document Raises or that they do not raise."""
+    fixture = tmp_path / "undocumented.pyi"
+    fixture.write_text(
+        '''"""Documented fixture module.
+
+Examples
+--------
+>>> scale(2.0)
+4.0
+"""
+
+def scale(value: float) -> float:
+    """Scale a finite value by two.
+
+    Parameters
+    ----------
+    value : float
+        Finite scalar to multiply by two.
+
+    Returns
+    -------
+    float
+        Twice the supplied scalar.
+
+    Examples
+    --------
+    >>> scale(2.0)
+    4.0
+    """
+    ...
+''',
+        encoding="utf-8",
+    )
+
+    assert [error.message for error in _MODULE.public_callable_errors(fixture)] == [
+        "callable without Raises must document that it does not raise",
+    ]
 
 
 def test_parameterized_none_return_needs_neither_returns_nor_raises(tmp_path: Path) -> None:
@@ -70,6 +114,10 @@ def record(name: str) -> None:
     name : str
         Non-empty trade identifier to record.
 
+    Notes
+    -----
+    This helper does not raise for a non-empty identifier.
+
     Examples
     --------
     >>> record("trade")
@@ -80,6 +128,50 @@ def record(name: str) -> None:
     )
 
     assert _MODULE.public_callable_errors(fixture) == []
+
+
+def test_instance_method_requires_exception_behavior(tmp_path: Path) -> None:
+    """Instance methods must document Raises or that they do not raise."""
+    fixture = tmp_path / "instance.pyi"
+    fixture.write_text(
+        '''"""Documented instance-method module.
+
+Examples
+--------
+>>> Doubler().apply(2.0)
+4.0
+"""
+
+class Doubler:
+    """Multiply scalar inputs by two.
+
+    Examples
+    --------
+    >>> Doubler().apply(2.0)
+    4.0
+    """
+
+    def apply(self, value: float) -> float:
+        """Multiply one finite scalar by two.
+
+        Parameters
+        ----------
+        value : float
+            Finite scalar to multiply by two.
+
+        Returns
+        -------
+        float
+            Twice the supplied scalar.
+        """
+        ...
+''',
+        encoding="utf-8",
+    )
+
+    assert [error.message for error in _MODULE.public_callable_errors(fixture)] == [
+        "callable without Raises must document that it does not raise",
+    ]
 
 
 def test_class_example_covers_ordinary_instance_method(tmp_path: Path) -> None:
@@ -115,6 +207,10 @@ class Doubler:
         -------
         float
             Twice the supplied scalar.
+
+        Notes
+        -----
+        This method does not raise; it returns twice the supplied finite scalar.
         """
         ...
 ''',
@@ -155,6 +251,10 @@ class Widget:
         -------
         Widget
             Newly allocated widget using the documented defaults.
+
+        Notes
+        -----
+        This factory does not raise; it returns a widget with the documented defaults.
 
         Examples
         --------
@@ -200,6 +300,10 @@ def scale(value: float) -> float:
     float
         Twice the supplied scalar.
 
+    Notes
+    -----
+    This helper does not raise for documented inputs.
+
     Examples
     --------
     >>> from real_api import scale
@@ -242,6 +346,10 @@ class Widget:
         ----------
         value : int
             Integer payload retained by the widget.
+
+        Notes
+        -----
+        Construction does not raise; the integer is stored as supplied.
         """
         ...
 
@@ -253,6 +361,10 @@ class Widget:
         -------
         int
             Integer supplied when the widget was constructed.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored integer.
         """
         ...
 ''',
@@ -274,6 +386,8 @@ def test_generator_boilerplate_patterns_are_rejected() -> None:
     Date used in the documented calculation or scheduling role.
     Ordered input values consumed by the calculation in the documented representation.
     Supported selector string or enum value controlling the documented behavior.
+    Value of ``to_json``.
+    Compute VarianceRow.
     """
 
     assert _MODULE.fabricated_doc_messages(docstring) == [
@@ -286,6 +400,8 @@ def test_generator_boilerplate_patterns_are_rejected() -> None:
         "generic-date boilerplate",
         "generic-sequence boilerplate",
         "generic-selector boilerplate",
+        "value-of-name boilerplate",
+        "compute-typename boilerplate",
     ]
 
 

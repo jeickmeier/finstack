@@ -10,7 +10,7 @@
 //! - std / var / median
 //! - shift / rank / quantile (reducer over entire series; broadcasts scalar)
 //!   - For rolling/windowed quantiles, use `rolling_median` or implement a
-//!     domain-specific rolling estimator; `quantile` here is a global reducer.
+//!   domain-specific rolling estimator; `quantile` here is a global reducer.
 //! - rolling_min / rolling_max / rolling_count
 //! - ewm_std / ewm_var
 //!
@@ -66,10 +66,8 @@
 //! 3. Results are deterministic for the same inputs and evaluation options.
 //! 4. The module does not depend on external DataFrame libraries.
 //!
-//! # References
-//!
-//! - Exponential-weighted semantics are intended to be compatible with common
-//!   pandas-style usage when parameters match.
+//! Exponential-weighted semantics follow common pandas-style usage when
+//! parameters match.
 
 mod ast;
 mod ast_walk;

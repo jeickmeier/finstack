@@ -18,11 +18,10 @@
 //!
 //! # Direction
 //!
-//! Export only. Arrow-to-envelope conversion and IPC stream reading/writing
-//! were removed once it was clear nothing consumed them: the sole consumer is
-//! the outbound PyCapsule path, and Python callers read Arrow data with
-//! pyarrow directly rather than through this crate. Reintroduce an inbound
-//! path when there is a caller for it, designed against that caller.
+//! Export only. The public API converts a [`TableEnvelope`] into an Arrow
+//! `RecordBatch`; it does not convert Arrow data back into an envelope and
+//! does not read or write Arrow IPC bytes. Python callers consume the exported
+//! batch through `finstack_quant.core.table.ArrowTable` and pyarrow.
 
 #![forbid(unsafe_code)]
 #![warn(clippy::float_cmp)]

@@ -33,9 +33,9 @@
 //! # References
 //!
 //! - Hull, J. & White, A. (1994). "Numerical Procedures for Implementing
-//!   Term Structure Models I: Single-Factor Models", *Journal of Derivatives*
+//!   Term Structure Models I: Single-Factor Models", *Journal of Derivatives* `docs/REFERENCES.md#hull-white-1994-numerical-procedures`
 //! - Hull, J. (2018). *Options, Futures, and Other Derivatives*, 10th ed.
-//!   Chapter 31: Interest Rate Derivatives: Models of the Short Rate
+//!   Chapter 31: Interest Rate Derivatives: Models of the Short Rate `docs/REFERENCES.md#hull-options-futures`
 
 use super::short_rate_tree::TreeCompounding;
 use crate::instruments::common_impl::validation;

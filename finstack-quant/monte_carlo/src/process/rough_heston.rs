@@ -38,11 +38,11 @@
 //! # References
 //!
 //! - El Euch, O. & Rosenbaum, M. (2019). "The characteristic function of rough
-//!   Heston models." *Mathematical Finance*, 29(1), 3–38.
+//!   Heston models." *Mathematical Finance*, 29(1), 3–38. `docs/REFERENCES.md#el-euch-rosenbaum-2019`
 //! - El Euch, O. & Rosenbaum, M. (2018). "Perfect hedging in rough Heston
-//!   models." *Annals of Applied Probability*, 28(6), 3813–3856.
+//!   models." *Annals of Applied Probability*, 28(6), 3813–3856. `docs/REFERENCES.md#el-euch-rosenbaum-2019`
 //! - Gatheral, J., Jaisson, T. & Rosenbaum, M. (2018). "Volatility is rough."
-//!   *Quantitative Finance*, 18(6), 933–949.
+//!   *Quantitative Finance*, 18(6), 933–949. `docs/REFERENCES.md#gatheral-jaisson-rosenbaum-2018`
 //!
 //! # Examples
 //!

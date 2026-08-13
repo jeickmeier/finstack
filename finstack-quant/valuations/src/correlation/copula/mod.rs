@@ -12,12 +12,12 @@
 //!
 //! # References
 //!
-//! - Gaussian copula background:
-//!   `docs/REFERENCES.md#li-2000-gaussian-copula`
-//! - Random recovery and random-factor-loading extensions:
-//!   `docs/REFERENCES.md#andersen-sidenius-2005-rfl`
-//! - Analytical CDO valuation context:
-//!   `docs/REFERENCES.md#hull-white-2004-cdo`
+//! - Gaussian copula background: `docs/REFERENCES.md#li-2000-gaussian-copula`
+//!
+//! - Random recovery and random-factor-loading extensions: `docs/REFERENCES.md#andersen-sidenius-2005-rfl`
+//!
+//! - Analytical CDO valuation context: `docs/REFERENCES.md#hull-white-2004-cdo`
+//!
 
 mod gaussian;
 mod multi_factor;

@@ -27,7 +27,11 @@ LEGACY_EXAMPLE_PROMPT_RE = re.compile(
     r"isinstance\([A-Za-z_][A-Za-z0-9_.]*,\s*(?:type|object)\))$"
 )
 EXAMPLE_SETUP_PROMPT_RE = re.compile(r"^(?:from\s+\S+\s+import\s+.+|import\s+.+)$")
-SECTION_NAMES = frozenset({"Parameters", "Args", "Returns", "Raises", "Examples", "Notes", "Warnings"})
+DOES_NOT_RAISE_RE = re.compile(
+    r"does not\s+raise|never\s+raises|does not\s+throw",
+    re.IGNORECASE,
+)
+SECTION_NAMES = frozenset({"Parameters", "Args", "Returns", "Raises", "Examples", "Notes", "Warnings", "Sources"})
 FABRICATED_DOC_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "annotated-representation boilerplate",
@@ -66,6 +70,14 @@ FABRICATED_DOC_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "generic-selector boilerplate",
         re.compile(r"Supported selector string or enum value controlling the documented behavior\."),
+    ),
+    (
+        "value-of-name boilerplate",
+        re.compile(r"\bValue of `{1,2}[A-Za-z_][A-Za-z0-9_]*`{1,2}\."),
+    ),
+    (
+        "compute-typename boilerplate",
+        re.compile(r"\bCompute [A-Z][A-Za-z0-9_]+\."),
     ),
 )
 
@@ -167,6 +179,11 @@ def has_substantive_example(docstring: str) -> bool:
     )
 
 
+def documents_nonraising_behavior(docstring: str) -> bool:
+    """Return whether a docstring states that the callable does not raise."""
+    return DOES_NOT_RAISE_RE.search(docstring) is not None
+
+
 def returns_value(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     """Return whether a callable's annotation indicates a user-visible result."""
     if node.name == "__init__":
@@ -215,6 +232,7 @@ def parameter_description(docstring: str, parameter: str) -> str | None:
                 "Examples",
                 "Attributes",
                 "Warnings",
+                "Sources",
             }:
                 break
             if set(stripped) == {"-"}:
@@ -347,6 +365,17 @@ class PublicCallableVisitor:
                 self.errors.append(
                     DocumentationError(self.path, node.lineno, symbol, "Returns section is not substantive")
                 )
+
+        has_raises = section_description(docstring, frozenset({"Raises"})) is not None
+        if not has_raises and not documents_nonraising_behavior(docstring):
+            self.errors.append(
+                DocumentationError(
+                    self.path,
+                    node.lineno,
+                    symbol,
+                    "callable without Raises must document that it does not raise",
+                )
+            )
 
         if not self.scope or is_class_or_static_method(node):
             if not has_example(docstring):

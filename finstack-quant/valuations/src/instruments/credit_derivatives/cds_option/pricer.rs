@@ -11,8 +11,12 @@
 //!
 //! - Bloomberg L.P. Quantitative Analytics. *Pricing Credit Index Options.*
 //!   DOCS 2055833 ⟨GO⟩, March 2012.
+//!   `docs/REFERENCES.md#bloomberg-cdso`
 //! - Bloomberg L.P. Quantitative Analytics. *The Bloomberg CDS Model.*
 //!   DOCS 2057273 ⟨GO⟩, August 2024.
+//!   `docs/REFERENCES.md#bloomberg-cds-model`
+//! - ISDA CDS Standard Model (Markit, 2009).
+//!   `docs/REFERENCES.md#isda-cds-standard-model`
 
 use super::bloomberg_quadrature;
 use crate::instruments::common_impl::traits::Instrument;

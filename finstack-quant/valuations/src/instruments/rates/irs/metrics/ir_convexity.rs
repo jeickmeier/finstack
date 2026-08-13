@@ -17,8 +17,8 @@
 //!
 //! # References
 //!
-//! - Hull, J. C. (2018). *Options, Futures, and Other Derivatives*. Chapter 7.
-//! - Tuckman, B., & Serrat, A. (2011). *Fixed Income Securities*. Chapter 5.
+//! - Hull, J. C. (2018). *Options, Futures, and Other Derivatives*. Chapter 7. `docs/REFERENCES.md#hull-options-futures`
+//! - Tuckman, B., & Serrat, A. (2011). *Fixed Income Securities*. Chapter 5. `docs/REFERENCES.md#tuckman-serrat-fixed-income`
 
 use crate::instruments::common_impl::dependencies::RatesCurveKind;
 use crate::instruments::common_impl::traits::Instrument;

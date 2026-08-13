@@ -18,8 +18,8 @@
 //!
 //! # References
 //!
-//! - Hull, J. C. (2018). *Options, Futures, and Other Derivatives*. Chapter 7.
-//! - Kahan, W. (1965). "Further Remarks on Reducing Truncation Errors."
+//! - Hull, J. C. (2018). *Options, Futures, and Other Derivatives*. Chapter 7. `docs/REFERENCES.md#hull-options-futures`
+//! - Kahan, W. (1965). "Further Remarks on Reducing Truncation Errors." `docs/REFERENCES.md#kahan-1965`
 
 // Using generic pricer implementation to eliminate boilerplate
 
@@ -1011,7 +1011,7 @@ mod tests {
     ///
     /// # References
     ///
-    /// - Hull, J.C. "Options, Futures, and Other Derivatives", Chapter 7
+    /// - Hull, J.C. "Options, Futures, and Other Derivatives", Chapter 7 `docs/REFERENCES.md#hull-options-futures`
     /// - The identity follows from: ∏(1 + r_i × dcf_i) = DF(start)/DF(end)
     ///   when r_i is derived from the discount curve.
     #[test]

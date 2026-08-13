@@ -54,13 +54,16 @@ class BarrierType:
         BarrierType
             Terminal-barrier specification.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.valuations.models.credit import BarrierType
         >>> bt = BarrierType.terminal()
         >>> bt.to_json()
         '"terminal"'
-
         """
         ...
 
@@ -80,6 +83,10 @@ class BarrierType:
         BarrierType
             First-passage barrier specification.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.valuations.models.credit import BarrierType
@@ -87,6 +94,9 @@ class BarrierType:
         >>> "first_passage" in bt.to_json()
         True
 
+        Sources
+        -------
+        - Merton (1974): see docs/REFERENCES.md#merton-1974
         """
         ...
 
@@ -128,6 +138,11 @@ class BarrierType:
         -------
         str
             JSON string.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -153,13 +168,16 @@ class AssetDynamics:
         AssetDynamics
             GBM dynamics specification.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.valuations.models.credit import AssetDynamics
         >>> dyn = AssetDynamics.geometric_brownian()
         >>> dyn.to_json()
         '"geometric_brownian"'
-
         """
         ...
 
@@ -186,13 +204,16 @@ class AssetDynamics:
         AssetDynamics
             Jump-diffusion specification.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.valuations.models.credit import AssetDynamics
         >>> dyn = AssetDynamics.jump_diffusion(0.5, -0.1, 0.2)
         >>> "jump_diffusion" in dyn.to_json()
         True
-
         """
         ...
 
@@ -217,13 +238,16 @@ class AssetDynamics:
         AssetDynamics
             CreditGrades dynamics specification.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.valuations.models.credit import AssetDynamics
         >>> dyn = AssetDynamics.credit_grades(0.3, 0.4)
         >>> "credit_grades" in dyn.to_json()
         True
-
         """
         ...
 
@@ -265,6 +289,11 @@ class AssetDynamics:
         -------
         str
             JSON string.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -291,6 +320,10 @@ class SimulatedPaths:
         -------
         list[float]
             Time points in years.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -303,6 +336,10 @@ class SimulatedPaths:
         -------
         list[float]
             Flattened path values.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -318,6 +355,10 @@ class SimulatedPaths:
             mirrors are included in this total rather than doubling it, so the
             row count of :attr:`asset_values` is always
             ``num_paths * (num_steps + 1)``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -332,6 +373,10 @@ class SimulatedPaths:
             Count of simulation increments, at least ``1``. The grid in
             :attr:`times` holds one more point than this because it includes
             ``t = 0``, and each step spans ``horizon / num_steps`` years.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -351,6 +396,10 @@ class SimulatedPaths:
         float or None
             Asset value at the requested coordinate, or ``None`` when indices
             are out of range.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -368,6 +417,10 @@ class SimulatedPaths:
         list[float] or None
             Asset values along the path, or ``None`` when ``path_idx`` is out
             of range.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -379,6 +432,10 @@ class SimulatedPaths:
         -------
         list[list[float]]
             One inner list per simulated path.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -727,6 +784,11 @@ class MertonModel:
         -------
         str
             JSON string.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -739,6 +801,10 @@ class MertonModel:
         -------
         float
             Asset value in the issuer's reporting currency.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -751,18 +817,26 @@ class MertonModel:
         -------
         float
             Volatility as a decimal (``0.25`` is 25%).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def debt_barrier(self) -> float:
         """
-        Default barrier ``B``.
+        Asset-value default barrier ``B`` in the Merton model.
 
         Returns
         -------
         float
             Barrier level, in the same currency as ``asset_value``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -775,6 +849,10 @@ class MertonModel:
         -------
         float
             Rate as a decimal.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -787,6 +865,10 @@ class MertonModel:
         -------
         float
             Payout rate as a decimal.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -799,6 +881,10 @@ class MertonModel:
         -------
         BarrierType
             Terminal or first-passage barrier specification.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -811,6 +897,10 @@ class MertonModel:
         -------
         AssetDynamics
             GBM, jump-diffusion, or CreditGrades dynamics.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -822,6 +912,11 @@ class MertonModel:
         -------
         pandas.DataFrame
             One row with the canonical model fields as columns.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -838,6 +933,10 @@ class MertonModel:
         -------
         float
             Distance-to-default statistic (standard-deviation units).
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -854,6 +953,10 @@ class MertonModel:
         -------
         float
             Default probability in ``[0, 1]``.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1058,6 +1161,11 @@ class DynamicRecoverySpec:
         -------
         str
             JSON string.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -1074,6 +1182,10 @@ class DynamicRecoverySpec:
         -------
         float
             Recovery rate as a decimal.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1086,6 +1198,10 @@ class DynamicRecoverySpec:
         -------
         float
             Recovery rate as a decimal in ``[0, 1]``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1098,6 +1214,10 @@ class DynamicRecoverySpec:
         -------
         float
             Reference notional (positive).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1112,6 +1232,10 @@ class DynamicRecoverySpec:
             ``"constant"`` / ``"inverse_linear"`` for the parameterless models,
             or a single-key mapping (``inverse_power``, ``floored_inverse``,
             ``linear_decline``) carrying that model's parameters.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1123,6 +1247,11 @@ class DynamicRecoverySpec:
         -------
         pandas.DataFrame
             One row with the canonical specification fields as columns.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -1215,6 +1344,11 @@ class EndogenousHazardSpec:
         -------
         str
             JSON string.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -1231,6 +1365,10 @@ class EndogenousHazardSpec:
         -------
         float
             Annualized hazard rate as a decimal.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1253,6 +1391,10 @@ class EndogenousHazardSpec:
         -------
         float
             Updated annualized hazard rate as a decimal.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1265,6 +1407,10 @@ class EndogenousHazardSpec:
         -------
         float
             Annualized hazard rate as a decimal.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1277,6 +1423,10 @@ class EndogenousHazardSpec:
         -------
         float
             Reference leverage ratio (positive).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1290,6 +1440,10 @@ class EndogenousHazardSpec:
         Any
             A single-key mapping (``power_law``, ``exponential``, ``tabular``)
             carrying that model's parameters.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1301,6 +1455,11 @@ class EndogenousHazardSpec:
         -------
         pandas.DataFrame
             One row with the canonical specification fields as columns.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -1344,6 +1503,10 @@ class CreditState:
             Coupon amount due at the decision date. Default ``0.0``.
         asset_value : float, optional
             Firm asset value for structural/toggle models.
+
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -1355,6 +1518,11 @@ class CreditState:
         -------
         str
             JSON string.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -1400,6 +1568,10 @@ class CreditState:
         -------
         float
             Annualized hazard rate as a decimal.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1412,6 +1584,10 @@ class CreditState:
         -------
         float or None
             Distance in standard deviations, or ``None`` when unavailable.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1424,6 +1600,10 @@ class CreditState:
         -------
         float
             Leverage ratio.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1436,6 +1616,10 @@ class CreditState:
         -------
         float
             Outstanding notional.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1448,6 +1632,10 @@ class CreditState:
         -------
         float
             Coupon amount.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1460,6 +1648,10 @@ class CreditState:
         -------
         float or None
             Asset value, or ``None`` when unavailable.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1471,6 +1663,11 @@ class CreditState:
         -------
         pandas.DataFrame
             One row with the canonical state fields as columns.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -1557,6 +1754,10 @@ class ToggleExerciseModel:
         ToggleExerciseModel
             Optimal exercise specification.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> import json
@@ -1564,7 +1765,6 @@ class ToggleExerciseModel:
         >>> model = ToggleExerciseModel.optimal(100, 0.12, 0.3, 0.05, 1.0)
         >>> json.loads(model.to_json())["optimal_exercise"]["nested_paths"]
         100
-
         """
         ...
 
@@ -1608,6 +1808,11 @@ class ToggleExerciseModel:
         -------
         str
             JSON string.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -1622,6 +1827,10 @@ class ToggleExerciseModel:
             One of ``"threshold"``, ``"stochastic"`` or ``"optimal_exercise"`` —
             the canonical serde tag, so it also names the single key in the
             ``to_json`` payload.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1638,5 +1847,9 @@ class ToggleExerciseModel:
             ``state_variable`` / ``intercept`` / ``sensitivity`` for a
             stochastic one, and the nested-Monte-Carlo settings for optimal
             exercise.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...

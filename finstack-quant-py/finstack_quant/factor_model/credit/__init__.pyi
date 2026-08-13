@@ -87,6 +87,11 @@ class CreditFactorModel:
         -------
         str
             JSON suitable for storage or transmission.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -99,6 +104,10 @@ class CreditFactorModel:
         -------
         str
             Exact contract marker embedded in the artifact.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -111,6 +120,10 @@ class CreditFactorModel:
         -------
         str
             Model as-of date.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -123,6 +136,10 @@ class CreditFactorModel:
         -------
         int
             Count of hierarchy dimensions.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -135,6 +152,10 @@ class CreditFactorModel:
         -------
         int
             Issuer count.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -147,6 +168,10 @@ class CreditFactorModel:
         -------
         int
             Factor count.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -158,6 +183,10 @@ class CreditFactorModel:
         -------
         list[str]
             Dimension names (e.g. ``["Rating", "Region", "Sector"]``).
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -169,6 +198,10 @@ class CreditFactorModel:
         -------
         list[str]
             Issuer identifier strings.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -180,6 +213,10 @@ class CreditFactorModel:
         -------
         list[str]
             Factor identifier strings.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -282,6 +319,10 @@ class LevelsAtDate:
         -------
         str
             Decomposition date.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -294,6 +335,10 @@ class LevelsAtDate:
         -------
         float
             Generic level in bp.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -306,6 +351,10 @@ class LevelsAtDate:
         -------
         int
             Level count.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -338,6 +387,10 @@ class LevelsAtDate:
         -------
         dict[str, float]
             Per-issuer adder in bp.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -363,6 +416,11 @@ class LevelsAtDate:
             One row per (level, bucket) pair. A snapshot from a hierarchy with
             no levels yields a zero-row frame that still carries the columns
             above.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -377,6 +435,11 @@ class LevelsAtDate:
             peeling the generic factor and every hierarchy level. Issuers are
             in sorted order, so repeated exports and
             ``pd.concat([...], axis=1)`` across dates align on the index.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -417,6 +480,10 @@ class PeriodDecomposition:
         -------
         str
             Period start.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -430,6 +497,10 @@ class PeriodDecomposition:
         str
             Period end.
             The to date exposed by this `PeriodDecomposition`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -442,6 +513,10 @@ class PeriodDecomposition:
         -------
         float
             Generic delta in bp.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -454,6 +529,10 @@ class PeriodDecomposition:
         -------
         int
             Level count.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -486,6 +565,10 @@ class PeriodDecomposition:
         -------
         dict[str, float]
             Per-issuer adder delta in bp.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -507,6 +590,11 @@ class PeriodDecomposition:
             One row per (level, bucket) pair. A decomposition with no
             hierarchy levels yields a zero-row frame that still carries the
             columns above.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -531,6 +619,11 @@ class PeriodDecomposition:
         -------
         pd.DataFrame
             Long-format frame of bucket deltas, one row per (level, bucket).
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -552,6 +645,10 @@ class PeriodDecomposition:
         -------
         pd.DataFrame
             One row per issuer present in both snapshots.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -591,6 +688,9 @@ class FactorCovarianceForecast:
         model : CreditFactorModel
             Calibrated hierarchy artifact used as the risk factor basis.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 

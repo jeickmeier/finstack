@@ -12,7 +12,33 @@ use crate::bindings::portfolio::types::{PyPortfolioCashflows, PyPortfolioValuati
 use crate::bindings::scenarios::engine::PyApplicationReport;
 use crate::errors::{display_to_py, portfolio_to_py};
 use pyo3::prelude::*;
-use std::str::FromStr;
+
+/// Strictly parse user-supplied metric names into [`RequestedMetrics`].
+///
+/// `MetricId::from_str` is infallible (unknown names silently become custom
+/// metrics, which the valuation engine cannot compute — a typo would degrade
+/// to PV-only valuation). API boundaries therefore use
+/// `MetricId::parse_strict`, which rejects unknown standard-metric names with
+/// a `ValueError` listing the available identifiers.
+fn parse_requested_metrics(
+    metrics: Option<Vec<String>>,
+) -> PyResult<finstack_quant_portfolio::valuation::RequestedMetrics> {
+    match metrics {
+        None => Ok(finstack_quant_portfolio::valuation::RequestedMetrics::Standard),
+        Some(names) => {
+            let parsed = names
+                .iter()
+                .map(|name| {
+                    finstack_quant_valuations::metrics::MetricId::parse_strict(name)
+                        .map_err(crate::errors::core_to_py)
+                })
+                .collect::<PyResult<Vec<_>>>()?;
+            Ok(finstack_quant_portfolio::valuation::RequestedMetrics::Only(
+                parsed,
+            ))
+        }
+    }
+}
 
 /// Run the shared valuation engine for the typed Python entry point.
 fn run_portfolio_valuation(
@@ -27,26 +53,7 @@ fn run_portfolio_valuation(
     let config = finstack_quant_core::config::FinstackConfig::default();
     let options = finstack_quant_portfolio::valuation::PortfolioValuationOptions {
         strict_risk,
-        metrics: metrics.map_or(
-            finstack_quant_portfolio::valuation::RequestedMetrics::Standard,
-            |metrics| {
-                finstack_quant_portfolio::valuation::RequestedMetrics::Only(
-                    metrics
-                        .into_iter()
-                        .map(
-                            |metric| match finstack_quant_valuations::metrics::MetricId::from_str(
-                                &metric,
-                            ) {
-                                Ok(metric_id) => metric_id,
-                                Err(_) => {
-                                    finstack_quant_valuations::metrics::MetricId::custom(metric)
-                                }
-                            },
-                        )
-                        .collect(),
-                )
-            },
-        ),
+        metrics: parse_requested_metrics(metrics)?,
     };
     // Release the GIL (PyO3 `detach`) while the CPU-bound Rust valuation runs
     // so other Python threads can execute concurrently. The `*Access` wrappers
@@ -79,7 +86,9 @@ fn run_portfolio_valuation(
 ///     If ``True``, any risk metric failure aborts the entire valuation.
 /// metrics : list[str] | None
 ///     Exact risk metrics to compute. ``None`` requests the standard set;
-///     an empty list performs PV-only valuation.
+///     an empty list performs PV-only valuation. Names are validated
+///     strictly against the standard ``MetricId`` set; an unknown name
+///     raises ``ValueError`` listing the available metrics.
 ///
 /// Returns
 /// -------
@@ -225,45 +234,13 @@ fn scenario_pnl(
     ))
 }
 
-/// Compute ordered portfolio P&L for a batch of scenarios.
-///
-/// Parameters
-/// ----------
-/// portfolio : Portfolio | str
-///     A built :class:`Portfolio` or canonical JSON-serialized
-///     ``PortfolioSpec``. The Rust batch engine values its unstressed base leg
-///     once for the complete request.
-/// scenarios_json : str
-///     Canonical JSON array of ``ScenarioSpec`` objects, in the output order
-///     required by the caller. An empty array returns ``"[]"`` without a
-///     valuation.
-/// market : MarketContext | str
-///     The unshocked market snapshot, supplied as a typed object or canonical
-///     JSON string.
-///
-/// Returns
-/// -------
-/// str
-///     A canonical JSON array with one ordered object per input scenario:
-///     ``{"scenario_id": ..., "pnl": ..., "report": ...}``. ``pnl`` and
-///     ``report`` use the same stable JSON shapes returned separately by
-///     :func:`scenario_pnl`.
-///
-/// Raises
-/// ------
-/// ValueError
-///     If ``scenarios_json`` is not a JSON array of valid ``ScenarioSpec``
-///     values.
-/// PortfolioError
-///     If scenario application, valuation, or base-currency P&L differencing
-///     fails. The error identifies the earliest failing input scenario.
-#[pyfunction]
-fn scenario_pnl_batch(
+/// Run the canonical Rust batch engine for both batch entry points.
+fn run_scenario_pnl_batch(
     py: Python<'_>,
     portfolio: &Bound<'_, PyAny>,
     scenarios_json: &str,
     market: &Bound<'_, PyAny>,
-) -> PyResult<String> {
+) -> PyResult<Vec<finstack_quant_portfolio::scenarios::ScenarioPnlBatchItem>> {
     let portfolio = extract_portfolio_ref(py, portfolio)?;
     let scenarios_json = scenarios_json.to_owned();
     let scenarios: Vec<finstack_quant_scenarios::ScenarioSpec> = py
@@ -274,24 +251,90 @@ fn scenario_pnl_batch(
 
     // Extract plain Rust references before detaching: the typed access
     // wrappers own PyRefs and are not Ungil, while their Rust inners are
-    // Send + Sync. Parsing happens above, so the complete batch evaluation and
-    // potentially large result serialization release the GIL without touching
-    // Python state.
+    // Send + Sync. Parsing happens above, so the complete batch evaluation
+    // releases the GIL without touching Python state.
     let portfolio_ref: &finstack_quant_portfolio::Portfolio = &portfolio;
     let market_ref: &finstack_quant_core::market_data::context::MarketContext = &market;
-    let result_json = py
-        .detach(|| {
-            finstack_quant_portfolio::scenarios::scenario_pnl_batch(
-                portfolio_ref,
-                &scenarios,
-                market_ref,
-                &config,
-            )
-            .map(|results| serde_json::to_string(&results))
-        })
-        .map_err(portfolio_to_py)?;
+    py.detach(|| {
+        finstack_quant_portfolio::scenarios::scenario_pnl_batch(
+            portfolio_ref,
+            &scenarios,
+            market_ref,
+            &config,
+        )
+    })
+    .map_err(portfolio_to_py)
+}
 
-    result_json.map_err(display_to_py)
+/// Compute ordered portfolio P&L for a batch of scenarios.
+///
+/// Parameters
+/// ----------
+/// portfolio : Portfolio | str
+///     A built :class:`Portfolio` or canonical JSON-serialized
+///     ``PortfolioSpec``. The Rust batch engine values its unstressed base leg
+///     once for the complete request.
+/// scenarios_json : str
+///     Canonical JSON array of ``ScenarioSpec`` objects, in the output order
+///     required by the caller. An empty array returns ``[]`` without a
+///     valuation.
+/// market : MarketContext | str
+///     The unshocked market snapshot, supplied as a typed object or canonical
+///     JSON string.
+///
+/// Returns
+/// -------
+/// list[ScenarioPnlBatchItem]
+///     One ordered item per input scenario, each carrying ``scenario_id``,
+///     a typed ``pnl`` (:class:`ScenarioPnl`) and ``report``
+///     (:class:`~finstack_quant.scenarios.ApplicationReport`). Use
+///     :func:`scenario_pnl_batch_json` for the raw wire string.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If ``scenarios_json`` is not a JSON array of valid ``ScenarioSpec``
+///     values.
+/// PortfolioError
+///     If scenario application, valuation, or base-currency P&L differencing
+///     fails. The error identifies the earliest failing input scenario.
+#[pyfunction]
+#[pyo3(text_signature = "(portfolio, scenarios_json, market)")]
+fn scenario_pnl_batch(
+    py: Python<'_>,
+    portfolio: &Bound<'_, PyAny>,
+    scenarios_json: &str,
+    market: &Bound<'_, PyAny>,
+) -> PyResult<Vec<crate::bindings::portfolio::scenario_pnl::PyScenarioPnlBatchItem>> {
+    let results = run_scenario_pnl_batch(py, portfolio, scenarios_json, market)?;
+    Ok(results
+        .into_iter()
+        .map(|inner| crate::bindings::portfolio::scenario_pnl::PyScenarioPnlBatchItem { inner })
+        .collect())
+}
+
+/// Compute ordered batch scenario P&L and return wire JSON.
+///
+/// Wire twin of :func:`scenario_pnl_batch`; same inputs, JSON-string output.
+///
+/// Returns
+/// -------
+/// str
+///     A canonical JSON array with one ordered object per input scenario:
+///     ``{"scenario_id": ..., "pnl": ..., "report": ...}``. ``pnl`` and
+///     ``report`` use the same stable JSON shapes returned separately by
+///     :func:`scenario_pnl`. An empty scenario array returns ``"[]"``.
+#[pyfunction]
+#[pyo3(text_signature = "(portfolio, scenarios_json, market)")]
+fn scenario_pnl_batch_json(
+    py: Python<'_>,
+    portfolio: &Bound<'_, PyAny>,
+    scenarios_json: &str,
+    market: &Bound<'_, PyAny>,
+) -> PyResult<String> {
+    let results = run_scenario_pnl_batch(py, portfolio, scenarios_json, market)?;
+    py.detach(move || serde_json::to_string(&results))
+        .map_err(display_to_py)
 }
 
 /// Register pipeline functions on the portfolio submodule.
@@ -301,5 +344,6 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(apply_scenario_and_revalue, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(scenario_pnl, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(scenario_pnl_batch, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(scenario_pnl_batch_json, m)?)?;
     Ok(())
 }

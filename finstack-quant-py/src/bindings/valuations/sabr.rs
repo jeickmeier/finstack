@@ -31,6 +31,10 @@ use pyo3::types::{PyDict, PyList};
 ///
 /// Constructed with validation: ``alpha > 0``, ``beta in [0, 1]``,
 /// ``nu >= 0``, ``rho in [-1, 1]``, and when supplied ``shift > 0``.
+///
+/// Sources
+/// -------
+/// - Hagan SABR (2002): see docs/REFERENCES.md#hagan-2002-sabr
 #[pyclass(
     name = "SabrParameters",
     module = "finstack_quant.valuations",
@@ -131,6 +135,10 @@ impl PySabrParameters {
 // SabrModel
 
 /// Hagan-2002 SABR model wrapping a :class:`SabrParameters` instance.
+///
+/// Sources
+/// -------
+/// - Hagan SABR (2002): see docs/REFERENCES.md#hagan-2002-sabr
 #[pyclass(name = "SabrModel", module = "finstack_quant.valuations")]
 pub struct PySabrModel {
     pub(crate) inner: SABRModel,
@@ -197,6 +205,10 @@ impl PySabrModel {
 // SabrSmile
 
 /// Volatility smile generator for a fixed ``(forward, t)`` pair.
+///
+/// Sources
+/// -------
+/// - Hagan SABR (2002): see docs/REFERENCES.md#hagan-2002-sabr
 #[pyclass(name = "SabrSmile", module = "finstack_quant.valuations")]
 pub struct PySabrSmile {
     inner: SABRSmile,
@@ -315,6 +327,10 @@ impl PySabrSmile {
 // SabrCalibrator
 
 /// SABR calibrator using Levenberg-Marquardt with beta fixed.
+///
+/// Sources
+/// -------
+/// - Hagan SABR (2002): see docs/REFERENCES.md#hagan-2002-sabr
 #[pyclass(name = "SabrCalibrator", module = "finstack_quant.valuations")]
 pub struct PySabrCalibrator {
     inner: SABRCalibrator,

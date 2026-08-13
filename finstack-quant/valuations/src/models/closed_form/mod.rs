@@ -32,51 +32,51 @@
 //! ## Foundational Papers
 //!
 //! - Black, F., & Scholes, M. (1973). "The Pricing of Options and Corporate Liabilities."
-//!   *Journal of Political Economy*, 81(3), 637-654.
+//!   *Journal of Political Economy*, 81(3), 637-654. `docs/REFERENCES.md#black-scholes-1973`
 //! - Merton, R. C. (1973). "Theory of Rational Option Pricing."
-//!   *Bell Journal of Economics and Management Science*, 4(1), 141-183.
+//!   *Bell Journal of Economics and Management Science*, 4(1), 141-183. `docs/REFERENCES.md#merton-1973`
 //!
 //! ## Asian Options
 //!
 //! - Kemna, A. G. Z., & Vorst, A. C. F. (1990). "A Pricing Method for Options Based on
-//!   Average Asset Values." *Journal of Banking & Finance*, 14(1), 113-129.
+//!   Average Asset Values." *Journal of Banking & Finance*, 14(1), 113-129. `docs/REFERENCES.md#kemna-vorst-1990`
 //! - Turnbull, S. M., & Wakeman, L. M. (1991). "A Quick Algorithm for Pricing European
 //!   Average Options." *Journal of Financial and Quantitative Analysis*, 26(3), 377-389.
 //!
 //! ## Barrier Options
 //!
 //! - Reiner, E., & Rubinstein, M. (1991). "Breaking Down the Barriers."
-//!   *Risk Magazine*, 4(8), 28-35.
+//!   *Risk Magazine*, 4(8), 28-35. `docs/REFERENCES.md#reiner-rubinstein-1991`
 //! - Merton, R. C. (1973). "Theory of Rational Option Pricing."
-//!   (Also covers barrier option fundamentals)
+//!   (Also covers barrier option fundamentals) `docs/REFERENCES.md#merton-1973`
 //!
 //! ## Lookback Options
 //!
 //! - Conze, A., & Viswanathan (1991). "Path Dependent Options: The Case of Lookback Options."
-//!   *Journal of Finance*, 46(5), 1893-1907.
+//!   *Journal of Finance*, 46(5), 1893-1907. `docs/REFERENCES.md#conze-viswanathan-1991`
 //! - Goldman, M. B., Sosin, H. B., & Gatto, M. A. (1979). "Path Dependent Options:
-//!   Buy at the Low, Sell at the High." *Journal of Finance*, 34(5), 1111-1127.
+//!   Buy at the Low, Sell at the High." *Journal of Finance*, 34(5), 1111-1127. `docs/REFERENCES.md#goldman-sosin-gatto-1979`
 //! - Haug, E. G. (2007). *The Complete Guide to Option Pricing Formulas* (2nd ed.).
-//!   McGraw-Hill. Chapter 4.
+//!   McGraw-Hill. Chapter 4. `docs/REFERENCES.md#haug-2007-option-formulas`
 //!
 //! ## Quanto Options
 //!
 //! - Garman, M. B., & Kohlhagen, S. W. (1983). "Foreign Currency Option Values."
-//!   *Journal of International Money and Finance*, 2(3), 231-237.
+//!   *Journal of International Money and Finance*, 2(3), 231-237. `docs/REFERENCES.md#garman-kohlhagen-1983`
 //! - Derman, E., Karasinski, P., & Wecker, J. (1990). "Understanding Guaranteed
 //!   Exchange-Rate Contracts in Foreign Stock Investments." Goldman Sachs Quantitative
 //!   Strategies Research Notes.
 //! - Brigo, D., & Mercurio, F. (2006). *Interest Rate Models - Theory and Practice*
-//!   (2nd ed.). Springer. Section 13.16.
+//!   (2nd ed.). Springer. Section 13.16. `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
 //!
 //! ## Stochastic Volatility (Heston)
 //!
 //! - Heston, S. L. (1993). "A Closed-Form Solution for Options with Stochastic Volatility
-//!   with Applications to Bond and Currency Options." *Review of Financial Studies*, 6(2), 327-343.
+//!   with Applications to Bond and Currency Options." *Review of Financial Studies*, 6(2), 327-343. `docs/REFERENCES.md#heston-1993`
 //! - Carr, P., & Madan, D. (1999). "Option Valuation Using the Fast Fourier Transform."
-//!   *Journal of Computational Finance*, 2(4), 61-73.
+//!   *Journal of Computational Finance*, 2(4), 61-73. `docs/REFERENCES.md#carr-madan-1999-fft`
 //! - Albrecher, H., Mayer, P., Schoutens, W., & Tistaert, J. (2007). "The Little Heston Trap."
-//!   *Wilmott Magazine*, January, 83-92.
+//!   *Wilmott Magazine*, January, 83-92. `docs/REFERENCES.md#albrecher-2007-little-heston-trap`
 //! - Lord, R., & Kahl, C. (2010). "Complex Logarithms in Heston-Like Models."
 //!   *Mathematical Finance*, 20(4), 671-694.
 //!
@@ -139,6 +139,7 @@
 
 pub mod asian;
 pub mod barrier;
+pub mod dispatch;
 pub mod heston;
 pub mod implied_vol;
 pub mod lookback;
@@ -153,6 +154,10 @@ pub use asian::{
 pub use barrier::{
     barrier_call_continuous, barrier_put_continuous, barrier_rebate, down_in_call, down_out_call,
     up_in_call, up_out_call, BarrierType, RebateTiming,
+};
+pub use dispatch::{
+    asian_option_price_str, barrier_call_str, lookback_option_price_str,
+    quanto_option_price_checked,
 };
 pub use heston::{heston_call_price_fourier, heston_put_price_fourier, HestonParams};
 pub use implied_vol::{black76_implied_vol, bs_implied_vol};

@@ -29,7 +29,7 @@
 //! C_do = C_vanilla - C_knock_in
 //!      = S·e^(-qT)·N(x) - K·e^(-rT)·N(x - σ√T)
 //!        - (H/S)^(2λ) · [H·e^(-qT)·N(y) - K·e^(-rT)·N(y - σ√T)]
-//! ```
+//!   ```
 //!
 //! where λ = (r - q + σ²/2) / σ² and x, y are appropriately defined d-parameters.
 //!
@@ -59,16 +59,16 @@
 //!
 //! - Reiner, E., & Rubinstein, M. (1991). "Breaking Down the Barriers."
 //!   *Risk Magazine*, 4(8), 28-35.
-//!   (Canonical formulas for all 8 barrier option types)
+//!   (Canonical formulas for all 8 barrier option types) `docs/REFERENCES.md#reiner-rubinstein-1991`
 //!
 //! - Merton, R. C. (1973). "Theory of Rational Option Pricing."
 //!   *Bell Journal of Economics and Management Science*, 4(1), 141-183.
-//!   (Foundational work including barrier option theory)
+//!   (Foundational work including barrier option theory) `docs/REFERENCES.md#merton-1973`
 //!
 //! ## Discrete Monitoring Corrections
 //!
 //! - Broadie, M., Glasserman, P., & Kou, S. G. (1997). "A Continuity Correction
-//!   for Discrete Barrier Options." *Mathematical Finance*, 7(4), 325-349.
+//!   for Discrete Barrier Options." *Mathematical Finance*, 7(4), 325-349. `docs/REFERENCES.md#glasserman-2004-monte-carlo` `docs/REFERENCES.md#broadie-glasserman-kou-1997`
 //!
 //! - Gobet, E. (2000). "Weak Approximation of Killed Diffusion Using Euler Schemes."
 //!   *Stochastic Processes and their Applications*, 87(2), 167-197.
@@ -80,7 +80,7 @@
 //! ## Reference Texts
 //!
 //! - Haug, E. G. (2007). *The Complete Guide to Option Pricing Formulas* (2nd ed.).
-//!   McGraw-Hill. Chapter 4: Barrier Options.
+//!   McGraw-Hill. Chapter 4: Barrier Options. `docs/REFERENCES.md#haug-2007-option-formulas`
 //!
 //! - Wilmott, P., Howison, S., & Dewynne, J. (1995). *The Mathematics of Financial
 //!   Derivatives*. Cambridge University Press. Chapter 8.

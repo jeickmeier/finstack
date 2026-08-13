@@ -3,7 +3,8 @@
 //! The QE scheme (Andersen, 2008) ensures positive variance while maintaining
 //! accuracy for the CIR-type variance process in Heston.
 //!
-//! Reference: Andersen (2008) - "Simple and efficient simulation of the Heston stochastic volatility model"
+//! Reference: Andersen (2008) - "Simple and efficient simulation of the Heston stochastic volatility model".
+//!
 
 use super::super::process::heston::HestonProcess;
 use super::super::traits::Discretization;
@@ -227,7 +228,7 @@ impl QeHeston {
     ///
     /// # References
     /// - Andersen, L. (2008). "Simple and efficient simulation of the Heston
-    ///   stochastic volatility model." *J. Comp. Finance*, 11(3).
+    ///   stochastic volatility model." *J. Comp. Finance*, 11(3). `docs/REFERENCES.md#andersen-2008-heston-qe`
     ///
     /// (Production stepping uses [`Self::int_var_coeffs`] directly; this
     /// helper remains for tests of the integrated-variance approximations.)
@@ -316,20 +317,20 @@ impl Discretization<HestonProcess> for QeHeston {
         // Step 2: Evolve the spot. With the affine integrated-variance
         // approximation ∫v ≈ c0 + c1·v_t + c2·v_{t+Δt}, the log-return is
         //
-        //   Δln S = (r−q)Δt + C + B·v_t + A_pre·v_{t+Δt}
-        //           + √((1−ρ²)·∫v)·Z
+        // Δln S = (r−q)Δt + C + B·v_t + A_pre·v_{t+Δt}
+        // + √((1−ρ²)·∫v)·Z
         //
         // with C = −½c0 + (ρ/σ_v)·κ·c0 − (ρ/σ_v)·κθΔt,
-        //      B = −½c1 + (ρ/σ_v)(κc1 − 1),
-        //      A_pre = −½c2 + (ρ/σ_v)(κc2 + 1).
+        // B = −½c1 + (ρ/σ_v)(κc1 − 1),
+        // A_pre = −½c2 + (ρ/σ_v)(κc2 + 1).
         //
         // Plain QE replaces (C + B·v_t) by the analytic Itô compensation,
         // which is only asymptotically a martingale and drifts at high
         // σ_v/|ρ|. Andersen's K0* makes the step exactly martingale:
         //
-        //   K0* = −ln M(A) − ½(1−ρ²)(c0 + c1·v_t),
-        //   A   = A_pre + ½(1−ρ²)c2,
-        //   M(A) = E[exp(A·v_{t+Δt}) | v_t]   (closed form per QE regime)
+        // K0* = −ln M(A) − ½(1−ρ²)(c0 + c1·v_t),
+        // A = A_pre + ½(1−ρ²)c2,
+        // M(A) = E[exp(A·v_{t+Δt}) | v_t] (closed form per QE regime)
         //
         // so that E[S_{t+Δt} | S_t, v_t] = S_t·e^{(r−q)Δt} holds exactly.
         // When M(A) is not finite (A outside the regime's domain) or σ_v is

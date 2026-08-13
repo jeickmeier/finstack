@@ -243,9 +243,6 @@ impl PyScheduleBuilder {
     fn new(start: &Bound<'_, PyAny>, end: &Bound<'_, PyAny>) -> PyResult<Self> {
         let s = py_to_date(start)?;
         let e = py_to_date(end)?;
-        if s >= e {
-            return Err(crate::errors::value_error("start must be before end"));
-        }
         Ok(Self {
             spec: ScheduleSpec {
                 start: s,
@@ -320,25 +317,17 @@ impl PyScheduleBuilder {
 
     /// Build the schedule.
     ///
-    /// Under the default ``STRICT`` policy any build warnings raise
-    /// ``ValueError``. Under ``MISSING_CALENDAR_WARNING`` or
-    /// ``GRACEFUL_EMPTY`` the schedule is returned carrying its warnings
-    /// (inspect via ``Schedule.warnings`` / ``Schedule.has_warnings()``).
+    /// Delegates entirely to the canonical Rust ``ScheduleSpec::build``:
+    /// under the default ``STRICT`` policy an invalid range or any build
+    /// warning raises an error (strict fails closed in Rust). Under
+    /// ``MISSING_CALENDAR_WARNING`` or ``GRACEFUL_EMPTY`` the schedule is
+    /// returned carrying its warnings (inspect via ``Schedule.warnings`` /
+    /// ``Schedule.has_warnings()``).
     fn build(&self) -> PyResult<PySchedule> {
-        let schedule = self.spec.build().map_err(core_to_py)?;
-        let strict = self.spec.error_policy == ScheduleErrorPolicy::Strict;
-        if strict && schedule.has_warnings() {
-            let warnings = schedule
-                .warnings
-                .iter()
-                .map(|w| w.to_string())
-                .collect::<Vec<_>>()
-                .join("; ");
-            return Err(crate::errors::value_error(format!(
-                "schedule build produced warnings; strict policy fails closed: {warnings}"
-            )));
-        }
-        Ok(PySchedule::from_inner(schedule))
+        self.spec
+            .build()
+            .map(PySchedule::from_inner)
+            .map_err(core_to_py)
     }
 
     fn __repr__(&self) -> String {

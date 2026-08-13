@@ -18,13 +18,13 @@
 //! # References
 //!
 //! - Kahan, W. (1965). "Further Remarks on Reducing Truncation Errors."
-//!   *Communications of the ACM*, 8(1), 40.
+//!   *Communications of the ACM*, 8(1), 40. `docs/REFERENCES.md#kahan-1965`
 //! - Neumaier, A. (1974). "Rundungsfehleranalyse einiger Verfahren zur Summation
 //!   endlicher Summen." *Zeitschrift für Angewandte Mathematik und Mechanik*, 54(1), 39-51.
 //! - Higham, N. J. (1993). "The Accuracy of Floating Point Summation."
-//!   *SIAM Journal on Scientific Computing*, 14(4), 783-799.
+//!   *SIAM Journal on Scientific Computing*, 14(4), 783-799. `docs/REFERENCES.md#higham-accuracy-and-stability`
 
-/// Kahan compensated summation – improves numerical stability while preserving a fixed iteration order.
+/// Kahan compensated summation – improves numerical stability while preserving a fixed iteration order. `docs/REFERENCES.md#kahan-1965`
 ///
 /// Best for sequences where all values have the same sign. For mixed-sign values,
 /// prefer [`neumaier_sum`] which handles magnitude differences better.

@@ -62,17 +62,17 @@
 //! # References
 //!
 //! - Black, F., & Scholes, M. (1973). "The Pricing of Options and Corporate
-//!   Liabilities." *Journal of Political Economy*, 81(3), 637-654.
+//!   Liabilities." *Journal of Political Economy*, 81(3), 637-654. `docs/REFERENCES.md#black-scholes-1973`
 //!
 //! - Merton, R. C. (1973). "Theory of Rational Option Pricing."
-//!   *Bell Journal of Economics and Management Science*, 4(1), 141-183.
+//!   *Bell Journal of Economics and Management Science*, 4(1), 141-183. `docs/REFERENCES.md#merton-1973`
 //!
 //! - Cox, J. C., Ross, S. A., & Rubinstein, M. (1979). "Option Pricing: A
 //!   Simplified Approach." *Journal of Financial Economics*, 7(3), 229-263.
 //!   (Binomial tree method)
 //!
 //! - Hull, J. C. (2018). *Options, Futures, and Other Derivatives* (10th ed.).
-//!   Pearson.
+//!   Pearson. `docs/REFERENCES.md#hull-options-futures`
 //!
 //! # Examples
 //!

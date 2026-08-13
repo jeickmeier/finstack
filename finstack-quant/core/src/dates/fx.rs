@@ -34,8 +34,8 @@
 //!
 //! # References
 //!
-//! - Business-day conventions:
-//!   `docs/REFERENCES.md#isda-2006-definitions`
+//! - Business-day conventions: `docs/REFERENCES.md#isda-2006-definitions`
+//!
 //! - FX settlement / spot-lag conventions: CLS settlement rules; see also
 //!   (FX spot lag finding)
 

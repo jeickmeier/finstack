@@ -33,6 +33,10 @@ def count_consecutive(values: list[float]) -> int:
     int
         Longest positive run length.
 
+    Notes
+    -----
+    This helper does not raise; an empty series yields ``0``.
+
     Examples
     --------
     >>> from finstack_quant.core.math import count_consecutive
@@ -248,12 +252,15 @@ class stats:
         float
             Arithmetic mean.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.math import stats
         >>> stats.mean([1.0, 2.0, 3.0])
         2.0
-
         """
         ...
 
@@ -274,12 +281,15 @@ class stats:
         float
             Sample variance.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.math import stats
         >>> round(stats.variance([1.0, 2.0, 3.0]), 10)
         1.0
-
         """
         ...
 
@@ -300,12 +310,15 @@ class stats:
         float
             Population variance.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.math import stats
         >>> round(stats.population_variance([1.0, 2.0, 3.0]), 10)
         0.6666666667
-
         """
         ...
 
@@ -328,12 +341,15 @@ class stats:
         float
             Correlation in ``[-1, 1]``, or ``NaN`` on error.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.math import stats
         >>> round(stats.correlation([1.0, 2.0, 3.0], [2.0, 4.0, 6.0]), 10)
         1.0
-
         """
         ...
 
@@ -356,12 +372,15 @@ class stats:
         float
             Sample covariance.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.math import stats
         >>> round(stats.covariance([1.0, 2.0, 3.0], [2.0, 4.0, 6.0]), 10)
         2.0
-
         """
         ...
 
@@ -385,12 +404,15 @@ class stats:
         float
             Quantile value.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.math import stats
         >>> stats.quantile([1.0, 2.0, 3.0, 4.0, 5.0], 0.5)
         3.0
-
         """
         ...
 
@@ -640,12 +662,15 @@ class summation:
         float
             Compensated sum.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.math import summation
         >>> summation.kahan_sum([1.0, 2.0, 3.0])
         6.0
-
         """
         ...
 
@@ -667,11 +692,14 @@ class summation:
         float
             Compensated sum.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.core.math import summation
         >>> summation.neumaier_sum([1.0, -2.0, 3.0])
         2.0
-
         """
         ...

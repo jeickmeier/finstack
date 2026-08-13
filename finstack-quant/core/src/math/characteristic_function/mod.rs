@@ -13,7 +13,7 @@
 //! # References
 //!
 //! - Cont, R. & Tankov, P. (2004). *Financial Modelling with Jump Processes*.
-//!   Chapman & Hall/CRC. Chapter 11.
+//!   Chapman & Hall/CRC. Chapter 11. `docs/REFERENCES.md#cont-tankov-2004`
 
 mod black_scholes;
 mod merton;
@@ -62,7 +62,7 @@ pub struct Cumulants {
 /// # References
 ///
 /// - Cont, R. & Tankov, P. (2004). *Financial Modelling with Jump Processes*.
-///   Chapman & Hall/CRC. Chapter 11.
+///   Chapman & Hall/CRC. Chapter 11. `docs/REFERENCES.md#cont-tankov-2004`
 pub trait CharacteristicFunction: Send + Sync {
     /// Evaluate the characteristic function at complex frequency `u` and time `t`.
     ///

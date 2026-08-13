@@ -30,9 +30,9 @@
 //!
 //! # Reference
 //!
-//! - Heston (1993) - "A Closed-Form Solution for Options with Stochastic Volatility"
-//! - Carr & Madan (1999) - "Option valuation using the fast Fourier transform"
-//! - Albrecher et al. (2007) - "The Little Heston Trap"
+//! - Heston (1993) - "A Closed-Form Solution for Options with Stochastic Volatility" `docs/REFERENCES.md#heston-1993`
+//! - Carr & Madan (1999) - "Option valuation using the fast Fourier transform" `docs/REFERENCES.md#carr-madan-1999-fft`
+//! - Albrecher et al. (2007) - "The Little Heston Trap" `docs/REFERENCES.md#albrecher-2007-little-heston-trap`
 
 mod characteristic_fn;
 mod fourier_prices;

@@ -20,9 +20,9 @@
 //! # References
 //!
 //! - Reiner, E., & Rubinstein, M. (1991). "Breaking Down the Barriers."
-//!   *Risk Magazine*, 4(8), 28-35.
+//!   *Risk Magazine*, 4(8), 28-35. `docs/REFERENCES.md#reiner-rubinstein-1991`
 //!
-//! - Wystup, U. (2006). *FX Options and Structured Products*. Wiley.
+//! - Wystup, U. (2006). *FX Options and Structured Products*. Wiley. `docs/REFERENCES.md#wystup-fx-options`
 //!
 //! # See Also
 //!

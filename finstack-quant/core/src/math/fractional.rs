@@ -23,11 +23,11 @@
 //! # References
 //!
 //! - Mandelbrot, B. & Van Ness, J. (1968). Fractional Brownian motions, fractional
-//!   noises and applications. *SIAM Review*, 10(4), 422–437.
+//!   noises and applications. *SIAM Review*, 10(4), 422–437. `docs/REFERENCES.md#mandelbrot-van-ness-1968`
 //! - Bayer, C., Friz, P. & Gatheral, J. (2016). Pricing under rough volatility.
-//!   *Quantitative Finance*, 16(6), 887–904.
+//!   *Quantitative Finance*, 16(6), 887–904. `docs/REFERENCES.md#bayer-friz-gatheral-2016`
 //! - El Euch, O. & Rosenbaum, M. (2019). The characteristic function of rough Heston
-//!   models. *Mathematical Finance*, 29(1), 3–38.
+//!   models. *Mathematical Finance*, 29(1), 3–38. `docs/REFERENCES.md#el-euch-rosenbaum-2019`
 //! - Gorenflo, R., Loutchko, J. & Luchko, Yu. (2002). Computation of the Mittag-Leffler
 //!   function E_{α,β}(z) and its derivative. *Fractional Calculus and Applied Analysis*,
 //!   5(4), 491–518.

@@ -131,7 +131,7 @@ pub enum Observed {
     /// # Reference
     /// Federal Reserve Board, "K.8 Holidays Observed by the Federal Reserve
     /// System": "For holidays falling on Saturday, Federal Reserve Banks and
-    /// Branches will be open the preceding Friday."
+    /// Branches will be open the preceding Friday." `docs/REFERENCES.md#fed-k8-holidays`
     MonIfSun,
 
     /// Saturday → following Monday (+2 days); Sunday → following Tuesday (+2 days).

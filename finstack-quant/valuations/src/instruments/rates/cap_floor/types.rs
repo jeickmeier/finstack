@@ -1009,7 +1009,7 @@ mod tests {
     ///
     /// # References
     ///
-    /// - Hull, J.C. "Options, Futures, and Other Derivatives", Chapter 28
+    /// - Hull, J.C. "Options, Futures, and Other Derivatives", Chapter 28 `docs/REFERENCES.md#hull-options-futures`
     /// - This parity holds for European-style options under Black model
     #[test]
     fn cap_floor_parity_holds() {

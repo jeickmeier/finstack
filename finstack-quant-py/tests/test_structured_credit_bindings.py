@@ -74,8 +74,8 @@ def _market() -> MarketContext:
             ForwardCurve(
                 "SOFR-3M",
                 0.25,
-                [(0.0, 0.04), (10.0, 0.04)],
                 as_of,
+                [(0.0, 0.04), (10.0, 0.04)],
                 day_count="act_360",
             )
         )

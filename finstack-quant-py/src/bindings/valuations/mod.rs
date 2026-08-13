@@ -70,6 +70,18 @@ impl PyValuationResult {
         &self.inner.instrument_id
     }
 
+    /// Valuation date (T+0) for the calculation, as ``datetime.date``.
+    #[getter]
+    fn as_of<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::bindings::core::dates::utils::date_to_py(py, self.inner.as_of)
+    }
+
+    /// Wire-format schema version of the result envelope (currently ``1``).
+    #[getter]
+    fn schema_version(&self) -> u32 {
+        self.inner.schema_version.into()
+    }
+
     #[getter]
     fn get_price(&self) -> f64 {
         self.inner.value.amount()
@@ -184,9 +196,84 @@ impl PyValuationResult {
 
 // InstrumentJson — tagged-union loader
 
+/// Validate a tagged instrument JSON payload and return the canonical envelope.
+///
+/// Parameters
+/// ----------
+/// json : str
+///     A ``finstack_quant.instrument/1`` envelope. Bare instrument payloads
+///     are rejected.
+///
+/// Returns
+/// -------
+/// str
+///     Canonical instrument envelope for the validated instrument.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If ``json`` is malformed, is not a canonical v1 envelope, or fails
+///     instrument validation.
 #[pyfunction]
 fn validate_instrument_json(json: &str) -> PyResult<String> {
     finstack_quant_valuations::pricer::validate_instrument_json(json)
+        .map_err(crate::errors::display_to_py)
+}
+
+/// Validate a payload as one exact instrument type and return the canonical envelope.
+///
+/// Pure delegation to the Rust
+/// ``finstack_quant_valuations::pricer::validate_typed_instrument_json`` used
+/// by the WASM typed FX classes' ``fromJson`` constructors.
+///
+/// Parameters
+/// ----------
+/// type_tag : str
+///     Canonical instrument discriminator (e.g. ``"fx_forward"``).
+/// json : str
+///     A ``finstack_quant.instrument/1`` envelope for exactly that type.
+///
+/// Returns
+/// -------
+/// str
+///     The canonical instrument envelope for the validated instrument.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If ``json`` is malformed, carries a different instrument type, or
+///     fails instrument validation.
+#[pyfunction]
+#[pyo3(text_signature = "(type_tag, json)")]
+fn validate_typed_instrument_json(type_tag: &str, json: &str) -> PyResult<String> {
+    finstack_quant_valuations::pricer::validate_typed_instrument_json(type_tag, json)
+        .map_err(crate::errors::display_to_py)
+}
+
+/// Re-render a canonical instrument envelope as pretty-printed JSON.
+///
+/// Pure delegation to the Rust
+/// ``finstack_quant_valuations::pricer::pretty_instrument_json`` used by the
+/// WASM typed FX classes' ``toJson`` methods.
+///
+/// Parameters
+/// ----------
+/// json : str
+///     A canonical ``finstack_quant.instrument/1`` envelope.
+///
+/// Returns
+/// -------
+/// str
+///     The same envelope, pretty-printed.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If ``json`` is malformed or cannot be rendered.
+#[pyfunction]
+#[pyo3(text_signature = "(json)")]
+fn pretty_instrument_json(json: &str) -> PyResult<String> {
+    finstack_quant_valuations::pricer::pretty_instrument_json(json)
         .map_err(crate::errors::display_to_py)
 }
 
@@ -299,9 +386,17 @@ fn register_instruments(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResul
     )?;
 
     m.add_function(wrap_pyfunction!(validate_instrument_json, &m)?)?;
+    m.add_function(wrap_pyfunction!(validate_typed_instrument_json, &m)?)?;
+    m.add_function(wrap_pyfunction!(pretty_instrument_json, &m)?)?;
     m.add_function(wrap_pyfunction!(bond_from_cashflows_json, &m)?)?;
-    m.getattr("bond_from_cashflows_json")?
-        .setattr("__module__", "finstack_quant.valuations.instruments")?;
+    for name in [
+        "bond_from_cashflows_json",
+        "pretty_instrument_json",
+        "validate_typed_instrument_json",
+    ] {
+        m.getattr(name)?
+            .setattr("__module__", "finstack_quant.valuations.instruments")?;
+    }
     instruments::register(py, &m)?;
     merton_mc::register(py, &m)?;
     typed_legs::register(py, &m)?;
@@ -353,14 +448,16 @@ fn register_instruments(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResul
         "list_models_grouped",
         "list_standard_metrics",
         "list_standard_metrics_grouped",
+        "pretty_instrument_json",
         "price_instrument",
         "price_instrument_with_metrics",
+        "validate_instrument_json",
+        "validate_typed_instrument_json",
     ];
     exports.extend_from_slice(merton_mc::EXPORTS);
     exports.extend_from_slice(structured_credit::EXPORTS);
     exports.sort_unstable();
     exports.dedup();
-    exports.push("validate_instrument_json");
     let all = PyList::new(py, exports)?;
     m.setattr("__all__", all)?;
     crate::bindings::module_utils::register_submodule_at(py, parent, &m, &qual)?;

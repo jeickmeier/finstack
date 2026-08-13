@@ -51,13 +51,16 @@
 //! # References
 //!
 //! - Black, F., & Scholes, M. (1973). "The Pricing of Options and Corporate
-//!   Liabilities." *Journal of Political Economy*, 81(3), 637-654.
+//!   Liabilities." *Journal of Political Economy*, 81(3), 637-654. `docs/REFERENCES.md#black-scholes-1973`
+//!
 //!
 //! - Merton, R. C. (1973). "Theory of Rational Option Pricing."
-//!   *Bell Journal of Economics and Management Science*, 4(1), 141-183.
+//!   *Bell Journal of Economics and Management Science*, 4(1), 141-183. `docs/REFERENCES.md#merton-1973`
+//!
 //!
 //! - Glasserman, P. (2003). *Monte Carlo Methods in Financial Engineering*.
-//!   Springer. Section 3.1: Generating Sample Paths. pp. 97-103.
+//!   Springer. Section 3.1: Generating Sample Paths. pp. 97-103. `docs/REFERENCES.md#glasserman-2004-monte-carlo`
+//!
 //!
 //! # Examples
 //!

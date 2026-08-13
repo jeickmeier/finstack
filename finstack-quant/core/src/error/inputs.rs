@@ -250,6 +250,19 @@ pub enum InputError {
         kind: NonFiniteKind,
     },
 
+    /// Fractional basis points supplied where a whole-bp quote is required.
+    ///
+    /// `Bps` stores whole basis points as an `i32`; silently rounding a
+    /// sub-bp spread (e.g. an FRN margin of 62.5 bp) would change instrument
+    /// economics. Use a decimal `Rate` when sub-bp precision matters.
+    #[error(
+        "Basis points must be a whole number: got {value}; use a decimal Rate for sub-bp precision"
+    )]
+    FractionalBasisPoints {
+        /// The fractional basis-point value that was rejected.
+        value: f64,
+    },
+
     // FX / Rates / Conversions
     /// Invalid FX rate encountered (non-finite, non-positive, or otherwise unusable).
     #[error("Invalid FX rate for {from}->{to}: {rate}")]

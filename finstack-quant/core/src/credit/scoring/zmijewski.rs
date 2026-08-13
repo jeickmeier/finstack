@@ -9,7 +9,7 @@
 //!
 //! Zmijewski, M. E. (1984). "Methodological Issues Related to the Estimation
 //! of Financial Distress Prediction Models." *Journal of Accounting Research*,
-//! 22, 59-82.
+//! 22, 59-82. `docs/REFERENCES.md#zmijewski-1984`
 
 use serde::{Deserialize, Serialize};
 
@@ -23,7 +23,7 @@ use super::types::{check_finite, CreditScoringError, ScoringResult, ScoringZone}
 ///
 /// Zmijewski, M. E. (1984). "Methodological Issues Related to the Estimation
 /// of Financial Distress Prediction Models." *Journal of Accounting Research*,
-/// 22, 59-82.
+/// 22, 59-82. `docs/REFERENCES.md#zmijewski-1984`
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct ZmijewskiInput {
     /// Net Income / Total Assets (ROA).

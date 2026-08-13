@@ -133,6 +133,9 @@ fn computation_results_are_structured_not_strings() {
         "priceInstrumentWithMarket",
         "priceInstrumentWithMetricsAndMarket",
         "calibrate",
+        // The audit found attributePnl missing from this list — it was
+        // declared `string` while its Python twin returned a typed wrapper.
+        "attributePnl",
     ] {
         let Some(ret) = declared_return(&dts, export) else {
             panic!("{export} is missing from index.d.ts");

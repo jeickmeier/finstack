@@ -245,7 +245,7 @@ fn list_models_grouped() -> std::collections::BTreeMap<String, Vec<String>> {
 ///     Valuation date, either a date-like object (``datetime.date``,
 ///     ``pandas.Timestamp``) or an ISO 8601 string.
 /// model : str
-///     ``"discounting"`` or ``"hazard_rate"``.
+///     ``"discounting"`` or ``"hazard_rate"``. ``"default"`` is not accepted.
 ///
 /// Returns
 /// -------

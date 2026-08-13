@@ -59,12 +59,12 @@
 //! # References
 //!
 //! - Hull, J. C. (2018). *Options, Futures, and Other Derivatives* (10th ed.).
-//!   Chapters 4-6 (Forward rates and curve construction).
+//!   Chapters 4-6 (Forward rates and curve construction). `docs/REFERENCES.md#hull-options-futures`
 //! - Andersen, L., & Piterbarg, V. (2010). *Interest Rate Modeling*.
-//!   Volume 1, Chapter 3 (Multi-curve framework).
+//!   Volume 1, Chapter 3 (Multi-curve framework). `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
 //! - Ametrano, F. M., & Bianchetti, M. (2013). "Everything You Always Wanted to
 //!   Know About Multiple Interest Rate Curve Bootstrapping but Were Afraid to Ask."
-//!   SSRN Working Paper.
+//!   SSRN Working Paper. `docs/REFERENCES.md#ametrano-bianchetti-2013`
 
 use super::common::{
     build_interp_allow_any_values, infer_forward_curve_defaults, roll_knots, split_points,

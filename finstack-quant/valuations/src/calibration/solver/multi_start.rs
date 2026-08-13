@@ -17,10 +17,10 @@
 //!
 //! - Halton, J. H. (1960). "On the efficiency of certain quasi-random
 //!   sequences of points in evaluating multi-dimensional integrals."
-//!   *Numerische Mathematik* 2(1), 84–90.
+//!   *Numerische Mathematik* 2(1), 84–90. `docs/REFERENCES.md#halton-1960`
 //! - Gilli, Maringer, & Schumann (2011). *Numerical Methods and Optimization
 //!   in Finance*. §12.5 (global optimization), §13.4 (multi-start for
-//!   calibration).
+//!   calibration). `docs/REFERENCES.md#gilli-maringer-schumann-2011`
 
 /// Configuration for multi-start optimization to escape local minima.
 ///

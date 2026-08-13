@@ -105,9 +105,10 @@ pub enum SwaptionSettlement {
 ///
 /// # References
 ///
-/// - ISDA 2006 Definitions, Section 18.2
-/// - "Interest Rate Models" by Brigo & Mercurio, Chapter 6
-/// - Bloomberg VCUB/SWPM: Uses ISDA Par-Par for production
+/// - ISDA 2006 Definitions, Section 18.2 `docs/REFERENCES.md#isda-2006-definitions`
+/// - "Interest Rate Models" by Brigo & Mercurio, Chapter 6 `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
+/// - Bloomberg VCUB/SWPM production quoting uses ISDA par-par.
+///   `docs/REFERENCES.md#bloomberg-swpm`
 #[derive(
     Debug,
     Clone,

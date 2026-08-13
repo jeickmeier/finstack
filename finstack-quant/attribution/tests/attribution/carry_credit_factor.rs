@@ -312,8 +312,14 @@ fn carry_roll_down_total_equals_rates_plus_credit() {
     );
 }
 
-/// Invariant 3: `credit_carry_total ≡ Σ_lines SourceLine.credit_part`
-/// where lines = coupon_income + roll_down (§7.4). pull_to_par is unsplit.
+/// Invariant 3 (audit fix M2): the credit leg is `Σ_lines SourceLine.credit_part
+/// plus w × pull_to_par` where lines = coupon_income + roll_down and `w = s/(r+s)`
+/// is the credit share (§7.4). The share `w` is not on the wire, so this test pins
+/// it jointly with the rates leg: the two pull_to_par shares must be
+/// complementary, each in [0, 1] of pull_to_par, and the full partition must
+/// close on `carry_detail.total` — the exact identity the pre-fix code violated
+/// by dropping pull_to_par from both legs (the gap was pull_to_par itself, ~99%
+/// of carry on the canonical fixture).
 #[test]
 fn credit_carry_total_equals_sum_of_credit_source_lines() {
     let attribution = run_metrics_based_with_model(Some(make_model()));
@@ -338,13 +344,31 @@ fn credit_carry_total_equals_sum_of_credit_source_lines() {
         .and_then(|l| l.credit_part)
         .map(|m| m.amount())
         .unwrap_or(0.0);
-    let sum_credit = coupon_credit + roll_credit;
+    let pull_to_par = detail
+        .pull_to_par
+        .as_ref()
+        .map(|m| m.amount())
+        .unwrap_or(0.0);
 
+    // The credit leg beyond its source-line parts must be exactly the credit
+    // share of pull_to_par: a value between 0 and the full pull_to_par
+    // (same sign), never more.
+    let credit_ptp_share = cc.credit_carry_total.amount() - (coupon_credit + roll_credit);
+    let share_fraction = if pull_to_par.abs() > TOL {
+        credit_ptp_share / pull_to_par
+    } else {
+        0.0
+    };
     assert!(
-        (cc.credit_carry_total.amount() - sum_credit).abs() < TOL,
-        "credit_carry_total mismatch: total={}, Σ credit_parts={}",
-        cc.credit_carry_total.amount(),
-        sum_credit
+        (-TOL..=1.0 + TOL).contains(&share_fraction),
+        "credit share of pull_to_par must lie in [0, 1]: share={share_fraction}, \
+         credit_ptp_share={credit_ptp_share}, pull_to_par={pull_to_par}"
+    );
+    assert!(
+        share_fraction > TOL,
+        "credit leg must receive a nonzero pull_to_par share on a credit-risky \
+         fixture (pre-M2 regression: pull_to_par dropped from the partition); \
+         share={share_fraction}"
     );
 }
 
@@ -368,7 +392,11 @@ fn credit_carry_total_equals_generic_levels_and_adder() {
     );
 }
 
-/// Invariant 5: `rates_carry_total ≡ Σ_lines SourceLine.rates_part − funding_cost` (§7.4).
+/// Invariant 5 (audit fix M2): the rates leg is `Σ_lines SourceLine.rates_part
+/// plus (1 − w) × pull_to_par minus funding_cost` (§7.4), and the two legs
+/// together partition the FULL carry — `rates_carry_total + credit_carry_total`
+/// equals `carry_detail.total`. The partition identity is the load-bearing one;
+/// the pre-fix code failed it by exactly `pull_to_par`.
 #[test]
 fn rates_carry_total_matches_rates_source_lines_minus_funding() {
     let attribution = run_metrics_based_with_model(Some(make_model()));
@@ -393,18 +421,44 @@ fn rates_carry_total_matches_rates_source_lines_minus_funding() {
         .and_then(|l| l.rates_part)
         .map(|m| m.amount())
         .unwrap_or(0.0);
+    let coupon_credit = detail
+        .coupon_income
+        .as_ref()
+        .and_then(|l| l.credit_part)
+        .map(|m| m.amount())
+        .unwrap_or(0.0);
+    let roll_credit = detail
+        .roll_down
+        .as_ref()
+        .and_then(|l| l.credit_part)
+        .map(|m| m.amount())
+        .unwrap_or(0.0);
     let funding = detail
         .funding_cost
         .as_ref()
         .map(|m| m.amount())
         .unwrap_or(0.0);
+    let pull_to_par = detail
+        .pull_to_par
+        .as_ref()
+        .map(|m| m.amount())
+        .unwrap_or(0.0);
 
-    let expected = coupon_rates + roll_rates - funding;
+    // The two pull_to_par shares must be complementary…
+    let credit_ptp_share = cc.credit_carry_total.amount() - (coupon_credit + roll_credit);
+    let rates_ptp_share = cc.rates_carry_total.amount() - (coupon_rates + roll_rates - funding);
     assert!(
-        (cc.rates_carry_total.amount() - expected).abs() < TOL,
-        "rates_carry_total mismatch: total={}, Σ rates_parts − funding={}",
-        cc.rates_carry_total.amount(),
-        expected
+        (credit_ptp_share + rates_ptp_share - pull_to_par).abs() < TOL,
+        "pull_to_par shares must be complementary: credit={credit_ptp_share}, \
+         rates={rates_ptp_share}, pull_to_par={pull_to_par}"
+    );
+
+    // …and the two legs must partition the full carry (the M2 identity).
+    let total = detail.total.amount();
+    let partition = cc.rates_carry_total.amount() + cc.credit_carry_total.amount();
+    assert!(
+        (partition - total).abs() < TOL,
+        "carry partition failed: rates+credit={partition}, carry_detail.total={total}"
     );
 }
 

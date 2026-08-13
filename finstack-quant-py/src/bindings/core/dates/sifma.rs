@@ -114,6 +114,16 @@ fn py_estimated_sifma_settlement_date_for_class<'py>(
     )
 }
 
+/// Next published SIFMA settlement date on or after `date`.
+///
+/// # Arguments
+///
+/// * `date` - Calendar date from which to search (`datetime.date` or date-like).
+///
+/// # Errors
+///
+/// Returns `TypeError` if `date` is not date-like, or `ValueError` if those
+/// attributes do not form a valid calendar date.
 #[pyfunction(name = "next_sifma_settlement")]
 #[pyo3(text_signature = "(date)")]
 fn py_next_sifma_settlement<'py>(

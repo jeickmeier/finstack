@@ -1079,7 +1079,7 @@ pub(crate) struct SeniorFeeInputs<'a> {
 /// shared by three call sites that previously would have drifted:
 ///   * the IC numerator (SC-M29), which nets it from interest collections;
 ///   * the excess-spread capture/draw and the reserve draw (N1), which must
-///     treat it as a senior claim ranking ahead of note interest;
+///   treat it as a senior claim ranking ahead of note interest;
 ///   * the waterfall itself, which actually pays it.
 ///
 /// Computing it with `calculate_payment_amount` — the same kernel the fee tier

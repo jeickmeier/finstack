@@ -2,7 +2,7 @@
 //! and sensitivity matrix for finstack_quant.
 //!
 //! Multi-asset factor modelling is the first-class concept of this crate.
-//! Credit hierarchy calibration is one current implementation; rates,
+//! Credit hierarchy calibration is implemented for credit factors; rates,
 //! equity, volatility, commodity, and inflation factors are expressed
 //! through generic [`FactorType`] and [`FactorDefinition`].
 //!
@@ -47,6 +47,11 @@
 //! - Pricing engines that consume `FactorModelConfig` live in
 //!   `finstack-quant-portfolio::sensitivity` because they depend on the
 //!   instrument trait surface.
+//!
+//! # References
+//!
+//! - Factor models and exposure-based risk: `docs/REFERENCES.md#meucci-risk-and-asset-allocation`
+//! - Euler capital allocation: `docs/REFERENCES.md#tasche-2008-capital-allocation`
 
 #![forbid(unsafe_code)]
 #![warn(clippy::float_cmp)]

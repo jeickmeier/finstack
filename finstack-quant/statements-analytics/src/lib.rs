@@ -88,6 +88,11 @@
 //!   `0.10` means `10%`.
 //! - Scenario overrides are deterministic full-period scalar overrides unless a
 //!   lower-level API states otherwise.
+//!
+//! # References
+//!
+//! - Discounting and DCF context: `docs/REFERENCES.md#hull-options-futures`
+//! - Coverage and leverage interpretation: `docs/REFERENCES.md#tuckman-serrat-fixed-income`
 
 /// Analysis tools for financial statement models.
 pub mod analysis;

@@ -224,7 +224,7 @@ pub enum ProtectionWindow {
 /// - **MOIC**: Standard private-equity and private-credit return metric.
 ///   MOIC = total distributions / invested capital. See e.g. Rosenbaum, J. &
 ///   Pearl, J. (2013). *Investment Banking: Valuation, Leveraged Buyouts, and
-///   Mergers & Acquisitions* (2nd ed.). Wiley Finance.
+///   Mergers & Acquisitions* (2nd ed.). Wiley Finance. `docs/REFERENCES.md#rosenbaum-pearl-2020`
 /// - **XIRR / IRR**: Internal rate of return. See Brealey, R. A., Myers, S.
 ///   C. & Allen, F. (2023). *Principles of Corporate Finance* (14th ed.).
 ///   McGraw-Hill. Chapter 5 ("Net Present Value and Other Investment Criteria").
@@ -232,7 +232,7 @@ pub enum ProtectionWindow {
 ///   agreement term. LSTA (Loan Syndications and Trading Association).
 ///   *The Handbook of Loan Syndications and Trading* (2nd ed.). Chapter on
 ///   loan documentation and call protection.
-/// - **Act/365F day count**: ISDA 2006 Definitions, Section 4.16(f).
+/// - **Act/365F day count**: ISDA 2006 Definitions, Section 4.16(f). `docs/REFERENCES.md#isda-2006-definitions`
 ///
 /// # Examples
 ///

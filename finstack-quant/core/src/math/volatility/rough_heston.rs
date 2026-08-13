@@ -42,13 +42,13 @@
 //! # References
 //!
 //! - El Euch, O. & Rosenbaum, M. (2019). "The characteristic function of rough
-//!   Heston models." *Mathematical Finance*, 29(1), 3–38.
+//!   Heston models." *Mathematical Finance*, 29(1), 3–38. `docs/REFERENCES.md#el-euch-rosenbaum-2019`
 //! - Diethelm, K., Ford, N. J. & Freed, A. D. (2004). "Detailed error analysis
 //!   for a fractional Adams method." *Numerical Algorithms*, 36(1), 31–52.
 //! - Lewis, A. L. (2000). *Option Valuation under Stochastic Volatility*.
 //!   Finance Press.
 //! - Gatheral, J., Jaisson, T. & Rosenbaum, M. (2018). "Volatility is rough."
-//!   *Quantitative Finance*, 18(6), 933–949.
+//!   *Quantitative Finance*, 18(6), 933–949. `docs/REFERENCES.md#gatheral-jaisson-rosenbaum-2018`
 
 use num_complex::Complex64;
 use std::f64::consts::PI;
@@ -467,7 +467,7 @@ impl RoughHestonFourierParams {
     /// # References
     ///
     /// - Lewis, A. L. (2001). "A Simple Option Formula for General Jump-Diffusion
-    ///   and Other Exponential Lévy Processes."
+    ///   and Other Exponential Lévy Processes." `docs/REFERENCES.md#merton-1976-jump`
     /// - Cui, Y., Del Baño Rollin, S. & Germano, G. (2017). "Full and fast
     ///   calibration of the Heston stochastic volatility model." *European Journal
     ///   of Operational Research*, 263(2), 625–638.
@@ -509,7 +509,7 @@ impl RoughHestonFourierParams {
         let solver = FractionalRiccatiSolver::new(self.hurst, t, DEFAULT_RICCATI_STEPS);
 
         // Lewis integrand at quadrature point u:
-        //   Re[e^{iwx} · ψ(w)] / (u² + 1/4),  w = u − i/2
+        // Re[e^{iwx} · ψ(w)] / (u² + 1/4), w = u − i/2
         //
         // where ψ(w) = exp(C(w) + I^{1−α}D(w)·v₀). The phase i·w·x carries
         // the real contour factor e^{x/2} (B1); the v₀ coefficient is the

@@ -42,8 +42,8 @@
 //!
 //! # References
 //!
-//! - Gaussian copula reference:
-//!   `docs/REFERENCES.md#li-2000-gaussian-copula`
+//! - Gaussian copula reference: `docs/REFERENCES.md#li-2000-gaussian-copula`
+//!
 
 use super::{get_cached_quadrature, Copula, DEFAULT_QUADRATURE_ORDER};
 use finstack_quant_core::math::{norm_cdf, GaussHermiteQuadrature};

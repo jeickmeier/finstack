@@ -30,8 +30,8 @@
 //! # References
 //!
 //! - Broadie, M., Glasserman, P., & Kou, S. (1997). "A Continuity Correction for
-//!   Discrete Barrier Options." *Mathematical Finance*, 7(4), 325-349.
-//! - Haug, E. G. (2007). *The Complete Guide to Option Pricing Formulas*, Section 4.17.
+//!   Discrete Barrier Options." *Mathematical Finance*, 7(4), 325-349. `docs/REFERENCES.md#glasserman-2004-monte-carlo` `docs/REFERENCES.md#broadie-glasserman-kou-1997`
+//! - Haug, E. G. (2007). *The Complete Guide to Option Pricing Formulas*, Section 4.17. `docs/REFERENCES.md#haug-2007-option-formulas`
 
 use crate::impl_instrument_base;
 use crate::instruments::common_impl::traits::Attributes;

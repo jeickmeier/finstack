@@ -5,7 +5,8 @@
 //!
 //! The key insight is: E[∂f/∂θ] = E[f * ∂ln(p)/∂θ]
 //!
-//! Reference: Glasserman (2003) - "Monte Carlo Methods in Financial Engineering", Chapter 7
+//! Reference: Glasserman (2003) - "Monte Carlo Methods in Financial Engineering", Chapter 7.
+//!
 
 use crate::online_stats::OnlineStats;
 
@@ -102,7 +103,7 @@ pub fn lrm_delta(
 ///
 /// # References
 ///
-/// Glasserman (2003), *Monte Carlo Methods in Financial Engineering*, Prop 7.3.4.
+/// Glasserman (2003), *Monte Carlo Methods in Financial Engineering*, Prop 7.3.4. `docs/REFERENCES.md#glasserman-2004-monte-carlo`
 #[must_use]
 pub fn lrm_vega(
     payoffs: &[f64],

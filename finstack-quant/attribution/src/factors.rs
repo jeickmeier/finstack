@@ -22,26 +22,44 @@
 //!
 //! `restore_market` is **clone-and-overwrite**: the result starts as a full
 //! clone of `current_market`, then each FLAGGED family is dropped and
-//! replaced from the snapshot. Families the snapshot does not model — price /
-//! vol-index / basis-spread / parametric curves, credit indices, collateral
-//! CSA mappings, hierarchy — always survive the restore unchanged (quant
-//! review B2: the previous from-scratch rebuild silently dropped them,
-//! breaking every instrument that depends on them).
+//! replaced from the snapshot. Families the snapshot does not model — credit
+//! indices, collateral CSA mappings, hierarchy — always survive the restore
+//! unchanged (quant review B2: the previous from-scratch rebuild silently
+//! dropped them, breaking every instrument that depends on them).
 //!
-//! - **Curve families** (discount/forward/hazard/inflation/correlation): flagged curves
-//!   are replaced from snapshot (drop-and-replace per family); unflagged curves are
-//!   preserved from `current_market`. Credit indices are re-bound after a
+//! Every [`CurveStorage`] variant is owned by exactly one flag family (quant
+//! review B8: price / vol-index / basis-spread / parametric curves previously
+//! survived every restore at their pre-restore state, so a waterfall /
+//! parallel attribution never moved them to T1 and their P&L fell into the
+//! residual):
+//!
+//! | `CurveStorage` variant | Flag family | Attribution factor |
+//! |------------------------|-------------|--------------------|
+//! | `Discount`             | `DISCOUNT`  | RatesCurves        |
+//! | `Forward`              | `FORWARD`   | RatesCurves        |
+//! | `BasisSpread`          | `FORWARD`   | RatesCurves        |
+//! | `Parametric`           | `FORWARD`   | RatesCurves        |
+//! | `Hazard`               | `HAZARD`    | CreditCurves       |
+//! | `Inflation`            | `INFLATION` | InflationCurves    |
+//! | `BaseCorrelation`      | `CORRELATION` | Correlations     |
+//! | `VolIndex`             | `VOL`       | Volatility         |
+//! | `Price`                | `SCALARS`   | MarketScalars      |
+//!
+//! - **Curve families**: flagged curves are replaced from snapshot
+//!   (drop-and-replace per family); unflagged curves are preserved from
+//!   `current_market`. Credit indices are re-bound after a
 //!   hazard/correlation restore so they resolve against the restored curves.
 //! - **FX** (`FX` flag): if flagged, the snapshot's FX (possibly `None`) replaces the
 //!   market's FX. If the snapshot's FX is `None` with the flag set, FX is cleared.
 //!   If not flagged, FX is preserved from `current_market`.
 //! - **Volatility** (`VOL` flag): if flagged, the snapshot's vol surfaces, SABR vol
-//!   cubes AND FX delta-quoted vol surfaces replace the market's entirely. If not
-//!   flagged, all three are preserved.
+//!   cubes, FX delta-quoted vol surfaces AND volatility-index curves replace the
+//!   market's entirely. If not flagged, all four are preserved.
 //! - **Scalars** (`SCALARS` flag): **DROP semantic** — if flagged, ALL scalars from
 //!   `current_market` are dropped and ONLY the snapshot's scalars are inserted. This
 //!   is load-bearing for factor isolation correctness. If not flagged, scalars are
-//!   preserved from `current_market`.
+//!   preserved from `current_market`. Commodity price curves restore with this
+//!   family (drop-and-replace like the other curve families).
 //!
 //! # See Also
 //!
@@ -54,10 +72,14 @@ use finstack_quant_core::market_data::scalars::InflationIndex;
 use finstack_quant_core::market_data::scalars::{MarketScalar, ScalarTimeSeries};
 use finstack_quant_core::market_data::surfaces::{FxDeltaVolSurface, VolCube, VolSurface};
 use finstack_quant_core::market_data::term_structures::BaseCorrelationCurve;
+use finstack_quant_core::market_data::term_structures::BasisSpreadCurve;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::market_data::term_structures::ForwardCurve;
 use finstack_quant_core::market_data::term_structures::HazardCurve;
 use finstack_quant_core::market_data::term_structures::InflationCurve;
+use finstack_quant_core::market_data::term_structures::ParametricCurve;
+use finstack_quant_core::market_data::term_structures::PriceCurve;
+use finstack_quant_core::market_data::term_structures::VolatilityIndexCurve;
 use finstack_quant_core::money::fx::FxMatrix;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::HashMap;
@@ -107,7 +129,10 @@ impl MarketRestoreFlags {
     /// Restore discount curves from snapshot
     pub const DISCOUNT: Self = Self(Self::DISCOUNT_BIT);
 
-    /// Restore forward curves from snapshot
+    /// Restore forward curves from snapshot.
+    ///
+    /// Basis-spread and parametric (Nelson-Siegel) curves are rate
+    /// projection term structures, so they restore with this family too.
     pub const FORWARD: Self = Self(Self::FORWARD_BIT);
 
     /// Restore hazard curves from snapshot
@@ -125,12 +150,14 @@ impl MarketRestoreFlags {
     /// the restored market instead of preserving the current market's FX.
     pub const FX: Self = Self(Self::FX_BIT);
 
-    /// Restore volatility surfaces from snapshot
+    /// Restore volatility surfaces, SABR cubes, FX delta-quoted surfaces and
+    /// volatility-index curves from snapshot.
     pub const VOL: Self = Self(Self::VOL_BIT);
 
     /// Restore market scalars (prices, series, inflation indices, dividends) from
     /// snapshot. Scalars present in the current market but absent from the snapshot
-    /// are **dropped** (see module docs).
+    /// are **dropped** (see module docs). Commodity price curves restore with this
+    /// family as well.
     pub const SCALARS: Self = Self(Self::SCALARS_BIT);
 
     /// Convenience combination: restore both discount and forward curves (rates family)
@@ -202,6 +229,18 @@ pub struct MarketSnapshot {
     pub inflation_curves: HashMap<CurveId, Arc<InflationCurve>>,
     /// Base correlation curves indexed by curve ID
     pub base_correlation_curves: HashMap<CurveId, Arc<BaseCorrelationCurve>>,
+    /// Basis spread curves indexed by curve ID (populated with the `FORWARD`
+    /// flag — rates family).
+    pub basis_spread_curves: HashMap<CurveId, Arc<BasisSpreadCurve>>,
+    /// Parametric (Nelson-Siegel) curves indexed by curve ID (populated with
+    /// the `FORWARD` flag — rates family).
+    pub parametric_curves: HashMap<CurveId, Arc<ParametricCurve>>,
+    /// Volatility-index curves indexed by curve ID (populated when the `VOL`
+    /// flag is set).
+    pub vol_index_curves: HashMap<CurveId, Arc<VolatilityIndexCurve>>,
+    /// Commodity/price curves indexed by curve ID (populated when the
+    /// `SCALARS` flag is set).
+    pub price_curves: HashMap<CurveId, Arc<PriceCurve>>,
     /// FX matrix (populated when the `FX` flag is set during extract).
     ///
     /// `None` is a meaningful value on restore: with `FX` flagged it clears FX
@@ -273,6 +312,24 @@ impl MarketSnapshot {
                         .insert(curve_id.clone(), curve);
                 }
             }
+            if flags.contains(MarketRestoreFlags::FORWARD) {
+                if let Ok(curve) = market.get_basis_spread(curve_id) {
+                    snapshot.basis_spread_curves.insert(curve_id.clone(), curve);
+                }
+                if let Ok(curve) = market.get_parametric(curve_id) {
+                    snapshot.parametric_curves.insert(curve_id.clone(), curve);
+                }
+            }
+            if flags.contains(MarketRestoreFlags::VOL) {
+                if let Ok(curve) = market.get_vol_index_curve(curve_id) {
+                    snapshot.vol_index_curves.insert(curve_id.clone(), curve);
+                }
+            }
+            if flags.contains(MarketRestoreFlags::SCALARS) {
+                if let Ok(curve) = market.get_price_curve(curve_id) {
+                    snapshot.price_curves.insert(curve_id.clone(), curve);
+                }
+            }
         }
 
         if flags.contains(MarketRestoreFlags::FX) {
@@ -331,22 +388,27 @@ impl MarketSnapshot {
     /// Restore market by applying snapshot factors and preserving non-snapshot factors.
     ///
     /// Clone-and-overwrite: the result starts as a full clone of
-    /// `current_market`, so every store the snapshot does not model (price /
-    /// vol-index / basis-spread / parametric curves, credit indices,
-    /// collateral CSA mappings, hierarchy) is preserved. For each family:
+    /// `current_market`, so every store the snapshot does not model (credit
+    /// indices, collateral CSA mappings, hierarchy) is preserved. For each
+    /// family:
     ///
     /// - **Curves**: each flagged family is dropped and replaced from
     ///   `snapshot`; unflagged families are preserved from `current_market`.
-    ///   Credit indices are re-bound after a hazard/correlation restore.
+    ///   Every [`CurveStorage`] variant belongs to exactly one flag family
+    ///   (see the module-level table): basis-spread and parametric curves
+    ///   restore with `FORWARD`, vol-index curves with `VOL`, and price
+    ///   curves with `SCALARS`. Credit indices are re-bound after a
+    ///   hazard/correlation restore.
     /// - **FX**: if flagged, replaced by `snapshot.fx` (which may be `None`,
     ///   clearing FX); otherwise preserved from `current_market`.
-    /// - **Volatility**: if flagged, vol surfaces, SABR cubes and FX-delta
-    ///   surfaces are all replaced wholesale by the snapshot's; otherwise
-    ///   preserved from `current_market`.
+    /// - **Volatility**: if flagged, vol surfaces, SABR cubes, FX-delta
+    ///   surfaces and vol-index curves are all replaced wholesale by the
+    ///   snapshot's; otherwise preserved from `current_market`.
     /// - **Scalars**: if flagged, **all** scalars from `current_market` are
     ///   dropped and only the snapshot's scalars are inserted (this is
-    ///   load-bearing for factor isolation). Otherwise scalars are preserved
-    ///   from `current_market`.
+    ///   load-bearing for factor isolation), and price curves are
+    ///   drop-and-replaced. Otherwise scalars are preserved from
+    ///   `current_market`.
     pub fn restore_market(
         current_market: &MarketContext,
         snapshot: &MarketSnapshot,
@@ -355,21 +417,33 @@ impl MarketSnapshot {
         let mut new_market = current_market.clone();
 
         // --- Curves: drop-and-replace each FLAGGED family. The clone keeps
-        // unflagged families and every family the snapshot does not model.
+        // unflagged families. The match is deliberately EXHAUSTIVE (no `_`
+        // arm): every `CurveStorage` variant must be owned by exactly one
+        // flag family, so adding a tenth variant is a compile error here
+        // instead of a silent restore gap (quant review B8).
         new_market.retain_curves_mut(|_, curve| match curve {
             CurveStorage::Discount(_) => !restore_flags.contains(MarketRestoreFlags::DISCOUNT),
-            CurveStorage::Forward(_) => !restore_flags.contains(MarketRestoreFlags::FORWARD),
+            CurveStorage::Forward(_)
+            | CurveStorage::BasisSpread(_)
+            | CurveStorage::Parametric(_) => !restore_flags.contains(MarketRestoreFlags::FORWARD),
             CurveStorage::Hazard(_) => !restore_flags.contains(MarketRestoreFlags::HAZARD),
             CurveStorage::Inflation(_) => !restore_flags.contains(MarketRestoreFlags::INFLATION),
             CurveStorage::BaseCorrelation(_) => {
                 !restore_flags.contains(MarketRestoreFlags::CORRELATION)
             }
-            _ => true,
+            CurveStorage::VolIndex(_) => !restore_flags.contains(MarketRestoreFlags::VOL),
+            CurveStorage::Price(_) => !restore_flags.contains(MarketRestoreFlags::SCALARS),
         });
         for curve in snapshot.discount_curves.values() {
             new_market.insert_mut(Arc::clone(curve));
         }
         for curve in snapshot.forward_curves.values() {
+            new_market.insert_mut(Arc::clone(curve));
+        }
+        for curve in snapshot.basis_spread_curves.values() {
+            new_market.insert_mut(Arc::clone(curve));
+        }
+        for curve in snapshot.parametric_curves.values() {
             new_market.insert_mut(Arc::clone(curve));
         }
         for curve in snapshot.hazard_curves.values() {
@@ -379,6 +453,12 @@ impl MarketSnapshot {
             new_market.insert_mut(Arc::clone(curve));
         }
         for curve in snapshot.base_correlation_curves.values() {
+            new_market.insert_mut(Arc::clone(curve));
+        }
+        for curve in snapshot.vol_index_curves.values() {
+            new_market.insert_mut(Arc::clone(curve));
+        }
+        for curve in snapshot.price_curves.values() {
             new_market.insert_mut(Arc::clone(curve));
         }
 

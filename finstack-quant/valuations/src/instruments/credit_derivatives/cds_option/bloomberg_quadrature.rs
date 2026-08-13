@@ -4,8 +4,10 @@
 //!
 //! - Bloomberg L.P. Quantitative Analytics. *Pricing Credit Index Options.*
 //!   DOCS 2055833 ⟨GO⟩, March 2012.
+//!   `docs/REFERENCES.md#bloomberg-cdso`
 //!
-//! and uses the Bloomberg CDS pricer (DOCS 2057273) for the bootstrapped
+//! and uses the Bloomberg CDS pricer (DOCS 2057273,
+//! `docs/REFERENCES.md#bloomberg-cds-model`) for the bootstrapped
 //! `F_0` calibration target.
 //!
 //! # Model summary (DOCS 2055833 §2.2, Eqs. 2.2–2.5)

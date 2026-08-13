@@ -51,7 +51,7 @@ impl std::fmt::Display for SnowballVariant {
 ///
 /// # References
 ///
-/// - Brigo, D., & Mercurio, F. (2006). *Interest Rate Models*. Chapter 14.
+/// - Brigo, D., & Mercurio, F. (2006). *Interest Rate Models*. Chapter 14. `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
 #[derive(PartialEq, Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Snowball {

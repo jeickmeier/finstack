@@ -26,8 +26,7 @@ pub(super) fn parametric_var_decomposition(
     let n = weights.len();
     let cov_flat = extract_square_matrix(py, covariance, n, "covariance")?;
 
-    let mut config = DecompositionConfig::parametric_95();
-    config.confidence = confidence;
+    let mut config = DecompositionConfig::parametric(confidence);
     if compute_incremental {
         config = config.with_incremental();
     }
@@ -55,8 +54,7 @@ pub(super) fn parametric_es_decomposition(
 ) -> PyResult<PyPositionRiskDecomposition> {
     let n = weights.len();
     let cov_flat = extract_square_matrix(py, covariance, n, "covariance")?;
-    let mut config = DecompositionConfig::parametric_95();
-    config.confidence = confidence;
+    let config = DecompositionConfig::parametric(confidence);
 
     let result = py
         .detach(move || {

@@ -62,11 +62,11 @@
 //! # References
 //!
 //! - Diebold, F. X., & Li, C. (2006). "Forecasting the Term Structure of
-//!   Government Bond Yields." *Journal of Econometrics*, 130(2), 337-364.
+//!   Government Bond Yields." *Journal of Econometrics*, 130(2), 337-364. `docs/REFERENCES.md#diebold-li-2006`
 //! - Litterman, R., & Scheinkman, J. (1991). "Common Factors Affecting
-//!   Bond Returns." *Journal of Fixed Income*, 1(1), 54-61.
+//!   Bond Returns." *Journal of Fixed Income*, 1(1), 54-61. `docs/REFERENCES.md#litterman-scheinkman-1991`
 
-/// Diebold-Li dynamic Nelson-Siegel model.
+/// Diebold-Li dynamic Nelson-Siegel model. `docs/REFERENCES.md#diebold-li-2006` `docs/REFERENCES.md#nelson-siegel-1987`
 pub mod diebold_li;
 /// PCA-based yield curve analysis.
 pub mod pca;

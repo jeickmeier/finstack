@@ -47,7 +47,7 @@
 //! # References
 //!
 //! - Garman, M. B., & Kohlhagen, S. W. (1983). "Foreign Currency Option Values."
-//!   *Journal of International Money and Finance*, 2(3), 231-237.
+//!   *Journal of International Money and Finance*, 2(3), 231-237. `docs/REFERENCES.md#garman-kohlhagen-1983`
 //!
 //! - Derman, E., Karasinski, P., & Wecker, J. (1990). "Understanding Guaranteed
 //!   Exchange-Rate Contracts in Foreign Stock Investments." Goldman Sachs

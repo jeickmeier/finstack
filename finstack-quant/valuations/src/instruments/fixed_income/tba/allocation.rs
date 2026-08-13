@@ -270,7 +270,7 @@ fn validate_positive(label: &str, value: f64) -> Result<()> {
 /// SIFMA allows ±0.01% variance on face amount for TBA allocation.
 ///
 /// # Reference
-/// SIFMA Good Delivery Guidelines Section 3.2
+/// SIFMA Good Delivery Guidelines Section 3.2 `docs/REFERENCES.md#sifma-tba-good-delivery`
 ///
 /// # Arguments
 ///

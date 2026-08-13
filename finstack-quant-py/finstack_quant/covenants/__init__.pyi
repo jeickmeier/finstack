@@ -110,6 +110,11 @@ class CovenantReport:
         -------
         str
             Compact JSON string.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -122,6 +127,10 @@ class CovenantReport:
         -------
         str
             For example ``"Debt/EBITDA <= 5.00x"``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -134,6 +143,10 @@ class CovenantReport:
         -------
         str | None
             ``None`` when the report was produced without an identifier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -152,19 +165,27 @@ class CovenantReport:
             untested covenant also reports ``True``, read it together with
             :attr:`actual_value`, which is ``None`` exactly when no numeric
             test ran.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def actual_value(self) -> float | None:
         """
-        Tested metric value.
+        Observed metric value that was tested against the covenant.
 
         Returns
         -------
         float | None
             ``None`` when the covenant was not evaluated numerically (inactive,
             waived, or springing condition unmet).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -177,6 +198,10 @@ class CovenantReport:
         -------
         float | None
             ``None`` when no numeric test was applied.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -192,6 +217,10 @@ class CovenantReport:
             agreement"``, or ``"In cure period"``. ``None`` for a plain numeric
             result whose evaluator supplied no commentary, so absence carries
             no meaning of its own.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -205,6 +234,10 @@ class CovenantReport:
         float | None
             Positive is a passing buffer, negative a deficit. ``None`` when no
             numeric test was applied.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -220,6 +253,10 @@ class CovenantReport:
             ``version``; ``fx_policy_applied`` is ``None`` when the evaluation
             stayed in one currency. Reproducing a report requires re-running
             under the same ``rounding`` context.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -234,6 +271,11 @@ class CovenantReport:
         -------
         pd.DataFrame
             One row describing this covenant evaluation.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 

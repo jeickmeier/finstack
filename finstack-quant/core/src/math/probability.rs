@@ -31,7 +31,7 @@
 //! # References
 //!
 //! - Lancaster, H. O. (1957). "Some properties of the bivariate normal distribution."
-//! - Demarta, S., & McNeil, A. J. (2005). "The t Copula and Related Copulas."
+//! - Demarta, S., & McNeil, A. J. (2005). "The t Copula and Related Copulas." `docs/REFERENCES.md#demarta-mcneil-2005-t-copula` `docs/REFERENCES.md#mcneil-frey-embrechts-qrm`
 
 /// Variance threshold below which a Bernoulli variable is treated as degenerate
 /// (i.e., probability is effectively 0 or 1, making correlation meaningless).

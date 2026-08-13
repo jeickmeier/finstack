@@ -46,8 +46,8 @@
 //!
 //! # References
 //!
-//! - Duffie, D., & Singleton, K. J. (1999). "Modeling Term Structures of Defaultable Bonds."
-//! - Lando, D. (1998). "On Cox Processes and Credit Risky Securities."
+//! - Duffie, D., & Singleton, K. J. (1999). "Modeling Term Structures of Defaultable Bonds." `docs/REFERENCES.md#duffie-singleton-1999`
+//! - Lando, D. (1998). "On Cox Processes and Credit Risky Securities." `docs/REFERENCES.md#lando-1998`
 
 use super::traits::{MacroCreditFactors, StochasticDefault};
 

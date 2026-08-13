@@ -57,7 +57,8 @@ pub struct StrategyAllocationInput {
 }
 
 /// Strategy allocation result.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct WeightAllocationResult {
     /// Allocation scheme applied.
     pub scheme: AllocationScheme,
@@ -68,7 +69,8 @@ pub struct WeightAllocationResult {
 }
 
 /// Per-strategy allocation output row.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct StrategyAllocation {
     /// Strategy identifier.
     pub id: String,
@@ -85,7 +87,8 @@ pub struct StrategyAllocation {
 }
 
 /// Portfolio-level allocation diagnostics.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct AllocationDiagnostics {
     /// Sum of allocation weights.
     pub weights_sum: f64,
@@ -322,27 +325,37 @@ fn inverse_volatility_weights(
 }
 
 fn sample_volatility(strategy: &StrategyAllocationInput) -> Result<f64> {
-    let finite_returns = strategy
+    // A non-finite return is a data fault, not a value to skip: silently
+    // filtering it would compute a volatility from a different sample than
+    // the caller supplied (see the finite-sensitivity precedent in
+    // `parametric::validate_finite_sensitivities`).
+    if let Some((index, value)) = strategy
         .returns
         .iter()
-        .copied()
-        .filter(|value| value.is_finite())
-        .collect::<Vec<_>>();
-    if finite_returns.len() < 2 {
+        .enumerate()
+        .find(|(_, value)| !value.is_finite())
+    {
         return Err(Error::validation(format!(
-            "allocation strategy '{}' requires at least two finite returns",
+            "allocation strategy '{}' has non-finite return at index {index} ({value})",
             strategy.id
         )));
     }
-    let mean = neumaier_total(finite_returns.iter().copied()) / finite_returns.len() as f64;
-    let variance = finite_returns
+    if strategy.returns.len() < 2 {
+        return Err(Error::validation(format!(
+            "allocation strategy '{}' requires at least two returns",
+            strategy.id
+        )));
+    }
+    let mean = neumaier_total(strategy.returns.iter().copied()) / strategy.returns.len() as f64;
+    let variance = strategy
+        .returns
         .iter()
         .map(|value| {
             let centered = *value - mean;
             centered * centered
         })
         .sum::<f64>()
-        / (finite_returns.len() - 1) as f64;
+        / (strategy.returns.len() - 1) as f64;
     Ok(variance.sqrt())
 }
 
@@ -351,33 +364,64 @@ fn risk_budget_weights(
     covariance: &[f64],
 ) -> Result<Vec<f64>> {
     let budgets = risk_budgets(strategies)?;
-    if strategies.len() == 1 {
+    let n = strategies.len();
+    if n == 1 {
         return Ok(vec![1.0]);
     }
 
-    let mut weights = budgets.clone();
+    // A zero risk budget is a valid request ("allocate no risk to this
+    // sleeve"): assign weight 0 up front and solve on the positive-budget
+    // subset. A zero-weight strategy has zero risk contribution, which the
+    // fixed-point update below cannot iterate on. Budgets are non-negative
+    // and sum to 1, so the active subset is non-empty and still sums to 1.
+    let active: Vec<usize> = (0..n).filter(|&idx| budgets[idx] > 0.0).collect();
+    let mut full_weights = vec![0.0; n];
+    if active.len() == 1 {
+        full_weights[active[0]] = 1.0;
+        return Ok(full_weights);
+    }
+    let m = active.len();
+    let sub_budgets: Vec<f64> = active.iter().map(|&idx| budgets[idx]).collect();
+    let mut sub_covariance = vec![0.0; m * m];
+    for (row, &i) in active.iter().enumerate() {
+        for (col, &j) in active.iter().enumerate() {
+            sub_covariance[row * m + col] = covariance[i * n + j];
+        }
+    }
+
+    let mut weights = sub_budgets.clone();
     normalize_weights(&mut weights)?;
 
     for _ in 0..MAX_SOLVER_ITERATIONS {
-        let contributions = risk_contribution_fractions(&weights, covariance)?;
+        let contributions = risk_contribution_fractions(&weights, &sub_covariance)?;
         let max_error = contributions
             .iter()
-            .zip(budgets.iter())
+            .zip(sub_budgets.iter())
             .map(|(actual, target)| (actual - target).abs())
             .fold(0.0_f64, f64::max);
         if max_error <= SOLVER_TOLERANCE {
-            return Ok(weights);
+            for (row, &idx) in active.iter().enumerate() {
+                full_weights[idx] = weights[row];
+            }
+            return Ok(full_weights);
         }
 
-        for (idx, weight) in weights.iter_mut().enumerate() {
-            let actual = contributions[idx];
+        for (row, weight) in weights.iter_mut().enumerate() {
+            let actual = contributions[row];
             if actual <= WEIGHT_TOLERANCE {
+                // Zero-budget strategies are excluded above, so a
+                // nonpositive contribution here is a genuinely negative
+                // (or vanishing) risk contribution — typically strongly
+                // negative correlations — which this long-only fixed-point
+                // scheme cannot solve.
                 return Err(Error::validation(format!(
-                    "allocation risk contribution for strategy '{}' is nonpositive",
-                    strategies[idx].id
+                    "allocation risk contribution for strategy '{}' is nonpositive; the \
+                     long-only risk_budget solver requires strictly positive risk \
+                     contributions (check for strongly negative correlations)",
+                    strategies[active[row]].id
                 )));
             }
-            *weight *= (budgets[idx] / actual).sqrt();
+            *weight *= (sub_budgets[row] / actual).sqrt();
         }
         normalize_weights(&mut weights)?;
     }
@@ -540,4 +584,93 @@ where
         acc.add(value);
     }
     acc.total()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn budget_strategy(id: &str, risk_budget: f64) -> StrategyAllocationInput {
+        StrategyAllocationInput {
+            id: id.to_string(),
+            fixed_weight: None,
+            returns: Vec::new(),
+            risk_budget: Some(risk_budget),
+        }
+    }
+
+    #[test]
+    fn risk_budget_scheme_drops_zero_budget_strategies() {
+        // A zero risk budget is a valid request ("no risk to this sleeve")
+        // and must yield weight 0, not a solver failure: with weight 0 the
+        // strategy's risk contribution is 0, which the fixed-point iteration
+        // used to reject as "nonpositive" on its first update step. The
+        // correlated a/b block forces at least one iteration.
+        let spec = WeightAllocationSpec {
+            scheme: AllocationScheme::RiskBudget,
+            total_capital: 1000.0,
+            strategies: vec![
+                budget_strategy("a", 0.5),
+                budget_strategy("b", 0.5),
+                budget_strategy("c", 0.0),
+            ],
+            covariance: Some(vec![
+                vec![0.04, 0.01, 0.0],
+                vec![0.01, 0.09, 0.0],
+                vec![0.0, 0.0, 0.04],
+            ]),
+            target_volatility: None,
+            money_decimal_places: 2,
+        };
+
+        let result = allocate_weights(&spec).expect("zero-budget strategy must be allowed");
+        // Two-asset equal-risk-contribution solution is inverse-vol:
+        // w_a / w_b = sigma_b / sigma_a = 0.3 / 0.2.
+        assert!(
+            (result.allocations[0].weight - 0.6).abs() < 1e-6,
+            "weight a = {}",
+            result.allocations[0].weight
+        );
+        assert!(
+            (result.allocations[1].weight - 0.4).abs() < 1e-6,
+            "weight b = {}",
+            result.allocations[1].weight
+        );
+        assert_eq!(result.allocations[2].weight, 0.0);
+        assert_eq!(result.allocations[2].capital, 0.0);
+    }
+
+    #[test]
+    fn inverse_volatility_rejects_non_finite_returns() {
+        // Silently filtering a NaN return computes a volatility from a
+        // different sample than the caller supplied; surface it instead.
+        let spec = WeightAllocationSpec {
+            scheme: AllocationScheme::InverseVolatility,
+            total_capital: 1000.0,
+            strategies: vec![
+                StrategyAllocationInput {
+                    id: "a".to_string(),
+                    fixed_weight: None,
+                    returns: vec![0.01, f64::NAN, 0.02, 0.01],
+                    risk_budget: None,
+                },
+                StrategyAllocationInput {
+                    id: "b".to_string(),
+                    fixed_weight: None,
+                    returns: vec![0.05, -0.05, 0.05, -0.05],
+                    risk_budget: None,
+                },
+            ],
+            covariance: None,
+            target_volatility: None,
+            money_decimal_places: 2,
+        };
+
+        let err = allocate_weights(&spec).expect_err("non-finite return must error");
+        let message = err.to_string();
+        assert!(
+            message.contains("'a'") && message.contains("index 1"),
+            "error must name the strategy and offending index, got: {message}"
+        );
+    }
 }

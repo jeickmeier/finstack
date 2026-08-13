@@ -14,9 +14,9 @@
 //! # References
 //!
 //! - Kemna, A. G. Z., & Vorst, A. C. F. (1990). "A Pricing Method for Options
-//!   Based on Average Asset Values."
+//!   Based on Average Asset Values." `docs/REFERENCES.md#kemna-vorst-1990`
 //! - Turnbull, S. M., & Wakeman, L. M. (1991). "A Quick Algorithm for Pricing
-//!   European Average Options."
+//!   European Average Options." `docs/REFERENCES.md#turnbull-wakeman-1991`
 
 use crate::instruments::commodity::commodity_asian_option::types::CommodityAsianOption;
 use crate::instruments::common_impl::traits::Instrument;
@@ -329,7 +329,7 @@ fn price_geometric_kv_commodity(
 ///
 /// Kemna, A. G. Z., & Vorst, A. C. F. (1990). "A Pricing Method for Options
 /// Based on Average Asset Values." *Journal of Banking & Finance*, 14(1),
-/// 113-129 — partially-averaged (seasoned) geometric options.
+/// 113-129 — partially-averaged (seasoned) geometric options. `docs/REFERENCES.md#kemna-vorst-1990`
 #[allow(clippy::too_many_arguments)]
 fn price_seasoned_geometric_commodity(
     future_forwards: &[(f64, f64)], // (time, forward_price)
@@ -362,15 +362,15 @@ fn price_seasoned_geometric_commodity(
 
     // Kemna-Vorst mean-log drift : each forward is a
     // martingale under its own measure, so
-    //   E[ln G_fut] = ln(geo_mean_fwd) − (σ²/2m) Σ t_j.
+    // E[ln G_fut] = ln(geo_mean_fwd) − (σ²/2m) Σ t_j.
     let sum_t: f64 = future_forwards.iter().map(|(t, _)| *t).sum();
     let mean_log_drift = -0.5 * sigma * sigma * sum_t / m;
 
     // X = A · G_fut^(m/n), with the Kemna-Vorst lognormal law for G_fut:
-    //   ln G_fut ~ N(ln geo_mean_fwd + mean_log_drift, vol_adj_sq).
+    // ln G_fut ~ N(ln geo_mean_fwd + mean_log_drift, vol_adj_sq).
     // Then, with r = m/n:
-    //   Var[ln X] = r² · vol_adj_sq
-    //   E[X]      = A · geo_mean_fwd^r · exp(r · mean_log_drift + ½ · r² · vol_adj_sq)
+    // Var[ln X] = r² · vol_adj_sq
+    // E[X] = A · geo_mean_fwd^r · exp(r · mean_log_drift + ½ · r² · vol_adj_sq)
     let realized_factor = (hist_prod_log / n).exp();
     let ratio = m / n;
     let var_x = ratio * ratio * vol_adj_sq;

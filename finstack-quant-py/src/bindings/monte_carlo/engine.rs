@@ -4,7 +4,7 @@ use super::results::{PyGbmPathSummary, PyMoneyEstimate};
 use super::time_grid::PyTimeGrid;
 use crate::bindings::core::currency::extract_currency;
 use crate::errors::core_to_py;
-use finstack_quant_core::cashflow::flat_discount_factor;
+use finstack_quant_core::currency::Currency;
 use finstack_quant_monte_carlo::engine::{McEngine, McEngineConfig};
 use finstack_quant_monte_carlo::registry::{self, PythonBindingDefaults};
 use pyo3::prelude::*;
@@ -66,12 +66,11 @@ impl PyMcEngine {
         vol: f64,
         currency: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PyMoneyEstimate> {
-        let ccy = resolve_currency(currency)?;
+        let ccy = extract_optional_currency(currency)?;
         py.detach(|| {
-            price_european_gbm(
+            finstack_quant_monte_carlo::pricer::european::price_engine_gbm_call(
                 &self.inner,
                 self.seed,
-                true,
                 spot,
                 strike,
                 rate,
@@ -97,12 +96,11 @@ impl PyMcEngine {
         vol: f64,
         currency: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PyMoneyEstimate> {
-        let ccy = resolve_currency(currency)?;
+        let ccy = extract_optional_currency(currency)?;
         py.detach(|| {
-            price_european_gbm(
+            finstack_quant_monte_carlo::pricer::european::price_engine_gbm_put(
                 &self.inner,
                 self.seed,
-                false,
                 spot,
                 strike,
                 rate,
@@ -155,70 +153,37 @@ fn simulate_gbm_paths(
         .map_err(core_to_py)
 }
 
-/// Validate Heston parameters and test the strict Feller condition.
+/// Test the inclusive Feller condition ``2 * kappa * theta >= vol_of_vol**2``.
+///
+/// This is the Monte Carlo engine's own predicate
+/// (`finstack_quant_monte_carlo::process::heston::feller_condition`), so the
+/// answer at the boundary matches :func:`price_heston_call` /
+/// :func:`price_heston_put`. Inputs are not validated: non-finite values
+/// typically yield ``False``.
+///
+/// Parameters
+/// ----------
+/// kappa : float
+///     Mean-reversion speed of the variance process per year.
+/// theta : float
+///     Long-run variance level in squared-volatility units.
+/// vol_of_vol : float
+///     Annualized volatility of the variance process.
+///
+/// Returns
+/// -------
+/// bool
+///     ``True`` when ``2 * kappa * theta >= vol_of_vol**2``.
+///
+/// Sources
+/// -------
+/// - Heston (1993): see docs/REFERENCES.md#heston-1993
 #[pyfunction]
-fn heston_satisfies_feller(kappa: f64, theta: f64, vol_of_vol: f64) -> PyResult<bool> {
-    finstack_quant_core::math::volatility::heston::HestonParams::new(
-        theta, kappa, theta, vol_of_vol, 0.0,
-    )
-    .map(|params| params.satisfies_feller_condition())
-    .map_err(core_to_py)
+fn heston_satisfies_feller(kappa: f64, theta: f64, vol_of_vol: f64) -> bool {
+    finstack_quant_monte_carlo::process::heston::feller_condition(kappa, theta, vol_of_vol)
 }
 
-#[allow(clippy::too_many_arguments)]
-fn price_european_gbm(
-    engine: &McEngine,
-    seed: u64,
-    is_call: bool,
-    spot: f64,
-    strike: f64,
-    rate: f64,
-    div_yield: f64,
-    vol: f64,
-    ccy: finstack_quant_core::currency::Currency,
-) -> finstack_quant_core::Result<finstack_quant_monte_carlo::results::MoneyEstimate> {
-    use finstack_quant_monte_carlo::discretization::exact::ExactGbm;
-    use finstack_quant_monte_carlo::payoff::vanilla::{EuropeanCall, EuropeanPut};
-    use finstack_quant_monte_carlo::process::gbm::GbmProcess;
-    use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-
-    let t_max = engine.config().time_grid.t_max();
-    let num_steps = engine.config().time_grid.num_steps();
-    let rng = PhiloxRng::new(seed);
-    let process = GbmProcess::with_params(rate, div_yield, vol)?;
-    let disc = ExactGbm::new();
-    let initial_state = vec![spot];
-    // Horizon is the grid's own t_max, not a separately supplied expiry: this
-    // entry point takes a caller-built engine whose grid defines the payoff
-    // horizon.
-    let discount_factor = flat_discount_factor(rate, t_max)?;
-
-    if is_call {
-        let payoff = EuropeanCall::new(strike, 1.0, num_steps);
-        engine.price(
-            &rng,
-            &process,
-            &disc,
-            &initial_state,
-            &payoff,
-            ccy,
-            discount_factor,
-        )
-    } else {
-        let payoff = EuropeanPut::new(strike, 1.0, num_steps);
-        engine.price(
-            &rng,
-            &process,
-            &disc,
-            &initial_state,
-            &payoff,
-            ccy,
-            discount_factor,
-        )
-    }
-}
-
-/// Resolve an optional currency argument, defaulting to USD.
+/// Resolve an optional currency argument, defaulting to the registry default.
 pub(super) fn resolve_currency(
     currency: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<finstack_quant_core::currency::Currency> {
@@ -231,6 +196,14 @@ pub(super) fn resolve_currency(
             })
         }
     }
+}
+
+/// Extract an optional currency argument without applying any default.
+///
+/// Canonical entry points in the Monte Carlo crate own the registry default;
+/// the binding only marshals an explicitly supplied currency.
+fn extract_optional_currency(currency: Option<&Bound<'_, PyAny>>) -> PyResult<Option<Currency>> {
+    currency.map(extract_currency).transpose()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -252,49 +225,19 @@ fn price_heston(
     num_steps: Option<usize>,
     currency: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PyMoneyEstimate> {
-    use finstack_quant_monte_carlo::discretization::QeHeston;
-    use finstack_quant_monte_carlo::payoff::vanilla::{EuropeanCall, EuropeanPut};
-    use finstack_quant_monte_carlo::process::heston::HestonProcess;
-    use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-    use finstack_quant_monte_carlo::time_grid::TimeGrid;
+    use finstack_quant_monte_carlo::pricer::heston as canonical;
 
-    let defaults = &py_mc_defaults()?.european_pricer;
-    let num_paths = num_paths.unwrap_or(defaults.num_paths);
-    let seed = seed.unwrap_or(defaults.seed);
-    let num_steps = num_steps.unwrap_or(defaults.num_steps);
-    let ccy = resolve_currency(currency)?;
-    let time_grid = TimeGrid::uniform(expiry, num_steps).map_err(core_to_py)?;
-    let config = McEngineConfig::new(num_paths, time_grid).parallel(defaults.use_parallel);
-    let engine = McEngine::new(config);
-    let rng = PhiloxRng::new(seed);
-    let process = HestonProcess::with_params(rate, div_yield, kappa, theta, vol_of_vol, rho, v0)
-        .map_err(core_to_py)?;
-    let disc = QeHeston::new();
-    let initial_state = vec![spot, v0];
-    let discount_factor = flat_discount_factor(rate, expiry).map_err(core_to_py)?;
-
+    let ccy = extract_optional_currency(currency)?;
     py.detach(|| {
         if is_call {
-            let payoff = EuropeanCall::new(strike, 1.0, num_steps);
-            engine.price(
-                &rng,
-                &process,
-                &disc,
-                &initial_state,
-                &payoff,
-                ccy,
-                discount_factor,
+            canonical::price_heston_call(
+                spot, strike, rate, div_yield, kappa, theta, vol_of_vol, rho, v0, expiry,
+                num_paths, seed, num_steps, ccy,
             )
         } else {
-            let payoff = EuropeanPut::new(strike, 1.0, num_steps);
-            engine.price(
-                &rng,
-                &process,
-                &disc,
-                &initial_state,
-                &payoff,
-                ccy,
-                discount_factor,
+            canonical::price_heston_put(
+                spot, strike, rate, div_yield, kappa, theta, vol_of_vol, rho, v0, expiry,
+                num_paths, seed, num_steps, ccy,
             )
         }
     })
@@ -306,7 +249,7 @@ fn price_heston(
 ///
 /// Paths are generated with the Quadratic-Exponential (QE) discretization of
 /// Andersen (2008), which stays stable when the Feller condition
-/// (``2 * kappa * theta > vol_of_vol**2``) is violated — the common case for
+/// (``2 * kappa * theta >= vol_of_vol**2``) is violated — the common case for
 /// equity calibrations. Check it with
 /// :func:`~finstack_quant.monte_carlo.heston_satisfies_feller`.
 ///
@@ -348,12 +291,8 @@ fn price_heston(
 ///
 /// References
 /// ----------
-/// Andersen, L. (2008). "Simple and Efficient Simulation of the Heston
-/// Stochastic Volatility Model." *Journal of Computational Finance*, 11(3), 1-42.
-///
-/// Heston, S. L. (1993). "A Closed-Form Solution for Options with Stochastic
-/// Volatility with Applications to Bond and Currency Options." *Review of
-/// Financial Studies*, 6(2), 327-343.
+/// - Andersen QE (2008): see docs/REFERENCES.md#andersen-2008-heston-qe
+/// - Heston (1993): see docs/REFERENCES.md#heston-1993
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 #[pyo3(signature = (spot, strike, rate, div_yield, kappa, theta, vol_of_vol, rho, v0, expiry, num_paths=None, seed=None, num_steps=None, currency=None))]

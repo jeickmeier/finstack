@@ -10,6 +10,14 @@ use serde::{Deserialize, Serialize};
 
 use super::position_risk::PositionRiskDecomposition;
 
+/// Default maximum acceptable utilization before a budget breach is flagged.
+///
+/// 1.20 means a position may use up to 120% of its budgeted component VaR
+/// before [`RiskBudgetResult::has_breach`] is raised. This is the single
+/// source of truth for the default consumed by [`RiskBudget::new`],
+/// [`RiskBudget::default`], and both language bindings.
+pub const DEFAULT_UTILIZATION_THRESHOLD: f64 = 1.20;
+
 // Types
 
 /// Target risk allocation for a portfolio.
@@ -35,18 +43,24 @@ impl Default for RiskBudget {
     fn default() -> Self {
         Self {
             targets: IndexMap::new(),
-            utilization_threshold: 1.20,
+            utilization_threshold: DEFAULT_UTILIZATION_THRESHOLD,
         }
     }
 }
 
 /// Result of comparing actual risk decomposition against a risk budget.
+///
+/// Utilization is measured on the *consuming* side: a position's component
+/// VaR is positive utilization when it carries the same sign as the portfolio
+/// VaR (it consumes risk) and negative utilization when it offsets portfolio
+/// risk (a diversifier / hedge). Diversifiers can never breach the budget and
+/// never contribute to [`Self::total_overbudget`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RiskBudgetResult {
     /// Per-position budget comparison.
     pub positions: Vec<PositionBudgetEntry>,
 
-    /// Total absolute over-budget amount (sum of exceedances).
+    /// Total over-budget amount: sum of positive consuming-side exceedances.
     pub total_overbudget: f64,
 
     /// Whether any position exceeds its utilization threshold.
@@ -59,19 +73,28 @@ pub struct PositionBudgetEntry {
     /// Position identifier.
     pub position_id: PositionId,
 
-    /// Actual component VaR from decomposition.
+    /// Actual component VaR from the decomposition, signed as reported by
+    /// the engine (loss convention: negative for risk consumers when the
+    /// portfolio VaR is negative).
     pub actual_component_var: f64,
 
-    /// Target component VaR from budget.
+    /// Target component VaR level: target fraction times |portfolio VaR|.
     pub target_component_var: f64,
 
-    /// Utilization ratio: actual / target.
+    /// Utilization ratio: consuming-side component VaR over the target level.
     ///
-    /// Values > 1.0 indicate the position uses more risk than budgeted.
-    /// Values < 1.0 indicate unused risk budget.
+    /// The component is measured on the consuming side (positive when it has
+    /// the same sign as portfolio VaR). Values > 1.0 indicate the position
+    /// uses more risk than budgeted; values in (0, 1) indicate unused
+    /// budget; **negative values indicate a diversifier** whose component
+    /// VaR offsets portfolio risk — a diversifier can never breach.
+    /// `±inf` marks a non-zero component against a zero target.
+    #[serde(with = "finstack_quant_core::wire::non_finite_f64")]
     pub utilization: f64,
 
-    /// Over/under-budget amount: actual - target.
+    /// Over/under-budget amount on the consuming side: consuming component
+    /// VaR minus the target level. Negative when under budget, and always
+    /// negative for diversifiers.
     pub excess: f64,
 }
 
@@ -86,7 +109,7 @@ impl RiskBudget {
     pub fn new(targets: IndexMap<PositionId, f64>) -> Self {
         Self {
             targets,
-            utilization_threshold: 1.20,
+            utilization_threshold: DEFAULT_UTILIZATION_THRESHOLD,
         }
     }
 
@@ -170,26 +193,43 @@ impl RiskBudget {
             ));
         }
 
+        // Consuming-side orientation: a component VaR with the same sign as
+        // the portfolio VaR consumes risk; the opposite sign diversifies.
+        // The magnitude of the portfolio VaR is used only to convert target
+        // fractions into levels.
+        let portfolio_sign = if portfolio_var < 0.0 { -1.0 } else { 1.0 };
+
         let mut positions = Vec::with_capacity(self.targets.len());
         let mut total_overbudget = 0.0;
         let mut has_breach = false;
 
         for (position_id, &target_frac) in &self.targets {
-            let actual_component = actual_by_id.get(position_id).copied().unwrap_or(0.0).abs();
+            let signed_actual = actual_by_id.get(position_id).copied().unwrap_or(0.0);
+            // Positive when the position consumes portfolio risk, negative
+            // for diversifiers.
+            let consuming_actual = signed_actual * portfolio_sign;
 
             let target_component = target_frac * portfolio_var_magnitude;
 
             let utilization = if target_component.abs() > 1e-15 {
-                actual_component / target_component
-            } else if actual_component.abs() > 1e-15 {
-                // Target is zero but actual is non-zero: infinite utilization.
-                f64::INFINITY
+                consuming_actual / target_component
+            } else if consuming_actual.abs() > 1e-15 {
+                // Zero target, non-zero component: infinitely over budget on
+                // the consuming side, infinitely under on the diversifying
+                // side.
+                if consuming_actual > 0.0 {
+                    f64::INFINITY
+                } else {
+                    f64::NEG_INFINITY
+                }
             } else {
                 // Both zero.
                 1.0
             };
 
-            let excess = actual_component - target_component;
+            // Over-budget only on the consuming side: a diversifier's excess
+            // is always negative and never breaches.
+            let excess = consuming_actual - target_component;
             if excess > 0.0 {
                 total_overbudget += excess;
             }
@@ -200,29 +240,36 @@ impl RiskBudget {
 
             positions.push(PositionBudgetEntry {
                 position_id: position_id.clone(),
-                actual_component_var: actual_component,
+                actual_component_var: signed_actual,
                 target_component_var: target_component,
                 utilization,
                 excess,
             });
         }
 
-        for (position_id, actual_component_signed) in &actual_by_id {
+        for (position_id, signed_actual) in &actual_by_id {
             if self.targets.contains_key(*position_id) {
                 continue;
             }
-            let actual_component = actual_component_signed.abs();
-            if actual_component <= 1e-15 {
+            let signed_actual = *signed_actual;
+            if signed_actual.abs() <= 1e-15 {
                 continue;
             }
-            let excess = actual_component;
-            total_overbudget += excess;
-            has_breach = true;
+            let consuming_actual = signed_actual * portfolio_sign;
+            let excess = consuming_actual;
+            if excess > 0.0 {
+                total_overbudget += excess;
+                has_breach = true;
+            }
             positions.push(PositionBudgetEntry {
                 position_id: (*position_id).clone(),
-                actual_component_var: actual_component,
+                actual_component_var: signed_actual,
                 target_component_var: 0.0,
-                utilization: f64::INFINITY,
+                utilization: if consuming_actual > 0.0 {
+                    f64::INFINITY
+                } else {
+                    f64::NEG_INFINITY
+                },
                 excess,
             });
         }
@@ -233,6 +280,71 @@ impl RiskBudget {
             has_breach,
         })
     }
+}
+
+/// Evaluate a per-position risk budget from parallel binding-style arrays.
+///
+/// This is the canonical entry point behind the Python
+/// `evaluate_risk_budget` function and the WASM `evaluateRiskBudget` export:
+/// it owns the input validation (array-length agreement and duplicate
+/// position-id rejection) so both hosts share one behavior and one set of
+/// diagnostics.
+///
+/// # Arguments
+///
+/// * `position_ids` - Position identifiers, one per entry of `actual_var` and
+///   `target_var_pct`. Duplicates are rejected.
+/// * `actual_var` - Actual component VaR per position (loss convention;
+///   signs are kept — a component whose sign opposes `portfolio_var` is a
+///   diversifier and reports negative utilization).
+/// * `target_var_pct` - Target fraction of portfolio VaR per position; a
+///   non-empty budget must sum to ~1.0.
+/// * `portfolio_var` - Total portfolio VaR used to convert target fractions
+///   into levels.
+/// * `utilization_threshold` - Utilization ratio above which a breach is
+///   flagged (see [`DEFAULT_UTILIZATION_THRESHOLD`]).
+///
+/// # Errors
+///
+/// Returns [`finstack_quant_core::Error::Validation`] when the array lengths
+/// disagree, a position id is duplicated, the non-empty targets do not sum to
+/// ~1.0, or non-zero component VaR is paired with zero portfolio VaR.
+pub fn evaluate_risk_budget_arrays(
+    position_ids: Vec<String>,
+    actual_var: &[f64],
+    target_var_pct: &[f64],
+    portfolio_var: f64,
+    utilization_threshold: f64,
+) -> finstack_quant_core::Result<RiskBudgetResult> {
+    let n = position_ids.len();
+    if actual_var.len() != n {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "actual_var length ({}) must match position_ids length ({n})",
+            actual_var.len()
+        )));
+    }
+    if target_var_pct.len() != n {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "target_var_pct length ({}) must match position_ids length ({n})",
+            target_var_pct.len()
+        )));
+    }
+
+    let shared_ids: Vec<PositionId> = position_ids.into_iter().map(PositionId::new).collect();
+    let mut targets: IndexMap<PositionId, f64> = IndexMap::with_capacity(n);
+    for (id, &pct) in shared_ids.iter().zip(target_var_pct.iter()) {
+        if targets.insert(id.clone(), pct).is_some() {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "duplicate position_id '{}' in position_ids",
+                id.as_str()
+            )));
+        }
+    }
+    let budget = RiskBudget::new(targets).with_threshold(utilization_threshold);
+    budget.evaluate_components(
+        shared_ids.iter().zip(actual_var.iter().copied()),
+        portfolio_var,
+    )
 }
 
 // Tests
@@ -405,6 +517,98 @@ mod tests {
         Ok(())
     }
 
+    // Diversifiers (component VaR opposite in sign to portfolio VaR) must
+    // report negative utilization and can never breach; taking |component|
+    // inverted them into apparent risk consumers.
+    #[test]
+    fn risk_budget_diversifier_has_negative_utilization_and_cannot_breach() -> TestResult {
+        let weights = [1.0, 0.2];
+        let covariance = [0.04, -0.03, -0.03, 0.09];
+        let ids = [PositionId::new("A"), PositionId::new("B")];
+        let config = DecompositionConfig::parametric_95();
+        let decomp = ParametricPositionDecomposer.decompose_positions(
+            &weights,
+            &covariance,
+            &ids,
+            &config,
+        )?;
+
+        // B is a hedge: its component VaR carries the opposite sign of the
+        // portfolio VaR.
+        let portfolio_sign = decomp.portfolio_var.signum();
+        let b_component = decomp
+            .var_contributions
+            .iter()
+            .find(|c| c.position_id == "B")
+            .map(|c| c.component_var)
+            .ok_or_else(|| {
+                finstack_quant_core::Error::Validation("Position B not found".to_string())
+            })?;
+        assert!(
+            b_component * portfolio_sign < 0.0,
+            "B must be a diversifier"
+        );
+
+        let mut targets = IndexMap::new();
+        targets.insert(PositionId::new("A"), 0.9);
+        targets.insert(PositionId::new("B"), 0.1);
+        let budget = RiskBudget::new(targets);
+        let result = budget.evaluate(&decomp)?;
+
+        let a_entry = result
+            .positions
+            .iter()
+            .find(|entry| entry.position_id == "A")
+            .ok_or_else(|| {
+                finstack_quant_core::Error::Validation("Position A not found".to_string())
+            })?;
+        let b_entry = result
+            .positions
+            .iter()
+            .find(|entry| entry.position_id == "B")
+            .ok_or_else(|| {
+                finstack_quant_core::Error::Validation("Position B not found".to_string())
+            })?;
+
+        // A consumes cv_A / (0.9 * sigma^2) = 0.034 / (0.9 * 0.0316) of its
+        // budget (the z-score cancels).
+        assert!(
+            (a_entry.utilization - 0.034 / (0.9 * 0.0316)).abs() < 1e-9,
+            "A utilization = {}",
+            a_entry.utilization
+        );
+        assert!(
+            b_entry.utilization < 0.0,
+            "diversifier utilization must be negative, got {}",
+            b_entry.utilization
+        );
+        assert!(
+            b_entry.excess < 0.0,
+            "a diversifier can never be over budget, excess = {}",
+            b_entry.excess
+        );
+        assert!(!result.has_breach, "no position consumes above threshold");
+        Ok(())
+    }
+
+    #[test]
+    fn risk_budget_entry_serializes_non_finite_utilization() {
+        let entry = PositionBudgetEntry {
+            position_id: PositionId::new("A"),
+            actual_component_var: 1.0,
+            target_component_var: 0.0,
+            utilization: f64::INFINITY,
+            excess: 1.0,
+        };
+        let json = serde_json::to_string(&entry).expect("serialize");
+        assert!(
+            json.contains("\"utilization\":\"inf\""),
+            "infinite utilization must survive the wire, got {json}"
+        );
+        let restored: PositionBudgetEntry = serde_json::from_str(&json).expect("deserialize");
+        assert!(restored.utilization.is_infinite());
+    }
+
     #[test]
     fn risk_budget_rejects_bad_target_sum() {
         let decomp = sample_decomposition();
@@ -417,6 +621,75 @@ mod tests {
         let budget = RiskBudget::new(targets);
         let result = budget.evaluate(&decomp);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn evaluate_risk_budget_arrays_rejects_duplicate_position_ids() {
+        let err = evaluate_risk_budget_arrays(
+            vec!["A".to_string(), "A".to_string()],
+            &[40.0, 60.0],
+            &[0.5, 0.5],
+            100.0,
+            DEFAULT_UTILIZATION_THRESHOLD,
+        )
+        .expect_err("duplicate ids must be rejected");
+        assert!(
+            err.to_string().contains("duplicate position_id 'A'"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn evaluate_risk_budget_arrays_rejects_length_mismatches() {
+        let err = evaluate_risk_budget_arrays(
+            vec!["A".to_string(), "B".to_string()],
+            &[40.0],
+            &[0.5, 0.5],
+            100.0,
+            DEFAULT_UTILIZATION_THRESHOLD,
+        )
+        .expect_err("actual_var length mismatch must be rejected");
+        assert!(
+            err.to_string()
+                .contains("actual_var length (1) must match position_ids length (2)"),
+            "unexpected error: {err}"
+        );
+
+        let err = evaluate_risk_budget_arrays(
+            vec!["A".to_string(), "B".to_string()],
+            &[40.0, 60.0],
+            &[1.0],
+            100.0,
+            DEFAULT_UTILIZATION_THRESHOLD,
+        )
+        .expect_err("target_var_pct length mismatch must be rejected");
+        assert!(
+            err.to_string()
+                .contains("target_var_pct length (1) must match position_ids length (2)"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn evaluate_risk_budget_arrays_matches_evaluate_components() -> TestResult {
+        let result = evaluate_risk_budget_arrays(
+            vec!["A".to_string(), "B".to_string()],
+            &[40.0, 60.0],
+            &[0.2, 0.8],
+            100.0,
+            1.50,
+        )?;
+        assert_eq!(result.positions.len(), 2);
+        let a_entry = result
+            .positions
+            .iter()
+            .find(|entry| entry.position_id == "A")
+            .ok_or_else(|| {
+                finstack_quant_core::Error::Validation("Position A not found".to_string())
+            })?;
+        assert!((a_entry.utilization - 2.0).abs() < 1e-12);
+        assert!(result.has_breach);
+        Ok(())
     }
 
     #[test]
@@ -444,16 +717,28 @@ mod tests {
 
         assert_eq!(result.positions.len(), 3);
 
-        // Verify utilization is computed correctly for each position.
+        // Verify utilization is computed correctly for each position:
+        // consuming-side component (signed component times the sign of the
+        // portfolio VaR) over the positive target level.
+        let portfolio_sign = if decomp.portfolio_var < 0.0 {
+            -1.0
+        } else {
+            1.0
+        };
         for entry in &result.positions {
             if entry.target_component_var.abs() > 1e-15 {
-                let expected_util = entry.actual_component_var / entry.target_component_var;
+                let expected_util =
+                    entry.actual_component_var * portfolio_sign / entry.target_component_var;
                 assert!(
                     (entry.utilization - expected_util).abs() < 1e-10,
                     "utilization mismatch for {}: got {}, expected {}",
                     entry.position_id,
                     entry.utilization,
                     expected_util
+                );
+                assert!(
+                    entry.utilization > 0.0,
+                    "all-long portfolio: every position consumes risk"
                 );
             }
         }

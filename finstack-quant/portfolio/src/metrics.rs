@@ -32,6 +32,24 @@ use std::sync::LazyLock;
 /// Aggregated metric across the portfolio.
 ///
 /// Contains portfolio-wide totals as well as breakdowns by entity.
+///
+/// # Cross-axis warning for spot and volatility Greeks
+///
+/// Summing currency-denominated rate and credit sensitivities across
+/// positions is standard desk practice: `dv01`, `cs01`, `pv01` and their
+/// bucketed series all measure a change per basis point of the *same* kind of
+/// risk factor, and their sum is a portfolio-level number a risk manager can
+/// hedge with (Tuckman & Serrat, *Fixed Income Securities*).
+///
+/// Scalar spot and volatility Greeks are different. `delta`, `gamma` and
+/// `vega` totals here add sensitivities that belong to **unrelated
+/// underlyings and unrelated volatility surfaces** — an equity delta and an
+/// FX delta, or vega against two different surfaces, land in the same total.
+/// That sum has no hedging interpretation. Prefer the per-underlying and
+/// per-bucket composite series (for example `bucketed_vega::<surface>::<bucket>`
+/// via [`PortfolioMetrics::metric_series`], or the per-position values in
+/// [`PortfolioMetrics::by_position`]) when reading spot or vol risk, and treat
+/// the scalar totals as a coarse magnitude indicator only.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct AggregatedMetric {
     /// Metric identifier
@@ -48,6 +66,21 @@ pub struct AggregatedMetric {
 ///
 /// Holds both aggregated metrics and per-position values returned
 /// by `aggregate_metrics`.
+///
+/// # Completeness of the aggregated totals
+///
+/// A total in [`aggregated`](Self::aggregated) is not necessarily a sum over
+/// every position in the portfolio. Three fields make each omission visible,
+/// and consumers that report totals should surface all three:
+///
+/// - [`degraded_positions`](Self::degraded_positions) — positions that fell
+///   back to a PV-only valuation, so they carry **no** risk measures and
+///   contribute zero to every total.
+/// - [`skipped_metrics`](Self::skipped_metrics) — individual non-finite
+///   values excluded from a total.
+/// - [`unaggregated_metrics`](Self::unaggregated_metrics) — metrics that
+///   exist per position but are not portfolio-summable, so they have no
+///   total at all.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct PortfolioMetrics {
     /// Aggregated metrics (summable only)
@@ -63,6 +96,28 @@ pub struct PortfolioMetrics {
     /// [`crate::valuation::PortfolioValuation::degraded_positions`]).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub skipped_metrics: Vec<SkippedMetric>,
+
+    /// Positions that carried no risk measures at all because their valuation
+    /// fell back to PV-only.
+    ///
+    /// Mirrored from
+    /// [`PortfolioValuation::degraded_positions`](crate::valuation::PortfolioValuation::degraded_positions)
+    /// (positions with `risk_metrics_complete == false`). Such positions
+    /// contribute zero to every total without producing a
+    /// [`SkippedMetric`] entry — that field only records non-finite values —
+    /// so this list is the only signal that the aggregate is partial.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub degraded_positions: Vec<PositionId>,
+
+    /// Metric identifiers present in [`by_position`](Self::by_position) that
+    /// were not aggregated into a portfolio total because they are not
+    /// summable across positions (for example `ytm`, `duration`, or any
+    /// metric outside the additive allowlist).
+    ///
+    /// Sorted and de-duplicated. The per-position values remain available in
+    /// `by_position` in their native currency.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unaggregated_metrics: Vec<String>,
 }
 
 /// Position-level metrics with explicit native currency context.
@@ -125,6 +180,11 @@ impl PortfolioMetrics {
     /// The scalar aggregate stored directly under `base` is excluded. Malformed
     /// legacy escape markers remain literal, and decoded-coordinate collisions
     /// fall back to literal wire components so all aggregate entries survive.
+    ///
+    /// # Arguments
+    ///
+    /// * `base` - Composite metric identifier whose decoded series components
+    ///   should be collected from [`Self::aggregated`].
     pub fn metric_series(&self, base: &MetricId) -> Vec<(Vec<String>, &AggregatedMetric)> {
         let metric_ids: Vec<MetricId> = self.aggregated.keys().map(MetricId::custom).collect();
         let components = MetricId::decode_series_components(base, &metric_ids);
@@ -156,6 +216,8 @@ impl Default for PortfolioMetrics {
             aggregated: IndexMap::new(),
             by_position: IndexMap::new(),
             skipped_metrics: Vec::new(),
+            degraded_positions: Vec::new(),
+            unaggregated_metrics: Vec::new(),
         }
     }
 }
@@ -172,6 +234,13 @@ impl Default for PortfolioMetrics {
 ///
 /// To support portfolio-level aggregation of these series, `is_summable` performs
 /// a prefix match on the base metric ID rather than requiring an exact key match.
+///
+/// Membership is an explicit allowlist rather than a registry-driven property:
+/// a metric is listed only when it is currency-denominated and linear in
+/// position size, so that FX conversion plus summation yields a number with a
+/// portfolio-level meaning. Metrics that appear per position but are absent
+/// here are reported on
+/// [`PortfolioMetrics::unaggregated_metrics`] so the omission is visible.
 static SUMMABLE_SET: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     [
         "theta",
@@ -185,8 +254,11 @@ static SUMMABLE_SET: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
         "ir01",
         "hazard_cs01",
         "index_delta",
+        "fx_delta",
+        "foreign_rho",
         "bucketed_dv01",
         "bucketed_cs01",
+        "bucketed_vega",
         "accrued_interest",
         "pv_fixed",
         "pv_float",
@@ -247,6 +319,23 @@ pub(crate) fn is_summable(metric_id: &str) -> bool {
 /// For positions where the native PV is zero (or the position is already in
 /// base currency), no conversion is applied.
 ///
+/// # Warning: scalar spot and vol Greeks cross risk axes
+///
+/// `dv01` / `cs01` / `pv01` totals are standard portfolio-level numbers. The
+/// scalar `delta`, `gamma` and `vega` totals produced here sum sensitivities
+/// across **unrelated underlyings and unrelated volatility surfaces** and have
+/// no hedging interpretation; prefer the per-underlying / per-bucket composite
+/// series or the per-position values. See [`AggregatedMetric`] for the full
+/// discussion.
+///
+/// # Completeness
+///
+/// Totals may cover fewer than all positions. Degraded positions (PV-only
+/// fallback) are listed on [`PortfolioMetrics::degraded_positions`],
+/// individual non-finite values on [`PortfolioMetrics::skipped_metrics`], and
+/// non-summable metric names on
+/// [`PortfolioMetrics::unaggregated_metrics`].
+///
 /// # Arguments
 ///
 /// * `valuation` - Portfolio valuation containing per-position valuation results.
@@ -266,10 +355,10 @@ pub(crate) fn is_summable(metric_id: &str) -> bool {
 ///
 /// # References
 ///
-/// - Fixed-income risk conventions:
-///   `docs/REFERENCES.md#tuckman-serrat-fixed-income`
-/// - Numerically stable aggregation:
-///   `docs/REFERENCES.md#kahan-1965`
+/// - Fixed-income risk conventions: `docs/REFERENCES.md#tuckman-serrat-fixed-income`
+///
+/// - Numerically stable aggregation: `docs/REFERENCES.md#kahan-1965`
+///
 ///
 /// # Errors
 ///
@@ -329,7 +418,15 @@ pub fn aggregate_metrics(
         .into_iter()
         .collect::<Result<Vec<PositionMetricData>>>()?;
 
-    Ok(aggregate_collected_metrics(collected))
+    let mut metrics = aggregate_collected_metrics(collected);
+    // Positions that fell back to PV-only carry no measures at all, so they
+    // contribute zero to every total without leaving a trace in the collected
+    // data. Mirror the valuation's degraded set so the totals are
+    // self-describing.
+    metrics
+        .degraded_positions
+        .clone_from(&valuation.degraded_positions);
+    Ok(metrics)
 }
 
 /// Compute the FX conversion factor from a position's native currency to base currency.
@@ -418,13 +515,18 @@ fn aggregate_collected_metrics(collected: Vec<PositionMetricData>) -> PortfolioM
     let mut metric_values: IndexMap<Arc<str>, Vec<f64>> = IndexMap::new();
     let mut entity_values: IndexMap<Arc<str>, IndexMap<EntityId, Vec<f64>>> = IndexMap::new();
     let mut skipped_metrics: Vec<SkippedMetric> = Vec::new();
+    let mut unaggregated: HashSet<String> = HashSet::default();
 
     for data in collected {
         let fx_rate = data.fx_rate;
         let entity_id = data.entity_id;
 
         for (metric_id, value) in &data.metrics {
-            if is_summable(metric_id) {
+            if !is_summable(metric_id) {
+                // Present per position but never rolled up: record the name so
+                // the omission is visible on the result.
+                unaggregated.insert(metric_id.clone());
+            } else {
                 if !value.is_finite() {
                     tracing::warn!(
                         metric_id = %metric_id,
@@ -497,10 +599,16 @@ fn aggregate_collected_metrics(collected: Vec<PositionMetricData>) -> PortfolioM
         );
     }
 
+    let mut unaggregated_metrics: Vec<String> = unaggregated.into_iter().collect();
+    unaggregated_metrics.sort_unstable();
+
     PortfolioMetrics {
         aggregated,
         by_position,
         skipped_metrics,
+        // Filled in by `aggregate_metrics`, which has the valuation in hand.
+        degraded_positions: Vec::new(),
+        unaggregated_metrics,
     }
 }
 

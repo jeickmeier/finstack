@@ -41,9 +41,9 @@
 //!
 //! # Reference
 //!
-//! - Dupire, B. (1994). "Pricing with a Smile." *Risk*, 7(1), 18-20.
+//! - Dupire, B. (1994). "Pricing with a Smile." *Risk*, 7(1), 18-20. `docs/REFERENCES.md#dupire-1994`
 //! - Gatheral, J. (2006). *The Volatility Surface: A Practitioner's Guide*.
-//!   John Wiley & Sons. Chapter 2.
+//!   John Wiley & Sons. Chapter 2. `docs/REFERENCES.md#gatheral-volatility-surface`
 
 use crate::market_data::surfaces::VolSurface;
 use crate::math::volatility::black_call;

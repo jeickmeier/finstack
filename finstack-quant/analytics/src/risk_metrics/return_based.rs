@@ -487,7 +487,7 @@ pub(crate) fn omega_ratio(returns: &[f64], threshold: f64) -> f64 {
 /// Gain-to-pain ratio: total return divided by total losses.
 ///
 /// ```text
-/// GtP = Σ r_i / Σ |r_i|   for r_i < 0
+/// GtP = Σ r_i / Σ |r_i| for r_i < 0
 /// ```
 ///
 /// Popular among CTA and systematic macro managers as a simple

@@ -49,11 +49,11 @@
 //!
 //! - In 't Hout, K. J. & Welfert, B. D. (2009). "Unconditional stability of
 //!   second-order ADI schemes applied to multi-dimensional diffusion equations
-//!   with mixed derivative terms." *Applied Numerical Mathematics*, 59(3-4).
+//!   with mixed derivative terms." *Applied Numerical Mathematics*, 59(3-4). `docs/REFERENCES.md#in-t-hout-welfert-2009`
 //! - In 't Hout, K. J. & Mishra, C. (2010). "Stability of the Modified
 //!   Craig-Sneyd scheme for two-dimensional convection-diffusion equations
 //!   with mixed derivative term." (arXiv:1011.6528) — gives the MCS scheme in
-//!   the form (eq. 1.4) reproduced above.
+//!   the form (eq. 1.4) reproduced above. `docs/REFERENCES.md#in-t-hout-welfert-2009`
 //! - Craig, I. J. D. & Sneyd, A. D. (1988). "An alternating-direction implicit
 //!   scheme for parabolic equations with mixed derivatives."
 

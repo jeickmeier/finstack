@@ -54,9 +54,9 @@
 //!
 //! # References
 //!
-//! - **ISDA 2021 Definitions**: Compounded RFR conventions
-//! - **ARRC** (Alternative Reference Rates Committee): SOFR conventions
-//! - **BoE** (Bank of England): SONIA conventions
+//! - **ISDA 2021 Definitions**: Compounded RFR conventions `docs/REFERENCES.md#isda-2021-definitions`
+//! - **ARRC** (Alternative Reference Rates Committee): SOFR conventions `docs/REFERENCES.md#arrc-sofr-users-guide`
+//! - **BoE** (Bank of England): SONIA conventions `docs/REFERENCES.md#boe-sonia-key-features`
 
 /// Method for calculating floating leg coupon payments.
 ///
@@ -104,10 +104,10 @@
 ///
 /// # References
 ///
-/// - **ISDA 2021 Definitions**: Compounded RFR conventions
-/// - **ARRC** (Alternative Reference Rates Committee): SOFR conventions
-/// - **BoE** (Bank of England): SONIA conventions
-/// - **ECB**: €STR conventions
+/// - **ISDA 2021 Definitions**: Compounded RFR conventions `docs/REFERENCES.md#isda-2021-definitions`
+/// - **ARRC** (Alternative Reference Rates Committee): SOFR conventions `docs/REFERENCES.md#arrc-sofr-users-guide`
+/// - **BoE** (Bank of England): SONIA conventions `docs/REFERENCES.md#boe-sonia-key-features`
+/// - **ECB**: €STR conventions `docs/REFERENCES.md#ecb-estr-methodology`
 ///
 /// In the IRS instrument implementation, the RFR-style variant
 /// (`CompoundedInArrears`) is also used to classify swaps as OIS for

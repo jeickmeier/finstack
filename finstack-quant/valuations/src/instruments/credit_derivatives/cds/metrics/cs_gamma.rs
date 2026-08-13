@@ -177,7 +177,8 @@ impl MetricCalculator for CsGammaCalculator {
                 Ok((pv_up, pv_0, pv_dn))
             })?;
 
-            // Central second difference, normalised to per (basis point)².
+            // Central second difference, normalised to per (decimal spread)²
+            // (dividing by the DECIMAL bump squared — 1bp bump ⇒ divisor 1e-8).
             // CS-Gamma = (PV(s+Δ) + PV(s-Δ) - 2·PV(s)) / Δ²
             // where Δ is in decimal (1bp = 0.0001).
             let bump_decimal = bump_bp / BASIS_POINTS_PER_UNIT;

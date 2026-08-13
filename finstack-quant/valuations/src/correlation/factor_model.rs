@@ -38,10 +38,10 @@
 //!
 //! # References
 //!
-//! - Factor-model and covariance interpretation:
-//!   `docs/REFERENCES.md#meucci-risk-and-asset-allocation`
-//! - Portfolio-risk and dependence context:
-//!   `docs/REFERENCES.md#mcneil-frey-embrechts-qrm`
+//! - Factor-model and covariance interpretation: `docs/REFERENCES.md#meucci-risk-and-asset-allocation`
+//!
+//! - Portfolio-risk and dependence context: `docs/REFERENCES.md#mcneil-frey-embrechts-qrm`
+//!
 
 use crate::correlation::{Error, Result};
 use finstack_quant_analytics::correlation::validate_correlation_matrix;

@@ -179,11 +179,13 @@ pub fn compute_pnl_profiles_with_market(
 /// optional `RiskMeasure` JSON.
 ///
 /// Returns a structured object with `total_risk`, `measure`, `residual_risk`,
-/// `factor_contributions` (array), and `position_factor_contributions` (array).
+/// `factor_contributions` (array), `position_factor_contributions` (array),
+/// and `position_residual_contributions` (array; empty for the parametric
+/// decomposer — populated only by credit-aware position decomposers).
 ///
-/// `measure` uses the canonical serde form (`"variance"`, `"volatility"`). The
-/// Python binding's `measure` getter reports the JSON-quoted form
-/// (`"\"variance\""`); the WASM value is the unquoted one.
+/// `measure` uses the canonical serde form (`"variance"`, `"volatility"`, or
+/// an object for `var` / `expected_shortfall`); the Python binding's
+/// `measure` getter reports the same snake_case tag.
 /// @param sensitivities_json - Canonical factor-sensitivity result JSON; `JSON.stringify` the structured matrix returned by `computeFactorSensitivities`.
 /// @param covariance_json - Factor covariance-matrix JSON aligned with the supplied sensitivities.
 /// @param risk_measure_json - Risk-measure configuration JSON selecting the decomposition metric.
@@ -264,6 +266,8 @@ pub fn decompose_factor_risk(
                 "risk_contribution": c.risk_contribution,
             })
         }).collect::<Vec<_>>(),
+        "position_residual_contributions": serde_json::to_value(&result.position_residual_contributions)
+            .map_err(to_js_err)?,
     });
     to_js_value(&output)
 }

@@ -29,7 +29,7 @@
 //! - Hunter, C., Jäckel, P. & Joshi, M. (2001). "Getting the Drift."
 //!   *Risk*, 14(7), 81–84.
 //! - Glasserman, P. (2003). *Monte Carlo Methods in Financial Engineering*,
-//!   Ch. 7, Springer.
+//!   Ch. 7, Springer. `docs/REFERENCES.md#glasserman-2004-monte-carlo`
 
 use super::super::process::lmm::LmmProcess;
 use super::super::traits::{Discretization, StochasticProcess};
@@ -72,9 +72,9 @@ impl Discretization<LmmProcess> for LmmPredictorCorrector {
         let first = process.first_alive(t);
 
         // Work buffer layout:
-        //   [0..n]         = drift at current state
-        //   [n..2n]        = predicted forwards
-        //   [2n..3n]       = drift at predicted state
+        // [0..n] = drift at current state
+        // [n..2n] = predicted forwards
+        // [2n..3n] = drift at predicted state
 
         // --- Compute drift at current state ---
         let (drift_curr, rest) = work.split_at_mut(n);

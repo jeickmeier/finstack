@@ -890,30 +890,88 @@ pub fn frtb_sba_charge(
 /// - ``pfe``: potential future exposure (multiplier × aggregate add-on)
 /// - ``ead``: exposure at default = α × (RC + PFE), with α = 1.4
 ///
-/// The netting set uses default terms: zero collateral / threshold / MTA /
-/// NICA, and 10-day MPoR when margined. For bespoke collateral terms,
-/// build via :meth:`SaCcrEngine.calculate_from_json` (not yet exposed).
+/// ``as_of_year`` / ``as_of_month`` / ``as_of_day`` set the valuation date
+/// used for forward-start and remaining-maturity calculations; maturity
+/// factors and PFE depend directly on it, so it must be supplied explicitly.
+///
+/// The netting set defaults to the Rust
+/// ``SaCcrNettingSetConfig::unmargined`` terms (zero threshold / MTA / NICA,
+/// 10-day MPoR). When ``margined=True``, ``threshold``, ``mta``, ``nica``,
+/// and ``mpor_days`` override those constructor defaults where supplied.
+/// ``counterparty_id`` / ``csa_id`` name the bilateral netting set and
+/// default to the placeholder pair ``"CPTY"`` / ``"CSA"`` — supply real
+/// identifiers for anything beyond ad-hoc analysis. For full control build a
+/// :class:`SaCcrNettingSetConfig` and use :meth:`SaCcrEngine.calculate_ead`.
+///
+/// Raises ``ValueError`` if ``trades`` is empty, the date is invalid, or the
+/// netting-set terms fail validation.
 #[pyfunction]
-#[pyo3(signature = (trades, margined = false, collateral = 0.0))]
+#[pyo3(signature = (
+    trades,
+    as_of_year,
+    as_of_month,
+    as_of_day,
+    margined = false,
+    collateral = 0.0,
+    threshold = None,
+    mta = None,
+    nica = None,
+    mpor_days = None,
+    counterparty_id = "CPTY",
+    csa_id = "CSA",
+))]
+#[allow(clippy::too_many_arguments)]
 pub fn saccr_ead(
     py: Python<'_>,
     trades: Vec<PyRef<'_, PySaCcrTrade>>,
+    as_of_year: i32,
+    as_of_month: u8,
+    as_of_day: u8,
     margined: bool,
     collateral: f64,
+    threshold: Option<f64>,
+    mta: Option<f64>,
+    nica: Option<f64>,
+    mpor_days: Option<u32>,
+    counterparty_id: &str,
+    csa_id: &str,
 ) -> PyResult<(f64, f64, f64)> {
+    if trades.is_empty() {
+        return Err(crate::errors::value_error(
+            "saccr_ead requires at least one trade",
+        ));
+    }
     let engine = SaCcrEngine::builder().build().map_err(core_to_py)?;
-    let netting_id = NettingSetId::bilateral("CPTY", "CSA");
+    let netting_id = NettingSetId::bilateral(counterparty_id, csa_id);
     let trade_vec: Vec<SaCcrTrade> = trades.iter().map(|t| t.inner.clone()).collect();
-    let as_of = if let Some(date) = trade_vec.iter().map(|t| t.start_date).min() {
-        date
-    } else {
-        parse_date(1970, 1, 1)?
-    };
-    let config = if margined {
-        SaCcrNettingSetConfig::margined(netting_id, collateral, 0.0, 0.0, 0.0, 10, as_of)
-    } else {
-        SaCcrNettingSetConfig::unmargined(netting_id, collateral, as_of)
-    };
+    let as_of = parse_date(as_of_year, as_of_month, as_of_day)?;
+    // Start from the Rust unmargined constructor so threshold/MTA/NICA/MPoR
+    // defaults are owned by the margin crate, then apply margined overrides.
+    let mut config = SaCcrNettingSetConfig::unmargined(netting_id, collateral, as_of);
+    if !margined && (threshold.is_some() || mta.is_some() || nica.is_some() || mpor_days.is_some())
+    {
+        // Refuse silently inert configuration: these terms only enter the
+        // margined RC/PFE formulas.
+        return Err(crate::errors::value_error(
+            "threshold/mta/nica/mpor_days require margined=True",
+        ));
+    }
+    if margined {
+        config.is_margined = true;
+        if let Some(threshold) = threshold {
+            config.threshold = threshold;
+        }
+        if let Some(mta) = mta {
+            config.mta = mta;
+        }
+        if let Some(nica) = nica {
+            config.nica = nica;
+        }
+        if let Some(mpor_days) = mpor_days {
+            config.mpor_days = mpor_days;
+        }
+    }
+    config.validate().map_err(core_to_py)?;
     let result = py
         .detach(|| engine.calculate_ead(&config, &trade_vec))
         .map_err(core_to_py)?;

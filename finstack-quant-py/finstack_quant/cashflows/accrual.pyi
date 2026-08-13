@@ -140,6 +140,10 @@ class ExCouponRule:
         -------
         int
             The configured number of days before the coupon date.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -153,6 +157,10 @@ class ExCouponRule:
         str or None
             The calendar id used to count business days, or ``None`` when
             calendar days are used instead.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 

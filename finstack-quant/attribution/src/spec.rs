@@ -272,6 +272,58 @@ pub fn default_attribution_metrics() -> Vec<MetricId> {
     AttributionMethod::MetricsBased.required_metrics()
 }
 
+/// Validate an attribution specification JSON payload and return it canonicalized.
+///
+/// This is the canonical validation entry point shared by the Python and WASM
+/// bindings. It deserializes the input against the strict
+/// [`AttributionEnvelope`] schema (unknown fields denied), applies the same
+/// schema-version gate that [`AttributionEnvelope::execute`] relies on — so a
+/// payload that validates here cannot later be rejected at execution for a
+/// version mismatch — and re-serializes the envelope to compact canonical JSON.
+///
+/// # Arguments
+///
+/// * `json` - JSON-serialized [`AttributionEnvelope`] to validate.
+///
+/// # Returns
+///
+/// The canonical compact JSON re-serialization of the validated envelope.
+///
+/// # Errors
+///
+/// Returns [`finstack_quant_core::Error::Validation`] when `json` is malformed,
+/// violates the exact envelope schema, or carries an unsupported schema
+/// version marker, and [`finstack_quant_core::Error::Internal`] if the
+/// validated envelope cannot be re-serialized.
+///
+/// # Examples
+///
+/// ```rust
+/// use finstack_quant_attribution::validate_attribution_json;
+///
+/// // An empty object is missing every required envelope field.
+/// assert!(validate_attribution_json("{}").is_err());
+/// ```
+pub fn validate_attribution_json(json: &str) -> Result<String> {
+    let envelope: AttributionEnvelope = serde_json::from_str(json).map_err(|e| {
+        finstack_quant_core::Error::Validation(format!("invalid attribution JSON: {e}"))
+    })?;
+    // Explicit schema-version gate. `AttributionSchema` deserialization already
+    // rejects unknown markers, but the gate is asserted here so the contract is
+    // visible at the validation boundary and stays correct if the enum ever
+    // grows a second variant.
+    if envelope.schema != AttributionSchema::CURRENT {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "unsupported attribution schema version; expected {ATTRIBUTION_SCHEMA:?}"
+        )));
+    }
+    serde_json::to_string(&envelope).map_err(|e| {
+        finstack_quant_core::Error::Internal(format!(
+            "failed to re-serialize validated attribution envelope: {e}"
+        ))
+    })
+}
+
 /// Complete attribution result with P&L attribution and metadata.
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -570,6 +622,64 @@ mod tests {
         let parsed_from_reader = serde_json::from_reader::<_, AttributionEnvelope>(reader)
             .expect("from_reader should succeed");
         assert_eq!(parsed_from_reader.schema, AttributionSchema::Attribution);
+    }
+
+    #[test]
+    fn validate_attribution_json_roundtrips_and_gates_schema() {
+        use finstack_quant_valuations::instruments::Bond;
+
+        let bond = Bond::fixed(
+            "TEST-BOND",
+            Money::new(1_000_000.0, Currency::USD),
+            0.05,
+            create_date(2024, Month::January, 1).expect("Valid test date"),
+            create_date(2034, Month::January, 1).expect("Valid test date"),
+            "USD-OIS",
+        )
+        .expect("Bond::fixed should succeed with valid parameters");
+
+        let market = MarketContextState::from(
+            &finstack_quant_core::market_data::context::MarketContext::new(),
+        );
+        let spec = AttributionSpec {
+            instrument: InstrumentJson::Bond(bond),
+            market_t0: market.clone(),
+            market_t1: market,
+            as_of_t0: create_date(2025, Month::January, 1).expect("Valid test date"),
+            as_of_t1: create_date(2025, Month::January, 2).expect("Valid test date"),
+            method: AttributionMethod::Parallel,
+            model_params_t0: None,
+            config: None,
+            credit_factor_model: None,
+            credit_factor_detail_options: CreditFactorDetailOptions::default(),
+            full_cross_attribution: false,
+        };
+        let envelope = AttributionEnvelope::new(spec);
+        let pretty =
+            serde_json::to_string_pretty(&envelope).expect("envelope should serialize in test");
+
+        // Valid envelope: canonical compact JSON comes back and re-parses.
+        let canonical = validate_attribution_json(&pretty).expect("valid envelope must validate");
+        assert!(canonical.contains("finstack_quant.attribution/1"));
+        assert!(!canonical.contains('\n'), "canonical form is compact");
+        let reparsed: AttributionEnvelope =
+            serde_json::from_str(&canonical).expect("canonical output must re-parse");
+        assert_eq!(reparsed.schema, AttributionSchema::CURRENT);
+
+        // Malformed and empty payloads are rejected as validation errors.
+        for bad in ["not json", "{}"] {
+            let err = validate_attribution_json(bad).expect_err("must reject invalid JSON");
+            assert!(matches!(err, finstack_quant_core::Error::Validation(_)));
+        }
+
+        // Wrong schema version marker is rejected (gate is applied on ingest).
+        let wrong_version = pretty.replace(
+            "finstack_quant.attribution/1",
+            "finstack_quant.attribution/999",
+        );
+        let err = validate_attribution_json(&wrong_version)
+            .expect_err("unsupported schema versions must be rejected");
+        assert!(matches!(err, finstack_quant_core::Error::Validation(_)));
     }
 
     #[test]

@@ -47,6 +47,43 @@ ENTRY_SHAPES: list[tuple[str, str, str]] = [
     # portfolio
     ("finstack_quant.portfolio", "value_portfolio", "wrapper"),
     ("finstack_quant.portfolio", "aggregate_full_cashflows", "wrapper"),
+    # portfolio attribution/performance surface (typed result-return
+    # conversion, audit M1): the typed entry point returns a wrapper; the
+    # paired `_json` twin is the only string-returning surface.
+    ("finstack_quant.portfolio", "brinson_fachler", "wrapper"),
+    ("finstack_quant.portfolio", "carino_link", "wrapper"),
+    ("finstack_quant.portfolio", "campisi_attribution", "wrapper"),
+    ("finstack_quant.portfolio", "campisi_carino_link", "wrapper"),
+    ("finstack_quant.portfolio", "campisi_carino_link_from_snapshots", "wrapper"),
+    ("finstack_quant.portfolio", "campisi_reconciliation_check", "wrapper"),
+    ("finstack_quant.portfolio", "cell_returns_from_reference", "wrapper"),
+    ("finstack_quant.portfolio", "cell_returns_from_curves", "wrapper"),
+    ("finstack_quant.portfolio", "excess_returns", "wrapper"),
+    ("finstack_quant.portfolio", "grid_attribution", "wrapper"),
+    ("finstack_quant.portfolio", "grid_carino_link", "wrapper"),
+    ("finstack_quant.portfolio", "factor_brinson_attribution", "wrapper"),
+    ("finstack_quant.portfolio", "twrr_linked", "wrapper"),
+    ("finstack_quant.portfolio", "aggregate_metrics", "wrapper"),
+    ("finstack_quant.portfolio", "replay_portfolio", "wrapper"),
+    ("finstack_quant.portfolio", "allocate_weights", "wrapper"),
+    ("finstack_quant.portfolio", "scenario_pnl_batch", "wrapper"),
+    ("finstack_quant.portfolio", "brinson_fachler_json", "json"),
+    ("finstack_quant.portfolio", "carino_link_json", "json"),
+    ("finstack_quant.portfolio", "campisi_attribution_json", "json"),
+    ("finstack_quant.portfolio", "campisi_carino_link_json", "json"),
+    ("finstack_quant.portfolio", "campisi_carino_link_from_snapshots_json", "json"),
+    ("finstack_quant.portfolio", "campisi_reconciliation_check_json", "json"),
+    ("finstack_quant.portfolio", "cell_returns_from_reference_json", "json"),
+    ("finstack_quant.portfolio", "cell_returns_from_curves_json", "json"),
+    ("finstack_quant.portfolio", "excess_returns_json", "json"),
+    ("finstack_quant.portfolio", "grid_attribution_json", "json"),
+    ("finstack_quant.portfolio", "grid_carino_link_json", "json"),
+    ("finstack_quant.portfolio", "factor_brinson_attribution_json", "json"),
+    ("finstack_quant.portfolio", "twrr_linked_json", "json"),
+    ("finstack_quant.portfolio", "aggregate_metrics_json", "json"),
+    ("finstack_quant.portfolio", "replay_portfolio_json", "json"),
+    ("finstack_quant.portfolio", "allocate_weights_json", "json"),
+    ("finstack_quant.portfolio", "scenario_pnl_batch_json", "json"),
 ]
 
 # Result classes that must carry the full accessor contract:
@@ -67,6 +104,21 @@ RESULT_CLASSES: list[tuple[str, str]] = [
     ("finstack_quant.monte_carlo", "GbmPathSummary"),
     ("finstack_quant.margin", "XvaResult"),
     ("finstack_quant.statements", "StatementResult"),
+    # portfolio attribution/performance result wrappers.
+    ("finstack_quant.portfolio", "BrinsonPeriodResult"),
+    ("finstack_quant.portfolio", "CarinoLinkedAttribution"),
+    ("finstack_quant.portfolio", "DurationCellTable"),
+    ("finstack_quant.portfolio", "ExcessReturnResult"),
+    ("finstack_quant.portfolio", "FactorBrinsonResult"),
+    ("finstack_quant.portfolio", "FiAttributionResult"),
+    ("finstack_quant.portfolio", "FiCarinoLinkedResult"),
+    ("finstack_quant.portfolio", "FiReconciliationReport"),
+    ("finstack_quant.portfolio", "GridAttributionResult"),
+    ("finstack_quant.portfolio", "GridCarinoLinkedResult"),
+    ("finstack_quant.portfolio", "LinkedReturn"),
+    ("finstack_quant.portfolio", "ReplayResult"),
+    ("finstack_quant.portfolio", "ScenarioPnlBatchItem"),
+    ("finstack_quant.portfolio", "WeightAllocationResult"),
 ]
 
 

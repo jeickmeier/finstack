@@ -25,9 +25,11 @@
 //! - Brenner, M., & Subrahmanyam, M. G. (1988). "A Simple Formula to Compute
 //!   the Implied Standard Deviation." *Financial Analysts Journal*, 44(5), 80–83.
 //! - Manaster, S., & Koehler, G. (1982). "The Calculation of Implied Variances
-//!   from the Black-Scholes Model." *Journal of Finance*, 37(1), 227–230.
+//!   from the Black-Scholes Model." *Journal of Finance*, 37(1), 227–230. `docs/REFERENCES.md#black-scholes-1973`
 //! - Li, B. (2006). "A New Formula for Computing Implied Normal Volatility."
 //!   Working paper.
+//! - Black (1976) and Bachelier (1900) pricing functions inverted here:
+//!   , `docs/REFERENCES.md#black-1976` `docs/REFERENCES.md#bachelier-1900`
 
 use crate::error::InputError;
 
@@ -70,8 +72,8 @@ const BISECTION_STEPS: usize = 20;
 /// finds the unique lognormal volatility σ that reproduces the price:
 ///
 /// ```text
-/// black_call(F, K, σ, T) = price   (for calls)
-/// black_put(F, K, σ, T)  = price   (for puts)
+/// black_call(F, K, σ, T) = price (for calls)
+/// black_put(F, K, σ, T) = price (for puts)
 /// ```
 ///
 /// # Algorithm
@@ -134,7 +136,7 @@ const BISECTION_STEPS: usize = 20;
 /// - Brenner, M., & Subrahmanyam, M. G. (1988). "A Simple Formula to Compute
 ///   the Implied Standard Deviation." *Financial Analysts Journal*, 44(5), 80–83.
 /// - Manaster, S., & Koehler, G. (1982). "The Calculation of Implied Variances
-///   from the Black-Scholes Model." *Journal of Finance*, 37(1), 227–230.
+///   from the Black-Scholes Model." *Journal of Finance*, 37(1), 227–230. `docs/REFERENCES.md#black-scholes-1973`
 pub fn implied_vol_black(
     price: f64,
     forward: f64,
@@ -194,9 +196,9 @@ pub fn implied_vol_black(
     // ── 5. Householder (Halley) refinement ───────────────────────────────
     //
     // Third-order convergence using:
-    //   f(σ)   = black_price(σ) − target
-    //   f′(σ)  = vega  = F √T φ(d₁)
-    //   f″(σ) = volga = vega · d₁ · d₂ / σ
+    // f(σ) = black_price(σ) − target
+    // f′(σ) = vega = F √T φ(d₁)
+    // f″(σ) = volga = vega · d₁ · d₂ / σ
     //
     // Halley update: σ ← σ − 2f·f′ / (2f′² − f·f″)
     let sqrt_t = t.sqrt();
@@ -242,8 +244,8 @@ pub fn implied_vol_black(
 /// finds the unique normal volatility σ_n that reproduces the price:
 ///
 /// ```text
-/// bachelier_call(F, K, σ_n, T) = price   (for calls)
-/// bachelier_put(F, K, σ_n, T)  = price   (for puts)
+/// bachelier_call(F, K, σ_n, T) = price (for calls)
+/// bachelier_put(F, K, σ_n, T) = price (for puts)
 /// ```
 ///
 /// # Algorithm
@@ -296,7 +298,7 @@ pub fn implied_vol_black(
 /// # References
 ///
 /// - Li, B. (2006). "A New Formula for Computing Implied Normal Volatility."
-/// - Bachelier, L. (1900). "Théorie de la spéculation."
+/// - Bachelier, L. (1900). "Théorie de la spéculation." `docs/REFERENCES.md#bachelier-1900`
 pub fn implied_vol_bachelier(
     price: f64,
     forward: f64,
@@ -350,8 +352,8 @@ pub fn implied_vol_bachelier(
     // ── 5. Householder (Halley) refinement ───────────────────────────────
     //
     // Bachelier derivatives:
-    //   f′(σ)  = vega  = √T × φ(d)
-    //   f″(σ) = volga = vega × d² / σ
+    // f′(σ) = vega = √T × φ(d)
+    // f″(σ) = volga = vega × d² / σ
     // where d = (F − K) / (σ √T)
     let sqrt_t = t.sqrt();
 

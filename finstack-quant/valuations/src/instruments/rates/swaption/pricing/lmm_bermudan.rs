@@ -23,9 +23,9 @@
 //!   by Simulation: A Simple Least-Squares Approach." *Review of Financial
 //!   Studies*, 14(1), 113-147.
 //! - Andersen, L. & Piterbarg, V. (2010). *Interest Rate Modeling*, Vol. 2,
-//!   Ch. 15-16, Atlantic Financial Press.
+//!   Ch. 15-16, Atlantic Financial Press. `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
 //! - Glasserman, P. (2003). *Monte Carlo Methods in Financial Engineering*,
-//!   Ch. 8, Springer.
+//!   Ch. 8, Springer. `docs/REFERENCES.md#glasserman-2004-monte-carlo`
 
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
@@ -73,7 +73,7 @@ pub struct LmmBermudanConfig {
     ///
     /// The pricer registry (`finstack_quant_valuations::pricer::exotics`) sets this
     /// on the registered LMM pricer so callers reaching the registry receive a
-    /// clear error rather than a silently-wrong price.  Direct constructor
+    /// clear error rather than a silently-wrong price. Direct constructor
     /// callers retain the permissive default (`false`) for testing and bespoke
     /// workflows.
     ///

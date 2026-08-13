@@ -90,14 +90,6 @@ fn liquidity_defaults_from_file(file: LiquidityDefaultsFile) -> Result<Liquidity
 }
 
 fn validate_liquidity_config(config: &LiquidityConfig) -> Result<()> {
-    validate_positive("liquidity.participation_rate", config.participation_rate)?;
-    validate_positive("liquidity.risk_aversion", config.risk_aversion)?;
-    validate_positive("liquidity.holding_period", config.holding_period)?;
-    validate_unit_interval("liquidity.confidence_level", config.confidence_level)?;
-    validate_non_negative(
-        "liquidity.endogenous_spread_coef",
-        config.endogenous_spread_coef,
-    )?;
     let mut prev = 0.0;
     for (idx, threshold) in config.tier_thresholds.iter().copied().enumerate() {
         validate_positive(&format!("liquidity.tier_thresholds[{idx}]"), threshold)?;
@@ -116,22 +108,6 @@ fn validate_positive(label: &str, value: f64) -> Result<()> {
         Ok(())
     } else {
         Err(Error::Validation(format!("{label} must be positive")))
-    }
-}
-
-fn validate_non_negative(label: &str, value: f64) -> Result<()> {
-    if value.is_finite() && value >= 0.0 {
-        Ok(())
-    } else {
-        Err(Error::Validation(format!("{label} must be non-negative")))
-    }
-}
-
-fn validate_unit_interval(label: &str, value: f64) -> Result<()> {
-    if value.is_finite() && (0.0..=1.0).contains(&value) {
-        Ok(())
-    } else {
-        Err(Error::Validation(format!("{label} must be in [0, 1]")))
     }
 }
 

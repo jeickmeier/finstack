@@ -62,15 +62,15 @@
 //!
 //! - **Inflation Markets**:
 //!   - Deacon, M., Derry, A., & Mirfendereski, D. (2004). *Inflation-Indexed Securities:
-//!     Bonds, Swaps and Other Derivatives* (2nd ed.). Wiley Finance.
+//!   Bonds, Swaps and Other Derivatives* (2nd ed.). Wiley Finance. `docs/REFERENCES.md#deacon-derry-mirfendereski-2004`
 //!   - Kerkhof, J. (2005). "Inflation Derivatives Explained." *Journal of Derivatives
-//!     Accounting*, 2(1), 1-19.
+//!   Accounting*, 2(1), 1-19. `docs/REFERENCES.md#kerkhof-2005`
 //!
 //! - **Curve Construction**:
 //!   - Hurd, M., & Relleen, J. (2006). "Estimating the Inflation Risk Premium."
-//!     Bank of England Quarterly Bulletin, Q2 2006.
+//!   Bank of England Quarterly Bulletin, Q2 2006. `docs/REFERENCES.md#kerkhof-2005`
 //!   - Fleckenstein, M., Longstaff, F. A., & Lustig, H. (2017). "Deflation Risk."
-//!     *Review of Financial Studies*, 30(8), 2719-2760.
+//!   *Review of Financial Studies*, 30(8), 2719-2760. `docs/REFERENCES.md#kerkhof-2005`
 
 use super::common::{build_interp, roll_knots, split_points};
 use crate::dates::{Date, DayCount, DayCountContext};
@@ -347,7 +347,7 @@ impl InflationCurve {
     ///
     /// - Deacon, M., Derry, A., & Mirfendereski, D. (2004). *Inflation-Indexed
     ///   Securities: Bonds, Swaps and Other Derivatives* (2nd ed.). Wiley,
-    ///   Chapter 2 (index ratio and indexation lag conventions).
+    ///   Chapter 2 (index ratio and indexation lag conventions). `docs/REFERENCES.md#deacon-derry-mirfendereski-2004`
     #[must_use = "computed index ratio should not be discarded"]
     pub fn index_ratio(&self, t: f64) -> crate::Result<f64> {
         if !(self.base_cpi.is_finite() && self.base_cpi > 0.0) {

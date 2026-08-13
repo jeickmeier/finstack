@@ -595,6 +595,46 @@ fn test_extract_bucketed_dv01_single_curve() {
     assert_eq!(bucketed.get(&CurveId::new("USD-OIS")), Some(&-250.0));
 }
 
+/// Audit Major (shifts.rs): the producer NEVER emits a `bucketed_dv01::{curve}`
+/// per-curve total — it flattens per-tenor keys `bucketed_dv01::{curve}::{label}`
+/// plus a scalar `bucketed_dv01` total. With only the real producer shape
+/// present, the per-curve extraction must derive the total by summing the
+/// per-tenor keys.
+#[test]
+fn test_extract_bucketed_dv01_sums_per_tenor_keys_when_direct_key_absent() {
+    use finstack_quant_core::types::CurveId;
+
+    // Real producer shape: ONLY per-tenor keys, no "bucketed_dv01::USD-OIS".
+    let mut measures = IndexMap::new();
+    measures.insert(MetricId::custom("bucketed_dv01::USD-OIS::5y"), -100.0);
+    measures.insert(MetricId::custom("bucketed_dv01::USD-OIS::10y"), -200.0);
+    measures.insert(MetricId::custom("bucketed_dv01::USD-OIS::30y"), -50.0);
+
+    let curve_ids = vec![CurveId::new("USD-OIS")];
+    let bucketed = extract_bucketed_dv01_per_curve(&measures, &curve_ids);
+
+    assert_eq!(bucketed.len(), 1);
+    assert_eq!(bucketed.get(&CurveId::new("USD-OIS")), Some(&-350.0));
+
+    // The direct per-curve key, when present, wins over the per-tenor sum
+    // (backward compatibility).
+    let mut measures_direct = IndexMap::new();
+    measures_direct.insert(MetricId::custom("bucketed_dv01::USD-OIS"), -999.0);
+    measures_direct.insert(MetricId::custom("bucketed_dv01::USD-OIS::5y"), -100.0);
+    let bucketed_direct = extract_bucketed_dv01_per_curve(&measures_direct, &curve_ids);
+    assert_eq!(bucketed_direct.get(&CurveId::new("USD-OIS")), Some(&-999.0));
+
+    // Pattern 2 (scalar `bucketed_dv01` total attributed to the single curve)
+    // must fire for a curve declared as BOTH discount and projection: the
+    // deduped `rates_curve_ids` has length 1, so the single-curve branch is
+    // reachable (before the dedup fix the list had length 2 and it was not).
+    let mut measures_scalar = IndexMap::new();
+    measures_scalar.insert(MetricId::custom("bucketed_dv01"), -250.0);
+    let deduped_single = vec![CurveId::new("USD-OIS")];
+    let bucketed_scalar = extract_bucketed_dv01_per_curve(&measures_scalar, &deduped_single);
+    assert_eq!(bucketed_scalar.get(&CurveId::new("USD-OIS")), Some(&-250.0));
+}
+
 #[test]
 fn test_extract_bucketed_dv01_empty() {
     use finstack_quant_core::types::CurveId;
@@ -1100,6 +1140,328 @@ fn test_cross_gamma_credit_vol_pairs_bp_and_vol_points() {
     );
 }
 
+/// Test instrument declaring a configurable list of credit-curve dependencies.
+#[derive(Clone)]
+struct CreditCurvesTestInstrument {
+    id: String,
+    value: Money,
+    credit_curves: Vec<String>,
+}
+
+finstack_quant_valuations::impl_empty_cashflow_provider!(
+    CreditCurvesTestInstrument,
+    finstack_quant_cashflows::builder::CashflowRepresentation::NoResidual
+);
+
+impl CreditCurvesTestInstrument {
+    fn new(id: &str, value: Money, credit_curves: &[&str]) -> Self {
+        Self {
+            id: id.to_string(),
+            value,
+            credit_curves: credit_curves.iter().map(|s| (*s).to_string()).collect(),
+        }
+    }
+}
+
+impl Instrument for CreditCurvesTestInstrument {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn key(&self) -> finstack_quant_valuations::pricer::InstrumentType {
+        finstack_quant_valuations::pricer::InstrumentType::Bond
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn attributes(&self) -> &finstack_quant_valuations::instruments::Attributes {
+        static ATTRS: OnceLock<finstack_quant_valuations::instruments::Attributes> =
+            OnceLock::new();
+        ATTRS.get_or_init(finstack_quant_valuations::instruments::Attributes::default)
+    }
+
+    fn attributes_mut(&mut self) -> &mut finstack_quant_valuations::instruments::Attributes {
+        unreachable!("CreditCurvesTestInstrument::attributes_mut should not be called")
+    }
+
+    fn clone_box(&self) -> Box<dyn Instrument> {
+        Box::new(self.clone())
+    }
+
+    fn market_dependencies(
+        &self,
+    ) -> finstack_quant_core::Result<finstack_quant_valuations::instruments::MarketDependencies>
+    {
+        let mut deps = finstack_quant_valuations::instruments::MarketDependencies::new();
+        for curve in &self.credit_curves {
+            deps.add_credit_curve(finstack_quant_core::types::CurveId::new(curve.clone()));
+        }
+        Ok(deps)
+    }
+
+    fn base_value(&self, _market: &MarketContext, _as_of: Date) -> Result<Money> {
+        Ok(self.value)
+    }
+
+    fn price_with_metrics(
+        &self,
+        market: &MarketContext,
+        as_of: Date,
+        _metrics: &[MetricId],
+        _options: finstack_quant_valuations::instruments::PricingOptions,
+    ) -> Result<ValuationResult> {
+        Ok(ValuationResult::stamped(
+            self.id(),
+            as_of,
+            self.value(market, as_of)?,
+        ))
+    }
+}
+
+/// Audit Major (credit.rs): a non-empty per-tenor `bucketed_cs01` map must NOT
+/// unconditionally set `credit_has_data = true` — when every keyrate curve is
+/// skipped (shift unmeasurable), the aggregate `Cs01 × avg(Δs)` fallback must
+/// still run. Fixture: MISSING-HAZ carries per-tenor CS01 but is absent from
+/// both markets; ACME-HAZ has no per-tenor CS01 but measurably widened, and an
+/// aggregate Cs01 is present → credit P&L must use the aggregate fallback.
+#[test]
+fn test_credit_aggregate_fallback_when_all_keyrate_curves_unmeasurable() {
+    use finstack_quant_core::market_data::term_structures::HazardCurve;
+
+    let as_of_t0 = date!(2025 - 01 - 15);
+    let as_of_t1 = date!(2025 - 01 - 16);
+    let meta = finstack_quant_core::config::results_meta(&FinstackConfig::default());
+
+    let instrument: Arc<dyn Instrument> = Arc::new(CreditCurvesTestInstrument::new(
+        "TEST-CREDIT-FALLBACK",
+        Money::new(100_000.0, Currency::USD),
+        &["MISSING-HAZ", "ACME-HAZ"],
+    ));
+
+    let hazard = |as_of: Date, h: f64| {
+        HazardCurve::builder("ACME-HAZ")
+            .base_date(as_of)
+            .day_count(finstack_quant_core::dates::DayCount::Act365F)
+            .recovery_rate(0.4)
+            .knots([(0.0, h), (5.0, h)])
+            .build()
+            .expect("hazard curve should build")
+    };
+    // MISSING-HAZ is deliberately absent from both markets: its per-tenor
+    // shift is unmeasurable, so the key-rate loop skips it.
+    let market_t0 = MarketContext::new().insert(hazard(as_of_t0, 0.02));
+    let market_t1 = MarketContext::new().insert(hazard(as_of_t1, 0.03));
+
+    let expected_shift_bp = measure_credit_curve_shift(
+        "ACME-HAZ",
+        &market_t0,
+        &market_t1,
+        TenorSamplingMethod::Standard,
+    )
+    .expect("ACME-HAZ shift should be measurable");
+    assert!(expected_shift_bp > 0.0);
+
+    let aggregate_cs01 = -50.0_f64;
+    let mut measures_t0 = IndexMap::new();
+    measures_t0.insert(MetricId::custom("bucketed_cs01::MISSING-HAZ::5y"), -30.0);
+    measures_t0.insert(MetricId::Cs01, aggregate_cs01);
+
+    let val_t0 = ValuationResult::stamped_with_meta(
+        "TEST-CREDIT-FALLBACK",
+        as_of_t0,
+        Money::new(100_000.0, Currency::USD),
+        meta.clone(),
+    )
+    .with_measures(measures_t0);
+    let val_t1 = ValuationResult::stamped_with_meta(
+        "TEST-CREDIT-FALLBACK",
+        as_of_t1,
+        Money::new(95_000.0, Currency::USD),
+        meta,
+    );
+
+    let attribution = attribute_pnl_metrics_based(
+        &instrument,
+        &market_t0,
+        &market_t1,
+        &val_t0,
+        &val_t1,
+        as_of_t0,
+        as_of_t1,
+    )
+    .expect("metrics-based attribution should succeed");
+
+    let credit_pnl = attribution.credit_curves_pnl.amount();
+    let expected_pnl = aggregate_cs01 * expected_shift_bp;
+    assert!(
+        credit_pnl != 0.0,
+        "aggregate Cs01 fallback must run when every keyrate curve was skipped; got 0"
+    );
+    assert!(
+        (credit_pnl - expected_pnl).abs() < 1e-9,
+        "credit P&L must be Cs01 × avg shift = {expected_pnl}; got {credit_pnl}"
+    );
+    // Skipped keyrate curves must be visible in the notes.
+    assert!(
+        attribution
+            .meta
+            .notes
+            .iter()
+            .any(|n| n.contains("MISSING-HAZ")),
+        "skipped keyrate credit curve must be noted; notes: {:?}",
+        attribution.meta.notes
+    );
+}
+
+/// Test instrument declaring TWO spot (market-scalar) dependencies, in
+/// declaration order FLAT-SPOT then REAL-SPOT.
+#[derive(Clone)]
+struct MultiSpotTestInstrument {
+    id: String,
+    value: Money,
+}
+
+finstack_quant_valuations::impl_empty_cashflow_provider!(
+    MultiSpotTestInstrument,
+    finstack_quant_cashflows::builder::CashflowRepresentation::NoResidual
+);
+
+impl MultiSpotTestInstrument {
+    fn new(id: &str, value: Money) -> Self {
+        Self {
+            id: id.to_string(),
+            value,
+        }
+    }
+}
+
+impl Instrument for MultiSpotTestInstrument {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn key(&self) -> finstack_quant_valuations::pricer::InstrumentType {
+        finstack_quant_valuations::pricer::InstrumentType::EquityOption
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn attributes(&self) -> &finstack_quant_valuations::instruments::Attributes {
+        static ATTRS: OnceLock<finstack_quant_valuations::instruments::Attributes> =
+            OnceLock::new();
+        ATTRS.get_or_init(finstack_quant_valuations::instruments::Attributes::default)
+    }
+
+    fn attributes_mut(&mut self) -> &mut finstack_quant_valuations::instruments::Attributes {
+        unreachable!("MultiSpotTestInstrument::attributes_mut should not be called")
+    }
+
+    fn clone_box(&self) -> Box<dyn Instrument> {
+        Box::new(self.clone())
+    }
+
+    fn market_dependencies(
+        &self,
+    ) -> finstack_quant_core::Result<finstack_quant_valuations::instruments::MarketDependencies>
+    {
+        let mut deps = finstack_quant_valuations::instruments::MarketDependencies::new();
+        deps.add_market_scalar_id("FLAT-SPOT");
+        deps.add_market_scalar_id("REAL-SPOT");
+        Ok(deps)
+    }
+
+    fn base_value(&self, _market: &MarketContext, _as_of: Date) -> Result<Money> {
+        Ok(self.value)
+    }
+
+    fn price_with_metrics(
+        &self,
+        market: &MarketContext,
+        as_of: Date,
+        _metrics: &[MetricId],
+        _options: finstack_quant_valuations::instruments::PricingOptions,
+    ) -> Result<ValuationResult> {
+        Ok(ValuationResult::stamped(
+            self.id(),
+            as_of,
+            self.value(market, as_of)?,
+        ))
+    }
+}
+
+/// Audit Major (equity.rs): the primary spot driver must be the measurable
+/// spot with the LARGEST |ΔS| — not simply the first measurable one. Before
+/// the fix, a first-declared spot with a 0.0 move locked out the real driver
+/// (Delta × real move flowed to residual: market_scalars_pnl = 0 instead of
+/// 10,000).
+#[test]
+fn test_primary_spot_driver_is_largest_move_not_first_measurable() {
+    let as_of_t0 = date!(2025 - 01 - 15);
+    let as_of_t1 = date!(2025 - 01 - 16);
+    let meta = finstack_quant_core::config::results_meta(&FinstackConfig::default());
+
+    let instrument: Arc<dyn Instrument> = Arc::new(MultiSpotTestInstrument::new(
+        "TEST-MULTI-SPOT",
+        Money::new(100_000.0, Currency::USD),
+    ));
+
+    // FLAT-SPOT is declared FIRST and is measurable but unmoved (50 → 50);
+    // REAL-SPOT is the actual driver (100 → 110).
+    let market_t0 = MarketContext::new()
+        .insert_price("FLAT-SPOT", MarketScalar::Unitless(50.0))
+        .insert_price("REAL-SPOT", MarketScalar::Unitless(100.0));
+    let market_t1 = MarketContext::new()
+        .insert_price("FLAT-SPOT", MarketScalar::Unitless(50.0))
+        .insert_price("REAL-SPOT", MarketScalar::Unitless(110.0));
+
+    let mut measures_t0 = IndexMap::new();
+    measures_t0.insert(MetricId::Delta, 1_000.0);
+
+    let val_t0 = ValuationResult::stamped_with_meta(
+        "TEST-MULTI-SPOT",
+        as_of_t0,
+        Money::new(100_000.0, Currency::USD),
+        meta.clone(),
+    )
+    .with_measures(measures_t0);
+    let val_t1 = ValuationResult::stamped_with_meta(
+        "TEST-MULTI-SPOT",
+        as_of_t1,
+        Money::new(110_000.0, Currency::USD),
+        meta,
+    );
+
+    let attribution = attribute_pnl_metrics_based(
+        &instrument,
+        &market_t0,
+        &market_t1,
+        &val_t0,
+        &val_t1,
+        as_of_t0,
+        as_of_t1,
+    )
+    .expect("metrics-based attribution should succeed");
+
+    // Delta (1000) × ΔS of the largest mover (+10) = 10,000.
+    let spot_pnl = attribution.market_scalars_pnl.amount();
+    assert!(
+        (spot_pnl - 10_000.0).abs() < 1e-9,
+        "primary spot shift must bind to the largest |ΔS|; expected 10000, got {spot_pnl}"
+    );
+}
+
 fn make_flat_curve(id: &str, base_date: Date, rate: f64) -> DiscountCurve {
     let mut knots = Vec::new();
     knots.push((0.0, 1.0));
@@ -1211,9 +1573,11 @@ fn test_metrics_based_rates_keyrate_aware_for_steepener() {
     // The key-rate-aware total is materially non-zero — NOT the ~0 an
     // average-shift attribution would have produced.
     let rates_pnl = attribution.rates_curves_pnl.amount();
+    // Exact pin (hand-verified): Σ dv01 × Δr
+    //   = 1·10 + 1·10 + 2·10 + 3·5 + 4·0 − 6·5 − 8·10 − 40·10 − 120·10 = −1655.
     assert!(
-        rates_pnl.abs() > 100.0,
-        "key-rate-aware steepener attribution must be materially non-zero, got {rates_pnl}"
+        (rates_pnl - (-1655.0)).abs() < 1e-6,
+        "key-rate-aware steepener attribution must equal the hand-verified −1655, got {rates_pnl}"
     );
     // A note must record that key-rate (per-tenor) DV01 was used.
     assert!(
@@ -1224,6 +1588,194 @@ fn test_metrics_based_rates_keyrate_aware_for_steepener() {
             .any(|n| n.contains("key-rate")),
         "a note must record key-rate attribution; notes: {:?}",
         attribution.meta.notes
+    );
+}
+
+/// Audit B2: a curve listed as BOTH a discount and a forward/projection
+/// dependency (standard single-curve OIS/SOFR IRS, FRNs) must contribute to
+/// rates P&L exactly ONCE. Before the fix, `rates_curve_ids` was built as
+/// discount ⧺ forward with no cross-list dedup, so the same curve was walked
+/// twice by the key-rate loop and rates P&L doubled (−3310 instead of −1655
+/// for the steepener fixture).
+#[test]
+fn test_rates_curve_in_both_discount_and_forward_lists_counts_once() {
+    let as_of_t0 = date!(2025 - 01 - 15);
+    let as_of_t1 = date!(2025 - 01 - 16);
+    let meta = finstack_quant_core::config::results_meta(&FinstackConfig::default());
+
+    // Same curve id declared as BOTH discount and forward dependency.
+    let instrument: Arc<dyn Instrument> = Arc::new(
+        TestInstrument::new("TEST-SINGLE-CURVE", Money::new(100_000.0, Currency::USD))
+            .with_discount_curves(&["USD-OIS"])
+            .with_forward_curves(&["USD-OIS"]),
+    );
+
+    // Steepener fixture identical to
+    // `test_metrics_based_rates_keyrate_aware_for_steepener`.
+    let t0_rates = [0.03_f64; 9];
+    let t1_rates = [
+        0.029, 0.029, 0.029, 0.0295, 0.030, 0.0305, 0.031, 0.031, 0.031,
+    ];
+    let market_t0 =
+        MarketContext::new().insert(make_curve_from_zero_rates("USD-OIS", as_of_t0, &t0_rates));
+    let market_t1 =
+        MarketContext::new().insert(make_curve_from_zero_rates("USD-OIS", as_of_t1, &t1_rates));
+
+    let mut measures_t0 = IndexMap::new();
+    for (label, dv01) in [
+        ("3m", -1.0),
+        ("6m", -1.0),
+        ("1y", -2.0),
+        ("2y", -3.0),
+        ("3y", -4.0),
+        ("5y", -6.0),
+        ("7y", -8.0),
+        ("10y", -40.0),
+        ("30y", -120.0),
+    ] {
+        measures_t0.insert(
+            MetricId::custom(format!("bucketed_dv01::USD-OIS::{label}")),
+            dv01,
+        );
+    }
+
+    let val_t0 = ValuationResult::stamped_with_meta(
+        "TEST-SINGLE-CURVE",
+        as_of_t0,
+        Money::new(100_000.0, Currency::USD),
+        meta.clone(),
+    )
+    .with_measures(measures_t0);
+    let val_t1 = ValuationResult::stamped_with_meta(
+        "TEST-SINGLE-CURVE",
+        as_of_t1,
+        Money::new(98_345.0, Currency::USD),
+        meta,
+    );
+
+    let attribution = attribute_pnl_metrics_based(
+        &instrument,
+        &market_t0,
+        &market_t1,
+        &val_t0,
+        &val_t1,
+        as_of_t0,
+        as_of_t1,
+    )
+    .expect("metrics-based attribution should succeed");
+
+    // Single-curve value (hand-verified): Σ dv01 × Δr = −1655. A curve that is
+    // both discount and projection must NOT count twice (−3310).
+    let rates_pnl = attribution.rates_curves_pnl.amount();
+    assert!(
+        (rates_pnl - (-1655.0)).abs() < 1e-6,
+        "curve in both discount and forward lists must contribute once; \
+         expected -1655, got {rates_pnl}"
+    );
+}
+
+/// Audit Moderate (rates.rs): the convexity block's average shift must be the
+/// DV01-weighted mean `Σ|DV01_i|·Δr_i / Σ|DV01_i|`, not an unweighted mean over
+/// DV01 cells. For the steepener fixture the unweighted signed mean is exactly
+/// 0.0 (short −10bp cancels long +10bp), which killed the convexity term even
+/// though the position's risk sits at the long end (+10bp).
+#[test]
+fn test_rates_convexity_uses_dv01_weighted_average_shift() {
+    let as_of_t0 = date!(2025 - 01 - 15);
+    let as_of_t1 = date!(2025 - 01 - 16);
+    let meta = finstack_quant_core::config::results_meta(&FinstackConfig::default());
+
+    let instrument: Arc<dyn Instrument> = Arc::new(
+        TestInstrument::new(
+            "TEST-KEYRATE-CONVEXITY",
+            Money::new(100_000.0, Currency::USD),
+        )
+        .with_discount_curves(&["USD-OIS"]),
+    );
+
+    // Same steepener fixture as `test_metrics_based_rates_keyrate_aware_for_steepener`.
+    let t0_rates = [0.03_f64; 9];
+    let t1_rates = [
+        0.029, 0.029, 0.029, 0.0295, 0.030, 0.0305, 0.031, 0.031, 0.031,
+    ];
+    let market_t0 =
+        MarketContext::new().insert(make_curve_from_zero_rates("USD-OIS", as_of_t0, &t0_rates));
+    let market_t1 =
+        MarketContext::new().insert(make_curve_from_zero_rates("USD-OIS", as_of_t1, &t1_rates));
+
+    let dv01s = [
+        ("3m", -1.0),
+        ("6m", -1.0),
+        ("1y", -2.0),
+        ("2y", -3.0),
+        ("3y", -4.0),
+        ("5y", -6.0),
+        ("7y", -8.0),
+        ("10y", -40.0),
+        ("30y", -120.0),
+    ];
+    let convexity = 0.5_f64; // street convexity (per-100)
+    let mut measures_t0 = IndexMap::new();
+    for (label, dv01) in dv01s {
+        measures_t0.insert(
+            MetricId::custom(format!("bucketed_dv01::USD-OIS::{label}")),
+            dv01,
+        );
+    }
+    measures_t0.insert(MetricId::Convexity, convexity);
+
+    let val_t0 = ValuationResult::stamped_with_meta(
+        "TEST-KEYRATE-CONVEXITY",
+        as_of_t0,
+        Money::new(100_000.0, Currency::USD),
+        meta.clone(),
+    )
+    .with_measures(measures_t0);
+    let val_t1 = ValuationResult::stamped_with_meta(
+        "TEST-KEYRATE-CONVEXITY",
+        as_of_t1,
+        Money::new(98_345.0, Currency::USD),
+        meta,
+    );
+
+    let attribution = attribute_pnl_metrics_based(
+        &instrument,
+        &market_t0,
+        &market_t1,
+        &val_t0,
+        &val_t1,
+        as_of_t0,
+        as_of_t1,
+    )
+    .expect("metrics-based attribution should succeed");
+
+    // First-order: Σ dv01 × Δr = −1655 (hand-verified).
+    // Convexity effective shift: DV01-weighted mean
+    //   Σ|DV01_i|·Δr_i / Σ|DV01_i| = 1655 / 185 ≈ +8.9459bp (NOT 0.0).
+    let shifts_bp = [-10.0, -10.0, -10.0, -5.0, 0.0, 5.0, 10.0, 10.0, 10.0];
+    let weighted: f64 = dv01s
+        .iter()
+        .zip(shifts_bp.iter())
+        .map(|((_, dv01), s)| dv01.abs() * s)
+        .sum();
+    let total_weight: f64 = dv01s.iter().map(|(_, dv01)| dv01.abs()).sum();
+    let weighted_avg_bp = weighted / total_weight;
+    assert!((weighted_avg_bp - 8.9459459).abs() < 1e-4);
+
+    let shift_decimal = weighted_avg_bp / 10_000.0;
+    let expected_convexity_pnl =
+        0.5 * 100_000.0 * convexity * 100.0 * shift_decimal * shift_decimal;
+    assert!(
+        expected_convexity_pnl > 1.0,
+        "fixture must exercise a material convexity term"
+    );
+
+    let expected_total = -1655.0 + expected_convexity_pnl;
+    let rates_pnl = attribution.rates_curves_pnl.amount();
+    assert!(
+        (rates_pnl - expected_total).abs() < 1e-6,
+        "convexity must use the DV01-weighted effective shift (≈+8.95bp), not the \
+         unweighted mean (0.0); expected {expected_total}, got {rates_pnl}"
     );
 }
 

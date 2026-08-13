@@ -37,17 +37,17 @@
 //!
 //! - **Gaussian Quadrature**:
 //!   - Abramowitz, M., & Stegun, I. A. (1964). *Handbook of Mathematical Functions*.
-//!     Chapter 25 (Numerical Integration).
-//!   - Press, W. H., et al. (2007). *Numerical Recipes* (3rd ed.). Section 4.5.
-//!     ([`press-numerical-recipes`](../../../../docs/REFERENCES.md#press-numerical-recipes))
+//!   Chapter 25 (Numerical Integration).
+//! - Press, W. H., et al. (2007). *Numerical Recipes* (3rd ed.). Section 4.5.
+//!   ([`press-numerical-recipes`](../../../../docs/REFERENCES.md#press-numerical-recipes)) `docs/REFERENCES.md#press-numerical-recipes`
 //!
 //! - **Adaptive Methods**:
 //!   - Davis, P. J., & Rabinowitz, P. (1984). *Methods of Numerical Integration*
-//!     (2nd ed.). Academic Press.
+//!   (2nd ed.). Academic Press.
 //!
 //! - **Financial Applications**:
 //!   - Lewis, A. L. (2000). *Option Valuation under Stochastic Volatility*.
-//!     Finance Press. (Fourier methods and quadrature)
+//!   Finance Press. (Fourier methods and quadrature)
 
 use crate::error::InputError;
 use crate::Error;
@@ -1081,15 +1081,15 @@ where
 /// # References
 ///
 /// - Golub, G. H., & Welsch, J. H. (1969). "Calculation of Gauss
-///   Quadrature Rules." *Mathematics of Computation* 23, 221–230.
+///   Quadrature Rules." *Mathematics of Computation* 23, 221–230. `docs/REFERENCES.md#golub-van-loan-matrix-computations`
 /// - Press, W. H., Teukolsky, S. A., Vetterling, W. T., & Flannery, B. P.
 ///   (2007). *Numerical Recipes: The Art of Scientific Computing* (3rd
-///   ed.), §4.6 "Gaussian Quadratures and Orthogonal Polynomials."
+///   ed.), §4.6 "Gaussian Quadratures and Orthogonal Polynomials." `docs/REFERENCES.md#press-numerical-recipes`
 ///
 /// Runtime Golub-Welsch replaces a previously hard-coded 10-node
 /// Laguerre table in
 /// `finstack_quant_valuations::correlation::copula::student_t::StudentTCopula`,
-/// which silently capped `with_quadrature_order(n > 10)` at `n = 10`.
+/// which silently capped `with_quadrature_order(n > 10)` at `n = 10`. `docs/REFERENCES.md#golub-van-loan-matrix-computations`
 #[derive(Debug, Clone)]
 pub struct GaussLaguerreQuadrature {
     /// Quadrature nodes (sorted ascending, strictly positive).

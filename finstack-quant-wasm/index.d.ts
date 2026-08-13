@@ -310,7 +310,7 @@ export interface Money extends WasmOwned {
   amountDecimal(): string;
   /**
    * Convert using an already-resolved positive FX rate.
-   * @returns Returns the resulting `Money` value or WebAssembly handle.
+   * @returns Converted `Money` amount in the target currency.
    * @param target - Target Currency for the converted monetary amount.
    * @param rate - FX conversion rate expressed as target-currency units per source-currency unit.
    * @throws Error - For a different target currency, throws a JavaScript exception if `rate` is non-finite or not strictly positive, or if the converted amount cannot be represented as a decimal.
@@ -368,6 +368,14 @@ export interface Money extends WasmOwned {
    * @returns Formatted amount with currency code.
    */
   toString(): string;
+  /**
+   * Serialize to a JSON string using the canonical Rust serde schema.
+   *
+   * @returns A JSON string carrying the exact decimal amount and the
+   * ISO-4217 currency code.
+   * @throws If serialization fails (should not happen for valid `Money`).
+   */
+  toJson(): string;
 }
 
 /**
@@ -411,6 +419,14 @@ export interface MoneyConstructor {
    * @throws If `amount` is non-finite (NaN, ±∞) or cannot be represented as a `Decimal`.
    */
   new (amount: number, currency: Currency): Money;
+  /**
+   * Deserialize from a JSON string produced by `Money.toJson`.
+   *
+   * @param json - A JSON string in the canonical Rust `Money` schema.
+   * @returns The parsed `Money`.
+   * @throws If `json` is malformed or fails strict schema validation.
+   */
+  fromJson(json: string): Money;
 }
 
 /**
@@ -685,7 +701,7 @@ export interface DayCount extends WasmOwned {
   yearFraction(startEpochDays: number, endEpochDays: number): number;
   /**
    * Compute a signed year fraction, preserving the start/end orientation.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Signed year fraction in years; negative when `end` is before `start`.
    * @param startEpochDays - Start date as days since 1970-01-01.
    * @param endEpochDays - End date as days since 1970-01-01.
    * @throws Error - Throws a JavaScript exception if either epoch-day value is outside the representable date range or the selected convention requires calendar or coupon-frequency context. Use `yearFractionWithContext` for Bus/252 and Act/Act ISMA.
@@ -693,7 +709,7 @@ export interface DayCount extends WasmOwned {
   signedYearFraction(startEpochDays: number, endEpochDays: number): number;
   /**
    * Compute the year fraction with explicit convention context.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Non-negative year fraction in years under the selected convention and context.
    * @param startEpochDays - Start date as days since 1970-01-01.
    * @param endEpochDays - End date as days since 1970-01-01.
    * @param ctx - DayCountContext supplying calendar, frequency, coupon-period, and termination metadata.
@@ -706,7 +722,7 @@ export interface DayCount extends WasmOwned {
   ): number;
   /**
    * Count the calendar days between two dates (epoch days).
-   * @returns Returns the requested integer count.
+   * @returns Signed calendar-day count from start to end.
    * @param startEpochDays - Start date as days since 1970-01-01.
    * @param endEpochDays - End date as days since 1970-01-01.
    * @throws Error - Throws a JavaScript exception if either epoch-day value is outside the representable date range.
@@ -714,7 +730,7 @@ export interface DayCount extends WasmOwned {
   calendarDays(startEpochDays: number, endEpochDays: number): bigint;
   /**
    * Convention name.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Human-readable string form of this value.
    */
   toString(): string;
 }
@@ -756,13 +772,13 @@ export interface DayCountConstructor {
    */
   new (name: string): DayCount;
   /**
-   * Create a `DayCount` value using the act360 convention.
-   * @returns Returns the resulting `DayCount` value or WebAssembly handle.
+   * Act/360 day-count convention.
+   * @returns A `DayCount` handle for this convention.
    */
   act360(): DayCount;
   /**
    * Actual/365 Fixed.
-   * @returns Returns the resulting `DayCount` value or WebAssembly handle.
+   * @returns A `DayCount` handle for this convention.
    */
   act365f(): DayCount;
   /**
@@ -771,37 +787,37 @@ export interface DayCountConstructor {
    * in `(start, end]`; non-annual periods use 366 exactly when the end
    * date's year is a leap year. Otherwise the denominator is 365. This is
    * not ACT/ACT AFB.
-   * @returns Returns the resulting `DayCount` value or WebAssembly handle.
+   * @returns A `DayCount` handle for this convention.
    */
   act365l(): DayCount;
   /**
    * 30/360 US (Bond Basis).
-   * @returns Returns the resulting `DayCount` value or WebAssembly handle.
+   * @returns A `DayCount` handle for this convention.
    */
   thirty360(): DayCount;
   /**
    * 30E/360 (Eurobond Basis).
-   * @returns Returns the resulting `DayCount` value or WebAssembly handle.
+   * @returns A `DayCount` handle for this convention.
    */
   thirtyE360(): DayCount;
   /**
-   * Create a `DayCount` value using the thirty e360 isda convention.
-   * @returns Returns the resulting `DayCount` value or WebAssembly handle.
+   * 30E/360 ISDA day-count convention.
+   * @returns A `DayCount` handle for this convention.
    */
   thirtyE360Isda(): DayCount;
   /**
    * Actual/Actual (ISDA).
-   * @returns Returns the resulting `DayCount` value or WebAssembly handle.
+   * @returns A `DayCount` handle for this convention.
    */
   actAct(): DayCount;
   /**
    * Actual/Actual (ICMA/ISMA).
-   * @returns Returns the resulting `DayCount` value or WebAssembly handle.
+   * @returns A `DayCount` handle for this convention.
    */
   actActIsma(): DayCount;
   /**
-   * Create a `DayCount` value using the bus252 convention.
-   * @returns Returns the resulting `DayCount` value or WebAssembly handle.
+   * Business/252 day-count convention.
+   * @returns A `DayCount` handle for this convention.
    */
   bus252(): DayCount;
 }
@@ -812,19 +828,19 @@ export interface DayCountConstructor {
 export interface DayCountContext extends WasmOwned {
   /**
    * Return a copy with the calendar used by Bus/252.
-   * @returns Returns the resulting `DayCountContext` value or WebAssembly handle.
+   * @returns A new `DayCountContext` handle.
    * @param calendarCode - Registered holiday-calendar identifier used by the Bus/252 convention.
    */
   withCalendar(calendarCode: string): DayCountContext;
   /**
    * Return a copy with the coupon frequency used by Act/Act ISMA.
-   * @returns Returns the resulting `DayCountContext` value or WebAssembly handle.
+   * @returns A new `DayCountContext` handle.
    * @param frequency - Coupon-frequency Tenor required by Actual/Actual ICMA calculations.
    */
   withFrequency(frequency: Tenor): DayCountContext;
   /**
    * Return a copy with the business-day basis used by Bus/252.
-   * @returns Returns the resulting `DayCountContext` value or WebAssembly handle.
+   * @returns A new `DayCountContext` handle.
    * @param busBasis - Business-day denominator for Bus/252, normally 252.
    */
   withBusBasis(busBasis: number): DayCountContext;
@@ -832,7 +848,7 @@ export interface DayCountContext extends WasmOwned {
    * Return a copy with the reference coupon period (epoch days) used by
    * Act/Act ICMA. Errors when either date is out of range or
    * `start >= end`.
-   * @returns Returns the resulting `DayCountContext` value or WebAssembly handle.
+   * @returns A new `DayCountContext` handle.
    * @param startEpochDays - Reference coupon-period start as days since 1970-01-01.
    * @param endEpochDays - Reference coupon-period end as days since 1970-01-01.
    * @throws Error - Throws a JavaScript exception if either epoch-day value is outside the representable date range or the start is not strictly before the end.
@@ -841,7 +857,7 @@ export interface DayCountContext extends WasmOwned {
   /**
    * Return a copy indicating whether the accrual end is the instrument's
    * termination date (required by 30E/360 ISDA February-end handling).
-   * @returns Returns the resulting `DayCountContext` value or WebAssembly handle.
+   * @returns A new `DayCountContext` handle.
    * @param value - Whether the accrual end is the contractual termination date for 30E/360 ISDA.
    */
   withEndIsTerminationDate(value: boolean): DayCountContext;
@@ -862,7 +878,7 @@ export interface DayCountContext extends WasmOwned {
 export interface DayCountContextConstructor {
   /**
    * Create an empty day-count context.
-   * @returns Returns the resulting `DayCountContext` value or WebAssembly handle.
+   * @returns An empty `DayCountContext` handle.
    */
   new (): DayCountContext;
 }
@@ -889,17 +905,17 @@ export interface DayCountContextConstructor {
  */
 export interface Tenor extends WasmOwned {
   /**
-   * Count exposed by this `Tenor` value.
+   * Unit count of this tenor, such as `3` for `"3M"`.
    */
   readonly count: number;
   /**
    * Approximate length in years (simple estimate, no calendar).
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Approximate tenor length in years, such as `0.25` for `"3M"`.
    */
   toYearsSimple(): number;
   /**
    * Tenor string representation.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Human-readable string form of this value.
    */
   toString(): string;
 }
@@ -934,39 +950,39 @@ export interface TenorConstructor {
    */
   new (s: string): Tenor;
   /**
-   * Create a `Tenor` value using the daily convention.
-   * @returns Returns the resulting `Tenor` value or WebAssembly handle.
+   * One-day tenor (`"1D"`).
+   * @returns A `Tenor` handle for this named period.
    */
   daily(): Tenor;
   /**
-   * Create a `Tenor` value using the weekly convention.
-   * @returns Returns the resulting `Tenor` value or WebAssembly handle.
+   * One-week tenor (`"1W"`).
+   * @returns A `Tenor` handle for this named period.
    */
   weekly(): Tenor;
   /**
-   * Create a `Tenor` value using the monthly convention.
-   * @returns Returns the resulting `Tenor` value or WebAssembly handle.
+   * One-month tenor (`"1M"`).
+   * @returns A `Tenor` handle for this named period.
    */
   monthly(): Tenor;
   /**
    * 3-month (quarterly) tenor.
-   * @returns Returns the resulting `Tenor` value or WebAssembly handle.
+   * @returns A `Tenor` handle for this named period.
    */
   quarterly(): Tenor;
   /**
    * 6-month (semi-annual) tenor.
-   * @returns Returns the resulting `Tenor` value or WebAssembly handle.
+   * @returns A `Tenor` handle for this named period.
    */
   semiAnnual(): Tenor;
   /**
    * 12-month (annual) tenor.
-   * @returns Returns the resulting `Tenor` value or WebAssembly handle.
+   * @returns A `Tenor` handle for this named period.
    */
   annual(): Tenor;
 }
 
 /**
- * TypeScript type that constrains the accepted discount curve validation mode values.
+ * Discount-curve validation policy: market-standard or negative-rate-friendly.
  */
 export type DiscountCurveValidationMode = 'market_standard' | 'negative_rate_friendly';
 
@@ -1007,19 +1023,19 @@ export interface DiscountCurve extends WasmOwned {
   readonly baseDate: string;
   /**
    * Discount factor at year fraction `t`.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param t - Time from the curve base date in years on the documented day-count basis.
+   * @returns Discount factor for 1 unit paid at time `t`.
+   * @param t - Time from the curve base date in years.
    */
   df(t: number): number;
   /**
    * Continuously-compounded zero rate at year fraction `t`.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param t - Time from the curve base date in years on the documented day-count basis.
+   * @returns Continuously compounded zero rate as a decimal, such as `0.04` for 4%.
+   * @param t - Time from the curve base date in years.
    */
   zero(t: number): number;
   /**
    * Continuously-compounded forward rate between `t1` and `t2`.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Continuously compounded forward rate as a decimal over `(t1, t2)`.
    * @param t1 - Earlier curve time in years used as the start of the forward interval.
    * @param t2 - Later curve time in years used as the end of the forward interval.
    * @throws Error - Throws a JavaScript exception if either time is non-finite, `t2` is not later than `t1`, the interval is shorter than the curve's minimum forward tenor, or either endpoint discount factor is non-finite or non-positive.
@@ -1080,8 +1096,8 @@ export interface DiscountCurveConstructor {
   ): DiscountCurve;
   /**
    * Construct a flat continuously-compounded discount curve.
-   * @returns Returns the resulting `DiscountCurve` value or WebAssembly handle.
-   * @param id - Stable identifier used to name and retrieve the supplied domain object.
+   * @returns A `DiscountCurve` handle.
+   * @param id - Curve identifier stored on the constructed discount curve.
    * @param baseDate - ISO-8601 curve base date from which time coordinates are measured.
    * @param continuousRate - Flat continuously compounded zero rate expressed as a decimal.
    * @throws Error - Throws a JavaScript exception if `baseDate` is not a valid ISO date, `continuousRate` is non-finite, or the implied discount factors are not finite and strictly positive.
@@ -1126,13 +1142,13 @@ export interface HazardCurve extends WasmOwned {
   readonly recoveryRate: number;
   /**
    * Survival probability `S(t)` at year fraction `t`.
-   * @param t - Time from the curve base date in years on the documented day-count basis.
+   * @param t - Time from the curve base date in years.
    * @returns The probability of surviving from the base date through `t`, in `[0, 1]`.
    */
   sp(t: number): number;
   /**
    * Instantaneous hazard rate `lambda(t)` at year fraction `t`.
-   * @param t - Time from the curve base date in years on the documented day-count basis.
+   * @param t - Time from the curve base date in years.
    * @returns The annualized default intensity at `t`, expressed as a decimal rate.
    */
   hazardRate(t: number): number;
@@ -1203,13 +1219,13 @@ export interface ForwardCurve extends WasmOwned {
   readonly resetLag: number;
   /**
    * Forward rate at year fraction `t`.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param t - Time from the curve base date in years on the documented day-count basis.
+   * @returns Simply compounded forward rate as a decimal at time `t`.
+   * @param t - Time from the curve base date in years.
    */
   rate(t: number): number;
   /**
    * Discount-factor-implied simple forward over `(t1, t2)`.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Simple forward rate as a decimal implied by discount factors over `(t1, t2)`.
    * @param t1 - Earlier curve time in years used as the start of the forward interval.
    * @param t2 - Later curve time in years used as the end of the forward interval.
    * @throws Error - Throws a JavaScript exception if either time is non-finite, `t2` is not later than `t1`, a projection discount factor cannot be computed, or the implied rate is non-finite.
@@ -1236,7 +1252,7 @@ export interface ForwardCurveConstructor {
   /**
    * Construct from an array of `[time, rate]` pairs.
    *
-   * @returns Returns the resulting `ForwardCurve` value or WebAssembly handle.
+   * @returns A `ForwardCurve` handle.
    * @param id - Curve identifier.
    * @param tenor - Index tenor in years.
    * @param baseDate - ISO date string.
@@ -1245,7 +1261,7 @@ export interface ForwardCurveConstructor {
    * @param interp - Interpolation style (default ``"linear"``).
    * @param extrapolation - Extrapolation policy (default ``"flat_forward"``).
    * @param projectionGrid - Optional contractual reset/end boundaries.
-   * @param resetLag - Optional fixing-to-spot lag in business days; omit for Rust curve-ID inference.
+   * @param resetLag - Optional fixing-to-spot lag in business days; omit for
    * @throws Error - Throws a JavaScript exception if `baseDate`, `dayCount`, `interp`, or `extrapolation` is invalid; `knots` has odd length; or canonical curve validation rejects the tenor, reset lag, knots, projection grid, or interpolation inputs.
    */
   new (
@@ -1261,23 +1277,23 @@ export interface ForwardCurveConstructor {
   ): ForwardCurve;
   /**
    * Construct from a named JavaScript options object.
-   * @returns Returns the resulting `ForwardCurve` value or WebAssembly handle.
-   * @param options - JavaScript options object defining the requested curve construction inputs.
-   * @throws Error - Throws a JavaScript exception if `options` does not match the documented object shape or any contained date, convention, knot, tenor, reset-lag, projection-grid, or interpolation input fails canonical curve validation.
+   * @returns A `ForwardCurve` handle.
+   * @param options - Named `ForwardCurveOptions` fields used to construct the curve.
+   * @throws Error - Throws a JavaScript exception if `options` does not match `ForwardCurveOptions` or any contained date, convention, knot, tenor, reset-lag, projection-grid, or interpolation input fails canonical curve validation.
    */
   fromOptions(options: ForwardCurveOptions): ForwardCurve;
 }
 
 /**
- * TypeScript view of the `ForwardCurveOptions` WebAssembly value.
+ * Named options for constructing a `ForwardCurve`.
  */
 export interface ForwardCurveOptions {
   /**
-   * Stable identifier used to name or select the requested object.
+   * Curve identifier stored on the constructed forward curve.
    */
   id: string;
   /**
-   * Tenor exposed by this `ForwardCurveOptions` value.
+   * Index tenor in years, such as 0.25 for a 3-month forward.
    */
   tenor: number;
   /**
@@ -1285,7 +1301,7 @@ export interface ForwardCurveOptions {
    */
   baseDate: string;
   /**
-   * Knots exposed by this `ForwardCurveOptions` value.
+   * Flat `[time, rate]` pairs in year-fraction / decimal-rate units.
    */
   knots: NumericArray;
   /**
@@ -1293,11 +1309,11 @@ export interface ForwardCurveOptions {
    */
   dayCount?: string;
   /**
-   * Interp exposed by this `ForwardCurveOptions` value.
+   * Interpolation style between knots, such as `"monotone_convex"`.
    */
   interp?: string;
   /**
-   * Extrapolation exposed by this `ForwardCurveOptions` value.
+   * Extrapolation policy beyond the last knot, such as `"flat_forward"`.
    */
   extrapolation?: string;
   /**
@@ -1330,7 +1346,7 @@ export interface VolCube extends WasmOwned {
    * Implied volatility at `(expiry, tenor, strike)`.
    *
    * Returns `Err` if `expiry` or `tenor` falls outside the grid.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Black implied volatility as a decimal, such as `0.20` for 20%.
    * @param expiry - Time to option expiry in years on the model's annual time basis.
    * @param tenor - Underlying swap or index tenor measured in years for the quoted surface point.
    * @param strike - Option strike price in the same price units as the underlying.
@@ -1342,7 +1358,7 @@ export interface VolCube extends WasmOwned {
    *
    * Clamps finite `expiry` and `tenor` values to the grid edges before
    * interpolation. Non-finite inputs return `NaN`.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Black implied volatility as a decimal, or `NaN` for non-finite inputs.
    * @param expiry - Time to option expiry in years on the model's annual time basis.
    * @param tenor - Underlying swap or index tenor measured in years for the quoted surface point.
    * @param strike - Option strike price in the same price units as the underlying.
@@ -1357,7 +1373,7 @@ export interface VolCube extends WasmOwned {
    * Returns `Err` if `expiry` or `tenor` falls outside the grid, if the
    * expansion yields a non-finite volatility, or for cross-zero quotes
    * (`(F+s)(K+s) <= 0`) with `beta > 0`, which require an explicit shift.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Normal (Bachelier) volatility in absolute rate units, such as `0.008` for 80 bp/yr.
    * @param expiry - Time to option expiry in years on the model's annual time basis.
    * @param tenor - Underlying swap or index tenor measured in years for the quoted surface point.
    * @param strike - Option strike price in the same price units as the underlying.
@@ -1370,7 +1386,7 @@ export interface VolCube extends WasmOwned {
    * Clamps finite `expiry` and `tenor` values to the grid edges; a
    * degenerate finite expansion is floored to a small positive normal vol
    * (absolute rate units). Non-finite inputs return `NaN`.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Normal (Bachelier) volatility in absolute rate units, or `NaN` for non-finite inputs.
    * @param expiry - Time to option expiry in years on the model's annual time basis.
    * @param tenor - Underlying swap or index tenor measured in years for the quoted surface point.
    * @param strike - Option strike price in the same price units as the underlying.
@@ -1402,12 +1418,13 @@ export interface VolCubeConstructor {
   /**
    * Construct a vol cube from a flat SABR parameter array.
    *
-   * @returns Returns the resulting `VolCube` value or WebAssembly handle.
+   * @returns A `VolCube` handle.
    * @param id - Curve identifier.
    * @param expiries - Option expiry axis in years (strictly increasing).
    * @param tenors - Swap tenor axis in years (strictly increasing).
-   * @param paramsFlat - Row-major flat array of SABR parameters: `[alpha0, beta0, rho0, nu0, shift0, alpha1, …]`. Length must equal `expiries.len() * tenors.len() * 5`. Pass `NaN` for the shift element of a node to omit the shift.
-   * @param forwards - Row-major forward rates, one per grid node. @param interpolationMode - Volatility-surface interpolation mode used between quoted points.
+   * @param paramsFlat - Row-major flat array of SABR parameters:
+   * @param forwards - Row-major forward rates, one per grid node.
+   * @param interpolationMode - Volatility-surface interpolation mode used between quoted points.
    * @throws Error - Throws a JavaScript exception if an axis is empty, non-finite, non-positive, or not strictly increasing; the parameter or forward array has the wrong length; a forward is non-finite; any SABR node has invalid alpha, beta, rho, nu, or shift; or `interpolationMode` is neither `vol` nor `total_variance`.
    */
   new (
@@ -1426,7 +1443,7 @@ export interface VolCubeConstructor {
 export interface FxConversionPolicy extends WasmOwned {
   /**
    * String form of the conversion policy.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Human-readable string form of this value.
    */
   toString(): string;
 }
@@ -1444,28 +1461,28 @@ export interface FxConversionPolicy extends WasmOwned {
 export interface FxConversionPolicyConstructor {
   /**
    * Use spot/forward on the cashflow date.
-   * @returns Returns the resulting `FxConversionPolicy` value or WebAssembly handle.
+   * @returns An `FxConversionPolicy` handle.
    */
   cashflowDate(): FxConversionPolicy;
   /**
    * Use period end date.
-   * @returns Returns the resulting `FxConversionPolicy` value or WebAssembly handle.
+   * @returns An `FxConversionPolicy` handle.
    */
   periodEnd(): FxConversionPolicy;
   /**
    * Use an average over the period.
-   * @returns Returns the resulting `FxConversionPolicy` value or WebAssembly handle.
+   * @returns An `FxConversionPolicy` handle.
    */
   periodAverage(): FxConversionPolicy;
   /**
    * Use a custom provider-defined strategy.
-   * @returns Returns the resulting `FxConversionPolicy` value or WebAssembly handle.
+   * @returns An `FxConversionPolicy` handle.
    */
   custom(): FxConversionPolicy;
   /**
    * Parse from a string label such as ``\"cashflow_date\"``.
-   * @returns Returns the resulting `FxConversionPolicy` value or WebAssembly handle.
-   * @param name - Name supplied to from name; follow the type and convention required by the surrounding API.
+   * @returns An `FxConversionPolicy` handle.
+   * @param name - Policy label: `cashflow_date`, `period_end`, `period_average`, or `custom`.
    * @throws Error - Throws a JavaScript exception unless `name` is `cashflow_date`, `period_end`, `period_average`, or `custom`.
    */
   fromName(name: string): FxConversionPolicy;
@@ -1504,7 +1521,7 @@ export interface FxRateResult extends WasmOwned {
  */
 export interface FxRateResultConstructor {
   /**
-   * Prototype exposed by this `FxRateResult` value.
+   * JavaScript prototype of `FxRateResult`; instances come from `FxMatrix.rate`, not `new`.
    */
   readonly prototype: FxRateResult;
 }
@@ -1541,7 +1558,7 @@ export interface FxMatrix extends WasmOwned {
   /**
    * Look up an FX rate.
    *
-   * @returns Returns the resulting `FxRateResult` value or WebAssembly handle.
+   * @returns Resolved FX rate, including whether it was triangulated.
    * @param base - Base (from) currency ISO code.
    * @param quote - Quote (to) currency ISO code.
    * @param date - ISO date string.
@@ -1551,7 +1568,7 @@ export interface FxMatrix extends WasmOwned {
   rate(base: string, quote: string, date: string, policy: FxConversionPolicy): FxRateResult;
   /**
    * Look up an FX rate using cashflow-date conversion semantics.
-   * @returns Returns the resulting `FxRateResult` value or WebAssembly handle.
+   * @returns Resolved FX rate, including whether it was triangulated.
    * @param base - Base currency code of the FX quote, where the rate is quote per base.
    * @param quote - Quote currency code of the FX rate, expressed per unit of base currency.
    * @param date - ISO-8601 date used by the calculation or market-data lookup.
@@ -1574,7 +1591,7 @@ export interface FxMatrix extends WasmOwned {
 export interface FxMatrixConstructor {
   /**
    * Create an empty FX matrix.
-   * @returns Returns the resulting `FxMatrix` value or WebAssembly handle.
+   * @returns An `FxMatrix` handle.
    */
   new (): FxMatrix;
 }
@@ -1602,14 +1619,14 @@ export interface FxDeltaVolSurface extends WasmOwned {
   readonly numExpiries: number;
   /**
    * Pillar vols at the given expiry index as `[atm, put25d_vol, call25d_vol]`.
-   * @returns Returns numeric results as a `Float64Array` in the documented order.
+   * @returns Three decimal implied vols: ATM, 25-delta put, and 25-delta call.
    * @param expiryIdx - Zero-based index of the requested expiry pillar in the volatility surface.
    * @throws Error - Throws a JavaScript exception if `expiryIdx` is outside the surface's expiry axis.
    */
   pillarVols(expiryIdx: number): Float64Array;
   /**
    * Implied vol at `(expiry, strike)` for the supplied forward.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Black implied volatility as a decimal at `(expiry, strike)`.
    * @param expiry - Time to option expiry in years on the model's annual time basis.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param forward - Forward price or rate in the same quote convention as the strike.
@@ -1647,7 +1664,7 @@ export interface FxDeltaVolSurfaceConstructor {
    * interpolation. Pass an empty array for both to omit; if one is
    * provided, the other must be too.
    *
-   * @returns Returns the resulting `FxDeltaVolSurface` value or WebAssembly handle.
+   * @returns An `FxDeltaVolSurface` handle.
    * @param id - Stable surface identifier.
    * @param expiries - Strictly increasing positive expiry times (years).
    * @param atmVols - ATM delta-neutral straddle vols per expiry.
@@ -1668,7 +1685,7 @@ export interface FxDeltaVolSurfaceConstructor {
   ): FxDeltaVolSurface;
   /**
    * Convert a forward delta to a strike (Garman-Kohlhagen, premium-unadjusted).
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Strike in the same quote units as `forward`.
    * @param delta - Option delta expressed under the surface's documented delta convention.
    * @param forward - Forward price or rate in the same quote convention as the strike.
    * @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
@@ -1677,7 +1694,7 @@ export interface FxDeltaVolSurfaceConstructor {
   deltaToStrike(delta: number, forward: number, vol: number, expiry: number): number;
   /**
    * Convert a strike to forward delta (Garman-Kohlhagen call delta).
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Premium-unadjusted forward call delta, typically in `(-1, 1)`.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param forward - Forward price or rate in the same quote convention as the strike.
    * @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
@@ -1691,15 +1708,15 @@ export interface FxDeltaVolSurfaceConstructor {
  */
 export interface MonteCarloEstimateJson {
   /**
-   * Mean exposed by this `MonteCarloEstimateJson` value.
+   * Discounted mean estimate in `currency` units.
    */
   mean: number;
   /**
-   * Currency exposed by this `MonteCarloEstimateJson` value.
+   * ISO-4217 currency code of the estimate.
    */
   currency: string;
   /**
-   * Stderr exposed by this `MonteCarloEstimateJson` value.
+   * Standard error of the mean estimate, in the same units as `mean`.
    */
   stderr: number;
   /**
@@ -1707,11 +1724,11 @@ export interface MonteCarloEstimateJson {
    */
   std_dev?: number;
   /**
-   * Ci lower exposed by this `MonteCarloEstimateJson` value.
+   * Lower bound of the reported confidence interval, in the same units as `mean`.
    */
   ci_lower: number;
   /**
-   * Ci upper exposed by this `MonteCarloEstimateJson` value.
+   * Upper bound of the reported confidence interval, in the same units as `mean`.
    */
   ci_upper: number;
   /**
@@ -1753,27 +1770,27 @@ export interface MonteCarloEstimateJson {
  */
 export interface VariationMarginJson {
   /**
-   * Gross exposure exposed by this `VariationMarginJson` value.
+   * Sum of absolute mark-to-market exposures, in the caller's currency.
    */
   gross_exposure: number;
   /**
-   * Net exposure exposed by this `VariationMarginJson` value.
+   * Signed net mark-to-market exposure, in the caller's currency.
    */
   net_exposure: number;
   /**
-   * Delivery amount exposed by this `VariationMarginJson` value.
+   * Variation-margin delivery (call) amount, in the caller's currency.
    */
   delivery_amount: number;
   /**
-   * Return amount exposed by this `VariationMarginJson` value.
+   * Variation-margin return (refund) amount, in the caller's currency.
    */
   return_amount: number;
   /**
-   * Net margin exposed by this `VariationMarginJson` value.
+   * Net variation-margin movement: delivery minus return.
    */
   net_margin: number;
   /**
-   * Requires call exposed by this `VariationMarginJson` value.
+   * True when delivery or return amount is strictly positive.
    */
   requires_call: boolean;
 }
@@ -1838,19 +1855,19 @@ export interface XvaResultJson {
  */
 export interface BacktestForecastMetricsJson {
   /**
-   * Mae exposed by this `BacktestForecastMetricsJson` value.
+   * Mean absolute error of the forecast versus realized values.
    */
   mae: number;
   /**
-   * Mape exposed by this `BacktestForecastMetricsJson` value.
+   * Mean absolute percentage error, as a decimal fraction.
    */
   mape: number;
   /**
-   * Rmse exposed by this `BacktestForecastMetricsJson` value.
+   * Root-mean-square error of the forecast versus realized values.
    */
   rmse: number;
   /**
-   * N exposed by this `BacktestForecastMetricsJson` value.
+   * Number of forecast observations in the backtest window.
    */
   n: number;
 }
@@ -1969,40 +1986,40 @@ export interface LmeAnalysis {
  */
 export interface CoreNamespace {
   /**
-   * Currency exposed by this `Core` value.
+   * ISO-4217 currency constructor (`new core.Currency("USD")`).
    */
   Currency: CurrencyConstructor;
   /**
-   * Money exposed by this `Core` value.
+   * Currency-tagged decimal amount constructor.
    */
   Money: MoneyConstructor;
   /**
-   * Rate exposed by this `Core` value.
+   * Decimal interest-rate constructor (0.05 is 5%).
    */
   Rate: RateConstructor;
   /**
-   * Bps exposed by this `Core` value.
+   * Basis-point quantity constructor (1 is 0.01%).
    */
   Bps: BpsConstructor;
   /**
-   * Percentage exposed by this `Core` value.
+   * Percentage quantity constructor (5 is 5%).
    */
   Percentage: PercentageConstructor;
   /**
-   * Day count exposed by this `Core` value.
+   * Day-count convention constructor and named factories.
    */
   DayCount: DayCountConstructor;
   /**
-   * Day count context exposed by this `Core` value.
+   * Optional market metadata for day-count calculations.
    */
   DayCountContext: DayCountContextConstructor;
   /**
-   * Tenor exposed by this `Core` value.
+   * Period-length constructor and named factories (`3M`, `1Y`).
    */
   Tenor: TenorConstructor;
   /**
    * Create a date and return it as epoch days (days since 1970-01-01).
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Days since 1970-01-01 (Unix epoch).
    * @param year - Four-digit calendar year component of the supplied date.
    * @param month - Calendar month number from 1 through 12.
    * @param day - Calendar day number within the selected month.
@@ -2011,7 +2028,7 @@ export interface CoreNamespace {
   createDate(year: number, month: number, day: number): number;
   /**
    * Convert epoch days back to `[year, month, day]` as a JS array-compatible triple.
-   * @returns Returns numeric results as a `Int32Array` in the documented order.
+   * @returns `[year, month, day]` as an `Int32Array`, with month in `1..=12`.
    * @param days - Number of days since 1970-01-01 to decompose into year, month, and day.
    * @throws Error - Throws a JavaScript exception if `days` is outside the representable date range.
    */
@@ -2020,7 +2037,7 @@ export interface CoreNamespace {
    * Adjust a date (epoch days) according to a business-day convention and calendar.
    *
    * Returns the adjusted date as epoch days.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Adjusted date as days since 1970-01-01.
    * @param epochDays - Unadjusted date as days since 1970-01-01.
    * @param convention - Business-day adjustment convention string accepted by the date API.
    * @param calendarCode - Registered holiday-calendar identifier used to find business days.
@@ -2029,39 +2046,39 @@ export interface CoreNamespace {
   adjust(epochDays: number, convention: string, calendarCode: string): number;
   /**
    * Return the list of available calendar codes.
-   * @returns Returns the resulting `string[]` collection in the documented order.
+   * @returns Registered holiday-calendar identifiers, sorted alphabetically.
    */
   availableCalendars(): string[];
   /**
-   * Discount curve exposed by this `Core` value.
+   * Discount-factor curve constructor.
    */
   DiscountCurve: DiscountCurveConstructor;
   /**
-   * Hazard curve exposed by this `Core` value.
+   * Credit hazard-rate curve constructor.
    */
   HazardCurve: HazardCurveConstructor;
   /**
-   * Forward curve exposed by this `Core` value.
+   * Index forward-rate curve constructor.
    */
   ForwardCurve: ForwardCurveConstructor;
   /**
-   * Vol cube exposed by this `Core` value.
+   * SABR swaption volatility cube constructor.
    */
   VolCube: VolCubeConstructor;
   /**
-   * Fx delta vol surface exposed by this `Core` value.
+   * FX delta-quoted volatility surface constructor.
    */
   FxDeltaVolSurface: FxDeltaVolSurfaceConstructor;
   /**
-   * Fx conversion policy exposed by this `Core` value.
+   * FX conversion timing-policy constructor.
    */
   FxConversionPolicy: FxConversionPolicyConstructor;
   /**
-   * Fx rate result exposed by this `Core` value.
+   * Resolved FX quote result constructor.
    */
   FxRateResult: FxRateResultConstructor;
   /**
-   * Fx matrix exposed by this `Core` value.
+   * Cross-currency FX matrix constructor.
    */
   FxMatrix: FxMatrixConstructor;
   /**
@@ -2071,7 +2088,7 @@ export interface CoreNamespace {
    * `y(tau) = b1 + b2 * s(tau) + b3 * (s(tau) - exp(-lambda * tau))` with
    * `s(tau) = (1 - exp(-lambda * tau)) / (lambda * tau)`. Returns one yield per
    * tenor, in decimal units and in input order.
-   * @returns Returns numeric results as a `Float64Array` in the documented order.
+   * @returns One decimal yield per tenor, in the same order as `tenors`.
    * @param lambda - Exponential decay parameter for tenors in years; must be finite and greater than zero (0.7308 is the years-equivalent of Diebold-Li's 0.0609 months value).
    * @param level - Nelson-Siegel beta1, the long-run level factor in decimal yield units such as 0.06 for 6%.
    * @param slope - Nelson-Siegel beta2, the slope factor (negative of the short-minus-long spread) in decimal yield units.
@@ -2093,7 +2110,7 @@ export interface CoreNamespace {
    * into correlated normals: if `A = L L^T` and `z ~ N(0, I)`, then
    * `L z ~ N(0, A)`. Accepts L as `n * n` row-major entries; only the lower
    * triangle is read and the upper triangle is assumed zero.
-   * @returns Returns numeric results as a `Float64Array` in the documented order.
+   * @returns Transformed vector `L z` as a `Float64Array` of length `n`.
    * @param l - Lower-triangular Cholesky factor as a flat row-major array of n × n entries.
    * @param n - Positive square-matrix dimension; flat arrays must contain n × n entries.
    * @param z - Vector of length n to transform, typically independent standard-normal draws.
@@ -2105,8 +2122,8 @@ export interface CoreNamespace {
    *
    * Accepts a square matrix as a nested JS array (`number[][]`, row-major)
    * and returns the lower-triangular factor L such that A = L L^T.
-   * @returns Returns the resulting `number[][]` collection in the documented order.
-   * @param matrix - Square numeric matrix in the nested or row-major shape required by this callable.
+   * @returns Lower-triangular factor L as nested `number[][]`.
+   * @param matrix - Nested square `number[][]` in row-major order; must be symmetric positive-definite.
    * @throws Error - Throws a JavaScript exception if `matrix` cannot be decoded as a square numeric matrix, contains a non-finite value, is singular or not positive definite, or the result cannot be converted to a JavaScript array.
    */
   choleskyDecomposition(matrix: number[][]): number[][];
@@ -2115,10 +2132,10 @@ export interface CoreNamespace {
    * Cholesky factor L (where A = L L^T).
    *
    * Accepts L as `number[][]` and b as `number[]`. Returns x as `number[]`.
-   * @returns Returns the resulting `number[]` collection in the documented order.
-   * @param chol - Lower-triangular Cholesky factor of the coefficient matrix, in the documented matrix shape.
+   * @returns Solution vector `x` of length `b.length`.
+   * @param chol - Lower-triangular Cholesky factor as nested `number[][]`.
    * @param b - Right-hand-side vector of a linear system, aligned with the Cholesky factor dimension.
-   * @throws Error - Throws a JavaScript exception if either input cannot be decoded as the documented numeric array, `chol` is not square, `b` has the wrong length, a diagonal factor is singular, or the result cannot be converted to a JavaScript array.
+   * @throws Error - Throws a JavaScript exception if either input cannot be decoded as a nested `number[][]` or `number[]`, `chol` is not square, `b` has the wrong length, a diagonal factor is singular, or the result cannot be converted to a JavaScript array.
    */
   choleskySolve(chol: number[][], b: number[]): number[];
   /**
@@ -2126,16 +2143,16 @@ export interface CoreNamespace {
    *
    * Accepts a `Float64Array`/`number[]` containing `n * n` row-major entries
    * and returns a flat lower-triangular factor.
-   * @returns Returns numeric results as a `Float64Array` in the documented order.
-   * @param matrix - Square numeric matrix in the nested or row-major shape required by this callable.
-   * @param n - Positive square-matrix dimension; flat arrays must contain n × n entries.
+   * @returns Lower-triangular factor L as a flat row-major `Float64Array` of `n * n` entries.
+   * @param matrix - Flat row-major `n * n` entries of a symmetric positive-definite matrix.
+   * @param n - Positive square-matrix dimension; `matrix` must contain exactly `n * n` entries.
    * @throws Error - Throws a JavaScript exception if `n * n` overflows, `matrix` does not contain exactly `n * n` entries, or the matrix contains a non-finite value, is singular, or is not positive definite.
    */
   choleskyDecompositionFlat(matrix: NumericArray, n: number): Float64Array;
   /**
    * Solve a symmetric positive-definite linear system from a flat Cholesky factor.
-   * @returns Returns numeric results as a `Float64Array` in the documented order.
-   * @param chol - Lower-triangular Cholesky factor of the coefficient matrix, in the documented matrix shape.
+   * @returns Solution vector `x` as a `Float64Array` of length `n`.
+   * @param chol - Lower-triangular Cholesky factor as a flat row-major `n * n` array.
    * @param b - Right-hand-side vector of a linear system, aligned with the Cholesky factor dimension.
    * @param n - Positive square-matrix dimension; flat arrays must contain n × n entries.
    * @throws Error - Throws a JavaScript exception if `n * n` overflows, `chol` does not contain exactly `n * n` entries, `b` does not contain `n` entries, or a diagonal factor is singular.
@@ -2146,162 +2163,162 @@ export interface CoreNamespace {
    *
    * This is the only correlation-matrix validator on the `core` namespace.
    * Callers pass `n * n` row-major entries plus the matrix dimension `n`.
-   * @param matrix - Square numeric matrix in the nested or row-major shape required by this callable.
-   * @param n - Positive square-matrix dimension; flat arrays must contain n × n entries.
+   * @param matrix - Flat row-major `n * n` correlation coefficients in `[-1, 1]` with unit diagonal.
+   * @param n - Positive square-matrix dimension; `matrix` must contain exactly `n * n` entries.
    * @throws Error - Throws a JavaScript exception if `n * n` overflows, the flat length differs from `n * n`, or the matrix is not a finite, symmetric, positive-semidefinite correlation matrix with unit diagonal and coefficients in `[-1, 1]`.
    */
   validateCorrelationMatrixFlat(matrix: NumericArray, n: number): void;
   /**
    * Arithmetic mean.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param data - Non-empty numeric observation array used by the requested statistic.
+   * @returns Arithmetic mean of `data`, or 0.0 when `data` is empty.
+   * @param data - Numeric observations in input order; an empty series yields 0.0.
    * @throws Error - Throws a JavaScript exception if `data` cannot be decoded as a numeric array.
    */
   mean(data: number[]): number;
   /**
    * Arithmetic mean over a typed numeric array.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param data - Non-empty numeric observation array used by the requested statistic.
+   * @returns Arithmetic mean of `data`, or 0.0 when `data` is empty.
+   * @param data - Numeric observations in input order; an empty series yields 0.0.
    */
   meanArray(data: NumericArray): number;
   /**
    * Sample variance (unbiased, n-1 denominator).
-   * @returns Returns the computed numeric result in the units described above.
-   * @param data - Non-empty numeric observation array used by the requested statistic.
+   * @returns Unbiased sample variance, or 0.0 when `data` has fewer than two points.
+   * @param data - Sample observations in input order; fewer than two points yield 0.0.
    * @throws Error - Throws a JavaScript exception if `data` cannot be decoded as a numeric array.
    */
   variance(data: number[]): number;
   /**
    * Sample variance over a typed numeric array.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param data - Non-empty numeric observation array used by the requested statistic.
+   * @returns Unbiased sample variance, or 0.0 when `data` has fewer than two points.
+   * @param data - Sample observations in input order; fewer than two points yield 0.0.
    */
   varianceArray(data: NumericArray): number;
   /**
    * Population variance (n denominator).
-   * @returns Returns the computed numeric result in the units described above.
-   * @param data - Non-empty numeric observation array used by the requested statistic.
+   * @returns Population variance, or 0.0 when `data` has fewer than two points.
+   * @param data - Observations in input order; fewer than two points yield 0.0.
    * @throws Error - Throws a JavaScript exception if `data` cannot be decoded as a numeric array.
    */
   populationVariance(data: number[]): number;
   /**
    * Population variance over a typed numeric array.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param data - Non-empty numeric observation array used by the requested statistic.
+   * @returns Population variance, or 0.0 when `data` has fewer than two points.
+   * @param data - Observations in input order; fewer than two points yield 0.0.
    */
   populationVarianceArray(data: NumericArray): number;
   /**
    * Pearson correlation coefficient.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param x - Numeric observation series aligned one-for-one with the other series.
-   * @param y - Numeric observation series aligned one-for-one with the other series.
+   * @returns Sample correlation in `[-1, 1]`, or NaN when a series has fewer than two points.
+   * @param x - First numeric series; must have the same length as `y`.
+   * @param y - Second numeric series, aligned one-for-one with `x`.
    * @throws Error - Throws a JavaScript exception if `x` or `y` cannot be decoded as a numeric array.
    */
   correlation(x: number[], y: number[]): number;
   /**
    * Pearson correlation over typed numeric arrays.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param x - Numeric observation series aligned one-for-one with the other series.
-   * @param y - Numeric observation series aligned one-for-one with the other series.
+   * @returns Sample correlation in `[-1, 1]`, or NaN when a series has fewer than two points.
+   * @param x - First numeric series; must have the same length as `y`.
+   * @param y - Second numeric series, aligned one-for-one with `x`.
    */
   correlationArray(x: NumericArray, y: NumericArray): number;
   /**
    * Sample covariance (unbiased, n-1 denominator).
-   * @returns Returns the computed numeric result in the units described above.
-   * @param x - Numeric observation series aligned one-for-one with the other series.
-   * @param y - Numeric observation series aligned one-for-one with the other series.
+   * @returns Unbiased sample covariance, or 0.0 when a series has fewer than two points.
+   * @param x - First numeric series; must have the same length as `y`.
+   * @param y - Second numeric series, aligned one-for-one with `x`.
    * @throws Error - Throws a JavaScript exception if `x` or `y` cannot be decoded as a numeric array.
    */
   covariance(x: number[], y: number[]): number;
   /**
    * Sample covariance over typed numeric arrays.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param x - Numeric observation series aligned one-for-one with the other series.
-   * @param y - Numeric observation series aligned one-for-one with the other series.
+   * @returns Unbiased sample covariance, or 0.0 when a series has fewer than two points.
+   * @param x - First numeric series; must have the same length as `y`.
+   * @param y - Second numeric series, aligned one-for-one with `x`.
    */
   covarianceArray(x: NumericArray, y: NumericArray): number;
   /**
    * Empirical quantile (R-7 / NumPy default) with linear interpolation.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param data - Non-empty numeric observation array used by the requested statistic.
-   * @param q - Quantile probability from 0 through 1 used to select the order statistic.
+   * @returns Interpolated quantile in the same units as `data`, or NaN when `data` is empty or non-finite.
+   * @param data - Sample observations in input order; empty or non-finite data yields NaN.
+   * @param q - Quantile probability in `[0, 1]`; values outside that range yield NaN.
    * @throws Error - Throws a JavaScript exception if `data` cannot be decoded as a numeric array.
    */
   quantile(data: number[], q: number): number;
   /**
    * Empirical quantile over a typed numeric array.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param data - Non-empty numeric observation array used by the requested statistic.
-   * @param q - Quantile probability from 0 through 1 used to select the order statistic.
+   * @returns Interpolated quantile in the same units as `data`, or NaN when `data` is empty or non-finite.
+   * @param data - Sample observations in input order; empty or non-finite data yields NaN.
+   * @param q - Quantile probability in `[0, 1]`; values outside that range yield NaN.
    */
   quantileArray(data: NumericArray, q: number): number;
   /**
    * Standard normal CDF Φ(x).
-   * @returns Returns the computed numeric result in the units described above.
-   * @param x - Real-valued input to the requested scalar mathematical function.
+   * @returns Probability in `(0, 1)` for finite `x`, with the usual ±∞ limits.
+   * @param x - Real-valued argument to the special function.
    */
   normCdf(x: number): number;
   /**
    * Standard normal PDF φ(x).
-   * @returns Returns the computed numeric result in the units described above.
-   * @param x - Real-valued input to the requested scalar mathematical function.
+   * @returns Density at `x`; φ(0) is `1/sqrt(2π)`.
+   * @param x - Real-valued argument to the special function.
    */
   normPdf(x: number): number;
   /**
    * Inverse standard normal CDF Φ⁻¹(p).
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Standard-normal quantile for probability `p`.
    * @param p - Probability input strictly between 0 and 1 for the inverse normal distribution.
    */
   standardNormalInvCdf(p: number): number;
   /**
    * Error function erf(x).
-   * @returns Returns the computed numeric result in the units described above.
-   * @param x - Real-valued input to the requested scalar mathematical function.
+   * @returns erf(x) in `(-1, 1)` for finite `x`.
+   * @param x - Real-valued argument to the special function.
    */
   erf(x: number): number;
   /**
    * Natural logarithm of the Gamma function ln(Γ(x)).
-   * @returns Returns the computed numeric result in the units described above.
-   * @param x - Real-valued input to the requested scalar mathematical function.
+   * @returns ln(Γ(x)); ln(Γ(1)) is 0 and ln(Γ(n+1)) is ln(n!).
+   * @param x - Real-valued argument to the special function.
    */
   lnGamma(x: number): number;
   /**
    * Kahan compensated summation.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param values - Numeric values in the order used by the requested numerical operation.
+   * @returns Compensated sum of `values` in input order.
+   * @param values - Finite numeric terms in summation or scan order.
    * @throws Error - Throws a JavaScript exception if `values` cannot be decoded as a numeric array.
    */
   kahanSum(values: number[]): number;
   /**
    * Kahan compensated summation over a typed numeric array.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param values - Numeric values in the order used by the requested numerical operation.
+   * @returns Compensated sum of `values` in input order.
+   * @param values - Finite numeric terms in summation or scan order.
    */
   kahanSumArray(values: NumericArray): number;
   /**
    * Neumaier compensated summation — handles mixed-sign values.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param values - Numeric values in the order used by the requested numerical operation.
+   * @returns Compensated sum of `values`, robust to mixed-sign cancellation.
+   * @param values - Finite numeric terms in summation or scan order.
    * @throws Error - Throws a JavaScript exception if `values` cannot be decoded as a numeric array.
    */
   neumaierSum(values: number[]): number;
   /**
    * Neumaier compensated summation over a typed numeric array.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param values - Numeric values in the order used by the requested numerical operation.
+   * @returns Compensated sum of `values`, robust to mixed-sign cancellation.
+   * @param values - Finite numeric terms in summation or scan order.
    */
   neumaierSumArray(values: NumericArray): number;
   /**
    * Count the longest consecutive run of strictly positive values.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param values - Numeric values in the order used by the requested numerical operation.
+   * @returns Length of the longest run of strictly positive observations.
+   * @param values - Finite numeric terms in summation or scan order.
    * @throws Error - Throws a JavaScript exception if `values` cannot be decoded as a numeric array.
    */
   countConsecutive(values: number[]): number;
   /**
    * Count the longest consecutive run of strictly positive values in a typed array.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param values - Numeric values in the order used by the requested numerical operation.
+   * @returns Length of the longest run of strictly positive observations.
+   * @param values - Finite numeric terms in summation or scan order.
    */
   countConsecutiveArray(values: NumericArray): number;
   /**
@@ -2350,11 +2367,11 @@ export declare const core: CoreNamespace;
 // --- analytics ------------------------------------------------------------
 
 /**
- * TypeScript type that constrains the accepted numeric array values.
+ * JavaScript `number[]` or `Float64Array` accepted by numeric WASM entry points.
  */
 export type NumericArray = number[] | Float64Array;
 /**
- * TypeScript type that constrains the accepted numeric matrix values.
+ * Nested numeric arrays, one inner array per row, accepted by matrix WASM entry points.
  */
 export type NumericMatrix = NumericArray[];
 
@@ -2363,35 +2380,35 @@ export type NumericMatrix = NumericArray[];
  */
 export interface PeerStatsJson {
   /**
-   * Count exposed by this `PeerStatsJson` value.
+   * Number of peer observations in the sample.
    */
   count: number;
   /**
-   * Mean exposed by this `PeerStatsJson` value.
+   * Arithmetic mean of the peer metric, in the same units as the input.
    */
   mean: number;
   /**
-   * Median exposed by this `PeerStatsJson` value.
+   * Median of the peer metric, in the same units as the input.
    */
   median: number;
   /**
-   * Std dev exposed by this `PeerStatsJson` value.
+   * Sample standard deviation of the peer metric.
    */
   std_dev: number;
   /**
-   * Min exposed by this `PeerStatsJson` value.
+   * Minimum peer observation, in the same units as the input.
    */
   min: number;
   /**
-   * Max exposed by this `PeerStatsJson` value.
+   * Maximum peer observation, in the same units as the input.
    */
   max: number;
   /**
-   * Q1 exposed by this `PeerStatsJson` value.
+   * First quartile of the peer metric.
    */
   q1: number;
   /**
-   * Q3 exposed by this `PeerStatsJson` value.
+   * Third quartile of the peer metric.
    */
   q3: number;
   /**
@@ -2405,27 +2422,27 @@ export interface PeerStatsJson {
  */
 export interface RegressionResultJson {
   /**
-   * Intercept exposed by this `RegressionResultJson` value.
+   * OLS intercept of the fitted peer regression.
    */
   intercept: number;
   /**
-   * Slope exposed by this `RegressionResultJson` value.
+   * OLS slope of the fitted peer regression.
    */
   slope: number;
   /**
-   * R squared exposed by this `RegressionResultJson` value.
+   * Coefficient of determination of the fitted peer regression, in `[0, 1]`.
    */
   r_squared: number;
   /**
-   * Fitted value exposed by this `RegressionResultJson` value.
+   * Regression prediction at the subject company's independent-variable value.
    */
   fitted_value: number;
   /**
-   * Residual exposed by this `RegressionResultJson` value.
+   * Subject residual: observed dependent value minus the fitted value.
    */
   residual: number;
   /**
-   * N exposed by this `RegressionResultJson` value.
+   * Number of paired peer observations used in the fit.
    */
   n: number;
 }
@@ -2435,27 +2452,27 @@ export interface RegressionResultJson {
  */
 export interface DimensionScoreJson {
   /**
-   * Label exposed by this `DimensionScoreJson` value.
+   * Dimension name matching the requested relative-value metric.
    */
   label: string;
   /**
-   * Percentile exposed by this `DimensionScoreJson` value.
+   * Peer percentile rank of the subject on this dimension, on a 0-1 scale.
    */
   percentile: number;
   /**
-   * Z score exposed by this `DimensionScoreJson` value.
+   * Standardized subject score versus the peer sample on this dimension.
    */
   z_score: number;
   /**
-   * Regression residual exposed by this `DimensionScoreJson` value.
+   * Optional OLS residual when this dimension was scored by regression; `null` otherwise.
    */
   regression_residual: number | null;
   /**
-   * R squared exposed by this `DimensionScoreJson` value.
+   * Optional regression R² when this dimension was scored by regression; `null` otherwise.
    */
   r_squared: number | null;
   /**
-   * Weight exposed by this `DimensionScoreJson` value.
+   * Weight of this dimension in the composite relative-value score.
    */
   weight: number;
 }
@@ -2465,23 +2482,23 @@ export interface DimensionScoreJson {
  */
 export interface RelativeValueResultJson {
   /**
-   * Company id exposed by this `RelativeValueResultJson` value.
+   * Identifier of the subject company being scored.
    */
   company_id: string;
   /**
-   * Composite score exposed by this `RelativeValueResultJson` value.
+   * Weighted composite rich/cheap score across the requested dimensions.
    */
   composite_score: number;
   /**
-   * Dimensions exposed by this `RelativeValueResultJson` value.
+   * Per-dimension percentile, z-score, and optional regression diagnostics.
    */
   dimensions: DimensionScoreJson[];
   /**
-   * Confidence exposed by this `RelativeValueResultJson` value.
+   * Score confidence in `[0, 1]` from peer coverage and dimension completeness.
    */
   confidence: number;
   /**
-   * Peer count exposed by this `RelativeValueResultJson` value.
+   * Number of peer companies included in the scoring sample.
    */
   peer_count: number;
 }
@@ -2491,27 +2508,27 @@ export interface RelativeValueResultJson {
  */
 export interface FormulaExplanationJson {
   /**
-   * Node id exposed by this `FormulaExplanationJson` value.
+   * Statement-model node whose formula was explained.
    */
   node_id: string;
   /**
-   * Period id exposed by this `FormulaExplanationJson` value.
+   * Period identifier at which the formula was evaluated.
    */
   period_id: string;
   /**
-   * Final value exposed by this `FormulaExplanationJson` value.
+   * Evaluated node value after applying the formula in this period.
    */
   final_value: number;
   /**
-   * Node type exposed by this `FormulaExplanationJson` value.
+   * Node kind in the statement model, such as input, formula, or calculated.
    */
   node_type: string;
   /**
-   * Formula text exposed by this `FormulaExplanationJson` value.
+   * Source formula text when the node is formula-driven; omitted otherwise.
    */
   formula_text?: string | null;
   /**
-   * Breakdown exposed by this `FormulaExplanationJson` value.
+   * Ordered formula components that sum or combine to `final_value`.
    */
   breakdown: FormulaExplanationStepJson[];
 }
@@ -2521,15 +2538,15 @@ export interface FormulaExplanationJson {
  */
 export interface FormulaExplanationStepJson {
   /**
-   * Component exposed by this `FormulaExplanationStepJson` value.
+   * Label of this formula term, such as a referenced node id or literal.
    */
   component: string;
   /**
-   * Value exposed by this `FormulaExplanationStepJson` value.
+   * Numeric contribution of this term in the explained period.
    */
   value: number;
   /**
-   * Operation exposed by this `FormulaExplanationStepJson` value.
+   * Operator that combines this term with the running total, when present.
    */
   operation?: string | null;
 }
@@ -2539,31 +2556,31 @@ export interface FormulaExplanationStepJson {
  */
 export interface DrawdownEpisode {
   /**
-   * Start exposed by this `DrawdownEpisode` value.
+   * ISO-8601 date when the drawdown episode began.
    */
   start: string;
   /**
-   * Valley exposed by this `DrawdownEpisode` value.
+   * ISO-8601 date of the trough (maximum drawdown) within the episode.
    */
   valley: string;
   /**
-   * End exposed by this `DrawdownEpisode` value.
+   * ISO-8601 recovery date, or `null` if the episode is still open.
    */
   end: string | null;
   /**
-   * Duration days exposed by this `DrawdownEpisode` value.
+   * Episode length in calendar days from `start` to `end` or the series end.
    */
   duration_days: number;
   /**
-   * Max drawdown exposed by this `DrawdownEpisode` value.
+   * Peak-to-trough decline as a negative decimal fraction (for example `-0.12`).
    */
   max_drawdown: number;
   /**
-   * Near recovery threshold exposed by this `DrawdownEpisode` value.
+   * Recovery threshold used to mark the episode as nearly recovered.
    */
   near_recovery_threshold: number;
   /**
-   * Truncated at start exposed by this `DrawdownEpisode` value.
+   * True when the episode is truncated because the series starts in drawdown.
    */
   truncated_at_start: boolean;
 }
@@ -2573,51 +2590,51 @@ export interface DrawdownEpisode {
  */
 export interface PeriodStats {
   /**
-   * Best exposed by this `PeriodStats` value.
+   * Best period return as a decimal fraction.
    */
   best: number;
   /**
-   * Worst exposed by this `PeriodStats` value.
+   * Worst period return as a decimal fraction.
    */
   worst: number;
   /**
-   * Consecutive wins exposed by this `PeriodStats` value.
+   * Longest run of strictly positive period returns.
    */
   consecutive_wins: number;
   /**
-   * Consecutive losses exposed by this `PeriodStats` value.
+   * Longest run of strictly negative period returns.
    */
   consecutive_losses: number;
   /**
-   * Win rate exposed by this `PeriodStats` value.
+   * Share of periods with a strictly positive return, in `[0, 1]`.
    */
   win_rate: number;
   /**
-   * Avg return exposed by this `PeriodStats` value.
+   * Mean period return as a decimal fraction.
    */
   avg_return: number;
   /**
-   * Avg win exposed by this `PeriodStats` value.
+   * Mean of strictly positive period returns as a decimal fraction.
    */
   avg_win: number;
   /**
-   * Avg loss exposed by this `PeriodStats` value.
+   * Mean of strictly negative period returns as a decimal fraction.
    */
   avg_loss: number;
   /**
-   * Payoff ratio exposed by this `PeriodStats` value.
+   * Average win divided by the absolute average loss; may be infinite.
    */
   payoff_ratio: number;
   /**
-   * Profit factor exposed by this `PeriodStats` value.
+   * Gross profits divided by gross losses; may be infinite.
    */
   profit_factor: number;
   /**
-   * Cpc ratio exposed by this `PeriodStats` value.
+   * Count of profitable periods over count of losing periods; may be infinite.
    */
   cpc_ratio: number;
   /**
-   * Kelly criterion exposed by this `PeriodStats` value.
+   * Kelly-criterion fraction from the period win rate and payoff ratio.
    */
   kelly_criterion: number;
 }
@@ -2630,23 +2647,23 @@ export interface PeriodStats {
  */
 export interface DatedSeries {
   /**
-   * Dates exposed by this `DatedSeries` value.
+   * ISO-8601 dates aligned with the metric series, in chronological order.
    */
   dates: string[];
   /**
-   * Sharpe exposed by this `DatedSeries` value.
+   * Rolling Sharpe ratio when produced by `rollingSharpe`.
    */
   sharpe?: Float64Array;
   /**
-   * Sortino exposed by this `DatedSeries` value.
+   * Rolling Sortino ratio when produced by `rollingSortino`.
    */
   sortino?: Float64Array;
   /**
-   * Volatility exposed by this `DatedSeries` value.
+   * Rolling volatility when produced by `rollingVolatility`.
    */
   volatility?: Float64Array;
   /**
-   * Return exposed by this `DatedSeries` value.
+   * Rolling compounded return when produced by `rollingReturns`.
    */
   return?: Float64Array;
 }
@@ -2656,11 +2673,11 @@ export interface DatedSeries {
  */
 export interface SkewKurtResult {
   /**
-   * Skewness exposed by this `SkewKurtResult` value.
+   * Per-ticker return skewness in `tickerNames()` order.
    */
   skewness: Float64Array;
   /**
-   * Kurtosis exposed by this `SkewKurtResult` value.
+   * Per-ticker excess kurtosis in `tickerNames()` order.
    */
   kurtosis: Float64Array;
 }
@@ -2670,11 +2687,11 @@ export interface SkewKurtResult {
  */
 export interface VarEsResult {
   /**
-   * Value at risk exposed by this `VarEsResult` value.
+   * Per-ticker historical VaR in `tickerNames()` order, as a decimal loss fraction.
    */
   value_at_risk: Float64Array;
   /**
-   * Expected shortfall exposed by this `VarEsResult` value.
+   * Per-ticker expected shortfall in `tickerNames()` order, as a decimal loss fraction.
    */
   expected_shortfall: Float64Array;
 }
@@ -2687,19 +2704,19 @@ export interface VarEsResult {
  */
 export interface BetaResult {
   /**
-   * Beta exposed by this `BetaResult` value.
+   * OLS beta versus the benchmark.
    */
   beta: number;
   /**
-   * Std err exposed by this `BetaResult` value.
+   * Standard error of the beta estimate.
    */
   std_err: number;
   /**
-   * Ci lower exposed by this `BetaResult` value.
+   * Lower bound of the 95% confidence interval for beta.
    */
   ci_lower: number;
   /**
-   * Ci upper exposed by this `BetaResult` value.
+   * Upper bound of the 95% confidence interval for beta.
    */
   ci_upper: number;
 }
@@ -2709,19 +2726,19 @@ export interface BetaResult {
  */
 export interface GreeksResult {
   /**
-   * Alpha exposed by this `GreeksResult` value.
+   * Annualized Jensen alpha versus the benchmark, as a decimal fraction.
    */
   alpha: number;
   /**
-   * Beta exposed by this `GreeksResult` value.
+   * OLS beta versus the benchmark.
    */
   beta: number;
   /**
-   * R squared exposed by this `GreeksResult` value.
+   * Coefficient of determination of the benchmark regression.
    */
   r_squared: number;
   /**
-   * Adjusted r squared exposed by this `GreeksResult` value.
+   * Adjusted R² of the benchmark regression.
    */
   adjusted_r_squared: number;
 }
@@ -2731,15 +2748,15 @@ export interface GreeksResult {
  */
 export interface RollingGreeksResult {
   /**
-   * Dates exposed by this `RollingGreeksResult` value.
+   * ISO-8601 end dates of each rolling window, in chronological order.
    */
   dates: string[];
   /**
-   * Alphas exposed by this `RollingGreeksResult` value.
+   * Annualized Jensen alpha at each window end, as decimal fractions.
    */
   alphas: Float64Array;
   /**
-   * Betas exposed by this `RollingGreeksResult` value.
+   * OLS beta at each window end.
    */
   betas: Float64Array;
 }
@@ -2749,23 +2766,23 @@ export interface RollingGreeksResult {
  */
 export interface MultiFactorResult {
   /**
-   * Alpha exposed by this `MultiFactorResult` value.
+   * Annualized regression intercept, as a decimal fraction.
    */
   alpha: number;
   /**
-   * Betas exposed by this `MultiFactorResult` value.
+   * Factor betas, one per supplied factor series, in input order.
    */
   betas: number[];
   /**
-   * R squared exposed by this `MultiFactorResult` value.
+   * Coefficient of determination of the multi-factor regression.
    */
   r_squared: number;
   /**
-   * Adjusted r squared exposed by this `MultiFactorResult` value.
+   * Adjusted R² of the multi-factor regression.
    */
   adjusted_r_squared: number;
   /**
-   * Residual vol exposed by this `MultiFactorResult` value.
+   * Residual volatility of the regression, as an annualized decimal fraction.
    */
   residual_vol: number;
 }
@@ -2775,19 +2792,19 @@ export interface MultiFactorResult {
  */
 export interface LookbackReturns {
   /**
-   * Mtd exposed by this `LookbackReturns` value.
+   * Month-to-date simple returns per ticker in `tickerNames()` order.
    */
   mtd: number[];
   /**
-   * Qtd exposed by this `LookbackReturns` value.
+   * Quarter-to-date simple returns per ticker in `tickerNames()` order.
    */
   qtd: number[];
   /**
-   * Ytd exposed by this `LookbackReturns` value.
+   * Year-to-date simple returns per ticker in `tickerNames()` order.
    */
   ytd: number[];
   /**
-   * Fytd exposed by this `LookbackReturns` value.
+   * Fiscal-year-to-date simple returns per ticker, or `null` when FYTD is not computed.
    */
   fytd: number[] | null;
 }
@@ -2805,6 +2822,16 @@ export interface LookbackReturns {
  * serialized to plain JS objects (e.g. `DatedSeries`, `BetaResult[]`).
  */
 export declare class Performance {
+  /**
+   * Construct from a price matrix. `dates` is an array of ISO date strings,
+   * `prices` is `prices[i]` = column for ticker `i`.
+   * @param dates - ISO-8601 observation dates in ascending order, one entry per price row.
+   * @param prices - Row-major matrix where `prices[i][j]` is ticker j on observation i.
+   * @param tickerNames - Ticker labels aligned with the price-matrix columns.
+   * @param benchmarkTicker - Optional ticker label to use as the benchmark return series.
+   * @param frequency - Optional observation frequency token; defaults to daily.
+   * @throws Error - Rejects malformed dates or matrices, invalid prices, unsupported frequencies, and an unknown benchmark ticker.
+   */
   constructor(
     dates: string[],
     prices: NumericMatrix,
@@ -2812,7 +2839,16 @@ export declare class Performance {
     benchmarkTicker?: string | null,
     frequency?: string
   );
-  /** Construct from a return matrix (one row per `dates` entry per ticker). */
+  /**
+   * Construct from a return matrix (one row per `dates` entry per ticker).
+   * @returns A `Performance` handle over the supplied return panel.
+   * @param dates - ISO-8601 observation dates in ascending order, one entry per return row.
+   * @param returns - Row-major simple decimal return matrix where `returns[i][j]` is ticker j on observation i.
+   * @param tickerNames - Ticker labels aligned with the return-matrix columns.
+   * @param benchmarkTicker - Optional ticker label to use as the benchmark return series.
+   * @param frequency - Optional observation frequency token; defaults to daily.
+   * @throws Error - Rejects malformed dates or matrices and invalid benchmark or frequency inputs.
+   */
   static fromReturns(
     dates: string[],
     returns: NumericMatrix,
@@ -2820,63 +2856,280 @@ export declare class Performance {
     benchmarkTicker?: string | null,
     frequency?: string
   ): Performance;
+  /**
+   * Restrict subsequent analytics to `[start, end]`.
+   * @param start - Inclusive ISO-8601 start date for the active analysis window.
+   * @param end - Inclusive ISO-8601 end date for the active analysis window.
+   * @throws Error - Rejects `start` or `end` when it is not a valid ISO-8601 calendar date.
+   */
   resetDateRange(start: string, end: string): void;
+  /**
+   * Change the benchmark ticker.
+   * @param ticker - Existing ticker label to use as the benchmark return series.
+   * @throws Error - Rejects `ticker` when it does not match a loaded ticker name.
+   */
   resetBenchTicker(ticker: string): void;
-  tickerNames(): string[];
+  /**
+   * Ticker names in column order.
+   * @throws Error - Rejects if the ticker-name vector cannot be serialized to JavaScript.
+   * @returns Ticker labels in column order as a JavaScript string array.
+  /**
+   * Benchmark column index.
+   * @returns Zero-based index of the benchmark ticker in `tickerNames()`.
+   */
   benchmarkIdx(): number;
+  /**
+   * Observation frequency token.
+   * @returns Frequency string such as `"daily"` or `"monthly"`.
+   */
   frequency(): string;
-  /** Full return-aligned date grid as ISO date strings (independent of any active window). */
+  /**
+   * Full return-aligned date grid as ISO date strings (independent of any active window).
+   * @returns ISO-8601 date strings in chronological order.
+   */
   dates(): string[];
-  /** Dates of the currently active analysis window as ISO date strings. */
+  /**
+   * Dates of the currently active analysis window as ISO date strings.
+   * @returns ISO-8601 date strings in chronological order.
+   */
   activeDates(): string[];
-  /** Dates for one ticker's active return series as ISO date strings. */
+  /**
+   * Dates for one ticker's active return series as ISO date strings.
+   * @returns ISO-8601 date strings in chronological order.
+   * @param tickerIdx - Zero-based ticker column index in tickerNames order.
+   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns.
+   */
   activeDatesForTicker(tickerIdx: number): string[];
+  /**
+   * Compound annual growth rate per asset.
+   * @throws Error - Rejects when any ticker's active range has no positive holding period.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   cagr(): Float64Array;
+  /**
+   * Mean periodic return per asset (annualized by default).
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @param annualize - Whether to annualize by the configured frequency; defaults to true.
+   */
   meanReturn(annualize?: boolean): Float64Array;
+  /**
+   * Return volatility per asset (annualized by default).
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @param annualize - Whether to annualize by the configured frequency; defaults to true.
+   */
   volatility(annualize?: boolean): Float64Array;
+  /**
+   * Sharpe ratio per asset for the given risk-free rate.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @param riskFreeRate - Annualized decimal risk-free rate; defaults to 0.0.
+   */
   sharpe(riskFreeRate?: number): Float64Array;
-  /** Sortino ratio; mar is a per-period threshold. */
+  /**
+   * Sortino ratio; mar is a per-period threshold.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @param mar - Per-period minimum acceptable return as a decimal; defaults to 0.0.
+   */
   sortino(mar?: number): Float64Array;
+  /**
+   * Calmar ratio (CAGR over max drawdown) per asset.
+   * @throws Error - Rejects when any ticker's active range has no positive holding period and therefore cannot produce CAGR.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   calmar(): Float64Array;
+  /**
+   * Maximum drawdown per asset.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   maxDrawdown(): Float64Array;
+  /**
+   * Mean drawdown per asset.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   meanDrawdown(): Float64Array;
+  /**
+   * Historical value-at-risk per asset at the given confidence level.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
+   */
   valueAtRisk(confidence?: number): Float64Array;
+  /**
+   * Expected shortfall (CVaR) per asset at the given confidence level.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
+   */
   expectedShortfall(confidence?: number): Float64Array;
+  /**
+   * Tracking error versus the benchmark per asset.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   trackingError(): Float64Array;
+  /**
+   * Information ratio versus the benchmark per asset.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   informationRatio(): Float64Array;
+  /**
+   * Return skewness per asset.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   skewness(): Float64Array;
+  /**
+   * Excess kurtosis of returns per asset.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   kurtosis(): Float64Array;
+  /**
+   * Geometric mean return per asset.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   geometricMean(): Float64Array;
-  /** Skewness and kurtosis from one moments pass per asset. */
+  /**
+   * Skewness and kurtosis from one moments pass per asset.
+   * @returns Per-ticker skewness and kurtosis in `tickerNames()` order.
+   * @throws Error - Rejects if the JavaScript result object's properties cannot be created.
+   */
   skewKurt(): SkewKurtResult;
-  /** Historical VaR and expected shortfall from one tail pass per asset. */
+  /**
+   * Historical VaR and expected shortfall from one tail pass per asset.
+   * @returns Per-ticker historical VaR and expected shortfall in `tickerNames()` order.
+   * @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
+   * @throws Error - Rejects if the JavaScript result object's properties cannot be created.
+   */
   valueAtRiskAndEs(confidence?: number): VarEsResult;
-  /** Downside deviation; mar is a per-period threshold. */
+  /**
+   * Downside deviation; mar is a per-period threshold.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @param mar - Per-period minimum acceptable return as a decimal; defaults to 0.0.
+   */
   downsideDeviation(mar?: number): Float64Array;
+  /**
+   * Longest drawdown duration (in periods) per asset.
+   * @throws Error - Rejects if the duration vector cannot be serialized to JavaScript.
+   * @returns One integer duration per ticker, in `tickerNames()` order.
+   */
   maxDrawdownDuration(): number[];
-  /** Empyrical-style annualized geometric up-capture. */
+  /**
+   * Empyrical-style annualized geometric up-capture.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   upCapture(): Float64Array;
-  /** Empyrical-style annualized geometric down-capture. */
+  /**
+   * Empyrical-style annualized geometric down-capture.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   downCapture(): Float64Array;
-  /** Empyrical-style annualized geometric up/down capture ratio. */
+  /**
+   * Empyrical-style annualized geometric up/down capture ratio.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   captureRatio(): Float64Array;
+  /**
+   * Omega ratio per asset for the given threshold return.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @param threshold - Per-period threshold return as a decimal; defaults to 0.0.
+   */
   omegaRatio(threshold?: number): Float64Array;
+  /**
+   * Treynor ratio per asset for the given risk-free rate.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @param riskFreeRate - Annualized decimal risk-free rate; defaults to 0.0.
+   */
   treynor(riskFreeRate?: number): Float64Array;
+  /**
+   * Gain-to-pain ratio per asset.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   gainToPain(): Float64Array;
+  /**
+   * Ulcer index per asset.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   ulcerIndex(): Float64Array;
+  /**
+   * Martin ratio (excess return over ulcer index) per asset.
+   * @throws Error - Rejects when any ticker's active range has no positive holding period and therefore cannot produce CAGR.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   martinRatio(): Float64Array;
+  /**
+   * Recovery factor (total return over max drawdown) per asset.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   recoveryFactor(): Float64Array;
+  /**
+   * Pain index (mean drawdown magnitude) per asset.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   painIndex(): Float64Array;
+  /**
+   * Pain ratio (excess return over pain index) per asset.
+   * @param riskFreeRate - Annualized decimal risk-free rate; defaults to 0.0.
+   * @throws Error - Rejects when any ticker's active range has no positive holding period and therefore cannot produce CAGR.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   painRatio(riskFreeRate?: number): Float64Array;
+  /**
+   * Tail ratio of upper to lower return quantiles per asset.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
+   */
   tailRatio(confidence?: number): Float64Array;
+  /**
+   * R-squared of returns against the benchmark per asset.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   rSquared(): Float64Array;
+  /**
+   * Share of periods beating the benchmark per asset.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   battingAverage(): Float64Array;
+  /**
+   * Parametric (Gaussian) value-at-risk per asset.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
+   */
   parametricVar(confidence?: number): Float64Array;
+  /**
+   * Cornish-Fisher adjusted value-at-risk per asset.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
+   */
   cornishFisherVar(confidence?: number): Float64Array;
+  /**
+   * Conditional drawdown-at-risk per asset at the given confidence level.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
+   */
   cdar(confidence?: number): Float64Array;
+  /**
+   * M-squared (Modigliani) risk-adjusted return per asset.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @param riskFreeRate - Annualized decimal risk-free rate; defaults to 0.0.
+   */
   mSquared(riskFreeRate?: number): Float64Array;
+  /**
+   * Modified Sharpe ratio using Cornish-Fisher VaR per asset.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @param riskFreeRate - Annualized decimal risk-free rate; defaults to 0.0.
+   * @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
+   */
   modifiedSharpe(riskFreeRate?: number, confidence?: number): Float64Array;
+  /**
+   * Sterling ratio over the `n` largest drawdowns per asset.
+   * @param riskFreeRate - Annualized decimal risk-free rate; defaults to 0.0.
+   * @param n - Number of largest drawdowns to include; defaults to 5.
+   * @throws Error - Rejects when any ticker's active range has no positive holding period and therefore cannot produce CAGR.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   sterlingRatio(riskFreeRate?: number, n?: number): Float64Array;
+  /**
+   * Burke ratio over the `n` largest drawdowns per asset.
+   * @param riskFreeRate - Annualized decimal risk-free rate; defaults to 0.0.
+   * @param n - Number of largest drawdowns to include; defaults to 5.
+   * @throws Error - Rejects when any ticker's active range has no positive holding period and therefore cannot produce CAGR.
+   * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   */
   burkeRatio(riskFreeRate?: number, n?: number): Float64Array;
   /**
    * Per-period simple returns per asset, as decimal fractions (0.01 = +1%).
@@ -2890,30 +3143,126 @@ export declare class Performance {
   returns(): Float64Array[];
   /**
    * Per-period simple returns for one asset, as decimal fractions (0.01 = +1%).
-   * @param tickerIdx - Zero-based ticker column index in `tickerNames()` order.
    * @returns The asset's simple return series in date order.
-   * @throws If `tickerIdx` is outside the loaded ticker columns.
+   * @param tickerIdx - Zero-based ticker column index in tickerNames order.
+   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns.
    */
   returnsForTicker(tickerIdx: number): Float64Array;
+  /**
+   * Cumulative return series per asset.
+   * @returns One series per asset, in `tickerNames()` order.
+   */
   cumulativeReturns(): Float64Array[];
+  /**
+   * Drawdown series per asset.
+   * @returns One series per asset, in `tickerNames()` order.
+   */
   drawdownSeries(): Float64Array[];
+  /**
+   * Pairwise return correlation matrix across assets.
+   * @returns One series per asset, in `tickerNames()` order.
+   */
   correlationMatrix(): Float64Array[];
+  /**
+   * Cumulative outperformance versus the benchmark per asset.
+   * @returns One series per asset, in `tickerNames()` order.
+   */
   cumulativeReturnsOutperformance(): Float64Array[];
+  /**
+   * Difference between asset and benchmark drawdown series.
+   * @returns One series per asset, in `tickerNames()` order.
+   */
   drawdownDifference(): Float64Array[];
+  /**
+   * Excess returns over the supplied risk-free series per asset.
+   * @param rf - Risk-free return series as decimal values aligned with active observations.
+   * @param nperiods - Optional periods per year used to annualize excess returns.
+   * @throws Error - Rejects when `rf` is neither a numeric JavaScript array nor a `Float64Array`.
+   * @returns One series per asset, in `tickerNames()` order.
+   */
   excessReturns(rf: NumericArray, nperiods?: number): Float64Array[];
+  /**
+   * OLS beta versus the benchmark per asset, with standard error and 95% CI.
+   * @throws Error - Rejects if the beta results cannot be serialized to JavaScript.
+   * @returns One beta result per asset, in `tickerNames()` order.
+   */
   beta(): BetaResult[];
+  /**
+   * Benchmark regression annualized Jensen alpha/beta statistics per asset.
+   * @param riskFreeRate - Annualized decimal risk-free rate; defaults to 0.0.
+   * @throws Error - Rejects if the regression results cannot be serialized to JavaScript.
+   * @returns One alpha/beta result per asset, in `tickerNames()` order.
+   */
   greeks(riskFreeRate?: number): GreeksResult[];
+  /**
+   * Rolling benchmark annualized Jensen alpha/beta for one asset over a window.
+   * @param tickerIdx - Zero-based ticker column index in tickerNames order.
+   * @param window - Observation window length; defaults to 63 periods.
+   * @param riskFreeRate - Annualized decimal risk-free rate; defaults to 0.0.
+   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created.
+   * @returns Rolling annualized Jensen alpha and beta for the selected ticker.
+   */
   rollingGreeks(tickerIdx: number, window?: number, riskFreeRate?: number): RollingGreeksResult;
+  /**
+   * Rolling volatility series for one asset over a window.
+   * @param tickerIdx - Zero-based ticker column index in tickerNames order.
+   * @param window - Observation window length; defaults to 63 periods.
+   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created.
+   * @returns Dated values for the selected ticker over the rolling window.
+   */
   rollingVolatility(tickerIdx: number, window?: number): DatedSeries;
+  /**
+   * Rolling Sortino ratio series for one asset over a window.
+   * @param tickerIdx - Zero-based ticker column index in tickerNames order.
+   * @param window - Observation window length; defaults to 63 periods.
+   * @param mar - Per-period minimum acceptable return as a decimal; defaults to 0.0.
+   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created.
+   * @returns Dated values for the selected ticker over the rolling window.
+   */
   rollingSortino(tickerIdx: number, window?: number, mar?: number): DatedSeries;
+  /**
+   * Rolling Sharpe ratio series for one asset over a window.
+   * @param tickerIdx - Zero-based ticker column index in tickerNames order.
+   * @param window - Observation window length; defaults to 63 periods.
+   * @param riskFreeRate - Annualized decimal risk-free rate; defaults to 0.0.
+   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created.
+   * @returns Dated values for the selected ticker over the rolling window.
+   */
   rollingSharpe(tickerIdx: number, window?: number, riskFreeRate?: number): DatedSeries;
+  /**
+   * Rolling compounded return series for one asset over a window.
+   * @param tickerIdx - Zero-based ticker column index in tickerNames order.
+   * @param window - Positive number of observations to compound in each window.
+   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created. A zero or overlong `window` returns an empty series rather than rejecting.
+   * @returns Dated values for the selected ticker over the rolling window.
+   */
   rollingReturns(tickerIdx: number, window: number): DatedSeries;
+  /**
+   * Details of the `n` largest drawdown episodes for one asset.
+   * @param tickerIdx - Zero-based ticker column index in tickerNames order.
+   * @param n - Number of largest drawdown episodes to return; defaults to 5.
+   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns or the drawdown details cannot be serialized to JavaScript.
+   * @returns Largest drawdown episodes for the selected ticker, most severe first.
+   */
   drawdownDetails(tickerIdx: number, n?: number): DrawdownEpisode[];
+  /**
+   * Multi-factor regression statistics for one asset.
+   * @param tickerIdx - Zero-based ticker column index in tickerNames order.
+   * @param factorReturns - Matrix of aligned decimal factor-return series, one row per factor.
+   * @throws Error - Rejects a non-numeric `factor_returns` matrix, an out-of-range `ticker_idx`, no factors, too few observations, non-finite or length-mismatched inputs, a singular factor design, or a result that cannot be serialized to JavaScript.
+   * @returns Multi-factor regression statistics for the selected ticker.
+   */
   multiFactorGreeks(tickerIdx: number, factorReturns: NumericMatrix): MultiFactorResult;
   /**
    * Period-to-date lookback returns. The FYTD window starts at the fiscal-year
    * start adjusted to the next business day on `calendar` (default `"nyse"`);
    * pass the calendar id matching your market for non-US panels.
+   * @returns MTD, QTD, YTD, and FYTD lookback returns for the panel.
+   * @param refDate - ISO-8601 date on which MTD, QTD, YTD, and FYTD windows end.
+   * @param fiscalYearStartMonth - Optional fiscal-year start month from 1 through 12; defaults to January.
+   * @param fiscalYearStartDay - Optional fiscal-year start day; defaults to the first day.
+   * @param calendar - Optional holiday-calendar id for FYTD adjustment; defaults to NYSE.
+   * @throws Error - Rejects an invalid ISO `ref_date`, a fiscal month outside `1..=12`, a fiscal day outside `1..=31`, an unknown `calendar`, a fiscal start that cannot be business-day-adjusted, or a result that cannot be serialized to JavaScript.
    */
   lookbackReturns(
     refDate: string,
@@ -2921,13 +3270,24 @@ export declare class Performance {
     fiscalYearStartDay?: number,
     calendar?: string
   ): LookbackReturns;
+  /**
+   * Aggregated period statistics for one asset at the given frequency.
+   * @param tickerIdx - Zero-based ticker column index in tickerNames order.
+   * @param aggregationFrequency - Optional aggregation frequency token; defaults to monthly.
+   * @param fiscalYearStartMonth - Optional fiscal-year start month from 1 through 12.
+   * @param fiscalYearStartDay - Optional fiscal-year start day within the selected month.
+   * @throws Error - Rejects an unsupported `aggregation_frequency`, a fiscal month outside `1..=12`, a fiscal day outside `1..=31`, an out-of-range `ticker_idx`, or period statistics that cannot be serialized to JavaScript.
+   * @returns Aggregated period statistics for the selected ticker and frequency.
+   */
   periodStats(
     tickerIdx: number,
     aggregationFrequency?: string,
     fiscalYearStartMonth?: number,
     fiscalYearStartDay?: number
   ): PeriodStats;
-  /** Release the underlying wasm heap allocation. Do not use this handle after calling `free()`. */
+  /**
+   * Release the underlying wasm heap allocation. Do not use this handle after calling `free()`.
+   */
   free(): void;
 }
 
@@ -2995,11 +3355,22 @@ export declare const analytics: AnalyticsNamespace;
  */
 export declare class CreditFactorModel {
   private constructor();
-  /** Deserialize and validate a `CreditFactorModel` from JSON. */
+  /**
+   * Deserialize and validate a `CreditFactorModel` from JSON.
+   * @returns A calibrated `CreditFactorModel` handle.
+   * @param s - JSON-serialized CreditFactorModel to deserialize.
+   * @throws Error - Throws if the JSON is malformed or fails validation.
+   */
   static fromJson(s: string): CreditFactorModel;
-  /** Serialize to pretty-printed JSON. */
+  /**
+   * Serialize to pretty-printed JSON.
+   * @returns Canonical JSON string.
+   * @throws Error - Throws a JavaScript exception if the model cannot be serialized to JSON.
+   */
   toJson(): string;
-  /** Release the underlying wasm heap allocation. Do not use this handle after calling `free()`. */
+  /**
+   * Release the underlying wasm heap allocation. Do not use this handle after calling `free()`.
+   */
   free(): void;
 }
 
@@ -3009,11 +3380,22 @@ export declare class CreditFactorModel {
  * Configuration and inputs are passed as JSON strings.
  */
 export declare class CreditCalibrator {
-  /** Construct a calibrator from a JSON-serialized `CreditCalibrationConfig`. */
+  /**
+   * Construct a calibrator from a JSON-serialized `CreditCalibrationConfig`.
+   * @param configJson - Credit-factor calibration configuration JSON controlling model fitting.
+   * @throws Error - Throws if `config_json` is not a valid `CreditCalibrationConfig`.
+   */
   constructor(configJson: string);
-  /** Run the calibration pipeline and return a `CreditFactorModel`. */
+  /**
+   * Run the calibration pipeline and return a `CreditFactorModel`.
+   * @returns A calibrated `CreditFactorModel` handle.
+   * @param inputsJson - Credit-factor calibration input JSON containing issuers, spreads, and observations.
+   * @throws Error - Throws if inputs are structurally invalid or calibration fails.
+   */
   calibrate(inputsJson: string): CreditFactorModel;
-  /** Release the underlying wasm heap allocation. Do not use this handle after calling `free()`. */
+  /**
+   * Release the underlying wasm heap allocation. Do not use this handle after calling `free()`.
+   */
   free(): void;
 }
 
@@ -3025,9 +3407,15 @@ export declare class CreditCalibrator {
  */
 export declare class LevelsAtDate {
   private constructor();
-  /** Serialize the snapshot to pretty-printed JSON. */
+  /**
+   * Serialize the snapshot to pretty-printed JSON.
+   * @returns Canonical JSON string.
+   * @throws Error - Throws if any numeric output field is non-finite (NaN/Inf), naming the offending field instead of silently serializing `null`.
+   */
   toJson(): string;
-  /** Release the underlying wasm heap allocation. Do not use this handle after calling `free()`. */
+  /**
+   * Release the underlying wasm heap allocation. Do not use this handle after calling `free()`.
+   */
   free(): void;
 }
 
@@ -3038,9 +3426,15 @@ export declare class LevelsAtDate {
  */
 export declare class PeriodDecomposition {
   private constructor();
-  /** Serialize the decomposition to pretty-printed JSON. */
+  /**
+   * Serialize the decomposition to pretty-printed JSON.
+   * @returns Canonical JSON string.
+   * @throws Error - Throws if any numeric output field is non-finite (NaN/Inf), naming the offending field instead of silently serializing `null`.
+   */
   toJson(): string;
-  /** Release the underlying wasm heap allocation. Do not use this handle after calling `free()`. */
+  /**
+   * Release the underlying wasm heap allocation. Do not use this handle after calling `free()`.
+   */
   free(): void;
 }
 
@@ -3056,20 +3450,39 @@ export declare class PeriodDecomposition {
  * - `'{"n_steps": N}'` — variance scaled by `N`.
  */
 export declare class FactorCovarianceForecast {
+  /**
+   * Wrap a `CreditFactorModel` for vol forecasting.
+   * @param model - Calibrated CreditFactorModel used to produce the covariance forecast.
+   */
   constructor(model: CreditFactorModel);
   /**
    * Build the factor covariance matrix at the requested horizon.
    * Returns pretty-printed JSON of a `FactorCovarianceMatrix`.
+   * @returns Pretty-printed `FactorCovarianceMatrix` JSON at the requested horizon.
+   * @param horizonJson - JSON-serialized forecast horizon defining the future covariance date or period.
+   * @throws Error - Throws if the horizon string is invalid or the model data is inconsistent.
    */
   covarianceAt(horizonJson: string): string;
-  /** Idiosyncratic vol (std dev) for a specific issuer at the requested horizon. */
+  /**
+   * Idiosyncratic vol (std dev) for a specific issuer at the requested horizon.
+   * @returns Issuer idiosyncratic volatility as a decimal standard deviation at `horizonJson`.
+   * @param issuerId - Stable issuer identifier used to select the required domain object.
+   * @param horizonJson - JSON-serialized forecast horizon defining the future covariance date or period.
+   * @throws Error - Throws if the issuer is not present in the model's vol state or the calibrated variance is negative.
+   */
   idiosyncraticVol(issuerId: string, horizonJson: string): number;
   /**
    * Build a portfolio-level `FactorModelConfig` JSON at the given horizon and
    * risk measure.
+   * @returns Pretty-printed `FactorModelConfig` JSON at the requested horizon.
+   * @param horizonJson - JSON-serialized forecast horizon defining the future covariance date or period.
+   * @param riskMeasureJson - Risk-measure configuration JSON applied when constructing the horizon factor model.
+   * @throws Error - Throws if the horizon or risk measure is invalid, or the model builder rejects the assembled configuration.
    */
   factorModelAt(horizonJson: string, riskMeasureJson: string): string;
-  /** Release the underlying wasm heap allocation. Do not use this handle after calling `free()`. */
+  /**
+   * Release the underlying wasm heap allocation. Do not use this handle after calling `free()`.
+   */
   free(): void;
 }
 
@@ -3089,7 +3502,7 @@ export declare class FactorCovarianceForecast {
  *   return decomposeLevels(model, '{"ACME": 0.012}', 0.01, "2026-01-02");
  * }
  * ```
- * @returns Returns the resulting `LevelsAtDate` value or WebAssembly handle.
+ * @returns Per-level factor values and residual adders at the requested date.
  * @param model - Calibrated CreditFactorModel used to produce the covariance forecast.
  * @param observedSpreadsJson - JSON-serialized observed credit spreads used in the level decomposition.
  * @param observedGeneric - Observed generic-market spread component aligned with the model factors.
@@ -3124,7 +3537,7 @@ export declare function decomposeLevels(
  *   return decomposePeriod(fromLevels, toLevels);
  * }
  * ```
- * @returns Returns the resulting `PeriodDecomposition` value or WebAssembly handle.
+ * @returns Component-wise change between two hierarchy-level snapshots.
  * @param fromLevels - Credit-factor levels at the start of the attribution period.
  * @param toLevels - Credit-factor levels at the end of the attribution period.
  * @throws Error - Throws if `from_levels.date > to_levels.date` or the snapshots disagree on hierarchy depth.
@@ -3156,23 +3569,23 @@ export declare function decomposePeriod(
  */
 export interface FactorModelCreditNamespace {
   /**
-   * Credit factor model exposed by this `FactorModelCredit` value.
+   * Calibrated credit-factor hierarchy artifact.
    */
   CreditFactorModel: typeof CreditFactorModel;
   /**
-   * Credit calibrator exposed by this `FactorModelCredit` value.
+   * Deterministic calibrator that produces a `CreditFactorModel`.
    */
   CreditCalibrator: typeof CreditCalibrator;
   /**
-   * Levels at date exposed by this `FactorModelCredit` value.
+   * Hierarchy-level factor snapshot at a single date.
    */
   LevelsAtDate: typeof LevelsAtDate;
   /**
-   * Period decomposition exposed by this `FactorModelCredit` value.
+   * Component-wise difference between two level snapshots.
    */
   PeriodDecomposition: typeof PeriodDecomposition;
   /**
-   * Factor covariance forecast exposed by this `FactorModelCredit` value.
+   * Horizon covariance view over a calibrated credit factor model.
    */
   FactorCovarianceForecast: typeof FactorCovarianceForecast;
   /**
@@ -3187,17 +3600,13 @@ export interface FactorModelCreditNamespace {
    *   issuers not present in the model artifact.
    *
    * Returns a `LevelsAtDate` handle.
-   *
-   * # Errors
-   * Throws if an issuer has no model row and no `runtime_tags` entry, or if
-   * `as_of` cannot be parsed.
-   * @returns Returns the resulting `LevelsAtDate` value or WebAssembly handle.
    * @param model - Calibrated CreditFactorModel used to produce the covariance forecast.
    * @param observedSpreadsJson - JSON-serialized observed credit spreads used in the level decomposition.
    * @param observedGeneric - Observed generic-market spread component aligned with the model factors.
    * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
    * @param runtimeTagsJson - Optional runtime-tag JSON selecting the active factor-model configuration.
    * @throws Error - Throws if an issuer has no model row and no `runtime_tags` entry, or if `as_of` cannot be parsed.
+   * @returns Per-level factor values and residual adders at the requested date.
    */
   decomposeLevels(
     model: CreditFactorModel,
@@ -3211,14 +3620,10 @@ export interface FactorModelCreditNamespace {
    *
    * Output buckets and issuers are restricted to those present in **both**
    * snapshots so the linear reconciliation invariant on `ΔS_i` holds.
-   *
-   * # Errors
-   * Throws if `from_levels.date > to_levels.date` or the snapshots disagree
-   * on hierarchy depth.
-   * @returns Returns the resulting `PeriodDecomposition` value or WebAssembly handle.
    * @param fromLevels - Credit-factor levels at the start of the attribution period.
    * @param toLevels - Credit-factor levels at the end of the attribution period.
    * @throws Error - Throws if `from_levels.date > to_levels.date` or the snapshots disagree on hierarchy depth.
+   * @returns Component-wise change between two hierarchy-level snapshots.
    */
   decomposePeriod(fromLevels: LevelsAtDate, toLevels: LevelsAtDate): PeriodDecomposition;
 }
@@ -3259,11 +3664,11 @@ export declare const factor_model: FactorModelNamespace;
 // --- features ---------------------------------------------------------------
 
 /**
- * TypeScript type that constrains the accepted feature value values.
+ * Feature observation: a finite number, or `null` for a missing value.
  */
 export type FeatureValue = number | null;
 /**
- * TypeScript type that constrains the accepted feature params values.
+ * Operation-specific parameter object passed to feature transforms.
  */
 export type FeatureParams = Record<string, unknown>;
 
@@ -3289,7 +3694,7 @@ export type FeatureParams = Record<string, unknown>;
 export interface FeaturesNamespace {
   /**
    * Transform a time-series panel column per entity.
-   * @returns Returns the resulting `FeatureValue[]` collection in the documented order.
+   * @returns Transformed values aligned one-for-one with the input `values` rows.
    * @param values - Numeric observations in the shape and order required by the selected transformation.
    * @param entity - Entity identifier used to group ordered time-series observations.
    * @param order - Observation-order key used to sort each entity time series.
@@ -3306,7 +3711,7 @@ export interface FeaturesNamespace {
   ): FeatureValue[];
   /**
    * Transform a cross-section per timestamp.
-   * @returns Returns the resulting `FeatureValue[]` collection in the documented order.
+   * @returns Transformed values aligned one-for-one with the input `values` rows.
    * @param values - Numeric observations in the shape and order required by the selected transformation.
    * @param timeKey - Cross-sectional time key shared by values evaluated in the same slice.
    * @param op - Transformation operation identifier supported by the feature-engineering API.
@@ -3321,7 +3726,7 @@ export interface FeaturesNamespace {
   ): FeatureValue[];
   /**
    * Transform a cross-section within each time/group sub-partition.
-   * @returns Returns the resulting `FeatureValue[]` collection in the documented order.
+   * @returns Transformed values aligned one-for-one with the input `values` rows.
    * @param values - Numeric observations in the shape and order required by the selected transformation.
    * @param timeKey - Cross-sectional time key shared by values evaluated in the same slice.
    * @param groups - Group labels aligned with values for within-group cross-sectional operations.
@@ -3338,7 +3743,7 @@ export interface FeaturesNamespace {
   ): FeatureValue[];
   /**
    * Remove cross-sectional exposure effects by OLS residualization.
-   * @returns Returns the resulting `FeatureValue[]` collection in the documented order.
+   * @returns Transformed values aligned one-for-one with the input `values` rows.
    * @param values - Numeric observations in the shape and order required by the selected transformation.
    * @param timeKey - Cross-sectional time key shared by values evaluated in the same slice.
    * @param exposures - Factor-exposure matrix aligned with the supplied observations.
@@ -3353,7 +3758,7 @@ export interface FeaturesNamespace {
   ): FeatureValue[];
   /**
    * Transform two time-series panel columns per entity.
-   * @returns Returns the resulting `FeatureValue[]` collection in the documented order.
+   * @returns Transformed values aligned one-for-one with the input `values` rows.
    * @param values - Numeric observations in the shape and order required by the selected transformation.
    * @param other - Second value series aligned with the primary series for a pairwise transformation.
    * @param entity - Entity identifier used to group ordered time-series observations.
@@ -3372,7 +3777,7 @@ export interface FeaturesNamespace {
   ): FeatureValue[];
   /**
    * Return rolling OLS residuals per entity.
-   * @returns Returns the resulting `FeatureValue[]` collection in the documented order.
+   * @returns Transformed values aligned one-for-one with the input `values` rows.
    * @param values - Numeric observations in the shape and order required by the selected transformation.
    * @param exposures - Factor-exposure matrix aligned with the supplied observations.
    * @param entity - Entity identifier used to group ordered time-series observations.
@@ -3389,12 +3794,12 @@ export interface FeaturesNamespace {
   ): FeatureValue[];
   /**
    * Convert a signal to inverse-risk-scaled weights per timestamp.
-   * @returns Returns the resulting `FeatureValue[]` collection in the documented order.
+   * @returns Transformed values aligned one-for-one with the input `values` rows.
    * @param values - Numeric signal observations aligned with `timeKey` and `volatility`.
    * @param timeKey - Cross-sectional time key shared by values evaluated in the same slice.
    * @param volatility - Row-aligned risk estimates used as `signal / volatility`; zero, missing, or non-finite values yield missing weights.
    * @throws Error - Rejects inputs that cannot be decoded into the declared arrays, unequal `values`, `time_key`, and `volatility` lengths, or a result that cannot be serialized to JavaScript.
-   * @param params - Params input consumed by this operation.
+   * @param params - Optional transform parameters; omit to use operation defaults.
    */
   riskScaledWeights(
     values: FeatureValue[],
@@ -3404,7 +3809,7 @@ export interface FeaturesNamespace {
   ): FeatureValue[];
   /**
    * Apply the default signal cleaning pass.
-   * @returns Returns the resulting `FeatureValue[]` collection in the documented order.
+   * @returns Transformed values aligned one-for-one with the input `values` rows.
    * @param values - Numeric observations in the shape and order required by the selected transformation.
    * @param timeKey - Cross-sectional time key shared by values evaluated in the same slice.
    * @param params - Operation-specific parameter object defining transformation settings.
@@ -3417,7 +3822,7 @@ export interface FeaturesNamespace {
   ): FeatureValue[];
   /**
    * Normalize a signal cross-sectionally.
-   * @returns Returns the resulting `FeatureValue[]` collection in the documented order.
+   * @returns Transformed values aligned one-for-one with the input `values` rows.
    * @param values - Numeric observations in the shape and order required by the selected transformation.
    * @param timeKey - Cross-sectional time key shared by values evaluated in the same slice.
    * @param params - Operation-specific parameter object defining transformation settings.
@@ -3430,11 +3835,11 @@ export interface FeaturesNamespace {
   ): FeatureValue[];
   /**
    * Convert ranks into long/short weights.
-   * @returns Returns the resulting `FeatureValue[]` collection in the documented order.
+   * @returns Transformed values aligned one-for-one with the input `values` rows.
    * @param values - Numeric observations in the shape and order required by the selected transformation.
    * @param timeKey - Cross-sectional time key shared by values evaluated in the same slice.
    * @throws Error - Rejects inputs that cannot be decoded into the declared arrays, unequal `values` and `time_key` lengths, or a result that cannot be serialized to JavaScript.
-   * @param params - Params input consumed by this operation.
+   * @param params - Optional transform parameters; omit to use operation defaults.
    */
   rankToWeights(
     values: FeatureValue[],
@@ -3443,7 +3848,7 @@ export interface FeaturesNamespace {
   ): FeatureValue[];
   /**
    * Neutralize a signal and z-score residuals.
-   * @returns Returns the resulting `FeatureValue[]` collection in the documented order.
+   * @returns Transformed values aligned one-for-one with the input `values` rows.
    * @param values - Numeric observations in the shape and order required by the selected transformation.
    * @param timeKey - Cross-sectional time key shared by values evaluated in the same slice.
    * @param exposures - Factor-exposure matrix aligned with the supplied observations.
@@ -3458,7 +3863,7 @@ export interface FeaturesNamespace {
   ): FeatureValue[];
   /**
    * Apply a JSON panel transform pipeline.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns JSON panel after applying the transform pipeline.
    * @param specJson - Canonical panel-transformation JSON specifying input columns, operations, and parameters.
    * @throws Error - Rejects malformed JSON or panel specifications, blank or duplicate operation names, missing partition columns, unequal row counts, malformed operation parameters, operations that cannot be evaluated, or a result that cannot be serialized to JSON.
    */
@@ -3486,7 +3891,7 @@ export interface Copula extends WasmOwned {
   readonly modelName: string;
   /**
    * Conditional default probability given factor realization(s).
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Conditional default probability in `[0, 1]`.
    * @param defaultThreshold - Latent-variable default threshold corresponding to the marginal default probability.
    * @param factorRealization - Realized systematic-factor value conditioning the default probability.
    * @param correlation - Dependence correlation from -1 through 1 under the selected copula or recovery model.
@@ -3504,7 +3909,7 @@ export interface Copula extends WasmOwned {
    * Returns `NaN` when the model has no closed-form `λ_L` (Random Factor
    * Loading); check `Number.isNaN()` before using the result. For the
    * RFL heuristic stress gauge use `stressCorrelationProxy` instead.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Lower-tail dependence `λ_L` in `[0, 1]`, or `NaN` when the copula has no closed form.
    * @param correlation - Dependence correlation from -1 through 1 under the selected copula or recovery model.
    */
   tailDependence(correlation: number): number;
@@ -3518,7 +3923,7 @@ export interface Copula extends WasmOwned {
    * tail and vanishes in the Gaussian (`loadingVol = 0`) limit.
    *
    * Throws for non-RFL copulas.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Heuristic extra correlation mass in the high-loading tail; 0 in the Gaussian limit.
    * @param correlation - Dependence correlation from -1 through 1 under the selected copula or recovery model.
    * @throws Error - Throws a JavaScript exception if this copula is not a Random Factor Loading model.
    */
@@ -3547,7 +3952,7 @@ export interface CopulaSpec extends WasmOwned {
   readonly isMultiFactor: boolean;
   /**
    * Build a concrete copula from this specification.
-   * @returns Returns the resulting `Copula` value or WebAssembly handle.
+   * @returns A concrete `Copula` handle.
    * @throws Error - Throws a JavaScript exception if a Student-t specification contains non-finite degrees of freedom or a value at most two.
    */
   build(): Copula;
@@ -3566,25 +3971,25 @@ export interface CopulaSpec extends WasmOwned {
 export interface CopulaSpecConstructor {
   /**
    * One-factor Gaussian copula (market standard).
-   * @returns Returns the resulting `CopulaSpec` value or WebAssembly handle.
+   * @returns A `CopulaSpec` handle for deferred construction.
    */
   gaussian(): CopulaSpec;
   /**
    * Student-t copula with specified degrees of freedom (must be > 2).
-   * @returns Returns the resulting `CopulaSpec` value or WebAssembly handle.
+   * @returns A `CopulaSpec` handle for deferred construction.
    * @param df - Positive Student-t copula degrees of freedom controlling tail thickness.
    * @throws Error - Throws a JavaScript exception if `df` is not finite and strictly greater than two.
    */
   studentT(df: number): CopulaSpec;
   /**
    * Random Factor Loading copula with stochastic correlation.
-   * @returns Returns the resulting `CopulaSpec` value or WebAssembly handle.
+   * @returns A `CopulaSpec` handle for deferred construction.
    * @param loadingVol - Standard deviation used to randomize the factor loading.
    */
   randomFactorLoading(loadingVol: number): CopulaSpec;
   /**
    * Multi-factor Gaussian copula with sector structure.
-   * @returns Returns the resulting `CopulaSpec` value or WebAssembly handle.
+   * @returns A `CopulaSpec` handle for deferred construction.
    * @param numFactors - Positive number of systematic factors in the Gaussian factor model.
    */
   multiFactor(numFactors: number): CopulaSpec;
@@ -3616,13 +4021,13 @@ export interface RecoveryModel extends WasmOwned {
   readonly modelName: string;
   /**
    * Recovery conditional on the systematic market factor.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Conditional recovery rate as a fraction of par in `[0, 1]`.
    * @param marketFactor - Realized standardized market factor used to condition recovery or loss given default.
    */
   conditionalRecovery(marketFactor: number): number;
   /**
    * Conditional LGD given market factor.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Conditional loss-given-default as a fraction of par in `[0, 1]`.
    * @param marketFactor - Realized standardized market factor used to condition recovery or loss given default.
    */
   conditionalLgd(marketFactor: number): number;
@@ -3645,7 +4050,7 @@ export interface RecoverySpec extends WasmOwned {
   readonly expectedRecovery: number;
   /**
    * Build a concrete recovery model from this specification.
-   * @returns Returns the resulting `RecoveryModel` value or WebAssembly handle.
+   * @returns A concrete `RecoveryModel` handle.
    */
   build(): RecoveryModel;
 }
@@ -3665,7 +4070,7 @@ export interface RecoverySpecConstructor {
    * Constant recovery rate.
    *
    * Throws if `rate` is not finite or lies outside `[0, 1]`.
-   * @returns Returns the resulting `RecoverySpec` value or WebAssembly handle.
+   * @returns A `RecoverySpec` handle for deferred construction.
    * @param rate - Constant recovery rate expressed as a fraction from 0 through 1.
    * @throws Error - Throws a JavaScript exception if `rate` is not finite or lies outside `[0, 1]`.
    */
@@ -3675,7 +4080,7 @@ export interface RecoverySpecConstructor {
    *
    * Throws if `mean` is not finite or lies outside `[0, 1]`, or if `vol` /
    * `correlation` are not finite.
-   * @returns Returns the resulting `RecoverySpec` value or WebAssembly handle.
+   * @returns A `RecoverySpec` handle for deferred construction.
    * @param mean - Mean recovery rate expressed as a fraction from 0 through 1.
    * @param vol - Recovery-rate volatility scale in the correlated recovery model.
    * @param correlation - Dependence correlation from -1 through 1 under the selected copula or recovery model.
@@ -3686,7 +4091,7 @@ export interface RecoverySpecConstructor {
    * Market-standard stochastic recovery (40% mean, 25% vol, +40% corr —
    * recovery falls in stress under the canonical low-factor-stress
    * convention).
-   * @returns Returns the resulting `RecoverySpec` value or WebAssembly handle.
+   * @returns A `RecoverySpec` handle for deferred construction.
    */
   marketStandardStochastic(): RecoverySpec;
 }
@@ -3696,7 +4101,7 @@ export interface RecoverySpecConstructor {
  */
 export interface CopulaClass {
   /**
-   * Prototype exposed by this `CopulaClass` value.
+   * JavaScript prototype of `Copula`; construct instances via `CopulaSpec.build()`.
    */
   readonly prototype: Copula;
 }
@@ -3706,7 +4111,7 @@ export interface CopulaClass {
  */
 export interface RecoveryModelClass {
   /**
-   * Prototype exposed by this `RecoveryModelClass` value.
+   * JavaScript prototype of `RecoveryModel`; construct instances via `RecoverySpec.build()`.
    */
   readonly prototype: RecoveryModel;
 }
@@ -3777,26 +4182,26 @@ export interface TrancheLossStatisticsJson {
  */
 export interface CorrelationNamespace {
   /**
-   * Copula spec exposed by this `Correlation` value.
+   * Copula specification constructor for correlation-sensitive pricing.
    */
   CopulaSpec: CopulaSpecConstructor;
   /**
-   * Copula exposed by this `Correlation` value.
+   * Fitted copula handle used by correlation-sensitive pricing.
    */
   Copula: CopulaClass;
   /**
-   * Recovery spec exposed by this `Correlation` value.
+   * Recovery-model specification constructor.
    */
   RecoverySpec: RecoverySpecConstructor;
   /**
-   * Recovery model exposed by this `Correlation` value.
+   * Recovery-model handle used with copula pricing.
    */
   RecoveryModel: RecoveryModelClass;
   /**
    * Fréchet-Hoeffding correlation bounds for two Bernoulli marginals.
    *
    * Returns `[rho_min, rho_max]`.
-   * @returns Returns numeric results as a `Float64Array` in the documented order.
+   * @returns `[rho_min, rho_max]` Fréchet-Hoeffding bounds for the two Bernoulli marginals.
    * @param p1 - First marginal default probability from 0 through 1.
    * @param p2 - Second marginal default probability from 0 through 1.
    * @throws Error - Throws a JavaScript exception if either marginal probability is non-finite or outside `[0, 1]`.
@@ -3806,7 +4211,7 @@ export interface CorrelationNamespace {
    * Joint probabilities for two correlated Bernoulli variables.
    *
    * Returns `[p11, p10, p01, p00]`.
-   * @returns Returns numeric results as a `Float64Array` in the documented order.
+   * @returns Joint probabilities `[p11, p10, p01, p00]` for the two correlated Bernoullis.
    * @param p1 - First marginal default probability from 0 through 1.
    * @param p2 - Second marginal default probability from 0 through 1.
    * @param correlation - Dependence correlation from -1 through 1 under the selected copula or recovery model.
@@ -3820,8 +4225,8 @@ export interface CorrelationNamespace {
    * checks unit diagonal, off-diagonal in `[-1, 1]`, symmetry, and positive
    * semi-definiteness. Returns nothing on success; raises a descriptive error
    * (including the failing dimension or constraint) otherwise.
-   * @param matrix - Square numeric matrix in the nested or row-major shape required by this callable.
-   * @param n - Positive square-matrix dimension; flat arrays must contain n × n entries.
+   * @param matrix - Flat row-major `n * n` correlation coefficients; unit diagonal, off-diagonals in `[-1, 1]`.
+   * @param n - Positive square-matrix dimension; `matrix` must contain exactly `n * n` entries.
    * @throws Error - Throws a JavaScript exception if the flat length is not `n * n`, a diagonal entry is not one, an entry is outside the correlation bounds, the matrix is not symmetric, or the matrix is not positive semidefinite.
    */
   validateCorrelationMatrix(matrix: NumericArray, n: number): void;
@@ -3840,9 +4245,9 @@ export interface CorrelationNamespace {
    * matrix but fails Cholesky by a small margin, returns the nearest valid
    * correlation matrix (symmetric, unit diagonal, PSD) in Frobenius norm.
    * Gross input violations raise rather than being silently reshaped.
-   * @returns Returns numeric results as a `Float64Array` in the documented order.
-   * @param matrix - Square numeric matrix in the nested or row-major shape required by this callable.
-   * @param n - Positive square-matrix dimension; flat arrays must contain n × n entries.
+   * @returns Nearest valid correlation matrix as a flat row-major `Float64Array` of `n * n` entries.
+   * @param matrix - Flat row-major `n * n` near-correlation matrix to project onto the correlation set.
+   * @param n - Positive square-matrix dimension; `matrix` must contain exactly `n * n` entries.
    * @param maxIter - Maximum number of Higham nearest-correlation projection iterations.
    * @param tol - Positive convergence tolerance for the nearest-correlation projection.
    * @throws Error - Throws a JavaScript exception if the flat length is not `n * n`, the input has a gross diagonal or symmetry violation, or the projection does not converge within `maxIter` iterations at `tol`.
@@ -3906,8 +4311,8 @@ export interface MonteCarloNamespace {
    * `ci_lower`, `ci_upper`, `num_paths`, `num_simulated_paths`,
    * `median`, `percentile_25`, `percentile_75`, `min`, `max`, and
    * `relative_stderr`.
-   * @returns Returns the resulting `MonteCarloEstimateJson` value or WebAssembly handle.
-   * @param spot - Current spot price or exchange rate in the documented quote convention.
+   * @returns Discounted Monte Carlo estimate with standard error and optional path statistics.
+   * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
    * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -3938,8 +4343,8 @@ export interface MonteCarloNamespace {
    * `ci_lower`, `ci_upper`, `num_paths`, `num_simulated_paths`,
    * `median`, `percentile_25`, `percentile_75`, `min`, `max`, and
    * `relative_stderr`.
-   * @returns Returns the resulting `MonteCarloEstimateJson` value or WebAssembly handle.
-   * @param spot - Current spot price or exchange rate in the documented quote convention.
+   * @returns Discounted Monte Carlo estimate with standard error and optional path statistics.
+   * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
    * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -3965,8 +4370,8 @@ export interface MonteCarloNamespace {
   ): MonteCarloEstimateJson;
   /**
    * Price a European call under Heston stochastic volatility.
-   * @returns Returns the resulting `MonteCarloEstimateJson` value or WebAssembly handle.
-   * @param spot - Current spot price or exchange rate in the documented quote convention.
+   * @returns Discounted Monte Carlo estimate with standard error and optional path statistics.
+   * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
    * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -4000,8 +4405,8 @@ export interface MonteCarloNamespace {
   ): MonteCarloEstimateJson;
   /**
    * Price a European put under Heston stochastic volatility.
-   * @returns Returns the resulting `MonteCarloEstimateJson` value or WebAssembly handle.
-   * @param spot - Current spot price or exchange rate in the documented quote convention.
+   * @returns Discounted Monte Carlo estimate with standard error and optional path statistics.
+   * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
    * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -4035,8 +4440,8 @@ export interface MonteCarloNamespace {
   ): MonteCarloEstimateJson;
   /**
    * Price an Asian call via Monte Carlo under GBM dynamics.
-   * @returns Returns the resulting `MonteCarloEstimateJson` value or WebAssembly handle.
-   * @param spot - Current spot price or exchange rate in the documented quote convention.
+   * @returns Discounted Monte Carlo estimate with standard error and optional path statistics.
+   * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
    * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -4062,8 +4467,8 @@ export interface MonteCarloNamespace {
   ): MonteCarloEstimateJson;
   /**
    * Price an Asian put via Monte Carlo under GBM dynamics.
-   * @returns Returns the resulting `MonteCarloEstimateJson` value or WebAssembly handle.
-   * @param spot - Current spot price or exchange rate in the documented quote convention.
+   * @returns Discounted Monte Carlo estimate with standard error and optional path statistics.
+   * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
    * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -4096,8 +4501,8 @@ export interface MonteCarloNamespace {
    *   `"polynomial"`, or `"normalized_polynomial"`.
    * - `basis_degree` (default `3`): polynomial/Laguerre degree. Must be
    *   positive; `"laguerre"` additionally requires degree in `[1, 4]`.
-   * @returns Returns the resulting `MonteCarloEstimateJson` value or WebAssembly handle.
-   * @param spot - Current spot price or exchange rate in the documented quote convention.
+   * @returns Discounted Monte Carlo estimate with standard error and optional path statistics.
+   * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
    * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -4131,8 +4536,8 @@ export interface MonteCarloNamespace {
    * Price an American call via LSMC under GBM dynamics.
    *
    * Optional knobs match [`price_american_put`].
-   * @returns Returns the resulting `MonteCarloEstimateJson` value or WebAssembly handle.
-   * @param spot - Current spot price or exchange rate in the documented quote convention.
+   * @returns Discounted Monte Carlo estimate with standard error and optional path statistics.
+   * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
    * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -4164,8 +4569,8 @@ export interface MonteCarloNamespace {
   ): MonteCarloEstimateJson;
   /**
    * Two-pass unbiased American put price (training fit + out-of-sample pricing).
-   * @returns Returns the resulting `MonteCarloEstimateJson` value or WebAssembly handle.
-   * @param spot - Current spot price or exchange rate in the documented quote convention.
+   * @returns Discounted Monte Carlo estimate with standard error and optional path statistics.
+   * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
    * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -4199,8 +4604,8 @@ export interface MonteCarloNamespace {
   ): MonteCarloEstimateJson;
   /**
    * Two-pass unbiased American call price (training fit + out-of-sample pricing).
-   * @returns Returns the resulting `MonteCarloEstimateJson` value or WebAssembly handle.
-   * @param spot - Current spot price or exchange rate in the documented quote convention.
+   * @returns Discounted Monte Carlo estimate with standard error and optional path statistics.
+   * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
    * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -4234,8 +4639,8 @@ export interface MonteCarloNamespace {
   ): MonteCarloEstimateJson;
   /**
    * Black-Scholes call price.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param spot - Current spot price or exchange rate in the documented quote convention.
+   * @returns Discounted call price in the same units as `spot`.
+   * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
    * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -4252,8 +4657,8 @@ export interface MonteCarloNamespace {
   ): number;
   /**
    * Black-Scholes put price.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param spot - Current spot price or exchange rate in the documented quote convention.
+   * @returns Discounted put price in the same units as `spot`.
+   * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
    * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -4293,13 +4698,13 @@ export interface MarginNamespace {
    * Create a standard USD regulatory CSA specification as JSON.
    *
    * Returns the canonical ISDA-compliant CSA for USD OTC derivatives.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical ISDA USD regulatory CSA JSON.
    * @throws Error - Rejects if the embedded margin registry cannot be loaded or the resulting CSA cannot be serialized to JSON.
    */
   csaUsdRegulatoryJson(): string;
   /**
    * Create a standard EUR regulatory CSA specification as JSON.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical ISDA EUR regulatory CSA JSON.
    * @throws Error - Rejects if the embedded margin registry cannot be loaded or the resulting CSA cannot be serialized to JSON.
    */
   csaEurRegulatoryJson(): string;
@@ -4308,7 +4713,7 @@ export interface MarginNamespace {
    *
    * Deserializes and re-serializes the input to verify it conforms
    * to the `CsaSpec` schema. Returns the canonical JSON on success.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical CSA JSON after schema validation.
    * @param json - CSA specification JSON to validate and normalize into canonical form.
    * @throws Error - Rejects malformed or schema-incompatible `json`, or failure to serialize the decoded CSA specification.
    */
@@ -4319,7 +4724,7 @@ export interface MarginNamespace {
    * Returns a JSON object with delivery_amount, return_amount, net_exposure,
    * and requires_call fields.
    *
-   * @returns Returns the resulting `VariationMarginJson` value or WebAssembly handle.
+   * @returns Variation-margin call amount, currency, and CSA metadata.
    * @param csaJson - CSA specification as JSON string
    * @param exposure - Current mark-to-market exposure amount
    * @param postedCollateral - Currently posted collateral amount
@@ -4462,6 +4867,51 @@ export interface CashflowsNamespace {
    * @throws If any JSON input is malformed or the accrual computation fails.
    */
   accruedInterest(scheduleJson: string, asOf: string, configJson?: string | null): number;
+
+  /**
+   * Convert an annual CPR (constant prepayment rate) to a monthly SMM.
+   *
+   * Uses the standard relationship `SMM = 1 - (1 - CPR)^(1/12)`.
+   *
+   * @param cpr - Annualized CPR as a decimal in `[0, 1]` (0.06 means 6%).
+   * @returns Monthly SMM as a decimal.
+   * @throws If `cpr` is negative, non-finite, or above 1.0.
+   */
+  cprToSmm(cpr: number): number;
+
+  /**
+   * Convert a monthly SMM (single monthly mortality) to an annual CPR.
+   *
+   * Uses `CPR = 1 - (1 - SMM)^12`.
+   *
+   * @param smm - Monthly SMM as a decimal in `[0, 1]`.
+   * @returns Annualized CPR as a decimal.
+   * @throws If `smm` is negative, non-finite, or above 1.0.
+   */
+  smmToCpr(smm: number): number;
+
+  /**
+   * Convert an annual CDR (constant default rate) to a monthly MDR.
+   *
+   * Default and prepayment mortality rates share the same annual-to-monthly
+   * conversion kernel: `MDR = 1 - (1 - CDR)^(1/12)`.
+   *
+   * @param cdr - Constant annual default rate as a decimal in `[0, 1]`.
+   * @returns Monthly MDR as a decimal.
+   * @throws If `cdr` is negative, non-finite, or above 1.0.
+   */
+  cdrToMdr(cdr: number): number;
+
+  /**
+   * Convert a monthly MDR (monthly default rate) to an annual CDR.
+   *
+   * Uses `CDR = 1 - (1 - MDR)^12`.
+   *
+   * @param mdr - Monthly default rate as a decimal in `[0, 1]`.
+   * @returns Annualized CDR as a decimal.
+   * @throws If `mdr` is negative, non-finite, or above 1.0.
+   */
+  mdrToCdr(mdr: number): number;
 }
 
 /**
@@ -4528,21 +4978,21 @@ export interface CovenantReport {
 export interface CovenantsNamespace {
   /**
    * Validate and canonicalize a covenant spec JSON string.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical covenant-spec JSON after schema validation.
    * @param specJson - JSON-serialized covenant specification to validate.
    * @throws Error - Throws a JavaScript exception if `specJson` is malformed, does not match the covenant-spec schema, violates covenant threshold or frequency invariants, or cannot be serialized to canonical JSON.
    */
   validateCovenantSpecJson(specJson: string): string;
   /**
    * Validate and canonicalize a covenant report JSON string.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical covenant-report JSON after schema validation.
    * @param reportJson - JSON-serialized covenant evaluation report to validate.
    * @throws Error - Throws a JavaScript exception if `reportJson` is malformed, does not match the covenant-report schema, or cannot be serialized to canonical JSON.
    */
   validateCovenantReportJson(reportJson: string): string;
   /**
    * Validate and canonicalize a covenant engine JSON string.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical covenant-engine JSON after schema validation.
    * @param engineJson - JSON-serialized covenant engine and its covenant definitions.
    * @throws Error - Throws a JavaScript exception if `engineJson` is malformed, does not match the covenant-engine schema, contains an invalid covenant package, violates engine invariants, or cannot be serialized to canonical JSON.
    */
@@ -4553,7 +5003,7 @@ export interface CovenantsNamespace {
    * @param engineJson - JSON-serialized covenant engine and its covenant definitions.
    * @param metricsJson - JSON object of financial metrics referenced by the covenant engine.
    * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
-   * @throws Error - Throws a JavaScript exception if either JSON input is malformed or has the wrong schema, a metric is non-numeric, `asOf` is not a valid ISO date, the engine or required metrics fail validation, or the report cannot be serialized.
+   * @throws Error - Throws a JavaScript exception if either JSON input is malformed or has the wrong schema, a metric is non-numeric, `asOf` is not a valid ISO date, the engine or required metrics fail validation, or the reports cannot be serialized to JavaScript.
    */
   evaluateEngine(
     engineJson: string,
@@ -4562,7 +5012,7 @@ export interface CovenantsNamespace {
   ): Record<string, CovenantReport>;
   /**
    * Standard leveraged-buyout covenant package as JSON.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Standard leveraged-buyout covenant package as canonical JSON.
    * @param initialLeverage - Maximum leverage ratio permitted at the initial test date.
    * @param interestCoverage - Minimum EBITDA-to-cash-interest coverage ratio.
    * @param fixedChargeCoverage - Minimum EBITDA-to-fixed-charges coverage ratio.
@@ -4577,7 +5027,7 @@ export interface CovenantsNamespace {
   ): string;
   /**
    * Covenant-lite package as JSON.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Covenant-lite package as canonical JSON.
    * @param maxLeverage - Maximum total debt-to-EBITDA leverage ratio.
    * @param maxSeniorLeverage - Maximum senior-debt-to-EBITDA leverage ratio.
    * @throws Error - Throws a JavaScript exception if the generated covenant package cannot be serialized to JSON.
@@ -4585,7 +5035,7 @@ export interface CovenantsNamespace {
   covLiteJson(maxLeverage: number, maxSeniorLeverage: number): string;
   /**
    * Real-estate covenant package as JSON.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Real-estate covenant package as canonical JSON.
    * @param minDscr - Minimum debt-service coverage ratio.
    * @param minDebtYield - Minimum net-operating-income debt yield expressed as a decimal.
    * @param maxLtv - Maximum loan-to-value ratio expressed as a decimal.
@@ -4594,7 +5044,7 @@ export interface CovenantsNamespace {
   realEstateJson(minDscr: number, minDebtYield: number, maxLtv: number): string;
   /**
    * Project-finance covenant package as JSON.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Project-finance covenant package as canonical JSON.
    * @param minDscr - Minimum debt-service coverage ratio.
    * @param distributionLockupDscr - DSCR threshold below which borrower distributions are locked up.
    * @param minLiquidity - Minimum required liquidity reserve in the model's monetary units.
@@ -4616,13 +5066,40 @@ export declare const covenants: CovenantsNamespace;
 
 // --- valuations ------------------------------------------------------------
 
+/**
+ * Opaque handle wrapping a parsed [`MarketContext`].
+ *
+ * Construct once from JSON, then pass to `priceInstrumentWithMarket`,
+ * `priceInstrumentWithMetricsAndMarket`, etc.  Eliminates the per-call
+ * market-parse overhead in bulk-pricing and Greeks-sweep loops.
+ *
+ * @example
+ * ```javascript
+ * const market = new valuations.Market(marketJson);
+ * for (const instr of instruments) {
+ *   const result = valuations.instruments.priceInstrumentWithMarket(instr, market, "2025-06-15", "default");
+ * }
+ * ```
+ */
 export declare class Market {
+  /**
+   * Parse a MarketContext from its JSON representation.
+   *
+   * @param json - MarketContext JSON string.
+   * @returns A `Market` handle that can be reused across pricing calls.
+   * @throws If the JSON is invalid.
+   */
   constructor(json: string);
+  /**
+   * Serialize the wrapped MarketContext back to JSON.
+   * @throws Error - Throws a JavaScript exception if the market context cannot be serialized to JSON.
+   * @returns Canonical JSON string.
+   */
   toJson(): string;
 }
 
 /**
- * TypeScript view of the typed `Bond` WebAssembly instrument.
+ * Typed bond instrument handle; serialize with `toJson()` for generic pricing entry points.
  *
  * Thin wrapper over the canonical Rust `Bond`. Serialize with `toJson()` and
  * pass the result to `valuations.instruments.priceInstrument` (or the other
@@ -4631,7 +5108,7 @@ export declare class Market {
 export interface Bond extends WasmOwned {
   /**
    * Instrument identifier.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Stable instrument identifier.
    */
   readonly id: string;
   /**
@@ -4720,7 +5197,7 @@ export interface BondConstructor {
 }
 
 /**
- * TypeScript view of the typed `TermLoan` WebAssembly instrument.
+ * Typed term-loan instrument handle; serialize with `toJson()` for generic pricing entry points.
  *
  * Thin wrapper over the canonical Rust `TermLoan`. Serialize with `toJson()`
  * and pass the result to `valuations.instruments.priceInstrument` (or the
@@ -4729,7 +5206,7 @@ export interface BondConstructor {
 export interface TermLoan extends WasmOwned {
   /**
    * Instrument identifier.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Stable instrument identifier.
    */
   readonly id: string;
   /**
@@ -4865,7 +5342,7 @@ export interface ValuationInstrumentsNamespace {
   TermLoan: TermLoanConstructor;
   /**
    * Construct a canonical bond instrument envelope from a cashflow schedule.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical bond instrument envelope JSON.
    * @param instrumentId - Stable instrument identifier used for pricing and metric keys.
    * @param scheduleJson - Canonical cashflow-schedule JSON used to construct the fixed-income instrument.
    * @param discountCurveId - Market-context discount-curve identifier for the instrument currency.
@@ -4882,7 +5359,7 @@ export interface ValuationInstrumentsNamespace {
    * Validate a canonical v1 instrument envelope.
    *
    * Bare instrument payloads are rejected. Returns canonical re-serialized JSON.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical instrument envelope JSON after schema validation.
    * @param json - Required `finstack_quant.instrument/1` envelope.
    * @throws Error - Throws a JavaScript exception if `json` is malformed, is not a canonical v1 instrument envelope, fails instrument validation, or cannot be canonically serialized.
    */
@@ -4936,7 +5413,7 @@ export interface ValuationInstrumentsNamespace {
    *
    * Avoids the per-call market-parse overhead of `priceInstrument`.
    * @returns Returns the resulting `ValuationResult` object.
-   * @param instrumentJson - Canonical JSON payload representing the instrument consumed by this API.
+   * @param instrumentJson - Canonical instrument envelope JSON in the Finstack v1 schema.
    * @param market - Market context or JSON payload supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
    * @param model - Pricing-model identifier; use `"default"` for the instrument-native model when supported.
@@ -4951,7 +5428,7 @@ export interface ValuationInstrumentsNamespace {
   /**
    * Price an instrument with explicit metric requests using a pre-parsed [`Market`].
    * @returns Returns the resulting `ValuationResult` object.
-   * @param instrumentJson - Canonical JSON payload representing the instrument consumed by this API.
+   * @param instrumentJson - Canonical instrument envelope JSON in the Finstack v1 schema.
    * @param market - Market context or JSON payload supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
    * @param model - Pricing-model identifier; use `"default"` for the instrument-native model when supported.
@@ -4975,7 +5452,7 @@ export interface ValuationInstrumentsNamespace {
    * `model` must be `"discounting"` or `"hazard_rate"`. Unsupported models or
    * incompatible instrument types throw. For supported pairs, the envelope's
    * `total_pv` matches the instrument's `base_value` within rounding.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Per-flow cashflow envelope JSON (discount factor, survival, PV).
    * @param instrumentJson - Required `finstack_quant.instrument/1` envelope.
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
@@ -4990,8 +5467,8 @@ export interface ValuationInstrumentsNamespace {
   ): string;
   /**
    * Per-flow cashflow envelope using a pre-parsed [`Market`].
-   * @returns Returns the requested string representation or JSON payload.
-   * @param instrumentJson - Canonical JSON payload representing the instrument consumed by this API.
+   * @returns Per-flow cashflow envelope JSON using the pre-parsed market.
+   * @param instrumentJson - Canonical instrument envelope JSON in the Finstack v1 schema.
    * @param market - Market context or JSON payload supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
    * @param model - Pricing-model identifier; use `"default"` for the instrument-native model when supported.
@@ -5026,7 +5503,7 @@ export interface ValuationInstrumentsNamespace {
   listModelsGrouped(): Record<string, string[]>;
   /**
    * List all metric IDs in the standard metric registry.
-   * @returns Returns the resulting `string[]` collection in the documented order.
+   * @returns Canonical metric identifiers, sorted alphabetically.
    * @throws Error - Throws a JavaScript exception if the metric identifier list cannot be converted to a JavaScript value.
    */
   listStandardMetrics(): string[];
@@ -5036,7 +5513,7 @@ export interface ValuationInstrumentsNamespace {
    * Returns a JSON object `{ group_name: [metric_id, ...], ... }` where
    * each key is a human-readable group name (e.g. "Pricing", "Greeks",
    * "Sensitivity") and the value is a sorted array of metric ID strings.
-   * @returns Returns the resulting `Record<string, string[]>` value or WebAssembly handle.
+   * @returns Metric identifiers grouped by human-readable group name.
    * @throws Error - Throws a JavaScript exception if the grouped metric registry cannot be converted to a JavaScript value.
    */
   listStandardMetricsGrouped(): Record<string, string[]>;
@@ -5048,7 +5525,7 @@ export interface ValuationInstrumentsNamespace {
    * then a constant additive spread is applied to the discount curve. The result
    * is zero at model PV, negative for a richer (higher) `targetPv`, and positive
    * for a cheaper (lower) `targetPv`; it is not the contractual quoted margin.
-   * @param instrumentJson - Canonical JSON payload representing the instrument consumed by this API.
+   * @param instrumentJson - Canonical instrument envelope JSON in the Finstack v1 schema.
    * @param trancheId - Identifier of the floating-rate tranche whose contractual cashflows are spread-discounted.
    * @param marketJson - Canonical market-context JSON supplying the discount curve and any forward curves or historical fixings required for cashflow projection.
    * @param asOf - ISO-8601 valuation date used for projection and discounting.
@@ -5066,8 +5543,8 @@ export interface ValuationInstrumentsNamespace {
   /**
    * Break-even constant default rate (CDR, decimal) for a tranche — the highest
    * CDR at which the tranche takes no principal writedown.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param instrumentJson - Canonical JSON payload representing the instrument consumed by this API.
+   * @returns Break-even constant default rate as a decimal, such as `0.02` for 2% CDR.
+   * @param instrumentJson - Canonical instrument envelope JSON in the Finstack v1 schema.
    * @param trancheId - Stable tranche identifier used to select the required domain object.
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
@@ -5084,8 +5561,8 @@ export interface ValuationInstrumentsNamespace {
    *
    * `marketPricePct` is the quoted price as a percentage of original balance.
    * `config`, when present, is a JSON `OasConfig`; the default is used otherwise.
-   * @returns Returns the requested string representation or JSON payload.
-   * @param instrumentJson - Canonical JSON payload representing the instrument consumed by this API.
+   * @returns JSON `OasResult` for the tranche.
+   * @param instrumentJson - Canonical instrument envelope JSON in the Finstack v1 schema.
    * @param trancheId - Stable tranche identifier used to select the required domain object.
    * @param marketPricePct - Tranche market price as a percentage of original balance.
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
@@ -5105,8 +5582,8 @@ export interface ValuationInstrumentsNamespace {
    * Scenario (CPR x CDR x severity) table for a tranche; returns a JSON
    * `ScenarioTable`. `grid` is a JSON `ScenarioGrid` (`cprs`, `cdrs`,
    * `severities`).
-   * @returns Returns the requested string representation or JSON payload.
-   * @param instrumentJson - Canonical JSON payload representing the instrument consumed by this API.
+   * @returns JSON `ScenarioTable` over the CPR/CDR/severity grid.
+   * @param instrumentJson - Canonical instrument envelope JSON in the Finstack v1 schema.
    * @param trancheId - Stable tranche identifier used to select the required domain object.
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
@@ -5127,8 +5604,8 @@ export interface ValuationInstrumentsNamespace {
    * `marketPricePct`, when provided, is the quoted price (% of original balance)
    * the z-spread and CS01 are solved against; otherwise the tranche's own model
    * price is used (zero z-spread). Returns a JSON-serialized `TrancheMetrics`.
-   * @returns Returns the requested string representation or JSON payload.
-   * @param instrumentJson - Canonical JSON payload representing the instrument consumed by this API.
+   * @returns JSON `TrancheMetrics` (PV, price, WAL, z-spread, CS01, duration, convexity).
+   * @param instrumentJson - Canonical instrument envelope JSON in the Finstack v1 schema.
    * @param trancheId - Stable tranche identifier used to select the required domain object.
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
@@ -5145,36 +5622,36 @@ export interface ValuationInstrumentsNamespace {
 }
 
 /**
- * TypeScript type that constrains the accepted fx instrument spec values.
+ * FX instrument specification as a JSON object or a canonical JSON string.
  */
 export type FxInstrumentSpec = Record<string, unknown> | string;
 
 /**
- * TypeScript view of the `FxInstrument` WebAssembly value.
+ * FX instrument handle priced against a market context.
  */
 export interface FxInstrument extends WasmOwned {
   /**
    * Serialize this `FxInstrument` value to canonical JSON.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical JSON instrument specification.
    */
   toJson(): string;
   /**
-   * Perform price for this `FxInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Price this FX instrument against the supplied market.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the requested string representation or JSON payload.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Canonical JSON valuation result for the selected model.
    */
   price(marketJson: string, asOf: string, model?: string | null): string;
   /**
-   * WASM order keeps optional arguments trailing: metrics precedes model.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Price this FX instrument and return the requested metrics.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param metrics - Metric keys or values included in the requested calculation.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
+   * @param metrics - Metric keys included in the valuation result, such as `"delta"` or `"vega"`.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
    * @param pricingOptions - Pricing options that select calculation behavior and output detail.
    * @param marketHistory - Chronological market snapshots used to project or backtest the result.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical JSON valuation result including the requested metrics.
    */
   priceWithMetrics(
     marketJson: string,
@@ -5187,207 +5664,207 @@ export interface FxInstrument extends WasmOwned {
 }
 
 /**
- * TypeScript view of the `FxOptionInstrument` WebAssembly value.
+ * FX vanilla option handle with first-order greeks.
  */
 export interface FxOptionInstrument extends FxInstrument {
   /**
-   * Perform delta for this `FxOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Spot delta of the option under the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the computed numeric result in the units described above.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Spot delta: change in value per unit spot.
    */
   delta(marketJson: string, asOf: string, model?: string | null): number;
   /**
-   * Perform gamma for this `FxOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Spot gamma of the option under the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the computed numeric result in the units described above.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Spot gamma: change in delta per unit spot.
    */
   gamma(marketJson: string, asOf: string, model?: string | null): number;
   /**
-   * Perform vega for this `FxOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Vega of the option under the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the computed numeric result in the units described above.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Vega: change in value per 1.0 absolute move in implied volatility.
    */
   vega(marketJson: string, asOf: string, model?: string | null): number;
   /**
-   * Perform theta for this `FxOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Theta of the option under the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the computed numeric result in the units described above.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Theta: change in value per year of calendar time.
    */
   theta(marketJson: string, asOf: string, model?: string | null): number;
   /**
-   * Perform rho for this `FxOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Domestic-rate rho of the option under the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the computed numeric result in the units described above.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Domestic rho: change in value per 1.0 absolute move in the domestic rate.
    */
   rho(marketJson: string, asOf: string, model?: string | null): number;
   /**
-   * Perform foreign rho for this `FxOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Foreign-rate rho of the option under the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the computed numeric result in the units described above.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Foreign rho: change in value per 1.0 absolute move in the foreign rate.
    */
   foreignRho(marketJson: string, asOf: string, model?: string | null): number;
   /**
-   * Perform vanna for this `FxOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Vanna of the option under the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the computed numeric result in the units described above.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Vanna: cross sensitivity of delta to implied volatility.
    */
   vanna(marketJson: string, asOf: string, model?: string | null): number;
   /**
-   * Perform volga for this `FxOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Volga of the option under the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the computed numeric result in the units described above.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Volga: change in vega per 1.0 absolute move in implied volatility.
    */
   volga(marketJson: string, asOf: string, model?: string | null): number;
   /**
-   * Perform greeks for this `FxOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Named first-order greeks produced by the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the resulting `Record<string, number>` value or WebAssembly handle.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Map of greek name to value, such as `delta`, `gamma`, and `vega`.
    */
   greeks(marketJson: string, asOf: string, model?: string | null): Record<string, number>;
 }
 
 /**
- * TypeScript view of the `FxDigitalOptionInstrument` WebAssembly value.
+ * FX digital option handle with first-order greeks.
  */
 export interface FxDigitalOptionInstrument extends FxInstrument {
   /**
-   * Perform delta for this `FxDigitalOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Spot delta of the option under the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the computed numeric result in the units described above.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Spot delta: change in value per unit spot.
    */
   delta(marketJson: string, asOf: string, model?: string | null): number;
   /**
-   * Perform gamma for this `FxDigitalOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Spot gamma of the option under the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the computed numeric result in the units described above.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Spot gamma: change in delta per unit spot.
    */
   gamma(marketJson: string, asOf: string, model?: string | null): number;
   /**
-   * Perform vega for this `FxDigitalOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Vega of the option under the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the computed numeric result in the units described above.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Vega: change in value per 1.0 absolute move in implied volatility.
    */
   vega(marketJson: string, asOf: string, model?: string | null): number;
   /**
-   * Perform theta for this `FxDigitalOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Theta of the option under the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the computed numeric result in the units described above.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Theta: change in value per year of calendar time.
    */
   theta(marketJson: string, asOf: string, model?: string | null): number;
   /**
-   * Perform rho for this `FxDigitalOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Domestic-rate rho of the option under the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the computed numeric result in the units described above.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Domestic rho: change in value per 1.0 absolute move in the domestic rate.
    */
   rho(marketJson: string, asOf: string, model?: string | null): number;
   /**
-   * Perform greeks for this `FxDigitalOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Named first-order greeks produced by the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the resulting `Record<string, number>` value or WebAssembly handle.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Map of greek name to value, such as `delta`, `gamma`, and `vega`.
    */
   greeks(marketJson: string, asOf: string, model?: string | null): Record<string, number>;
 }
 
 /**
- * TypeScript view of the `FxTouchOptionInstrument` WebAssembly value.
+ * FX touch option handle with first-order greeks.
  */
 export interface FxTouchOptionInstrument extends FxInstrument {
   /**
-   * Perform delta for this `FxTouchOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Spot delta of the option under the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the computed numeric result in the units described above.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Spot delta: change in value per unit spot.
    */
   delta(marketJson: string, asOf: string, model?: string | null): number;
   /**
-   * Perform gamma for this `FxTouchOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Spot gamma of the option under the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the computed numeric result in the units described above.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Spot gamma: change in delta per unit spot.
    */
   gamma(marketJson: string, asOf: string, model?: string | null): number;
   /**
-   * Perform vega for this `FxTouchOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Vega of the option under the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the computed numeric result in the units described above.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Vega: change in value per 1.0 absolute move in implied volatility.
    */
   vega(marketJson: string, asOf: string, model?: string | null): number;
   /**
-   * Perform rho for this `FxTouchOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Domestic-rate rho of the option under the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the computed numeric result in the units described above.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Domestic rho: change in value per 1.0 absolute move in the domestic rate.
    */
   rho(marketJson: string, asOf: string, model?: string | null): number;
   /**
-   * Perform greeks for this `FxTouchOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Named first-order greeks produced by the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the resulting `Record<string, number>` value or WebAssembly handle.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Map of greek name to value, such as `delta`, `gamma`, and `vega`.
    */
   greeks(marketJson: string, asOf: string, model?: string | null): Record<string, number>;
 }
 
 /**
- * TypeScript view of the `FxBarrierOptionInstrument` WebAssembly value.
+ * FX barrier option handle with vanna and volga in addition to touch greeks.
  */
 export interface FxBarrierOptionInstrument extends FxTouchOptionInstrument {
   /**
-   * Perform vanna for this `FxBarrierOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Vanna of the option under the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the computed numeric result in the units described above.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Vanna: cross sensitivity of delta to implied volatility.
    */
   vanna(marketJson: string, asOf: string, model?: string | null): number;
   /**
-   * Perform volga for this `FxBarrierOptionInstrument` value.
-   * @param marketJson - JSON-serialized MarketContext whose quotes, curves, and other objects satisfy this calculation's documented requirements.
+   * Volga of the option under the selected model.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param model - Pricing-model key selecting the valuation model implemented by the underlying Rust API.
-   * @returns Returns the computed numeric result in the units described above.
+   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @returns Volga: change in vega per 1.0 absolute move in implied volatility.
    */
   volga(marketJson: string, asOf: string, model?: string | null): number;
 }
 
 /**
- * Construction and factory entry points for `FxInstrument` WebAssembly values.
+ * Constructors and factories for typed FX instrument handles.
  * @example
  * ```typescript
  * import init, { valuations } from "finstack-quant-wasm";
@@ -5407,15 +5884,15 @@ export interface FxBarrierOptionInstrument extends FxTouchOptionInstrument {
  */
 export interface FxInstrumentConstructor<T extends FxInstrument> {
   /**
-   * Create a new `FxInstrument` WebAssembly value.
-   * @param spec - Structured specification that defines the requested object or calculation.
-   * @returns Returns the resulting `T` value or WebAssembly handle.
+   * Construct an FX instrument from a JSON object or canonical JSON string.
+   * @param spec - FX instrument specification as a JSON object or canonical JSON string.
+   * @returns A typed FX instrument handle.
    */
   new (spec: FxInstrumentSpec): T;
   /**
    * Parse a `FxInstrument` value from canonical JSON.
-   * @param json - JSON-serialized representation accepted by this API.
-   * @returns Returns the resulting `T` value or WebAssembly handle.
+   * @param json - Canonical FX instrument JSON accepted by `fromJson`.
+   * @returns A typed FX instrument handle.
    */
   fromJson(json: string): T;
 }
@@ -5442,43 +5919,43 @@ export interface FxInstrumentConstructor<T extends FxInstrument> {
  */
 export interface FxNamespace {
   /**
-   * Fx spot exposed by this `Fx` value.
+   * Spot FX instrument constructor.
    */
   FxSpot: FxInstrumentConstructor<FxInstrument>;
   /**
-   * Fx forward exposed by this `Fx` value.
+   * FX forward instrument constructor.
    */
   FxForward: FxInstrumentConstructor<FxInstrument>;
   /**
-   * Fx swap exposed by this `Fx` value.
+   * FX swap instrument constructor.
    */
   FxSwap: FxInstrumentConstructor<FxInstrument>;
   /**
-   * Ndf exposed by this `Fx` value.
+   * Non-deliverable forward constructor.
    */
   Ndf: FxInstrumentConstructor<FxInstrument>;
   /**
-   * Fx option exposed by this `Fx` value.
+   * Vanilla FX option constructor.
    */
   FxOption: FxInstrumentConstructor<FxOptionInstrument>;
   /**
-   * Fx digital option exposed by this `Fx` value.
+   * Digital FX option constructor.
    */
   FxDigitalOption: FxInstrumentConstructor<FxDigitalOptionInstrument>;
   /**
-   * Fx touch option exposed by this `Fx` value.
+   * One-touch / no-touch FX option constructor.
    */
   FxTouchOption: FxInstrumentConstructor<FxTouchOptionInstrument>;
   /**
-   * Fx barrier option exposed by this `Fx` value.
+   * Barrier FX option constructor.
    */
   FxBarrierOption: FxInstrumentConstructor<FxBarrierOptionInstrument>;
   /**
-   * Fx variance swap exposed by this `Fx` value.
+   * FX variance-swap constructor.
    */
   FxVarianceSwap: FxInstrumentConstructor<FxInstrument>;
   /**
-   * Quanto option exposed by this `Fx` value.
+   * Quanto option constructor.
    */
   QuantoOption: FxInstrumentConstructor<FxOptionInstrument>;
 }
@@ -5511,7 +5988,7 @@ export interface SabrParameters extends WasmOwned {
   readonly shift: number | undefined;
   /**
    * Whether a displacement (shift) is configured.
-   * @returns Returns `true` when the documented condition is satisfied.
+   * @returns `true` when a SABR displacement shift is configured.
    */
   isShifted(): boolean;
 }
@@ -5529,8 +6006,8 @@ export interface SabrParameters extends WasmOwned {
  */
 export interface SabrParametersConstructor {
   /**
-   * Create the object from its inputs.
-   * @returns Returns the resulting `SabrParameters` value or WebAssembly handle.
+   * Create SABR parameters from alpha, beta, nu, rho, and optional shift.
+   * @returns A `SabrParameters` handle.
    * @param alpha - Positive SABR initial volatility scale parameter.
    * @param beta - SABR CEV elasticity parameter from 0 through 1.
    * @param nu - Positive SABR volatility-of-volatility parameter.
@@ -5541,12 +6018,12 @@ export interface SabrParametersConstructor {
   new (alpha: number, beta: number, nu: number, rho: number, shift?: number): SabrParameters;
   /**
    * Equity-standard defaults `(alpha=0.20, beta=1.0, nu=0.30, rho=-0.20)`.
-   * @returns Returns the resulting `SabrParameters` value or WebAssembly handle.
+   * @returns A `SabrParameters` handle.
    */
   equityDefault(): SabrParameters;
   /**
    * Rates-standard defaults `(alpha=0.02, beta=0.5, nu=0.30, rho=0.0)`.
-   * @returns Returns the resulting `SabrParameters` value or WebAssembly handle.
+   * @returns A `SabrParameters` handle.
    */
   ratesDefault(): SabrParameters;
 }
@@ -5557,10 +6034,10 @@ export interface SabrParametersConstructor {
 export interface SabrModel extends WasmOwned {
   /**
    * Black implied volatility for the given strike.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Hagan-2002 Black implied volatility as a decimal.
    * @param forward - Forward price or rate in the same quote convention as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
-   * @param t - Time from the curve base date in years on the documented day-count basis.
+   * @param t - Time from the curve base date in years.
    * @throws Error - Throws a JavaScript exception if `t` is not positive, the forward or strike lies outside the selected shifted or unshifted SABR domain, or the Hagan expansion produces an undefined or non-finite volatility.
    */
   impliedVol(forward: number, strike: number, t: number): number;
@@ -5570,7 +6047,7 @@ export interface SabrModel extends WasmOwned {
   readonly params: SabrParameters;
   /**
    * Whether the parameterization admits negative forwards.
-   * @returns Returns `true` when the documented condition is satisfied.
+   * @returns `true` when the SABR parameterization admits negative forwards.
    */
   supportsNegativeRates(): boolean;
 }
@@ -5590,23 +6067,23 @@ export interface SabrModel extends WasmOwned {
  */
 export interface SabrModelConstructor {
   /**
-   * Create the object from its inputs.
-   * @returns Returns the resulting `SabrModel` value or WebAssembly handle.
+   * Create a Hagan-2002 SABR model from the supplied parameters.
+   * @returns A `SabrModel` handle.
    * @param params - SABR parameter object containing alpha, beta, nu, rho, and optional shift.
    */
   new (params: SabrParameters): SabrModel;
 }
 
 /**
- * TypeScript view of the `SabrSmileArbitrageResult` WebAssembly value.
+ * Butterfly and monotonicity diagnostics for a SABR smile.
  */
 export interface SabrSmileArbitrageResult {
   /**
-   * Arbitrage free exposed by this `SabrSmileArbitrageResult` value.
+   * Whether the smile has no butterfly or calendar-spread monotonicity violations on the tested strikes.
    */
   arbitrage_free: boolean;
   /**
-   * Butterfly violations exposed by this `SabrSmileArbitrageResult` value.
+   * Strikes where butterfly convexity fails, with the butterfly value and severity.
    */
   butterfly_violations: Array<{
     strike: number;
@@ -5614,7 +6091,7 @@ export interface SabrSmileArbitrageResult {
     severity_pct: number;
   }>;
   /**
-   * Monotonicity violations exposed by this `SabrSmileArbitrageResult` value.
+   * Strike pairs where call prices increase with strike, violating call-price monotonicity.
    */
   monotonicity_violations: Array<{
     strike_low: number;
@@ -5630,20 +6107,20 @@ export interface SabrSmileArbitrageResult {
 export interface SabrSmile extends WasmOwned {
   /**
    * At-the-money implied volatility.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns ATM Black implied volatility as a decimal for this smile's `(forward, t)`.
    * @throws Error - Throws a JavaScript exception if the smile's expiry or effective forward is outside the model domain, or the ATM calculation produces an invalid volatility.
    */
   atmVol(): number;
   /**
    * Black implied volatility for the given strike.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Black implied volatility as a decimal at `strike`.
    * @param strike - Option strike price in the same price units as the underlying.
    * @throws Error - Throws a JavaScript exception if the smile's expiry, forward, or requested `strike` is outside the model domain, the Hagan expansion fails, or no volatility is returned for the strike.
    */
   impliedVol(strike: number): number;
   /**
    * Implied volatilities for a strike grid.
-   * @returns Returns numeric results as a `Float64Array` in the documented order.
+   * @returns One Black implied vol per strike, in the same order as `strikes`.
    * @param strikes - Option strikes at which to evaluate the SABR volatility smile.
    * @throws Error - Throws a JavaScript exception if the smile's expiry or forward, or any supplied strike, is outside the model domain, or the Hagan expansion produces an invalid volatility.
    */
@@ -5654,7 +6131,7 @@ export interface SabrSmile extends WasmOwned {
    * Returns a JSON object with `arbitrage_free`, `butterfly_violations`,
    * and `monotonicity_violations` arrays (snake_case keys matching the Rust
    * canonical fields and the Python binding).
-   * @returns Returns the resulting `SabrSmileArbitrageResult` value or WebAssembly handle.
+   * @returns Butterfly and monotonicity diagnostics for the supplied strike grid.
    * @param strikes - Ordered option strikes used to test the calibrated smile for static arbitrage.
    * @param r - Continuously compounded risk-free rate, expressed as a decimal.
    * @param q - Continuous dividend yield or foreign rate, expressed as a decimal.
@@ -5678,11 +6155,11 @@ export interface SabrSmile extends WasmOwned {
  */
 export interface SabrSmileConstructor {
   /**
-   * Create the object from its inputs.
-   * @returns Returns the resulting `SabrSmile` value or WebAssembly handle.
+   * Create a SABR smile for a fixed forward and expiry.
+   * @returns A `SabrSmile` handle for the supplied forward and expiry.
    * @param params - SABR parameter object containing alpha, beta, nu, rho, and optional shift.
    * @param forward - Forward price or rate in the same quote convention as the strike.
-   * @param t - Time from the curve base date in years on the documented day-count basis.
+   * @param t - Time from the curve base date in years.
    */
   new (params: SabrParameters, forward: number, t: number): SabrSmile;
 }
@@ -5695,17 +6172,17 @@ export interface SabrCalibrator extends WasmOwned {
    * Return a copy of this calibrator with an overridden convergence
    * tolerance, preserving all other settings (e.g. the iteration cap from
    * `highPrecision`).
-   * @returns Returns the resulting `SabrCalibrator` value or WebAssembly handle.
+   * @returns A `SabrCalibrator` handle.
    * @param tolerance - Non-negative numerical convergence tolerance for the calibration optimizer.
    */
   withTolerance(tolerance: number): SabrCalibrator;
   /**
    * Calibrate `(alpha, nu, rho)` to market vols with `beta` fixed.
-   * @returns Returns the resulting `SabrParameters` value or WebAssembly handle.
+   * @returns A `SabrParameters` handle.
    * @param forward - Forward price or rate in the same quote convention as the strike.
    * @param strikes - Option strikes aligned one-for-one with market_vols.
    * @param marketVols - Market-implied annualized volatilities aligned one-for-one with strikes.
-   * @param t - Time from the curve base date in years on the documented day-count basis.
+   * @param t - Time from the curve base date in years.
    * @param beta - SABR CEV elasticity parameter held fixed during calibration.
    * @throws Error - Throws a JavaScript exception if the strike and volatility lengths differ, the quote arrays are empty, the SABR inputs or fitted parameters are invalid, or the calibration solver does not converge.
    */
@@ -5722,11 +6199,11 @@ export interface SabrCalibrator extends WasmOwned {
    * When the forward or any strike is negative, a shifted-SABR fit is
    * performed with an automatically chosen shift; otherwise this behaves
    * like `calibrate`.
-   * @returns Returns the resulting `SabrParameters` value or WebAssembly handle.
+   * @returns A `SabrParameters` handle.
    * @param forward - Forward price or rate in the same quote convention as the strike.
    * @param strikes - Option strikes aligned one-for-one with market_vols.
    * @param marketVols - Market-implied annualized volatilities aligned one-for-one with strikes.
-   * @param t - Time from the curve base date in years on the documented day-count basis.
+   * @param t - Time from the curve base date in years.
    * @param beta - SABR CEV elasticity parameter held fixed during calibration.
    * @throws Error - Throws a JavaScript exception if the strike and volatility lengths differ, the quote arrays are empty, the required shift exceeds the supported standardized ladder, the SABR inputs or fitted parameters are invalid, or the calibration solver does not converge.
    */
@@ -5753,13 +6230,13 @@ export interface SabrCalibrator extends WasmOwned {
  */
 export interface SabrCalibratorConstructor {
   /**
-   * Create the object from its inputs.
-   * @returns Returns the resulting `SabrCalibrator` value or WebAssembly handle.
+   * Create a Levenberg-Marquardt SABR calibrator with default tolerances.
+   * @returns A `SabrCalibrator` handle.
    */
   new (): SabrCalibrator;
   /**
    * Calibrator preset with tighter convergence tolerances.
-   * @returns Returns the resulting `SabrCalibrator` value or WebAssembly handle.
+   * @returns A `SabrCalibrator` handle.
    */
   highPrecision(): SabrCalibrator;
 }
@@ -5777,7 +6254,7 @@ export interface SabrCalibratorConstructor {
 export interface ValuationCreditNamespace {
   /**
    * Build a structural Merton model JSON payload.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical Merton structural-model JSON.
    * @param assetValue - Current fair value of the firm's assets in monetary units.
    * @param assetVol - Annualized volatility of firm-asset returns, expressed as a decimal.
    * @param debtBarrier - Positive debt face value defining the structural-model default barrier.
@@ -5792,7 +6269,7 @@ export interface ValuationCreditNamespace {
   ): string;
   /**
    * Build a CreditGrades structural model JSON payload.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical CreditGrades structural-model JSON.
    * @param equityValue - Current market value of equity in the firm's monetary units.
    * @param equityVol - Annualized equity-return volatility expressed as a decimal.
    * @param totalDebt - Total debt face value in the firm's monetary units.
@@ -5811,7 +6288,7 @@ export interface ValuationCreditNamespace {
   ): string;
   /**
    * Compute structural default probability from model JSON.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Risk-neutral default probability in `[0, 1]` over `horizon` years.
    * @param modelJson - Serialized Merton structural-credit model produced by this API's model builder.
    * @param horizon - Forward-looking model horizon measured in years.
    * @throws Error - Throws a JavaScript exception if `model_json` is malformed or does not deserialize as a Merton model.
@@ -5822,7 +6299,7 @@ export interface ValuationCreditNamespace {
    *
    * Distance-to-default is `ln(V/B)/(sigma*sqrt(T))` plus drift adjustments.
    * Lower values indicate higher default risk.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Distance-to-default in standard-deviation units over `horizon` years.
    * @param modelJson - Serialized Merton structural-credit model produced by this API's model builder.
    * @param horizon - Forward-looking model horizon measured in years.
    * @throws Error - Throws a JavaScript exception if `model_json` is malformed or does not deserialize as a Merton model.
@@ -5832,7 +6309,7 @@ export interface ValuationCreditNamespace {
    * Compute the implied credit spread (per year) from a Merton model JSON
    * payload, given a recovery rate. Matches the structural-model-implied
    * spread used to back into a hazard curve.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Implied credit spread per year as a decimal, such as `0.015` for 150 bp.
    * @param modelJson - Serialized Merton structural-credit model produced by this API's model builder.
    * @param horizon - Forward-looking model horizon measured in years.
    * @param recovery - Recovery rate at default expressed as a fraction of par from 0 through 1.
@@ -5841,7 +6318,7 @@ export interface ValuationCreditNamespace {
   mertonImpliedSpread(modelJson: string, horizon: number, recovery: number): number;
   /**
    * Build a Merton model JSON payload from observable equity inputs (KMV calibration).
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical Merton model JSON calibrated from equity observables.
    * @param equityValue - Current market value of equity in the firm's monetary units.
    * @param equityVol - Annualized equity-return volatility expressed as a decimal.
    * @param totalDebt - Total debt face value used as the structural default barrier.
@@ -5860,7 +6337,7 @@ export interface ValuationCreditNamespace {
   ): string;
   /**
    * Build a Merton model JSON payload from a target CDS par spread.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical Merton model JSON calibrated to a CDS par spread.
    * @param cdsSpreadBp - Target CDS par spread in basis points.
    * @param recovery - Recovery rate at default expressed as a fraction from 0 through 1.
    * @param totalDebt - Total debt face value in the firm's monetary units.
@@ -5881,7 +6358,7 @@ export interface ValuationCreditNamespace {
   ): string;
   /**
    * Build a Merton model JSON payload calibrated to a target cumulative default probability.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical Merton model JSON calibrated to a target cumulative PD.
    * @param assetValue - Current fair value of the firm's assets in monetary units.
    * @param assetVol - Annualized volatility of firm-asset returns, expressed as a decimal.
    * @param riskFreeRate - Annualized risk-free rate expressed as a decimal, such as 0.05 for 5%.
@@ -5898,7 +6375,7 @@ export interface ValuationCreditNamespace {
   ): string;
   /**
    * Build a Merton model JSON payload with explicit barrier and asset-dynamics specifications.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical Merton model JSON with explicit barrier and asset dynamics.
    * @param assetValue - Current fair value of the firm's assets in monetary units.
    * @param assetVol - Annualized volatility of firm-asset returns, expressed as a decimal.
    * @param debtBarrier - Positive debt face value defining the structural-model default barrier.
@@ -5927,7 +6404,7 @@ export interface ValuationCreditNamespace {
   mertonTryImpliedEquity(modelJson: string, horizon: number): Float64Array;
   /**
    * Bootstrap a hazard-curve JSON payload from structural default probabilities.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Hazard-curve JSON bootstrapped from structural default probabilities.
    * @param modelJson - Serialized Merton structural-credit model produced by this API's model builder.
    * @param id - Hazard-curve identifier string.
    * @param baseDate - Valuation date in ISO-8601 form, such as `"2025-01-15"`.
@@ -5944,7 +6421,7 @@ export interface ValuationCreditNamespace {
   ): string;
   /**
    * Simulate firm-asset paths and return a JSON payload with the time grid and row-major asset values.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns JSON payload with the time grid and row-major simulated asset values.
    * @param modelJson - Serialized Merton structural-credit model produced by this API's model builder.
    * @param numPaths - Number of Monte Carlo paths to simulate.
    * @param numSteps - Number of time steps per path; must be at least 1.
@@ -5965,7 +6442,7 @@ export interface ValuationCreditNamespace {
    * Evaluate a `DynamicRecoverySpec` JSON payload at a given accreted
    * notional, returning the implied recovery rate. Result is clamped to
    * `[0, base_recovery]`.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Implied recovery rate as a fraction of par, clamped to `[0, base_recovery]`.
    * @param specJson - Serialized DynamicRecoverySpec JSON defining the notional-to-recovery mapping.
    * @param notional - Signed trade notional in the instrument's native currency units.
    * @throws Error - Throws a JavaScript exception if `spec_json` is malformed or does not deserialize as a dynamic-recovery specification.
@@ -5974,7 +6451,7 @@ export interface ValuationCreditNamespace {
   /**
    * Evaluate an `EndogenousHazardSpec` JSON payload at a given leverage
    * level, returning the implied hazard rate. Floored at 0.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Annualized hazard rate as a decimal, floored at 0.
    * @param specJson - Serialized EndogenousHazardSpec JSON defining the leverage-to-hazard mapping.
    * @param leverage - Debt-to-assets leverage ratio used by the structural credit model.
    * @throws Error - Throws a JavaScript exception if `spec_json` is malformed or does not deserialize as an endogenous-hazard specification.
@@ -5984,7 +6461,7 @@ export interface ValuationCreditNamespace {
    * Convenience evaluator: hazard rate after a PIK accrual updates the
    * outstanding notional. Computes leverage = `accreted_notional / asset_value`
    * then evaluates the hazard mapping.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Annualized hazard rate as a decimal after the PIK leverage update.
    * @param specJson - Serialized EndogenousHazardSpec JSON defining the leverage-to-hazard mapping.
    * @param accretedNotional - Outstanding notional after PIK accrual, in the debt's monetary units.
    * @param assetValue - Current fair value of the firm's assets in monetary units.
@@ -5997,17 +6474,17 @@ export interface ValuationCreditNamespace {
   ): number;
   /**
    * Build a constant dynamic-recovery spec JSON payload.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical constant dynamic-recovery specification JSON.
    * @param recovery - Recovery rate at default expressed as a fraction of par from 0 through 1.
    * @throws Error - Throws a JavaScript exception if `recovery` is outside `[0, 1]` or the specification cannot be serialized to JSON.
    */
   dynamicRecoveryConstantJson(recovery: number): string;
   /**
    * Build an endogenous hazard power-law spec JSON payload.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical endogenous-hazard power-law specification JSON.
    * @param baseHazard - Reference annual default intensity used by the leverage-to-hazard mapping.
    * @param baseLeverage - Positive reference debt-to-assets leverage ratio for the hazard mapping.
-   * @param exponent - Positive exponent controlling sensitivity in the documented power-law mapping.
+   * @param exponent - Power-law exponent in `lambda(L) = baseHazard * (L / baseLeverage)^exponent`.
    * @throws Error - Throws a JavaScript exception if `base_hazard` is negative, `base_leverage` is non-positive, or the specification cannot be serialized to JSON.
    */
   endogenousHazardPowerLawJson(baseHazard: number, baseLeverage: number, exponent: number): string;
@@ -6017,7 +6494,7 @@ export interface ValuationCreditNamespace {
    * Parameter order follows the canonical Rust `CreditState` field order
    * (and the Python binding): `hazardRate`, `distanceToDefault`, `leverage`,
    * `accretedNotional`, `couponDue`, `assetValue`.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical credit-state JSON for toggle-exercise decisions.
    * @param hazardRate - Annualized instantaneous default intensity, expressed as a decimal.
    * @param distanceToDefault - Optional distance to default, measured as standard deviations from the default point.
    * @param leverage - Debt-to-assets leverage ratio used by the structural credit model.
@@ -6036,7 +6513,7 @@ export interface ValuationCreditNamespace {
   ): string;
   /**
    * Build a threshold toggle-exercise model JSON payload.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical threshold toggle-exercise model JSON.
    * @param variable - Credit-state variable: `"hazard_rate"`, `"distance_to_default"`, or `"leverage"`.
    * @param threshold - Threshold value in the units of the selected credit-state variable.
    * @param direction - Threshold comparison: `"above"` selects PIK above the level and `"below"` below it.
@@ -6054,7 +6531,7 @@ export interface ValuationCreditNamespace {
    * simulation. It is rejected if it exceeds `Number.MAX_SAFE_INTEGER` (`2^53-1`):
    * `usize` counts marshal across the wasm boundary as IEEE-754 doubles, so a
    * larger value would round silently rather than fail loudly.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical optimal toggle-exercise model JSON.
    * @param nestedPaths - Number of nested Monte Carlo paths for continuation-value estimation; must fit JavaScript's safe integer range.
    * @param equityDiscountRate - Annual equity-holder discount rate used in the nested toggle decision.
    * @param assetVol - Annualized volatility of firm-asset returns, expressed as a decimal.
@@ -6084,25 +6561,25 @@ export interface ValuationCreditNamespace {
 export interface CreditDerivativesNamespace {
   /**
    * Example tagged `CreditDefaultSwap` instrument JSON.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Example tagged `CreditDefaultSwap` instrument JSON.
    * @throws Error - Throws a JavaScript exception if the example envelope cannot be serialized to JSON.
    */
   creditDefaultSwapExampleJson(): string;
   /**
    * Example tagged `CDSIndex` instrument JSON.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Example tagged `CDSIndex` instrument JSON.
    * @throws Error - Throws a JavaScript exception if the example envelope cannot be serialized to JSON.
    */
   cdsIndexExampleJson(): string;
   /**
    * Example tagged `CDSTranche` instrument JSON.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Example tagged `CDSTranche` instrument JSON.
    * @throws Error - Throws a JavaScript exception if the example envelope cannot be serialized to JSON.
    */
   cdsTrancheExampleJson(): string;
   /**
    * Example tagged `CDSOption` instrument JSON.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Example tagged `CDSOption` instrument JSON.
    * @throws Error - Throws a JavaScript exception if the example option cannot be constructed or its envelope cannot be serialized to JSON.
    */
   cdsOptionExampleJson(): string;
@@ -6120,8 +6597,8 @@ export interface CreditDerivativesNamespace {
 export interface ValuationsNamespace {
   /**
    * Pearson correlation coefficient.
-   * @param x - Numeric observation series aligned one-for-one with the other series.
-   * @param y - Numeric observation series aligned one-for-one with the other series.
+   * @param x - First numeric series; must have the same length as `y`.
+   * @param y - Second numeric series, aligned one-for-one with `x`.
    * @throws Error - Throws a JavaScript exception if `x` or `y` cannot be decoded as a numeric array.
    */
   correlation: CorrelationNamespace;
@@ -6145,7 +6622,7 @@ export interface ValuationsNamespace {
    * Deserialize a `ValuationResult` from JSON and return the canonical JSON.
    *
    * Validates the input conforms to the `ValuationResult` schema.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical `ValuationResult` JSON after deserialization.
    * @param json - Canonical valuation-result JSON to validate and reserialize.
    * @throws Error - Throws a JavaScript exception if `json` is malformed or does not match the `ValuationResult` schema, or the canonical result cannot be serialized.
    */
@@ -6154,7 +6631,7 @@ export interface ValuationsNamespace {
    * Validate a calibration plan JSON and return the canonical (pretty-printed) form.
    * @param json - Canonical JSON string defining the object to deserialize or normalize.
    * @param envelope - Calibration envelope containing the plan, market data, and optional prior market objects.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical calibration-plan JSON after validation.
    * @throws Error - Throws a JavaScript exception if `json` is malformed, its calibration schema marker is missing, malformed, or unsupported, static envelope validation fails, or the canonical envelope cannot be serialized.
    */
   validateCalibrationJson(envelope: CalibrationEnvelope | string): string;
@@ -6167,7 +6644,7 @@ export interface ValuationsNamespace {
    *
    * @param envelope_json - CalibrationEnvelope JSON containing targets, parameters, bounds, and dependencies.
    * @param envelope - Calibration envelope containing the plan, market data, and optional prior market objects.
-   * @returns Returns the resulting `CalibrationResultEnvelope` value or WebAssembly handle.
+   * @returns Calibration result including the fitted market and step reports.
    * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed or violates the calibration schema or static plan contract, market context construction or a calibration step fails, a solver does not converge, or the result envelope cannot be converted to a JavaScript value.
    */
   calibrate(envelope: CalibrationEnvelope | string): CalibrationResultEnvelope;
@@ -6178,7 +6655,7 @@ export interface ValuationsNamespace {
    * plus the dependency graph. Microseconds.
    * @param envelope_json - CalibrationEnvelope JSON containing targets, parameters, bounds, and dependencies.
    * @param envelope - Calibration envelope containing the plan, market data, and optional prior market objects.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical calibration envelope JSON without running the solver.
    * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed, its schema marker is missing, malformed, or unsupported, the envelope structure is invalid, or the validation report cannot be serialized. Semantic findings are returned in the report rather than thrown.
    */
   dryRun(envelope: CalibrationEnvelope | string): string;
@@ -6186,12 +6663,12 @@ export interface ValuationsNamespace {
    * Returns the static dependency graph of a calibration plan as JSON.
    * @param envelope_json - CalibrationEnvelope JSON containing targets, parameters, bounds, and dependencies.
    * @param envelope - Calibration envelope containing the plan, market data, and optional prior market objects.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Static calibration-plan dependency graph as JSON.
    * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed, its schema marker is missing, malformed, or unsupported, the envelope structure is invalid, or the dependency graph cannot be serialized.
    */
   dependencyGraphJson(envelope: CalibrationEnvelope | string): string;
   /**
-   * Market exposed by this `Valuations` value.
+   * Parsed `MarketContext` handle for reuse across pricing calls.
    */
   Market: typeof Market;
   /**
@@ -6297,13 +6774,13 @@ export interface ValuationsNamespace {
   ): number;
   /**
    * Solve for Black-76 (forward-based) implied volatility.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Annualized Black-76 implied volatility as a decimal, or 0 when `t` is not positive.
    * @param forward - Forward price or rate in the same quote convention as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param df - Discount factor from valuation to expiry, expressed as a positive decimal.
-   * @param t - Time from the curve base date in years on the documented day-count basis.
-   * @param price - Price in the documented quote convention for this instrument.
-   * @param isCall - Whether to value a call (`true`) or put (`false`); defaults follow the callable's contract.
+   * @param t - Time from the curve base date in years.
+   * @param price - Observed option price in the same units as the forward.
+   * @param isCall - Whether to value a call (`true`) or put (`false`).
    * @throws Error - Throws a JavaScript exception if an input is non-finite; `forward`, `strike`, `df`, or `price` is not positive; the price is not above intrinsic value or cannot be bracketed; or the implied-volatility solver does not converge. A non-positive `t` returns zero volatility.
    */
   black76ImpliedVol(
@@ -6318,14 +6795,14 @@ export interface ValuationsNamespace {
    * Reiner-Rubinstein continuous-monitoring barrier call price.
    *
    * `direction` is `"up"` or `"down"`, `knock` is `"in"` or `"out"`.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param spot - Current spot price or exchange rate in the documented quote convention.
+   * @returns Discounted barrier-call price in the same units as `spot`.
+   * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param barrier - Continuously monitored barrier level in the same price units as spot.
    * @param r - Continuously compounded risk-free rate, expressed as a decimal.
    * @param q - Continuous dividend yield or foreign rate, expressed as a decimal.
    * @param sigma - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-   * @param t - Time from the curve base date in years on the documented day-count basis.
+   * @param t - Time from the curve base date in years.
    * @param direction - Barrier direction: `"up"` for an upper barrier or `"down"` for a lower barrier.
    * @param knock - Barrier activation: `"in"` for knock-in or `"out"` for knock-out.
    * @throws Error - Throws a JavaScript exception if `direction` or `knock` is unsupported, or the supplied model inputs produce a non-finite barrier price.
@@ -6343,16 +6820,16 @@ export interface ValuationsNamespace {
   ): number;
   /**
    * Arithmetic (Turnbull-Wakeman) or geometric (Kemna-Vorst) Asian option.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param spot - Current spot price or exchange rate in the documented quote convention.
+   * @returns Discounted Asian option price in the same units as `spot`.
+   * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param r - Continuously compounded risk-free rate, expressed as a decimal.
    * @param q - Continuous dividend yield or foreign rate, expressed as a decimal.
    * @param sigma - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-   * @param t - Time from the curve base date in years on the documented day-count basis.
+   * @param t - Time from the curve base date in years.
    * @param numFixings - Positive number of equally spaced averaging observations before expiry.
    * @param averaging - Asian averaging convention: `"arithmetic"` (default) or `"geometric"`.
-   * @param isCall - Whether to value a call (`true`) or put (`false`); defaults follow the callable's contract.
+   * @param isCall - Whether to value a call (`true`) or put (`false`).
    * @throws Error - Throws a JavaScript exception if `averaging` is not `"arithmetic"` or `"geometric"`, or the supplied model inputs produce a non-finite option price.
    */
   asianOptionPrice(
@@ -6371,16 +6848,16 @@ export interface ValuationsNamespace {
    *
    * `strike_type` is `"fixed"` (default) or `"floating"`. For `"floating"`,
    * `strike` is ignored and `extremum` is the observed min/max to date.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param spot - Current spot price or exchange rate in the documented quote convention.
+   * @returns Discounted lookback option price in the same units as `spot`.
+   * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param r - Continuously compounded risk-free rate, expressed as a decimal.
    * @param q - Continuous dividend yield or foreign rate, expressed as a decimal.
    * @param sigma - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-   * @param t - Time from the curve base date in years on the documented day-count basis.
+   * @param t - Time from the curve base date in years.
    * @param extremum - Observed running minimum for a call or maximum for a put, in spot-price units.
    * @param strikeType - Lookback payoff convention: `"fixed"` (default) or `"floating"`.
-   * @param isCall - Whether to value a call (`true`) or put (`false`); defaults follow the callable's contract.
+   * @param isCall - Whether to value a call (`true`) or put (`false`).
    * @throws Error - Throws a JavaScript exception if `strikeType` is not `"fixed"` or `"floating"`, or the supplied model inputs produce a non-finite option price.
    */
   lookbackOptionPrice(
@@ -6397,17 +6874,17 @@ export interface ValuationsNamespace {
   /**
    * Quanto option (FX-adjusted cross-currency) price in domestic currency.
    *
-   * @returns Returns the computed numeric result in the units described above.
-   * @param spot - Current spot price or exchange rate in the documented quote convention.
+   * @returns Discounted quanto option price in domestic currency units.
+   * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
-   * @param t - Time from the curve base date in years on the documented day-count basis.
+   * @param t - Time from the curve base date in years.
    * @param rateDomestic - Domestic continuously compounded risk-free rate, expressed as a decimal.
    * @param rateForeign - Foreign continuously compounded risk-free rate, expressed as a decimal.
    * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
    * @param volAsset - Annualized asset-price volatility expressed as a decimal.
    * @param volFx - Annualized FX-rate volatility expressed as a decimal.
-   * @param correlation - Instantaneous correlation between the documented asset and FX-rate shocks, from -1 to 1.
-   * @param isCall - Whether to value a call (`true`) or put (`false`); defaults follow the callable's contract.
+   * @param correlation - Instantaneous correlation between the asset and FX-rate shocks, from -1 to 1.
+   * @param isCall - Whether to value a call (`true`) or put (`false`).
    * @throws If the inputs produce a non-finite price.
    */
   quantoOptionPrice(
@@ -6440,14 +6917,14 @@ export interface ValuationsNamespace {
   SabrCalibrator: SabrCalibratorConstructor;
   /**
    * Price a European option under the Black-Scholes model using the COS method.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param spot - Current spot price or exchange rate in the documented quote convention.
+   * @returns Discounted European option price in the same units as `spot`.
+   * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
    * @param dividend - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
    * @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
    * @param maturity - Time to option expiry in years.
-   * @param isCall - Whether to value a call (`true`) or put (`false`); defaults follow the callable's contract.
+   * @param isCall - Whether to value a call (`true`) or put (`false`).
    * @param nTerms - Optional positive number of COS expansion terms; omit to use the pricer default.
    * @throws Error - Throws a JavaScript exception if the model produces a degenerate or invalid COS truncation range, a non-finite characteristic-function value or forward moment, or a non-finite option price.
    */
@@ -6463,8 +6940,8 @@ export interface ValuationsNamespace {
   ): number;
   /**
    * Price a European option under the Variance Gamma model using the COS method.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param spot - Current spot price or exchange rate in the documented quote convention.
+   * @returns Discounted European option price in the same units as `spot`.
+   * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
    * @param dividend - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -6472,7 +6949,7 @@ export interface ValuationsNamespace {
    * @param theta - Variance-Gamma drift parameter controlling skew in log returns.
    * @param nu - Variance-Gamma variance-rate parameter; larger values increase tail thickness.
    * @param maturity - Time to option expiry in years.
-   * @param isCall - Whether to value a call (`true`) or put (`false`); defaults follow the callable's contract.
+   * @param isCall - Whether to value a call (`true`) or put (`false`).
    * @param nTerms - Optional positive number of COS expansion terms; omit to use the pricer default.
    * @throws Error - Throws a JavaScript exception if the model produces a degenerate or invalid COS truncation range, a non-finite characteristic-function value or forward moment, or a non-finite option price.
    */
@@ -6490,8 +6967,8 @@ export interface ValuationsNamespace {
   ): number;
   /**
    * Price a European option under Merton (1976) jump-diffusion using the COS method.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param spot - Current spot price or exchange rate in the documented quote convention.
+   * @returns Discounted European option price in the same units as `spot`.
+   * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
    * @param dividend - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -6500,7 +6977,7 @@ export interface ValuationsNamespace {
    * @param sigmaJump - Standard deviation of log jump sizes in the Merton jump-diffusion model.
    * @param lambda - Annual jump-arrival intensity in the Merton jump-diffusion model.
    * @param maturity - Time to option expiry in years.
-   * @param isCall - Whether to value a call (`true`) or put (`false`); defaults follow the callable's contract.
+   * @param isCall - Whether to value a call (`true`) or put (`false`).
    * @param nTerms - Optional positive number of COS expansion terms; omit to use the pricer default.
    * @throws Error - Throws a JavaScript exception if the model produces a degenerate or invalid COS truncation range, a non-finite characteristic-function value or forward moment, or a non-finite option price.
    */
@@ -6535,7 +7012,7 @@ export interface ValuationsNamespace {
    * [`CumulativeCouponTracker`](finstack_quant_valuations::instruments::rates::hw1f::cumulative_coupon::CumulativeCouponTracker) configured with
    * `target_coupon`; once cumulative hits the target, the final coupon is
    * capped and the instrument is considered redeemed.
-   * @returns Returns the result using the declared TypeScript shape.
+   * @returns Period coupons, running cumulative, redemption index, and whether the TARN redeemed early.
    * @param fixedRate - Fixed coupon rate in decimal form before subtracting each floating fixing.
    * @param couponFloor - Minimum period coupon rate in decimal form after the TARN rate calculation.
    * @param floatingFixings - Ordered floating-rate fixings in decimal form, one for each coupon period.
@@ -6559,7 +7036,7 @@ export interface ValuationsNamespace {
    * Snowball coupon schedule.
    *
    *   `c_i = clip(c_{i-1} + fixed_rate - L_i, floor, cap)` with `c_0 = initial_coupon`.
-   * @returns Returns numeric results as a `Float64Array` in the documented order.
+   * @returns One decimal coupon rate per fixing, in the same order as `floatingFixings`.
    * @param initialCoupon - Starting coupon rate before the first snowball update, in decimal form.
    * @param fixedRate - Fixed coupon rate in decimal form added at each snowball step.
    * @param floatingFixings - Ordered floating-rate fixings in decimal form, one for each coupon period.
@@ -6576,7 +7053,7 @@ export interface ValuationsNamespace {
   ): Float64Array;
   /**
    * Path-independent inverse-floater coupon schedule.
-   * @returns Returns numeric results as a `Float64Array` in the documented order.
+   * @returns One decimal coupon rate per fixing, in the same order as `floatingFixings`.
    * @param fixedRate - Fixed coupon rate in decimal form before the leveraged floating deduction.
    * @param floatingFixings - Ordered floating-rate fixings in decimal form, one for each coupon period.
    * @param floor - Minimum permitted coupon rate in decimal form.
@@ -6596,11 +7073,11 @@ export interface ValuationsNamespace {
    *
    * `call:  notional * max(long_cms - short_cms - strike, 0)`
    * `put:   notional * max(strike - (long_cms - short_cms), 0)`
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Undiscounted intrinsic payoff in the same units as `notional`.
    * @param longCms - Long-tenor CMS rate in decimal form.
    * @param shortCms - Short-tenor CMS rate in decimal form.
    * @param strike - CMS rate-spread strike in decimal form.
-   * @param isCall - Whether to value a call (`true`) or put (`false`); defaults follow the callable's contract.
+   * @param isCall - Whether to value a call (`true`) or put (`false`).
    * @param notional - Signed trade notional in the instrument's native currency units.
    * @throws Error - Throws a JavaScript exception if a CMS rate or `strike` is non-finite, or if `notional` is negative or non-finite.
    */
@@ -6620,7 +7097,7 @@ export interface ValuationsNamespace {
    * `accrued = coupon_rate * day_count_fraction * (#in-range / #observations)`.
    *
    * The call provision is not applied here.
-   * @returns Returns the computed numeric result in the units described above.
+   * @returns Accrued coupon as a decimal fraction of notional for the observation period.
    * @param lower - Inclusive lower bound of the observed-rate range, in decimal form.
    * @param upper - Inclusive upper bound of the observed-rate range, in decimal form.
    * @param observations - Observed floating rates in decimal form for the accrual period.
@@ -6648,6 +7125,136 @@ export declare const valuations: ValuationsNamespace;
  * Parameters for P&L attribution via [`attribute_pnl`].
  */
 export interface AttributionParams extends WasmOwned {}
+
+/**
+ * P&L attribution result returned by `attributePnl`.
+ *
+ * This is the same document Python callers hold as
+ * `finstack_quant.attribution.PnlAttribution` — field names are the canonical
+ * Rust serde names, so `JSON.stringify(result)` is byte-comparable with the
+ * Python `to_json()` output and with `attributePnlJson`.
+ */
+export interface PnlAttribution {
+  /**
+   * Total P&L as reported by this attribution (total-return convention:
+   * intra-period coupon income is included so the factor sum reconciles).
+   */
+  total_pnl: MoneyValue;
+  /**
+   * Pure mark-to-market change `val_t1 - val_t0` with no cashflow
+   * adjustment; absent for attribution paths that cannot provide it.
+   */
+  mark_to_market_pnl?: MoneyValue;
+  /**
+   * Carry P&L (theta + accruals).
+   */
+  carry: MoneyValue;
+  /**
+   * Interest rate curves P&L.
+   */
+  rates_curves_pnl: MoneyValue;
+  /**
+   * Credit hazard curves P&L.
+   */
+  credit_curves_pnl: MoneyValue;
+  /**
+   * Inflation curves P&L.
+   */
+  inflation_curves_pnl: MoneyValue;
+  /**
+   * Base correlation curves P&L.
+   */
+  correlations_pnl: MoneyValue;
+  /**
+   * FX rate changes P&L (pricing impact on cross-currency instruments).
+   */
+  fx_pnl: MoneyValue;
+  /**
+   * FX translation P&L (reporting-currency component; zero unless an
+   * explicit target currency differs from the native pricing currency).
+   */
+  fx_translation_pnl: MoneyValue;
+  /**
+   * Implied volatility changes P&L.
+   */
+  vol_pnl: MoneyValue;
+  /**
+   * Cross-factor interaction P&L.
+   */
+  cross_factor_pnl: MoneyValue;
+  /**
+   * Model parameter changes P&L.
+   */
+  model_params_pnl: MoneyValue;
+  /**
+   * Market scalar changes P&L.
+   */
+  market_scalars_pnl: MoneyValue;
+  /**
+   * Unexplained residual P&L.
+   */
+  residual: MoneyValue;
+  /**
+   * Detailed carry decomposition, or `null` when not produced.
+   */
+  carry_detail: Record<string, unknown> | null;
+  /**
+   * Detailed rates curves attribution, or `null` when not produced.
+   */
+  rates_detail: Record<string, unknown> | null;
+  /**
+   * Detailed credit curves attribution, or `null` when not produced.
+   */
+  credit_detail: Record<string, unknown> | null;
+  /**
+   * Detailed inflation curves attribution, or `null` when not produced.
+   */
+  inflation_detail: Record<string, unknown> | null;
+  /**
+   * Detailed correlations attribution, or `null` when not produced.
+   */
+  correlations_detail: Record<string, unknown> | null;
+  /**
+   * Detailed FX attribution, or `null` when not produced.
+   */
+  fx_detail: Record<string, unknown> | null;
+  /**
+   * Detailed volatility attribution, or `null` when not produced.
+   */
+  vol_detail: Record<string, unknown> | null;
+  /**
+   * Detailed cross-factor attribution, or `null` when not produced.
+   */
+  cross_factor_detail: Record<string, unknown> | null;
+  /**
+   * Detailed model parameters attribution, or `null` when not produced.
+   */
+  model_params_detail: Record<string, unknown> | null;
+  /**
+   * Detailed market scalars attribution, or `null` when not produced.
+   */
+  scalars_detail: Record<string, unknown> | null;
+  /**
+   * Credit-factor-hierarchy decomposition of `credit_curves_pnl`; present
+   * only when a calibrated credit factor model was supplied.
+   */
+  credit_factor_detail?: Record<string, unknown>;
+  /**
+   * Credit-factor-hierarchy decomposition of carry; present only when a
+   * calibrated credit factor model was supplied.
+   */
+  credit_carry_decomposition?: Record<string, unknown>;
+  /**
+   * Attribution metadata: method, instrument id, tolerances, rounding
+   * context, and policy stamps.
+   */
+  meta: Record<string, unknown>;
+  /**
+   * True when residual computation hit non-finite inputs; the attribution
+   * should then be treated as invalid.
+   */
+  result_invalid: boolean;
+}
 
 /**
  * Namespaced TypeScript entry points for attribution calculations and types.
@@ -6680,18 +7287,31 @@ export interface AttributionNamespace {
    *
    * Accepts an [`AttributionParams`] struct with the instrument JSON, two market
    * snapshots, dates, and a method descriptor. Returns the `PnlAttribution`
-   * result as JSON. `config_json` may include `"execution_policy": "serial"`
-   * for hosts that already parallelize attribution at a higher level.
-   * @returns Returns the requested string representation or JSON payload.
+   * result as a structured object with the canonical Rust serde field names;
+   * use `attributePnlJson` for the JSON wire string. `config_json` may include
+   * `"execution_policy": "serial"` for hosts that already parallelize
+   * attribution at a higher level.
+   * @returns Structured `PnlAttribution` result object for the instrument.
    * @param params - Fully specified AttributionParams object containing instrument, markets, dates, and method.
-   * @throws Error - Rejects malformed instrument, market, method, or configuration JSON; invalid ISO attribution dates; instrument or market reconstruction, pricing, FX, rounding, metric, or method-specific attribution failures; a caught attribution panic; or failure to serialize the result.
+   * @throws Error - Rejects malformed instrument, market, method, or configuration JSON; invalid ISO attribution dates; instrument or market reconstruction, pricing, FX, rounding, metric, or method-specific attribution failures; a caught attribution panic; or failure to convert the result to a JavaScript value.
    */
-  attributePnl(params: AttributionParams): string;
+  attributePnl(params: AttributionParams): PnlAttribution;
+  /**
+   * Run P&L attribution for a single instrument and return wire JSON.
+   *
+   * Wire twin of `attributePnl`: same inputs, validation, and panic
+   * containment, returning the `PnlAttribution` as a JSON string instead of
+   * a structured object.
+   * @returns JSON-serialized `PnlAttribution` wire document.
+   * @param params - Fully specified AttributionParams object containing instrument, markets, dates, and method.
+   * @throws Error - Rejects the same conditions as `attributePnl`, plus failure to serialize the result to JSON.
+   */
+  attributePnlJson(params: AttributionParams): string;
   /**
    * Run attribution from a full JSON `AttributionEnvelope` and return JSON.
    *
    * Power-user variant for full envelope round-trip workflows.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns JSON attribution result envelope for the supplied spec.
    * @param specJson - JSON-serialized AttributionParams specification to validate and execute.
    * @throws Error - Rejects malformed, schema-incompatible, or unsupported-version `spec_json`; instrument or market reconstruction, pricing, FX, rounding, metric, or method-specific attribution failures; a caught parse or execution panic; or failure to serialize the result envelope.
    */
@@ -6703,20 +7323,20 @@ export interface AttributionNamespace {
    * `schema` version tag (the same gate `execute` applies, so a payload that
    * validates here cannot later be rejected at execution), and returns the
    * canonical JSON.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical attribution-envelope JSON after schema validation.
    * @param json - Canonical JSON string defining the object to deserialize or normalize.
    * @throws Error - Rejects malformed, schema-incompatible, or unsupported-version `json`, or failure to serialize the canonical attribution envelope.
    */
   validateAttributionJson(json: string): string;
   /**
    * Return the default waterfall factor ordering as canonical snake-case values.
-   * @returns Canonical snake-case factor names in the documented order.
+   * @returns Default waterfall factor names in execution order.
    * @throws Error - Rejects if the default factor identifiers cannot be serialized to JavaScript.
    */
   defaultWaterfallOrder(): string[];
   /**
    * Return the default metric IDs used by metrics-based attribution.
-   * @returns Returns the resulting `string[]` collection in the documented order.
+   * @returns Default metric identifiers used by metrics-based attribution.
    * @throws Error - Rejects if the default metric identifiers cannot be serialized to JavaScript.
    */
   defaultAttributionMetrics(): string[];
@@ -6764,7 +7384,7 @@ export interface StatementsNamespace {
    *
    * Deserializes the input against the model schema, runs semantic validation,
    * and returns the canonical (re-serialized) JSON.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical financial-model JSON after semantic validation.
    * @param json - Canonical JSON string defining the object to deserialize or normalize.
    * @throws Error - Rejects malformed or schema-incompatible `json`, an empty or invalid period timeline, reserved node identifiers, incompatible node fields or value types, invalid formulas or dimensions, an invalid waterfall, or failure to serialize the normalized model.
    */
@@ -6773,7 +7393,7 @@ export interface StatementsNamespace {
    * Get the node identifiers from a model specification JSON.
    *
    * Returns a JS array of node ID strings in declaration order.
-   * @returns Returns the resulting `string[]` collection in the documented order.
+   * @returns Node identifiers in model-declaration order.
    * @param json - Canonical JSON string defining the object to deserialize or normalize.
    * @throws Error - Rejects malformed or schema-incompatible `json`, or if the node identifiers cannot be serialized to JavaScript.
    */
@@ -6783,14 +7403,14 @@ export interface StatementsNamespace {
    *
    * Deserializes the spec, re-serializes to canonical form, and
    * returns the JSON string. Useful for client-side validation.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical check-suite JSON after schema validation.
    * @param json - Canonical JSON string defining the object to deserialize or normalize.
    * @throws Error - Rejects malformed or schema-incompatible `json`, or failure to serialize the decoded check-suite specification.
    */
   validateCheckSuiteSpecJson(json: string): string;
   /**
    * Validate a `CapitalStructureSpec` JSON string.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical capital-structure JSON after schema validation.
    * @param json - Canonical JSON string defining the object to deserialize or normalize.
    * @throws Error - Rejects malformed or schema-incompatible `json`, or failure to serialize the decoded capital-structure specification.
    */
@@ -6801,30 +7421,30 @@ export interface StatementsNamespace {
    * Performs both serde deserialization and the waterfall's internal
    * consistency check (for example rejecting `Sweep` ordered after `Equity`
    * when an ECF sweep is configured).
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical waterfall JSON after schema validation.
    * @param json - Canonical JSON string defining the object to deserialize or normalize.
    * @throws Error - Rejects malformed or schema-incompatible `json`; duplicate or inconsistent payment priorities; incomplete available-cash priorities; invalid PIK or ECF-sweep settings; or failure to serialize the validated waterfall.
    */
   validateWaterfallSpecJson(json: string): string;
   /**
    * Validate an `EcfSweepSpec` JSON string.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical ECF-sweep JSON after schema validation.
    * @param json - Canonical JSON string defining the object to deserialize or normalize.
    * @throws Error - Rejects malformed or schema-incompatible `json`, or failure to serialize the decoded ECF-sweep specification.
    */
   validateEcfSweepSpecJson(json: string): string;
   /**
    * Validate a `PikToggleSpec` JSON string.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical PIK-toggle JSON after schema validation.
    * @param json - Canonical JSON string defining the object to deserialize or normalize.
    * @throws Error - Rejects malformed or schema-incompatible `json`, or failure to serialize the decoded PIK-toggle specification.
    */
   validatePikToggleSpecJson(json: string): string;
   /**
    * Evaluate a `FinancialModelSpec` and return the `StatementResult` JSON.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Evaluated statement result with node values and optional audit metadata.
    * @param modelJson - JSON-serialized FinancialModelSpec to evaluate across its statement periods.
-   * @throws Error - Rejects malformed `model_json`, model semantic failures, invalid formula or dependency graphs, missing evaluation inputs, unsupported capital-structure requirements, or failure to serialize the statement result.
+   * @throws Error - Rejects malformed `model_json`, model semantic failures, invalid formula or dependency graphs, missing evaluation inputs, unsupported capital-structure requirements, or failure to serialize the statement result to JavaScript.
    */
   evaluateModel(modelJson: string): StatementResultJson;
   /**
@@ -6832,23 +7452,19 @@ export interface StatementsNamespace {
    *
    * Required for capital-structure-aware models. The `as_of` argument is an
    * ISO 8601 date string (e.g. `"2025-01-15"`).
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Evaluated statement result using the supplied market as of `asOf`.
    * @param modelJson - JSON-serialized FinancialModelSpec to evaluate across its statement periods.
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
-   * @throws Error - Rejects malformed model or market JSON, model semantic failures, an invalid ISO `as_of` date, invalid formulas or dependencies, missing market data, or failure to serialize the statement result.
+   * @throws Error - Rejects malformed model or market JSON, model semantic failures, an invalid ISO `as_of` date, invalid formulas or dependencies, missing market data, or failure to serialize the statement result to JavaScript.
    */
-  evaluateModelWithMarket(
-    modelJson: string,
-    marketJson: string,
-    asOf: string
-  ): StatementResultJson;
+  evaluateModelWithMarket(modelJson: string, marketJson: string, asOf: string): StatementResultJson;
   /**
    * Run Monte Carlo simulation on a financial model (JSON in/out).
    * @returns Canonical JSON containing percentile summaries and optional path data.
-   * @param modelJson - Canonical JSON payload representing the statement model.
-   * @param configJson - Canonical JSON payload representing the Monte Carlo configuration.
-   * @throws Error - Rejects malformed model or configuration JSON, zero simulation paths, a model containing capital structure, model compilation or dependency failures, any path-evaluation failure, or failure to serialize the results.
+   * @param modelJson - Financial-model specification JSON.
+   * @param configJson - Monte Carlo configuration JSON.
+   * @throws Error - Rejects malformed model or configuration JSON, zero simulation paths, a model containing capital structure, model compilation or dependency failures, any path-evaluation failure, or failure to serialize the results to JavaScript.
    */
   runMonteCarlo(modelJson: string, configJson: string): Record<string, unknown>;
   /**
@@ -6869,7 +7485,7 @@ export interface StatementsNamespace {
    *
    * Returns `true` when the formula is valid; throws a `FinstackError`
    * otherwise. This mirrors the Python `validate_formula` API.
-   * @returns Returns `true` when the documented condition is satisfied.
+   * @returns `true` when the formula parses and compiles.
    * @param formula - Financial-model formula string to parse and validate without evaluation.
    * @throws Error - Rejects any formula that cannot be parsed as one complete DSL expression or compiled because it contains an unsupported component, function, or operator form.
    */
@@ -6996,15 +7612,15 @@ export interface LboResult {
 }
 
 /**
- * TypeScript view of the `GoalSeekResult` WebAssembly value.
+ * Solved input and optional updated model from a goal-seek.
  */
 export interface GoalSeekResult {
   /**
-   * Solved value exposed by this `GoalSeekResult` value.
+   * Input value that meets the goal-seek target within solver tolerance.
    */
   solved_value: number;
   /**
-   * Updated model json exposed by this `GoalSeekResult` value.
+   * Canonical model JSON with the solved input substituted, when a model was supplied.
    */
   updated_model_json?: string;
 }
@@ -7024,21 +7640,21 @@ export interface StatementsAnalyticsNamespace {
    *
    * Accepts JSON strings for the model spec and sensitivity configuration,
    * evaluates all perturbation scenarios, and returns JSON results.
-   * @returns Returns the requested string representation or JSON payload.
-   * @param modelJson - Canonical JSON payload representing the model consumed by this API.
-   * @param configJson - Canonical JSON payload representing the config consumed by this API.
-   * @throws Error - Rejects malformed model or configuration JSON, invalid sensitivity modes or parameter perturbations, missing model nodes or periods, model-evaluation failures, or failure to serialize the sensitivity result.
+   * @returns Sensitivity results for each perturbation scenario.
+   * @param modelJson - Financial-model specification JSON.
+   * @param configJson - Configuration JSON for this call.
+   * @throws Error - Rejects malformed model or configuration JSON, invalid sensitivity modes or parameter perturbations, missing model nodes or periods, model-evaluation failures, or failure to serialize the sensitivity result to JavaScript.
    */
   runSensitivity(modelJson: string, configJson: string): Record<string, unknown>;
   /**
    * Run a variance analysis comparing two evaluated statement results.
    *
    * Returns JSON-serialized variance report.
-   * @returns Returns the requested string representation or JSON payload.
-   * @param baseJson - Canonical JSON payload representing the base consumed by this API.
-   * @param comparisonJson - Canonical JSON payload representing the comparison consumed by this API.
-   * @param configJson - Canonical JSON payload representing the config consumed by this API.
-   * @throws Error - Rejects malformed result or configuration JSON, empty metric or period selections, a requested value missing from either result, or failure to serialize the variance report.
+   * @returns Variance report comparing the two evaluated statement results.
+   * @param baseJson - Base statement-result JSON.
+   * @param comparisonJson - Comparison statement-result JSON.
+   * @param configJson - Configuration JSON for this call.
+   * @throws Error - Rejects malformed result or configuration JSON, empty metric or period selections, a requested value missing from either result, or failure to serialize the variance report to JavaScript.
    */
   runVariance(
     baseJson: string,
@@ -7049,10 +7665,10 @@ export interface StatementsAnalyticsNamespace {
    * Evaluate all scenarios in a scenario set against a base model.
    *
    * Returns a JSON object mapping scenario names to their statement results.
-   * @returns Returns the requested string representation or JSON payload.
-   * @param modelJson - Canonical JSON payload representing the model consumed by this API.
-   * @param scenarioSetJson - Canonical JSON payload representing the scenario set consumed by this API.
-   * @throws Error - Rejects malformed model or scenario-set JSON, an empty scenario set, invalid parent chains, overrides of missing nodes, failure to evaluate any scenario, or failure to serialize the result map.
+   * @returns Statement results keyed by scenario name.
+   * @param modelJson - Financial-model specification JSON.
+   * @param scenarioSetJson - Scenario-set JSON keyed by scenario name.
+   * @throws Error - Rejects malformed model or scenario-set JSON, an empty scenario set, invalid parent chains, overrides of missing nodes, failure to evaluate any scenario, or failure to serialize the result map to JavaScript.
    */
   evaluateScenarioSet(
     modelJson: string,
@@ -7063,7 +7679,7 @@ export interface StatementsAnalyticsNamespace {
    *
    * Takes two float arrays (actual, forecast) and returns a JSON object
    * with keys `mae`, `mape`, `rmse`, `n`.
-   * @returns Returns the resulting `BacktestForecastMetricsJson` value or WebAssembly handle.
+   * @returns Backtest forecast accuracy metrics for the selected series.
    * @param actual - Actual realized values aligned one-for-one with the forecast series.
    * @param forecast - Forecast values aligned one-for-one with the actual realized series.
    * @throws Error - Rejects inputs that cannot be decoded as numeric JavaScript arrays, arrays with unequal lengths, empty arrays, or metrics that cannot be serialized to JavaScript.
@@ -7071,8 +7687,8 @@ export interface StatementsAnalyticsNamespace {
   backtestForecast(actual: number[], forecast: number[]): BacktestForecastMetricsJson;
   /**
    * Generate tornado chart entries for a sensitivity result.
-   * @returns Returns the requested string representation or JSON payload.
-   * @param resultJson - Canonical JSON payload representing the result consumed by this API.
+   * @returns Tornado-chart entries as canonical JSON.
+   * @param resultJson - Result JSON produced by a prior call.
    * @param metricNode - Statement metric node identifier selected for the requested analysis.
    * @param period - Model period label for the requested statement value or calculation.
    * @throws Error - Rejects malformed `result_json`, an invalid optional `period` identifier, or failure to serialize the generated entries. A missing metric produces no entry rather than rejecting.
@@ -7080,8 +7696,8 @@ export interface StatementsAnalyticsNamespace {
   generateTornadoEntries(resultJson: string, metricNode: string, period?: string): string;
   /**
    * Find the driver value that makes a target node reach a target value.
-   * @returns Returns the resulting `GoalSeekResult` value or WebAssembly handle.
-   * @param modelJson - Canonical JSON payload representing the model consumed by this API.
+   * @returns Solved input value and optional updated model JSON.
+   * @param modelJson - Financial-model specification JSON.
    * @param targetNode - Statement node identifier whose value is driven toward the target.
    * @param targetPeriod - Model period label in which the goal-seek target is evaluated.
    * @param targetValue - Numeric target value the goal-seek routine attempts to reach.
@@ -7110,16 +7726,18 @@ export interface StatementsAnalyticsNamespace {
    * DCF. Returns JSON with the baseline enterprise value, tornado entries as
    * deltas versus that baseline sorted by descending absolute swing, and the
    * effective (possibly clamped) shock levels.
-   * @returns Returns the requested string representation or JSON payload.
-   * @param modelJson - Canonical JSON payload representing the financial model spec consumed by this API.
+   * @returns Ranked DCF-assumption impacts on enterprise value.
+   * @param modelJson - Financial-model specification JSON.
    * @param wacc - Baseline weighted average cost of capital in decimal form (0.10 = 10%).
-   * @param terminalValueJson - Canonical JSON payload representing the terminal value spec, selecting whether growth or the exit multiple is shocked.
+   * @param terminalValueJson - Terminal-value spec JSON selecting whether growth or the exit multiple is shocked.
    * @param ufcfNode - Node identifier holding unlevered free cash flow for the forecast periods.
    * @param netDebtOverride - Optional flat net-debt amount used instead of the model-derived bridge.
    * @param waccSensitivityBump - Absolute shock applied to WACC and to the terminal growth rate, in decimal (0.01 = +/-100 bp).
    * @param waccDenominatorEpsilon - Minimum spread preserved between WACC and the terminal growth rate so 1/(wacc - g) stays defined, in decimal.
    * @param exitMultipleBump - Absolute shock applied to an exit multiple, in turns of the multiple (1.0 = +/-1.0x).
    * @throws Error - Rejects malformed model or terminal-value JSON, model-evaluation failures, a missing UFCF series or model currency, inconsistent WACC or terminal-value assumptions, missing bridge inputs, valuation failures, or failure to serialize the sensitivity result.
+   * @param midYearConvention - When true, apply mid-year DCF discounting.
+   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    */
   dcfSensitivity(
     modelJson: string,
@@ -7129,7 +7747,9 @@ export interface StatementsAnalyticsNamespace {
     netDebtOverride?: number | null,
     waccSensitivityBump?: number | null,
     waccDenominatorEpsilon?: number | null,
-    exitMultipleBump?: number | null
+    exitMultipleBump?: number | null,
+    midYearConvention?: boolean | null,
+    marketJson?: string | null
   ): DcfSensitivityResult;
   /**
    * Evaluate a leveraged-buyout transaction against a statement model.
@@ -7139,8 +7759,8 @@ export interface StatementsAnalyticsNamespace {
    * are the exit enterprise value less the modelled net debt at the exit
    * period. IRR is out of scope: pair the returned `exit_equity_proceeds` with
    * the equity outflow at close and call `portfolio.mwrXirr`.
-   * @returns Returns the requested string representation or JSON payload.
-   * @param modelJson - Canonical JSON payload representing the financial model spec consumed by this API.
+   * @returns Leveraged-buyout evaluation result against the statement model.
+   * @param modelJson - Financial-model specification JSON.
    * @param entryMultiple - Entry valuation multiple applied to the entry metric (8.5 = 8.5x).
    * @param entryMetricNode - Node identifier supplying the entry valuation metric, read at the model's first period.
    * @param exitMultiple - Exit valuation multiple applied to the exit metric (9.5 = 9.5x).
@@ -7149,7 +7769,7 @@ export interface StatementsAnalyticsNamespace {
    * @param exitPeriod - Model period label at which the sponsor exits, e.g. "2029".
    * @param sourcesJson - Canonical JSON array of funded debt tranches at close, each {"name", "amount"} in the model currency.
    * @param transactionFees - Transaction fees and expenses funded at close, in the model currency.
-   * @throws Error - Rejects malformed model or tranche JSON, an invalid `exit_period`, model evaluation or lookup failures, a missing model currency or period, non-finite transaction inputs or model values, negative tranche amounts, a non-positive sponsor equity check, check-suite failures, or result serialization failure.
+   * @throws Error - Rejects malformed model or tranche JSON, an invalid `exit_period`, model evaluation or lookup failures, a missing model currency or period, non-finite transaction inputs or model values, negative tranche amounts, a non-positive sponsor equity check, check-suite failures, or failure to serialize the result to JavaScript. The result is a structured JavaScript object.
    */
   evaluateLbo(
     modelJson: string,
@@ -7184,17 +7804,17 @@ export interface StatementsAnalyticsNamespace {
   ): number;
   /**
    * Trace dependencies for a node and return ASCII tree.
-   * @returns Returns the requested string representation or JSON payload.
-   * @param modelJson - Canonical JSON payload representing the model consumed by this API.
+   * @returns ASCII dependency tree for the selected node.
+   * @param modelJson - Financial-model specification JSON.
    * @param nodeId - Stable node identifier used to select the required domain object.
    * @throws Error - Rejects malformed `model_json`, formulas or clauses whose dependencies cannot be parsed, unknown formula references, a missing `node_id` or reachable dependency, or a dependency cycle.
    */
   traceDependencies(modelJson: string, nodeId: string): string;
   /**
    * Explain a formula for a specific node and period (JSON in/out).
-   * @returns Returns the resulting `FormulaExplanationJson` value or WebAssembly handle.
-   * @param modelJson - Canonical JSON payload representing the model consumed by this API.
-   * @param resultsJson - Canonical JSON payload representing the results consumed by this API.
+   * @returns Structured formula breakdown for the selected node and period.
+   * @param modelJson - Financial-model specification JSON.
+   * @param resultsJson - Evaluated statement-result JSON.
    * @param nodeId - Stable node identifier used to select the required domain object.
    * @param period - Model period label for the requested statement value or calculation.
    * @throws Error - Rejects malformed model or result JSON, an invalid `period` identifier, a missing model node or node-period result, an invalid formula used to build the breakdown, or failure to serialize the explanation to JavaScript.
@@ -7207,9 +7827,9 @@ export interface StatementsAnalyticsNamespace {
   ): FormulaExplanationJson;
   /**
    * Explain a formula for a specific node and period as formatted text.
-   * @returns Returns the requested string representation or JSON payload.
-   * @param modelJson - Canonical JSON payload representing the model consumed by this API.
-   * @param resultsJson - Canonical JSON payload representing the results consumed by this API.
+   * @returns Formatted formula explanation for the selected node and period.
+   * @param modelJson - Financial-model specification JSON.
+   * @param resultsJson - Evaluated statement-result JSON.
    * @param nodeId - Stable node identifier used to select the required domain object.
    * @param period - Model period label for the requested statement value or calculation.
    * @throws Error - Rejects malformed model or result JSON, an invalid `period` identifier, a missing model node or node-period result, or an invalid formula used to build the explanation breakdown.
@@ -7223,7 +7843,7 @@ export interface StatementsAnalyticsNamespace {
   /**
    * Generate a P&L summary report as formatted text.
    * @returns Returns a human-readable text report, not JSON.
-   * @param resultsJson - Canonical JSON payload representing the results consumed by this API.
+   * @param resultsJson - Evaluated statement-result JSON.
    * @param lineItems - Ordered statement line-item definitions included in the summary report.
    * @param periods - Ordered period labels or observations aligned with the supplied data.
    * @throws Error - Rejects malformed `results_json`, `line_items` or `periods` values that are not JavaScript string arrays, or any period string that is not a valid statement period identifier.
@@ -7232,17 +7852,17 @@ export interface StatementsAnalyticsNamespace {
   /**
    * Generate a credit assessment report as formatted text.
    * @returns Returns a human-readable text report, not JSON.
-   * @param resultsJson - Canonical JSON payload representing the results consumed by this API.
+   * @param resultsJson - Evaluated statement-result JSON.
    * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
    * @throws Error - Rejects malformed `results_json` or an `as_of` value that is not a valid statement period identifier.
    */
   creditAssessmentReportText(resultsJson: string, asOf: string): string;
   /**
    * Compute a credit assessment from statement results (JSON in/out).
-   * @returns Returns the requested string representation or JSON payload.
-   * @param resultsJson - Canonical JSON payload representing the results consumed by this API.
+   * @returns Credit-assessment result object from the statement results.
+   * @param resultsJson - Evaluated statement-result JSON.
    * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
-   * @throws Error - Rejects malformed `results_json`, an `as_of` value that is not a valid statement period identifier, or failure to serialize the assessment.
+   * @throws Error - Rejects malformed `results_json`, an `as_of` value that is not a valid statement period identifier, or failure to serialize the assessment to JavaScript.
    */
   creditAssessment(resultsJson: string, asOf: string): Record<string, unknown>;
   /**
@@ -7251,10 +7871,10 @@ export interface StatementsAnalyticsNamespace {
    * Evaluates the model, resolves the suite spec into runnable checks
    * (built-in **and** user-defined formula checks), and returns a JSON
    * check report.
-   * @returns Returns the requested string representation or JSON payload.
-   * @param modelJson - Canonical JSON payload representing the model consumed by this API.
-   * @param suiteSpecJson - Canonical JSON payload representing the suite spec consumed by this API.
-   * @param resultsJson - Canonical JSON payload representing the results consumed by this API.
+   * @returns Check-report JSON for the suite against the model.
+   * @param modelJson - Financial-model specification JSON.
+   * @param suiteSpecJson - Check-suite specification JSON.
+   * @param resultsJson - Evaluated statement-result JSON.
    * @throws Error - Rejects malformed model, suite, or supplied result JSON; check-suite resolution failures; model-evaluation failures when results are omitted; missing nodes, incompatible data, or invalid check configuration during execution; or failure to serialize the report.
    */
   runChecks(modelJson: string, suiteSpecJson: string, resultsJson?: string | null): string;
@@ -7263,10 +7883,10 @@ export interface StatementsAnalyticsNamespace {
    *
    * Accepts a model and a mapping JSON, builds the appropriate check
    * suite, evaluates the model, runs the checks, and returns the report.
-   * @returns Returns the requested string representation or JSON payload.
-   * @param modelJson - Canonical JSON payload representing the model consumed by this API.
-   * @param mappingJson - Canonical JSON payload representing the mapping consumed by this API.
-   * @param resultsJson - Canonical JSON payload representing the results consumed by this API.
+   * @returns Three-statement check-report JSON using the node mappings.
+   * @param modelJson - Financial-model specification JSON.
+   * @param mappingJson - Node-mapping JSON from statement nodes to check inputs.
+   * @param resultsJson - Evaluated statement-result JSON.
    * @throws Error - Rejects malformed model, mapping, or supplied result JSON; model-evaluation failures when results are omitted; missing mapped nodes, incompatible data, or invalid check configuration; or failure to serialize the report.
    */
   runThreeStatementChecks(
@@ -7276,10 +7896,10 @@ export interface StatementsAnalyticsNamespace {
   ): string;
   /**
    * Run credit underwriting checks using credit-specific mappings.
-   * @returns Returns the requested string representation or JSON payload.
-   * @param modelJson - Canonical JSON payload representing the model consumed by this API.
-   * @param mappingJson - Canonical JSON payload representing the mapping consumed by this API.
-   * @param resultsJson - Canonical JSON payload representing the results consumed by this API.
+   * @returns Credit-underwriting check-report JSON using the credit mappings.
+   * @param modelJson - Financial-model specification JSON.
+   * @param mappingJson - Node-mapping JSON from statement nodes to check inputs.
+   * @param resultsJson - Evaluated statement-result JSON.
    * @throws Error - Rejects malformed model, mapping, or supplied result JSON; model-evaluation failures when results are omitted; missing mapped nodes, incompatible data, or invalid check configuration; or failure to serialize the report.
    */
   runCreditUnderwritingChecks(
@@ -7289,15 +7909,15 @@ export interface StatementsAnalyticsNamespace {
   ): string;
   /**
    * Render a check report as plain text.
-   * @returns Returns the requested string representation or JSON payload.
-   * @param reportJson - Canonical JSON payload representing the report consumed by this API.
+   * @returns Plain-text check report.
+   * @param reportJson - Check-report JSON.
    * @throws Error - Rejects `report_json` when it is malformed or incompatible with the check report schema.
    */
   renderCheckReportText(reportJson: string): string;
   /**
    * Render a check report as HTML.
-   * @returns Returns the requested string representation or JSON payload.
-   * @param reportJson - Canonical JSON payload representing the report consumed by this API.
+   * @returns HTML check report.
+   * @param reportJson - Check-report JSON.
    * @throws Error - Rejects `report_json` when it is malformed or incompatible with the check report schema.
    */
   renderCheckReportHtml(reportJson: string): string;
@@ -7306,9 +7926,9 @@ export interface StatementsAnalyticsNamespace {
    * Percentile rank of `value` within `data` on a 0-1 scale.
    *
    * Returns `undefined` when `data` is empty rather than a synthetic 0.5.
-   * @returns Returns the result using the declared TypeScript shape.
+   * @returns Percentile rank in `[0, 1]`, or `undefined` when `data` is empty.
    * @param value - Subject-company metric value to rank against the peer sample.
-   * @param data - Non-empty numeric observation array used by the requested statistic.
+   * @param data - Peer metric observations used to rank `value`; empty input returns `undefined`.
    * @throws Error - Rejects when `data` is not a numeric JavaScript array or the finite rank cannot be serialized. Empty/non-finite peer data or a non-finite `value` return `undefined` rather than rejecting.
    */
   percentileRank(value: number, data: number[]): number | undefined;
@@ -7317,9 +7937,9 @@ export interface StatementsAnalyticsNamespace {
    *
    * Returns `undefined` when fewer than two observations are provided or the
    * peer variance is zero, instead of a synthetic zero.
-   * @returns Returns the result using the declared TypeScript shape.
+   * @returns Standardized z-score, or `undefined` when variance is zero or the sample is too small.
    * @param value - Subject-company metric value to standardize against the peer sample.
-   * @param data - Non-empty numeric observation array used by the requested statistic.
+   * @param data - Peer metric observations used to standardize `value`.
    * @throws Error - Rejects when `data` is not a numeric JavaScript array or the computed score cannot be serialized. Insufficient data, zero variance, or a non-finite `value` return `undefined` rather than rejecting.
    */
   zScore(value: number, data: number[]): number | undefined;
@@ -7327,14 +7947,14 @@ export interface StatementsAnalyticsNamespace {
    * Descriptive statistics over a peer distribution.
    *
    * Returns `undefined` (matching the other comps helpers) when `data` is empty.
-   * @returns Returns the result using the declared TypeScript shape.
-   * @param data - Non-empty numeric observation array used by the requested statistic.
+   * @returns Descriptive peer statistics, or `undefined` when `data` is empty.
+   * @param data - Peer metric observations; empty input returns `undefined`.
    * @throws Error - Rejects when `data` is not a numeric JavaScript array or the statistics cannot be serialized. No finite observations return `undefined`.
    */
   peerStats(data: number[]): PeerStatsJson | undefined;
   /**
    * Single-factor OLS fit of `y` on `x` evaluated at the subject observation.
-   * @returns Returns the result using the declared TypeScript shape.
+   * @returns Fitted intercept, slope, R², subject fitted value and residual, or `undefined` if unidentifiable.
    * @param xValues - Comparable-company independent-variable values aligned with y_values.
    * @param yValues - Comparable-company dependent-variable values aligned with x_values.
    * @param subjectX - Subject company's independent-variable value for the fitted regression.
@@ -7349,7 +7969,7 @@ export interface StatementsAnalyticsNamespace {
   ): RegressionResultJson | undefined;
   /**
    * Compute a canonical valuation multiple for a company-metric bag.
-   * @returns Returns the result using the declared TypeScript shape.
+   * @returns The requested multiple, or `undefined` when inputs are missing or the denominator is not positive.
    * @param companyMetrics - Company financial-metric object supplying numerator and denominator inputs.
    * @param multiple - Supported valuation multiple identifier, such as EV/EBITDA or P/E.
    * @throws Error - Rejects when `company_metrics` is not a string-to-number JavaScript object, `multiple` is not a supported canonical identifier, or the computed value cannot be serialized. Missing or non-finite inputs and non-positive denominators return `undefined`.
@@ -7357,7 +7977,7 @@ export interface StatementsAnalyticsNamespace {
   computeMultiple(companyMetrics: unknown, multiple: string): number | undefined;
   /**
    * Composite rich/cheap scoring across multiple dimensions.
-   * @returns Returns the resulting `RelativeValueResultJson` value or WebAssembly handle.
+   * @returns Composite rich/cheap score with per-dimension diagnostics.
    * @param peerSet - Comparable-company metric records used to score relative value.
    * @param dimensions - Metric dimensions and weights included in the relative-value score.
    * @throws Error - Rejects when `peer_set` or `dimensions` cannot be decoded into its declared schema, when no scoring dimensions are supplied, or when the result cannot be serialized to JavaScript.
@@ -7373,15 +7993,15 @@ export declare const statements_analytics: StatementsAnalyticsNamespace;
 // --- portfolio -------------------------------------------------------------
 
 /**
- * TypeScript view of the `ScenarioRevalueResult` WebAssembly value.
+ * Revalued result and application report after a scenario.
  */
 export interface ScenarioRevalueResult {
   /**
-   * Valuation exposed by this `ScenarioRevalueResult` value.
+   * Revalued portfolio or instrument result after applying the scenario.
    */
   valuation: Record<string, unknown>;
   /**
-   * Report exposed by this `ScenarioRevalueResult` value.
+   * Scenario application report describing operations applied and any warnings.
    */
   report: Record<string, unknown>;
 }
@@ -7399,7 +8019,7 @@ export interface ScenarioPnlResult {
    */
   pnl: Record<string, unknown>;
   /**
-   * Report exposed by this `ScenarioPnlResult` value.
+   * Scenario application report describing operations applied and any warnings.
    */
   report: Record<string, unknown>;
 }
@@ -7507,6 +8127,16 @@ export interface FactorRiskDecomposition {
    * Position x factor contributions.
    */
   position_factor_contributions: PositionFactorRiskContribution[];
+  /**
+   * Per-position residual (idiosyncratic) variance contributions. Empty for
+   * the parametric decomposer; populated only by credit-aware position
+   * decomposers.
+   */
+  position_residual_contributions: {
+    position_id: string;
+    residual_variance: number;
+    source: { kind: string; [key: string]: unknown };
+  }[];
 }
 
 /**
@@ -7719,6 +8349,10 @@ export interface AlmgrenChrissImpactResult {
    * Expected cost in basis points.
    */
   expected_cost_bp: number;
+  /**
+   * Timing-risk standard deviation of execution cost, in cost units.
+   */
+  execution_risk: number;
 }
 
 /**
@@ -7778,7 +8412,9 @@ export interface PortfolioMaterializationResult {
 export declare class InstrumentArtifactCache {
   /**
    * Create an empty cache with explicit bounds.
-   * @param capacity - Maximum retained entries; defaults to 4,096.
+   * @param capacity - Maximum retained artifacts. Omit to use the native
+   * @param capacity - Maximum retained artifacts; defaults to 4,096.
+   * @returns A reusable cache with a 64 MiB encoded-source byte bound.
    */
   constructor(capacity?: number);
   /**
@@ -7788,10 +8424,12 @@ export declare class InstrumentArtifactCache {
   readonly size: number;
   /**
    * Cumulative number of successful cache-miss decodes.
-   * @returns A non-negative decode count.
+   * @returns A non-negative decode count for this cache instance.
    */
   readonly decodeCount: number;
-  /** Release the underlying wasm heap allocation. Do not use this handle afterward. */
+  /**
+   * Release the underlying wasm heap allocation. Do not use this handle afterward.
+   */
   free(): void;
 }
 
@@ -7804,17 +8442,21 @@ export declare class Portfolio {
   private constructor();
   /**
    * Build a runtime portfolio from a portable embedded specification.
-   * @param specJson - Canonical portfolio specification JSON defining positions, quantities, and base currency.
    * @returns A reusable portfolio handle.
-   * @throws Error - If the specification is malformed or violates portfolio invariants.
+   * @param specJson - Canonical portfolio specification JSON defining positions, quantities, and base currency.
+   * @throws Error - Throws a JavaScript exception if `specJson` is malformed or does not match the portfolio schema, a position has an invalid quantity or instrument specification, or portfolio validation finds duplicate identifiers or an unknown entity reference.
    */
   static fromSpec(specJson: string): Portfolio;
   /**
    * Build a runtime portfolio from one strict persisted materialization bundle.
-   * @param bundle - Complete UTF-8 JSON as a browser string or `Uint8Array`.
-   * @param cache - Optional reusable decoded-instrument cache.
-   * @returns The reusable portfolio handle and structured load report.
-   * @throws ContractValidationError - If the contract is malformed, unsupported, invalid, or exceeds resource limits.
+   * @param bundle - Complete UTF-8 materialization JSON as a JavaScript string
+   * @param cache - Explicit cache created outside any timed validation region.
+   * @param cache - Optional reusable decoded-artifact cache.
+   * @param bundle - Complete UTF-8 materialization JSON string or byte array.
+   * @param cache - Optional reusable artifact cache.
+   * @returns An object containing the reusable portfolio and load report.
+   * @throws ContractValidationError - If the persisted contract is malformed,
+   * @throws Error - Throws `TypeError` for unsupported input types. Contract failures throw `ContractValidationError` with typed `kind` and structured `report` properties. invalid, unsupported, or exceeds a resource limit.
    */
   static fromMaterialization(
     bundle: MaterializationBundleInput,
@@ -7822,26 +8464,46 @@ export declare class Portfolio {
   ): PortfolioMaterializationResult;
   /**
    * Validate a materialization bundle and return diagnostics for form UIs.
-   * @param bundle - Complete UTF-8 JSON as a browser string or `Uint8Array`.
-   * @param cache - Optional reusable decoded-instrument cache.
-   * @returns On success, counters and validation-only phase timings; on contract failure, bounded diagnostics.
+   * @param bundle - Complete UTF-8 materialization JSON as a JavaScript string
+   * @param bundle - Complete UTF-8 materialization JSON string or byte array.
+   * @param cache - Reusable artifact cache.
+   * @returns A materialization report whose build/index phase counters are zero.
    * @throws ContractValidationError - If validation cannot produce a report.
+   * @throws Error - Throws `TypeError` for unsupported input types or a structured `ContractValidationError` when validation cannot produce a report.
    */
   static validateMaterializationJson(
     bundle: MaterializationBundleInput,
     cache?: InstrumentArtifactCache
   ): MaterializationReport | ValidationReport;
-  /** Portfolio identifier. @returns Stable portfolio ID. */
+  /**
+   * Portfolio identifier.
+   * @returns Stable portfolio ID.
+   */
   readonly id: string;
-  /** ISO-8601 valuation date. @returns Portfolio as-of date. */
+  /**
+   * ISO-8601 valuation date.
+   * @returns Portfolio as-of date.
+   */
   readonly asOf: string;
-  /** Reporting currency. @returns ISO-4217 base currency code. */
-  readonly baseCcy: string;
-  /** Return the number of positions. @returns Non-negative position count. */
+  /**
+   * Reporting currency.
+   * @returns ISO-4217 base currency code.
+   */
+  readonly baseCurrency: string;
+  /**
+   * Return the number of positions.
+   * @returns Non-negative position count.
+   */
   numPositions(): number;
-  /** Serialize the portable portfolio specification. @returns Canonical JSON string. */
+  /**
+   * Serialize the portable portfolio specification.
+   * @returns Canonical JSON string.
+   * @throws Error - Throws a JavaScript exception if the canonical portfolio specification cannot be serialized to JSON.
+   */
   toJson(): string;
-  /** Release the underlying wasm heap allocation. Do not use this handle after calling `free()`. */
+  /**
+   * Release the underlying wasm heap allocation. Do not use this handle after calling `free()`.
+   */
   free(): void;
 }
 
@@ -7870,8 +8532,8 @@ export interface PortfolioNamespace {
    *
    * Wire/validator surface: returns the re-serialized canonical JSON
    * **string**, suitable for storage or re-ingest by `Portfolio.fromSpec`.
-   * @returns Returns the requested string representation or JSON payload.
-   * @param jsonStr - Canonical JSON string to validate, parse, or normalize for this API.
+   * @returns Canonical portfolio-specification JSON after validation.
+   * @param jsonStr - Canonical JSON string to validate and re-serialize.
    * @throws Error - Throws a JavaScript exception if `jsonStr` is malformed or does not match the `PortfolioSpec` schema, or if the canonical form cannot be serialized.
    */
   parsePortfolioSpecJson(jsonStr: string): string;
@@ -7881,7 +8543,7 @@ export interface PortfolioNamespace {
    * Accepts a JSON array of `SectorPeriod` objects and returns a structured
    * `BrinsonPeriodResult` object.
    * @returns Returns a plain structured JavaScript object; `JSON.stringify` it for a canonical JSON string.
-   * @param sectorsJson - Canonical JSON payload representing the sectors consumed by this API.
+   * @param sectorsJson - Sector-classification JSON.
    * @throws Error - Throws a JavaScript exception if `sectorsJson` is malformed, contains no sectors or a non-finite weight or return, portfolio or benchmark weights do not sum to one, or the result cannot be converted to a JavaScript value.
    */
   brinsonFachler(sectorsJson: string): Record<string, unknown>;
@@ -7892,7 +8554,7 @@ export interface PortfolioNamespace {
    * `SectorPeriod` objects, and returns a structured `CarinoLinkedAttribution`
    * object.
    * @returns Returns a plain structured JavaScript object; `JSON.stringify` it for a canonical JSON string.
-   * @param periodsJson - Canonical JSON payload representing the periods consumed by this API.
+   * @param periodsJson - Chronological period-result JSON array.
    * @throws Error - Throws a JavaScript exception if `periodsJson` is malformed, any period fails Brinson validation, the sequence is empty or changes sector ordering, a period return is non-finite or at most `-1`, or the result cannot be converted to a JavaScript value.
    */
   carinoLink(periodsJson: string): Record<string, unknown>;
@@ -7961,10 +8623,7 @@ export interface PortfolioNamespace {
    * @param configJson - Canonical JSON `FiAttributionConfig` applied to every period; `period_years` is its only field and is required (no default).
    * @throws Error - Throws a JavaScript exception if either JSON input is malformed, any period fails Campisi attribution validation, the computed periods fail Carino linking validation, or the result cannot be converted to a JavaScript value.
    */
-  campisiCarinoLinkFromSnapshots(
-    periodsJson: string,
-    configJson: string
-  ): Record<string, unknown>;
+  campisiCarinoLinkFromSnapshots(periodsJson: string, configJson: string): Record<string, unknown>;
   /**
    * Reconcile the five Campisi effect totals against the active return.
    *
@@ -8104,29 +8763,26 @@ export interface PortfolioNamespace {
    * @param factorReturns - Caller-supplied benchmark factor returns `f_b` as a `number[]` or `Float64Array`, length `input.factor_names`; the `Float64Array` returned by `analytics.constrainedLeastSquares` can be passed directly.
    * @throws Error - Throws a JavaScript exception if `inputJson` is malformed; the asset or factor sets are empty; dimensions disagree; a value is non-finite; either weight vector does not sum to one; benchmark factor completeness is outside tolerance; or the result cannot be converted to a JavaScript value.
    */
-  factorBrinsonAttribution(
-    inputJson: string,
-    factorReturns: NumericArray
-  ): Record<string, unknown>;
+  factorBrinsonAttribution(inputJson: string, factorReturns: NumericArray): Record<string, unknown>;
   /**
    * Compute a Modified-Dietz TWRR sub-period return from period JSON.
-   * @returns Returns the result using the declared TypeScript shape.
-   * @param periodJson - Canonical JSON payload representing the period consumed by this API.
+   * @returns Sub-period time-weighted return as a decimal.
+   * @param periodJson - Single-period result JSON.
    * @throws Error - Throws a JavaScript exception if `periodJson` is malformed, does not match the expected period schema, or the return is undefined (non-positive adjusted denominator, out-of-range cashflow weight, non-finite inputs).
    */
   twrrModifiedDietz(periodJson: string): number;
   /**
    * Geometrically link TWRR sub-period returns from returns JSON.
-   * @returns Returns the result using the declared TypeScript shape.
-   * @param returnsJson - Canonical JSON payload representing the returns consumed by this API.
+   * @returns Linked time-weighted return object, including the annualized rate over `horizonYears`.
+   * @param returnsJson - Numeric return-series JSON.
    * @param horizonYears - Return-linking horizon measured in years for annualization.
    * @throws Error - Throws a JavaScript exception if `returnsJson` is malformed, the return series is invalid (non-finite sub-period return, non-positive compounded growth factor), or the linked result cannot be converted to a JavaScript value.
    */
   twrrLinked(returnsJson: string, horizonYears: number): Record<string, unknown>;
   /**
    * Compute money-weighted return via XIRR from dated cashflow JSON.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param cashflowsJson - Canonical JSON payload representing the cashflows consumed by this API.
+   * @returns Annualized money-weighted return as a decimal.
+   * @param cashflowsJson - Dated cashflow JSON.
    * @throws Error - Throws a JavaScript exception if `cashflowsJson` is malformed, contains an invalid date or insufficient cash flows for XIRR, or the numerical root cannot be found.
    */
   mwrXirr(cashflowsJson: string): number;
@@ -8137,15 +8793,15 @@ export interface PortfolioNamespace {
    * with live instruments, validates structural invariants, then
    * re-serializes the canonical JSON **string** for confirmation or
    * re-ingest.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical portfolio JSON after construction and validation.
    * @param specJson - Canonical portfolio specification JSON defining positions, quantities, and base currency.
    * @throws Error - Throws a JavaScript exception if `specJson` is malformed or violates the portfolio schema, a position has an invalid quantity or instrument specification, portfolio validation fails, or the round-trip form cannot be serialized.
    */
   buildPortfolioFromSpecJson(specJson: string): string;
   /**
    * Extract the total portfolio value from a JSON result.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param resultJson - Canonical JSON payload representing the result consumed by this API.
+   * @returns Total portfolio market value in the result's reporting currency.
+   * @param resultJson - Result JSON produced by a prior call.
    * @throws Error - Throws a JavaScript exception if `resultJson` is malformed or does not match the `PortfolioResult` schema.
    */
   portfolioResultTotalValue(resultJson: string): number;
@@ -8153,8 +8809,8 @@ export interface PortfolioNamespace {
    * Extract a specific metric from a portfolio result JSON.
    *
    * Returns `undefined` (via `Option`) if the metric was not produced.
-   * @returns Returns the result using the declared TypeScript shape.
-   * @param resultJson - Canonical JSON payload representing the result consumed by this API.
+   * @returns The named metric value, or `undefined` when that metric was not produced.
+   * @param resultJson - Result JSON produced by a prior call.
    * @param metricId - Stable metric identifier used to select the required domain object.
    * @throws Error - Throws a JavaScript exception if `resultJson` is malformed or does not match the `PortfolioResult` schema. An absent `metricId` returns `undefined`.
    */
@@ -8162,15 +8818,15 @@ export interface PortfolioNamespace {
   /**
    * Aggregate portfolio metrics from a valuation JSON.
    * @returns Returns a plain structured JavaScript object; `JSON.stringify` it for a canonical JSON string.
-   * @param valuationJson - Canonical JSON payload representing the valuation consumed by this API.
+   * @param valuationJson - Portfolio or instrument valuation JSON.
+   * @param baseCurrency - ISO-4217 base currency in which aggregate portfolio values are reported.
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
    * @throws Error - Throws a JavaScript exception if either JSON input is malformed, `baseCurrency` or `asOf` is invalid, valuation currency or date metadata is inconsistent, a required FX conversion is unavailable or invalid, or the metrics cannot be converted to a JavaScript value.
-   * @param baseCcy - Base ccy string consumed by this operation.
    */
   aggregateMetrics(
     valuationJson: string,
-    baseCcy: string,
+    baseCurrency: string,
     marketJson: string,
     asOf: string
   ): Record<string, unknown>;
@@ -8181,11 +8837,13 @@ export interface PortfolioNamespace {
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param strictRisk - Whether unavailable risk metrics are treated as calculation errors.
    * @throws Error - Throws a JavaScript exception if the portfolio or market JSON is malformed, portfolio construction or valuation fails, strict risk calculation cannot produce a requested metric, a required FX conversion is unavailable, or the valuation cannot be converted to a JavaScript value.
+   * @param metrics - Optional exact risk-metric ids to compute. Omit for the standard set; an empty array performs PV-only valuation.
    */
   valuePortfolio(
     specJson: string,
     marketJson: string,
-    strictRisk: boolean
+    strictRisk: boolean,
+    metrics?: string[]
   ): Record<string, unknown>;
   /**
    * Value an already-built [`Portfolio`] handle. Skips the per-call
@@ -8197,11 +8855,13 @@ export interface PortfolioNamespace {
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param strictRisk - Whether unavailable risk metrics are treated as calculation errors.
    * @throws Error - Throws a JavaScript exception if `marketJson` is malformed, portfolio valuation fails, strict risk calculation cannot produce a requested metric, a required FX conversion is unavailable, or the valuation cannot be converted to a JavaScript value.
+   * @param metrics - Optional exact risk-metric ids to compute. Omit for the standard set; an empty array performs PV-only valuation.
    */
   valuePortfolioBuilt(
     portfolio: Portfolio,
     marketJson: string,
-    strictRisk: boolean
+    strictRisk: boolean,
+    metrics?: string[]
   ): Record<string, unknown>;
   /**
    * Aggregate the full classified cashflow ladder for a portfolio.
@@ -8223,17 +8883,14 @@ export interface PortfolioNamespace {
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @throws Error - Throws a JavaScript exception if `marketJson` is malformed, monetary cash-flow aggregation overflows, or the aggregate cannot be converted to a JavaScript value.
    */
-  aggregateFullCashflowsBuilt(
-    portfolio: Portfolio,
-    marketJson: string
-  ): Record<string, unknown>;
+  aggregateFullCashflowsBuilt(portfolio: Portfolio, marketJson: string): Record<string, unknown>;
   /**
    * Apply a scenario to a portfolio and revalue.
    *
    * Returns a JS object with structured `valuation` and `report` values.
-   * @returns Returns the resulting `ScenarioRevalueResult` value or WebAssembly handle.
+   * @returns Revalued result object and scenario application report.
    * @param specJson - Canonical portfolio specification JSON defining positions, quantities, and base currency.
-   * @param scenarioJson - Canonical JSON payload representing the scenario consumed by this API.
+   * @param scenarioJson - Scenario specification JSON.
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @throws Error - Throws a JavaScript exception if the portfolio, scenario, or market JSON is malformed; portfolio construction, scenario application, or revaluation fails; or the structured result cannot be converted to a JavaScript value.
    */
@@ -8245,9 +8902,9 @@ export interface PortfolioNamespace {
   /**
    * Apply a scenario to an already-built [`Portfolio`] handle and revalue.
    * Returns a JS object with structured `valuation` and `report` values.
-   * @returns Returns the resulting `ScenarioRevalueResult` value or WebAssembly handle.
+   * @returns Revalued result object and scenario application report.
    * @param portfolio - Built portfolio object whose positions and weights are used by the calculation.
-   * @param scenarioJson - Canonical JSON payload representing the scenario consumed by this API.
+   * @param scenarioJson - Scenario specification JSON.
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @throws Error - Throws a JavaScript exception if the scenario or market JSON is malformed, scenario application or portfolio revaluation fails, or the structured result cannot be converted to a JavaScript value.
    */
@@ -8262,7 +8919,7 @@ export interface PortfolioNamespace {
    * Values the portfolio against the unshocked market and against the
    * scenario-shocked market, and returns a JS object with structured `pnl`
    * (base-currency `total` plus `by_position`) and `report` values.
-   * @returns Returns the resulting `ScenarioPnlResult` value or WebAssembly handle.
+   * @returns Scenario-attributable P&L ladder and application report.
    * @param specJson - Canonical portfolio specification JSON defining positions, quantities, and base currency.
    * @param scenarioJson - Canonical JSON payload representing the scenario whose profit-and-loss impact is measured.
    * @param marketJson - Canonical market-context JSON supplying the unshocked curves, quotes, and FX data used for the base leg.
@@ -8278,7 +8935,7 @@ export interface PortfolioNamespace {
    * (base-currency `total` plus `by_position`) and `report` values. Positions
    * added or removed by the scenario are zero-filled against the missing side,
    * so the drill-down always sums to the total.
-   * @returns Returns the resulting `ScenarioPnlResult` value or WebAssembly handle.
+   * @returns Scenario-attributable P&L ladder and application report.
    * @param portfolio - Built portfolio object whose positions and weights are used by the calculation.
    * @param scenarioJson - Canonical JSON payload representing the scenario whose profit-and-loss impact is measured.
    * @param marketJson - Canonical market-context JSON supplying the unshocked curves, quotes, and FX data used for the base leg.
@@ -8308,8 +8965,8 @@ export interface PortfolioNamespace {
    * replay configuration. Returns a structured `ReplayResult` object.
    * @returns Returns a plain structured JavaScript object; `JSON.stringify` it for a canonical JSON string.
    * @param specJson - Canonical portfolio specification JSON defining positions, quantities, and base currency.
-   * @param snapshotsJson - Canonical JSON payload representing the snapshots consumed by this API.
-   * @param configJson - Canonical JSON payload representing the config consumed by this API.
+   * @param snapshotsJson - Market-snapshot JSON array.
+   * @param configJson - Configuration JSON for this call.
    * @throws Error - Throws a JavaScript exception if any JSON input is malformed; the portfolio, replay configuration, or snapshot dates and ordering are invalid; valuation, attribution, or currency conversion fails; best-effort replay retains no step; or the result cannot be converted to a JavaScript value.
    */
   replayPortfolio(
@@ -8323,17 +8980,19 @@ export interface PortfolioNamespace {
    *
    * `covariance_json` must deserialize to an `n x n` row-major nested array.
    * @returns Returns a structured `VarDecompositionResult` object.
-   * @param positionIdsJson - Canonical JSON payload representing the position ids consumed by this API.
-   * @param weightsJson - Canonical JSON payload representing the weights consumed by this API.
-   * @param covarianceJson - Canonical JSON payload representing the covariance consumed by this API.
+   * @param positionIdsJson - JSON array of position identifiers.
+   * @param weightsJson - Position or asset weight-vector JSON.
+   * @param covarianceJson - Covariance-matrix JSON.
    * @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
    * @throws Error - Throws a JavaScript exception if any JSON input is malformed; identifier, weight, or covariance dimensions disagree; the covariance matrix is not finite, symmetric, and positive semidefinite; `confidence` is not finite and in `(0.5, 1)`; or the result cannot be converted to a JavaScript value.
+   * @param computeIncremental - When true, also compute incremental VaR; omit to skip.
    */
   parametricVarDecomposition(
     positionIdsJson: string,
     weightsJson: string,
     covarianceJson: string,
-    confidence: number
+    confidence: number,
+    computeIncremental?: boolean
   ): VarDecompositionResult;
   /**
    * Decompose portfolio Expected Shortfall into position contributions via
@@ -8345,9 +9004,9 @@ export interface PortfolioNamespace {
    * object whose ``contributions`` entries are
    * ``{position_id, component_es, marginal_es, pct_contribution}``.
    * @returns Returns a structured `EsDecompositionResult` object.
-   * @param positionIdsJson - Canonical JSON payload representing the position ids consumed by this API.
-   * @param weightsJson - Canonical JSON payload representing the weights consumed by this API.
-   * @param covarianceJson - Canonical JSON payload representing the covariance consumed by this API.
+   * @param positionIdsJson - JSON array of position identifiers.
+   * @param weightsJson - Position or asset weight-vector JSON.
+   * @param covarianceJson - Covariance-matrix JSON.
    * @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
    * @throws Error - Throws a JavaScript exception if any JSON input is malformed; identifier, weight, or covariance dimensions disagree; the covariance matrix is not finite, symmetric, and positive semidefinite; `confidence` is not finite and in `(0.5, 1)`; or the result cannot be converted to a JavaScript value.
    */
@@ -8363,8 +9022,8 @@ export interface PortfolioNamespace {
    *
    * `position_pnls_json` is a nested array shaped `[n_positions][n_scenarios]`.
    * @returns Returns a structured `VarDecompositionResult` object.
-   * @param positionIdsJson - Canonical JSON payload representing the position ids consumed by this API.
-   * @param positionPnlsJson - Canonical JSON payload representing the position pnls consumed by this API.
+   * @param positionIdsJson - JSON array of position identifiers.
+   * @param positionPnlsJson - Per-position P&L JSON.
    * @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
    * @throws Error - Throws a JavaScript exception if either JSON input is malformed, position or scenario dimensions disagree, `confidence` is not finite and in `(0.5, 1)`, too few scenarios resolve the requested tail, a P-and-L value is non-finite, or the result cannot be converted to a JavaScript value.
    */
@@ -8376,9 +9035,9 @@ export interface PortfolioNamespace {
   /**
    * Evaluate a per-position risk budget against actual component VaRs.
    * @returns Returns a structured `RiskBudgetResult` object.
-   * @param positionIdsJson - Canonical JSON payload representing the position ids consumed by this API.
-   * @param actualVarJson - Canonical JSON payload representing the actual var consumed by this API.
-   * @param targetVarPctJson - Canonical JSON payload representing the target var pct consumed by this API.
+   * @param positionIdsJson - JSON array of position identifiers.
+   * @param actualVarJson - Actual component-VaR JSON.
+   * @param targetVarPctJson - Target VaR-share JSON.
    * @param portfolioVar - Total portfolio VaR used to convert risk-budget shares into absolute amounts.
    * @param utilizationThreshold - Actual-to-target risk ratio that flags a budget breach.
    * @throws Error - Throws a JavaScript exception if any JSON input is malformed, actual or target arrays do not match the identifier count, non-empty target shares do not sum to one within tolerance, nonzero component risk is paired with zero `portfolioVar`, or the result cannot be converted to a JavaScript value.
@@ -8388,39 +9047,44 @@ export interface PortfolioNamespace {
     actualVarJson: string,
     targetVarPctJson: string,
     portfolioVar: number,
-    utilizationThreshold: number
+    utilizationThreshold?: number
   ): RiskBudgetResult;
   /**
    * Effective bid-ask spread via Roll (1984). Returns `undefined` when the
    * serial covariance is non-negative (Roll assumption violated) or inputs too short.
-   * @returns Returns the result using the declared TypeScript shape.
-   * @param returnsJson - Canonical JSON payload representing the returns consumed by this API.
+   * @returns Effective spread estimate, or `undefined` when the Roll assumption is violated.
+   * @param returnsJson - Numeric return-series JSON.
    * @throws Error - Throws a JavaScript exception if `returnsJson` is malformed or does not contain a numeric array. Invalid estimator inputs return `undefined`.
    */
   rollEffectiveSpread(returnsJson: string): number | undefined;
   /**
    * Amihud (2002) illiquidity ratio from returns and volumes.
-   * @returns Returns the result using the declared TypeScript shape.
-   * @param returnsJson - Canonical JSON payload representing the returns consumed by this API.
-   * @param volumesJson - Canonical JSON payload representing the volumes consumed by this API.
+   * @returns Amihud illiquidity ratio, or `undefined` when the estimator inputs are invalid.
+   * @param returnsJson - Numeric return-series JSON.
+   * @param volumesJson - Volume-series JSON.
    * @throws Error - Throws a JavaScript exception if either JSON input is malformed or does not contain a numeric array. Invalid estimator inputs return `undefined`.
    */
   amihudIlliquidity(returnsJson: string, volumesJson: string): number | undefined;
   /**
    * Trading days required to liquidate at the given participation rate.
-   * @returns Returns the computed numeric result in the units described above.
-   * @param positionValue - Current position market value in the relevant currency units.
-   * @param avgDailyVolume - Average daily trading volume in the same units as the position size.
-   * @param participationRate - Maximum fraction of average daily volume used for execution.
+   *
+   * Share-space contract (matches the Rust `days_to_liquidate` signature):
+   * both quantity and ADV are counts of shares/contracts, not currency
+   * notionals. Mixing a notional with a share-count ADV silently mis-scales
+   * the result by the share price.
+   * @returns Trading days required to liquidate at `participationRate`.
+   * @param participationRate - Maximum fraction of average daily volume used for execution, in `(0, 1]`.
+   * @param positionQuantity - Position size in shares or contracts, not currency notional.
+   * @param adv - Average daily volume in the same share or contract units as `positionQuantity`.
    */
-  daysToLiquidate(positionValue: number, avgDailyVolume: number, participationRate: number): number;
+  daysToLiquidate(positionQuantity: number, adv: number, participationRate: number): number;
   /**
    * Classify a position into a liquidity tier from its days-to-liquidate.
    *
    * Uses the default `[1, 5, 20, 60]` trading-day thresholds. Returns one of
    * `"tier1" .. "tier5"`.
-   * @returns Returns the requested string representation or JSON payload.
-   * @param daysToLiquidate - Days to liquidate supplied to liquidity tier; follow the type and convention required by the surrounding API.
+   * @returns Liquidity tier identifier: `"tier1"` through `"tier5"`.
+   * @param daysToLiquidate - Trading days to liquidate; classified with default thresholds `[1, 5, 20, 60]`.
    */
   liquidityTier(daysToLiquidate: number): string;
   /**
@@ -8433,7 +9097,7 @@ export interface PortfolioNamespace {
    * @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
    * @param positionValue - Current position market value in the relevant currency units.
    * @throws Error - Throws a JavaScript exception if `var` is non-finite or positive; either spread input is non-finite or negative; `confidence` is outside `(0, 1)`; `positionValue` is non-finite; or the result cannot be converted to a JavaScript value.
-   * @param varValue - Value-at-Risk level or estimate consumed by this calculation.
+   * @param varValue - Loss-convention VaR in the same units as `positionValue`; must be non-positive.
    */
   lvarBangia(
     varValue: number,
@@ -8466,9 +9130,9 @@ export interface PortfolioNamespace {
   /**
    * Kyle (1985) linear price impact lambda estimated from observed volumes
    * and returns via the Amihud-ratio proxy. Returns `undefined` on invalid inputs.
-   * @returns Returns the result using the declared TypeScript shape.
-   * @param volumesJson - Canonical JSON payload representing the volumes consumed by this API.
-   * @param returnsJson - Canonical JSON payload representing the returns consumed by this API.
+   * @returns Kyle lambda in price-per-unit-volume, or `undefined` when inputs are invalid.
+   * @param volumesJson - Volume-series JSON.
+   * @param returnsJson - Numeric return-series JSON.
    * @param referencePrice - Positive price per share or contract used to convert the return-space ratio into price-space lambda.
    * @throws Error - Throws a JavaScript exception if either JSON input is malformed or does not contain a numeric array. Invalid estimator inputs, including a non-positive or non-finite `referencePrice`, return `undefined`.
    */
@@ -8566,12 +9230,13 @@ export interface PortfolioNamespace {
    * optional `RiskMeasure` JSON.
    *
    * Returns a structured object with `total_risk`, `measure`, `residual_risk`,
-   * `factor_contributions` (array), and `position_factor_contributions`
-   * (array).
+   * `factor_contributions` (array), `position_factor_contributions` (array),
+   * and `position_residual_contributions` (array; empty for the parametric
+   * decomposer).
    *
-   * `measure` uses the canonical serde form (`"variance"`, `"volatility"`).
-   * The Python binding's `measure` getter reports the JSON-quoted form
-   * (`"\"variance\""`); the WASM value is the unquoted one.
+   * `measure` uses the canonical serde form (`"variance"`, `"volatility"`, or
+   * an object for `var` / `expected_shortfall`); the Python binding's
+   * `measure` getter reports the same snake_case tag.
    * @returns Returns a structured `FactorRiskDecomposition` object.
    * @param sensitivitiesJson - Canonical factor-sensitivity result JSON; `JSON.stringify` the structured matrix returned by `computeFactorSensitivities`.
    * @param covarianceJson - Factor covariance-matrix JSON aligned with the supplied sensitivities.
@@ -8593,11 +9258,11 @@ export declare const portfolio: PortfolioNamespace;
 // --- scenarios -------------------------------------------------------------
 
 /**
- * TypeScript view of the `ScenarioWarning` WebAssembly value.
+ * Non-fatal warning raised while applying a scenario.
  */
 export interface ScenarioWarning {
   /**
-   * Kind exposed by this `ScenarioWarning` value.
+   * Warning category raised while applying the scenario, such as a skipped or clamped effect.
    */
   kind: string;
   [key: string]: unknown;
@@ -8670,7 +9335,7 @@ export interface RollForwardReport {
 }
 
 /**
- * TypeScript view of the `ScenarioApplyResult` WebAssembly value.
+ * Mutated market and optional model after applying a scenario.
  *
  * Mirrors the Rust `ApplicationEnvelope`: the mutated contexts cross the
  * boundary as objects, not JSON strings.
@@ -8685,15 +9350,15 @@ export interface ScenarioApplyResult {
    */
   model?: Record<string, unknown>;
   /**
-   * Operations applied exposed by this `ScenarioApplyResult` value.
+   * Count of scenario operations that mutated market or model state.
    */
   operations_applied: number;
   /**
-   * User operations exposed by this `ScenarioApplyResult` value.
+   * Count of caller-supplied operations before template or hierarchy expansion.
    */
   user_operations: number;
   /**
-   * Expanded operations exposed by this `ScenarioApplyResult` value.
+   * Count of operations after template expansion and hierarchy resolution.
    */
   expanded_operations: number;
   /**
@@ -8701,7 +9366,7 @@ export interface ScenarioApplyResult {
    */
   changes: ScenarioChangeManifest;
   /**
-   * Warnings exposed by this `ScenarioApplyResult` value.
+   * Non-fatal warnings produced while applying the scenario.
    */
   warnings: ScenarioWarning[];
   /**
@@ -8716,7 +9381,7 @@ export interface ScenarioApplyResult {
 }
 
 /**
- * TypeScript view of the `ScenarioApplyMarketResult` WebAssembly value.
+ * Mutated market after applying a market-only scenario.
  *
  * The same `ApplicationEnvelope` shape as `ScenarioApplyResult` minus `model`.
  */
@@ -8726,15 +9391,15 @@ export interface ScenarioApplyMarketResult {
    */
   market: Record<string, unknown>;
   /**
-   * Operations applied exposed by this `ScenarioApplyMarketResult` value.
+   * Count of scenario operations that mutated market state.
    */
   operations_applied: number;
   /**
-   * User operations exposed by this `ScenarioApplyMarketResult` value.
+   * Count of caller-supplied operations before template or hierarchy expansion.
    */
   user_operations: number;
   /**
-   * Expanded operations exposed by this `ScenarioApplyMarketResult` value.
+   * Count of operations after template expansion and hierarchy resolution.
    */
   expanded_operations: number;
   /**
@@ -8742,7 +9407,7 @@ export interface ScenarioApplyMarketResult {
    */
   changes: ScenarioChangeManifest;
   /**
-   * Warnings exposed by this `ScenarioApplyMarketResult` value.
+   * Non-fatal warnings produced while applying the scenario to the market.
    */
   warnings: ScenarioWarning[];
   /**
@@ -8770,8 +9435,8 @@ export interface ScenariosNamespace {
    * Parse and validate a scenario specification from JSON.
    *
    * Returns the validated, re-serialized JSON.
-   * @returns Returns the requested string representation or JSON payload.
-   * @param jsonStr - Canonical JSON string to validate, parse, or normalize for this API.
+   * @returns Canonical scenario-specification JSON after validation.
+   * @param jsonStr - Canonical JSON string to validate and re-serialize.
    * @throws Error - Rejects malformed or schema-incompatible `json_str`, a blank scenario ID, multiple time-roll operations, invalid operation identifiers or numeric fields, variant-specific operation violations, or serialization failure.
    */
   parseScenarioSpec(jsonStr: string): string;
@@ -8779,7 +9444,7 @@ export interface ScenariosNamespace {
    * Compose multiple scenario specs (JSON array) into a single scenario.
    *
    * Specs are merged in priority order (lower number runs first).
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical composed scenario-specification JSON.
    * @param specsJson - JSON array of validated ScenarioSpec objects to compose in priority order.
    * @throws Error - Rejects malformed or schema-incompatible `specs_json`, composition that contains more than one time-roll operation, or failure to serialize the composed specification.
    */
@@ -8788,8 +9453,8 @@ export interface ScenariosNamespace {
    * Validate a scenario specification JSON without executing it.
    *
    * Returns `true` if valid, throws on error.
-   * @returns Returns `true` when the documented condition is satisfied.
-   * @param jsonStr - Canonical JSON string to validate, parse, or normalize for this API.
+   * @returns `true` when the scenario specification is valid.
+   * @param jsonStr - Canonical JSON string to validate and re-serialize.
    * @throws Error - Rejects malformed or schema-incompatible `json_str`, a blank scenario ID, multiple time-roll operations, invalid operation identifiers or numeric fields, or variant-specific operation violations.
    */
   validateScenarioSpec(jsonStr: string): boolean;
@@ -8797,13 +9462,13 @@ export interface ScenariosNamespace {
    * List all built-in template identifiers.
    *
    * Returns a JSON array of template ID strings.
-   * @returns Returns the resulting `string[]` collection in the documented order.
+   * @returns Built-in scenario template identifiers.
    * @throws Error - Rejects if the embedded template registry cannot be parsed and validated, or if its template identifiers cannot be serialized to JavaScript.
    */
   listBuiltinTemplates(): string[];
   /**
    * Get metadata for all built-in templates as a JSON string.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Metadata for every built-in scenario template as JSON.
    * @throws Error - Rejects if the embedded template registry cannot be parsed and validated, or if its metadata cannot be serialized to JSON.
    */
   listBuiltinTemplateMetadata(): string;
@@ -8811,7 +9476,7 @@ export interface ScenariosNamespace {
    * Build a scenario spec from a built-in template.
    *
    * Returns JSON-serialized `ScenarioSpec`.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical `ScenarioSpec` JSON from the built-in template.
    * @param templateId - Identifier of a built-in scenario template in the embedded registry.
    * @throws Error - Rejects a failure to load the embedded registry, an unknown `template_id`, a template whose resolved scenario fails validation, or failure to serialize the scenario.
    */
@@ -8820,14 +9485,14 @@ export interface ScenariosNamespace {
    * List component IDs for a built-in composite template.
    *
    * Returns a JS array of component ID strings.
-   * @returns Returns the resulting `string[]` collection in the documented order.
+   * @returns Component identifiers of the selected composite template.
    * @param templateId - Identifier of a built-in scenario template in the embedded registry.
    * @throws Error - Rejects a failure to load the embedded registry, an unknown `template_id`, or component identifiers that cannot be serialized to JavaScript.
    */
   listTemplateComponents(templateId: string): string[];
   /**
    * Build a specific component from a built-in composite template.
-   * @returns Returns the requested string representation or JSON payload.
+   * @returns Canonical `ScenarioSpec` JSON for the selected template component.
    * @param templateId - Identifier of a built-in scenario template in the embedded registry.
    * @param componentId - Identifier of a component within the selected composite template.
    * @throws Error - Rejects a failure to load the embedded registry, an unknown `template_id` or `component_id`, a component scenario that fails validation, or failure to serialize the scenario.
@@ -8835,8 +9500,8 @@ export interface ScenariosNamespace {
   buildTemplateComponent(templateId: string, componentId: string): string;
   /**
    * Build a scenario spec from fields.
-   * @returns Returns the requested string representation or JSON payload.
-   * @param id - Stable identifier used to name and retrieve the supplied domain object.
+   * @returns Canonical `ScenarioSpec` JSON from the supplied fields.
+   * @param id - Scenario identifier stored on the constructed spec.
    * @param operationsJson - JSON array of scenario operation specifications in execution order.
    * @param name - Optional human-readable scenario name.
    * @param description - Optional human-readable description of the scenario purpose.
@@ -8868,7 +9533,7 @@ export interface ScenariosNamespace {
    * `instrument_spread_bp_by_*`, correlation shocks) are inert and produce a
    * warning, and `time_roll_forward` in `business_days` mode adjusts without
    * holiday information.
-   * @returns Returns the resulting `ScenarioApplyResult` value or WebAssembly handle.
+   * @returns Mutated market and optional model after applying the scenario.
    * @param scenarioJson - JSON-serialized ScenarioSpec to validate and apply.
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param modelJson - JSON-serialized FinancialModelSpec that scenario operations may mutate.
@@ -8886,7 +9551,7 @@ export interface ScenariosNamespace {
    *
    * Returns the same envelope shape as [`apply_scenario`] minus `model`;
    * the same caveats apply (no instrument portfolio, no holiday calendar).
-   * @returns Returns the resulting `ScenarioApplyMarketResult` value or WebAssembly handle.
+   * @returns Mutated market after applying the scenario.
    * @param scenarioJson - JSON-serialized ScenarioSpec to validate and apply.
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
@@ -8910,8 +9575,8 @@ export interface ScenariosNamespace {
    * @param method - Attribution method: "parallel", "waterfall", "metrics_based", "taylor".
    * @param configJson - Optional FinstackConfig JSON for horizon analysis; omit to use defaults.
    * @param calendarId - Optional holiday calendar (e.g. "nyse", "target") used to
-   * @returns JSON-serialized `HorizonResult`.
-   * @throws Error - Rejects malformed instrument, market, scenario, or configuration JSON; an invalid ISO `as_of` date; an unsupported attribution `method`; an unknown `calendar_id`; invalid, unsupported, or unresolved scenario operations; missing market data; pricing or attribution failures; or failure to serialize the horizon result. business-day adjust `time_roll_forward` targets under `business_days` mode. Omit for a weekends-only calendar; unknown identifiers throw.
+   * @returns The `HorizonResult` as a structured JavaScript object, matching the Python binding's typed `HorizonResult`.
+   * @throws Error - Rejects malformed instrument, market, scenario, or configuration JSON; an invalid ISO `as_of` date; an unsupported attribution `method`; an unknown `calendar_id`; invalid, unsupported, or unresolved scenario operations; missing market data; pricing or attribution failures; or failure to serialize the horizon result to JavaScript. business-day adjust `time_roll_forward` targets under `business_days` mode. Omit for a weekends-only calendar; unknown identifiers throw.
    */
   computeHorizonReturn(
     instrumentJson: string,

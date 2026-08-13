@@ -56,6 +56,10 @@ class liability_management:
             -------
             str
                 One of ``par_for_par``, ``discount``, ``uptier``, ``downtier``.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -68,6 +72,10 @@ class liability_management:
             -------
             float
                 Present value of the existing claim if it is not tendered.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -80,6 +88,10 @@ class liability_management:
             -------
             float
                 Present value received on tendering, excluding fees.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -92,6 +104,10 @@ class liability_management:
             -------
             float
                 Fee paid to participating holders, in the input unit.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -104,6 +120,10 @@ class liability_management:
             -------
             float
                 Estimated sweetener value, in the input unit.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -116,6 +136,10 @@ class liability_management:
             -------
             float
                 ``new_npv + consent_fee + equity_sweetener_value``.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -128,6 +152,10 @@ class liability_management:
             -------
             float
                 ``tender_total - old_npv``; negative when holding out wins.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -140,6 +168,10 @@ class liability_management:
             -------
             float
                 Fraction of the hold-out present value, capped at ``1.0``.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -152,6 +184,10 @@ class liability_management:
             -------
             bool
                 True when ``tender_total > old_npv * 1.02``.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -171,6 +207,11 @@ class liability_management:
             -------
             pandas.DataFrame
                 Single-row frame of the offer's hold-versus-tender economics.
+
+            Raises
+            ------
+            ValueError
+                If the result cannot be serialized into a pandas object.
             """
             ...
 
@@ -196,6 +237,10 @@ class liability_management:
             -------
             float
                 Outstanding face amount, in the input unit.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -208,6 +253,10 @@ class liability_management:
             -------
             float
                 Face amount remaining once retired par is removed.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -220,6 +269,10 @@ class liability_management:
             -------
             float
                 Leverage as a multiple, so ``8.0`` reads as 8.0x.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -232,6 +285,10 @@ class liability_management:
             -------
             float
                 Leverage as a multiple, so ``4.8`` reads as 4.8x.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -244,6 +301,10 @@ class liability_management:
             -------
             float
                 ``pre_leverage - post_leverage``, in turns.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -270,6 +331,10 @@ class liability_management:
             str
                 One of ``open_market_repurchase``, ``tender_offer``,
                 ``amend_and_extend``, ``dropdown``.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -282,6 +347,10 @@ class liability_management:
             -------
             float
                 Repurchase consideration or consent fees, in the input unit.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -294,6 +363,10 @@ class liability_management:
             -------
             float
                 Par extinguished; zero for amend-and-extend and dropdowns.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -306,6 +379,10 @@ class liability_management:
             -------
             float
                 ``notional_reduction - cost``, in the input unit.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -318,6 +395,10 @@ class liability_management:
             -------
             float
                 Fraction in ``[0, 1]``; zero when no par is retired.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -330,6 +411,10 @@ class liability_management:
             -------
             float
                 Nonzero only for a dropdown transaction.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -342,6 +427,10 @@ class liability_management:
             -------
             LeverageImpact or None
                 None when no positive EBITDA was provided.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -369,6 +458,11 @@ class liability_management:
             -------
             pandas.DataFrame
                 Single-row frame of the exercise's issuer-side economics.
+
+            Raises
+            ------
+            ValueError
+                If the result cannot be serialized into a pandas object.
             """
             ...
 
@@ -536,6 +630,9 @@ class recovery_waterfall:
                 Optional ``(market_value, haircut)`` collateral tuple. The
                 haircut is a decimal fraction deducted before estate allocation.
 
+            Notes
+            -----
+            Construction does not raise; arguments are stored as supplied.
             """
             ...
         @property
@@ -547,6 +644,10 @@ class recovery_waterfall:
             -------
             str
                 The id exposed by this `recovery_waterfall.RecoveryClaim`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -559,6 +660,10 @@ class recovery_waterfall:
             -------
             str
                 The seniority exposed by this `recovery_waterfall.RecoveryClaim`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -571,6 +676,10 @@ class recovery_waterfall:
             -------
             int
                 The priority exposed by this `recovery_waterfall.RecoveryClaim`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -583,6 +692,10 @@ class recovery_waterfall:
             -------
             float
                 The principal exposed by this `recovery_waterfall.RecoveryClaim`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -595,6 +708,10 @@ class recovery_waterfall:
             -------
             float
                 The accrued exposed by this `recovery_waterfall.RecoveryClaim`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -607,6 +724,10 @@ class recovery_waterfall:
             -------
             float
                 The penalties exposed by this `recovery_waterfall.RecoveryClaim`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -619,6 +740,10 @@ class recovery_waterfall:
             -------
             float | None
                 The collateral value exposed by this `recovery_waterfall.RecoveryClaim`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -631,6 +756,10 @@ class recovery_waterfall:
             -------
             float
                 The collateral haircut exposed by this `recovery_waterfall.RecoveryClaim`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -643,6 +772,10 @@ class recovery_waterfall:
             -------
             float
                 The total claim exposed by this `recovery_waterfall.RecoveryClaim`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -669,6 +802,10 @@ class recovery_waterfall:
             -------
             str
                 The id exposed by this `recovery_waterfall.RecoveryAllocation`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -681,6 +818,10 @@ class recovery_waterfall:
             -------
             str
                 The seniority exposed by this `recovery_waterfall.RecoveryAllocation`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -693,6 +834,10 @@ class recovery_waterfall:
             -------
             int
                 The priority exposed by this `recovery_waterfall.RecoveryAllocation`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -705,6 +850,10 @@ class recovery_waterfall:
             -------
             float
                 The total claim exposed by this `recovery_waterfall.RecoveryAllocation`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -717,6 +866,10 @@ class recovery_waterfall:
             -------
             float
                 The collateral recovery exposed by this `recovery_waterfall.RecoveryAllocation`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -729,6 +882,10 @@ class recovery_waterfall:
             -------
             float
                 The general recovery exposed by this `recovery_waterfall.RecoveryAllocation`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -741,6 +898,10 @@ class recovery_waterfall:
             -------
             float
                 The total recovery exposed by this `recovery_waterfall.RecoveryAllocation`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -753,6 +914,10 @@ class recovery_waterfall:
             -------
             float
                 The recovery rate exposed by this `recovery_waterfall.RecoveryAllocation`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -765,6 +930,10 @@ class recovery_waterfall:
             -------
             float
                 The deficiency exposed by this `recovery_waterfall.RecoveryAllocation`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -791,6 +960,10 @@ class recovery_waterfall:
             -------
             float
                 The total distributed exposed by this `recovery_waterfall.RecoveryWaterfallResult`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -803,6 +976,10 @@ class recovery_waterfall:
             -------
             float
                 The undistributed estate exposed by this `recovery_waterfall.RecoveryWaterfallResult`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -815,6 +992,10 @@ class recovery_waterfall:
             -------
             bool
                 The apr satisfied exposed by this `recovery_waterfall.RecoveryWaterfallResult`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -827,6 +1008,10 @@ class recovery_waterfall:
             -------
             list[recovery_waterfall.RecoveryAllocation]
                 The allocations exposed by this `recovery_waterfall.RecoveryWaterfallResult`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -853,6 +1038,11 @@ class recovery_waterfall:
             -------
             pandas.DataFrame
                 One row per claim, in absolute-priority order.
+
+            Raises
+            ------
+            ValueError
+                If the result cannot be serialized into a pandas object.
             """
             ...
 
@@ -1259,7 +1449,7 @@ class pd:
 
         def __init__(self, label: str, upper_pd: float, central_pd: float) -> None:
             """
-            Construct one PD band.
+            Construct one probability-of-default band on a master scale.
 
             Parameters
             ----------
@@ -1271,6 +1461,9 @@ class pd:
                 Representative PD assigned to anything in the band. Must fall
                 inside the band.
 
+            Notes
+            -----
+            Construction does not raise; arguments are stored as supplied.
             """
             ...
 
@@ -1284,6 +1477,9 @@ class pd:
             str
                 The grade's label, e.g. ``"BBB"``.
 
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -1297,6 +1493,9 @@ class pd:
             float
                 Upper PD bound.
 
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -1310,6 +1509,9 @@ class pd:
             float
                 Central PD assigned to anything falling in this band.
 
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -1335,6 +1537,9 @@ class pd:
             str
                 Label of the grade the PD mapped into.
 
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -1348,19 +1553,25 @@ class pd:
             float
                 The notched PD for the assigned grade.
 
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
         @property
         def input_pd(self) -> float:
             """
-            The PD that was mapped.
+            Input probability of default that was mapped onto the scale.
 
             Returns
             -------
             float
                 The input PD, before notching.
 
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -1374,6 +1585,9 @@ class pd:
             int
                 Zero-based index of the assigned grade.
 
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -1391,6 +1605,11 @@ class pd:
             -------
             pandas.DataFrame
                 Single-row frame of the mapped grade and its central PD.
+
+            Raises
+            ------
+            ValueError
+                If the result cannot be serialized into a pandas object.
             """
             ...
 
@@ -1419,6 +1638,12 @@ class pd:
                 Bands in ascending PD order. ``upper_pd`` must be strictly
                 increasing, and each ``central_pd`` must lie inside its band.
 
+            Raises
+            ------
+            ValueError
+                If *grades* is empty, a PD is non-finite or outside ``(0, 1]``
+                (central PD must be in ``(0, 1)``), or ``upper_pd`` is not
+                strictly increasing.
             """
             ...
 
@@ -1544,19 +1769,25 @@ class pd:
             int
                 Count of PD bands.
 
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
         @property
         def grades(self) -> list[pd.MasterScaleGrade]:
             """
-            The scale's grades.
+            Ordered PD bands that make up this master scale.
 
             Returns
             -------
             list[pd.MasterScaleGrade]
                 Grades in ascending PD order.
 
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -2029,12 +2260,15 @@ class migration:
             migration.RatingScale
                 Scale with labels ``AAA, AA, A, BBB, BB, B, CCC, D``.
 
+            Notes
+            -----
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
             Examples
             --------
             >>> from finstack_quant.core.credit import migration
             >>> migration.RatingScale.standard().n_states()
             10
-
             """
             ...
 
@@ -2048,12 +2282,15 @@ class migration:
             migration.RatingScale
                 Scale with labels ``AAA, AA, A, BBB, BB, B, CCC, D, NR``.
 
+            Notes
+            -----
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
             Examples
             --------
             >>> from finstack_quant.core.credit import migration
             >>> migration.RatingScale.standard_with_nr().n_states()
             11
-
             """
             ...
 
@@ -2067,12 +2304,15 @@ class migration:
             migration.RatingScale
                 Scale with notched sub-grades.
 
+            Notes
+            -----
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
             Examples
             --------
             >>> from finstack_quant.core.credit import migration
             >>> migration.RatingScale.notched().n_states()
             22
-
             """
             ...
 
@@ -2148,6 +2388,9 @@ class migration:
             int
                 State count.
 
+            Notes
+            -----
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
             """
             ...
 
@@ -2165,6 +2408,9 @@ class migration:
             int or None
                 State index, or ``None`` when the label is not on this scale.
 
+            Notes
+            -----
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
             """
             ...
 
@@ -2177,6 +2423,9 @@ class migration:
             int or None
                 Default state index, or ``None`` if no default state exists.
 
+            Notes
+            -----
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
             """
             ...
 
@@ -2189,6 +2438,9 @@ class migration:
             list[str]
                 Ordered label list.
 
+            Notes
+            -----
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
             """
             ...
 
@@ -2350,6 +2602,9 @@ class migration:
             list[list[float]]
                 Row-major matrix of transition probabilities.
 
+            Notes
+            -----
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
             """
             ...
 
@@ -2362,6 +2617,9 @@ class migration:
             float
                 Horizon (e.g. ``1.0``).
 
+            Notes
+            -----
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
             """
             ...
 
@@ -2374,6 +2632,9 @@ class migration:
             int
                 State count.
 
+            Notes
+            -----
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
             """
             ...
 
@@ -2387,6 +2648,9 @@ class migration:
                 Probability of default from each state, or ``None`` when the
                 scale has no default absorbing state.
 
+            Notes
+            -----
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
             """
             ...
 
@@ -2535,6 +2799,9 @@ class migration:
             list[list[float]]
                 Row-major generator matrix.
 
+            Notes
+            -----
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
             """
             ...
 
@@ -2547,6 +2814,9 @@ class migration:
             int
                 State count.
 
+            Notes
+            -----
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
             """
             ...
 
@@ -2561,6 +2831,10 @@ class migration:
             -------
             float
                 The regularization l1 exposed by this `migration.GeneratorMatrix`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -2575,6 +2849,10 @@ class migration:
             -------
             float
                 The round trip error exposed by this `migration.GeneratorMatrix`.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
             """
             ...
 
@@ -2611,6 +2889,9 @@ class migration:
             int
                 State index at time ``t``.
 
+            Notes
+            -----
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
             """
             ...
 
@@ -2628,6 +2909,9 @@ class migration:
             str
                 Rating label at time ``t``.
 
+            Notes
+            -----
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
             """
             ...
 
@@ -2640,6 +2924,9 @@ class migration:
             bool
                 ``True`` if the path defaulted at any point.
 
+            Notes
+            -----
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
             """
             ...
 
@@ -2652,6 +2939,9 @@ class migration:
             float or None
                 Default time in years, or ``None``.
 
+            Notes
+            -----
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
             """
             ...
 
@@ -2664,6 +2954,9 @@ class migration:
             int
                 Transition count (excluding the initial state).
 
+            Notes
+            -----
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
             """
             ...
 
@@ -2676,6 +2969,9 @@ class migration:
             list[tuple[float, int]]
                 Ordered list of transition events.
 
+            Notes
+            -----
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
             """
             ...
 
@@ -2689,6 +2985,9 @@ class migration:
                 Simulation horizon in years over which this rating path is
                 defined.
 
+            Notes
+            -----
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
             """
             ...
 
@@ -2803,6 +3102,9 @@ class migration:
             float
                 Configured simulation horizon in years.
 
+            Notes
+            -----
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
             """
             ...
 

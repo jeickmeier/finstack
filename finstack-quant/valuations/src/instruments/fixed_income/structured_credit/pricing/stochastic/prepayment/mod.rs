@@ -14,8 +14,8 @@
 //!
 //! # References
 //!
-//! - Richard, S.F., & Roll, R. (1989). "Prepayments on Fixed-Rate Mortgage-Backed Securities."
-//! - Schwartz, E.S., & Torous, W.N. (1989). "Prepayment and the Valuation of Mortgage-Backed Securities."
+//! - Richard, S.F., & Roll, R. (1989). "Prepayments on Fixed-Rate Mortgage-Backed Securities." `docs/REFERENCES.md#richard-roll-1989`
+//! - Schwartz, E.S., & Torous, W.N. (1989). "Prepayment and the Valuation of Mortgage-Backed Securities." `docs/REFERENCES.md#schwartz-torous-1989`
 
 mod factor_correlated;
 mod regime_switching;

@@ -769,8 +769,8 @@ impl Swaption {
     ///
     /// # References
     ///
-    /// - Hagan, P. et al. (2002). "Managing Smile Risk" *Wilmott Magazine*
-    /// - Antonov, A. et al. (2015). "SABR/Free Sabr" for normal vol extensions
+    /// - Hagan, P. et al. (2002). "Managing Smile Risk" *Wilmott Magazine* `docs/REFERENCES.md#hagan-2002-sabr`
+    /// - Antonov, A. et al. (2015). "SABR/Free Sabr" for normal vol extensions `docs/REFERENCES.md#hagan-2002-sabr`
     pub fn price_sabr(&self, curves: &MarketContext, as_of: Date) -> Result<Money> {
         use super::lognormal_to_normal_vol;
 

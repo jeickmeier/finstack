@@ -165,6 +165,10 @@ class ToleranceConfig:
         float
 
             The rate epsilon exposed by this `ToleranceConfig`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -178,6 +182,10 @@ class ToleranceConfig:
         float
 
             The generic epsilon exposed by this `ToleranceConfig`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -233,6 +241,9 @@ class FinstackConfig:
         tolerances : ToleranceConfig | None
             Tolerance configuration.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -316,6 +327,9 @@ class FinstackConfig:
         bool
             ``True`` when an extension was present.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -328,6 +342,9 @@ class FinstackConfig:
         list[str]
             Extension key list.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -345,6 +362,10 @@ class FinstackConfig:
         str or None
             JSON string, or ``None``.
 
+        Raises
+        ------
+        ValueError
+            If a stored extension exists but cannot be serialized to JSON.
         """
         ...
 
@@ -362,6 +383,10 @@ class FinstackConfig:
         Any or None
             Python data, or ``None``.
 
+        Raises
+        ------
+        ValueError
+            If a stored extension exists but cannot be decoded as JSON.
         """
         ...
 
@@ -375,6 +400,11 @@ class FinstackConfig:
             JSON text.
 
             Canonical JSON representation of this `FinstackConfig`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 

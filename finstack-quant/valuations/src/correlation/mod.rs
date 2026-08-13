@@ -37,12 +37,12 @@
 //!
 //! # References
 //!
-//! - Gaussian copula background:
-//!   `docs/REFERENCES.md#li-2000-gaussian-copula`
-//! - Student-t copula background:
-//!   `docs/REFERENCES.md#demarta-mcneil-2005-t-copula`
-//! - Factor-model and portfolio-risk context:
-//!   `docs/REFERENCES.md#meucci-risk-and-asset-allocation`
+//! - Gaussian copula background: `docs/REFERENCES.md#li-2000-gaussian-copula`
+//!
+//! - Student-t copula background: `docs/REFERENCES.md#demarta-mcneil-2005-t-copula` `docs/REFERENCES.md#mcneil-frey-embrechts-qrm`
+//!
+//! - Factor-model and portfolio-risk context: `docs/REFERENCES.md#meucci-risk-and-asset-allocation`
+//!
 
 pub mod copula;
 pub mod factor_model;

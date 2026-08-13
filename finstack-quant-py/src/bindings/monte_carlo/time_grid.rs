@@ -29,6 +29,25 @@ impl PyTimeGrid {
             .map_err(core_to_py)
     }
 
+    /// Create a near-uniform grid that includes required knot times exactly.
+    ///
+    /// Builds a uniform grid of ``max(round(t_max * steps_per_year),
+    /// min_steps)`` steps over ``[0, t_max]``, then merges each
+    /// ``required_times`` entry (e.g. exercise dates, barrier monitoring or
+    /// cashflow dates) as an exact grid knot.
+    #[staticmethod]
+    #[pyo3(signature = (t_max, steps_per_year, min_steps, required_times))]
+    fn uniform_with_required_times(
+        t_max: f64,
+        steps_per_year: f64,
+        min_steps: usize,
+        required_times: Vec<f64>,
+    ) -> PyResult<Self> {
+        TimeGrid::uniform_with_required_times(t_max, steps_per_year, min_steps, &required_times)
+            .map(|tg| Self { inner: tg })
+            .map_err(core_to_py)
+    }
+
     /// Number of time steps.
     #[getter]
     fn num_steps(&self) -> usize {

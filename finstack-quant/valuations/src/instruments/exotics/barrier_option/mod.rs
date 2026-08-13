@@ -24,8 +24,8 @@
 //!
 //! # References
 //!
-//! - Reiner & Rubinstein (1991) - "Breaking Down the Barriers"
-//! - Broadie, Glasserman & Kou (1997) - Discrete barrier correction
+//! - Reiner & Rubinstein (1991) - "Breaking Down the Barriers" `docs/REFERENCES.md#reiner-rubinstein-1991`
+//! - Broadie, Glasserman & Kou (1997) - Discrete barrier correction `docs/REFERENCES.md#glasserman-2004-monte-carlo` `docs/REFERENCES.md#broadie-glasserman-kou-1997`
 //!
 //! # See Also
 //!

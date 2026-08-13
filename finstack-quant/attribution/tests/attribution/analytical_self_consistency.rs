@@ -23,16 +23,15 @@
 //!
 //! ### Rates P&L Attribution
 //!
-//! For parallel rate shift Δr (in decimal):
-//!   Rates_PnL ≈ DV01 × (Δr × 10,000)
-//!
-//! With second-order correction:
-//!   Rates_PnL ≈ DV01 × (Δr × 10,000) + ½ × Convexity × P × (Δr)²
+//! For parallel rate shift Δr (in decimal), with DV01 = (P_down − P_up)/2 > 0
+//! for a long bond, the signed second-order reference is:
+//!   Rates_PnL ≈ −DV01 × (Δr × 10,000) + ½ × Convexity_cash × (Δr)²
 //!
 //! ## Tolerances
 //!
-//! - First-order approximation: < 5% relative error for small shifts (<50bp)
-//! - With convexity: < 1% relative error for larger shifts
+//! Per-case, calibrated so the test fails if the convexity term is dropped
+//! from the reference (tolerance < convexity term's relative contribution);
+//! see the `AnalyticalParityTestCase` constructors for measured values.
 
 use finstack_quant_attribution::{attribute_pnl_parallel, AttributionMethod, ExecutionPolicy};
 use finstack_quant_core::config::FinstackConfig;
@@ -65,6 +64,11 @@ struct AnalyticalParityTestCase {
 }
 
 impl AnalyticalParityTestCase {
+    // Tolerances are calibrated (2026-08-12 measurements) so that DELETING the
+    // convexity term from the signed reference would fail the test: each
+    // tolerance sits strictly between the measured agreement and the convexity
+    // term's relative contribution.
+
     fn new_small_rate_increase() -> Self {
         Self {
             name: "5Y bond, 10bp rate increase",
@@ -73,7 +77,9 @@ impl AnalyticalParityTestCase {
             maturity_years: 5,
             rate_t0: 0.04,
             rate_t1: 0.041, // 10bp increase
-            tolerance_pct: 5.0,
+            // Measured rel_diff 0.027%; convexity term is 0.24% of expected,
+            // so 0.1% passes today and fails a convexity-less reference.
+            tolerance_pct: 0.1,
         }
     }
 
@@ -84,8 +90,10 @@ impl AnalyticalParityTestCase {
             coupon_rate: 0.05,
             maturity_years: 5,
             rate_t0: 0.04,
-            rate_t1: 0.05,       // 100bp increase
-            tolerance_pct: 10.0, // Larger tolerance due to convexity
+            rate_t1: 0.05, // 100bp increase
+            // Measured rel_diff 0.043%; convexity term is 2.5% of expected,
+            // so 1% passes today and fails a convexity-less reference by >2×.
+            tolerance_pct: 1.0,
         }
     }
 
@@ -97,7 +105,9 @@ impl AnalyticalParityTestCase {
             maturity_years: 5,
             rate_t0: 0.04,
             rate_t1: 0.035, // 50bp decrease
-            tolerance_pct: 5.0,
+            // Measured rel_diff 0.005%; convexity term is 1.2% of expected,
+            // so 0.5% passes today and fails a convexity-less reference.
+            tolerance_pct: 0.5,
         }
     }
 }
@@ -185,8 +195,17 @@ fn run_analytical_parity_test(tc: &AnalyticalParityTestCase) {
 
     let rate_change_decimal = tc.rate_t1 - tc.rate_t0;
     let rate_change_bp = rate_change_decimal * 10_000.0;
-    let expected_rates_pnl =
-        dv01 * rate_change_bp + 0.5 * convexity_cash * rate_change_decimal * rate_change_decimal;
+    // Signed second-order reference: dP ≈ −DV01·Δr_bp + ½·Γ_cash·Δr².
+    // `dv01 = (P_down − P_up)/2` is positive for a long bond, so the
+    // first-order price move for a rate INCREASE is −dv01·Δr_bp; the
+    // (always-positive for a vanilla bond) convexity term then cushions
+    // losses on the way up and amplifies gains on the way down. The old
+    // reference added the convexity term to the wrong side (`+dv01·Δr_bp +
+    // convexity`), which under the magnitude-only comparison shifted the
+    // reference AWAY from the true value by 2× the convexity term — the 5%/10%
+    // tolerances existed to absorb that self-inflicted error.
+    let convexity_term = 0.5 * convexity_cash * rate_change_decimal * rate_change_decimal;
+    let expected_rates_pnl = -dv01 * rate_change_bp + convexity_term;
 
     let actual_rates_pnl = attribution.rates_curves_pnl.amount();
 
@@ -207,23 +226,22 @@ fn run_analytical_parity_test(tc: &AnalyticalParityTestCase) {
         );
     }
 
-    // Verify magnitude is in reasonable range of analytical approximation
-    // Allow for convexity effects and approximation errors
+    // Signed relative error against the second-order analytical reference.
+    // Comparing SIGNED values (not magnitudes) so a sign flip fails outright.
     let actual_abs = actual_rates_pnl.abs();
     let expected_abs = expected_rates_pnl.abs();
-
-    // For small moves, first-order should be close
-    // For large moves, convexity helps the long position (actual should be less negative than expected)
-    let rel_diff = if expected_abs > 100.0 {
-        ((actual_abs - expected_abs) / expected_abs).abs() * 100.0
-    } else {
-        (actual_abs - expected_abs).abs() // Use absolute for small values
-    };
+    let rel_diff = ((actual_rates_pnl - expected_rates_pnl) / expected_rates_pnl).abs() * 100.0;
 
     // Log for debugging
     eprintln!(
-        "{}: rate_change={}bp, expected_pnl={:.2}, actual_pnl={:.2}, rel_diff={:.2}%",
-        tc.name, rate_change_bp, expected_rates_pnl, actual_rates_pnl, rel_diff
+        "{}: rate_change={}bp, expected_pnl={:.2}, actual_pnl={:.2}, rel_diff={:.4}%, convexity_term={:.2} ({:.4}% of expected)",
+        tc.name,
+        rate_change_bp,
+        expected_rates_pnl,
+        actual_rates_pnl,
+        rel_diff,
+        convexity_term,
+        (convexity_term / expected_rates_pnl).abs() * 100.0
     );
 
     // Any "skip for small values" gate must key on the

@@ -27,7 +27,7 @@ __all__ = [
     "SensitivityResult",
     "VarianceRow",
     "VarianceReport",
-    "ScenarioResultSet",
+    "ScenarioResults",
     "ScenarioDiff",
     "BridgeStep",
     "BridgeChart",
@@ -192,6 +192,11 @@ class SensitivityConfig:
         -------
         str
             Canonical JSON representation of this `SensitivityConfig`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -204,6 +209,10 @@ class SensitivityConfig:
         -------
         str
             Analysis mode name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -216,6 +225,10 @@ class SensitivityConfig:
         -------
         list[str]
             Node identifiers of the tracked target metrics.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -228,6 +241,10 @@ class SensitivityConfig:
         -------
         int
             Count of configured parameters.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -321,6 +338,11 @@ class VarianceConfig:
         -------
         str
             Canonical JSON representation of this `VarianceConfig`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -333,6 +355,10 @@ class VarianceConfig:
         -------
         str
             Baseline scenario label.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -345,6 +371,10 @@ class VarianceConfig:
         -------
         str
             Comparison scenario label.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -357,6 +387,10 @@ class VarianceConfig:
         -------
         list[str]
             Node identifiers of the compared metrics.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -369,6 +403,10 @@ class VarianceConfig:
         -------
         list[str]
             Period-id strings covered by the comparison.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -405,6 +443,12 @@ class ScenarioSet:
             Mapping from scenario names to statement node IDs and numeric overrides.
         parents : dict[str, str] or None, default None
             Optional mapping from each child scenario to its inherited parent.
+
+        Raises
+        ------
+        TypeError
+            If *scenarios* is not a mapping of names to node-override dicts,
+            or *parents* is not a mapping of child names to parent names.
         """
         ...
 
@@ -445,6 +489,11 @@ class ScenarioSet:
         -------
         str
             Canonical JSON representation of this `ScenarioSet`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -479,12 +528,16 @@ class ScenarioSet:
         -------
         list[str]
             Scenario names in definition order.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
 class SensitivityResult:
     """
-    Compute SensitivityResult.
+    Sensitivity-run result holding the config and generated scenario payloads.
 
     Examples
     --------
@@ -533,6 +586,11 @@ class SensitivityResult:
         -------
         str
             Canonical JSON representation of this `SensitivityResult`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -546,6 +604,10 @@ class SensitivityResult:
         -------
         list[str]
             Node identifiers of the tracked target metrics.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -619,12 +681,17 @@ class SensitivityResult:
         -------
         pd.DataFrame
             One row per generated scenario.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
 class VarianceRow:
     """
-    Compute VarianceRow.
+    One period/metric variance row comparing baseline and comparison values.
 
     Examples
     --------
@@ -648,6 +715,10 @@ class VarianceRow:
         -------
         str
             Period-id string for this row.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -660,6 +731,10 @@ class VarianceRow:
         -------
         str
             Node identifier of the compared metric.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -672,6 +747,10 @@ class VarianceRow:
         -------
         float
             Baseline value in the metric's own units.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -684,6 +763,10 @@ class VarianceRow:
         -------
         float
             Comparison value in the metric's own units.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -696,6 +779,10 @@ class VarianceRow:
         -------
         float
             Absolute variance in the metric's own units.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -713,12 +800,16 @@ class VarianceRow:
         float | None
             Percentage variance as a decimal fraction, or ``None`` on a near-zero
             baseline.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
 class VarianceReport:
     """
-    Compute VarianceReport.
+    Variance report holding labeled baseline/comparison rows for one run.
 
     Examples
     --------
@@ -766,6 +857,11 @@ class VarianceReport:
         -------
         str
             Canonical JSON representation of this `VarianceReport`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -778,6 +874,10 @@ class VarianceReport:
         -------
         str
             Baseline scenario label.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -790,6 +890,10 @@ class VarianceReport:
         -------
         str
             Comparison scenario label.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -802,6 +906,10 @@ class VarianceReport:
         -------
         list[VarianceRow]
             Variance rows in report order.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -823,23 +931,28 @@ class VarianceReport:
         -------
         pd.DataFrame
             One row per (metric, period) variance row.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
-class ScenarioResultSet:
+class ScenarioResults:
     """
-    Compute ScenarioResultSet.
+    Named scenario-evaluation result set with per-scenario statement outputs.
 
     Examples
     --------
-    >>> from finstack_quant.statements_analytics import ScenarioResultSet
-    >>> ScenarioResultSet.from_json("{}").names
+    >>> from finstack_quant.statements_analytics import ScenarioResults
+    >>> ScenarioResults.from_json("{}").names
     []
 
     """
 
     @staticmethod
-    def from_json(json: str) -> ScenarioResultSet:
+    def from_json(json: str) -> ScenarioResults:
         """
         Deserialize evaluated scenario results from canonical JSON.
 
@@ -850,8 +963,8 @@ class ScenarioResultSet:
 
         Returns
         -------
-        ScenarioResultSet
-            Validated `ScenarioResultSet` instance reconstructed from the canonical JSON payload.
+        ScenarioResults
+            Validated `ScenarioResults` instance reconstructed from the canonical JSON payload.
 
         Raises
         ------
@@ -860,20 +973,25 @@ class ScenarioResultSet:
 
         Examples
         --------
-        >>> from finstack_quant.statements_analytics import ScenarioResultSet
-        >>> ScenarioResultSet.from_json("{}").get("missing") is None
+        >>> from finstack_quant.statements_analytics import ScenarioResults
+        >>> ScenarioResults.from_json("{}").get("missing") is None
         True
 
         """
         ...
     def to_json(self) -> str:
         """
-        Serialize `ScenarioResultSet` to canonical JSON.
+        Serialize `ScenarioResults` to canonical JSON.
 
         Returns
         -------
         str
-            Canonical JSON representation of this `ScenarioResultSet`, suitable for a matching `from_json` call.
+            Canonical JSON representation of this `ScenarioResults`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -886,6 +1004,10 @@ class ScenarioResultSet:
         -------
         list[str]
             Evaluated scenario names in definition order.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -904,6 +1026,9 @@ class ScenarioResultSet:
             Evaluated statement result for ``name``, or ``None`` when the
             result set has no scenario with that name.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -990,9 +1115,9 @@ def run_sensitivity(
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import SensitivityConfig, run_sensitivity
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0)])
-    >>> builder.compute("profit", "revenue * 0.5")
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = builder.compute("profit", "revenue * 0.5")
     >>> config = SensitivityConfig("Diagonal", [("revenue", "2025Q1", 100.0, [90.0, 110.0])], ["profit"])
     >>> len(run_sensitivity(builder.build(), config))
     2
@@ -1033,9 +1158,9 @@ def generate_tornado_entries(
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import SensitivityConfig, generate_tornado_entries, run_sensitivity
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0)])
-    >>> builder.compute("profit", "revenue * 0.5")
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = builder.compute("profit", "revenue * 0.5")
     >>> config = SensitivityConfig("Tornado", [("revenue", "2025Q1", 100.0, [90.0, 110.0])], ["profit"])
     >>> len(json.loads(generate_tornado_entries(run_sensitivity(builder.build(), config), "profit", "2025Q1")))
     1
@@ -1075,8 +1200,8 @@ def run_variance(
     >>> from finstack_quant.statements import Evaluator, ModelBuilder
     >>> from finstack_quant.statements_analytics import VarianceConfig, run_variance
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("profit", [("2025Q1", 25.0)])
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("profit", [("2025Q1", 25.0)])
     >>> result = Evaluator().evaluate(builder.build())
     >>> report = run_variance(result, result, VarianceConfig("base", "case", ["profit"], ["2025Q1"]))
     >>> report.rows[0].abs_var
@@ -1088,7 +1213,7 @@ def run_variance(
 def evaluate_scenario_set(
     model: FinancialModelSpec | str,
     scenario_set: ScenarioSet | str,
-) -> ScenarioResultSet:
+) -> ScenarioResults:
     """
     Evaluate every scenario in a scenario set against a model.
 
@@ -1101,7 +1226,7 @@ def evaluate_scenario_set(
 
     Returns
     -------
-    ScenarioResultSet
+    ScenarioResults
         Typed mapping from scenario names to statement results.
 
     Raises
@@ -1114,8 +1239,8 @@ def evaluate_scenario_set(
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import ScenarioSet, evaluate_scenario_set
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
     >>> evaluate_scenario_set(builder.build(), ScenarioSet({"base": {}})).names
     ['base']
 
@@ -1200,9 +1325,9 @@ def goal_seek(
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import goal_seek
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0)])
-    >>> builder.compute("profit", "revenue * 0.5")
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = builder.compute("profit", "revenue * 0.5")
     >>> solved, updated = goal_seek(builder.build(), "profit", "2025Q1", 60.0, "revenue", "2025Q1", False)
     >>> (round(solved, 6), updated)
     (120.0, None)
@@ -1264,9 +1389,9 @@ def evaluate_dcf(
     >>> from finstack_quant.statements_analytics import evaluate_dcf
     >>> from finstack_quant.statements import ModelBuilder
     >>> builder = ModelBuilder("dcf")
-    >>> builder.periods("2025..2026")
-    >>> builder.value("ufcf", [("2025", 100.0), ("2026", 110.0)])
-    >>> builder.with_meta("currency", '"USD"')
+    >>> _ = builder.periods("2025..2026")
+    >>> _ = builder.value("ufcf", [("2025", 100.0), ("2026", 110.0)])
+    >>> _ = builder.with_meta("currency", '"USD"')
     >>> terminal = '{"type":"gordon_growth","growth_rate":0.02}'
     >>> evaluate_dcf(builder.build(), 0.10, terminal, net_debt_override=0.0)["enterprise_value"] > 0.0
     True
@@ -1337,9 +1462,9 @@ def dcf_sensitivity(
     >>> from finstack_quant.statements_analytics import dcf_sensitivity
     >>> from finstack_quant.statements import ModelBuilder
     >>> builder = ModelBuilder("dcf")
-    >>> builder.periods("2025..2026")
-    >>> builder.value("ufcf", [("2025", 100.0), ("2026", 110.0)])
-    >>> builder.with_meta("currency", '"USD"')
+    >>> _ = builder.periods("2025..2026")
+    >>> _ = builder.value("ufcf", [("2025", 100.0), ("2026", 110.0)])
+    >>> _ = builder.with_meta("currency", '"USD"')
     >>> terminal = '{"type":"gordon_growth","growth_rate":0.02}'
     >>> len(dcf_sensitivity(builder.build(), 0.10, terminal, net_debt_override=0.0)["entries"])
     2
@@ -1409,10 +1534,10 @@ def evaluate_lbo(
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import evaluate_lbo
     >>> builder = ModelBuilder("lbo")
-    >>> builder.periods("2025..2026")
-    >>> builder.value("ebitda", [("2025", 22.0), ("2026", 26.4)])
-    >>> builder.value("total_debt", [("2025", 115.0), ("2026", 35.0)])
-    >>> builder.with_meta("currency", '"USD"')
+    >>> _ = builder.periods("2025..2026")
+    >>> _ = builder.value("ebitda", [("2025", 22.0), ("2026", 26.4)])
+    >>> _ = builder.value("total_debt", [("2025", 115.0), ("2026", 35.0)])
+    >>> _ = builder.with_meta("currency", '"USD"')
     >>> result = evaluate_lbo(
     ...     builder.build(), 8.5, "ebitda", 9.5, "ebitda", "total_debt", "2026", [("debt", 115.0)], 3.0
     ... )
@@ -1520,8 +1645,8 @@ def run_corporate_analysis(
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import run_corporate_analysis
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("ebitda", [("2025Q1", 25.0)])
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("ebitda", [("2025Q1", 25.0)])
     >>> sorted(run_corporate_analysis(builder.build()))
     ['credit', 'ev_suppressed_non_positive', 'statement_json']
 
@@ -1560,8 +1685,8 @@ def pl_summary_report(
     >>> from finstack_quant.statements import Evaluator, ModelBuilder
     >>> from finstack_quant.statements_analytics import pl_summary_report
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
     >>> result = Evaluator().evaluate(builder.build())
     >>> "revenue" in pl_summary_report(result, ["revenue"], ["2025Q1"])
     True
@@ -1598,10 +1723,10 @@ def credit_assessment_report(results: StatementResult | str, as_of: str) -> str:
     >>> from finstack_quant.statements import Evaluator, ModelBuilder
     >>> periods = ["2025Q1", "2025Q2", "2025Q3", "2025Q4"]
     >>> builder = ModelBuilder("credit")
-    >>> builder.periods("2025Q1..Q4")
-    >>> builder.value("ebitda", list(zip(periods, [10.0, 20.0, 30.0, 40.0], strict=True)))
-    >>> builder.value("interest_expense", list(zip(periods, [1.0, 2.0, 3.0, 4.0], strict=True)))
-    >>> builder.value("total_debt", list(zip(periods, [300.0] * 4, strict=True)))
+    >>> _ = builder.periods("2025Q1..Q4")
+    >>> _ = builder.value("ebitda", list(zip(periods, [10.0, 20.0, 30.0, 40.0], strict=True)))
+    >>> _ = builder.value("interest_expense", list(zip(periods, [1.0, 2.0, 3.0, 4.0], strict=True)))
+    >>> _ = builder.value("total_debt", list(zip(periods, [300.0] * 4, strict=True)))
     >>> results = Evaluator().evaluate(builder.build())
     >>> len(credit_assessment_report(results, "2025Q4").splitlines()) > 1
     True
@@ -1640,10 +1765,10 @@ def credit_assessment(results: StatementResult | str, as_of: str) -> dict[str, A
     >>> from finstack_quant.statements import Evaluator, ModelBuilder
     >>> periods = ["2025Q1", "2025Q2", "2025Q3", "2025Q4"]
     >>> builder = ModelBuilder("credit")
-    >>> builder.periods("2025Q1..Q4")
-    >>> builder.value("ebitda", list(zip(periods, [10.0, 20.0, 30.0, 40.0], strict=True)))
-    >>> builder.value("interest_expense", list(zip(periods, [1.0, 2.0, 3.0, 4.0], strict=True)))
-    >>> builder.value("total_debt", list(zip(periods, [300.0] * 4, strict=True)))
+    >>> _ = builder.periods("2025Q1..Q4")
+    >>> _ = builder.value("ebitda", list(zip(periods, [10.0, 20.0, 30.0, 40.0], strict=True)))
+    >>> _ = builder.value("interest_expense", list(zip(periods, [1.0, 2.0, 3.0, 4.0], strict=True)))
+    >>> _ = builder.value("total_debt", list(zip(periods, [300.0] * 4, strict=True)))
     >>> results = Evaluator().evaluate(builder.build())
     >>> credit_assessment(results, "2025Q4")["leverage_ratio"]
     3.0
@@ -1665,10 +1790,10 @@ class DependencyTracer:
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import DependencyTracer
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0)])
-    >>> builder.value("cost", [("2025Q1", 60.0)])
-    >>> builder.compute("profit", "revenue - cost")
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = builder.value("cost", [("2025Q1", 60.0)])
+    >>> _ = builder.compute("profit", "revenue - cost")
     >>> sorted(DependencyTracer(builder.build()).direct_dependencies("profit"))
     ['cost', 'revenue']
 
@@ -1831,10 +1956,10 @@ def direct_dependencies(model: FinancialModelSpec | str, node_id: str) -> list[s
     >>> from finstack_quant.statements_analytics import direct_dependencies
     >>> from finstack_quant.statements import Evaluator, ModelBuilder
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0)])
-    >>> builder.value("cost", [("2025Q1", 60.0)])
-    >>> builder.compute("profit", "revenue - cost")
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = builder.value("cost", [("2025Q1", 60.0)])
+    >>> _ = builder.compute("profit", "revenue - cost")
     >>> model = builder.build()
     >>> sorted(direct_dependencies(model, "profit"))
     ['cost', 'revenue']
@@ -1868,10 +1993,10 @@ def all_dependencies(model: FinancialModelSpec | str, node_id: str) -> list[str]
     >>> from finstack_quant.statements_analytics import all_dependencies
     >>> from finstack_quant.statements import Evaluator, ModelBuilder
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0)])
-    >>> builder.value("cost", [("2025Q1", 60.0)])
-    >>> builder.compute("profit", "revenue - cost")
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = builder.value("cost", [("2025Q1", 60.0)])
+    >>> _ = builder.compute("profit", "revenue - cost")
     >>> model = builder.build()
     >>> sorted(all_dependencies(model, "profit"))
     ['cost', 'revenue']
@@ -1905,10 +2030,10 @@ def dependents(model: FinancialModelSpec | str, node_id: str) -> list[str]:
     >>> from finstack_quant.statements_analytics import dependents
     >>> from finstack_quant.statements import Evaluator, ModelBuilder
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0)])
-    >>> builder.value("cost", [("2025Q1", 60.0)])
-    >>> builder.compute("profit", "revenue - cost")
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = builder.value("cost", [("2025Q1", 60.0)])
+    >>> _ = builder.compute("profit", "revenue - cost")
     >>> model = builder.build()
     >>> dependents(model, "revenue")
     ['profit']
@@ -1952,10 +2077,10 @@ def explain_formula(
     >>> from finstack_quant.statements_analytics import explain_formula
     >>> from finstack_quant.statements import Evaluator, ModelBuilder
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0)])
-    >>> builder.value("cost", [("2025Q1", 60.0)])
-    >>> builder.compute("profit", "revenue - cost")
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = builder.value("cost", [("2025Q1", 60.0)])
+    >>> _ = builder.compute("profit", "revenue - cost")
     >>> model = builder.build()
     >>> results = Evaluator().evaluate(model)
     >>> explanation = explain_formula(model, results, "profit", "2025Q1")
@@ -2000,10 +2125,10 @@ def explain_formula_text(
     >>> from finstack_quant.statements_analytics import explain_formula_text
     >>> from finstack_quant.statements import Evaluator, ModelBuilder
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0)])
-    >>> builder.value("cost", [("2025Q1", 60.0)])
-    >>> builder.compute("profit", "revenue - cost")
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = builder.value("cost", [("2025Q1", 60.0)])
+    >>> _ = builder.compute("profit", "revenue - cost")
     >>> model = builder.build()
     >>> results = Evaluator().evaluate(model)
     >>> "profit" in explain_formula_text(model, results, "profit", "2025Q1")
@@ -2049,8 +2174,8 @@ def run_checks(
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import run_checks
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
     >>> suite = '{"name":"basic","builtin_checks":[],"formula_checks":[]}'
     >>> json.loads(run_checks(builder.build(), suite))["summary"]["total_checks"]
     0
@@ -2092,9 +2217,9 @@ def run_three_statement_checks(
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import run_three_statement_checks
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
+    >>> _ = builder.periods("2025Q1..Q1")
     >>> for node in ["assets", "liabilities", "equity", "cash", "retained_earnings", "net_income"]:
-    ...     builder.value(node, [("2025Q1", 0.0)])
+    ...     _ = builder.value(node, [("2025Q1", 0.0)])
     >>> mapping = '{"assets_nodes":["assets"],"liabilities_nodes":["liabilities"],"equity_nodes":["equity"],"cash_node":"cash","retained_earnings_node":"retained_earnings","ppe_node":null,"net_income_node":"net_income","depreciation_node":null,"interest_expense_node":null,"tax_expense_node":null,"pretax_income_node":null,"cfo_node":null,"cfi_node":null,"cff_node":null,"total_cf_node":null,"capex_node":null,"dividends_node":null}'
     >>> json.loads(run_three_statement_checks(builder.build(), mapping))["summary"]["total_checks"] > 0
     True
@@ -2136,9 +2261,9 @@ def run_credit_underwriting_checks(
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import run_credit_underwriting_checks
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
+    >>> _ = builder.periods("2025Q1..Q1")
     >>> for node, value in [("total_debt", 100.0), ("ebitda", 50.0), ("interest_expense", 5.0)]:
-    ...     builder.value(node, [("2025Q1", value)])
+    ...     _ = builder.value(node, [("2025Q1", value)])
     >>> mapping = '{"debt_node":"total_debt","ebitda_node":"ebitda","interest_expense_node":"interest_expense","fcf_node":null,"cash_node":null,"cash_burn_node":null,"leverage_warn":null,"coverage_min_warn":null}'
     >>> json.loads(run_credit_underwriting_checks(builder.build(), mapping))["summary"]["total_checks"] > 0
     True
@@ -2282,6 +2407,9 @@ class Exposure:
             Days past due used by staging backstops; ``None`` applies the
             canonical performing-exposure default of zero days.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -2301,6 +2429,11 @@ class Exposure:
         -------
         pd.DataFrame
             One row describing the exposure.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -2340,7 +2473,7 @@ def classify_stage(
     >>> from finstack_quant.statements_analytics import Exposure, classify_stage
     >>> exposure = Exposure("loan", 1_000_000.0, 0.4, 0.05, 3.0, 0.02, 0.01)
     >>> classify_stage(exposure)
-    ('Stage 1', 'no_trigger')
+    ('Stage 1', ['no_trigger'])
 
     """
     ...
@@ -2407,7 +2540,8 @@ def compute_ecl_weighted(
     scenarios: list[tuple[float, list[tuple[float, float]]]],
     lgd: float,
     eir: float,
-    max_horizon: float,
+    max_horizon_years: float,
+    bucket_width_years: float | None = None,
     stage: str = "stage1",
     ead_schedule: list[tuple[float, float]] | None = None,
     stage3_time_to_recovery_years: float | None = None,
@@ -2427,8 +2561,11 @@ def compute_ecl_weighted(
         Loss given default (decimal).
     eir : float
         Effective interest rate (decimal).
-    max_horizon : float
-        Remaining maturity cap (years).
+    max_horizon_years : float
+        Remaining maturity cap for the integration, in years.
+    bucket_width_years : float or None
+        Time-bucket width (default ``0.25`` for quarterly), matching
+        :func:`compute_ecl`.
     stage : str
         ``"stage1"``, ``"stage2"``, or ``"stage3"``.
     ead_schedule : list[tuple[float, float]] or None
@@ -2440,7 +2577,7 @@ def compute_ecl_weighted(
     Returns
     -------
     float
-        Probability-weighted ECL amount.
+        Probability-weighted ECL amount in the exposure's base currency.
 
     Raises
     ------
@@ -2476,6 +2613,10 @@ def percentile_rank(value: float, peer_values: list[float]) -> float | None:
     float or None
         Percentile rank in ``[0, 1]``, or ``None`` for empty peers.
 
+    Notes
+    -----
+    This helper does not raise; empty or degenerate peers return ``None``.
+
     Examples
     --------
     >>> from finstack_quant.statements_analytics import percentile_rank
@@ -2500,6 +2641,10 @@ def z_score(value: float, peer_values: list[float]) -> float | None:
     -------
     float or None
         Z-score, or ``None`` for empty peers or zero variance.
+
+    Notes
+    -----
+    This helper does not raise; empty or degenerate peers return ``None``.
 
     Examples
     --------
@@ -2527,6 +2672,11 @@ def peer_stats(peer_values: list[float]) -> dict[str, float]:
     -------
     dict[str, float]
         Descriptive statistics.
+
+    Raises
+    ------
+    ValueError
+        If the result cannot be serialized to a Python dict.
 
     Examples
     --------
@@ -2561,6 +2711,11 @@ def regression_fair_value(
     -------
     dict[str, float]
         Regression fair value metrics.
+
+    Raises
+    ------
+    ValueError
+        If the result cannot be serialized to a Python dict.
 
     Examples
     --------
@@ -2606,47 +2761,71 @@ def compute_multiple(
     ...
 
 def score_relative_value(
-    subject_metrics: dict[str, float | None],
-    peer_metrics: list[dict[str, float | None]],
-    dimensions: list[tuple[str, float] | dict[str, Any]],
+    peer_set: dict[str, Any] | str,
+    dimensions: list[dict[str, Any]] | str,
 ) -> dict[str, Any]:
     """
-    Composite relative-value score across weighted univariate or regression dimensions.
+    Composite relative-value score of a subject against its peer set.
 
-    Dimensions are ``(metric_name, weight)`` tuples or dicts with keys
-    ``label``, ``y``, optional ``x`` (one selector or a list), optional
-    ``direction`` (``"higher_is_cheap"`` (default) or ``"higher_is_rich"``),
-    and ``weight``. Metric selectors are metric names or
-    ``"multiple:<id>"`` (e.g. ``"multiple:ev_ebitda"``) for canonical
-    valuation multiples. Positive composite = cheap, negative = rich. The
-    returned dict uses the canonical Rust/WASM shape:
-    ``company_id``, ``composite_score``, ``dimensions``, ``confidence``, and
-    ``peer_count``.
+    ``peer_set`` is the canonical serde ``PeerSet``: ``subject`` and ``peers``
+    are ``CompanyMetrics`` objects (identifier, ``attributes``, named metric
+    fields, and ``custom``), plus ``period_basis`` (``"ltm"``, ``"ntm"``, or a
+    custom label). Each dimension supplies ``label``, ``y_extractor``
+    (``{"named": field}``, ``{"multiple": id}``, or ``{"custom": key}``),
+    ``x_extractors``, ``weight``, and optional ``direction``
+    (``"higher_is_cheap"`` or ``"higher_is_rich"``). Positive composite = cheap.
 
     Parameters
     ----------
-    subject_metrics : dict[str, float | None]
-        Metric values for the subject company.
-    peer_metrics : list[dict[str, float | None]]
-        Metric values for each peer company.
-    dimensions : list[tuple[str, float] | dict[str, Any]]
-        Dimension specifications (metric name + weight or dict spec).
+    peer_set : dict or str
+        Canonical ``PeerSet`` dict or JSON string.
+    dimensions : list[dict] or str
+        Canonical ``ScoringDimension`` list or JSON string.
 
     Returns
     -------
     dict[str, Any]
-        Composite relative-value score.
+        ``company_id``, ``composite_score``, ``dimensions``, ``confidence``,
+        and ``peer_count``.
 
     Raises
     ------
     ValueError
-        If dimensions is empty or the supplied subject and peer metrics are unusable.
+        If the payload cannot be parsed, dimensions is empty, or the subject
+        and peer metrics are unusable.
 
     Examples
     --------
     >>> from finstack_quant.statements_analytics import score_relative_value
+    >>> blank = dict.fromkeys([
+    ...     "enterprise_value",
+    ...     "market_cap",
+    ...     "share_price",
+    ...     "oas_bp",
+    ...     "yield_pct",
+    ...     "ebitda",
+    ...     "revenue",
+    ...     "ebit",
+    ...     "ufcf",
+    ...     "lfcf",
+    ...     "net_income",
+    ...     "book_value",
+    ...     "tangible_book_value",
+    ...     "dividends_per_share",
+    ...     "leverage",
+    ...     "interest_coverage",
+    ...     "revenue_growth",
+    ...     "ebitda_margin",
+    ... ])
+    >>> def company(cid, leverage):
+    ...     return {"id": cid, "attributes": {}, "custom": {}, **blank, "leverage": leverage}
     >>> result = score_relative_value(
-    ...     {"ev_ebitda": 8.0}, [{"ev_ebitda": 6.0}, {"ev_ebitda": 10.0}], [("ev_ebitda", 1.0)]
+    ...     {
+    ...         "subject": company("SUBJECT", 2.0),
+    ...         "peers": [company("P1", 1.0), company("P2", 3.0)],
+    ...         "period_basis": "ltm",
+    ...     },
+    ...     [{"label": "Lev", "y_extractor": {"named": "leverage"}, "x_extractors": [], "weight": 1.0}],
     ... )
     >>> (result["company_id"], result["peer_count"])
     ('SUBJECT', 2)
@@ -2725,6 +2904,10 @@ class ScorecardMetric:
         -------
         str
             Metric name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -2736,6 +2919,10 @@ class ScorecardMetric:
         -------
         str
             DSL formula for the metric.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -2750,6 +2937,10 @@ class ScorecardMetric:
         -------
         float
             Relative weight of the metric in the overall score.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -2761,27 +2952,41 @@ class ScorecardMetric:
         -------
         str or None
             Metric description, or ``None`` when unset.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     def thresholds_json(self) -> str:
         """
-        Value of ``thresholds_json``.
+        Serialize rating-label thresholds to JSON.
 
         Returns
         -------
         str
             JSON object mapping rating labels to two-element lower and upper
             threshold arrays.
+
+        Raises
+        ------
+        ValueError
+            If the thresholds cannot be serialized to JSON.
         """
         ...
     def to_json(self) -> str:
         """
-        Value of ``to_json``.
+        Serialize this object to canonical JSON.
 
         Returns
         -------
         str
             Canonical JSON representation of this `ScorecardMetric`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
     @staticmethod
@@ -2866,6 +3071,9 @@ class ScorecardConfig:
             Model period to rate; ``None`` selects the latest actual period,
             falling back to the last model period.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -2878,6 +3086,10 @@ class ScorecardConfig:
         -------
         str
             Rating scale identifier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -2890,6 +3102,10 @@ class ScorecardConfig:
         -------
         str or None
             Minimum acceptable rating, or ``None``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -2904,6 +3120,10 @@ class ScorecardConfig:
         -------
         str or None
             Period-id string to rate, or ``None`` for the default period.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -2915,25 +3135,35 @@ class ScorecardConfig:
         -------
         list[ScorecardMetric]
             Metric definitions in configured order.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     def validate(self) -> None:
         """
-        Value of ``validate``.
+        Validate this object's invariants without executing a report.
 
-        Returns
-        -------
-        None
+        Raises
+        ------
+        ValueError
+            If required fields are missing, out of range, or internally inconsistent.
         """
         ...
     def to_json(self) -> str:
         """
-        Value of ``to_json``.
+        Serialize this object to canonical JSON.
 
         Returns
         -------
         str
             Canonical JSON representation of this `ScorecardConfig`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
     @staticmethod
@@ -2986,12 +3216,16 @@ class ScorecardReport:
     @property
     def status(self) -> str:
         """
-        Value of ``status``.
+        Overall scorecard status after metric evaluation.
 
         Returns
         -------
         str
             The status exposed by this `ScorecardReport`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -3003,6 +3237,10 @@ class ScorecardReport:
         -------
         str
             Summary message for the run.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -3014,6 +3252,10 @@ class ScorecardReport:
         -------
         list[str]
             Non-fatal warnings raised while scoring.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -3025,27 +3267,41 @@ class ScorecardReport:
         -------
         list[str]
             Per-metric failure messages.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     def data_json(self) -> str:
         """
-        Value of ``data_json``.
+        Serialize report payload fields to JSON.
 
         Returns
         -------
         str
             JSON serialization of the structured scorecard payload, including
             the rated period, metric scores, rating, partial flag, and weight coverage.
+
+        Raises
+        ------
+        ValueError
+            If the payload cannot be serialized to JSON.
         """
         ...
     def to_json(self) -> str:
         """
-        Value of ``to_json``.
+        Serialize this object to canonical JSON.
 
         Returns
         -------
         str
             Canonical JSON representation of this `ScorecardReport`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
     @staticmethod
@@ -3096,6 +3352,11 @@ class ScorecardReport:
         -------
         pd.DataFrame
             One row describing the scorecard run.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -3116,6 +3377,10 @@ class ScorecardReport:
         -------
         pd.DataFrame
             One row per scored metric.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -3133,11 +3398,15 @@ class CreditScorecardExtension:
 
     def __init__(self) -> None:
         """
-        Value of ``__init__``.
+        Create an extension with no configuration loaded.
 
         Returns
         -------
         None
+
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
     @staticmethod
@@ -3154,6 +3423,10 @@ class CreditScorecardExtension:
         -------
         CreditScorecardExtension
             New extension preloaded with ``config``.
+
+        Notes
+        -----
+        This builder returns a copy with the field set and does not raise.
 
         Examples
         --------
@@ -3173,15 +3446,22 @@ class CreditScorecardExtension:
         config : ScorecardConfig
             New rating scale, metric set, and period-selection policy to apply.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
     def config(self) -> ScorecardConfig | None:
         """
-        Value of ``config``.
+        Return the currently loaded configuration, or ``None``.
 
         Returns
         -------
         ScorecardConfig or None
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
     def execute(self, model: FinancialModelSpec | str, results: StatementResult | str) -> ScorecardReport:
@@ -3279,12 +3559,16 @@ class AccountType:
         ...
     def value(self) -> str:
         """
-        Value of ``value``.
+        Return the canonical snake-case identifier for this variant.
 
         Returns
         -------
         str
             Exact JSON identifier: ``"asset"``, ``"liability"``, or ``"equity"``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3335,6 +3619,9 @@ class CorkscrewAccount:
             Optional explicit opening-balance node; ``None`` uses the account's
             prior-period balance.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -3347,6 +3634,10 @@ class CorkscrewAccount:
         -------
         str
             Node id of the balance account.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -3358,6 +3649,10 @@ class CorkscrewAccount:
         -------
         AccountType
             Balance-sheet classifier for the account.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -3373,6 +3668,10 @@ class CorkscrewAccount:
         -------
         list[str]
             Node ids of the change series added to the balance.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -3385,16 +3684,25 @@ class CorkscrewAccount:
         -------
         str or None
             Beginning-balance override node id, or ``None``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     def to_json(self) -> str:
         """
-        Value of ``to_json``.
+        Serialize this object to canonical JSON.
 
         Returns
         -------
         str
             Canonical JSON representation of this `CorkscrewAccount`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
     @staticmethod
@@ -3468,6 +3776,9 @@ class CorkscrewConfig:
         fail_on_error : bool, default False
             Whether any failed account reconciliation makes execution fail.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -3480,6 +3791,10 @@ class CorkscrewConfig:
         -------
         list[CorkscrewAccount]
             Validated balance accounts in configured order.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -3494,6 +3809,10 @@ class CorkscrewConfig:
         -------
         float
             Absolute roll-forward tolerance in the balance node's units.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -3506,16 +3825,25 @@ class CorkscrewConfig:
         -------
         bool
             Whether roll-forward violations are treated as fatal.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     def to_json(self) -> str:
         """
-        Value of ``to_json``.
+        Serialize this object to canonical JSON.
 
         Returns
         -------
         str
             Canonical JSON representation of this `CorkscrewConfig`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
     @staticmethod
@@ -3564,12 +3892,16 @@ class CorkscrewReport:
     @property
     def status(self) -> str:
         """
-        ``"success"`` or ``"failed"``.
+        Corkscrew run status: ``success`` when the walk completed, else ``failed``.
 
         Returns
         -------
         str
             Overall execution status.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -3581,6 +3913,10 @@ class CorkscrewReport:
         -------
         str
             Summary message for the validation run.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -3593,6 +3929,10 @@ class CorkscrewReport:
         -------
         list[str]
             Non-fatal warnings raised during validation.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -3605,27 +3945,41 @@ class CorkscrewReport:
         -------
         list[str]
             Fatal validation failures.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     def data_json(self) -> str:
         """
-        Value of ``data_json``.
+        Serialize report payload fields to JSON.
 
         Returns
         -------
         str
             JSON serialization of the structured reconciliation payload,
             including account-level balance checks and differences.
+
+        Raises
+        ------
+        ValueError
+            If the payload cannot be serialized to JSON.
         """
         ...
     def to_json(self) -> str:
         """
-        Value of ``to_json``.
+        Serialize this object to canonical JSON.
 
         Returns
         -------
         str
             Canonical JSON representation of this `CorkscrewReport`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
     @staticmethod
@@ -3671,6 +4025,11 @@ class CorkscrewReport:
         -------
         pd.DataFrame
             One row describing the validation run.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -3693,6 +4052,10 @@ class CorkscrewReport:
         -------
         pd.DataFrame
             One row per validated account.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -3710,11 +4073,15 @@ class CorkscrewExtension:
 
     def __init__(self) -> None:
         """
-        Value of ``__init__``.
+        Create an extension with no configuration loaded.
 
         Returns
         -------
         None
+
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
     @staticmethod
@@ -3731,6 +4098,10 @@ class CorkscrewExtension:
         -------
         CorkscrewExtension
             New extension preloaded with ``config``.
+
+        Notes
+        -----
+        This builder returns a copy with the field set and does not raise.
 
         Examples
         --------
@@ -3750,15 +4121,22 @@ class CorkscrewExtension:
         config : CorkscrewConfig
             Accounts, tolerance, and error policy to apply on the next run.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
     def config(self) -> CorkscrewConfig | None:
         """
-        Value of ``config``.
+        Return the currently loaded configuration, or ``None``.
 
         Returns
         -------
         CorkscrewConfig or None
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
     def execute(self, model: FinancialModelSpec | str, results: StatementResult | str) -> CorkscrewReport:
@@ -3827,8 +4205,8 @@ def add_vintage_buildup(
     >>> from finstack_quant.statements_analytics import add_vintage_buildup
     >>> from finstack_quant.statements import FinancialModelSpec, ModelBuilder
     >>> builder = ModelBuilder("template")
-    >>> builder.periods("2025Q1..Q2")
-    >>> builder.value("new_volume", [("2025Q1", 10.0), ("2025Q2", 12.0)])
+    >>> _ = builder.periods("2025Q1..Q2")
+    >>> _ = builder.value("new_volume", [("2025Q1", 10.0), ("2025Q2", 12.0)])
     >>> model = builder.build()
     >>> updated = FinancialModelSpec.from_json(add_vintage_buildup(model, "customers", "new_volume", [1.0, 0.8]))
     >>> updated.node_count > model.node_count
@@ -3878,8 +4256,8 @@ def add_roll_forward(
     >>> from finstack_quant.statements_analytics import add_roll_forward
     >>> from finstack_quant.statements import FinancialModelSpec, ModelBuilder
     >>> builder = ModelBuilder("template")
-    >>> builder.periods("2025Q1..Q2")
-    >>> builder.value("adds", [("2025Q1", 10.0), ("2025Q2", 12.0)])
+    >>> _ = builder.periods("2025Q1..Q2")
+    >>> _ = builder.value("adds", [("2025Q1", 10.0), ("2025Q2", 12.0)])
     >>> model = builder.build()
     >>> updated = FinancialModelSpec.from_json(add_roll_forward(model, "balance", ["adds"], []))
     >>> updated.has_node("balance_end")
@@ -3930,8 +4308,8 @@ def add_roll_forward_with_opening(
     >>> from finstack_quant.statements_analytics import add_roll_forward_with_opening
     >>> from finstack_quant.statements import FinancialModelSpec, ModelBuilder
     >>> builder = ModelBuilder("template")
-    >>> builder.periods("2025Q1..Q2")
-    >>> builder.value("adds", [("2025Q1", 10.0), ("2025Q2", 12.0)])
+    >>> _ = builder.periods("2025Q1..Q2")
+    >>> _ = builder.value("adds", [("2025Q1", 10.0), ("2025Q2", 12.0)])
     >>> model = builder.build()
     >>> payload = add_roll_forward_with_opening(model, "balance", ["adds"], [], 100.0)
     >>> FinancialModelSpec.from_json(payload).has_node("balance_beg")
@@ -4026,6 +4404,10 @@ class SimpleLeaseSpec:
         -------
         str
             Node id for the lease's rent revenue series.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4038,6 +4420,10 @@ class SimpleLeaseSpec:
         -------
         str
             First active period as a period-id string.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4050,6 +4436,10 @@ class SimpleLeaseSpec:
         -------
         str or None
             Last active period as a period-id string, or ``None``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4063,6 +4453,10 @@ class SimpleLeaseSpec:
         -------
         float
             Base rent per model period at ``start``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4075,6 +4469,10 @@ class SimpleLeaseSpec:
         -------
         float
             Per-period growth rate as a decimal fraction.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4086,6 +4484,10 @@ class SimpleLeaseSpec:
         -------
         int
             Count of free-rent model periods from ``start``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4097,25 +4499,35 @@ class SimpleLeaseSpec:
         -------
         float
             Occupancy factor in ``[0, 1]``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     def validate(self) -> None:
         """
-        Value of ``validate``.
+        Validate this object's invariants without executing a report.
 
-        Returns
-        -------
-        None
+        Raises
+        ------
+        ValueError
+            If required fields are missing, out of range, or internally inconsistent.
         """
         ...
     def to_json(self) -> str:
         """
-        Value of ``to_json``.
+        Serialize this object to canonical JSON.
 
         Returns
         -------
         str
             Canonical JSON representation of this `SimpleLeaseSpec`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
     @staticmethod
@@ -4164,6 +4576,11 @@ class SimpleLeaseSpec:
         -------
         pd.DataFrame
             One row describing the lease.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -4215,6 +4632,10 @@ class RentStepSpec:
         -------
         str
             Effective period as a period-id string.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4229,16 +4650,25 @@ class RentStepSpec:
         -------
         float
             Rent per model period from ``start``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     def to_json(self) -> str:
         """
-        Value of ``to_json``.
+        Serialize this object to canonical JSON.
 
         Returns
         -------
         str
             Canonical JSON representation of this `RentStepSpec`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
     @staticmethod
@@ -4319,6 +4749,10 @@ class FreeRentWindowSpec:
         -------
         str
             First free-rent period as a period-id string.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4330,16 +4764,25 @@ class FreeRentWindowSpec:
         -------
         int
             Concession length in model periods.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     def to_json(self) -> str:
         """
-        Value of ``to_json``.
+        Serialize this object to canonical JSON.
 
         Returns
         -------
         str
             Canonical JSON representation of this `FreeRentWindowSpec`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
     @staticmethod
@@ -4423,6 +4866,9 @@ class RenewalSpec:
         free_rent_periods : int, default 0
             Initial renewal periods with rent set to zero.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -4435,6 +4881,10 @@ class RenewalSpec:
         -------
         int
             Renewal term length in model periods.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4449,6 +4899,10 @@ class RenewalSpec:
         -------
         float
             Renewal probability in ``[0, 1]``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4460,6 +4914,10 @@ class RenewalSpec:
         -------
         int
             Downtime length in model periods.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4472,6 +4930,10 @@ class RenewalSpec:
         -------
         float
             Multiplier on the prior rent level at renewal.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4483,25 +4945,35 @@ class RenewalSpec:
         -------
         int
             Count of free-rent model periods at renewal start.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     def validate(self) -> None:
         """
-        Value of ``validate``.
+        Validate this object's invariants without executing a report.
 
-        Returns
-        -------
-        None
+        Raises
+        ------
+        ValueError
+            If required fields are missing, out of range, or internally inconsistent.
         """
         ...
     def to_json(self) -> str:
         """
-        Value of ``to_json``.
+        Serialize this object to canonical JSON.
 
         Returns
         -------
         str
             Canonical JSON representation of this `RenewalSpec`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
     @staticmethod
@@ -4550,6 +5022,11 @@ class RenewalSpec:
         -------
         pd.DataFrame
             One row describing the renewal terms.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -4598,13 +5075,17 @@ class LeaseGrowthConvention:
         ...
     def value(self) -> str:
         """
-        Value of ``value``.
+        Return the canonical snake-case identifier for this variant.
 
         Returns
         -------
         str
             Exact JSON identifier, either ``"per_period"`` or
             ``"annual_escalator"``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -4708,6 +5189,10 @@ class LeaseSpec:
         -------
         str
             Base node id for the lease's derived detail nodes.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4720,6 +5205,10 @@ class LeaseSpec:
         -------
         str
             First active period as a period-id string.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4732,6 +5221,10 @@ class LeaseSpec:
         -------
         str or None
             Last period of the initial term, or ``None``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4745,6 +5238,10 @@ class LeaseSpec:
         -------
         float
             Base rent per model period at ``start``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4757,6 +5254,10 @@ class LeaseSpec:
         -------
         float
             Segment growth rate as a decimal fraction.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4769,6 +5270,10 @@ class LeaseSpec:
         -------
         LeaseGrowthConvention
             Compounding convention for ``growth_rate``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4781,6 +5286,10 @@ class LeaseSpec:
         -------
         int
             Count of free-rent model periods from ``start``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4792,6 +5301,10 @@ class LeaseSpec:
         -------
         float
             Occupancy factor in ``[0, 1]``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4803,25 +5316,35 @@ class LeaseSpec:
         -------
         RenewalSpec or None
             Renewal specification, or ``None``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     def validate(self) -> None:
         """
-        Value of ``validate``.
+        Validate this object's invariants without executing a report.
 
-        Returns
-        -------
-        None
+        Raises
+        ------
+        ValueError
+            If required fields are missing, out of range, or internally inconsistent.
         """
         ...
     def to_json(self) -> str:
         """
-        Value of ``to_json``.
+        Serialize this object to canonical JSON.
 
         Returns
         -------
         str
             Canonical JSON representation of this `LeaseSpec`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
     @staticmethod
@@ -4874,6 +5397,11 @@ class LeaseSpec:
         -------
         pd.DataFrame
             One row describing the lease.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -4922,6 +5450,9 @@ class RentRollOutputNodes:
         rent_effective_node : str, default "rent_effective"
             Node ID for effective rent after concessions and vacancy adjustments.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -4935,6 +5466,10 @@ class RentRollOutputNodes:
         -------
         str
             Node id for total potential gross income.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4946,6 +5481,10 @@ class RentRollOutputNodes:
         -------
         str
             Node id for total free-rent concessions.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4958,6 +5497,10 @@ class RentRollOutputNodes:
         -------
         str
             Node id for total vacancy loss.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -4970,16 +5513,25 @@ class RentRollOutputNodes:
         -------
         str
             Node id for total effective rent.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     def to_json(self) -> str:
         """
-        Value of ``to_json``.
+        Serialize this object to canonical JSON.
 
         Returns
         -------
         str
             Canonical JSON representation of this `RentRollOutputNodes`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
     @staticmethod
@@ -5025,6 +5577,11 @@ class RentRollOutputNodes:
         -------
         pd.DataFrame
             One row of rent-roll output node ids.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -5073,12 +5630,16 @@ class ManagementFeeBase:
         ...
     def value(self) -> str:
         """
-        Value of ``value``.
+        Return the canonical snake-case identifier for this variant.
 
         Returns
         -------
         str
             Exact JSON identifier, either ``"egi"`` or ``"effective_rent"``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5114,6 +5675,9 @@ class ManagementFeeSpec:
         base : ManagementFeeBase
             Effective-rent or EGI base used to calculate the fee.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -5126,6 +5690,10 @@ class ManagementFeeSpec:
         -------
         float
             Management fee rate as a decimal fraction.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -5138,16 +5706,25 @@ class ManagementFeeSpec:
         -------
         ManagementFeeBase
             Basis the management fee applies to.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     def to_json(self) -> str:
         """
-        Value of ``to_json``.
+        Serialize this object to canonical JSON.
 
         Returns
         -------
         str
             Canonical JSON representation of this `ManagementFeeSpec`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
     @staticmethod
@@ -5245,6 +5822,9 @@ class PropertyTemplateNodes:
         ncf_node : str, default "ncf"
             Node ID for net cash flow after operating items and capital expenditure.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -5257,6 +5837,10 @@ class PropertyTemplateNodes:
         -------
         RentRollOutputNodes
             Rent-roll output node ids.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -5268,6 +5852,10 @@ class PropertyTemplateNodes:
         -------
         str
             Node id for total other income.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -5279,6 +5867,10 @@ class PropertyTemplateNodes:
         -------
         str
             Node id for effective gross income.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -5290,6 +5882,10 @@ class PropertyTemplateNodes:
         -------
         str
             Node id for the management fee.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -5302,6 +5898,10 @@ class PropertyTemplateNodes:
         -------
         str
             Node id for total operating expenses.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -5313,6 +5913,10 @@ class PropertyTemplateNodes:
         -------
         str
             Node id for net operating income.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -5324,6 +5928,10 @@ class PropertyTemplateNodes:
         -------
         str
             Node id for total capital expenditure.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     @property
@@ -5335,16 +5943,25 @@ class PropertyTemplateNodes:
         -------
         str
             Node id for net cash flow.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
     def to_json(self) -> str:
         """
-        Value of ``to_json``.
+        Serialize this object to canonical JSON.
 
         Returns
         -------
         str
             Canonical JSON representation of this `PropertyTemplateNodes`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
     @staticmethod
@@ -5394,6 +6011,11 @@ class PropertyTemplateNodes:
         -------
         pd.DataFrame
             One row of property template node ids.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -5438,9 +6060,9 @@ def add_noi_buildup(
     >>> from finstack_quant.statements_analytics import add_noi_buildup
     >>> from finstack_quant.statements import FinancialModelSpec, ModelBuilder
     >>> builder = ModelBuilder("template")
-    >>> builder.periods("2025Q1..Q2")
-    >>> builder.value("rent", [("2025Q1", 100.0)])
-    >>> builder.value("opex", [("2025Q1", 30.0)])
+    >>> _ = builder.periods("2025Q1..Q2")
+    >>> _ = builder.value("rent", [("2025Q1", 100.0)])
+    >>> _ = builder.value("opex", [("2025Q1", 30.0)])
     >>> model = builder.build()
     >>> payload = add_noi_buildup(model, "revenue", ["rent"], "expenses", ["opex"], "noi")
     >>> FinancialModelSpec.from_json(payload).has_node("noi")
@@ -5484,9 +6106,9 @@ def add_ncf_buildup(
     >>> from finstack_quant.statements_analytics import add_ncf_buildup
     >>> from finstack_quant.statements import FinancialModelSpec, ModelBuilder
     >>> builder = ModelBuilder("template")
-    >>> builder.periods("2025Q1..Q2")
-    >>> builder.value("noi", [("2025Q1", 70.0)])
-    >>> builder.value("capex", [("2025Q1", 10.0)])
+    >>> _ = builder.periods("2025Q1..Q2")
+    >>> _ = builder.value("noi", [("2025Q1", 70.0)])
+    >>> _ = builder.value("capex", [("2025Q1", 10.0)])
     >>> model = builder.build()
     >>> FinancialModelSpec.from_json(add_ncf_buildup(model, "noi", ["capex"], "ncf")).has_node("ncf")
     True
@@ -5526,7 +6148,7 @@ def add_rent_roll(
     >>> from finstack_quant.statements_analytics import LeaseSpec, add_rent_roll
     >>> from finstack_quant.statements import FinancialModelSpec, ModelBuilder
     >>> builder = ModelBuilder("template")
-    >>> builder.periods("2025Q1..Q2")
+    >>> _ = builder.periods("2025Q1..Q2")
     >>> model = builder.build()
     >>> lease = LeaseSpec("lease_a", "2025Q1", 100.0)
     >>> FinancialModelSpec.from_json(add_rent_roll(model, [lease])).has_node("rent_effective")
@@ -5567,7 +6189,7 @@ def add_rent_roll_rental_revenue(
     >>> from finstack_quant.statements_analytics import SimpleLeaseSpec, add_rent_roll_rental_revenue
     >>> from finstack_quant.statements import FinancialModelSpec, ModelBuilder
     >>> builder = ModelBuilder("template")
-    >>> builder.periods("2025Q1..Q2")
+    >>> _ = builder.periods("2025Q1..Q2")
     >>> model = builder.build()
     >>> lease = SimpleLeaseSpec("lease_a", "2025Q1", 100.0)
     >>> payload = add_rent_roll_rental_revenue(model, [lease], "rental_revenue")
@@ -5621,7 +6243,7 @@ def add_property_operating_statement(
     >>> from finstack_quant.statements_analytics import LeaseSpec, add_property_operating_statement
     >>> from finstack_quant.statements import FinancialModelSpec, ModelBuilder
     >>> builder = ModelBuilder("template")
-    >>> builder.periods("2025Q1..Q2")
+    >>> _ = builder.periods("2025Q1..Q2")
     >>> model = builder.build()
     >>> lease = LeaseSpec("lease_a", "2025Q1", 100.0)
     >>> payload = add_property_operating_statement(model, [lease])
@@ -5643,10 +6265,10 @@ class ScenarioDiff:
     ...     evaluate_scenario_set,
     ... )
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0)])
-    >>> builder.value("cost", [("2025Q1", 60.0)])
-    >>> builder.compute("profit", "revenue - cost")
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = builder.value("cost", [("2025Q1", 60.0)])
+    >>> _ = builder.compute("profit", "revenue - cost")
     >>> scenarios = ScenarioSet({"base": {}, "down": {"revenue": 90.0}})
     >>> results = evaluate_scenario_set(builder.build(), scenarios)
     >>> from finstack_quant.statements_analytics import scenario_diff
@@ -5665,6 +6287,10 @@ class ScenarioDiff:
         -------
         str
             Baseline scenario name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5677,6 +6303,10 @@ class ScenarioDiff:
         -------
         str
             Comparison scenario name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5689,6 +6319,10 @@ class ScenarioDiff:
         -------
         VarianceReport
             Variance report for the two named scenarios.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5709,6 +6343,11 @@ class ScenarioDiff:
         -------
         pd.DataFrame
             One row per (metric, period) pair.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -5724,10 +6363,10 @@ class BridgeStep:
     ...     evaluate_scenario_set,
     ... )
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0)])
-    >>> builder.value("cost", [("2025Q1", 60.0)])
-    >>> builder.compute("profit", "revenue - cost")
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = builder.value("cost", [("2025Q1", 60.0)])
+    >>> _ = builder.compute("profit", "revenue - cost")
     >>> scenarios = ScenarioSet({"base": {}, "down": {"revenue": 90.0}})
     >>> results = evaluate_scenario_set(builder.build(), scenarios)
     >>> from finstack_quant.statements_analytics import variance_bridge
@@ -5754,6 +6393,10 @@ class BridgeStep:
         -------
         str
             Driver node identifier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5769,6 +6412,10 @@ class BridgeStep:
         -------
         float
             Raw driver delta in the driver's own units.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5784,10 +6431,10 @@ class BridgeChart:
     ...     evaluate_scenario_set,
     ... )
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0)])
-    >>> builder.value("cost", [("2025Q1", 60.0)])
-    >>> builder.compute("profit", "revenue - cost")
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = builder.value("cost", [("2025Q1", 60.0)])
+    >>> _ = builder.compute("profit", "revenue - cost")
     >>> scenarios = ScenarioSet({"base": {}, "down": {"revenue": 90.0}})
     >>> results = evaluate_scenario_set(builder.build(), scenarios)
     >>> from finstack_quant.statements_analytics import variance_bridge
@@ -5850,6 +6497,10 @@ class BridgeChart:
         str
             Canonical JSON representation, suitable for :meth:`from_json`.
 
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -5862,6 +6513,10 @@ class BridgeChart:
         -------
         str
             Node identifier of the decomposed metric.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5874,6 +6529,10 @@ class BridgeChart:
         -------
         str
             Period-id string covered by the bridge.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5886,6 +6545,10 @@ class BridgeChart:
         -------
         str
             Baseline scenario label.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5898,6 +6561,10 @@ class BridgeChart:
         -------
         str
             Comparison scenario label.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5910,6 +6577,10 @@ class BridgeChart:
         -------
         float
             Baseline target-metric value in the metric's own units.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5922,6 +6593,10 @@ class BridgeChart:
         -------
         float
             Comparison target-metric value in the metric's own units.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5934,6 +6609,10 @@ class BridgeChart:
         -------
         list[BridgeStep]
             Driver contributions in decomposition order.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5952,6 +6631,9 @@ class BridgeChart:
             ``(comparison_value - baseline_value)`` minus the summed
             contributions.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -5972,12 +6654,17 @@ class BridgeChart:
         -------
         pd.DataFrame
             One row per driver step.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
 def scenario_diff(
     scenario_set: ScenarioSet | str,
-    results: ScenarioResultSet,
+    results: ScenarioResults,
     baseline: str,
     comparison: str,
     metrics: list[str],
@@ -5990,7 +6677,7 @@ def scenario_diff(
     ----------
     scenario_set : ScenarioSet or str
         Typed scenario set or JSON string.
-    results : ScenarioResultSet
+    results : ScenarioResults
         Output of :func:`evaluate_scenario_set` for the same scenario set.
     baseline : str
         Name of the scenario to treat as the baseline.
@@ -6021,8 +6708,8 @@ def scenario_diff(
     ...     scenario_diff,
     ... )
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
     >>> model = builder.build()
     >>> scenarios = ScenarioSet({"base": {}, "down": {"revenue": 90.0}})
     >>> results = evaluate_scenario_set(model, scenarios)
@@ -6093,10 +6780,10 @@ def variance_bridge(
     ...     variance_bridge,
     ... )
     >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0)])
-    >>> builder.value("cost", [("2025Q1", 60.0)])
-    >>> builder.compute("profit", "revenue - cost")
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = builder.value("cost", [("2025Q1", 60.0)])
+    >>> _ = builder.compute("profit", "revenue - cost")
     >>> results = evaluate_scenario_set(
     ...     builder.build(),
     ...     ScenarioSet({"base": {}, "down": {"revenue": 90.0}}),

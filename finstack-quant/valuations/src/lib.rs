@@ -33,7 +33,7 @@
 //!   measures using the units, sign, and bump contracts on [`crate::metrics::MetricId`].
 //! - Document day-count, calendar, compounding, settlement, quote, and curve-role conventions at
 //!   the public API that owns the behavior.
-//! - Cite named models and market conventions with canonical `docs/REFERENCES.md#anchor` entries.
+//! - Cite named models and market conventions with canonical entries.
 //!
 //! # Modules
 //!

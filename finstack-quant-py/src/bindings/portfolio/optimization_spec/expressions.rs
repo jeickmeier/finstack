@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use pyo3::prelude::*;
 use pyo3::types::PyType;
 
@@ -14,11 +12,13 @@ use crate::errors::display_to_py;
 use super::super::json_bridge::{deserialize_json, serialize_json};
 use super::enums::PyInequality;
 
-fn parse_metric_id(id: &str) -> MetricId {
-    // `FromStr::from_str` never fails for `MetricId` — it falls back to a
-    // custom id for unknown names. This matches the JSON-deserialized
-    // behaviour the existing entry points expose.
-    MetricId::from_str(id).unwrap_or_else(|_| MetricId::custom(id))
+fn parse_metric_id(id: &str) -> PyResult<MetricId> {
+    // `FromStr::from_str` never fails for `MetricId` — unknown names silently
+    // become custom metrics, which the optimizer resolves to all-zero
+    // objective coefficients while still reporting `Optimal`. API boundaries
+    // therefore parse strictly; genuine custom measures go through
+    // `PerPositionMetric.custom_key`.
+    MetricId::parse_strict(id).map_err(crate::errors::core_to_py)
 }
 
 fn parse_attribute_value(text: Option<String>, number: Option<f64>) -> PyResult<AttributeValue> {
@@ -70,12 +70,16 @@ impl PyPerPositionMetric {
 impl PyPerPositionMetric {
     /// From a standard `MetricId` string (e.g. ``"dv01"``, ``"duration_mod"``).
     ///
-    /// Unknown identifiers are accepted as custom metrics so the spec
-    /// round-trips through JSON identically to the existing entry point.
+    /// Names are validated strictly against the standard metric set; an
+    /// unknown identifier raises ``ValueError`` listing the available
+    /// metrics. For custom measures stored in
+    /// ``ValuationResult::measures``, use :meth:`custom_key` instead.
     #[classmethod]
     #[pyo3(text_signature = "(cls, metric_id)")]
-    fn metric(_cls: &Bound<'_, PyType>, metric_id: &str) -> Self {
-        Self::from_inner(PerPositionMetric::Metric(parse_metric_id(metric_id)))
+    fn metric(_cls: &Bound<'_, PyType>, metric_id: &str) -> PyResult<Self> {
+        Ok(Self::from_inner(PerPositionMetric::Metric(
+            parse_metric_id(metric_id)?,
+        )))
     }
 
     /// From a custom-keyed measure in ``ValuationResult::measures``.

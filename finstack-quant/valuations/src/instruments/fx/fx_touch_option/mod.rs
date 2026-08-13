@@ -32,8 +32,8 @@
 //! # References
 //!
 //! - Rubinstein, M., & Reiner, E. (1991). "Unscrambling the Binary Code."
-//!   *Risk Magazine*, 4(9), 75-83.
-//! - Wystup, U. (2006). *FX Options and Structured Products*. Wiley. Chapter 4.
+//!   *Risk Magazine*, 4(9), 75-83. `docs/REFERENCES.md#reiner-rubinstein-1991`
+//! - Wystup, U. (2006). *FX Options and Structured Products*. Wiley. Chapter 4. `docs/REFERENCES.md#wystup-fx-options`
 //!
 //! # See Also
 //!

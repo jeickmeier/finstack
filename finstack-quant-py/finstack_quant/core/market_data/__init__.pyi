@@ -90,10 +90,12 @@ class DiscountCurve:
         Valuation date.
     knots : list[tuple[float, float]]
         ``(time_years, discount_factor)`` pairs.
-    interp : str
-        Interpolation style (default ``"monotone_convex"``).
-    extrapolation : str
-        Extrapolation policy (default ``"flat_forward"``).
+    interp : str | None
+        Interpolation style. When omitted, the Rust builder default
+        (``"monotone_convex"``) applies.
+    extrapolation : str | None
+        Extrapolation policy. When omitted, the Rust builder default
+        (``"flat_forward"``) applies.
     day_count : str | None
         Day-count convention. When omitted, Rust infers a market default from the curve ID.
     validation_mode : str
@@ -127,8 +129,8 @@ class DiscountCurve:
         id: str,
         base_date: datetime.date,
         knots: list[tuple[float, float]],
-        interp: str = "monotone_convex",
-        extrapolation: str = "flat_forward",
+        interp: str | None = None,
+        extrapolation: str | None = None,
         day_count: Optional[str] = None,
         validation_mode: str = "market_standard",
         forward_floor: float | None = None,
@@ -144,10 +146,12 @@ class DiscountCurve:
             Valuation date.
         knots : list[tuple[float, float]]
             ``(time_years, discount_factor)`` pairs.
-        interp : str
-            Interpolation style (default ``"monotone_convex"``).
-        extrapolation : str
-            Extrapolation policy (default ``"flat_forward"``).
+        interp : str | None
+            Interpolation style. When omitted, the Rust builder default
+            (``"monotone_convex"``) applies.
+        extrapolation : str | None
+            Extrapolation policy. When omitted, the Rust builder default
+            (``"flat_forward"``) applies.
         day_count : str | None
             Day-count convention. When omitted, Rust infers a market default from the curve ID.
         validation_mode : str
@@ -192,7 +196,6 @@ class DiscountCurve:
             If *continuous_rate* is non-finite or implies a one-year discount
             factor that is not finite and strictly positive.
 
-
         Examples
         --------
         >>> import datetime
@@ -217,6 +220,9 @@ class DiscountCurve:
         float
             Discount factor.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -234,6 +240,9 @@ class DiscountCurve:
         float
             Zero rate.
 
+        Notes
+        -----
+        This factory does not raise; it returns a new instance with the documented defaults.
         """
         ...
 
@@ -269,18 +278,26 @@ class DiscountCurve:
         -------
         str
             The id exposed by this `DiscountCurve`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def base_date(self) -> datetime.date:
         """
-        Valuation base date.
+        Curve base date used for year-fraction calculations.
 
         Returns
         -------
         datetime.date
             The base date exposed by this `DiscountCurve`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -292,22 +309,27 @@ class ForwardCurve:
 
     Constructed from ``(time, forward_rate)`` knot pairs.
 
+    The positional argument order ``(id, tenor, base_date, knots, ...)``
+    matches the WASM constructor and the ``DiscountCurve`` convention.
+
     Parameters
     ----------
     id : str
         Unique curve identifier (e.g. ``"USD-SOFR-3M"``).
     tenor : float
         Index tenor in years (e.g. ``0.25`` for 3 months).
-    knots : list[tuple[float, float]]
-        ``(time_years, forward_rate)`` pairs.
     base_date : datetime.date
         Valuation date.
+    knots : list[tuple[float, float]]
+        ``(time_years, forward_rate)`` pairs.
     day_count : str, optional
         Day-count convention. When omitted, Rust infers a market default from the curve ID.
-    interp : str
-        Interpolation style (default ``"linear"``).
-    extrapolation : str
-        Extrapolation policy (default ``"flat_forward"``).
+    interp : str | None
+        Interpolation style. When omitted, the Rust builder default
+        (``"linear"``) applies.
+    extrapolation : str | None
+        Extrapolation policy. When omitted, the Rust builder default
+        (``"flat_forward"``) applies.
     projection_grid : list[float] | None, optional
         Contractual reset/end-date projection boundaries. Omit for legacy
         fixed numeric-tenor DF stepping.
@@ -323,7 +345,7 @@ class ForwardCurve:
     --------
     >>> import datetime
     >>> from finstack_quant.core.market_data import ForwardCurve
-    >>> curve = ForwardCurve("SOFR", 0.25, [(0.0, 0.03), (2.0, 0.04)], datetime.date(2025, 1, 1))
+    >>> curve = ForwardCurve("SOFR", 0.25, datetime.date(2025, 1, 1), [(0.0, 0.03), (2.0, 0.04)])
     >>> curve.rate(1.0)
     0.035
 
@@ -333,11 +355,11 @@ class ForwardCurve:
         self,
         id: str,
         tenor: float,
-        knots: list[tuple[float, float]],
         base_date: datetime.date,
+        knots: list[tuple[float, float]],
         day_count: str | None = None,
-        interp: str = "linear",
-        extrapolation: str = "flat_forward",
+        interp: str | None = None,
+        extrapolation: str | None = None,
         projection_grid: list[float] | None = None,
         reset_lag: int | None = None,
     ) -> None:
@@ -350,20 +372,23 @@ class ForwardCurve:
             Unique curve identifier.
         tenor : float
             Index tenor in years.
-        knots : list[tuple[float, float]]
-            ``(time_years, forward_rate)`` pairs.
         base_date : datetime.date
             Valuation date.
+        knots : list[tuple[float, float]]
+            ``(time_years, forward_rate)`` pairs.
         day_count : str, optional
             Day-count convention. When omitted, Rust infers a market default from the curve ID.
-        interp : str
-            Interpolation style (default ``"linear"``).
-        extrapolation : str
-            Extrapolation policy (default ``"flat_forward"``).
+        interp : str | None
+            Interpolation style. When omitted, the Rust builder default
+            (``"linear"``) applies.
+        extrapolation : str | None
+            Extrapolation policy. When omitted, the Rust builder default
+            (``"flat_forward"``) applies.
         projection_grid : list[float] | None, optional
             Contractual reset/end-date projection boundaries.
         reset_lag : int | None, optional
             Business days from fixing to spot.
+
         Raises
         ------
         ValueError
@@ -380,8 +405,8 @@ class ForwardCurve:
         base_date: datetime.date,
         knots: list[tuple[float, float]],
         day_count: str | None = None,
-        interp: str = "linear",
-        extrapolation: str = "flat_forward",
+        interp: str | None = None,
+        extrapolation: str | None = None,
         projection_grid: list[float] | None = None,
         reset_lag: int | None = None,
     ) -> ForwardCurve:
@@ -400,10 +425,12 @@ class ForwardCurve:
             ``(time_years, forward_rate)`` pillars in ascending time order.
         day_count : str or None, default None
             Day-count convention; ``None`` applies the curve-ID market default.
-        interp : str, default "linear"
-            Interpolation method used between supplied forward-rate pillars.
-        extrapolation : str, default "flat_forward"
-            Policy applied before the first or after the last curve pillar.
+        interp : str or None, default None
+            Interpolation method used between supplied forward-rate pillars;
+            ``None`` applies the Rust builder default (``"linear"``).
+        extrapolation : str or None, default None
+            Policy applied before the first or after the last curve pillar;
+            ``None`` applies the Rust builder default (``"flat_forward"``).
         projection_grid : list[float] or None, default None
             Optional contractual reset/end-date boundaries in year fractions.
         reset_lag : int or None, default None
@@ -422,7 +449,6 @@ class ForwardCurve:
             If a convention or interpolation name is unknown, *tenor* is not
             finite and positive, the knot grid is empty or invalid, or a
             supplied projection grid is non-finite or not strictly increasing.
-
 
         Examples
         --------
@@ -451,6 +477,9 @@ class ForwardCurve:
         float
             Forward rate.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -486,18 +515,26 @@ class ForwardCurve:
         -------
         str
             The id exposed by this `ForwardCurve`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def base_date(self) -> datetime.date:
         """
-        Valuation base date.
+        Curve base date used for year-fraction calculations.
 
         Returns
         -------
         datetime.date
             The base date exposed by this `ForwardCurve`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -510,6 +547,10 @@ class ForwardCurve:
         -------
         list[float] | None
             The projection grid exposed by this `ForwardCurve`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -522,6 +563,10 @@ class ForwardCurve:
         -------
         int
             The reset lag exposed by this `ForwardCurve`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -541,10 +586,12 @@ class HazardCurve:
         Valuation date.
     knots : list[tuple[float, float]]
         ``(time_years, hazard_rate)`` pairs.
-    recovery_rate : float
-        Recovery rate. Defaults to the credit assumptions registry value.
-    day_count : str
-        Day-count convention (default ``"act_365f"``).
+    recovery_rate : float | None
+        Recovery rate. When omitted, the Rust builder default (the credit
+        assumptions registry value) applies.
+    day_count : str | None
+        Day-count convention. When omitted, the Rust builder default
+        (``"act_365f"``) applies.
     par_spreads : list[tuple[float, float]] | None
         Market par-spread quotes in basis points used for rebootstrap risks.
 
@@ -569,7 +616,7 @@ class HazardCurve:
         base_date: datetime.date,
         knots: list[tuple[float, float]],
         recovery_rate: float | None = None,
-        day_count: str = "act_365f",
+        day_count: str | None = None,
         par_spreads: list[tuple[float, float]] | None = None,
     ) -> None:
         """
@@ -583,10 +630,12 @@ class HazardCurve:
             Valuation date.
         knots : list[tuple[float, float]]
             ``(time_years, hazard_rate)`` pairs.
-        recovery_rate : float
-            Recovery rate (default ``0.4``).
-        day_count : str
-            Day-count convention (default ``"act_365f"``).
+        recovery_rate : float | None
+            Recovery rate. When omitted, the Rust builder default (the
+            credit assumptions registry value) applies.
+        day_count : str | None
+            Day-count convention. When omitted, the Rust builder default
+            (``"act_365f"``) applies.
         par_spreads : list[tuple[float, float]] | None
             Market par-spread quotes in basis points used for rebootstrap risks.
 
@@ -611,6 +660,9 @@ class HazardCurve:
         float
             Survival probability in ``[0, 1]``.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -628,6 +680,9 @@ class HazardCurve:
         float
             Hazard rate.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -640,18 +695,42 @@ class HazardCurve:
         -------
         str
             The id exposed by this `HazardCurve`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def base_date(self) -> datetime.date:
         """
-        Valuation base date.
+        Curve base date used for year-fraction calculations.
 
         Returns
         -------
         datetime.date
             The base date exposed by this `HazardCurve`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def recovery_rate(self) -> float:
+        """
+        Recovery rate assumed on default.
+
+        Returns
+        -------
+        float
+            The recovery rate in ``[0, 1]`` exposed by this `HazardCurve`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -699,6 +778,10 @@ class BaseCorrelationCurve:
         -------
         str
             The id exposed by this `BaseCorrelationCurve`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -718,6 +801,9 @@ class BaseCorrelationCurve:
             Decimal correlation in ``[0, 1]``, linearly interpolated by
             percentage detachment and flat-extrapolated outside the pillars.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -776,17 +862,25 @@ class CreditIndexData:
         -------
         int
             The num constituents exposed by this `CreditIndexData`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def recovery_rate(self) -> float:
         """
-        Index recovery rate.
+        Assumed recovery rate for the credit index, as a decimal.
         Returns
         -------
         float
             The recovery rate exposed by this `CreditIndexData`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -875,6 +969,9 @@ class PriceCurve:
         float
             Forward price.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -887,18 +984,26 @@ class PriceCurve:
         -------
         str
             The id exposed by this `PriceCurve`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def base_date(self) -> datetime.date:
         """
-        Valuation base date.
+        Curve base date used for year-fraction calculations.
 
         Returns
         -------
         datetime.date
             The base date exposed by this `PriceCurve`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1002,6 +1107,9 @@ class InflationCurve:
         float
             Interpolated CPI index level; times at or before zero return ``base_cpi``.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1021,6 +1129,9 @@ class InflationCurve:
             curve interpolation, without monthly reference-index interpolation
             or seasonality.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1071,6 +1182,9 @@ class InflationCurve:
             Decimal CAGR ``(CPI(t2) / CPI(t1)) ** (1 / (t2 - t1)) - 1``;
             non-finite or non-increasing times yield ``NaN`` in release builds.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1091,6 +1205,9 @@ class InflationCurve:
             Simple annual decimal rate ``(CPI(t2) / CPI(t1) - 1) / (t2 - t1)``;
             non-finite or non-increasing times yield ``NaN`` in release builds.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1103,6 +1220,10 @@ class InflationCurve:
         -------
         str
             The id exposed by this `InflationCurve`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1115,6 +1236,10 @@ class InflationCurve:
         -------
         datetime.date
             The base date exposed by this `InflationCurve`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1127,6 +1252,10 @@ class InflationCurve:
         -------
         str
             The day count exposed by this `InflationCurve`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1139,6 +1268,10 @@ class InflationCurve:
         -------
         int
             The indexation lag months exposed by this `InflationCurve`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1151,6 +1284,10 @@ class InflationCurve:
         -------
         float
             The base cpi exposed by this `InflationCurve`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1159,6 +1296,10 @@ class InflationCurve:
 class VolSurface:
     """
     Two-dimensional implied volatility surface on an expiry x strike grid.
+
+    Sources
+    -------
+    - Gatheral volatility surface: see docs/REFERENCES.md#gatheral-volatility-surface
 
     Parameters
     ----------
@@ -1280,6 +1421,10 @@ class VolSurface:
             Stored-convention volatility after clamping both coordinates to
             grid edges, or ``NaN`` for non-finite inputs.
 
+        Notes
+        -----
+        This helper does not raise; out-of-grid coordinates are clamped and non-finite inputs return ``NaN``.
+
         """
         ...
 
@@ -1292,6 +1437,10 @@ class VolSurface:
         -------
         str
             The id exposed by this `VolSurface`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1304,6 +1453,10 @@ class VolSurface:
         -------
         list[float]
             The expiries exposed by this `VolSurface`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1316,6 +1469,10 @@ class VolSurface:
         -------
         list[float]
             The strikes exposed by this `VolSurface`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1328,6 +1485,10 @@ class VolSurface:
         -------
         str
             The secondary axis exposed by this `VolSurface`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1340,6 +1501,10 @@ class VolSurface:
         -------
         str
             The quote type exposed by this `VolSurface`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1352,6 +1517,10 @@ class VolSurface:
         -------
         str
             The interpolation mode exposed by this `VolSurface`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1364,6 +1533,10 @@ class VolSurface:
         -------
         tuple[int, int]
             The grid shape exposed by this `VolSurface`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1375,6 +1548,12 @@ class FxDeltaVolSurface:
 
     Forward delta (premium-unadjusted). Strike conversion uses Garman-Kohlhagen.
     See ``docs/REFERENCES.md#clark-fx-options`` and ``#wystup-fx-options``.
+
+    Sources
+    -------
+    - Gatheral volatility surface: see docs/REFERENCES.md#gatheral-volatility-surface
+    - Clark FX options: see docs/REFERENCES.md#clark-fx-options
+    - Wystup FX options: see docs/REFERENCES.md#wystup-fx-options
 
     Examples
     --------
@@ -1430,6 +1609,10 @@ class FxDeltaVolSurface:
         -------
         str
             The id exposed by this `FxDeltaVolSurface`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1442,6 +1625,10 @@ class FxDeltaVolSurface:
         -------
         list[float]
             The expiries exposed by this `FxDeltaVolSurface`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1454,6 +1641,10 @@ class FxDeltaVolSurface:
         -------
         int
             The num expiries exposed by this `FxDeltaVolSurface`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1565,13 +1756,15 @@ class FxDeltaVolSurface:
             FX strike ``F * exp(-N^-1(delta) * vol * sqrt(T) + 0.5 * vol**2 * T)``
             in forward quotation units.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
         >>> from finstack_quant.core.market_data import FxDeltaVolSurface
         >>> round(FxDeltaVolSurface.delta_to_strike(0.25, 1.1, 0.12, 1.0), 6)
         1.201354
-
         """
         ...
 
@@ -1596,13 +1789,15 @@ class FxDeltaVolSurface:
         float
             Unitless premium-unadjusted forward call delta ``N(d1)``.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
         >>> from finstack_quant.core.market_data import FxDeltaVolSurface
         >>> round(FxDeltaVolSurface.strike_to_delta(1.2, 1.1, 0.12, 1.0), 6)
         0.252995
-
         """
         ...
 
@@ -1615,6 +1810,11 @@ class VolCube:
     Stores calibrated SABR parameters at each (expiry, tenor) node and
     evaluates implied volatilities via bilinear parameter interpolation
     and the Hagan (2002) approximation.
+
+    Sources
+    -------
+    - Gatheral volatility surface: see docs/REFERENCES.md#gatheral-volatility-surface
+    - Hagan SABR (2002): see docs/REFERENCES.md#hagan-2002-sabr
 
     Parameters
     ----------
@@ -1737,6 +1937,10 @@ class VolCube:
             clamped to cube edges; finite degeneracies are floored and invalid
             model inputs return ``NaN``.
 
+        Notes
+        -----
+        This helper does not raise; out-of-grid coordinates are clamped and non-finite inputs return ``NaN``.
+
         """
         ...
 
@@ -1791,6 +1995,10 @@ class VolCube:
             Bachelier volatility in absolute annual rate units after finite edge
             clamping; finite degeneracies are floored and invalid model inputs
             return ``NaN``.
+
+        Notes
+        -----
+        This helper does not raise; out-of-grid coordinates are clamped and non-finite inputs return ``NaN``.
 
         """
         ...
@@ -1917,6 +2125,10 @@ class VolCube:
         -------
         str
             The id exposed by this `VolCube`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1929,6 +2141,10 @@ class VolCube:
         -------
         list[float]
             The expiries exposed by this `VolCube`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1941,6 +2157,10 @@ class VolCube:
         -------
         list[float]
             The tenors exposed by this `VolCube`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1953,6 +2173,10 @@ class VolCube:
         -------
         tuple[int, int]
             The grid shape exposed by this `VolCube`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1965,6 +2189,10 @@ class VolCube:
         -------
         str
             The interpolation mode exposed by this `VolCube`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2053,6 +2281,9 @@ class VolatilityIndexCurve:
         float
             Forward volatility index level.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -2065,18 +2296,26 @@ class VolatilityIndexCurve:
         -------
         str
             The id exposed by this `VolatilityIndexCurve`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def base_date(self) -> datetime.date:
         """
-        Valuation base date.
+        Curve base date used for year-fraction calculations.
 
         Returns
         -------
         datetime.date
             The base date exposed by this `VolatilityIndexCurve`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -2159,12 +2398,16 @@ class FxRateResult:
     @property
     def rate(self) -> float:
         """
-        The FX conversion rate.
+        FX conversion rate applied for this quote, in quote-per-base units.
 
         Returns
         -------
         float
             The rate exposed by this `FxRateResult`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2177,6 +2420,10 @@ class FxRateResult:
         -------
         bool
             The triangulated exposed by this `FxRateResult`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2195,6 +2442,11 @@ class FxRateResult:
         -------
         pd.DataFrame
             Single-row frame with the rate and its triangulation flag.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -2225,6 +2477,10 @@ class FxMatrix:
         Returns
         -------
         None
+
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -2294,7 +2550,7 @@ class FxMatrix:
         policy: Optional[Union[FxConversionPolicy, str]] = None,
     ) -> FxRateResult:
         """
-        Look up an FX rate.
+        Look up the FX conversion rate for one currency pair.
 
         Parameters
         ----------
@@ -2385,6 +2641,10 @@ class ScalarTimeSeries:
         -------
         str
             The id exposed by this `ScalarTimeSeries`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2397,6 +2657,10 @@ class ScalarTimeSeries:
         -------
         Currency | None
             The currency exposed by this `ScalarTimeSeries`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2409,6 +2673,10 @@ class ScalarTimeSeries:
         -------
         str
             The interpolation exposed by this `ScalarTimeSeries`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2421,6 +2689,10 @@ class ScalarTimeSeries:
         -------
         list[tuple[datetime.date, float]]
             The observations exposed by this `ScalarTimeSeries`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -2467,6 +2739,11 @@ class ScalarTimeSeries:
         -------
         pd.DataFrame
             Date-indexed frame with a single ``value`` column.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -2478,6 +2755,11 @@ class ScalarTimeSeries:
         -------
         str
             Canonical JSON representation of this `ScalarTimeSeries`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -2571,6 +2853,10 @@ class InflationIndex:
         -------
         str
             The id exposed by this `InflationIndex`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2583,6 +2869,10 @@ class InflationIndex:
         -------
         Currency
             The currency exposed by this `InflationIndex`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2595,6 +2885,10 @@ class InflationIndex:
         -------
         str
             The interpolation exposed by this `InflationIndex`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2607,6 +2901,10 @@ class InflationIndex:
         -------
         list[tuple[datetime.date, float]]
             The observations exposed by this `InflationIndex`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -2643,6 +2941,11 @@ class InflationIndex:
         -------
         str
             Canonical JSON representation of this `InflationIndex`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -2709,6 +3012,10 @@ class MarketContext:
         Returns
         -------
         None
+
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -2762,6 +3069,10 @@ class MarketContext:
         fx : FxMatrix
             FX rate matrix.
 
+        Notes
+        -----
+        This method stores the object in the context and does not raise.
+
         """
         ...
 
@@ -2807,6 +3118,10 @@ class MarketContext:
         data : CreditIndexData
             Credit index data bundle.
 
+        Notes
+        -----
+        This method stores the object in the context and does not raise.
+
         """
         ...
 
@@ -2819,6 +3134,10 @@ class MarketContext:
         series : ScalarTimeSeries
             Fully validated date-indexed series whose ``id`` becomes the lookup key.
 
+        Notes
+        -----
+        This method stores the object in the context and does not raise.
+
         """
         ...
 
@@ -2830,6 +3149,10 @@ class MarketContext:
         ----------
         index : InflationIndex
             Fully validated index observation series whose ``id`` becomes the lookup key.
+
+        Notes
+        -----
+        This method stores the object in the context and does not raise.
 
         """
         ...
@@ -2848,6 +3171,7 @@ class MarketContext:
         DiscountCurve
 
             Stored discount curve under exact ``id``; no alias or default fallback is attempted.
+
         Raises
         ------
         KeyError
@@ -2871,6 +3195,7 @@ class MarketContext:
         ForwardCurve
 
             Stored forward curve under exact ``id``; no alias or tenor fallback is attempted.
+
         Raises
         ------
         KeyError
@@ -2894,6 +3219,7 @@ class MarketContext:
         HazardCurve
 
             Stored hazard curve under exact ``id``; no issuer or default fallback is attempted.
+
         Raises
         ------
         KeyError
@@ -2941,6 +3267,7 @@ class MarketContext:
         InflationCurve
 
             Stored forward inflation curve under exact ``id``; no index fallback is attempted.
+
         Raises
         ------
         KeyError
@@ -2964,6 +3291,7 @@ class MarketContext:
         PriceCurve
 
             Stored price curve under exact ``id``; no spot-price fallback is attempted.
+
         Raises
         ------
         KeyError
@@ -3058,6 +3386,7 @@ class MarketContext:
         VolSurface
 
             Stored strike-grid volatility surface under exact ``id``; no cube fallback is attempted.
+
         Raises
         ------
         KeyError
@@ -3099,6 +3428,7 @@ class MarketContext:
         VolCube
 
             Stored SABR volatility cube under exact ``id``; no surface fallback is attempted.
+
         Raises
         ------
         KeyError
@@ -3158,6 +3488,10 @@ class MarketContext:
         -------
         FxMatrix | None
             The fx exposed by this `MarketContext`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -3203,6 +3537,11 @@ class MarketContext:
         -------
         str
             JSON string accepted by ``price_instrument`` / ``price_instrument_with_metrics``.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 

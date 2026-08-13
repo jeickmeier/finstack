@@ -69,17 +69,17 @@
 //!
 //! - Black, F. (1976). "The Pricing of Commodity Contracts." *Journal of
 //!   Financial Economics*, 3(1-2), 167-179.
-//!   (Black model extended to swaptions)
+//!   (Black model extended to swaptions) `docs/REFERENCES.md#black-1976`
 //!
 //! - Hagan, P. S., Kumar, D., Lesniewski, A. S., & Woodward, D. E. (2002).
 //!   "Managing Smile Risk." *Wilmott Magazine*, September, 84-108.
-//!   (SABR model for volatility interpolation)
+//!   (SABR model for volatility interpolation) `docs/REFERENCES.md#hagan-2002-sabr`
 //!
 //! - Rebonato, R. (2004). *Volatility and Correlation: The Perfect Hedger and
-//!   the Fox* (2nd ed.). Wiley. Part II: Swaptions.
+//!   the Fox* (2nd ed.). Wiley. Part II: Swaptions. `docs/REFERENCES.md#rebonato-2004-volatility-correlation`
 //!
 //! - Brigo, D., & Mercurio, F. (2006). *Interest Rate Models - Theory and Practice*
-//!   (2nd ed.). Springer. Chapter 13: Swaption Pricing.
+//!   (2nd ed.). Springer. Chapter 13: Swaption Pricing. `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
 //!
 //! # Implementation Notes
 //!

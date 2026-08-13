@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 /// # Reference
 ///
 /// BCBS-IOSCO "Margin requirements for non-centrally cleared derivatives" (2020)
-/// Annex A: Standardized haircut schedule
+/// Annex A: Standardized haircut schedule `docs/REFERENCES.md#bcbs-iosco-uncleared-margin`
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]

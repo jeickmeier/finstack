@@ -63,12 +63,12 @@
 //!
 //! # References
 //!
-//! - Term structures and discounting:
-//!   `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
-//! - Core derivatives and market-data context:
-//!   `docs/REFERENCES.md#hull-options-futures`
-//! - Volatility surfaces:
-//!   `docs/REFERENCES.md#gatheral-volatility-surface`
+//! - Term structures and discounting: `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
+//!
+//! - Core derivatives and market-data context: `docs/REFERENCES.md#hull-options-futures`
+//!
+//! - Volatility surfaces: `docs/REFERENCES.md#gatheral-volatility-surface`
+//!
 
 /// Volatility surface arbitrage detection framework.
 ///

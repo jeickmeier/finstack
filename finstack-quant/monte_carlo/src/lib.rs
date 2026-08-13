@@ -54,6 +54,31 @@
 //!
 //! See [`engine`] for parallel-execution and configuration constraints. Model,
 //! scheme, and estimator assumptions and references live in their leaf modules.
+//!
+//! # Quick start
+//!
+//! ```
+//! use finstack_quant_core::currency::Currency;
+//! use finstack_quant_monte_carlo::payoff::vanilla::EuropeanCall;
+//! use finstack_quant_monte_carlo::pricer::european::EuropeanPricer;
+//! use finstack_quant_monte_carlo::process::gbm::GbmProcess;
+//!
+//! let pricer = EuropeanPricer::new(25_000)
+//!     .with_seed(19)
+//!     .with_parallel(false);
+//! let process = GbmProcess::with_params(0.03, 0.01, 0.20).unwrap();
+//! let payoff = EuropeanCall::new(100.0, 1.0, 252);
+//! let result = pricer
+//!     .price(&process, 100.0, 1.0, 252, &payoff, Currency::USD, (-0.03_f64).exp())
+//!     .expect("pricing should succeed");
+//! assert!(result.mean.amount().is_finite());
+//! ```
+//!
+//! # References
+//!
+//! - Monte Carlo methods: `docs/REFERENCES.md#glasserman-2004-monte-carlo`
+//! - GBM dynamics: `docs/REFERENCES.md#black-scholes-1973`
+//! - Online mean/variance: `docs/REFERENCES.md#welford-1962`
 
 // --- Simulation primitives ---
 mod captured_path_stats;

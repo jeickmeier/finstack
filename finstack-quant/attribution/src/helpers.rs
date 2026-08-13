@@ -263,7 +263,18 @@ fn flat_window_diff(
     }
 }
 
-/// Build a market whose discount curve is replaced by a flat-YTM curve `DF(t) = exp(-ytm·t)`.
+/// Build a market whose discount curve is replaced by a flat curve at the
+/// instrument's quoted YTM.
+///
+/// The `Ytm` metric is quoted with street (semi-annual bond-equivalent)
+/// compounding, so it is converted to its continuous equivalent
+/// `y_cont = 2·ln(1 + y/2)` before building `DF(t) = exp(−y_cont·t)` —
+/// using the quoted rate directly in a continuous discount factor overstates
+/// discounting by ≈ y²/4 per year (Tuckman & Serrat, *Fixed Income
+/// Securities*, Ch. 2–3), misallocating pull-to-par vs roll-down (audit
+/// Mo10). Knots span 0–100y in half-year steps so ultra-long bonds stay on
+/// the flat curve rather than extrapolating (audit Mi4).
+///
 /// Ported from `valuations`'s private `build_flat_curve_market` (not reachable cross-crate).
 fn build_flat_ytm_market(
     instrument: &dyn Instrument,
@@ -280,10 +291,18 @@ fn build_flat_ytm_market(
             id: format!("discount_curve_for:{}", instrument.id()),
         })?;
     let original = market.get_discount(curve_id.as_str())?;
-    let knots: Vec<(f64, f64)> = (0..=120)
+    // Street semi-annual → continuous: y_cont = 2·ln(1 + y/2). Guard the
+    // pathological y ≤ −200% region where the conversion is undefined; the
+    // quoted rate is used as-is there (already effectively continuous junk).
+    let y_cont = if 1.0 + ytm / 2.0 > 0.0 {
+        2.0 * (1.0 + ytm / 2.0).ln()
+    } else {
+        ytm
+    };
+    let knots: Vec<(f64, f64)> = (0..=200)
         .map(|i| {
             let t = i as f64 * 0.5;
-            (t, (-ytm * t).exp())
+            (t, (-y_cont * t).exp())
         })
         .collect();
     let flat_curve = DiscountCurve::builder(curve_id.as_str())
@@ -477,6 +496,55 @@ mod tests {
         assert!(
             validate_attribution_period(date!(2025 - 01 - 16), date!(2025 - 01 - 15)).is_err(),
             "a reversed period (t1 < t0) must be rejected"
+        );
+    }
+
+    /// Audit Mo10: the flat-YTM window curve must convert the street
+    /// (semi-annual) YTM to continuous compounding before building
+    /// `DF(t) = exp(−y_cont·t)`. Hand check: ytm = 5% at t = 1y →
+    /// DF = (1 + 0.05/2)^(−2), NOT exp(−0.05).
+    /// Audit Mi4: the knot grid must reach 100y for ultra-long bonds.
+    #[test]
+    fn flat_ytm_market_uses_street_semiannual_compounding() {
+        use finstack_quant_valuations::instruments::Bond;
+
+        let as_of = date!(2025 - 01 - 01);
+        let bond = Bond::fixed(
+            "FLAT-YTM-BOND",
+            Money::new(1_000_000.0, Currency::USD),
+            0.05,
+            date!(2024 - 01 - 01),
+            date!(2034 - 01 - 01),
+            "USD-OIS",
+        )
+        .expect("bond construction");
+        let base_curve = DiscountCurve::builder("USD-OIS")
+            .base_date(as_of)
+            .knots([(0.0, 1.0), (10.0, (-0.03_f64 * 10.0).exp())])
+            .interp(InterpStyle::LogLinear)
+            .build()
+            .expect("base curve");
+        let market = MarketContext::new().insert(base_curve);
+
+        let flat = build_flat_ytm_market(&bond, &market, 0.05).expect("flat market");
+        let curve = flat.get_discount("USD-OIS").expect("flat curve");
+
+        let expected_1y = (1.0_f64 + 0.05 / 2.0).powi(-2);
+        assert!(
+            (curve.df(1.0) - expected_1y).abs() < 1e-12,
+            "DF(1y) at 5% street (semi-annual) YTM must be (1.025)^-2 = \
+             {expected_1y}, got {} (continuous exp(-0.05) = {})",
+            curve.df(1.0),
+            (-0.05_f64).exp()
+        );
+
+        // Mi4: grid extends to 100y (0..=200 half-years) for ultra-longs.
+        let expected_100y = (1.0_f64 + 0.05 / 2.0).powi(-200);
+        assert!(
+            ((curve.df(100.0) - expected_100y) / expected_100y).abs() < 1e-9,
+            "DF(100y) must be on the semi-annual flat curve, expected \
+             {expected_100y}, got {}",
+            curve.df(100.0)
         );
     }
 

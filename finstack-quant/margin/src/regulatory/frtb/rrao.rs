@@ -26,8 +26,8 @@ pub const RRAO_OTHER_WEIGHT: f64 = 0.001;
 ///
 /// # References
 ///
-/// - BCBS FRTB Minimum Capital Requirements:
-///   `docs/REFERENCES.md#bcbs-frtb-minimum-capital-requirements`
+/// - BCBS FRTB Minimum Capital Requirements: `docs/REFERENCES.md#bcbs-frtb-minimum-capital-requirements`
+///
 pub fn rrao_charge(positions: &[RraoPosition]) -> f64 {
     positions
         .iter()

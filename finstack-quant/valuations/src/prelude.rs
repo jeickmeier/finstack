@@ -34,7 +34,7 @@
 //! # Ok::<(), finstack_quant_core::Error>(())
 //! ```
 //!
-//! # References
+//! # See also
 //!
 //! - Metric contract: [`crate::metrics::MetricId`]
 //! - Result envelope: [`crate::results::ValuationResult`]

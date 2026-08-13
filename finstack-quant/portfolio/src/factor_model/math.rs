@@ -3,8 +3,9 @@
 //! These helpers live here (rather than in each decomposer) so that
 //! parametric-portfolio, parametric-position, and any future closed-form
 //! decomposer reuse bit-identical constants and formulas. The
-//! `normal_quantile` implementation is the Beasley–Springer–Moro rational
-//! approximation to the inverse standard-normal CDF; `normal_pdf` is the
+//! `normal_quantile` implementation is Peter Acklam's rational approximation
+//! to the inverse standard-normal CDF (sometimes misattributed to
+//! Beasley–Springer–Moro, a different algorithm); `normal_pdf` is the
 //! standard-normal density. Keep the constants byte-identical — changing
 //! them is a numerical-behaviour change, not a cleanup.
 

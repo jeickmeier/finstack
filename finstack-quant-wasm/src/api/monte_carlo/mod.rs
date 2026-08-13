@@ -114,7 +114,7 @@ fn binding_defaults(
 /// loaded when `num_steps` is omitted; the GBM parameters, expiry, step count,
 /// path count, or computed discount factor fail validation; a simulated
 /// discounted payoff is non-finite; or the result cannot be serialized.
-/// @param spot - Current spot price or exchange rate in the documented quote convention.
+/// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
 /// @param div_yield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -156,7 +156,7 @@ pub fn price_european_call(
 /// loaded when `num_steps` is omitted; the GBM parameters, expiry, step count,
 /// path count, or computed discount factor fail validation; a simulated
 /// discounted payoff is non-finite; or the result cannot be serialized.
-/// @param spot - Current spot price or exchange rate in the documented quote convention.
+/// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
 /// @param div_yield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -224,7 +224,7 @@ fn price_european(
 /// `rho` is outside `[-1, 1]`; the expiry, step count, path count, or computed
 /// discount factor fails validation; a simulated discounted payoff is
 /// non-finite; or the result cannot be serialized.
-/// @param spot - Current spot price or exchange rate in the documented quote convention.
+/// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
 /// @param div_yield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -272,7 +272,7 @@ pub fn price_heston_call(
 /// `rho` is outside `[-1, 1]`; the expiry, step count, path count, or computed
 /// discount factor fails validation; a simulated discounted payoff is
 /// non-finite; or the result cannot be serialized.
-/// @param spot - Current spot price or exchange rate in the documented quote convention.
+/// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
 /// @param div_yield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -312,7 +312,7 @@ pub fn price_heston_put(
 // Analytical
 
 /// Black-Scholes call price.
-/// @param spot - Current spot price or exchange rate in the documented quote convention.
+/// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
 /// @param div_yield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -333,7 +333,7 @@ pub fn black_scholes_call(
 }
 
 /// Black-Scholes put price.
-/// @param spot - Current spot price or exchange rate in the documented quote convention.
+/// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
 /// @param div_yield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -364,7 +364,7 @@ pub fn black_scholes_put(
 /// loaded when `num_steps` is omitted; the GBM parameters, expiry, step count,
 /// path count, or computed discount factor fail validation; a simulated
 /// discounted payoff is non-finite; or the result cannot be serialized.
-/// @param spot - Current spot price or exchange rate in the documented quote convention.
+/// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
 /// @param div_yield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -401,7 +401,7 @@ pub fn price_asian_call(
 /// loaded when `num_steps` is omitted; the GBM parameters, expiry, step count,
 /// path count, or computed discount factor fail validation; a simulated
 /// discounted payoff is non-finite; or the result cannot be serialized.
-/// @param spot - Current spot price or exchange rate in the documented quote convention.
+/// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
 /// @param div_yield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -489,7 +489,7 @@ fn price_asian(
 /// unknown; `strike <= 0`; the GBM parameters, path count, step count, expiry,
 /// basis name, or basis degree fail validation; path generation fails; or the
 /// result cannot be serialized.
-/// @param spot - Current spot price or exchange rate in the documented quote convention.
+/// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
 /// @param div_yield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -550,7 +550,7 @@ pub fn price_american_put(
 /// unknown; `strike <= 0`; the GBM parameters, path count, step count, expiry,
 /// basis name, or basis degree fail validation; path generation fails; or the
 /// result cannot be serialized.
-/// @param spot - Current spot price or exchange rate in the documented quote convention.
+/// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
 /// @param div_yield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -610,7 +610,7 @@ pub fn price_american_call(
 /// basis name, or basis degree fail validation; `pricing_seed == seed`; either
 /// path-generation pass or the regression fit fails; or the result cannot be
 /// serialized.
-/// @param spot - Current spot price or exchange rate in the documented quote convention.
+/// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
 /// @param div_yield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -673,7 +673,7 @@ pub fn price_american_put_unbiased(
 /// basis name, or basis degree fail validation; `pricing_seed == seed`; either
 /// path-generation pass or the regression fit fails; or the result cannot be
 /// serialized.
-/// @param spot - Current spot price or exchange rate in the documented quote convention.
+/// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
 /// @param div_yield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -896,64 +896,69 @@ fn price_heston(
     num_steps: Option<usize>,
     currency: Option<String>,
 ) -> Result<JsValue, JsValue> {
-    use finstack_quant_monte_carlo::discretization::QeHeston;
-    use finstack_quant_monte_carlo::engine::{McEngine, McEngineConfig};
-    use finstack_quant_monte_carlo::payoff::vanilla::{EuropeanCall, EuropeanPut};
-    use finstack_quant_monte_carlo::process::heston::HestonProcess;
-    use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-    use finstack_quant_monte_carlo::time_grid::TimeGrid;
+    use finstack_quant_monte_carlo::pricer::heston as canonical;
 
-    let ccy = resolve_currency(currency.as_deref())?;
-    let steps = match num_steps {
-        Some(steps) => steps,
-        None => binding_defaults()?.european_pricer.num_steps,
-    };
-    let time_grid = TimeGrid::uniform(expiry, steps).map_err(to_js_err)?;
-    let engine = McEngine::new(McEngineConfig::new(num_paths, time_grid).parallel(false));
-    let rng = PhiloxRng::new(seed);
-    let process = HestonProcess::with_params(rate, div_yield, kappa, theta, vol_of_vol, rho, v0)
-        .map_err(to_js_err)?;
-    let disc = QeHeston::new();
-    let initial_state = [spot, v0];
-    let discount_factor = flat_discount_factor(rate, expiry).map_err(to_js_err)?;
+    // The canonical entry point owns the registry defaults for step count,
+    // currency, and (wasm-gated) parallelism; the binding only marshals an
+    // explicitly supplied currency.
+    let ccy = currency
+        .as_deref()
+        .map(|code| Currency::from_str(code).map_err(to_js_err))
+        .transpose()?;
     let est = if is_call {
-        let payoff = EuropeanCall::new(strike, 1.0, steps);
-        engine.price(
-            &rng,
-            &process,
-            &disc,
-            &initial_state,
-            &payoff,
+        canonical::price_heston_call(
+            spot,
+            strike,
+            rate,
+            div_yield,
+            kappa,
+            theta,
+            vol_of_vol,
+            rho,
+            v0,
+            expiry,
+            Some(num_paths),
+            Some(seed),
+            num_steps,
             ccy,
-            discount_factor,
         )
     } else {
-        let payoff = EuropeanPut::new(strike, 1.0, steps);
-        engine.price(
-            &rng,
-            &process,
-            &disc,
-            &initial_state,
-            &payoff,
+        canonical::price_heston_put(
+            spot,
+            strike,
+            rate,
+            div_yield,
+            kappa,
+            theta,
+            vol_of_vol,
+            rho,
+            v0,
+            expiry,
+            Some(num_paths),
+            Some(seed),
+            num_steps,
             ccy,
-            discount_factor,
         )
     }
     .map_err(to_js_err)?;
     estimate_to_js(&est)
 }
 
-/// Resolve an optional currency string, defaulting to USD.
+/// Resolve an optional currency string, defaulting to the registry default.
 fn resolve_currency(code: Option<&str>) -> Result<Currency, JsValue> {
-    let s = code.unwrap_or("USD");
-    Currency::from_str(s).map_err(to_js_err)
+    match code {
+        Some(code) => Currency::from_str(code).map_err(to_js_err),
+        None => Currency::from_str(&binding_defaults()?.default_currency).map_err(to_js_err),
+    }
 }
 
 /// Shared European pricer builder.
+///
+/// Parallelism is left at the registry default; `EuropeanPricer::price`
+/// forces serial execution on wasm32, and serial ≡ parallel by the
+/// determinism invariant.
 fn build_pricer(num_paths: usize, seed: u64) -> EuropeanPricer {
-    EuropeanPricer::new(num_paths)
-        .with_seed(seed)
-        .with_parallel(false)
+    EuropeanPricer::new(num_paths).with_seed(seed)
 }
 
 #[cfg(test)]

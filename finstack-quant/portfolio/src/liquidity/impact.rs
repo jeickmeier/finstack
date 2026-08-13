@@ -24,7 +24,9 @@ pub struct TradeParams {
     /// Liquidity profile for the instrument.
     pub profile: LiquidityProfile,
 
-    /// Risk aversion parameter (overrides config if set).
+    /// Risk aversion parameter for trajectory optimization; `None` falls
+    /// back to the model's internal default (currently `1e-6` in the
+    /// Almgren-Chriss trajectory solver).
     pub risk_aversion: Option<f64>,
 
     /// Reference price used to convert the return-space volatility
@@ -48,16 +50,26 @@ impl TradeParams {
     }
 }
 
-/// Estimated market impact from a trade.
+/// Estimated market-impact execution *costs* from a trade.
+///
+/// All monetary fields are costs in currency units (impact integrated over
+/// the executed quantity, e.g. `½·γ·Q²` for a linear permanent impact), not
+/// per-share price displacements. The field names keep their historical
+/// `*_impact` spelling for wire stability.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ImpactEstimate {
-    /// Permanent price impact (information leakage, irreversible).
+    /// Permanent-impact component of the expected execution cost, in
+    /// currency units (information leakage, irreversible). Despite the
+    /// name, this is a cost, not a price displacement.
     pub permanent_impact: f64,
 
-    /// Temporary price impact (order-flow pressure, mean-reverts).
+    /// Temporary-impact component of the expected execution cost, in
+    /// currency units (order-flow pressure, mean-reverts). Despite the
+    /// name, this is a cost, not a price displacement.
     pub temporary_impact: f64,
 
-    /// Total expected execution cost (permanent + temporary).
+    /// Total expected execution cost (permanent + temporary), in currency
+    /// units.
     pub total_cost: f64,
 
     /// Cost as basis points of notional value.
@@ -89,7 +101,7 @@ pub struct ExecutionTrajectory {
 /// Trait for market impact models that estimate the cost of executing a trade.
 ///
 /// Implementations take the trade parameters and return the estimated
-/// price impact (in currency units per share/contract). The trait is
+/// execution costs in currency units (see [`ImpactEstimate`]). The trait is
 /// object-safe to allow heterogeneous model selection per instrument.
 pub trait MarketImpactModel: Send + Sync {
     /// Estimate the total execution cost of a trade.

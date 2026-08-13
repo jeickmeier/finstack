@@ -147,8 +147,14 @@ impl EuropeanPricer {
         P: Payoff,
     {
         let time_grid = TimeGrid::uniform(time_to_maturity, num_steps)?;
-        let engine_config =
-            McEngineConfig::new(self.num_paths, time_grid).parallel(self.use_parallel);
+        // Serial ≡ parallel by the determinism invariant, so the flag only
+        // sets throughput. On wasm32 no thread pool exists, so force serial
+        // there regardless of the configured (registry-backed) default.
+        #[cfg(target_arch = "wasm32")]
+        let use_parallel = false;
+        #[cfg(not(target_arch = "wasm32"))]
+        let use_parallel = self.use_parallel;
+        let engine_config = McEngineConfig::new(self.num_paths, time_grid).parallel(use_parallel);
         let engine = McEngine::new(engine_config);
 
         let rng = PhiloxRng::new(self.seed);
@@ -172,6 +178,22 @@ impl EuropeanPricer {
     /// This is a scalar-arg convenience for the common binding case where the
     /// caller supplies raw floats rather than pre-built `GbmProcess` / `EuropeanCall`
     /// instances.
+    ///
+    /// # Arguments
+    ///
+    /// * `spot` - Spot level at time `0`.
+    /// * `strike` - Exercise price in the same units as `spot`.
+    /// * `rate` - Continuously compounded risk-free rate (decimal, annualized).
+    /// * `dividend_yield` - Continuous dividend yield (decimal, annualized).
+    /// * `volatility` - Annualized GBM volatility (decimal).
+    /// * `expiry` - Time to expiry in years; also the uniform-grid horizon.
+    /// * `num_steps` - Number of time-grid steps between `0` and `expiry`.
+    /// * `currency` - Currency stamped on the returned estimate.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when GBM parameters fail validation, the uniform grid
+    /// is invalid, or the underlying engine rejects the run.
     #[allow(clippy::too_many_arguments)]
     pub fn price_gbm_call(
         &self,
@@ -200,6 +222,22 @@ impl EuropeanPricer {
 
     /// Price a European put under risk-neutral GBM with flat continuous
     /// discounting `exp(-rT)`.
+    ///
+    /// # Arguments
+    ///
+    /// * `spot` - Spot level at time `0`.
+    /// * `strike` - Exercise price in the same units as `spot`.
+    /// * `rate` - Continuously compounded risk-free rate (decimal, annualized).
+    /// * `dividend_yield` - Continuous dividend yield (decimal, annualized).
+    /// * `volatility` - Annualized GBM volatility (decimal).
+    /// * `expiry` - Time to expiry in years; also the uniform-grid horizon.
+    /// * `num_steps` - Number of time-grid steps between `0` and `expiry`.
+    /// * `currency` - Currency stamped on the returned estimate.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when GBM parameters fail validation, the uniform grid
+    /// is invalid, or the underlying engine rejects the run.
     #[allow(clippy::too_many_arguments)]
     pub fn price_gbm_put(
         &self,
@@ -220,6 +258,155 @@ impl EuropeanPricer {
             spot,
             expiry,
             num_steps,
+            &payoff,
+            currency,
+            discount_factor,
+        )
+    }
+}
+
+/// Price a European call under GBM on a caller-built engine.
+///
+/// Unlike [`EuropeanPricer::price_gbm_call`], the payoff horizon is the
+/// engine's own grid `t_max` — not a separately supplied expiry — and the
+/// engine's antithetic/parallel configuration is honored. This is the
+/// canonical composition behind the host-binding
+/// `McEngine.price_european_call` method; both hosts delegate here rather
+/// than assembling process, discretization, and payoff themselves.
+///
+/// # Arguments
+///
+/// * `engine` - Caller-built engine whose grid defines the payoff horizon
+/// * `seed` - RNG seed for deterministic replay
+/// * `spot` - Spot level at time `0`
+/// * `strike` - Exercise price in the same units as `spot`
+/// * `rate` - Continuously compounded risk-free rate (decimal, annualized)
+/// * `div_yield` - Continuous dividend yield (decimal, annualized)
+/// * `vol` - Annualized volatility (decimal)
+/// * `currency` - Currency stamped on the result; `None` uses the registry
+///   binding default currency
+///
+/// # Errors
+///
+/// Returns an error if the registry defaults cannot be loaded when `currency`
+/// is `None`, the GBM parameters or discount factor fail validation, or the
+/// engine rejects the run.
+///
+/// # Examples
+///
+/// ```
+/// use finstack_quant_monte_carlo::engine::{McEngine, McEngineConfig};
+/// use finstack_quant_monte_carlo::pricer::european::price_engine_gbm_call;
+/// use finstack_quant_monte_carlo::time_grid::TimeGrid;
+///
+/// let grid = TimeGrid::uniform(1.0, 16).unwrap();
+/// let engine = McEngine::new(McEngineConfig::new(2_000, grid).parallel(false));
+/// let estimate = price_engine_gbm_call(&engine, 42, 100.0, 100.0, 0.03, 0.0, 0.2, None)
+///     .expect("pricing should succeed");
+/// assert!(estimate.mean.amount() > 0.0);
+/// ```
+#[allow(clippy::too_many_arguments)]
+pub fn price_engine_gbm_call(
+    engine: &McEngine,
+    seed: u64,
+    spot: f64,
+    strike: f64,
+    rate: f64,
+    div_yield: f64,
+    vol: f64,
+    currency: Option<Currency>,
+) -> Result<MoneyEstimate> {
+    price_engine_gbm(
+        engine, seed, true, spot, strike, rate, div_yield, vol, currency,
+    )
+}
+
+/// Price a European put under GBM on a caller-built engine.
+///
+/// Put counterpart of [`price_engine_gbm_call`]; see it for horizon and
+/// default-resolution semantics.
+///
+/// # Arguments
+///
+/// * `engine` - Caller-built engine whose grid defines the payoff horizon
+/// * `seed` - RNG seed for deterministic replay
+/// * `spot` - Spot level at time `0`
+/// * `strike` - Exercise price in the same units as `spot`
+/// * `rate` - Continuously compounded risk-free rate (decimal, annualized)
+/// * `div_yield` - Continuous dividend yield (decimal, annualized)
+/// * `vol` - Annualized volatility (decimal)
+/// * `currency` - Currency stamped on the result; `None` uses the registry
+///   binding default currency
+///
+/// # Errors
+///
+/// Same failure modes as [`price_engine_gbm_call`].
+#[allow(clippy::too_many_arguments)]
+pub fn price_engine_gbm_put(
+    engine: &McEngine,
+    seed: u64,
+    spot: f64,
+    strike: f64,
+    rate: f64,
+    div_yield: f64,
+    vol: f64,
+    currency: Option<Currency>,
+) -> Result<MoneyEstimate> {
+    price_engine_gbm(
+        engine, seed, false, spot, strike, rate, div_yield, vol, currency,
+    )
+}
+
+/// Shared call/put composition behind the engine-based GBM entry points.
+#[allow(clippy::too_many_arguments)]
+fn price_engine_gbm(
+    engine: &McEngine,
+    seed: u64,
+    is_call: bool,
+    spot: f64,
+    strike: f64,
+    rate: f64,
+    div_yield: f64,
+    vol: f64,
+    currency: Option<Currency>,
+) -> Result<MoneyEstimate> {
+    use finstack_quant_core::cashflow::flat_discount_factor;
+
+    let currency = match currency {
+        Some(currency) => currency,
+        None => {
+            let defaults = &crate::registry::embedded_defaults()?.python_bindings;
+            super::heston::parse_registry_currency(&defaults.default_currency)?
+        }
+    };
+    let t_max = engine.config().time_grid.t_max();
+    let num_steps = engine.config().time_grid.num_steps();
+    let rng = PhiloxRng::new(seed);
+    let process = GbmProcess::with_params(rate, div_yield, vol)?;
+    let disc = ExactGbm::new();
+    let initial_state = [spot];
+    // The payoff horizon is the grid's own t_max: this entry point takes a
+    // caller-built engine whose grid defines the horizon.
+    let discount_factor = flat_discount_factor(rate, t_max)?;
+
+    if is_call {
+        let payoff = EuropeanCall::new(strike, 1.0, num_steps);
+        engine.price(
+            &rng,
+            &process,
+            &disc,
+            &initial_state,
+            &payoff,
+            currency,
+            discount_factor,
+        )
+    } else {
+        let payoff = EuropeanPut::new(strike, 1.0, num_steps);
+        engine.price(
+            &rng,
+            &process,
+            &disc,
+            &initial_state,
             &payoff,
             currency,
             discount_factor,
@@ -283,6 +470,32 @@ mod tests {
 
         // Should be close to intrinsic value of 50
         assert!((result.mean.amount() - 50.0).abs() < 5.0);
+    }
+
+    #[test]
+    fn engine_gbm_helpers_are_deterministic_and_stamp_default_currency() {
+        let grid = TimeGrid::uniform(1.0, 8).unwrap();
+        let engine = McEngine::new(McEngineConfig::new(2_000, grid).parallel(false));
+
+        let first = price_engine_gbm_call(&engine, 42, 100.0, 100.0, 0.03, 0.0, 0.2, None)
+            .expect("engine GBM call should price");
+        let second = price_engine_gbm_call(&engine, 42, 100.0, 100.0, 0.03, 0.0, 0.2, None)
+            .expect("engine GBM call should price again");
+        assert_eq!(first.mean, second.mean);
+        assert_eq!(first.stderr, second.stderr);
+        assert!(first.mean.amount() > 0.0);
+
+        let expected: Currency = crate::registry::embedded_defaults_or_panic()
+            .python_bindings
+            .default_currency
+            .parse()
+            .unwrap();
+        assert_eq!(first.mean.currency(), expected);
+
+        let put = price_engine_gbm_put(&engine, 42, 100.0, 100.0, 0.03, 0.0, 0.2, None)
+            .expect("engine GBM put should price");
+        assert!(put.mean.amount() > 0.0);
+        assert_ne!(first.mean.amount(), put.mean.amount());
     }
 
     #[test]

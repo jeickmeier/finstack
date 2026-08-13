@@ -2,10 +2,37 @@
 
 use pyo3::prelude::*;
 
-/// Black-Scholes call price.
+/// Black-Scholes European call present value under GBM.
 ///
-/// Argument order is `(spot, strike, rate, div_yield, vol, expiry)`. Internally
-/// re-ordered to the Rust crate's `(spot, strike, expiry, rate, q, vol)` layout.
+/// Argument order is ``(spot, strike, rate, div_yield, vol, expiry)``. Internally
+/// re-ordered to the Rust crate's ``(spot, strike, expiry, rate, q, vol)`` layout.
+/// Rates and dividend yield are continuously compounded decimals. Non-finite
+/// inputs return ``NaN``; this helper does not raise.
+///
+/// Parameters
+/// ----------
+/// spot : float
+///     Spot price.
+/// strike : float
+///     Strike price.
+/// rate : float
+///     Risk-free rate (continuously compounded decimal).
+/// div_yield : float
+///     Dividend yield (continuously compounded decimal).
+/// vol : float
+///     Volatility (decimal).
+/// expiry : float
+///     Time to maturity in years.
+///
+/// Returns
+/// -------
+/// float
+///     Present value of the European call.
+///
+/// Sources
+/// -------
+/// - Black-Scholes (1973): see docs/REFERENCES.md#black-scholes-1973
+/// - Merton (1973): see docs/REFERENCES.md#merton-1973
 #[pyfunction]
 #[pyo3(signature = (spot, strike, rate, div_yield, vol, expiry))]
 fn black_scholes_call(
@@ -21,10 +48,37 @@ fn black_scholes_call(
     )
 }
 
-/// Black-Scholes put price.
+/// Black-Scholes European put present value under GBM.
 ///
-/// Argument order is `(spot, strike, rate, div_yield, vol, expiry)`. Internally
-/// re-ordered to the Rust crate's `(spot, strike, expiry, rate, q, vol)` layout.
+/// Argument order is ``(spot, strike, rate, div_yield, vol, expiry)``. Internally
+/// re-ordered to the Rust crate's ``(spot, strike, expiry, rate, q, vol)`` layout.
+/// Rates and dividend yield are continuously compounded decimals. Non-finite
+/// inputs return ``NaN``; this helper does not raise.
+///
+/// Parameters
+/// ----------
+/// spot : float
+///     Spot price.
+/// strike : float
+///     Strike price.
+/// rate : float
+///     Risk-free rate (continuously compounded decimal).
+/// div_yield : float
+///     Dividend yield (continuously compounded decimal).
+/// vol : float
+///     Volatility (decimal).
+/// expiry : float
+///     Time to maturity in years.
+///
+/// Returns
+/// -------
+/// float
+///     Present value of the European put.
+///
+/// Sources
+/// -------
+/// - Black-Scholes (1973): see docs/REFERENCES.md#black-scholes-1973
+/// - Merton (1973): see docs/REFERENCES.md#merton-1973
 #[pyfunction]
 #[pyo3(signature = (spot, strike, rate, div_yield, vol, expiry))]
 fn black_scholes_put(

@@ -73,9 +73,9 @@
 //! # References
 //!
 //! - Hull, J. C. (2018). *Options, Futures, and Other Derivatives* (10th ed.).
-//!   Pearson. Chapters 4-7 (Interest Rates and Curve Construction).
+//!   Pearson. Chapters 4-7 (Interest Rates and Curve Construction). `docs/REFERENCES.md#hull-options-futures`
 //! - Andersen, L., & Piterbarg, V. (2010). *Interest Rate Modeling* (3 vols).
-//!   Atlantic Financial Press. Volume 1, Chapter 3.
+//!   Atlantic Financial Press. Volume 1, Chapter 3. `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
 
 use crate::dates::{Date, DayCount, DayCountContext};
 use crate::market_data::traits::Discounting;

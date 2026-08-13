@@ -29,9 +29,9 @@
 //! ECF = EBITDA - Taxes - CapEx - Working_Capital_Change - Cash_Interest
 //!       - Fees                  (when Fees rank ahead of prepayment)
 //!       - Scheduled_Principal   (when Amortization ranks ahead of the
-//!                                prepayment priority in the waterfall)
-//! Sweep = max(0, ECF × sweep_percentage)
-//! ```
+//!   prepayment priority in the waterfall)
+//!   Sweep = max(0, ECF × sweep_percentage)
+//!   ```
 //!
 //! The `cash_interest_node` is optional. Per S&P LCD / standard LPA definitions,
 //! ECF should include a cash interest deduction. Set it to include this deduction.
@@ -787,29 +787,29 @@ pub fn execute_waterfall(
     // --- Step 6: Period close ---
     //
     // For each instrument:
-    //   (a) principal_payment = scheduled + extra, capped at the payable
-    //       balance (opening + in-period draws). If the cap truncates the sum,
-    //       reduce `extra_principal` first (discretionary sweep is netted
-    //       before scheduled amortization) so downstream accounting stays
-    //       consistent.
-    //   (b) post_sweep_balance = opening + draws - principal_payment (with a
-    //       small dust floor to avoid micro-residuals). The draw term keeps a
-    //       revolver's in-period funding from being wiped at close.
-    //   (c) PIK capitalization bookkeeping: the coupon was already moved into
-    //       the PIK bucket in Step 4b when the toggle is active. The moved
-    //       amount is accumulated into `state.cumulative_toggled_pik` so the
-    //       period-flow scale clamp can exclude toggle-driven compounding.
-    //       PIK interest accrues on the pre-waterfall opening balance and
-    //       capitalizes at period close even when the principal was fully
-    //       paid down during the period: the coupon still economically
-    //       exists and gets rolled into the closing balance.
-    //   (d) closing_balance = post_sweep_balance + PIK capitalized.
-    //   (e) accrued_interest: cleared to zero when PIK capitalization
-    //       absorbed the contractual coupon into principal, or when the
-    //       debt was paid off and no further contractual accrual applies.
-    //       Otherwise the field retains the contractual pre-waterfall
-    //       accrual. Any cash shortfall from Step 5 is then added on top
-    //       and carried into the next period's interest claim.
+    // (a) principal_payment = scheduled + extra, capped at the payable
+    // balance (opening + in-period draws). If the cap truncates the sum,
+    // reduce `extra_principal` first (discretionary sweep is netted
+    // before scheduled amortization) so downstream accounting stays
+    // consistent.
+    // (b) post_sweep_balance = opening + draws - principal_payment (with a
+    // small dust floor to avoid micro-residuals). The draw term keeps a
+    // revolver's in-period funding from being wiped at close.
+    // (c) PIK capitalization bookkeeping: the coupon was already moved into
+    // the PIK bucket in Step 4b when the toggle is active. The moved
+    // amount is accumulated into `state.cumulative_toggled_pik` so the
+    // period-flow scale clamp can exclude toggle-driven compounding.
+    // PIK interest accrues on the pre-waterfall opening balance and
+    // capitalizes at period close even when the principal was fully
+    // paid down during the period: the coupon still economically
+    // exists and gets rolled into the closing balance.
+    // (d) closing_balance = post_sweep_balance + PIK capitalized.
+    // (e) accrued_interest: cleared to zero when PIK capitalization
+    // absorbed the contractual coupon into principal, or when the
+    // debt was paid off and no further contractual accrual applies.
+    // Otherwise the field retains the contractual pre-waterfall
+    // accrual. Any cash shortfall from Step 5 is then added on top
+    // and carried into the next period's interest claim.
     for s in staged {
         let StagedInstrumentFlow {
             instrument_id,

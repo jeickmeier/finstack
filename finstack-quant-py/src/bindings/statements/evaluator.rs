@@ -112,6 +112,57 @@ impl PyStatementResult {
         Ok(self.inner.get_scalar(node_id, &pid))
     }
 
+    /// Get the value for a node at a period, or a default when missing.
+    ///
+    /// Parameters
+    /// ----------
+    /// node_id : str
+    ///     Node identifier (e.g. ``"revenue"``).
+    /// period : str
+    ///     Period identifier string (e.g. ``"2025Q1"``).
+    /// default : float
+    ///     Value returned when the node or period is unknown.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     The evaluated value in the node's own units, or ``default``.
+    #[pyo3(text_signature = "($self, node_id, period, default)")]
+    fn get_or(&self, node_id: &str, period: &str, default: f64) -> PyResult<f64> {
+        let pid = parse_period_id(period)?;
+        Ok(self.inner.get_or(node_id, &pid, default))
+    }
+
+    /// Get every evaluated period for one node as ordered pairs.
+    ///
+    /// Parameters
+    /// ----------
+    /// node_id : str
+    ///     Node identifier (e.g. ``"revenue"``).
+    ///
+    /// Returns
+    /// -------
+    /// list[tuple[str, float]]
+    ///     ``(period, value)`` pairs in evaluation order, in the node's own
+    ///     units. Empty when the node is not in the result.
+    #[pyo3(text_signature = "($self, node_id)")]
+    fn all_periods(&self, node_id: &str) -> Vec<(String, f64)> {
+        self.inner
+            .all_periods(node_id)
+            .map(|(pid, value)| (pid.to_string(), value))
+            .collect()
+    }
+
+    /// Check report attached by an evaluator configured with
+    /// :meth:`Evaluator.with_checks`, or ``None`` when no suite ran.
+    #[getter]
+    fn check_report(&self) -> Option<super::checks::PyCheckReport> {
+        self.inner
+            .check_report
+            .clone()
+            .map(|inner| super::checks::PyCheckReport { inner })
+    }
+
     /// Get every evaluated period for one node as a dict.
     ///
     /// Parameters
@@ -325,6 +376,35 @@ impl PyEvaluator {
         Self {
             inner: finstack_quant_statements::evaluator::Evaluator::new(),
         }
+    }
+
+    /// Attach a check suite to run automatically after each evaluation.
+    ///
+    /// The suite spec is resolved (built-in and formula checks) and the
+    /// resulting report is attached to :attr:`StatementResult.check_report`
+    /// on every subsequent ``evaluate`` / ``evaluate_with_market`` call.
+    ///
+    /// Parameters
+    /// ----------
+    /// suite_spec : CheckSuiteSpec
+    ///     The check-suite specification to resolve and attach.
+    ///
+    /// Returns
+    /// -------
+    /// Evaluator
+    ///     This evaluator, for chaining.
+    #[pyo3(text_signature = "($self, suite_spec)")]
+    fn with_checks<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        suite_spec: PyRef<'_, super::checks::PyCheckSuiteSpec>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let suite = suite_spec.inner.resolve().map_err(statements_to_py)?;
+        let evaluator = std::mem::replace(
+            &mut slf.inner,
+            finstack_quant_statements::evaluator::Evaluator::new(),
+        );
+        slf.inner = evaluator.with_checks(suite);
+        Ok(slf)
     }
 
     /// Evaluate a financial model.

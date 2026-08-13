@@ -125,10 +125,12 @@ impl IrsLegConventions {
 ///
 /// ## References
 ///
-/// - ISDA 2006 Definitions (incorporating 2008 Supplement for OIS)
-/// - ISDA 2021 Definitions (for RFR compounding conventions)
-/// - "Interest Rate Swaps and Their Derivatives" by Amir Sadr
-/// - Bloomberg SWPM function documentation
+/// - ISDA 2006 Definitions (incorporating 2008 Supplement for OIS) `docs/REFERENCES.md#isda-2006-definitions`
+/// - ISDA 2021 Definitions (for RFR compounding conventions) `docs/REFERENCES.md#isda-2021-definitions`
+/// - Sadr, A. *Interest Rate Swaps and Their Derivatives*.
+///   `docs/REFERENCES.md#sadr-2009-irs`
+/// - Bloomberg SWPM screen conventions.
+///   `docs/REFERENCES.md#bloomberg-swpm`
 #[derive(
     Clone,
     Debug,

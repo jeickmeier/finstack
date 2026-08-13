@@ -201,14 +201,29 @@ pub struct ReplaySummary {
     pub end_value: Money,
     /// Total P&L (end value minus start value).
     pub total_pnl: Money,
-    /// Maximum drawdown from peak to trough.
+    /// Maximum drawdown from peak to trough, selected on the largest
+    /// base-currency (dollar) decline from a running high-water mark.
     pub max_drawdown: Money,
-    /// Maximum drawdown as a percentage of peak value.
+    /// Maximum percentage drawdown, selected independently of
+    /// [`max_drawdown`](Self::max_drawdown) as the largest `decline / peak`
+    /// ratio over positive peaks. The dollar-largest and percentage-largest
+    /// drawdowns can come from different peak/trough pairs (a small early
+    /// peak can host the deepest relative loss). `0.0` when no positive peak
+    /// ever existed: a percentage decline from a non-positive portfolio value
+    /// is not meaningful.
     pub max_drawdown_pct: f64,
-    /// Date of the peak before the maximum drawdown.
+    /// Date of the peak before the maximum (dollar-selected) drawdown.
     pub max_drawdown_peak_date: Date,
-    /// Date of the trough of the maximum drawdown.
+    /// Date of the trough of the maximum (dollar-selected) drawdown.
     pub max_drawdown_trough_date: Date,
+    /// Date of the peak before the maximum percentage-selected drawdown.
+    /// `None` when no positive peak ever produced a decline.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_drawdown_pct_peak_date: Option<Date>,
+    /// Date of the trough of the maximum percentage-selected drawdown.
+    /// `None` when no positive peak ever produced a decline.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_drawdown_pct_trough_date: Option<Date>,
 }
 
 /// Full output of a replay run.
@@ -599,7 +614,7 @@ pub fn replay_portfolio(
         next_index = batch_end + 1;
     }
 
-    let summary = compute_summary(&steps);
+    let summary = compute_summary(&steps)?;
     Ok(ReplayResult {
         steps,
         summary,
@@ -607,21 +622,43 @@ pub fn replay_portfolio(
     })
 }
 
-fn compute_summary(steps: &[ReplayStep]) -> ReplaySummary {
+/// Compute the aggregate replay summary.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidInput`] when the end-minus-start total P&L is not
+/// representable (the same `checked_sub` discipline used for the per-step
+/// daily and cumulative P&L).
+fn compute_summary(steps: &[ReplayStep]) -> Result<ReplaySummary> {
     let start_value = steps[0].valuation.total_base_currency;
     let end_value = steps[steps.len() - 1].valuation.total_base_currency;
-    let total_pnl = Money::new(
-        end_value.amount() - start_value.amount(),
-        start_value.currency(),
-    );
+    let total_pnl = end_value.checked_sub(start_value).map_err(|e| {
+        Error::InvalidInput(format!(
+            "total P&L overflow computing {} minus {} (base {}): {e}",
+            steps[steps.len() - 1].date,
+            steps[0].date,
+            end_value.currency()
+        ))
+    })?;
 
-    // Max drawdown via high-water mark
+    // Max drawdown via high-water mark. The dollar-selected and the
+    // percentage-selected drawdowns are tracked independently in one pass:
+    // the largest dollar decline and the largest relative decline can fall
+    // from different peaks (a small early peak can host the deepest relative
+    // loss while a later, larger peak hosts the biggest dollar loss).
     let mut peak_value = start_value.amount();
     let mut peak_date = steps[0].date;
+    // Dollar-selected drawdown.
     let mut max_dd = 0.0_f64;
-    let mut max_dd_peak_value = peak_value;
     let mut max_dd_peak_date = steps[0].date;
     let mut max_dd_trough_date = steps[0].date;
+    // Percentage-selected drawdown. Each percentage is relative to the
+    // contemporaneous peak the decline fell from, and only positive peaks
+    // participate: a "percentage of a non-positive value" is not meaningful,
+    // so if no positive peak ever existed the percentage reports 0.0.
+    let mut max_dd_pct = 0.0_f64;
+    let mut max_dd_pct_peak_date: Option<Date> = None;
+    let mut max_dd_pct_trough_date: Option<Date> = None;
 
     for step in steps {
         let val = step.valuation.total_base_currency.amount();
@@ -632,22 +669,20 @@ fn compute_summary(steps: &[ReplayStep]) -> ReplaySummary {
         let dd = peak_value - val;
         if dd > max_dd {
             max_dd = dd;
-            max_dd_peak_value = peak_value;
             max_dd_peak_date = peak_date;
             max_dd_trough_date = step.date;
         }
+        if peak_value > 0.0 {
+            let dd_pct = dd / peak_value;
+            if dd_pct > max_dd_pct {
+                max_dd_pct = dd_pct;
+                max_dd_pct_peak_date = Some(peak_date);
+                max_dd_pct_trough_date = Some(step.date);
+            }
+        }
     }
 
-    // Percentage drawdown is relative to the peak the drawdown fell from,
-    // not the final global high-water mark: a later, higher peak must not
-    // shrink the reported percentage.
-    let max_drawdown_pct = if max_dd_peak_value.abs() > f64::EPSILON {
-        max_dd / max_dd_peak_value.abs()
-    } else {
-        0.0
-    };
-
-    ReplaySummary {
+    Ok(ReplaySummary {
         start_date: steps[0].date,
         end_date: steps[steps.len() - 1].date,
         num_steps: steps.len(),
@@ -655,10 +690,12 @@ fn compute_summary(steps: &[ReplayStep]) -> ReplaySummary {
         end_value,
         total_pnl,
         max_drawdown: Money::new(max_dd, start_value.currency()),
-        max_drawdown_pct,
+        max_drawdown_pct: max_dd_pct,
         max_drawdown_peak_date: max_dd_peak_date,
         max_drawdown_trough_date: max_dd_trough_date,
-    }
+        max_drawdown_pct_peak_date: max_dd_pct_peak_date,
+        max_drawdown_pct_trough_date: max_dd_pct_trough_date,
+    })
 }
 
 #[cfg(test)]
@@ -701,7 +738,7 @@ mod tests {
             synthetic_step(date!(2024 - 01 - 04), 190.0),
         ];
 
-        let summary = compute_summary(&steps);
+        let summary = compute_summary(&steps).expect("summary computes");
 
         // Largest dollar decline is 100 -> 50 = 50.
         assert_eq!(summary.max_drawdown.amount(), 50.0);
@@ -711,16 +748,74 @@ mod tests {
         assert_eq!(summary.max_drawdown_trough_date, date!(2024 - 01 - 02));
     }
 
+    /// The percentage drawdown must be selected independently of the dollar
+    /// drawdown: with 100 -> 50 -> 1000 -> 900 the largest dollar decline is
+    /// 100 (from the 1000 peak, 10%) while the largest percentage decline is
+    /// 50% (from the 100 peak). Selecting the trough on dollar decline and
+    /// then reporting its ratio understates the percentage drawdown.
     #[test]
-    fn minor16_drawdown_pct_is_positive_for_negative_peak_values() {
+    fn max_drawdown_pct_is_selected_independently_of_dollar_drawdown() {
+        let steps = vec![
+            synthetic_step(date!(2024 - 01 - 01), 100.0),
+            synthetic_step(date!(2024 - 01 - 02), 50.0),
+            synthetic_step(date!(2024 - 01 - 03), 1000.0),
+            synthetic_step(date!(2024 - 01 - 04), 900.0),
+        ];
+
+        let summary = compute_summary(&steps).expect("summary computes");
+
+        // Dollar-selected drawdown: 1000 -> 900 = 100.
+        assert_eq!(summary.max_drawdown.amount(), 100.0);
+        assert_eq!(summary.max_drawdown_peak_date, date!(2024 - 01 - 03));
+        assert_eq!(summary.max_drawdown_trough_date, date!(2024 - 01 - 04));
+        // Percentage-selected drawdown: 100 -> 50 = 50%.
+        assert_eq!(summary.max_drawdown_pct, 0.5);
+        assert_eq!(
+            summary.max_drawdown_pct_peak_date,
+            Some(date!(2024 - 01 - 01))
+        );
+        assert_eq!(
+            summary.max_drawdown_pct_trough_date,
+            Some(date!(2024 - 01 - 02))
+        );
+    }
+
+    /// `total_pnl` must use the same `checked_sub` discipline as the daily
+    /// and cumulative P&L computations: an end-minus-start amount that
+    /// overflows the Decimal representation propagates an error instead of
+    /// panicking inside `Money::new`.
+    #[test]
+    fn total_pnl_overflow_propagates_an_error() {
+        // Decimal max is ~7.92e28; end - start = ~1.58e29 overflows.
+        let steps = vec![
+            synthetic_step(date!(2024 - 01 - 01), -7.9e28),
+            synthetic_step(date!(2024 - 01 - 02), 7.9e28),
+        ];
+
+        let error = compute_summary(&steps).expect_err("overflow must surface as an error");
+        assert!(
+            error.to_string().contains("total P&L"),
+            "unexpected error: {error}"
+        );
+    }
+
+    /// Originally Minor-16: the percentage drawdown must never be negative
+    /// for negative peak values. A percentage decline relative to a
+    /// non-positive portfolio value is not meaningful, so pct tracking skips
+    /// non-positive peaks entirely and reports 0.0 (with no pct dates) when
+    /// no positive peak ever existed. The dollar drawdown is still reported.
+    #[test]
+    fn minor16_drawdown_pct_is_zero_when_no_positive_peak_exists() {
         let steps = vec![
             synthetic_step(date!(2024 - 01 - 01), -100.0),
             synthetic_step(date!(2024 - 01 - 02), -150.0),
         ];
 
-        let summary = compute_summary(&steps);
+        let summary = compute_summary(&steps).expect("summary computes");
 
         assert_eq!(summary.max_drawdown.amount(), 50.0);
-        assert_eq!(summary.max_drawdown_pct, 0.5);
+        assert_eq!(summary.max_drawdown_pct, 0.0);
+        assert_eq!(summary.max_drawdown_pct_peak_date, None);
+        assert_eq!(summary.max_drawdown_pct_trough_date, None);
     }
 }

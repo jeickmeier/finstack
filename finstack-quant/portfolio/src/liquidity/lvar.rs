@@ -13,8 +13,8 @@
 //!
 //! - Bangia, A., Diebold, F., Schuermann, T., Stroughair, J. (1999).
 //!   "Modeling Liquidity Risk with Implications for Traditional Market
-//!   Risk Measurement and Management." *Risk*, 12(1).
-//!   `docs/REFERENCES.md#bangia1999LiquidityRisk`
+//!   Risk Measurement and Management." *Risk*, 12(1). `docs/REFERENCES.md#bangia-1999-lvar`
+//!
 
 use crate::error::{Error, Result};
 use finstack_quant_core::math::special_functions::standard_normal_inv_cdf;
@@ -51,7 +51,7 @@ pub struct LvarBangiaScalar {
 /// Formula:
 /// ```text
 /// spread_cost = (0.5 * spread_mean + 0.5 * z_alpha * spread_vol) * |position_value|
-/// lvar        = var - spread_cost
+/// lvar = var - spread_cost
 /// ```
 ///
 /// # Arguments
@@ -61,7 +61,9 @@ pub struct LvarBangiaScalar {
 ///   of mid price.
 /// * `spread_vol` - Standard deviation of relative bid-ask spread as a
 ///   non-negative fraction of mid price.
-/// * `confidence` - VaR confidence level strictly between zero and one.
+/// * `confidence` - VaR confidence level, strictly inside `(0.5, 1)`. Values
+///   at or below the median are rejected: `z_alpha` would be non-positive
+///   there, turning the spread add-on into a spurious *reduction* of risk.
 /// * `position_value` - Signed market value whose absolute magnitude scales
 ///   the expected liquidation cost.
 ///
@@ -69,11 +71,12 @@ pub struct LvarBangiaScalar {
 ///
 /// Returns `Error::InvalidInput` if `var` is positive or non-finite, if
 /// `spread_mean` or `spread_vol` are negative or non-finite, if `confidence`
-/// is outside `(0, 1)`, or if `position_value` is non-finite.
+/// is outside the open interval `(0.5, 1)`, or if `position_value` is
+/// non-finite.
 ///
 /// # References
 ///
-/// - Bangia et al. (1999). `docs/REFERENCES.md#bangia1999LiquidityRisk`
+/// - Bangia et al. (1999). `docs/REFERENCES.md#bangia-1999-lvar`
 pub fn lvar_bangia_scalar(
     var: f64,
     spread_mean: f64,

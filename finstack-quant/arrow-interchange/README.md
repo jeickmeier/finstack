@@ -1,13 +1,14 @@
 # finstack-quant-arrow
 
-Apache Arrow interchange for finstack-quant tabular outputs.
+Apache Arrow export for finstack-quant tabular outputs.
 
 Directory: `finstack-quant/arrow-interchange`. Package / import name:
 `finstack-quant-arrow` / `finstack_quant_arrow`.
 
-Converts [`finstack_quant_core::table::TableEnvelope`](../core/src/table.rs) to
-and from Arrow `RecordBatch` values and Arrow IPC **stream-format** bytes.
-Column roles and metadata round-trip through Arrow field/schema metadata.
+Converts [`finstack_quant_core::table::TableEnvelope`](../core/src/table.rs)
+to an Arrow `RecordBatch`. Column roles and metadata are written into Arrow
+field/schema metadata. This crate is export-only: it does not convert Arrow
+data back into a `TableEnvelope` and does not read or write Arrow IPC bytes.
 
 This is a supporting crate:
 
@@ -25,7 +26,7 @@ finstack-quant-core = { path = "../core" }
 ```
 
 ```rust
-use finstack_quant_arrow::{from_record_batch, to_record_batch, to_ipc_bytes, from_ipc_bytes};
+use finstack_quant_arrow::to_record_batch;
 use finstack_quant_core::table::{TableColumn, TableColumnData, TableEnvelope};
 ```
 
@@ -34,19 +35,16 @@ use finstack_quant_core::table::{TableColumn, TableColumnData, TableEnvelope};
 | Item | Role |
 |------|------|
 | `to_record_batch` | `TableEnvelope` → Arrow `RecordBatch` |
-| `from_record_batch` | Arrow `RecordBatch` → `TableEnvelope` |
-| `to_ipc_bytes` | `TableEnvelope` → Arrow IPC stream bytes (single batch) |
-| `from_ipc_bytes` | Arrow IPC stream bytes → `TableEnvelope` (concatenates multi-batch streams) |
 | `ROLE_METADATA_KEY` | Field metadata key for column role (`"finstack:role"`) |
 | `METADATA_KEY` | Field/schema metadata key for JSON metadata (`"finstack:metadata"`) |
 
-All fallible APIs return `finstack_quant_core::Result`, mapping Arrow failures to
+Fallible APIs return `finstack_quant_core::Result`, mapping Arrow failures to
 `Error::Validation` with an `arrow …` context prefix.
 
 ## Column type map
 
-| `TableColumnData` | Outbound Arrow type | Nullable |
-|-------------------|---------------------|----------|
+| `TableColumnData` | Arrow type | Nullable |
+|-------------------|------------|----------|
 | `String` | `Utf8` | no |
 | `NullableString` | `Utf8` | yes |
 | `Float64` | `Float64` | no |
@@ -56,23 +54,10 @@ All fallible APIs return `finstack_quant_core::Result`, mapping Arrow failures t
 | `Int64` | `Int64` | no |
 | `NullableInt64` | `Int64` | yes |
 
-**Outbound** (`to_record_batch` / `to_ipc_bytes`) always emits the plain types
-above (`Utf8`, `Float64`, `UInt32`, `Int64`).
-
-**Inbound** (`from_record_batch` / `from_ipc_bytes`) accepts that same set, plus
-common foreign string encodings that decode into `String` / `NullableString`:
-
-- `Utf8`, `LargeUtf8`, `Utf8View`
-- `Dictionary(_, Utf8 | LargeUtf8 | Utf8View)` (decoded via cast to `Utf8`)
-
-Other Arrow types (dates, timestamps, booleans, nested types, …) are rejected;
-cast them to a supported type before calling inbound APIs.
-
-Nullability is schema-driven: a nullable Arrow field with zero nulls restores
-the nullable envelope variant, not the non-nullable one. Non-nullable fields
-that contain nulls are rejected.
-
-Non-finite floats (`NaN`, `±∞`) round-trip.
+`to_record_batch` always emits the plain types above (`Utf8`, `Float64`,
+`UInt32`, `Int64`). Nullability is schema-driven: a nullable envelope column
+becomes a nullable Arrow field even when the column contains no nulls.
+Non-finite floats (`NaN`, `±∞`) are preserved.
 
 ## Metadata contract
 
@@ -82,27 +67,20 @@ Non-finite floats (`NaN`, `±∞`) round-trip.
 | `finstack:metadata` | `METADATA_KEY` | Arrow field metadata | JSON object of per-column metadata (`IndexMap<String, Value>`) |
 | `finstack:metadata` | `METADATA_KEY` | Arrow schema metadata | JSON object of table-level metadata |
 
-Unknown `finstack:role` values and malformed metadata JSON return
-`Error::Validation`.
+Unknown `finstack:role` values are not produced by this crate; malformed
+metadata JSON returns `Error::Validation`.
 
 ## Edge cases
 
-- Empty envelope (0 columns, 0 rows) round-trips.
-- Zero rows with columns round-trips (schema preserved).
-- A zero-column Arrow batch with a nonzero row count is rejected: `TableEnvelope`
-  derives `row_count` from its first column and cannot represent that shape.
-- `from_ipc_bytes` concatenates every batch in the stream column-wise. A
-  finished stream with zero written batches yields a zero-row table with the
-  stream schema.
-- IPC equality checks are semantic (envelope equality), not byte-golden: Arrow
-  IPC layout is not guaranteed stable across `arrow-rs` versions.
+- Empty envelope (0 columns, 0 rows) exports as a zero-row, zero-column batch.
+- Zero rows with columns export with the schema preserved.
+- A valid `TableEnvelope` already has equal column lengths, so the exported
+  batch row count matches `TableEnvelope::row_count`.
 
 ## Quick start
 
-### RecordBatch round-trip
-
 ```rust
-use finstack_quant_arrow::{from_record_batch, to_record_batch};
+use finstack_quant_arrow::to_record_batch;
 use finstack_quant_core::table::{TableColumn, TableColumnData, TableColumnRole, TableEnvelope};
 
 # fn main() -> finstack_quant_core::Result<()> {
@@ -115,31 +93,10 @@ let table = TableEnvelope::new(vec![
 
 let batch = to_record_batch(&table)?;
 assert_eq!(batch.num_rows(), 2);
-assert_eq!(from_record_batch(&batch)?, table);
+assert_eq!(batch.num_columns(), 2);
 # Ok(())
 # }
 ```
-
-### IPC stream bytes
-
-```rust
-use finstack_quant_arrow::{from_ipc_bytes, to_ipc_bytes};
-use finstack_quant_core::table::{TableColumn, TableColumnData, TableEnvelope};
-
-# fn main() -> finstack_quant_core::Result<()> {
-let table = TableEnvelope::new(vec![TableColumn::new(
-    "qty",
-    TableColumnData::Int64(vec![1, 2, 3]),
-)])?;
-
-let bytes = to_ipc_bytes(&table)?;
-assert_eq!(from_ipc_bytes(&bytes)?, table);
-# Ok(())
-# }
-```
-
-IPC stream bytes are suitable for `pyarrow.ipc.open_stream`, DuckDB, and other
-Arrow IPC consumers.
 
 ## Python binding surface
 

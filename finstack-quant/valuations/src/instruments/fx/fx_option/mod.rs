@@ -67,7 +67,7 @@
 //!
 //! - Garman, M. B., & Kohlhagen, S. W. (1983). "Foreign Currency Option Values."
 //!   *Journal of International Money and Finance*, 2(3), 231-237.
-//!   (Canonical FX option pricing model)
+//!   (Canonical FX option pricing model) `docs/REFERENCES.md#garman-kohlhagen-1983`
 //!
 //! ## Related Work
 //!
@@ -77,16 +77,16 @@
 //!
 //! - Reiner, E., & Rubinstein, M. (1991). "Unscrambling the Binary Code."
 //!   *Risk Magazine*, 4(9), 75-83.
-//!   (FX digital options)
+//!   (FX digital options) `docs/REFERENCES.md#reiner-rubinstein-1991`
 //!
 //! ## Market Practice
 //!
 //! - Wystup, U. (2006). *FX Options and Structured Products*. Wiley.
-//!   (Comprehensive guide to FX option markets)
+//!   (Comprehensive guide to FX option markets) `docs/REFERENCES.md#wystup-fx-options`
 //!
 //! - Clark, I. J. (2011). *Foreign Exchange Option Pricing: A Practitioner's Guide*.
 //!   Wiley.
-//!   (Delta conventions and smile interpolation)
+//!   (Delta conventions and smile interpolation) `docs/REFERENCES.md#clark-fx-options`
 //!
 //! # Implementation Notes
 //!

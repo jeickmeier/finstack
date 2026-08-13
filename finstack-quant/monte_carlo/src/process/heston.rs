@@ -59,22 +59,22 @@
 //! - Heston, S. L. (1993). "A Closed-Form Solution for Options with Stochastic
 //!   Volatility with Applications to Bond and Currency Options."
 //!   *Review of Financial Studies*, 6(2), 327-343.
-//!   (Original Heston model and semi-analytical pricing via FFT)
+//!   (Original Heston model and semi-analytical pricing via FFT) `docs/REFERENCES.md#heston-1993`
 //!
 //! - Andersen, L. (2008). "Simple and Efficient Simulation of the Heston
 //!   Stochastic Volatility Model." *Journal of Computational Finance*, 11(3), 1-42.
-//!   (QE discretization scheme - recommended method)
+//!   (QE discretization scheme - recommended method) `docs/REFERENCES.md#andersen-2008-heston-qe`
 //!
 //! ## Alternative Discretization Schemes
 //!
 //! - Lord, R., Koekkoek, R., & Van Dijk, D. (2010). "A Comparison of Biased
 //!   Simulation Schemes for Stochastic Volatility Models." *Quantitative Finance*,
 //!   10(2), 177-194.
-//!   (Comprehensive comparison: Euler, Milstein, QE, IJK, Broadie-Kaya)
+//!   (Comprehensive comparison: Euler, Milstein, QE, IJK, Broadie-Kaya) `docs/REFERENCES.md#lord-koekkoek-vandijk-2010`
 //!
 //! - Broadie, M., & Kaya, Ö. (2006). "Exact Simulation of Stochastic Volatility
 //!   and Other Affine Jump Diffusion Processes." *Operations Research*, 54(2), 217-231.
-//!   (Exact scheme, computationally expensive)
+//!   (Exact scheme, computationally expensive) `docs/REFERENCES.md#broadie-kaya-2006-exact-heston`
 //!
 //! ## Calibration and Applications
 //!
@@ -82,7 +82,7 @@
 //!   Option Pricing Models." *Journal of Finance*, 52(5), 2003-2049.
 //!
 //! - Gatheral, J. (2006). *The Volatility Surface: A Practitioner's Guide*. Wiley.
-//!   (Practical calibration techniques)
+//!   (Practical calibration techniques) `docs/REFERENCES.md#gatheral-volatility-surface`
 //!
 //! # Implementation Details
 //!
@@ -121,6 +121,35 @@
 use super::super::paths::ProcessParams;
 use super::super::traits::StochasticProcess;
 use super::metadata::ProcessMetadata;
+
+/// Check the Feller condition `2κθ ≥ σ_v²` from raw variance-process parameters.
+///
+/// This is the canonical predicate used by [`HestonParams::satisfies_feller`]
+/// and by the host-language bindings, so all surfaces agree on the boundary
+/// case: it is **inclusive** — non-attainment of zero holds iff `2κθ ≥ σ_v²`
+/// (Feller 1951), matching `CirParams::satisfies_feller`.
+///
+/// Inputs are not otherwise validated; non-finite inputs yield `false` except
+/// where IEEE comparison rules dictate otherwise (e.g. infinite `kappa`).
+///
+/// # Arguments
+///
+/// * `kappa` - Mean-reversion speed of the variance process
+/// * `theta` - Long-run variance level
+/// * `sigma_v` - Volatility of variance (vol-of-vol)
+///
+/// # Examples
+///
+/// ```
+/// use finstack_quant_monte_carlo::process::heston::feller_condition;
+///
+/// assert!(feller_condition(2.0, 0.04, 0.3)); // 0.16 >= 0.09
+/// assert!(!feller_condition(0.5, 0.04, 0.5)); // 0.04 < 0.25
+/// ```
+#[must_use]
+pub fn feller_condition(kappa: f64, theta: f64, sigma_v: f64) -> bool {
+    2.0 * kappa * theta >= sigma_v * sigma_v
+}
 
 /// Heston model parameters.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -226,7 +255,7 @@ impl HestonParams {
     /// case is included (non-attainment holds iff 2κθ ≥ σ_v², Feller 1951),
     /// matching `CirParams::satisfies_feller`.
     pub fn satisfies_feller(&self) -> bool {
-        2.0 * self.kappa * self.theta >= self.sigma_v * self.sigma_v
+        feller_condition(self.kappa, self.theta, self.sigma_v)
     }
 }
 
@@ -402,6 +431,18 @@ mod tests {
         let params_no_feller =
             HestonParams::new(0.05, 0.02, 0.5, 0.04, 0.5, -0.5, 0.04).expect("valid");
         assert!(!params_no_feller.satisfies_feller());
+    }
+
+    #[test]
+    fn feller_condition_is_inclusive_at_the_boundary() {
+        // 2κθ = 2 * 1.0 * 0.045 = 0.09 = σ_v² = 0.3² exactly: the boundary
+        // case satisfies the condition (non-attainment holds iff 2κθ ≥ σ_v²).
+        assert!(feller_condition(1.0, 0.045, 0.3));
+        // Just below the boundary it must fail.
+        assert!(!feller_condition(1.0, 0.045 - 1e-12, 0.3));
+        // The params method delegates to the same predicate.
+        let boundary = HestonParams::new(0.05, 0.02, 1.0, 0.045, 0.3, -0.5, 0.04).expect("valid");
+        assert!(boundary.satisfies_feller());
     }
 
     #[test]

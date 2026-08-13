@@ -18,7 +18,7 @@
 //!
 //! # References
 //!
-//! - Li, D. X. (2000). "On Default Correlation: A Copula Function Approach."
+//! - Li, D. X. (2000). "On Default Correlation: A Copula Function Approach." `docs/REFERENCES.md#li-2000-gaussian-copula`
 
 use super::traits::{MacroCreditFactors, StochasticDefault};
 use crate::correlation::copula::{Copula, CopulaSpec};

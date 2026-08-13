@@ -48,9 +48,9 @@
 //! # References
 //!
 //! - O'Kane, D. (2008). *Modelling Single-name and Multi-name Credit
-//!   Derivatives*. Wiley Finance, §5.4 (credit triangle) and ch. 6.
+//!   Derivatives*. Wiley Finance, §5.4 (credit triangle) and ch. 6. `docs/REFERENCES.md#o-kane-2008`
 //! - Brigo, D., & Mercurio, F. (2006). *Interest Rate Models — Theory and
-//!   Practice*, 2nd ed. Springer, ch. 22 (CIR intensity dynamics).
+//!   Practice*, 2nd ed. Springer, ch. 22 (CIR intensity dynamics). `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
 
 use finstack_quant_core::{Error, Result};
 

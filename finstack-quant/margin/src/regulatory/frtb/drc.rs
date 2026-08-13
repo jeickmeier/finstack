@@ -65,8 +65,8 @@ pub const DRC_LGD: &[(DrcSeniority, f64)] = &[
 ///
 /// # References
 ///
-/// - BCBS FRTB Minimum Capital Requirements:
-///   `docs/REFERENCES.md#bcbs-frtb-minimum-capital-requirements`
+/// - BCBS FRTB Minimum Capital Requirements: `docs/REFERENCES.md#bcbs-frtb-minimum-capital-requirements`
+///
 pub fn drc_charge(positions: &[DrcPosition]) -> f64 {
     if positions.is_empty() {
         return 0.0;

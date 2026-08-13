@@ -90,8 +90,8 @@
 //!
 //! * Jeet, V., & Partani, A. (2023). "Brinson-Style Attribution over
 //!   Continuous Factors." *The Journal of Portfolio Management*,
-//!   Quantitative Special Issue 2023, 216-223.
-//!   `docs/REFERENCES.md#jeet-partani-2023`
+//!   Quantitative Special Issue 2023, 216-223. `docs/REFERENCES.md#jeet-partani-2023`
+//!
 
 use crate::error::{Error, Result};
 use finstack_quant_core::math::summation::NeumaierAccumulator;

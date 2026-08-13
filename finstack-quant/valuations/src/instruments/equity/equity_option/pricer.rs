@@ -343,7 +343,7 @@ pub(crate) fn collect_inputs_extended(
 ///
 /// # References
 ///
-/// - Hull, J. C. (2018). *Options, Futures, and Other Derivatives*, Chapter 15.
+/// - Hull, J. C. (2018). *Options, Futures, and Other Derivatives*, Chapter 15. `docs/REFERENCES.md#hull-options-futures`
 /// - QuantLib: `DividendVanillaOption` with `AnalyticEuropeanEngine`
 pub(crate) fn adjust_spot_for_discrete_dividends(
     spot: f64,
@@ -483,7 +483,7 @@ pub(crate) fn compute_greeks(
             // spot `S* = S − Σ D_i·e^{−r·t_i}`, which itself depends on `r`.
             // `bs_greeks` computes rho holding `S*` fixed, so it misses the
             // `∂V/∂S* · ∂S*/∂r` chain-rule term. Total rho is
-            //   rho_total = rho_BS(S*) + delta(S*) · ∂S*/∂r,
+            // rho_total = rho_BS(S*) + delta(S*) · ∂S*/∂r,
             // expressed per 1% rate move (hence the `ONE_PERCENT` factor:
             // `greeks_unit.rho_r` and `vega` are already per-1%, while
             // `delta` and `∂S*/∂r` are per-unit).
@@ -689,7 +689,7 @@ impl SimpleEquityOptionBlackPricer {
     /// Create new Black-Scholes pricer with default model.
     ///
     /// Uses `ModelKey::Black76` which is the library-wide convention for
-    /// lognormal option pricing.  BSM and Black-76 are mathematically
+    /// lognormal option pricing. BSM and Black-76 are mathematically
     /// equivalent (BSM is Black-76 applied to the forward
     /// `F = S × exp((r-q)T)`), so the same model key covers both.
     pub(crate) fn new() -> Self {

@@ -60,3 +60,53 @@ pub fn accrued_interest(
     finstack_quant_cashflows::accrued_interest(schedule_json, as_of, config_json.as_deref())
         .map_err(to_js_err)
 }
+
+/// Convert an annual CPR (constant prepayment rate) to a monthly SMM.
+///
+/// Uses the standard relationship `SMM = 1 - (1 - CPR)^(1/12)` (Fabozzi's
+/// MBS handbook).
+///
+/// @param cpr - Annualized CPR as a decimal in `[0, 1]` (0.06 means 6%).
+/// @returns Monthly SMM as a decimal.
+/// @throws If `cpr` is negative, non-finite, or above 1.0.
+#[wasm_bindgen(js_name = cprToSmm)]
+pub fn cpr_to_smm(cpr: f64) -> Result<f64, JsValue> {
+    finstack_quant_cashflows::builder::cpr_to_smm(cpr).map_err(to_js_err)
+}
+
+/// Convert a monthly SMM (single monthly mortality) to an annual CPR.
+///
+/// Uses `CPR = 1 - (1 - SMM)^12`.
+///
+/// @param smm - Monthly SMM as a decimal in `[0, 1]`.
+/// @returns Annualized CPR as a decimal.
+/// @throws If `smm` is negative, non-finite, or above 1.0.
+#[wasm_bindgen(js_name = smmToCpr)]
+pub fn smm_to_cpr(smm: f64) -> Result<f64, JsValue> {
+    finstack_quant_cashflows::builder::smm_to_cpr(smm).map_err(to_js_err)
+}
+
+/// Convert an annual CDR (constant default rate) to a monthly MDR.
+///
+/// Default and prepayment mortality rates share the same annual-to-monthly
+/// conversion kernel: `MDR = 1 - (1 - CDR)^(1/12)`.
+///
+/// @param cdr - Constant annual default rate as a decimal in `[0, 1]`.
+/// @returns Monthly MDR as a decimal.
+/// @throws If `cdr` is negative, non-finite, or above 1.0.
+#[wasm_bindgen(js_name = cdrToMdr)]
+pub fn cdr_to_mdr(cdr: f64) -> Result<f64, JsValue> {
+    finstack_quant_cashflows::builder::cdr_to_mdr(cdr).map_err(to_js_err)
+}
+
+/// Convert a monthly MDR (monthly default rate) to an annual CDR.
+///
+/// Uses `CDR = 1 - (1 - MDR)^12`.
+///
+/// @param mdr - Monthly default rate as a decimal in `[0, 1]`.
+/// @returns Annualized CDR as a decimal.
+/// @throws If `mdr` is negative, non-finite, or above 1.0.
+#[wasm_bindgen(js_name = mdrToCdr)]
+pub fn mdr_to_cdr(mdr: f64) -> Result<f64, JsValue> {
+    finstack_quant_cashflows::builder::mdr_to_cdr(mdr).map_err(to_js_err)
+}

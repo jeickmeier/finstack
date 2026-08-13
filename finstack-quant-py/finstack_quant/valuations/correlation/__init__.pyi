@@ -77,12 +77,15 @@ class CopulaSpec:
         CopulaSpec
             Gaussian copula specification.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import CopulaSpec
         >>> (CopulaSpec.gaussian().is_gaussian, CopulaSpec.gaussian().build().num_factors)
         (True, 1)
-
         """
         ...
 
@@ -132,13 +135,16 @@ class CopulaSpec:
         CopulaSpec
             RFL copula specification.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import CopulaSpec
         >>> spec = CopulaSpec.random_factor_loading(0.2)
         >>> (spec.is_rfl, spec.build().model_name)
         (True, 'Random Factor Loading Copula')
-
         """
         ...
 
@@ -157,13 +163,16 @@ class CopulaSpec:
         CopulaSpec
             Multi-factor copula specification.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import CopulaSpec
         >>> spec = CopulaSpec.multi_factor(3)
         >>> (spec.is_multi_factor, spec.build().num_factors)
         (True, 3)
-
         """
         ...
 
@@ -192,6 +201,10 @@ class CopulaSpec:
         -------
         bool
             Whether gaussian holds for this `CopulaSpec`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -204,6 +217,10 @@ class CopulaSpec:
         -------
         bool
             Whether student t holds for this `CopulaSpec`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -216,6 +233,10 @@ class CopulaSpec:
         -------
         bool
             Whether rfl holds for this `CopulaSpec`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -228,6 +249,10 @@ class CopulaSpec:
         -------
         bool
             Whether multi factor holds for this `CopulaSpec`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -299,6 +324,10 @@ class Copula:
         -------
         int
             The num factors exposed by this `Copula`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -311,6 +340,10 @@ class Copula:
         -------
         str
             The model name exposed by this `Copula`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -333,6 +366,10 @@ class Copula:
         -------
         float
             The strict ``λ_L``, or ``nan`` if the model has no closed form.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -401,6 +438,10 @@ class CreditExposure:
         factor_loadings : Sequence[float]
             Systematic-factor sensitivities aligned with the selected copula's
             factor dimensions.
+
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
     @property
@@ -412,6 +453,10 @@ class CreditExposure:
         -------
         str
             The id exposed by this `CreditExposure`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -424,6 +469,10 @@ class CreditExposure:
         -------
         float
             The notional exposed by this `CreditExposure`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -436,6 +485,10 @@ class CreditExposure:
         -------
         float
             The default probability exposed by this `CreditExposure`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -448,6 +501,10 @@ class CreditExposure:
         -------
         float
             The lgd exposed by this `CreditExposure`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -460,6 +517,10 @@ class CreditExposure:
         -------
         list[float]
             The factor loadings exposed by this `CreditExposure`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -471,6 +532,11 @@ class CreditExposure:
         -------
         str
             Canonical JSON representation of this `CreditExposure`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -543,6 +609,10 @@ class PortfolioLossConfig:
             ``(0, 1)``.
         copula : CopulaSpec
             Dependence model and factor configuration for correlated defaults.
+
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
     @property
@@ -554,6 +624,10 @@ class PortfolioLossConfig:
         -------
         int
             The num paths exposed by this `PortfolioLossConfig`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -566,6 +640,10 @@ class PortfolioLossConfig:
         -------
         int
             The seed exposed by this `PortfolioLossConfig`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -578,6 +656,10 @@ class PortfolioLossConfig:
         -------
         float
             The confidence exposed by this `PortfolioLossConfig`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -590,6 +672,10 @@ class PortfolioLossConfig:
         -------
         CopulaSpec
             The copula exposed by this `PortfolioLossConfig`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -601,6 +687,11 @@ class PortfolioLossConfig:
         -------
         str
             Canonical JSON representation of this `PortfolioLossConfig`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -665,6 +756,10 @@ class PortfolioLossResult:
         -------
         list[float]
             The losses exposed by this `PortfolioLossResult`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -677,6 +772,10 @@ class PortfolioLossResult:
         -------
         float
             The expected loss exposed by this `PortfolioLossResult`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -689,6 +788,10 @@ class PortfolioLossResult:
         -------
         float
             The var exposed by this `PortfolioLossResult`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -701,6 +804,10 @@ class PortfolioLossResult:
         -------
         float
             The expected shortfall exposed by this `PortfolioLossResult`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -714,6 +821,10 @@ class PortfolioLossResult:
         float
             Tail-statistic confidence in ``(0, 1)`` recorded when this
             `PortfolioLossResult` was aggregated.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -778,6 +889,10 @@ class PortfolioLossResult:
         -------
         pd.DataFrame
             One row per simulated path.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -799,6 +914,10 @@ class PortfolioLossResult:
         -------
         pd.DataFrame
             Single-row frame of the distribution's aggregate statistics.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -810,6 +929,11 @@ class PortfolioLossResult:
         -------
         str
             Canonical JSON representation of this `PortfolioLossResult`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -886,6 +1010,10 @@ class TrancheLossStatistics:
         -------
         float
             Lower tranche boundary as a fraction of pool notional.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -898,6 +1026,10 @@ class TrancheLossStatistics:
         -------
         float
             Upper tranche boundary as a fraction of pool notional.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -910,6 +1042,10 @@ class TrancheLossStatistics:
         -------
         float
             ``(detachment - attachment) * pool_notional``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -922,6 +1058,10 @@ class TrancheLossStatistics:
         -------
         float
             Mean tranche loss as a share of tranche notional, in ``[0, 1]``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -934,6 +1074,10 @@ class TrancheLossStatistics:
         -------
         float
             Mean tranche loss in pool-notional units.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -946,6 +1090,10 @@ class TrancheLossStatistics:
         -------
         float
             Nearest-rank tranche loss share at the distribution's confidence.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -958,6 +1106,10 @@ class TrancheLossStatistics:
         -------
         float
             Nearest-rank tranche loss in pool-notional units.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -970,6 +1122,10 @@ class TrancheLossStatistics:
         -------
         float
             Mean tranche loss share from the VaR observation through the worst path.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -982,6 +1138,10 @@ class TrancheLossStatistics:
         -------
         float
             Mean tranche loss amount from the VaR observation through the worst path.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -994,6 +1154,10 @@ class TrancheLossStatistics:
         -------
         float
             Share of paths whose pool loss fraction strictly exceeds the attachment.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1006,6 +1170,10 @@ class TrancheLossStatistics:
         -------
         float
             Share of paths whose pool loss fraction reaches or exceeds the detachment.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1038,6 +1206,11 @@ class TrancheLossStatistics:
         -------
         pd.DataFrame
             Single-row frame describing this tranche.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -1049,6 +1222,11 @@ class TrancheLossStatistics:
         -------
         str
             Canonical JSON representation of this `TrancheLossStatistics`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -1116,7 +1294,7 @@ class RecoverySpec:
     @classmethod
     def constant(cls, rate: float) -> RecoverySpec:
         """
-        Constant recovery rate.
+        Constant recovery rate as a decimal of notional.
 
         Parameters
         ----------
@@ -1192,13 +1370,16 @@ class RecoverySpec:
         RecoverySpec
             Standard stochastic recovery specification.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import RecoverySpec
         >>> model = RecoverySpec.market_standard_stochastic().build()
         >>> (model.model_name, round(model.expected_recovery, 3))
         ('Market-Correlated Stochastic Recovery', 0.404)
-
         """
         ...
 
@@ -1218,6 +1399,10 @@ class RecoverySpec:
         -------
         float
             The expected recovery exposed by this `RecoverySpec`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1229,6 +1414,10 @@ class RecoverySpec:
         -------
         RecoveryModel
             Concrete recovery model.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1256,6 +1445,10 @@ class RecoveryModel:
         -------
         float
             The expected recovery exposed by this `RecoveryModel`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1272,6 +1465,10 @@ class RecoveryModel:
         -------
         float
             Conditional recovery rate.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1284,6 +1481,10 @@ class RecoveryModel:
         -------
         float
             The lgd exposed by this `RecoveryModel`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1300,6 +1501,10 @@ class RecoveryModel:
         -------
         float
             Conditional LGD.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1312,6 +1517,10 @@ class RecoveryModel:
         -------
         float
             The recovery volatility exposed by this `RecoveryModel`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1324,6 +1533,10 @@ class RecoveryModel:
         -------
         bool
             Whether stochastic holds for this `RecoveryModel`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1336,6 +1549,10 @@ class RecoveryModel:
         -------
         str
             The model name exposed by this `RecoveryModel`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1368,14 +1585,18 @@ class LatentFactorSpec:
         Parameters
         ----------
         volatility : float
-            Factor volatility.
+            Annualized volatility of the single latent factor.
         mean_reversion : float
-            Mean reversion speed.
+            Mean-reversion speed of the single latent factor, per year.
 
         Returns
         -------
         LatentFactorSpec
             Single-factor specification.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -1383,7 +1604,6 @@ class LatentFactorSpec:
         >>> model = LatentFactorSpec.single_factor(0.2, 0.05).build()
         >>> (model.num_factors, model.factor_names)
         (1, ['Market'])
-
         """
         ...
 
@@ -1406,13 +1626,16 @@ class LatentFactorSpec:
         LatentFactorSpec
             Two-factor specification.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import LatentFactorSpec
         >>> model = LatentFactorSpec.two_factor(0.15, 0.1, -0.2).build()
         >>> (model.num_factors, model.factor_names)
         (2, ['Prepayment', 'Credit'])
-
         """
         ...
 
@@ -1425,6 +1648,10 @@ class LatentFactorSpec:
         -------
         int
             The num factors exposed by this `LatentFactorSpec`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1469,6 +1696,10 @@ class LatentFactorKind:
         -------
         int
             The num factors exposed by this `LatentFactorKind`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1481,18 +1712,26 @@ class LatentFactorKind:
         -------
         list[float]
             The correlation matrix exposed by this `LatentFactorKind`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def volatilities(self) -> list[float]:
         """
-        Factor volatilities.
+        Annualized volatilities of the latent factors, in factor order.
 
         Returns
         -------
         list[float]
             The volatilities exposed by this `LatentFactorKind`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1505,6 +1744,10 @@ class LatentFactorKind:
         -------
         list[str]
             The factor names exposed by this `LatentFactorKind`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1517,6 +1760,10 @@ class LatentFactorKind:
         -------
         str
             The model name exposed by this `LatentFactorKind`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1535,6 +1782,10 @@ class LatentFactorKind:
         -------
         float
             Factor contribution.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1565,33 +1816,45 @@ class LatentSingleFactor:
         Parameters
         ----------
         volatility : float
-            Factor volatility.
+            Annualized volatility of the single latent factor.
         mean_reversion : float
-            Mean reversion speed.
+            Mean-reversion speed of the single latent factor, per year.
+
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
     @property
     def volatility(self) -> float:
         """
-        Factor volatility.
+        Annualized volatility of the single latent factor.
 
         Returns
         -------
         float
             The volatility exposed by this `LatentSingleFactor`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def mean_reversion(self) -> float:
         """
-        Mean reversion speed.
+        Mean-reversion speed of the single latent factor, per year.
 
         Returns
         -------
         float
             The mean reversion exposed by this `LatentSingleFactor`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1604,6 +1867,10 @@ class LatentSingleFactor:
         -------
         int
             The num factors exposed by this `LatentSingleFactor`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1639,6 +1906,10 @@ class LatentTwoFactor:
             Credit factor volatility.
         correlation : float
             Inter-factor correlation.
+
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -1652,13 +1923,16 @@ class LatentTwoFactor:
         LatentTwoFactor
             Pre-calibrated RMBS model.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import LatentTwoFactor
         >>> model = LatentTwoFactor.rmbs_standard()
         >>> (model.prepay_vol, model.credit_vol, model.correlation)
         (0.2, 0.25, -0.3)
-
         """
         ...
 
@@ -1672,13 +1946,16 @@ class LatentTwoFactor:
         LatentTwoFactor
             Pre-calibrated CLO model.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import LatentTwoFactor
         >>> model = LatentTwoFactor.clo_standard()
         >>> (model.prepay_vol, model.credit_vol, model.correlation)
         (0.15, 0.3, -0.2)
-
         """
         ...
 
@@ -1691,6 +1968,10 @@ class LatentTwoFactor:
         -------
         float
             The prepay vol exposed by this `LatentTwoFactor`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1703,18 +1984,26 @@ class LatentTwoFactor:
         -------
         float
             The credit vol exposed by this `LatentTwoFactor`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def correlation(self) -> float:
         """
-        Factor correlation.
+        Correlation between the two latent credit factors.
 
         Returns
         -------
         float
             The correlation exposed by this `LatentTwoFactor`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1727,6 +2016,10 @@ class LatentTwoFactor:
         -------
         int
             The num factors exposed by this `LatentTwoFactor`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1739,6 +2032,10 @@ class LatentTwoFactor:
         -------
         float
             The cholesky l10 exposed by this `LatentTwoFactor`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1751,6 +2048,10 @@ class LatentTwoFactor:
         -------
         float
             The cholesky l11 exposed by this `LatentTwoFactor`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1790,7 +2091,7 @@ class LatentMultiFactor:
         Parameters
         ----------
         num_factors : int
-            Number of factors.
+            Count of latent factors in this multi-factor specification.
         volatilities : list[float]
             Per-factor volatilities (length ``num_factors``).
         correlations : list[float]
@@ -1811,7 +2112,7 @@ class LatentMultiFactor:
         Parameters
         ----------
         num_factors : int
-            Number of factors.
+            Count of latent factors in this multi-factor specification.
         volatilities : list[float]
             Per-factor volatilities.
 
@@ -1820,25 +2121,32 @@ class LatentMultiFactor:
         LatentMultiFactor
             Uncorrelated factor model.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.valuations.correlation import LatentMultiFactor
         >>> model = LatentMultiFactor.uncorrelated(2, [0.2, 0.15])
         >>> model.correlation_matrix
         [1.0, 0.0, 0.0, 1.0]
-
         """
         ...
 
     @property
     def num_factors(self) -> int:
         """
-        Number of factors.
+        Count of latent factors in this multi-factor specification.
 
         Returns
         -------
         int
             The num factors exposed by this `LatentMultiFactor`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1851,18 +2159,26 @@ class LatentMultiFactor:
         -------
         list[float]
             The correlation matrix exposed by this `LatentMultiFactor`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
     @property
     def volatilities(self) -> list[float]:
         """
-        Factor volatilities.
+        Annualized volatilities of the latent factors, in factor order.
 
         Returns
         -------
         list[float]
             The volatilities exposed by this `LatentMultiFactor`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1943,6 +2259,10 @@ class CorrelatedBernoulli:
         -------
         float
             The p1 exposed by this `CorrelatedBernoulli`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1955,6 +2275,10 @@ class CorrelatedBernoulli:
         -------
         float
             The p2 exposed by this `CorrelatedBernoulli`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1967,6 +2291,10 @@ class CorrelatedBernoulli:
         -------
         float
             The correlation exposed by this `CorrelatedBernoulli`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1979,6 +2307,10 @@ class CorrelatedBernoulli:
         -------
         float
             The requested correlation exposed by this `CorrelatedBernoulli`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1992,6 +2324,10 @@ class CorrelatedBernoulli:
         -------
         float
             The joint p11 exposed by this `CorrelatedBernoulli`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2005,6 +2341,10 @@ class CorrelatedBernoulli:
         -------
         float
             The joint p10 exposed by this `CorrelatedBernoulli`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2018,6 +2358,10 @@ class CorrelatedBernoulli:
         -------
         float
             The joint p01 exposed by this `CorrelatedBernoulli`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2031,6 +2375,10 @@ class CorrelatedBernoulli:
         -------
         float
             The joint p00 exposed by this `CorrelatedBernoulli`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -2042,6 +2390,10 @@ class CorrelatedBernoulli:
         -------
         tuple[float, float, float, float]
             ``(p11, p10, p01, p00)`` summing to 1.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -2053,6 +2405,10 @@ class CorrelatedBernoulli:
         -------
         float
             Conditional probability.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -2064,6 +2420,10 @@ class CorrelatedBernoulli:
         -------
         float
             Conditional probability.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 

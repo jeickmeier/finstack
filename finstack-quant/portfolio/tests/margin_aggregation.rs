@@ -7,12 +7,273 @@ mod common;
 
 use common::base_date;
 use finstack_quant_core::currency::Currency;
+use finstack_quant_core::dates::Date;
+use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
-use finstack_quant_margin::{ImMethodology, NettingSetId};
-use finstack_quant_portfolio::{NettingSetMargin, PortfolioMarginResult};
+use finstack_quant_core::types::Attributes;
+use finstack_quant_margin::{ImMethodology, Marginable, NettingSetId, SimmSensitivities};
+use finstack_quant_portfolio::types::DUMMY_ENTITY_ID;
+use finstack_quant_portfolio::{
+    Entity, NettingSetMargin, Portfolio, PortfolioMarginAggregator, PortfolioMarginResult,
+    Position, PositionUnit,
+};
+use finstack_quant_valuations::instruments::{Instrument, MarketDependencies};
+use finstack_quant_valuations::pricer::InstrumentType;
+use std::any::Any;
+use std::sync::Arc;
 
 fn test_date() -> finstack_quant_core::dates::Date {
     base_date()
+}
+
+// B-6 fixture: mock marginable instrument reporting UNIT (per-1-notional) SIMM
+// sensitivities, unit MTM, and an optional unit clearing-IM exposure base.
+
+#[derive(Clone)]
+struct TestMarginableInstrument {
+    id: String,
+    netting_set_id: NettingSetId,
+    attributes: Attributes,
+    ir_delta: f64,
+    mtm: Money,
+    im_exposure_base: Option<Money>,
+}
+
+impl TestMarginableInstrument {
+    fn new(id: &str, netting_set_id: NettingSetId, ir_delta: f64, mtm: Money) -> Self {
+        Self {
+            id: id.to_string(),
+            netting_set_id,
+            attributes: Attributes::default(),
+            ir_delta,
+            mtm,
+            im_exposure_base: None,
+        }
+    }
+
+    fn with_im_exposure_base(mut self, im_exposure_base: Money) -> Self {
+        self.im_exposure_base = Some(im_exposure_base);
+        self
+    }
+}
+
+finstack_quant_valuations::impl_empty_cashflow_provider!(
+    TestMarginableInstrument,
+    finstack_quant_cashflows::builder::CashflowRepresentation::NoResidual
+);
+
+impl Instrument for TestMarginableInstrument {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn key(&self) -> InstrumentType {
+        InstrumentType::Irs
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn attributes(&self) -> &Attributes {
+        &self.attributes
+    }
+
+    fn attributes_mut(&mut self) -> &mut Attributes {
+        &mut self.attributes
+    }
+
+    fn clone_box(&self) -> Box<dyn Instrument> {
+        Box::new(self.clone())
+    }
+
+    fn base_value(
+        &self,
+        _market: &MarketContext,
+        _as_of: Date,
+    ) -> finstack_quant_core::Result<Money> {
+        Ok(self.mtm)
+    }
+
+    fn market_dependencies(&self) -> finstack_quant_core::Result<MarketDependencies> {
+        Ok(MarketDependencies::new())
+    }
+
+    fn as_marginable(&self) -> Option<&dyn Marginable> {
+        Some(self)
+    }
+}
+
+impl Marginable for TestMarginableInstrument {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn margin_spec(&self) -> Option<&finstack_quant_margin::OtcMarginSpec> {
+        None
+    }
+
+    fn netting_set_id(&self) -> Option<NettingSetId> {
+        Some(self.netting_set_id.clone())
+    }
+
+    fn simm_sensitivities(
+        &self,
+        _market: &MarketContext,
+        _as_of: Date,
+    ) -> finstack_quant_core::Result<SimmSensitivities> {
+        let mut sensitivities = SimmSensitivities::new(self.mtm.currency());
+        sensitivities.add_ir_delta(self.mtm.currency(), "5Y", self.ir_delta);
+        Ok(sensitivities)
+    }
+
+    fn mtm_for_vm(
+        &self,
+        _market: &MarketContext,
+        _as_of: Date,
+    ) -> finstack_quant_core::Result<Money> {
+        Ok(self.mtm)
+    }
+
+    fn im_exposure_base(
+        &self,
+        _market: &MarketContext,
+        _as_of: Date,
+    ) -> finstack_quant_core::Result<Option<Money>> {
+        Ok(self.im_exposure_base)
+    }
+}
+
+/// Build a single-position portfolio around `instrument` and run margin.
+fn run_margin(
+    instrument: Arc<TestMarginableInstrument>,
+    quantities: &[f64],
+) -> PortfolioMarginResult {
+    let as_of = test_date();
+    let mut builder = Portfolio::builder("portfolio")
+        .base_currency(Currency::USD)
+        .as_of(as_of)
+        .entity(Entity::new(DUMMY_ENTITY_ID));
+    for (i, &quantity) in quantities.iter().enumerate() {
+        let position_instrument: Arc<dyn Instrument> =
+            Arc::<TestMarginableInstrument>::clone(&instrument);
+        let position = Position::new(
+            format!("pos-{i}"),
+            DUMMY_ENTITY_ID,
+            instrument.id.clone(),
+            position_instrument,
+            quantity,
+            PositionUnit::Notional(None),
+        )
+        .expect("position should build");
+        builder = builder.position(position);
+    }
+    let portfolio = builder.build().expect("portfolio should build");
+    let mut aggregator = PortfolioMarginAggregator::from_portfolio(&portfolio);
+    let result = aggregator
+        .calculate(&portfolio, &MarketContext::new(), as_of)
+        .expect("margin run should succeed");
+    assert!(
+        result.degraded_positions.is_empty(),
+        "no positions should degrade: {:?}",
+        result.degraded_positions
+    );
+    result
+}
+
+// B-6: IM must scale with position quantity exactly as VM does.
+
+#[test]
+fn b6_simm_im_scales_with_position_quantity() {
+    let instrument = Arc::new(TestMarginableInstrument::new(
+        "irs-1",
+        NettingSetId::bilateral("BANK", "CSA"),
+        20_000.0,
+        Money::new(1.0, Currency::USD),
+    ));
+
+    let unit = run_margin(Arc::clone(&instrument), &[1.0]);
+    let scaled = run_margin(instrument, &[10.0]);
+
+    // VM regression: quantity scaling already applied on the VM path.
+    assert!(
+        (scaled.total_variation_margin.amount() - 10.0 * unit.total_variation_margin.amount())
+            .abs()
+            < 1e-9,
+        "VM(qty=10) should be 10x VM(qty=1): got {} vs {}",
+        scaled.total_variation_margin.amount(),
+        unit.total_variation_margin.amount()
+    );
+
+    // B-6: SIMM IM must scale by the held quantity too.
+    assert!(
+        unit.total_initial_margin.amount() > 0.0,
+        "unit IM must be positive"
+    );
+    assert!(
+        (scaled.total_initial_margin.amount() - 10.0 * unit.total_initial_margin.amount()).abs()
+            < 1e-6 * unit.total_initial_margin.amount(),
+        "B-6: SIMM IM(qty=10) should be 10x IM(qty=1): got {} vs {}",
+        scaled.total_initial_margin.amount(),
+        unit.total_initial_margin.amount()
+    );
+}
+
+#[test]
+fn b6_clearing_im_scales_with_position_quantity() {
+    let instrument = Arc::new(
+        TestMarginableInstrument::new(
+            "irs-cleared",
+            NettingSetId::cleared("LCH"),
+            0.0,
+            Money::new(1.0, Currency::USD),
+        )
+        .with_im_exposure_base(Money::new(100.0, Currency::USD)),
+    );
+
+    let unit = run_margin(Arc::clone(&instrument), &[1.0]);
+    let scaled = run_margin(instrument, &[10.0]);
+
+    assert!(
+        unit.total_initial_margin.amount() > 0.0,
+        "unit IM must be positive"
+    );
+    assert!(
+        (scaled.total_initial_margin.amount() - 10.0 * unit.total_initial_margin.amount()).abs()
+            < 1e-6 * unit.total_initial_margin.amount(),
+        "B-6: clearing IM(qty=10) should be 10x IM(qty=1): got {} vs {}",
+        scaled.total_initial_margin.amount(),
+        unit.total_initial_margin.amount()
+    );
+}
+
+#[test]
+fn b6_short_position_nets_simm_sensitivities() {
+    // +q and -q of the same instrument in one netting set: SIMM sensitivities
+    // are signed and must net to ~0 IM; net signed MTM (VM input) is also 0.
+    let instrument = Arc::new(TestMarginableInstrument::new(
+        "irs-1",
+        NettingSetId::bilateral("BANK", "CSA"),
+        20_000.0,
+        Money::new(1.0, Currency::USD),
+    ));
+
+    let result = run_margin(instrument, &[5.0, -5.0]);
+
+    assert!(
+        result.total_initial_margin.amount().abs() < 1e-9,
+        "B-6: long+short SIMM sensitivities must net to zero IM, got {}",
+        result.total_initial_margin.amount()
+    );
+    assert!(
+        result.total_variation_margin.amount().abs() < 1e-9,
+        "net signed MTM of offsetting positions should be zero, got {}",
+        result.total_variation_margin.amount()
+    );
 }
 
 // Same-Currency Aggregation Tests

@@ -51,9 +51,9 @@
 //! # References
 //!
 //! - Rebonato, R. (2002). *Modern Pricing of Interest-Rate Derivatives*,
-//!   Ch. 8, Princeton University Press.
+//!   Ch. 8, Princeton University Press. `docs/REFERENCES.md#rebonato-2004-volatility-correlation`
 //! - Andersen, L. & Piterbarg, V. (2010). *Interest Rate Modeling*, Vol. 2,
-//!   §16.5, Atlantic Financial Press.
+//!   §16.5, Atlantic Financial Press. `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
 
 /// Inputs describing the co-terminal swap underlying one European swaption
 /// slice of a Bermudan exercise schedule, expressed in LMM forward-rate

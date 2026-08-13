@@ -42,6 +42,9 @@ class StatementView:
         nodes : dict[str, dict[str, float]]
             Mapping from statement node ID to period-label/value mappings.
 
+        Notes:
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         self._nodes = nodes
 
@@ -60,6 +63,8 @@ class StatementView:
         float | None
             Stored scalar value, or ``None`` when the node or period is absent.
 
+        Notes:
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         node = self._nodes.get(node_id)
         return node.get(period) if node else None
@@ -71,6 +76,9 @@ class StatementView:
         -------
         list[str]
             Node identifiers in source insertion order.
+
+        Notes:
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         return list(self._nodes)
 
@@ -81,6 +89,9 @@ class StatementView:
         -------
         list[str]
             Distinct period labels in ascending order.
+
+        Notes:
+            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         seen: dict[str, None] = {}
         for series in self._nodes.values():
@@ -192,6 +203,10 @@ def pl_matrix_table(
     str
         HTML table containing the selected line items and periods.
 
+    Notes:
+    -----
+    This helper does not raise; cell values are escaped and missing numbers use the report placeholder.
+
     Examples:
     --------
     >>> from finstack_quant.reporting.statements_common import StatementView, pl_matrix_table
@@ -223,6 +238,10 @@ def variance_table(variance: Any) -> str | None:
     -------
     str | None
         HTML variance table, or ``None`` when no valid rows are supplied.
+
+    Notes:
+    -----
+    This helper does not raise; cell values are escaped and missing numbers use the report placeholder.
 
     Examples:
     --------

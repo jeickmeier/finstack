@@ -27,7 +27,7 @@ and `finstack-quant-covenants` crates (the latter is a dependency of this crate)
 - `finstack-quant-margin` — margin and XVA integrations
 - `finstack-quant-monte-carlo` — simulation paths (used by selected pricers)
 
-Bindings: umbrella `finstack-quant` (`valuations` feature), `finstack-quant-py`, `finstack-quant-wasm`.
+Bindings: umbrella `finstack-quant` (always includes this crate), `finstack-quant-py`, `finstack-quant-wasm`.
 
 ## Features
 
@@ -46,7 +46,7 @@ Or via the umbrella crate:
 
 ```toml
 [dependencies]
-finstack-quant = { path = "../finstack-quant", features = ["valuations"] }
+finstack-quant = { path = ".." }
 ```
 
 Crate API docs: `cargo doc -p finstack-quant-valuations --open`.

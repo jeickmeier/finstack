@@ -191,7 +191,7 @@ __all__ = [
 
 class Currency:
     """
-    An ISO-4217 currency.
+    ISO 4217 currency identified by its alphabetic code.
 
     Immutable, hashable value type representing a single ISO-4217 currency.
     Supports comparison with other ``Currency`` instances and with ISO
@@ -275,6 +275,10 @@ class Currency:
         -------
         str
             The code exposed by this `Currency`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -287,6 +291,10 @@ class Currency:
         -------
         int
             The numeric exposed by this `Currency`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -299,6 +307,10 @@ class Currency:
         -------
         int
             The decimals exposed by this `Currency`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 

@@ -33,7 +33,7 @@
 //! - Hayre, L. (2001). *Salomon Smith Barney Guide to Mortgage-Backed and
 //!   Asset-Backed Securities*. John Wiley & Sons.
 //! - O'Kane, D. (2008). *Modelling Single-name and Multi-name Credit
-//!   Derivatives*. John Wiley & Sons.
+//!   Derivatives*. John Wiley & Sons. `docs/REFERENCES.md#o-kane-2008`
 
 use crate::calibration::hull_white::HullWhiteParams;
 use crate::instruments::fixed_income::mbs_passthrough::pricer::first_unpaid_accrual_start;

@@ -82,6 +82,10 @@ def nice_ticks(vmin: float, vmax: float, target: int = 4) -> list[float]:
     list[float]
         Rounded tick values covering the complete input range.
 
+    Notes:
+    -----
+    This helper does not raise; a degenerate range is expanded to a unit interval.
+
     Examples:
     --------
     >>> from finstack_quant.reporting.charts import nice_ticks
@@ -126,6 +130,10 @@ def color_scale(v: Any, theme: Theme, cap: float = 8.0) -> tuple[str, str]:
     -------
     tuple[str, str]
         CSS background and foreground colors for the heatmap cell.
+
+    Notes:
+    -----
+    This helper does not raise; missing values receive a transparent cell.
 
     Examples:
     --------
@@ -248,6 +256,10 @@ def line_chart(
     str
         Self-contained SVG markup for the plotted series.
 
+    Notes:
+    -----
+    This helper does not raise; missing or non-finite values are skipped so the SVG still renders.
+
     Examples:
     --------
     >>> from finstack_quant.reporting.charts import line_chart
@@ -364,6 +376,10 @@ def cashflow_ladder(
     str
         Self-contained SVG markup for the stacked cashflow ladder.
 
+    Notes:
+    -----
+    This helper does not raise; missing or non-finite values are skipped so the SVG still renders.
+
     Examples:
     --------
     >>> from finstack_quant.reporting.charts import cashflow_ladder
@@ -463,6 +479,10 @@ def waterfall_chart(
     -------
     str
         Self-contained SVG markup for the contribution bridge and total.
+
+    Notes:
+    -----
+    This helper does not raise; missing or non-finite values are skipped so the SVG still renders.
 
     Examples:
     --------
@@ -574,6 +594,10 @@ def bar_chart(labels: list[str], values: list[Any], *, theme: Theme, y_pct: bool
     str
         Self-contained SVG markup for the categorical bars.
 
+    Notes:
+    -----
+    This helper does not raise; missing or non-finite values are skipped so the SVG still renders.
+
     Examples:
     --------
     >>> from finstack_quant.reporting.charts import bar_chart
@@ -667,6 +691,10 @@ def tornado_chart(
     -------
     str
         Self-contained SVG markup for the downside and upside sensitivity bars.
+
+    Notes:
+    -----
+    This helper does not raise; missing or non-finite values are skipped so the SVG still renders.
 
     Examples:
     --------
@@ -778,6 +806,10 @@ def fan_chart(
     -------
     str
         Self-contained SVG markup for the percentile band and median line.
+
+    Notes:
+    -----
+    This helper does not raise; missing or non-finite values are skipped so the SVG still renders.
 
     Examples:
     --------

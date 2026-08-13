@@ -61,7 +61,7 @@ fn default_observation_business_day_convention() -> BusinessDayConvention {
 ///
 /// # References
 ///
-/// - Demeterfi, K. et al. (1999). "More Than You Ever Wanted to Know About Volatility Swaps."
+/// - Demeterfi, K. et al. (1999). "More Than You Ever Wanted to Know About Volatility Swaps." `docs/REFERENCES.md#demeterfi-1999-volatility-swaps`
 /// - Carr, P. & Madan, D. (1998). "Towards a Theory of Volatility Trading."
 #[derive(
     PartialEq,

@@ -465,12 +465,16 @@ class TestForwardCurveParity:
         assert curve.rate(1.0) == pytest.approx(0.045, abs=1e-10)
 
     def test_preexisting_optional_arguments_remain_positional(self) -> None:
-        """day_count, interp, and extrapolation preserve their positional order."""
+        """day_count, interp, and extrapolation preserve their positional order.
+
+        Positional order is ``(id, tenor, base_date, knots, ...)``, matching
+        the WASM constructor and the DiscountCurve convention.
+        """
         curve = ForwardCurve(
             "USD-SOFR",
             0.25,
-            [(0.0, 0.04), (1.0, 0.045)],
             date(2024, 1, 1),
+            [(0.0, 0.04), (1.0, 0.045)],
             "act_360",
             "linear",
             "flat_forward",
@@ -482,8 +486,8 @@ class TestForwardCurveParity:
         curve = ForwardCurve(
             "USD-SOFR",
             0.25,
-            [(0.0, 0.04), (1.0, 0.045)],
             date(2024, 1, 1),
+            [(0.0, 0.04), (1.0, 0.045)],
             "act_360",
             "linear",
             "flat_forward",

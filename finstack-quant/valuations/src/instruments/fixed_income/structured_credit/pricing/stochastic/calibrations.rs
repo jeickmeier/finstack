@@ -13,8 +13,8 @@
 //! # References
 //!
 //! - Moody's Default Study (annual corporate default rates)
-//! - PSA Standard Prepayment Model assumptions
-//! - Basel IRB correlation formulas
+//! - PSA Standard Prepayment Model assumptions `docs/REFERENCES.md#richard-roll-1989`
+//! - Basel IRB correlation formulas `docs/REFERENCES.md#basel-ii-2006`
 
 use crate::instruments::fixed_income::structured_credit::assumptions::{
     embedded_registry_or_panic, StructuredCreditAssumptionRegistry,

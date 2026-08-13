@@ -508,7 +508,7 @@ pub fn compute_cva(
 ///
 /// # References
 ///
-/// - Gregory, J. (2020). *The xVA Challenge*, 4th ed. Wiley. Chapter 17.
+/// - Gregory, J. (2020). *The xVA Challenge*, 4th ed. Wiley. Chapter 17. `docs/REFERENCES.md#gregory-xva-challenge`
 /// - BCBS (2011). "Application of own credit risk adjustments to derivatives."
 pub fn compute_dva(
     exposure_profile: &ExposureProfile,
@@ -564,9 +564,9 @@ pub fn compute_dva(
 ///
 /// # References
 ///
-/// - Gregory, J. (2020). *The xVA Challenge*, 4th ed. Wiley. Chapter 19.
+/// - Gregory, J. (2020). *The xVA Challenge*, 4th ed. Wiley. Chapter 19. `docs/REFERENCES.md#gregory-xva-challenge`
 /// - Green, A. (2015). *XVA: Credit, Funding and Capital Valuation Adjustments*.
-///   Wiley. Chapter 5.
+///   Wiley. Chapter 5. `docs/REFERENCES.md#green-xva`
 pub fn compute_fva(
     exposure_profile: &ExposureProfile,
     discount_curve: &DiscountCurve,
@@ -633,11 +633,11 @@ pub fn compute_fva(
 ///
 /// # References
 ///
-/// - Gregory, J. (2020). *The xVA Challenge*, 4th ed. Wiley. Chapters 14, 17, 19.
+/// - Gregory, J. (2020). *The xVA Challenge*, 4th ed. Wiley. Chapters 14, 17, 19. `docs/REFERENCES.md#gregory-xva-challenge`
 /// - Green, A. (2015). *XVA: Credit, Funding and Capital Valuation Adjustments*.
-///   Wiley. Chapters 9-10.
+///   Wiley. Chapters 9-10. `docs/REFERENCES.md#green-xva`
 /// - Brigo, D., Morini, M. & Pallavicini, A. (2013). *Counterparty Credit Risk,
-///   Collateral and Funding*. Wiley.
+///   Collateral and Funding*. Wiley. `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
 pub fn compute_bilateral_xva(
     exposure_profile: &ExposureProfile,
     counterparty_hazard_curve: &HazardCurve,
@@ -861,7 +861,7 @@ mod tests {
         //
         // For fine grid, this converges to:
         // CVA ≈ (1-R) × EPE × ∫₀ᵀ λ×e^{-λt} × e^{-rt} dt
-        //     = (1-R) × EPE × λ/(λ+r) × (1 - e^{-(λ+r)T})
+        // = (1-R) × EPE × λ/(λ+r) × (1 - e^{-(λ+r)T})
         let lambda = 0.02;
         let r = 0.03;
         let recovery = 0.40;

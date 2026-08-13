@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// # References
 ///
-/// IFRS 9 Financial Instruments, Section 5.5 -- Impairment.
+/// IFRS 9 Financial Instruments, Section 5.5 -- Impairment. `docs/REFERENCES.md#ifrs-9-impairment`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Stage {

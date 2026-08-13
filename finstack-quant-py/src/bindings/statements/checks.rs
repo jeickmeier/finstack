@@ -157,16 +157,67 @@ impl PyCheckReport {
     ///
     /// Warnings and info findings do not fail a report. A suite's
     /// materiality threshold never suppresses error findings, so it cannot
-    /// flip this to ``True``.
+    /// flip this to ``True``. Delegates to the canonical Rust
+    /// ``CheckReport::has_errors``.
     #[getter]
     fn passed(&self) -> bool {
-        self.inner.summary.errors == 0
+        !self.inner.has_errors()
     }
 
     /// Number of checks that ran, one per row of :meth:`to_dataframe`.
+    ///
+    /// Reads the canonical ``CheckSummary.total_checks`` counter.
     #[getter]
     fn total_checks(&self) -> usize {
-        self.inner.results.len()
+        self.inner.summary.total_checks
+    }
+
+    /// Whether the report contains at least one error-severity finding.
+    ///
+    /// Delegates to the canonical Rust ``CheckReport::has_errors``.
+    #[pyo3(text_signature = "($self)")]
+    fn has_errors(&self) -> bool {
+        self.inner.has_errors()
+    }
+
+    /// Whether the report contains at least one warning-severity finding.
+    ///
+    /// Delegates to the canonical Rust ``CheckReport::has_warnings``.
+    #[pyo3(text_signature = "($self)")]
+    fn has_warnings(&self) -> bool {
+        self.inner.has_warnings()
+    }
+
+    /// Return all retained findings of one severity as serde dicts.
+    ///
+    /// Delegates to the canonical Rust ``CheckReport::findings_by_severity``.
+    ///
+    /// Parameters
+    /// ----------
+    /// severity : str
+    ///     One of ``"info"``, ``"warning"``, ``"error"`` (the canonical
+    ///     snake_case severity discriminants).
+    ///
+    /// Returns
+    /// -------
+    /// list[dict]
+    ///     One ``CheckFinding`` serde dict per matching retained finding.
+    #[pyo3(text_signature = "($self, severity)")]
+    fn findings_by_severity<'py>(
+        &self,
+        py: Python<'py>,
+        severity: &str,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let severity: finstack_quant_statements::checks::Severity = serde_json::from_value(
+            serde_json::Value::String(severity.to_string()),
+        )
+        .map_err(|e| {
+            crate::errors::value_error(format!(
+                "invalid severity {severity:?}: {e}; expected info, warning, or error"
+            ))
+        })?;
+        let findings = self.inner.findings_by_severity(severity);
+        crate::bindings::pandas_utils::serde_to_py(py, &findings)
     }
 
     /// Number of retained findings across all checks.
@@ -285,8 +336,8 @@ impl PyCheckReport {
     fn __repr__(&self) -> String {
         format!(
             "CheckReport(checks={}, passed={}, errors={}, warnings={})",
-            self.inner.results.len(),
-            self.inner.summary.errors == 0,
+            self.inner.summary.total_checks,
+            !self.inner.has_errors(),
             self.inner.summary.errors,
             self.inner.summary.warnings,
         )

@@ -468,7 +468,7 @@ fn aggregate_side(
 ///
 /// Dynkin, L., Hyman, J., & Vankudre, P. (1998). "Attribution of Portfolio
 /// Performance Relative to an Index." Lehman Brothers Fixed Income Research,
-/// March 1998, Appendix A. `docs/REFERENCES.md#dynkin-hyman-vankudre-1998`
+/// March 1998, Appendix A.
 ///
 /// # Arguments
 ///
@@ -764,7 +764,7 @@ fn validate_grid_link_period(period: &GridAttributionResult, index: usize) -> Re
 ///
 /// Carino, D. R. (1999). "Combining Attribution Effects Over Time." *Journal
 /// of Performance Measurement*, Winter 1999/2000, 5-14.
-/// `docs/REFERENCES.md#carino-1999`
+///
 ///
 /// # Arguments
 ///

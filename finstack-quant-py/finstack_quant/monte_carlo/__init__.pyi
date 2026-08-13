@@ -70,6 +70,11 @@ class MoneyEstimate:
         MoneyEstimate
             Parsed ``MoneyEstimate`` instance.
 
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or does not satisfy the serialized schema.
+
         Examples
         --------
         >>> from finstack_quant.monte_carlo import EuropeanPricer, MoneyEstimate
@@ -87,6 +92,11 @@ class MoneyEstimate:
         -------
         str
             Compact JSON string.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -99,6 +109,10 @@ class MoneyEstimate:
         -------
         Money
             Mean PV with currency tag.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -119,6 +133,10 @@ class MoneyEstimate:
         float
             Standard error in the same currency units as :attr:`mean`.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> from finstack_quant.monte_carlo import EuropeanPricer
@@ -137,6 +155,10 @@ class MoneyEstimate:
         -------
         float or None
             Sample standard deviation, or ``None`` if not captured by the engine.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -149,6 +171,10 @@ class MoneyEstimate:
         -------
         Money
             Lower CI bound.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -168,6 +194,10 @@ class MoneyEstimate:
         -------
         Money
             Upper CI bound.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -191,6 +221,10 @@ class MoneyEstimate:
         int
             Path-estimator count.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> from finstack_quant.monte_carlo import EuropeanPricer
@@ -211,6 +245,10 @@ class MoneyEstimate:
         -------
         int
             Count of simulated sample paths.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -224,6 +262,10 @@ class MoneyEstimate:
         float or None
             Median discounted path value, or ``None`` when percentile capture is
             disabled in the engine configuration.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -237,6 +279,10 @@ class MoneyEstimate:
         float or None
             25th percentile of discounted path values, or ``None`` when
             percentile capture is disabled.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -250,6 +296,10 @@ class MoneyEstimate:
         float or None
             75th percentile of discounted path values, or ``None`` when
             percentile capture is disabled.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -263,6 +313,10 @@ class MoneyEstimate:
         float or None
             Minimum sampled discounted value, or ``None`` when range capture is
             disabled.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -276,6 +330,10 @@ class MoneyEstimate:
         float or None
             Maximum sampled discounted value, or ``None`` when range capture is
             disabled.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -287,6 +345,10 @@ class MoneyEstimate:
         -------
         float
             Dimensionless relative stderr.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -322,6 +384,11 @@ class Estimate:
         Estimate
             Parsed ``Estimate`` instance.
 
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or does not satisfy the serialized schema.
+
         Examples
         --------
         >>> from finstack_quant.monte_carlo import Estimate
@@ -339,18 +406,27 @@ class Estimate:
         -------
         str
             Compact JSON string.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
     @property
     def mean(self) -> float:
         """
-        Point estimate (mean).
+        Sample-mean present value across the simulated paths.
 
         Returns
         -------
         float
             Mean sample value.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -363,6 +439,10 @@ class Estimate:
         -------
         float
             Standard error.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -375,6 +455,10 @@ class Estimate:
         -------
         float or None
             Sample standard deviation or ``None``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -387,6 +471,10 @@ class Estimate:
         -------
         float
             Lower bound.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -399,6 +487,10 @@ class Estimate:
         -------
         float
             Upper bound.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -414,6 +506,10 @@ class Estimate:
         -------
         int
             Path-estimator count.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -429,6 +525,10 @@ class Estimate:
         -------
         int
             Count of simulated sample paths.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -441,6 +541,10 @@ class Estimate:
         -------
         float or None
             Median path value, or ``None`` when percentile capture is disabled.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -454,6 +558,10 @@ class Estimate:
         float or None
             25th percentile path value, or ``None`` when percentile capture is
             disabled.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -467,6 +575,10 @@ class Estimate:
         float or None
             75th percentile path value, or ``None`` when percentile capture is
             disabled.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -480,6 +592,10 @@ class Estimate:
         float or None
             Minimum sampled path value, or ``None`` when range capture is
             disabled.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -493,6 +609,10 @@ class Estimate:
         float or None
             Maximum sampled path value, or ``None`` when range capture is
             disabled.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -572,6 +692,10 @@ class TimeGrid:
             Step count.
 
             The num steps exposed by this `TimeGrid`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         Examples
         --------
         >>> from finstack_quant.monte_carlo import TimeGrid
@@ -589,6 +713,10 @@ class TimeGrid:
         -------
         float
             Maximum time coordinate.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -608,6 +736,10 @@ class TimeGrid:
         bool
             ``True`` if all inner steps share one ``dt``.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> from finstack_quant.monte_carlo import TimeGrid
@@ -626,6 +758,10 @@ class TimeGrid:
         list[float]
             Copy of knot times.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> from finstack_quant.monte_carlo import TimeGrid
@@ -643,6 +779,10 @@ class TimeGrid:
         -------
         list[float]
             Per-step ``dt`` values.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -733,6 +873,11 @@ class GbmPathSummary:
         GbmPathSummary
             Parsed ``GbmPathSummary`` instance.
 
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or does not satisfy the serialized schema.
+
         Examples
         --------
         >>> from finstack_quant.monte_carlo import GbmPathSummary, simulate_gbm_paths
@@ -750,6 +895,11 @@ class GbmPathSummary:
         -------
         str
             Compact JSON string.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -762,6 +912,10 @@ class GbmPathSummary:
         -------
         int
             The num paths exposed by this `GbmPathSummary`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -774,6 +928,10 @@ class GbmPathSummary:
         -------
         int
             The num simulated paths exposed by this `GbmPathSummary`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -786,6 +944,10 @@ class GbmPathSummary:
         -------
         list[float]
             The times exposed by this `GbmPathSummary`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -798,6 +960,10 @@ class GbmPathSummary:
         -------
         list[list[float]]
             The paths exposed by this `GbmPathSummary`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -866,12 +1032,16 @@ class McEngine:
             estimator count and simulates ``2 * num_paths`` paths. Antithetic
             pairing is incompatible with path capture.
 
+        Raises
+        ------
+        ValueError
+            If the embedded Monte Carlo defaults registry cannot be loaded.
+
         Examples
         --------
         >>> from finstack_quant.monte_carlo import McEngine, TimeGrid
         >>> McEngine(10, TimeGrid(1.0, 5), seed=1, use_parallel=True)  # doctest: +ELLIPSIS
         McEngine(...)
-
         """
         ...
 
@@ -1041,33 +1211,40 @@ def simulate_gbm_paths(
 
 def heston_satisfies_feller(kappa: float, theta: float, vol_of_vol: float) -> bool:
     """
-    Validate Heston parameters and test the strict Feller condition.
+    Test the inclusive Feller condition ``2 * kappa * theta >= vol_of_vol**2``.
+
+    This is the Monte Carlo engine's own predicate, so the answer at the
+    boundary matches :func:`price_heston_call` / :func:`price_heston_put`.
+    Inputs are not validated: non-finite values typically yield ``False``.
 
     Parameters
     ----------
     kappa : float
-        Positive mean-reversion speed of the variance process per year.
+        Mean-reversion speed of the variance process per year.
     theta : float
-        Positive long-run variance level in squared-volatility units.
+        Long-run variance level in squared-volatility units.
     vol_of_vol : float
-        Positive annualized volatility of the variance process.
+        Annualized volatility of the variance process.
 
     Returns
     -------
     bool
-        ``True`` when ``2 * kappa * theta > vol_of_vol**2``; otherwise
-        ``False``.
+        ``True`` when ``2 * kappa * theta >= vol_of_vol**2``.
 
-    Raises
-    ------
-    ValueError
-        If ``kappa``, ``theta``, or ``vol_of_vol`` is non-finite or not
-        strictly positive.
+    Sources
+    -------
+    - Heston (1993): see docs/REFERENCES.md#heston-1993
+
+    Notes
+    -----
+    This helper does not raise; non-finite inputs typically yield ``False``.
 
     Examples
     --------
     >>> from finstack_quant.monte_carlo import heston_satisfies_feller
     >>> heston_satisfies_feller(2.0, 0.04, 0.3)
+    True
+    >>> heston_satisfies_feller(1.0, 0.045, 0.3)
     True
     >>> heston_satisfies_feller(1.0, 0.04, 0.5)
     False
@@ -1103,24 +1280,32 @@ class EuropeanPricer:
         use_parallel : bool, optional
             Parallel accumulation flag. Defaults to the registry default.
 
+        Raises
+        ------
+        ValueError
+            If the embedded Monte Carlo defaults registry cannot be loaded.
+
         Examples
         --------
         >>> from finstack_quant.monte_carlo import EuropeanPricer
         >>> EuropeanPricer(500, 9).seed
         9
-
         """
         ...
 
     @property
     def num_paths(self) -> int:
         """
-        Configured path count.
+        Number of Monte Carlo paths this pricer will simulate.
 
         Returns
         -------
         int
             Number of Monte Carlo paths.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -1141,6 +1326,10 @@ class EuropeanPricer:
         int
             Seed value used for path generation.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> from finstack_quant.monte_carlo import EuropeanPricer
@@ -1158,6 +1347,10 @@ class EuropeanPricer:
         -------
         bool
             Parallel flag as passed to ``__init__``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1173,7 +1366,7 @@ class EuropeanPricer:
         currency: str | None = None,
     ) -> MoneyEstimate:
         """
-        Price a European call.
+        Monte Carlo present value of a European call on the configured process.
 
         Parameters
         ----------
@@ -1230,7 +1423,7 @@ class EuropeanPricer:
         currency: str | None = None,
     ) -> MoneyEstimate:
         """
-        Price a European put.
+        Monte Carlo present value of a European put on the configured process.
 
         Parameters
         ----------
@@ -1304,12 +1497,16 @@ class PathDependentPricer:
         use_parallel : bool, optional
             Parallel accumulation flag. Defaults to the registry default.
 
+        Raises
+        ------
+        ValueError
+            If the embedded Monte Carlo defaults registry cannot be loaded.
+
         Examples
         --------
         >>> from finstack_quant.monte_carlo import PathDependentPricer
         >>> PathDependentPricer(100, 1, use_parallel=True).num_paths
         100
-
         """
         ...
 
@@ -1434,12 +1631,16 @@ class PathDependentPricer:
     @property
     def num_paths(self) -> int:
         """
-        Configured path count.
+        Number of Monte Carlo paths this pricer will simulate.
 
         Returns
         -------
         int
             Number of Monte Carlo paths.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -1459,6 +1660,10 @@ class PathDependentPricer:
         -------
         int
             Seed value used for path generation.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
 
         Examples
         --------
@@ -1488,7 +1693,7 @@ class LsmcPricer:
         basis_degree: int | None = None,
     ) -> None:
         """
-        Create an LSMC pricer.
+        Create a Longstaff–Schwartz Monte Carlo pricer for early exercise.
 
         Parameters
         ----------
@@ -1524,12 +1729,16 @@ class LsmcPricer:
     @property
     def num_paths(self) -> int:
         """
-        Configured path count.
+        Number of Monte Carlo paths this pricer will simulate.
 
         Returns
         -------
         int
             Number of Monte Carlo paths.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1543,6 +1752,10 @@ class LsmcPricer:
         -------
         int
             Seed value used for path generation.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1555,6 +1768,10 @@ class LsmcPricer:
         -------
         bool
             Parallel flag as passed to ``__init__``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1568,6 +1785,10 @@ class LsmcPricer:
         str
             One of ``"laguerre"``, ``"polynomial"``,
             ``"normalized_polynomial"``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1580,6 +1801,10 @@ class LsmcPricer:
         -------
         int
             Degree value used in the regression basis.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1840,12 +2065,14 @@ def black_scholes_call(
     Returns
     -------
     float
-        Present value of the European call.
+        Present value of the European call. Non-finite inputs return ``NaN``;
+        finite degenerate inputs return intrinsic value. This helper does not
+        raise.
 
-    Raises
-    ------
-    ValueError
-        If any parameter is non-finite or ``expiry`` is negative.
+    Sources
+    -------
+    - Black-Scholes (1973): see docs/REFERENCES.md#black-scholes-1973
+    - Merton (1973): see docs/REFERENCES.md#merton-1973
 
     Examples
     --------
@@ -1888,12 +2115,14 @@ def black_scholes_put(
     Returns
     -------
     float
-        Present value of the European put.
+        Present value of the European put. Non-finite inputs return ``NaN``;
+        finite degenerate inputs return intrinsic value. This helper does not
+        raise.
 
-    Raises
-    ------
-    ValueError
-        If any parameter is non-finite or ``expiry`` is negative.
+    Sources
+    -------
+    - Black-Scholes (1973): see docs/REFERENCES.md#black-scholes-1973
+    - Merton (1973): see docs/REFERENCES.md#merton-1973
 
     Examples
     --------
@@ -1922,9 +2151,10 @@ def price_heston_call(
     """
     Monte Carlo European call under Heston stochastic volatility.
 
-    Simulates spot and variance with the QE Heston discretization. Rates and
-    dividend yield are continuously compounded decimals; Heston parameters follow
-    the standard square-root variance specification.
+    Simulates spot and variance with Andersen's quadratic-exponential (QE)
+    discretization, which stays stable when the Feller condition is violated.
+    Rates and dividend yield are continuously compounded decimals; Heston
+    parameters follow the standard square-root variance specification.
 
     Parameters
     ----------
@@ -1955,7 +2185,7 @@ def price_heston_call(
     num_steps : int, optional
         Time steps per path (registry default ``252``).
     currency : str, optional
-        ISO currency code; defaults to USD.
+        ISO currency code; ``None`` uses the registry binding default.
 
     Returns
     -------
@@ -1965,11 +2195,14 @@ def price_heston_call(
     Raises
     ------
     ValueError
-        If parameters are non-finite or violate Feller / positivity constraints.
+        If Heston parameters, expiry, path count, step count, or the discount
+        factor fail validation, or a simulated discounted payoff is
+        non-finite. Violating the Feller condition does not raise.
 
     Sources
     -------
-    See ``docs/REFERENCES.md#heston-1993``.
+    - Heston (1993): see docs/REFERENCES.md#heston-1993
+    - Andersen QE (2008): see docs/REFERENCES.md#andersen-2008-heston-qe
 
     Examples
     --------
@@ -2030,7 +2263,7 @@ def price_heston_put(
     num_steps : int or None, default None
         Optional number of time steps; ``None`` selects the engine default grid.
     currency : str or None, default None
-        ISO-4217 output currency tag; ``None`` applies the binding default.
+        ISO-4217 output currency tag; ``None`` uses the registry binding default.
 
     Returns
     -------
@@ -2040,11 +2273,14 @@ def price_heston_put(
     Raises
     ------
     ValueError
-        If parameters are invalid.
+        If Heston parameters, expiry, path count, step count, or the discount
+        factor fail validation, or a simulated discounted payoff is
+        non-finite. Violating the Feller condition does not raise.
 
     Sources
     -------
-    See ``docs/REFERENCES.md#heston-1993``.
+    - Heston (1993): see docs/REFERENCES.md#heston-1993
+    - Andersen QE (2008): see docs/REFERENCES.md#andersen-2008-heston-qe
 
     Examples
     --------

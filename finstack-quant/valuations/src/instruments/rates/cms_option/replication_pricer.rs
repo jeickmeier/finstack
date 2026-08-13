@@ -58,10 +58,10 @@
 //! # References
 //!
 //! - Andersen, L. B., & Piterbarg, V. V. (2010). *Interest Rate Modeling*.
-//!   Vol. 1, §16.2. Atlantic Financial Press.
+//!   Vol. 1, §16.2. Atlantic Financial Press. `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
 //! - Brigo, D., & Mercurio, F. (2006). *Interest Rate Models — Theory and Practice*
-//!   (2nd ed.). Springer. §13.7.
-//! - Hagan, P. S. (2003). "Convexity Conundrums." *Wilmott Magazine*, March, 38–44.
+//!   (2nd ed.). Springer. §13.7. `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
+//! - Hagan, P. S. (2003). "Convexity Conundrums." *Wilmott Magazine*, March, 38–44. `docs/REFERENCES.md#hagan-2003-cms-convexity`
 
 use crate::instruments::common_impl::pricing::time::relative_df_discount_curve;
 use crate::instruments::common_impl::traits::Instrument;
@@ -98,10 +98,10 @@ const K_FLOOR: f64 = 1e-4; // 1 basis point
 
 /// Gauss-Legendre quadrature order.
 ///
-/// Order 16 provides 31st-degree polynomial exactness.  For the corrected
+/// Order 16 provides 31st-degree polynomial exactness. For the corrected
 /// integrand `[2g'+(k-K)g'']·C_sw` the integrand is more peaked near k≈K
 /// than the old `g'·C_sw` form; measured GL-16 error is up to a few percent
-/// for ATM long-dated CMS cases (e.g. 20Y tenor, T=5Y).  The old claim of
+/// for ATM long-dated CMS cases (e.g. 20Y tenor, T=5Y). The old claim of
 /// "relative errors below 1e-8" no longer holds for this integrand shape.
 ///
 /// Future accuracy work can consider interval subdivision or adaptive
@@ -118,8 +118,8 @@ const QUAD_ORDER: usize = 16;
 /// yield-to-price mapping for a bullet bond.
 ///
 /// ```text
-/// A_par(k) = (1 - (1 + k/m)^(-n·m)) / k    [k > 0]
-/// A_par(0) = n                               [L'Hôpital limit]
+/// A_par(k) = (1 - (1 + k/m)^(-n·m)) / k [k > 0]
+/// A_par(0) = n [L'Hôpital limit]
 /// ```
 #[inline]
 fn par_annuity(rate: f64, tenor_years: f64, m: f64) -> f64 {
@@ -207,7 +207,7 @@ pub(crate) fn replicated_cms_optionlet(
     //
     // The CMS caplet value is `V = A₀·E^A[(S−K)⁺·g(S)]`, replicated
     // by integration by parts as
-    //   V = g(K)·C_sw(K) + ∫ g'(k)·C_sw(k) dk
+    // V = g(K)·C_sw(K) + ∫ g'(k)·C_sw(k) dk
     // where `C_sw(k)` is the annuity-measure swaption price and
     // `g(s) = DF_pay/A(s)` is the Radon-Nikodym weight `dQ^{T_pay}/dQ^A`.
     //
@@ -217,7 +217,7 @@ pub(crate) fn replicated_cms_optionlet(
     // swaption price must use the *same* annuity model that `g`
     // divides by:
     //
-    //   C_sw(k) = A_par(k) · Black76(F, k, σ(k), T)
+    // C_sw(k) = A_par(k) · Black76(F, k, σ(k), T)
     //
     // so that `g(k)·C_sw(k) = DF_pay · Black76(F, k, σ(k), T)`,
     // with the annuity cancelling cleanly. `A₀` (the market annuity) is
@@ -270,7 +270,7 @@ pub(crate) fn replicated_cms_optionlet(
     match option_type {
         OptionType::Call => {
             // Caplet formula (exact static replication, Andersen-Piterbarg §16.2):
-            //   V = g(K) · C_sw(K) + ∫_K^{K_max} [2·g'(k) + (k-K)·g''(k)] · C_sw(k) dk
+            // V = g(K) · C_sw(K) + ∫_K^{K_max} [2·g'(k) + (k-K)·g''(k)] · C_sw(k) dk
             //
             // Upper bound K_max = K + 6σ ensures ≤ 1e-9 truncation error.
             let k_max = (strike + N_STD_CUTOFF * std_dev).max(strike * 1.05);
@@ -289,11 +289,11 @@ pub(crate) fn replicated_cms_optionlet(
 
         OptionType::Put => {
             // Floorlet formula (Andersen-Piterbarg §16.2, IBP derivation):
-            //   V = g(K) · P_sw(K) − ∫_{K_min}^K [2·g'(k) + (k-K)·g''(k)] · P_sw(k) dk
+            // V = g(K) · P_sw(K) − ∫_{K_min}^K [2·g'(k) + (k-K)·g''(k)] · P_sw(k) dk
             //
-            // Note the MINUS sign.  g(k) = DF_pay / A_par(k) is strictly
+            // Note the MINUS sign. g(k) = DF_pay / A_par(k) is strictly
             // INCREASING in k (because A_par(k) is strictly decreasing), so
-            // g'(k) > 0 and the integral is positive.  The minus sign ensures
+            // g'(k) > 0 and the integral is positive. The minus sign ensures
             // V_floor < g(K)·P_sw(K), consistent with CMS convexity raising
             // the payment-measure forward above the swap forward and thereby
             // reducing the in-the-money probability for a floorlet.

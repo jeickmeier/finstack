@@ -515,7 +515,7 @@ impl ConvertibleBondValuator {
     /// ## Reference
     ///
     /// Broadie, M., Glasserman, P., & Kou, S. (1997). "A Continuity Correction
-    /// for Discrete Barrier Options." *Mathematical Finance*, 7(4), 325-349.
+    /// for Discrete Barrier Options." *Mathematical Finance*, 7(4), 325-349. `docs/REFERENCES.md#broadie-glasserman-kou-1997`
     pub(super) fn soft_call_triggered(&self, node_spot: f64) -> bool {
         match self.soft_call_trigger {
             Some(ref trigger) => {

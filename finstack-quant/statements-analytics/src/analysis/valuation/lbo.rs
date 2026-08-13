@@ -35,9 +35,9 @@
 //!
 //! - Rosenbaum, J., & Pearl, J. (2020). *Investment Banking: Valuation, LBOs,
 //!   M&A, and IPOs* (3rd ed.). Wiley. Ch. 5 (LBO analysis): entry valuation,
-//!   sources and uses, and exit / return analysis.
+//!   sources and uses, and exit / return analysis. `docs/REFERENCES.md#rosenbaum-pearl-2020`
 //! - Koller, T., Goedhart, M., & Wessels, D. (2020). *Valuation: Measuring and
-//!   Managing the Value of Companies* (7th ed.). Wiley. Ch. 36.
+//!   Managing the Value of Companies* (7th ed.). Wiley. Ch. 36. `docs/REFERENCES.md#koller-valuation`
 
 use crate::analysis::checks::{lbo_model_checks, CreditMapping, ThreeStatementMapping};
 use crate::analysis::valuation::corporate::extract_currency_from_model;
@@ -161,13 +161,13 @@ pub struct LboResult {
 /// the model still carries at [`LboConfig::exit_period`]:
 ///
 /// ```text
-/// EV_entry  = entry_multiple × metric_entry
-/// uses      = EV_entry + fees
-/// debt      = Σ tranche amounts
-/// equity    = uses − debt                       (sponsor check)
-/// EV_exit   = exit_multiple × metric_exit
-/// proceeds  = EV_exit − net_debt_exit
-/// MOIC      = proceeds / equity
+/// EV_entry = entry_multiple × metric_entry
+/// uses = EV_entry + fees
+/// debt = Σ tranche amounts
+/// equity = uses − debt (sponsor check)
+/// EV_exit = exit_multiple × metric_exit
+/// proceeds = EV_exit − net_debt_exit
+/// MOIC = proceeds / equity
 /// ```
 ///
 /// IRR is deliberately out of scope: pair `exit_equity_proceeds` with the

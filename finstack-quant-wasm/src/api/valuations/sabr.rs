@@ -23,7 +23,7 @@ pub struct JsSabrParameters {
 
 #[wasm_bindgen(js_class = SabrParameters)]
 impl JsSabrParameters {
-    /// Create the object from its inputs.
+    /// Create SABR parameters from alpha, beta, nu, rho, and optional shift.
     /// @param alpha - Positive SABR initial volatility scale parameter.
     /// @param beta - SABR CEV elasticity parameter from 0 through 1.
     /// @param nu - Positive SABR volatility-of-volatility parameter.
@@ -120,7 +120,7 @@ pub struct JsSabrModel {
 
 #[wasm_bindgen(js_class = SabrModel)]
 impl JsSabrModel {
-    /// Create the object from its inputs.
+    /// Create a Hagan-2002 SABR model from the supplied parameters.
     /// @param params - SABR parameter object containing alpha, beta, nu, rho, and optional shift.
     #[wasm_bindgen(constructor)]
     pub fn new(params: &JsSabrParameters) -> JsSabrModel {
@@ -132,7 +132,7 @@ impl JsSabrModel {
     /// Black implied volatility for the given strike.
     /// @param forward - Forward price or rate in the same quote convention as the strike.
     /// @param strike - Option strike price in the same price units as the underlying.
-    /// @param t - Time from the curve base date in years on the documented day-count basis.
+    /// @param t - Time from the curve base date in years.
     ///
     /// # Errors
     ///
@@ -171,10 +171,10 @@ pub struct JsSabrSmile {
 
 #[wasm_bindgen(js_class = SabrSmile)]
 impl JsSabrSmile {
-    /// Create the object from its inputs.
+    /// Create a SABR smile for a fixed forward and expiry.
     /// @param params - SABR parameter object containing alpha, beta, nu, rho, and optional shift.
     /// @param forward - Forward price or rate in the same quote convention as the strike.
-    /// @param t - Time from the curve base date in years on the documented day-count basis.
+    /// @param t - Time from the curve base date in years.
     #[wasm_bindgen(constructor)]
     pub fn new(params: &JsSabrParameters, forward: f64, t: f64) -> JsSabrSmile {
         let model = SABRModel::new(params.clone_inner());
@@ -301,7 +301,7 @@ pub struct JsSabrCalibrator {
 
 #[wasm_bindgen(js_class = SabrCalibrator)]
 impl JsSabrCalibrator {
-    /// Create the object from its inputs.
+    /// Create a Levenberg-Marquardt SABR calibrator with default tolerances.
     #[wasm_bindgen(constructor)]
     pub fn new() -> JsSabrCalibrator {
         Self {
@@ -332,7 +332,7 @@ impl JsSabrCalibrator {
     /// @param forward - Forward price or rate in the same quote convention as the strike.
     /// @param strikes - Option strikes aligned one-for-one with market_vols.
     /// @param market_vols - Market-implied annualized volatilities aligned one-for-one with strikes.
-    /// @param t - Time from the curve base date in years on the documented day-count basis.
+    /// @param t - Time from the curve base date in years.
     /// @param beta - SABR CEV elasticity parameter held fixed during calibration.
     ///
     /// # Errors
@@ -363,7 +363,7 @@ impl JsSabrCalibrator {
     /// @param forward - Forward price or rate in the same quote convention as the strike.
     /// @param strikes - Option strikes aligned one-for-one with market_vols.
     /// @param market_vols - Market-implied annualized volatilities aligned one-for-one with strikes.
-    /// @param t - Time from the curve base date in years on the documented day-count basis.
+    /// @param t - Time from the curve base date in years.
     /// @param beta - SABR CEV elasticity parameter held fixed during calibration.
     ///
     /// # Errors

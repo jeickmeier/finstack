@@ -85,11 +85,13 @@ class TestReduceCoverage:
         exempt any such type rather than flag it. Pin the known set instead, so
         a new result type that ships without a `from_json` fails here.
 
-        `PortfolioOptimizationResult` is the sole remaining case: its canonical
-        Rust type has a hand-written `Serialize` via a wire struct and no
-        `Deserialize`, so closing it needs a change in the portfolio crate.
+        `PortfolioOptimizationResult` has a hand-written `Serialize` via a
+        wire struct and no `Deserialize`. Closing it needs a change in the
+        portfolio crate.
         """
-        expected = {"portfolio.PortfolioOptimizationResult"}
+        expected = {
+            "portfolio.PortfolioOptimizationResult",
+        }
         actual = {name for name, cls in _walk_classes() if hasattr(cls, "to_json") and not hasattr(cls, "from_json")}
         assert actual == expected, (
             f"un-pickleable set changed.\n  newly un-pickleable: {sorted(actual - expected)}\n"

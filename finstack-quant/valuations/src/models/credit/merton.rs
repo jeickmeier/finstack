@@ -6,9 +6,10 @@
 //! # References
 //!
 //! - Merton, R. C. (1974). "On the Pricing of Corporate Debt: The Risk
-//!   Structure of Interest Rates." *Journal of Finance*, 29(2), 449-470.
+//!   Structure of Interest Rates." *Journal of Finance*, 29(2), 449-470. `docs/REFERENCES.md#merton-1974`
+//!
 //! - Black, F. & Cox, J. C. (1976). "Valuing Corporate Securities: Some
-//!   Effects of Bond Indenture Provisions." *Journal of Finance*, 31(2), 351-367.
+//!   Effects of Bond Indenture Provisions." *Journal of Finance*, 31(2), 351-367. `docs/REFERENCES.md#black-1976`
 //!
 //! # Examples
 //!
@@ -849,7 +850,7 @@ impl MertonModel {
     /// 2. Back out piecewise-constant hazard rates between consecutive tenors:
     ///    - λ_0 = -ln(S(t_0)) / t_0
     ///    - λ_i = -ln(S(t_{i+1}) / S(t_i)) / (t_{i+1} - t_i) for i >= 1
-    /// 3. Build via `HazardCurve::builder`.
+    ///   3. Build via `HazardCurve::builder`.
     ///
     /// # Arguments
     ///

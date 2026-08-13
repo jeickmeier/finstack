@@ -24,7 +24,7 @@
 //!
 //! - Higham, N. J. (2002). "Computing the nearest correlation matrix — A
 //!   problem from finance." *IMA Journal of Numerical Analysis*, 22(3), 329–343.
-//!   Algorithm 3.3.
+//!   Algorithm 3.3. `docs/REFERENCES.md#higham-accuracy-and-stability`
 //! - Boyle, J. P., & Dykstra, R. L. (1986). "A method for finding projections
 //!   onto the intersection of convex sets in Hilbert spaces." *Advances in
 //!   Order Restricted Statistical Inference*, Lecture Notes in Statistics 37,

@@ -41,7 +41,7 @@
 //!
 //! - Hull, J.C. *Options, Futures, and Other Derivatives* (Ch. 15 on
 //!   risk-neutral pricing under distinct rate and measurement
-//!   conventions).
+//!   conventions). `docs/REFERENCES.md#hull-options-futures`
 
 use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
 use finstack_quant_core::market_data::term_structures::DiscountCurve;

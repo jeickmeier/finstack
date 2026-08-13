@@ -1,11 +1,17 @@
 //! Typed FX instruments: `FxForward` and `FxOption`.
 //! Mirrors the `PyInterestRateSwap` pattern in `typed_rates.rs`.
+//!
+//! Both classes also carry the pricing methods their WASM twins expose
+//! (`price`, `price_with_metrics`, and — for `FxOption` — the standard Greek
+//! accessors), delegating to the same canonical Rust pricer entry points.
 
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 
 use crate::bindings::core::currency::PyCurrency;
 use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::core::money::PyMoney;
+use crate::bindings::extract::extract_market;
 use crate::errors::{core_to_py, value_error};
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
@@ -13,6 +19,126 @@ use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
 use super::instruments::{
     enum_from_str, parse_typed_instrument_json, serialize_typed_instrument_json,
 };
+use super::PyValuationResult;
+
+/// Price a typed instrument envelope through the canonical Rust pricer.
+fn price_envelope(
+    py: Python<'_>,
+    envelope_json: String,
+    market: &Bound<'_, PyAny>,
+    as_of: &Bound<'_, PyAny>,
+    model: &str,
+) -> PyResult<PyValuationResult> {
+    let market = extract_market(py, market)?;
+    let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
+    let model = model.to_owned();
+    let inner = py
+        .detach(move || {
+            finstack_quant_valuations::pricer::price_instrument_json(
+                &envelope_json,
+                &market,
+                &as_of,
+                &model,
+            )
+        })
+        .map_err(core_to_py)?;
+    Ok(PyValuationResult { inner })
+}
+
+/// Price a typed instrument envelope with explicit metric requests.
+// Mirrors the Python keyword-argument API of `price_instrument_with_metrics`.
+#[allow(clippy::too_many_arguments)]
+fn price_envelope_with_metrics(
+    py: Python<'_>,
+    envelope_json: String,
+    market: &Bound<'_, PyAny>,
+    as_of: &Bound<'_, PyAny>,
+    model: &str,
+    metrics: Vec<String>,
+    pricing_options: Option<&str>,
+    market_history: Option<&str>,
+) -> PyResult<PyValuationResult> {
+    let market = extract_market(py, market)?;
+    let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
+    let model = model.to_owned();
+    let pricing_options = pricing_options.map(str::to_owned);
+    let market_history = market_history.map(str::to_owned);
+    let inner = py
+        .detach(move || {
+            finstack_quant_valuations::pricer::price_instrument_json_with_metrics_and_history(
+                &envelope_json,
+                &market,
+                &as_of,
+                &model,
+                &metrics,
+                pricing_options.as_deref(),
+                market_history.as_deref(),
+            )
+        })
+        .map_err(core_to_py)?;
+    Ok(PyValuationResult { inner })
+}
+
+/// Compute one scalar metric for a typed instrument envelope.
+fn envelope_metric_value(
+    py: Python<'_>,
+    envelope_json: String,
+    market: &Bound<'_, PyAny>,
+    as_of: &Bound<'_, PyAny>,
+    model: &str,
+    metric: &'static str,
+) -> PyResult<f64> {
+    let market = extract_market(py, market)?;
+    let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
+    let model = model.to_owned();
+    py.detach(move || {
+        finstack_quant_valuations::pricer::metric_value_from_instrument_json(
+            &envelope_json,
+            &market,
+            &as_of,
+            &model,
+            metric,
+        )
+    })
+    .map_err(core_to_py)
+}
+
+/// Compute the standard option Greek set for a typed instrument envelope.
+///
+/// Mirrors the WASM `greeks` method: non-finite Greeks are rejected rather
+/// than returned, so both hosts fail identically instead of one silently
+/// yielding `NaN`.
+fn envelope_option_greeks<'py>(
+    py: Python<'py>,
+    envelope_json: String,
+    market: &Bound<'py, PyAny>,
+    as_of: &Bound<'py, PyAny>,
+    model: &str,
+) -> PyResult<Bound<'py, PyDict>> {
+    let market = extract_market(py, market)?;
+    let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
+    let model = model.to_owned();
+    let pairs = py
+        .detach(move || {
+            finstack_quant_valuations::pricer::present_standard_option_greeks_from_instrument_json(
+                &envelope_json,
+                &market,
+                &as_of,
+                &model,
+            )
+        })
+        .map_err(core_to_py)?;
+    let out = PyDict::new(py);
+    for (metric, value) in pairs {
+        if !value.is_finite() {
+            return Err(value_error(format!(
+                "greek '{metric}' evaluated to a non-finite value ({value})"
+            )));
+        }
+        out.set_item(metric, value)?;
+    }
+    Ok(out)
+}
 
 type FxForwardBuilderInner =
     finstack_quant_valuations::instruments::fx::fx_forward::FxForwardBuilder;
@@ -131,6 +257,94 @@ impl PyFxForward {
     #[getter]
     fn id(&self) -> String {
         self.inner.id.to_string()
+    }
+
+    /// Price this FX forward and return a typed ``ValuationResult``.
+    ///
+    /// Delegates to the same canonical Rust pricer entry point as
+    /// ``price_instrument(self, market, as_of, model)``.
+    ///
+    /// Parameters
+    /// ----------
+    /// market : MarketContext | str
+    ///     A ``MarketContext`` object or serialized market-context JSON.
+    /// as_of : datetime.date | str
+    ///     Valuation date, either a date-like object or an ISO 8601 string.
+    /// model : str, optional
+    ///     Model key (default ``"default"`` — the instrument-native model).
+    ///
+    /// Returns
+    /// -------
+    /// ValuationResult
+    ///     Typed valuation envelope carrying value, currency, and metrics.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the market JSON, ``as_of``, or ``model`` is invalid, required
+    ///     market data is missing, or the selected pricer fails.
+    #[pyo3(signature = (market, as_of, model="default"))]
+    fn price(
+        &self,
+        py: Python<'_>,
+        market: &Bound<'_, PyAny>,
+        as_of: &Bound<'_, PyAny>,
+        model: &str,
+    ) -> PyResult<PyValuationResult> {
+        price_envelope(py, self.envelope_json()?, market, as_of, model)
+    }
+
+    /// Price this FX forward with explicit metric requests.
+    ///
+    /// Parameters
+    /// ----------
+    /// market : MarketContext | str
+    ///     A ``MarketContext`` object or serialized market-context JSON.
+    /// as_of : datetime.date | str
+    ///     Valuation date, either a date-like object or an ISO 8601 string.
+    /// model : str, optional
+    ///     Model key (default ``"default"``).
+    /// metrics : list[str], optional
+    ///     Metric identifiers to compute (e.g. ``["dv01", "theta"]``).
+    /// pricing_options : str | None
+    ///     Optional JSON ``MetricPricingOverrides`` merged into the
+    ///     instrument's ``pricing_overrides`` before pricing.
+    /// market_history : str | None
+    ///     Optional JSON ``MarketHistory`` scenarios required by ``hvar`` and
+    ///     ``expected_shortfall`` metrics.
+    ///
+    /// Returns
+    /// -------
+    /// ValuationResult
+    ///     Typed valuation envelope including the requested metrics.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If any input payload is invalid, required market data is missing,
+    ///     or pricing or a metric calculation fails.
+    #[pyo3(signature = (market, as_of, model="default", metrics=vec![], pricing_options=None, market_history=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn price_with_metrics(
+        &self,
+        py: Python<'_>,
+        market: &Bound<'_, PyAny>,
+        as_of: &Bound<'_, PyAny>,
+        model: &str,
+        metrics: Vec<String>,
+        pricing_options: Option<&str>,
+        market_history: Option<&str>,
+    ) -> PyResult<PyValuationResult> {
+        price_envelope_with_metrics(
+            py,
+            self.envelope_json()?,
+            market,
+            as_of,
+            model,
+            metrics,
+            pricing_options,
+            market_history,
+        )
     }
 
     /// Return ``repr(self)``.
@@ -527,6 +741,312 @@ impl PyFxOption {
     #[getter]
     fn id(&self) -> String {
         self.inner.id.to_string()
+    }
+
+    /// Price this FX option and return a typed ``ValuationResult``.
+    ///
+    /// Delegates to the same canonical Rust pricer entry point as
+    /// ``price_instrument(self, market, as_of, model)``.
+    ///
+    /// Parameters
+    /// ----------
+    /// market : MarketContext | str
+    ///     A ``MarketContext`` object or serialized market-context JSON.
+    /// as_of : datetime.date | str
+    ///     Valuation date, either a date-like object or an ISO 8601 string.
+    /// model : str, optional
+    ///     Model key (default ``"default"`` — the instrument-native model).
+    ///
+    /// Returns
+    /// -------
+    /// ValuationResult
+    ///     Typed valuation envelope carrying value, currency, and metrics.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the market JSON, ``as_of``, or ``model`` is invalid, required
+    ///     market data is missing, or the selected pricer fails.
+    #[pyo3(signature = (market, as_of, model="default"))]
+    fn price(
+        &self,
+        py: Python<'_>,
+        market: &Bound<'_, PyAny>,
+        as_of: &Bound<'_, PyAny>,
+        model: &str,
+    ) -> PyResult<PyValuationResult> {
+        price_envelope(py, self.envelope_json()?, market, as_of, model)
+    }
+
+    /// Price this FX option with explicit metric requests.
+    ///
+    /// Parameters
+    /// ----------
+    /// market : MarketContext | str
+    ///     A ``MarketContext`` object or serialized market-context JSON.
+    /// as_of : datetime.date | str
+    ///     Valuation date, either a date-like object or an ISO 8601 string.
+    /// model : str, optional
+    ///     Model key (default ``"default"``).
+    /// metrics : list[str], optional
+    ///     Metric identifiers to compute (e.g. ``["delta", "vega"]``).
+    /// pricing_options : str | None
+    ///     Optional JSON ``MetricPricingOverrides`` merged into the
+    ///     instrument's ``pricing_overrides`` before pricing.
+    /// market_history : str | None
+    ///     Optional JSON ``MarketHistory`` scenarios required by ``hvar`` and
+    ///     ``expected_shortfall`` metrics.
+    ///
+    /// Returns
+    /// -------
+    /// ValuationResult
+    ///     Typed valuation envelope including the requested metrics.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If any input payload is invalid, required market data is missing,
+    ///     or pricing or a metric calculation fails.
+    #[pyo3(signature = (market, as_of, model="default", metrics=vec![], pricing_options=None, market_history=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn price_with_metrics(
+        &self,
+        py: Python<'_>,
+        market: &Bound<'_, PyAny>,
+        as_of: &Bound<'_, PyAny>,
+        model: &str,
+        metrics: Vec<String>,
+        pricing_options: Option<&str>,
+        market_history: Option<&str>,
+    ) -> PyResult<PyValuationResult> {
+        price_envelope_with_metrics(
+            py,
+            self.envelope_json()?,
+            market,
+            as_of,
+            model,
+            metrics,
+            pricing_options,
+            market_history,
+        )
+    }
+
+    /// Spot delta of the option.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Spot delta produced by the selected model.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If an input is invalid, required market data is missing, pricing
+    ///     fails, or the model does not produce delta.
+    #[pyo3(signature = (market, as_of, model="default"))]
+    fn delta(
+        &self,
+        py: Python<'_>,
+        market: &Bound<'_, PyAny>,
+        as_of: &Bound<'_, PyAny>,
+        model: &str,
+    ) -> PyResult<f64> {
+        envelope_metric_value(py, self.envelope_json()?, market, as_of, model, "delta")
+    }
+
+    /// Spot gamma of the option.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Spot gamma produced by the selected model.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If an input is invalid, required market data is missing, pricing
+    ///     fails, or the model does not produce gamma.
+    #[pyo3(signature = (market, as_of, model="default"))]
+    fn gamma(
+        &self,
+        py: Python<'_>,
+        market: &Bound<'_, PyAny>,
+        as_of: &Bound<'_, PyAny>,
+        model: &str,
+    ) -> PyResult<f64> {
+        envelope_metric_value(py, self.envelope_json()?, market, as_of, model, "gamma")
+    }
+
+    /// Vega of the option.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Vega produced by the selected model.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If an input is invalid, required market data is missing, pricing
+    ///     fails, or the model does not produce vega.
+    #[pyo3(signature = (market, as_of, model="default"))]
+    fn vega(
+        &self,
+        py: Python<'_>,
+        market: &Bound<'_, PyAny>,
+        as_of: &Bound<'_, PyAny>,
+        model: &str,
+    ) -> PyResult<f64> {
+        envelope_metric_value(py, self.envelope_json()?, market, as_of, model, "vega")
+    }
+
+    /// Theta of the option.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Theta produced by the selected model.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If an input is invalid, required market data is missing, pricing
+    ///     fails, or the model does not produce theta.
+    #[pyo3(signature = (market, as_of, model="default"))]
+    fn theta(
+        &self,
+        py: Python<'_>,
+        market: &Bound<'_, PyAny>,
+        as_of: &Bound<'_, PyAny>,
+        model: &str,
+    ) -> PyResult<f64> {
+        envelope_metric_value(py, self.envelope_json()?, market, as_of, model, "theta")
+    }
+
+    /// Domestic-rate rho of the option.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Domestic-rate rho produced by the selected model.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If an input is invalid, required market data is missing, pricing
+    ///     fails, or the model does not produce rho.
+    #[pyo3(signature = (market, as_of, model="default"))]
+    fn rho(
+        &self,
+        py: Python<'_>,
+        market: &Bound<'_, PyAny>,
+        as_of: &Bound<'_, PyAny>,
+        model: &str,
+    ) -> PyResult<f64> {
+        envelope_metric_value(py, self.envelope_json()?, market, as_of, model, "rho")
+    }
+
+    /// Foreign-rate rho of the option.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Foreign-rate rho produced by the selected model.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If an input is invalid, required market data is missing, pricing
+    ///     fails, or the model does not produce foreign rho.
+    #[pyo3(signature = (market, as_of, model="default"))]
+    fn foreign_rho(
+        &self,
+        py: Python<'_>,
+        market: &Bound<'_, PyAny>,
+        as_of: &Bound<'_, PyAny>,
+        model: &str,
+    ) -> PyResult<f64> {
+        envelope_metric_value(
+            py,
+            self.envelope_json()?,
+            market,
+            as_of,
+            model,
+            "foreign_rho",
+        )
+    }
+
+    /// Vanna of the option.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Vanna produced by the selected model.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If an input is invalid, required market data is missing, pricing
+    ///     fails, or the model does not produce vanna.
+    #[pyo3(signature = (market, as_of, model="default"))]
+    fn vanna(
+        &self,
+        py: Python<'_>,
+        market: &Bound<'_, PyAny>,
+        as_of: &Bound<'_, PyAny>,
+        model: &str,
+    ) -> PyResult<f64> {
+        envelope_metric_value(py, self.envelope_json()?, market, as_of, model, "vanna")
+    }
+
+    /// Volga of the option.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Volga produced by the selected model.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If an input is invalid, required market data is missing, pricing
+    ///     fails, or the model does not produce volga.
+    #[pyo3(signature = (market, as_of, model="default"))]
+    fn volga(
+        &self,
+        py: Python<'_>,
+        market: &Bound<'_, PyAny>,
+        as_of: &Bound<'_, PyAny>,
+        model: &str,
+    ) -> PyResult<f64> {
+        envelope_metric_value(py, self.envelope_json()?, market, as_of, model, "volga")
+    }
+
+    /// Compute the standard FX option Greek set as a dict.
+    ///
+    /// Mirrors the WASM ``greeks`` method: Greeks the selected model cannot
+    /// produce are omitted, and any non-finite Greek raises rather than being
+    /// returned.
+    ///
+    /// Returns
+    /// -------
+    /// dict[str, float]
+    ///     Mapping of Greek name to value for every Greek the model produced.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If an input is invalid, required market data is missing, pricing
+    ///     fails, or a returned Greek is non-finite.
+    #[pyo3(signature = (market, as_of, model="default"))]
+    fn greeks<'py>(
+        &self,
+        py: Python<'py>,
+        market: &Bound<'py, PyAny>,
+        as_of: &Bound<'py, PyAny>,
+        model: &str,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        envelope_option_greeks(py, self.envelope_json()?, market, as_of, model)
     }
 
     /// Return ``repr(self)``.

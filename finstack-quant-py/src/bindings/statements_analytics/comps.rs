@@ -8,25 +8,35 @@
 //! - Canonical valuation multiple computation on `CompanyMetrics`.
 //! - Multi-dimension composite rich/cheap scoring (`score_relative_value`).
 //!
-//! The scoring API takes plain dicts/lists from Python rather than the
-//! strongly-typed `CompanyMetrics`/`PeerSet` structs used in Rust. Each
-//! peer is a dict keyed by metric name; dimensions are either `(name, weight)`
-//! tuples for univariate scoring or dicts with `label`, `y`, optional `x`
-//! (one or more selectors), optional `direction`, and `weight` keys for
-//! regression-based scoring. Metric selectors map 1:1 onto the Rust
-//! `MetricExtractor` enum: named fields, custom keys, and
-//! `"multiple:<id>"` for canonical valuation multiples.
+//! `score_relative_value` takes the canonical serde forms of the Rust
+//! `PeerSet` and `ScoringDimension` types — as JSON strings or plain
+//! dicts/lists with the same shape — exactly like the WASM twin.
 
 use finstack_quant_statements_analytics::analysis::{
     compute_multiple as core_compute_multiple, peer_stats as core_peer_stats,
     percentile_rank as core_percentile_rank, regression_fair_value as core_regression,
-    score_relative_value as core_score, z_score as core_z_score, CompanyMetrics, MetricExtractor,
-    Multiple, PeerSet, PeriodBasis, ScoreDirection, ScoringDimension,
+    score_relative_value as core_score, z_score as core_z_score, CompanyMetrics, Multiple, PeerSet,
+    ScoringDimension,
 };
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyDict, PyList};
+use pyo3::types::{PyAny, PyDict};
 
+use crate::bindings::pandas_utils::serde_to_py;
 use crate::errors::{core_to_py, display_to_py};
+
+/// Deserialize a canonical serde payload from a JSON string or a plain
+/// Python object (dict/list) with the same shape.
+fn extract_serde<'py, T: serde::de::DeserializeOwned + Send>(
+    py: Python<'py>,
+    obj: &Bound<'py, PyAny>,
+    label: &str,
+) -> PyResult<T> {
+    if let Ok(json) = obj.extract::<String>() {
+        return serde_json::from_str(&json)
+            .map_err(|e| crate::errors::serde_json_to_py(e, &format!("invalid {label}")));
+    }
+    crate::bindings::module_utils::py_to_serde(py, obj, label)
+}
 
 // Statistics
 
@@ -72,23 +82,15 @@ fn z_score(value: f64, peer_values: Vec<f64>) -> Option<f64> {
 /// Returns:
 ///     Dict with keys ``{"mean", "median", "q1", "q3", "iqr", "std_dev",
 ///     "min", "max", "count"}`` mirroring the Rust ``PeerStats`` field
-///     names. Returns an empty dict when ``peer_values`` is empty.
+///     names (serde form). Returns ``None`` when no statistics can be
+///     computed (matching the WASM twin's ``undefined``).
 #[pyfunction]
 #[pyo3(text_signature = "(peer_values)")]
-fn peer_stats<'py>(py: Python<'py>, peer_values: Vec<f64>) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new(py);
-    if let Some(stats) = core_peer_stats(&peer_values) {
-        d.set_item("mean", stats.mean)?;
-        d.set_item("median", stats.median)?;
-        d.set_item("q1", stats.q1)?;
-        d.set_item("q3", stats.q3)?;
-        d.set_item("iqr", stats.iqr)?;
-        d.set_item("std_dev", stats.std_dev)?;
-        d.set_item("min", stats.min)?;
-        d.set_item("max", stats.max)?;
-        d.set_item("count", stats.count)?;
+fn peer_stats<'py>(py: Python<'py>, peer_values: Vec<f64>) -> PyResult<Option<Bound<'py, PyAny>>> {
+    match core_peer_stats(&peer_values) {
+        Some(stats) => serde_to_py(py, &stats).map(Some),
+        None => Ok(None),
     }
-    Ok(d)
 }
 
 /// Single-factor OLS fit and evaluation at the subject's X.
@@ -108,9 +110,11 @@ fn peer_stats<'py>(py: Python<'py>, peer_values: Vec<f64>) -> PyResult<Bound<'py
 ///
 /// Returns:
 ///     Dict with keys ``{"slope", "intercept", "r_squared",
-///     "fitted_value", "residual", "n"}``. Returns an empty dict if
-///     fewer than three observations are available or the regression
-///     cannot be computed (e.g., zero variance in X).
+///     "fitted_value", "residual", "n"}`` mirroring the Rust
+///     ``RegressionResult`` serde form. Returns ``None`` if fewer than
+///     three observations are available or the regression cannot be
+///     computed (e.g., zero variance in X), matching the WASM twin's
+///     ``undefined``.
 #[pyfunction]
 #[pyo3(text_signature = "(x_values, y_values, subject_x, subject_y)")]
 fn regression_fair_value<'py>(
@@ -119,17 +123,11 @@ fn regression_fair_value<'py>(
     y_values: Vec<f64>,
     subject_x: f64,
     subject_y: f64,
-) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new(py);
-    if let Some(reg) = core_regression(&x_values, &y_values, subject_x, subject_y) {
-        d.set_item("slope", reg.slope)?;
-        d.set_item("intercept", reg.intercept)?;
-        d.set_item("r_squared", reg.r_squared)?;
-        d.set_item("fitted_value", reg.fitted_value)?;
-        d.set_item("residual", reg.residual)?;
-        d.set_item("n", reg.n)?;
+) -> PyResult<Option<Bound<'py, PyAny>>> {
+    match core_regression(&x_values, &y_values, subject_x, subject_y) {
+        Some(reg) => serde_to_py(py, &reg).map(Some),
+        None => Ok(None),
     }
-    Ok(d)
 }
 
 // Multiples
@@ -183,158 +181,40 @@ fn dict_to_company_metrics(id: &str, d: &Bound<'_, PyDict>) -> PyResult<CompanyM
     Ok(CompanyMetrics::from_flat_metrics(id, values))
 }
 
-/// Map a metric selector string onto a `MetricExtractor`.
-///
-/// - ``"multiple:<id>"`` (e.g. ``"multiple:ev_ebitda"``) selects a canonical
-///   valuation multiple computed on the fly from `CompanyMetrics`.
-/// - Known field names select the dedicated optional field.
-/// - Anything else selects an entry in the `custom` map.
-fn metric_extractor(name: &str) -> PyResult<MetricExtractor> {
-    name.parse().map_err(display_to_py)
-}
-
-/// Parse an optional ``direction`` key (``"higher_is_cheap"`` /
-/// ``"higher_is_rich"``) from a dimension dict; defaults to the Rust
-/// `ScoreDirection` default (`HigherIsCheap`).
-fn parse_direction(dict: &Bound<'_, PyDict>) -> PyResult<ScoreDirection> {
-    match dict.get_item("direction")? {
-        None => Ok(ScoreDirection::default()),
-        Some(value) => {
-            let s: String = value.extract()?;
-            s.parse().map_err(display_to_py)
-        }
-    }
-}
-
-fn dict_get_string_any(dict: &Bound<'_, PyDict>, keys: &[&str]) -> PyResult<Option<String>> {
-    for key in keys {
-        if let Some(value) = dict.get_item(*key)? {
-            return value.extract::<String>().map(Some);
-        }
-    }
-    Ok(None)
-}
-
-fn parse_scoring_dimension(obj: &Bound<'_, PyAny>) -> PyResult<ScoringDimension> {
-    if let Ok((name, weight)) = obj.extract::<(String, f64)>() {
-        return Ok(ScoringDimension {
-            label: name.clone(),
-            y_extractor: metric_extractor(&name)?,
-            x_extractors: vec![],
-            weight,
-            direction: ScoreDirection::default(),
-        });
-    }
-
-    let dict = obj.cast::<PyDict>().map_err(|_| {
-        crate::errors::value_error(
-            "dimension must be a (metric_name, weight) tuple or a dict with \
-             label/y/x/weight/direction",
-        )
-    })?;
-
-    let y_name = dict_get_string_any(dict, &["y", "y_extractor", "metric"])?
-        .ok_or_else(|| crate::errors::value_error("dimension dict missing required key 'y'"))?;
-    let label = dict_get_string_any(dict, &["label", "name"])?.unwrap_or_else(|| y_name.clone());
-    let weight = match dict.get_item("weight")? {
-        Some(value) => value.extract::<f64>()?,
-        None => 1.0,
-    };
-    let x_extractors = match dict.get_item("x")?.or(dict.get_item("x_extractors")?) {
-        Some(value) => {
-            if let Ok(name) = value.extract::<String>() {
-                vec![metric_extractor(&name)?]
-            } else {
-                let names = value.extract::<Vec<String>>()?;
-                names
-                    .into_iter()
-                    .map(|name| metric_extractor(&name))
-                    .collect::<PyResult<_>>()?
-            }
-        }
-        None => vec![],
-    };
-
-    Ok(ScoringDimension {
-        label,
-        y_extractor: metric_extractor(&y_name)?,
-        x_extractors,
-        weight,
-        direction: parse_direction(dict)?,
-    })
-}
-
 /// Score a subject against its peers across multiple weighted dimensions.
 ///
-/// Dimensions may be ``(metric_name, weight)`` tuples for univariate
-/// scoring or dicts of the form ``{"label": str, "y": str, "x": [str],
-/// "weight": float, "direction": str}`` for regression-based fair-value
-/// scoring. Metric selectors are plain metric names (named field or custom
-/// key) or ``"multiple:<id>"`` (e.g. ``"multiple:ev_ebitda"``) for canonical
-/// valuation multiples — the same capabilities as the Rust
-/// ``MetricExtractor`` enum. ``direction`` is ``"higher_is_cheap"``
-/// (default, spread-like: higher Y than peers scores positive = cheap) or
-/// ``"higher_is_rich"`` (multiple-like: higher Y scores negative = rich);
-/// it applies consistently to both the univariate z-score path and the
-/// regression-residual path. The composite is the weighted average where
-/// positive = cheap, negative = rich.
+/// Takes the canonical serde forms of the Rust ``PeerSet`` and
+/// ``ScoringDimension`` types, exactly like the WASM ``scoreRelativeValue``
+/// twin. The composite is the weighted average where positive = cheap,
+/// negative = rich.
 ///
 /// Arguments:
-///     subject_metrics: Dict of ``{metric_name: value}`` for the subject.
-///     peer_metrics: List of dicts, one per peer, same schema as the
-///         subject.
-///     dimensions: List of tuple or dict dimensions selecting which metrics
-///         to score and their composite weights.
+///     peer_set: Canonical ``PeerSet`` payload — a JSON string or a dict of
+///         the same shape: ``{"subject": CompanyMetrics, "peers":
+///         [CompanyMetrics, ...], "period_basis": "ltm" | "ntm" |
+///         {"custom": str}}``.
+///     dimensions: Canonical ``ScoringDimension`` list — a JSON string or a
+///         list of dicts, each ``{"label": str, "y_extractor":
+///         MetricExtractor, "x_extractors": [MetricExtractor, ...],
+///         "weight": float, "direction": "higher_is_cheap" |
+///         "higher_is_rich"}``.
 ///
 /// Returns:
-///     Dict with canonical keys ``{"company_id", "composite_score",
-///     "dimensions", "confidence", "peer_count"}``. ``dimensions`` is a
-///     list of dicts with ``label``, ``percentile``, ``z_score``,
-///     ``regression_residual``, ``r_squared``, and ``weight``.
+///     Dict mirroring the Rust ``RelativeValueResult`` serde form:
+///     ``{"company_id", "composite_score", "dimensions", "confidence",
+///     "peer_count"}``, where ``dimensions`` is a list of
+///     ``DimensionScore`` dicts.
 #[pyfunction]
-#[pyo3(text_signature = "(subject_metrics, peer_metrics, dimensions)")]
+#[pyo3(text_signature = "(peer_set, dimensions)")]
 fn score_relative_value<'py>(
     py: Python<'py>,
-    subject_metrics: &Bound<'_, PyDict>,
-    peer_metrics: Vec<Bound<'_, PyDict>>,
-    dimensions: Vec<Bound<'_, PyAny>>,
-) -> PyResult<Bound<'py, PyDict>> {
-    // Build CompanyMetrics for subject + peers.
-    let subject = dict_to_company_metrics("SUBJECT", subject_metrics)?;
-    let mut peers: Vec<CompanyMetrics> = Vec::with_capacity(peer_metrics.len());
-    for (i, pd) in peer_metrics.iter().enumerate() {
-        peers.push(dict_to_company_metrics(&format!("PEER_{i}"), pd)?);
-    }
-
-    let peer_set = PeerSet::new(subject, peers, PeriodBasis::Ltm);
-
-    let scoring_dims: Vec<ScoringDimension> = dimensions
-        .iter()
-        .map(parse_scoring_dimension)
-        .collect::<PyResult<_>>()?;
-
-    let result = core_score(&peer_set, &scoring_dims).map_err(core_to_py)?;
-
-    let out = PyDict::new(py);
-    out.set_item("company_id", result.company_id.as_str())?;
-    out.set_item("composite_score", result.composite_score)?;
-    out.set_item("confidence", result.confidence)?;
-    out.set_item("peer_count", result.peer_count)?;
-
-    let dimensions = PyList::empty(py);
-    for d in &result.dimensions {
-        let dim_dict = PyDict::new(py);
-        dim_dict.set_item("label", &d.label)?;
-        dim_dict.set_item("percentile", d.percentile)?;
-        dim_dict.set_item("z_score", d.z_score)?;
-        dim_dict.set_item("regression_residual", d.regression_residual)?;
-        dim_dict.set_item("r_squared", d.r_squared)?;
-        dim_dict.set_item("weight", d.weight)?;
-        dimensions.append(dim_dict)?;
-    }
-    out.set_item("dimensions", dimensions)?;
-
-    Ok(out)
+    peer_set: &Bound<'py, PyAny>,
+    dimensions: &Bound<'py, PyAny>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let peer_set: PeerSet = extract_serde(py, peer_set, "peer_set")?;
+    let dims: Vec<ScoringDimension> = extract_serde(py, dimensions, "dimensions")?;
+    let result = core_score(&peer_set, &dims).map_err(core_to_py)?;
+    serde_to_py(py, &result)
 }
 
 // Registration

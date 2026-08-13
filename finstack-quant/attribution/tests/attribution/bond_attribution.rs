@@ -183,7 +183,7 @@ fn test_metrics_based_bond_attribution_populates_carry_decomposition() {
     let as_of_t0 = create_date(2025, Month::January, 15).unwrap();
     let as_of_t1 = create_date(2025, Month::January, 16).unwrap();
 
-    let bond = Bond::fixed(
+    let mut bond = Bond::fixed(
         "US-BOND-CARRY",
         Money::new(1_000_000.0, Currency::USD),
         0.05,
@@ -192,8 +192,14 @@ fn test_metrics_based_bond_attribution_populates_carry_decomposition() {
         "USD-OIS",
     )
     .unwrap();
+    // Attach a funding (repo) curve so funding_cost is NON-zero: with
+    // funding_cost = 0 both a `− funding` and a `+ funding` partition
+    // identity pass, hiding a sign error in the test.
+    bond.funding_curve_id = Some(finstack_quant_core::types::CurveId::new("USD-REPO"));
 
-    let market_t0 = MarketContext::new().insert(flat_curve("USD-OIS", as_of_t0, 0.05));
+    let market_t0 = MarketContext::new()
+        .insert(flat_curve("USD-OIS", as_of_t0, 0.05))
+        .insert(flat_curve("USD-REPO", as_of_t0, 0.03));
     let market_t1 = MarketContext::new().insert(flat_curve("USD-OIS", as_of_t1, 0.05));
 
     let metrics = [
@@ -244,12 +250,24 @@ fn test_metrics_based_bond_attribution_populates_carry_decomposition() {
     let roll_down = detail.roll_down.as_ref().unwrap().total.amount();
     let funding_cost = detail.funding_cost.unwrap().amount();
     let total = detail.total.amount();
-    assert!((total - (coupon_income + pull_to_par + roll_down - funding_cost)).abs() < 1e-6);
 
-    // Partition check: populated sub-lines sum to total (no theta field any more).
-    let comp = coupon_income + pull_to_par + roll_down;
+    // Measured 2026-08-12: coupon=0, pull_to_par=140.05, roll_down=−1.98,
+    // funding_cost=82.84, total=55.23 — the identity below only closes with
+    // the correct `−funding_cost` sign.
+    //
+    // The funding leg must actually be exercised: with funding_cost = 0 the
+    // sign of the funding term in the partition below is untestable (the
+    // pre-fix version of this test carried one `−funding` and one `+funding`
+    // identity, both passing on a zero).
     assert!(
-        (comp - total + funding_cost).abs() < 1e-6,
+        funding_cost > 0.0,
+        "funding_cost should be positive with the 3% USD-REPO funding curve, got {funding_cost}"
+    );
+
+    // CarryDetail partition identity (carry_decomposition.rs):
+    //   total = coupon_income + pull_to_par + roll_down − funding_cost
+    assert!(
+        (total - (coupon_income + pull_to_par + roll_down - funding_cost)).abs() < 1e-6,
         "carry lines should partition total: coupon_income({coupon_income}) + pull_to_par({pull_to_par}) + roll_down({roll_down}) - funding_cost({funding_cost}) should = total({total})"
     );
 }

@@ -9,10 +9,15 @@ use finstack_quant_valuations::metrics::MetricId;
 /// Extract per-curve bucketed DV01 sensitivities from ValuationResult measures.
 ///
 /// Bucketed DV01 metrics are stored with composite keys like:
-/// - `"bucketed_dv01::USD-OIS"` for per-curve total DV01
+/// - `"bucketed_dv01::USD-OIS::5y"` per-tenor keys — the shape the
+///   `BucketedDv01` producer actually emits (the per-curve total goes only to
+///   `computed_series`, never to `measures`)
+/// - `"bucketed_dv01::USD-OIS"` for a per-curve total DV01 (accepted for
+///   backward compatibility and preferred when present)
 /// - `"bucketed_dv01"` for the primary curve (if single curve instrument)
 ///
-/// This function parses these keys and returns a mapping of CurveId → DV01.
+/// When the direct per-curve key is absent, the per-curve total is derived by
+/// summing the instrument's per-tenor keys over the standard bucket grid.
 ///
 /// # Arguments
 ///
@@ -26,6 +31,8 @@ pub(super) fn extract_bucketed_dv01_per_curve(
     measures: &indexmap::IndexMap<MetricId, f64>,
     curve_ids: &[CurveId],
 ) -> HashMap<CurveId, f64> {
+    use finstack_quant_valuations::metrics::STANDARD_BUCKET_LABELS;
+
     let mut result = HashMap::default();
 
     // Pattern 1: Explicit per-curve keys "bucketed_dv01::{curve_id}".
@@ -37,6 +44,25 @@ pub(super) fn extract_bucketed_dv01_per_curve(
         key.push_str(curve_id.as_str());
         if let Some(&dv01) = measures.get(key.as_str()) {
             result.insert(curve_id.clone(), dv01);
+            continue;
+        }
+        // Pattern 1b: the producer never emits the direct per-curve key — it
+        // flattens per-tenor keys "bucketed_dv01::{curve}::{label}". Derive
+        // the per-curve total by summing those.
+        key.push_str("::");
+        let prefix_len = key.len();
+        let mut total = 0.0;
+        let mut found = false;
+        for label in STANDARD_BUCKET_LABELS {
+            key.truncate(prefix_len);
+            key.push_str(label);
+            if let Some(&dv01) = measures.get(key.as_str()) {
+                total += dv01;
+                found = true;
+            }
+        }
+        if found {
+            result.insert(curve_id.clone(), total);
         }
     }
 

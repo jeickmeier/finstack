@@ -92,6 +92,11 @@
 //! # Ok(())
 //! # }
 //! ```
+//!
+//! # References
+//!
+//! - Day-count and business-day conventions: `docs/REFERENCES.md#isda-2006-definitions`
+//! - Period notation: `docs/REFERENCES.md#iso-8601`
 
 /// Adaptations for scenario execution across domains.
 pub(crate) mod adapters;

@@ -81,11 +81,13 @@ impl JsDiscountCurve {
     /// `dayCount`.
     /// @param knots - Flat `[t0, df0, t1, df1, …]` array. `t` in years,
     /// `df` strictly positive. Length must be even.
-    /// @param interp - Interpolation style (default `"monotone_convex"`).
-    /// One of `"linear"`, `"log_linear"`, `"monotone_convex"`,
-    /// `"cubic_hermite"`, `"piecewise_quadratic_forward"`.
-    /// @param extrapolation - Extrapolation policy (default
-    /// `"flat_forward"`). One of `"flat_zero"`, `"flat_forward"`, `"nan"`.
+    /// @param interp - Interpolation style. When omitted, the Rust builder
+    /// default (`"monotone_convex"`) applies. One of `"linear"`,
+    /// `"log_linear"`, `"monotone_convex"`, `"cubic_hermite"`,
+    /// `"piecewise_quadratic_forward"`.
+    /// @param extrapolation - Extrapolation policy. When omitted, the Rust
+    /// builder default (`"flat_forward"`) applies. One of `"flat_zero"`,
+    /// `"flat_forward"`, `"nan"`.
     /// @param dayCount - Day-count convention (defaults to curve-ID inference).
     /// @param validationMode - Rust validation preset: `"market_standard"`
     /// (default) or `"negative_rate_friendly"`.
@@ -110,24 +112,18 @@ impl JsDiscountCurve {
         forward_floor: Option<f64>,
     ) -> Result<JsDiscountCurve, JsValue> {
         let base = parse_iso_date(base_date)?;
-        let style = match interp {
-            Some(ref s) => parse_interp_style(s)?,
-            None => InterpStyle::MonotoneConvex,
-        };
-        let extrap = match extrapolation {
-            Some(ref s) => parse_extrapolation(s)?,
-            None => ExtrapolationPolicy::FlatForward,
-        };
         if !knots.len().is_multiple_of(2) {
             return Err(to_js_err("knots array must have even length (t, df pairs)"));
         }
         let pairs: Vec<(f64, f64)> = knots.chunks_exact(2).map(|c| (c[0], c[1])).collect();
 
-        let mut builder = RustDiscountCurve::builder(id)
-            .base_date(base)
-            .knots(pairs)
-            .interp(style)
-            .extrapolation(extrap);
+        let mut builder = RustDiscountCurve::builder(id).base_date(base).knots(pairs);
+        if let Some(ref s) = interp {
+            builder = builder.interp(parse_interp_style(s)?);
+        }
+        if let Some(ref s) = extrapolation {
+            builder = builder.extrapolation(parse_extrapolation(s)?);
+        }
         if let Some(ref s) = day_count {
             builder = builder.day_count(parse_day_count(s)?);
         }
@@ -147,7 +143,7 @@ impl JsDiscountCurve {
     }
 
     /// Construct a flat continuously-compounded discount curve.
-    /// @param id - Stable identifier used to name and retrieve the supplied domain object.
+    /// @param id - Curve identifier stored on the constructed discount curve.
     /// @param base_date - ISO-8601 curve base date from which time coordinates are measured.
     /// @param continuous_rate - Flat continuously compounded zero rate expressed as a decimal.
     ///
@@ -170,13 +166,13 @@ impl JsDiscountCurve {
     }
 
     /// Discount factor at year fraction `t`.
-    /// @param t - Time from the curve base date in years on the documented day-count basis.
+    /// @param t - Time from the curve base date in years.
     pub fn df(&self, t: f64) -> f64 {
         self.inner.df(t)
     }
 
     /// Continuously-compounded zero rate at year fraction `t`.
-    /// @param t - Time from the curve base date in years on the documented day-count basis.
+    /// @param t - Time from the curve base date in years.
     pub fn zero(&self, t: f64) -> f64 {
         self.inner.zero(t)
     }
@@ -280,7 +276,7 @@ impl JsHazardCurve {
     }
 
     /// Survival probability `S(t)` at year fraction `t`.
-    /// @param t - Time from the curve base date in years on the documented day-count basis.
+    /// @param t - Time from the curve base date in years.
     /// @returns The probability of surviving from the base date through `t`, in `[0, 1]`.
     /// This operation does not throw.
     pub fn sp(&self, t: f64) -> f64 {
@@ -288,7 +284,7 @@ impl JsHazardCurve {
     }
 
     /// Instantaneous hazard rate `lambda(t)` at year fraction `t`.
-    /// @param t - Time from the curve base date in years on the documented day-count basis.
+    /// @param t - Time from the curve base date in years.
     /// @returns The annualized default intensity at `t`, expressed as a decimal rate.
     /// This operation does not throw.
     #[wasm_bindgen(js_name = hazardRate)]
@@ -346,18 +342,6 @@ pub struct JsForwardCurve {
 impl JsForwardCurve {
     fn build(options: ForwardCurveOptions) -> Result<JsForwardCurve, JsValue> {
         let base = parse_iso_date(&options.base_date)?;
-        let style = options
-            .interp
-            .as_deref()
-            .map(parse_interp_style)
-            .transpose()?
-            .unwrap_or(InterpStyle::Linear);
-        let extrap = options
-            .extrapolation
-            .as_deref()
-            .map(parse_extrapolation)
-            .transpose()?
-            .unwrap_or(ExtrapolationPolicy::FlatForward);
 
         if !options.knots.len().is_multiple_of(2) {
             return Err(to_js_err(
@@ -373,9 +357,13 @@ impl JsForwardCurve {
         let mut builder = RustForwardCurve::builder(options.id, options.tenor)
             .base_date(base)
             .knots(pairs)
-            .interp(style)
-            .extrapolation(extrap)
             .projection_grid_opt(options.projection_grid);
+        if let Some(interp) = options.interp.as_deref() {
+            builder = builder.interp(parse_interp_style(interp)?);
+        }
+        if let Some(extrapolation) = options.extrapolation.as_deref() {
+            builder = builder.extrapolation(parse_extrapolation(extrapolation)?);
+        }
         if let Some(day_count) = options.day_count.as_deref() {
             builder = builder.day_count(parse_day_count(day_count)?);
         }
@@ -399,8 +387,10 @@ impl JsForwardCurve {
     /// * `baseDate` - ISO date string.
     /// * `knots` - Flat `[t0, rate0, t1, rate1, …]` array.
     /// * `dayCount` - Day-count convention (defaults to curve-ID inference).
-    /// * `interp` - Interpolation style (default ``"linear"``).
-    /// * `extrapolation` - Extrapolation policy (default ``"flat_forward"``).
+    /// * `interp` - Interpolation style. When omitted, the Rust builder
+    ///   default (``"linear"``) applies.
+    /// * `extrapolation` - Extrapolation policy. When omitted, the Rust
+    ///   builder default (``"flat_forward"``) applies.
     /// * `projectionGrid` - Optional contractual reset/end boundaries.
     /// * `resetLag` - Optional fixing-to-spot lag in business days; omit for
     ///   Rust curve-ID inference.
@@ -441,12 +431,12 @@ impl JsForwardCurve {
     }
 
     /// Construct from a named JavaScript options object.
-    /// @param options - JavaScript options object defining the requested curve construction inputs.
+    /// @param options - Named `ForwardCurveOptions` fields used to construct the curve.
     ///
     /// # Errors
     ///
-    /// Throws a JavaScript exception if `options` does not match the documented
-    /// object shape or any contained date, convention, knot, tenor, reset-lag,
+    /// Throws a JavaScript exception if `options` does not match
+    /// `ForwardCurveOptions` or any contained date, convention, knot, tenor, reset-lag,
     /// projection-grid, or interpolation input fails canonical curve validation.
     #[wasm_bindgen(js_name = fromOptions)]
     pub fn from_options(options: JsValue) -> Result<JsForwardCurve, JsValue> {
@@ -455,7 +445,7 @@ impl JsForwardCurve {
     }
 
     /// Forward rate at year fraction `t`.
-    /// @param t - Time from the curve base date in years on the documented day-count basis.
+    /// @param t - Time from the curve base date in years.
     #[wasm_bindgen(js_name = rate)]
     pub fn rate(&self, t: f64) -> f64 {
         self.inner.rate(t)
@@ -546,7 +536,7 @@ impl JsFxConversionPolicy {
     }
 
     /// Parse from a string label such as ``\"cashflow_date\"``.
-    /// @param name - Name supplied to from name; follow the type and convention required by the surrounding API.
+    /// @param name - Policy label: `cashflow_date`, `period_end`, `period_average`, or `custom`.
     ///
     /// # Errors
     ///

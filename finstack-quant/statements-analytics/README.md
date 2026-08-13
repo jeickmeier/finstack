@@ -8,7 +8,8 @@ Analysis, reporting, templates, and runtime extensions on top of `finstack-quant
 |------|-------|
 | Build and evaluate statement models | `finstack-quant-statements` |
 | Scenarios, DCF, covenants, reports, templates, extensions | `finstack-quant-statements-analytics` |
-| Instrument pricing and covenant engines | `finstack-quant-valuations` |
+| Instrument pricing | `finstack-quant-valuations` |
+| Covenant evaluation and forecasting | `finstack-quant-covenants` |
 | Dates, money, curves, core types | `finstack-quant-core` |
 
 ## Quick start
@@ -57,7 +58,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 **Scenarios and variance** — `ScenarioSet` registers named cases with optional parent inheritance and scalar overrides. Use `evaluate_all`, `diff`, `VarianceAnalyzer`, and `SensitivityAnalyzer` for comparisons and sweeps. Statement-model Monte Carlo evaluation lives in `finstack-quant-statements`.
 
-**Credit and covenants** — `compute_credit_context()` derives coverage and leverage from statement results plus capital-structure cashflows. `forecast_breaches()` and `forecast_covenant(s)()` bridge into the `finstack-quant-valuations` covenant engine.
+**Credit and covenants** — `compute_credit_context()` derives coverage and leverage from statement results plus capital-structure cashflows. `forecast_breaches()` and `forecast_covenant(s)()` adapt statement results into `finstack-quant-covenants`.
 
 **Templates** — build-time `ModelBuilder` extensions: `TemplatesExtension` (roll-forward), `VintageExtension` (cohort buildup), `RealEstateExtension` (NOI, NCF, rent roll, property operating statement). Templates add nodes at build time; use `CorkscrewExtension` at runtime to validate roll-forward articulation.
 
@@ -86,8 +87,8 @@ Most types re-export from `finstack_quant_statements_analytics::analysis::*`.
 
 ## Conventions
 
-- Ratios are plain scalars: `2.0` means `2.0x`, `0.40` means `40%`.
-- Percentage inputs use decimal form: `0.10` means `10%`.
+- Ratios (DSCR, coverage, leverage, valuation multiples) are plain scalars: `2.0` means `2.0x`.
+- Percentage-style inputs (WACC, growth) use decimal form: `0.10` means `10%`.
 - `ScenarioDefinition.overrides` maps `node_id → scalar`, broadcast across forecast periods; historical actuals are preserved when the model has an actuals cutoff.
 - On native targets, sensitivity diagonal runs use Rayon.
 
@@ -101,5 +102,6 @@ cargo doc -p finstack-quant-statements-analytics --no-deps
 ## See also
 
 - `finstack-quant/statements/README.md`
+- `finstack-quant/covenants/README.md`
 - `finstack-quant/valuations/README.md`
 - `finstack-quant/core/README.md`

@@ -33,17 +33,22 @@ impl PyInstrumentArtifactCache {
     ///
     /// # Arguments
     ///
-    /// * `capacity` - Maximum retained artifacts. Defaults to 4,096.
+    /// * `capacity` - Maximum retained artifacts. ``None`` falls through to
+    ///   the native `InstrumentArtifactCache::default` bound (currently
+    ///   4,096 entries), matching the WASM constructor.
     ///
     /// # Returns
     ///
     /// A reusable cache with the requested entry bound and a 64 MiB encoded
     /// source-data bound.
     #[new]
-    #[pyo3(signature = (capacity = 4096))]
-    fn new(capacity: usize) -> Self {
+    #[pyo3(signature = (capacity = None))]
+    fn new(capacity: Option<usize>) -> Self {
         Self {
-            inner: Arc::new(InstrumentArtifactCache::with_capacity(capacity)),
+            inner: Arc::new(capacity.map_or_else(
+                InstrumentArtifactCache::default,
+                InstrumentArtifactCache::with_capacity,
+            )),
         }
     }
 
@@ -279,6 +284,59 @@ impl PyPortfolio {
             PyPortfolio::from_inner(portfolio),
             PyMaterializationReport::from_inner(report),
         ))
+    }
+
+    /// Strictly validate a materialization bundle without building a portfolio.
+    ///
+    /// Twin of the WASM ``Portfolio.validateMaterializationJson``: contract
+    /// diagnostics are *returned* rather than raised, so ingestion-form
+    /// callers get structured feedback without exception handling.
+    ///
+    /// # Arguments
+    ///
+    /// * `bundle` - Complete UTF-8 materialization JSON supplied as ``str``,
+    ///   ``bytes``, or ``bytearray``.
+    /// * `cache` - Optional reusable artifact cache. When omitted, an
+    ///   ephemeral bounded cache is used for this call.
+    ///
+    /// # Returns
+    ///
+    /// On success, a :class:`MaterializationReport` whose ``build_positions``
+    /// and ``index_build`` phase counters are always zero (those phases are
+    /// outside this API). When validation finds contract errors, a ``dict``
+    /// with ``diagnostics`` (list of diagnostic dicts) and ``truncated``
+    /// (bool) mirroring the WASM ``ValidationReport`` shape.
+    ///
+    /// # Errors
+    ///
+    /// Returns ``TypeError`` for unsupported Python input types,
+    /// ``ContractLimitExceededError`` for resource-limit failures, and the
+    /// documented portfolio exceptions for other native failures.
+    #[staticmethod]
+    #[pyo3(signature = (bundle, cache = None))]
+    fn validate_materialization(
+        py: Python<'_>,
+        bundle: &Bound<'_, PyAny>,
+        cache: Option<&PyInstrumentArtifactCache>,
+    ) -> PyResult<Py<PyAny>> {
+        let bytes = extract_bundle_bytes(bundle)?;
+        let cache = cache
+            .map(|value| Arc::clone(&value.inner))
+            .unwrap_or_else(|| Arc::new(InstrumentArtifactCache::new()));
+        let limits = LoadLimits::default();
+        match py.detach(move || RustPortfolio::validate_materialization(&bytes, &cache, &limits)) {
+            Ok(report) => Ok(PyMaterializationReport::from_inner(report)
+                .into_pyobject(py)?
+                .into_any()
+                .unbind()),
+            Err(finstack_quant_portfolio::Error::MaterializationFailed(report)) => {
+                let out = PyDict::new(py);
+                out.set_item("diagnostics", diagnostics_to_py(py, &report)?)?;
+                out.set_item("truncated", report.truncated)?;
+                Ok(out.into_any().unbind())
+            }
+            Err(error) => Err(materialization_to_py(py, error)),
+        }
     }
 }
 

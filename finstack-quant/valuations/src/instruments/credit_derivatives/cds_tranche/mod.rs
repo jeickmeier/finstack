@@ -64,16 +64,16 @@
 //! # References
 //!
 //! - Li, D. X. (2000). "On Default Correlation: A Copula Function Approach."
-//!   *Journal of Fixed Income*, 9(4), 43-54.
+//!   *Journal of Fixed Income*, 9(4), 43-54. `docs/REFERENCES.md#li-2000-gaussian-copula`
 //!
 //! - Andersen, L., & Sidenius, J. (2005). "Extensions to the Gaussian Copula:
-//!   Random Recovery and Random Factor Loadings." *Journal of Credit Risk*.
+//!   Random Recovery and Random Factor Loadings." *Journal of Credit Risk*. `docs/REFERENCES.md#li-2000-gaussian-copula` `docs/REFERENCES.md#andersen-sidenius-2005-rfl`
 //!
 //! - Laurent, J.-P., & Gregory, J. (2005). "Basket Default Swaps, CDOs and
-//!   Factor Copulas." *Journal of Risk*, 7(4), 103-122.
+//!   Factor Copulas." *Journal of Risk*, 7(4), 103-122. `docs/REFERENCES.md#laurent-gregory-2005-factor-copulas`
 //!
 //! - O'Kane, D. (2008). *Modelling Single-name and Multi-name Credit Derivatives*.
-//!   Wiley Finance. Chapter 9: Synthetic CDO Valuation.
+//!   Wiley Finance. Chapter 9: Synthetic CDO Valuation. `docs/REFERENCES.md#o-kane-2008`
 //!
 //! # See Also
 //!

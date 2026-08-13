@@ -49,8 +49,8 @@
 //!
 //! # References
 //!
-//! - Random recovery and random-factor-loading extensions:
-//!   `docs/REFERENCES.md#andersen-sidenius-2005-rfl`
+//! - Random recovery and random-factor-loading extensions: `docs/REFERENCES.md#andersen-sidenius-2005-rfl`
+//!
 
 use super::{select_quadrature, Copula, DEFAULT_QUADRATURE_ORDER};
 use finstack_quant_core::math::{norm_cdf, standard_normal_inv_cdf, GaussHermiteQuadrature};

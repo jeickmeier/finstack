@@ -249,6 +249,19 @@ fn collect_in_logical_order<T>(results: Vec<Result<T>>) -> Result<Vec<T>> {
     Ok(values)
 }
 
+/// Value one position under the evaluation profile's metric and risk policy.
+///
+/// The returned `(risk_metrics_complete, risk_error)` pair distinguishes two
+/// different fallbacks:
+///
+/// - **Metrics fallback** (metrics were requested and failed):
+///   `risk_metrics_complete = false` and `risk_error = Some(..)`. The position
+///   is degraded and is reported on
+///   [`PortfolioValuation::degraded_positions`](crate::valuation::PortfolioValuation::degraded_positions).
+/// - **PV-only fallback** (no metrics were requested and the canonical pricer
+///   failed): `risk_metrics_complete = true` — nothing risk-related is
+///   missing — but `risk_error = Some(..)` records the canonical pricing
+///   failure so the switch of pricing path is auditable.
 fn value_position(input: &EvaluationInput<'_>, position: &Position) -> Result<PositionValue> {
     let (valuation_result, risk_metrics_complete, risk_error) = match &input.profile.metrics {
         EvaluationMetricProfile::PvOnly => match position.instrument.price_with_metrics(
@@ -276,6 +289,11 @@ fn value_position(input: &EvaluationInput<'_>, position: &Position) -> Result<Po
                             position.instrument.id()
                         ),
                     })?;
+                // No metrics were requested, so nothing risk-related is
+                // missing and the position is not degraded. The position did,
+                // however, silently switch pricing paths: record the
+                // canonical pricing failure so the fallback is auditable
+                // rather than invisible.
                 (
                     ValuationResult::stamped_with_config(
                         position.instrument.id(),
@@ -284,7 +302,7 @@ fn value_position(input: &EvaluationInput<'_>, position: &Position) -> Result<Po
                         input.config,
                     ),
                     true,
-                    None,
+                    Some(pricing_error.to_string()),
                 )
             }
         },

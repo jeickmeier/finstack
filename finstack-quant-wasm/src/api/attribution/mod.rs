@@ -34,7 +34,7 @@ impl JsAttributionParams {
     /// Bundle the attribution inputs (instrument / markets / dates / method
     /// JSON strings plus optional config and full-cross flag) for
     /// `attributePnl`.
-    /// @param instrument_json - Canonical JSON payload representing the instrument consumed by this API.
+    /// @param instrument_json - Canonical instrument envelope JSON in the Finstack v1 schema.
     /// @param market_t0_json - Canonical MarketContext JSON at the attribution start date.
     /// @param market_t1_json - Canonical MarketContext JSON at the attribution end date.
     /// @param as_of_t0 - ISO-8601 valuation date for the start market snapshot.
@@ -144,28 +144,20 @@ fn catch_attribution_panic<T>(
     }
 }
 
-/// Run P&L attribution for a single instrument.
+/// Parse, execute, and panic-contain one attribution request.
 ///
-/// Accepts a [`JsAttributionParams`] struct with the instrument JSON, two market
-/// snapshots, dates, and a method descriptor. Returns the `PnlAttribution`
-/// result as JSON. `config_json` may include `"execution_policy": "serial"`
-/// for hosts that already parallelize attribution at a higher level.
-///
-/// # Errors
-///
-/// Rejects malformed instrument, market, method, or configuration JSON;
-/// invalid ISO attribution dates; instrument or market reconstruction,
-/// pricing, FX, rounding, metric, or method-specific attribution failures; a
-/// caught attribution panic; or failure to serialize the result.
-/// @param params - Fully specified AttributionParams object containing instrument, markets, dates, and method.
-#[wasm_bindgen(js_name = attributePnl)]
-pub fn attribute_pnl(params: &JsAttributionParams) -> Result<String, JsValue> {
+/// Shared by [`attribute_pnl`] and [`attribute_pnl_json`], which differ only
+/// in how they hand the `PnlAttribution` back across the boundary.
+fn run_attribute_pnl(
+    label: &str,
+    params: &JsAttributionParams,
+) -> Result<finstack_quant_attribution::AttributionResult, JsValue> {
     // MI3 defense in depth: wrap input-parsing as well. `from_json_inputs`
     // funnels through serde + downstream constructors that should not panic,
     // but a deeply malformed payload could in principle. An uncaught unwind
     // at the wasm boundary aborts the whole module instance, killing every
     // subsequent call from the JS host.
-    let mut spec = catch_attribution_panic("attributePnl/from_json_inputs", || {
+    let mut spec = catch_attribution_panic(&format!("{label}/from_json_inputs"), || {
         finstack_quant_attribution::AttributionSpec::from_json_inputs(
             &params.instrument_json,
             &params.market_t0_json,
@@ -179,7 +171,47 @@ pub fn attribute_pnl(params: &JsAttributionParams) -> Result<String, JsValue> {
     if let Some(val) = params.full_cross_attribution {
         spec.full_cross_attribution = val;
     }
-    let result = catch_attribution_panic("attributePnl", || spec.execute())?;
+    catch_attribution_panic(label, || spec.execute())
+}
+
+/// Run P&L attribution for a single instrument.
+///
+/// Accepts a [`JsAttributionParams`] struct with the instrument JSON, two market
+/// snapshots, dates, and a method descriptor. Returns the `PnlAttribution`
+/// result as a structured JavaScript object whose fields carry the canonical
+/// Rust serde names (`total_pnl.amount`, `carry`, `meta`, ...); use
+/// [`attribute_pnl_json`] for the JSON wire string. `config_json` may include
+/// `"execution_policy": "serial"` for hosts that already parallelize
+/// attribution at a higher level.
+///
+/// # Errors
+///
+/// Rejects malformed instrument, market, method, or configuration JSON;
+/// invalid ISO attribution dates; instrument or market reconstruction,
+/// pricing, FX, rounding, metric, or method-specific attribution failures; a
+/// caught attribution panic; or failure to convert the result to a
+/// JavaScript value.
+/// @param params - Fully specified AttributionParams object containing instrument, markets, dates, and method.
+#[wasm_bindgen(js_name = attributePnl)]
+pub fn attribute_pnl(params: &JsAttributionParams) -> Result<JsValue, JsValue> {
+    let result = run_attribute_pnl("attributePnl", params)?;
+    crate::utils::to_js_value(&result.attribution)
+}
+
+/// Run P&L attribution for a single instrument and return wire JSON.
+///
+/// Wire twin of [`attribute_pnl`]: same inputs, validation, and panic
+/// containment, returning the `PnlAttribution` as a JSON string instead of a
+/// structured object.
+///
+/// # Errors
+///
+/// Rejects the same conditions as [`attribute_pnl`], plus failure to
+/// serialize the result to JSON.
+/// @param params - Fully specified AttributionParams object containing instrument, markets, dates, and method.
+#[wasm_bindgen(js_name = attributePnlJson)]
+pub fn attribute_pnl_json(params: &JsAttributionParams) -> Result<String, JsValue> {
+    let result = run_attribute_pnl("attributePnlJson", params)?;
     serde_json::to_string(&result.attribution).map_err(to_js_err)
 }
 
@@ -230,9 +262,7 @@ pub fn attribute_pnl_from_spec(spec_json: &str) -> Result<String, JsValue> {
 /// @param json - Canonical JSON string defining the object to deserialize or normalize.
 #[wasm_bindgen(js_name = validateAttributionJson)]
 pub fn validate_attribution_json(json: &str) -> Result<String, JsValue> {
-    let envelope: finstack_quant_attribution::AttributionEnvelope =
-        serde_json::from_str(json).map_err(to_js_err)?;
-    serde_json::to_string(&envelope).map_err(to_js_err)
+    finstack_quant_attribution::validate_attribution_json(json).map_err(to_js_err)
 }
 
 /// Return the default waterfall factor ordering as canonical snake-case values.

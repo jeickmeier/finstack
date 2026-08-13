@@ -564,18 +564,21 @@ impl PyVarianceReport {
 }
 
 /// Typed evaluated results for a set of named scenarios.
+///
+/// Named after the canonical Rust type
+/// (`finstack_quant_statements_analytics::analysis::ScenarioResults`).
 #[pyclass(
-    name = "ScenarioResultSet",
+    name = "ScenarioResults",
     module = "finstack_quant.statements_analytics",
     from_py_object
 )]
 #[derive(Clone)]
-pub struct PyScenarioResultSet {
+pub struct PyScenarioResults {
     pub(crate) inner: ScenarioResults,
 }
 
 #[pymethods]
-impl PyScenarioResultSet {
+impl PyScenarioResults {
     /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
     ///
     /// Reconstruction goes through the same strict serde round-trip as
@@ -671,7 +674,7 @@ impl PyScenarioResultSet {
     }
 }
 
-impl PyScenarioResultSet {
+impl PyScenarioResults {
     /// Build the canonical comparison table shared by `to_comparison_table`
     /// and `to_dataframe`.
     fn comparison_table(
@@ -914,7 +917,7 @@ pub fn register(_py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PySensitivityResult>()?;
     module.add_class::<PyVarianceRow>()?;
     module.add_class::<PyVarianceReport>()?;
-    module.add_class::<PyScenarioResultSet>()?;
+    module.add_class::<PyScenarioResults>()?;
     module.add_class::<PyScenarioDiff>()?;
     module.add_class::<PyBridgeStep>()?;
     module.add_class::<PyBridgeChart>()?;

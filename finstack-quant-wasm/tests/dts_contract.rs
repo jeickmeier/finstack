@@ -379,7 +379,51 @@ fn scenarios_dts_matches_json_bridge_surface() {
         &dts,
         "computeHorizonReturn(instrumentJson: string, marketJson: string, asOf: string, scenarioJson: string, method?: string, configJson?: string, calendarId?: string): Record<string, unknown>;",
     ));
+    // `priority` mirrors the Rust serde default (0) and the Python keyword
+    // default, so it must stay optional.
+    assert!(contains_ignoring_ws(
+        &dts,
+        "buildScenarioSpec(id: string, operationsJson: string, name?: string, description?: string, priority?: number, resolutionMode?: 'most_specific_wins' | 'cumulative'): string;",
+    ));
     assert!(dts.contains("export declare const scenarios: ScenariosNamespace;"));
+}
+
+/// The `Portfolio` handle getter is `baseCurrency` (full-word camelCase,
+/// matching Python `base_currency`); the historical `baseCcy` spelling was
+/// intentionally removed and must not resurface in the declarations.
+#[test]
+fn portfolio_dts_uses_full_word_base_currency() {
+    let dts = index_dts();
+
+    assert!(contains_ignoring_ws(&dts, "readonly baseCurrency: string;"));
+    assert!(!dts.contains("baseCcy"));
+}
+
+/// Python-parity optional parameters on the portfolio risk entry points:
+/// `metrics` on the valuation pair, `computeIncremental` on the parametric
+/// VaR decomposition, and the Rust-defaulted `utilizationThreshold`.
+#[test]
+fn portfolio_dts_pins_python_parity_optional_parameters() {
+    let dts = index_dts();
+
+    assert!(contains_ignoring_ws(
+        &dts,
+        "valuePortfolio(specJson: string, marketJson: string, strictRisk: boolean, metrics?: string[]): Record<string, unknown>;",
+    ));
+    assert!(contains_ignoring_ws(
+        &dts,
+        "valuePortfolioBuilt(portfolio: Portfolio, marketJson: string, strictRisk: boolean, metrics?: string[]): Record<string, unknown>;",
+    ));
+    assert!(contains_ignoring_ws(
+        &dts,
+        "parametricVarDecomposition(positionIdsJson: string, weightsJson: string, covarianceJson: string, confidence: number, computeIncremental?: boolean): VarDecompositionResult;",
+    ));
+    assert!(contains_ignoring_ws(
+        &dts,
+        "evaluateRiskBudget(positionIdsJson: string, actualVarJson: string, targetVarPctJson: string, portfolioVar: number, utilizationThreshold?: number): RiskBudgetResult;",
+    ));
+    // The impact view gained the previously-dropped `execution_risk` field.
+    assert!(contains_ignoring_ws(&dts, "execution_risk: number;"));
 }
 
 /// `index.d.ts` is hand-maintained, so nothing else stops a declaration from
@@ -612,6 +656,12 @@ fn statements_analytics_dts_matches_runtime_exports() {
         "creditAssessment(resultsJson: string, asOf: string): Record<string, unknown>;",
     ));
     assert!(dts.contains("export interface DcfSensitivityResult"));
+    // dcfSensitivity carries the same optional mid-year-convention and market
+    // parameters as the Python twin (contracted 1:1 in parity_contract.toml).
+    assert!(contains_ignoring_ws(
+        &dts,
+        "dcfSensitivity(modelJson: string, wacc: number, terminalValueJson: string, ufcfNode: string, netDebtOverride?: number | null, waccSensitivityBump?: number | null, waccDenominatorEpsilon?: number | null, exitMultipleBump?: number | null, midYearConvention?: boolean | null, marketJson?: string | null): DcfSensitivityResult;",
+    ));
     assert!(dts.contains("export interface LboResult"));
     // Report renderers and the tornado helper stay JSON/text strings.
     assert!(contains_ignoring_ws(
@@ -879,7 +929,9 @@ fn attribution_dts_matches_json_pipeline_surface() {
     let dts = index_dts();
 
     assert!(dts.contains("export interface AttributionNamespace"));
-    assert!(dts.contains("attributePnl(params: AttributionParams): string;"));
+    assert!(dts.contains("export interface PnlAttribution"));
+    assert!(dts.contains("attributePnl(params: AttributionParams): PnlAttribution;"));
+    assert!(dts.contains("attributePnlJson(params: AttributionParams): string;"));
     assert!(dts.contains("AttributionParams: new ("));
     assert!(dts.contains("attributePnlFromSpec(specJson: string): string;"));
     assert!(dts.contains("validateAttributionJson(json: string): string;"));

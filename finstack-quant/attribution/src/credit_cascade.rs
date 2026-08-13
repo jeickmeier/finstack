@@ -54,6 +54,22 @@ use finstack_quant_valuations::instruments::Instrument;
 /// hierarchy decomposition could not explain.
 pub(crate) const ADDER_MAGNITUDE_WARN_RATIO: f64 = 0.05;
 
+/// Audit Mo3: minimum factor-series/par-spread scale ratio treated as a unit
+/// mismatch. Scalar factor series ([`MarketScalar::Unitless`]) are consumed
+/// directly as basis points; a percent-quoted series (e.g. `3.25` → `3.50`
+/// meaning 25bp) under-reads its move 100× and the idiosyncratic adder
+/// silently absorbs the difference. When a nonzero factor move is at least
+/// this many times smaller than the nonzero par-spread move it is meant to
+/// explain, a loud diagnostic is surfaced.
+///
+/// This is a warning, not a hard `Error::Validation`: a genuine idiosyncratic
+/// blowout on a quiet index day (series Δ ≈ 0.2bp while the issuer gaps 25bp)
+/// is numerically indistinguishable from a unit mismatch, so refusing to run
+/// would reject correct attributions. The note lands in the cascade's
+/// `warnings` (routed to `meta.notes` on the linear wire) alongside a
+/// `tracing::warn!`.
+pub(crate) const FACTOR_UNIT_MISMATCH_RATIO: f64 = 99.0;
+
 /// What kind of cascade step a single bump represents.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CreditStepKind {
@@ -106,6 +122,10 @@ pub(crate) struct CreditCascade {
     /// Level names (one per hierarchy dimension), used to build
     /// `LevelPnl.level_name` and as parallel-factor labels.
     pub level_names: Vec<String>,
+    /// Diagnostics collected while planning (currently the unit-coherence
+    /// guard, [`FACTOR_UNIT_MISMATCH_RATIO`]). Callers on the linear wire
+    /// merge these into `meta.notes`.
+    pub warnings: Vec<String>,
 }
 
 /// Human-readable name for a credit hierarchy dimension.
@@ -294,6 +314,42 @@ pub(crate) fn plan_credit_cascade(
         .or_else(|| factor_move_bp(CREDIT_GENERIC_FACTOR_ID, market_t0, market_t1));
     let has_scalar_factor_moves =
         generic_move.is_some() || scalar_level_moves.iter().any(|(_, m)| m.is_some());
+
+    // Audit Mo3 unit-coherence guard: scalar series are consumed as bp with
+    // no unit tag, so a percent-quoted series silently under-reads its factor
+    // move ~100× and the adder absorbs the residual. Flag any observed
+    // nonzero factor move that is ≥ FACTOR_UNIT_MISMATCH_RATIO× smaller than
+    // the nonzero par-spread move it should explain. Surfaced as a loud note
+    // + tracing::warn rather than a hard error — see the constant's docs for
+    // why refusing outright would reject genuine idiosyncratic blowouts.
+    let mut warnings: Vec<String> = Vec::new();
+    {
+        let mut check_unit_coherence = |factor_id: &str, move_bp: Option<f64>| {
+            let Some(mv) = move_bp else { return };
+            if mv != 0.0 && ds_i != 0.0 && mv.abs() * FACTOR_UNIT_MISMATCH_RATIO <= ds_i.abs() {
+                let msg = format!(
+                    "credit factor series '{factor_id}' moved {mv:.6} while issuer \
+                     '{issuer_id}' par spread moved {ds_i:.4}bp — a ≥{FACTOR_UNIT_MISMATCH_RATIO:.0}× \
+                     scale mismatch. Factor series are consumed as basis points; a percent- \
+                     or decimal-quoted series under-reads its move and the idiosyncratic \
+                     adder silently absorbs the difference. Verify the series' units \
+                     (or accept if the issuer move is genuinely idiosyncratic)."
+                );
+                tracing::warn!(
+                    factor_id,
+                    factor_move = mv,
+                    par_spread_move_bp = ds_i,
+                    threshold = FACTOR_UNIT_MISMATCH_RATIO,
+                    "credit cascade factor-series/par-spread unit scale mismatch"
+                );
+                warnings.push(msg);
+            }
+        };
+        check_unit_coherence(&model.generic_factor.series_id, generic_move);
+        for (factor_id, move_bp) in &scalar_level_moves {
+            check_unit_coherence(factor_id, *move_bp);
+        }
+    }
     if has_scalar_factor_moves {
         let mut steps: Vec<CreditCascadeStep> =
             Vec::with_capacity(model.hierarchy.levels.len() + 2);
@@ -375,6 +431,7 @@ pub(crate) fn plan_credit_cascade(
             discount_curve_id,
             steps,
             level_names,
+            warnings,
         }));
     }
 
@@ -420,6 +477,7 @@ pub(crate) fn plan_credit_cascade(
         discount_curve_id,
         steps,
         level_names,
+        warnings,
     }))
 }
 
@@ -493,17 +551,27 @@ pub(crate) fn shift_credit_curves_par_spread(
 /// cascade's par-spread `delta_bp` and the applied bump unit-consistent — a
 /// direct `par_spread_bp` hazard bump would understate the move by the LGD
 /// factor and leak `(1 − LGD)·credit_pnl` into `curve_shape`.
+///
+/// **Zero LGD** (audit Mi2): `recovery == 1.0` means the credit leg has no
+/// PV sensitivity to hazard — no hazard-rate bump reproduces a par-spread
+/// move, and the former `hazard_bp = par_spread_bp` identity fallback was an
+/// arbitrary bump. The curve is returned unchanged with a `tracing::warn!`.
 fn bump_hazard_for_par_spread_move(
     hazard: &finstack_quant_core::market_data::term_structures::HazardCurve,
     par_spread_bp: f64,
 ) -> Result<finstack_quant_core::market_data::term_structures::HazardCurve> {
     let lgd = 1.0 - hazard.recovery_rate();
-    let hazard_bp = if lgd.abs() > 1e-12 {
-        par_spread_bp / lgd
-    } else {
-        par_spread_bp
-    };
-    bump_hazard_shift(hazard, &BumpRequest::Parallel(hazard_bp))
+    if lgd.abs() <= 1e-12 {
+        tracing::warn!(
+            recovery_rate = hazard.recovery_rate(),
+            par_spread_bp,
+            "zero-LGD hazard curve: a par-spread bump has no hazard-rate \
+             equivalent (credit leg carries no PV sensitivity); returning the \
+             curve unchanged"
+        );
+        return Ok(hazard.clone());
+    }
+    bump_hazard_shift(hazard, &BumpRequest::Parallel(par_spread_bp / lgd))
 }
 
 /// Replace the running market's hazard curves (for `curve_ids`) with the T1
@@ -870,6 +938,108 @@ mod tests {
         assert!(
             (deltas[4]).abs() < 1e-10,
             "curve_shape carries no bp value (it is a snap step)"
+        );
+    }
+
+    /// Audit Mo3: a percent-quoted factor series (3.25 → 3.50, i.e. Δ = 0.25
+    /// "percent" intended as 25bp) consumed as bp explains only 0.25bp of a
+    /// 25bp spread move — a 100× unit under-read the adder silently absorbs.
+    /// The cascade must surface a loud diagnostic when the factor series'
+    /// scale is ≥ ~100× smaller than the par-spread move it explains.
+    #[test]
+    fn credit_cascade_flags_unit_scale_mismatch_for_percent_quoted_factor() {
+        let as_of_t0 = create_date(2025, Month::January, 1).unwrap();
+        let as_of_t1 = create_date(2025, Month::January, 2).unwrap();
+        let curve_id = CurveId::new("ISSUER-B-HAZ");
+        let model = make_model();
+        let instrument = canonical_credit_bond(curve_id.clone());
+        // Hazard 1.00% → 1.25% at recovery 0 → ΔS = 25bp par spread.
+        let market_t0 = MarketContext::new()
+            .insert(hazard(curve_id.as_str(), as_of_t0, 0.0100))
+            .insert_price("cdx.hy.5y", MarketScalar::Unitless(3.25));
+        let market_t1 = MarketContext::new()
+            .insert(hazard(curve_id.as_str(), as_of_t1, 0.0125))
+            .insert_price("cdx.hy.5y", MarketScalar::Unitless(3.50));
+
+        let cascade = plan_credit_cascade(
+            &model,
+            &instrument,
+            &market_t0,
+            &market_t1,
+            as_of_t0,
+            as_of_t1,
+        )
+        .unwrap()
+        .expect("cascade");
+
+        assert!(
+            cascade
+                .warnings
+                .iter()
+                .any(|w| w.contains("scale mismatch")),
+            "a ≥100× factor-series/spread scale mismatch must produce a loud \
+             warning, got warnings = {:?}",
+            cascade.warnings
+        );
+    }
+
+    /// The unit guard must NOT fire when the factor series is genuinely
+    /// bp-quoted and of comparable magnitude to the spread move.
+    #[test]
+    fn credit_cascade_does_not_flag_bp_quoted_factor_series() {
+        let as_of_t0 = create_date(2025, Month::January, 1).unwrap();
+        let as_of_t1 = create_date(2025, Month::January, 2).unwrap();
+        let curve_id = CurveId::new("ISSUER-B-HAZ");
+        let model = make_model();
+        let instrument = canonical_credit_bond(curve_id.clone());
+        let market_t0 = MarketContext::new()
+            .insert(hazard(curve_id.as_str(), as_of_t0, 0.0100))
+            .insert_price("cdx.hy.5y", MarketScalar::Unitless(100.0));
+        let market_t1 = MarketContext::new()
+            .insert(hazard(curve_id.as_str(), as_of_t1, 0.0125))
+            .insert_price("cdx.hy.5y", MarketScalar::Unitless(125.0));
+
+        let cascade = plan_credit_cascade(
+            &model,
+            &instrument,
+            &market_t0,
+            &market_t1,
+            as_of_t0,
+            as_of_t1,
+        )
+        .unwrap()
+        .expect("cascade");
+
+        assert!(
+            cascade.warnings.is_empty(),
+            "bp-quoted series of comparable magnitude must not be flagged, \
+             got warnings = {:?}",
+            cascade.warnings
+        );
+    }
+
+    /// Audit Mi2: recovery == 1.0 means LGD = 0 — the credit leg has no PV
+    /// sensitivity to hazard, so no hazard-rate bump can reproduce a par
+    /// spread move. The fallback must leave the curve unchanged (identity)
+    /// instead of applying an arbitrary `hazard_bp = par_spread_bp` bump.
+    #[test]
+    fn zero_lgd_par_spread_fallback_leaves_curve_unchanged() {
+        let as_of = create_date(2025, Month::January, 1).unwrap();
+        let curve = HazardCurve::builder("ZERO-LGD")
+            .base_date(as_of)
+            .recovery_rate(1.0)
+            .knots([(1.0, 0.02), (5.0, 0.02)])
+            .build()
+            .unwrap();
+
+        let bumped =
+            bump_hazard_for_par_spread_move(&curve, 25.0).expect("zero-LGD fallback must succeed");
+
+        assert!(
+            (bumped.hazard_rate(2.0) - curve.hazard_rate(2.0)).abs() < 1e-15,
+            "zero-LGD curve must be returned unchanged, got hazard {} vs {}",
+            bumped.hazard_rate(2.0),
+            curve.hazard_rate(2.0)
         );
     }
 

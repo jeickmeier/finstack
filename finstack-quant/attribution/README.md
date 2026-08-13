@@ -90,82 +90,14 @@ use finstack_quant_attribution::{
 
 ## Quick start
 
-### Parallel attribution
+A runnable parallel-attribution example, plus sign / carry / residual
+conventions, lives in the crate rustdoc
+(`cargo doc -p finstack-quant-attribution --open`).
 
-```rust,ignore
-use finstack_quant_attribution::{attribute_pnl_parallel, ExecutionPolicy};
-use finstack_quant_core::config::FinstackConfig;
-
-let attribution = attribute_pnl_parallel(
-    &instrument,
-    &market_t0,
-    &market_t1,
-    as_of_t0,
-    as_of_t1,
-    &FinstackConfig::default(),
-    ExecutionPolicy::Parallel,
-)?;
-
-println!("Total P&L:  {}", attribution.total_pnl);
-println!("Carry:      {}", attribution.carry);
-println!("Rates:      {}", attribution.rates_curves_pnl);
-println!("Credit:     {}", attribution.credit_curves_pnl);
-println!("FX:         {}", attribution.fx_pnl);
-println!("Residual:   {} ({:.2}%)", attribution.residual, attribution.meta.residual_pct);
-
-assert!(attribution.residual_within_meta_tolerance());
-```
-
-### Waterfall attribution
-
-```rust,ignore
-use finstack_quant_attribution::{attribute_pnl_waterfall, default_waterfall_order};
-
-let attribution = attribute_pnl_waterfall(
-    &instrument,
-    &market_t0,
-    &market_t1,
-    as_of_t0,
-    as_of_t1,
-    &FinstackConfig::default(),
-    default_waterfall_order(),
-    false, // strict_validation
-    None,  // optional ModelParamsSnapshot at T₀
-)?;
-
-assert!(attribution.residual_within_tolerance(0.01, 1.0));
-```
-
-### Metrics-based attribution
-
-Requires `ValuationResult`s priced at both dates with the metrics in
-[`default_attribution_metrics`](src/spec.rs) (or your own subset).
-
-```rust,ignore
-use finstack_quant_attribution::{attribute_pnl_metrics_based, default_attribution_metrics};
-use finstack_quant_valuations::instruments::PricingOptions;
-
-let metrics = default_attribution_metrics();
-let val_t0 = instrument.price_with_metrics(&market_t0, as_of_t0, &metrics, PricingOptions::default())?;
-let val_t1 = instrument.price_with_metrics(&market_t1, as_of_t1, &metrics, PricingOptions::default())?;
-
-let attribution = attribute_pnl_metrics_based(
-    &instrument, &market_t0, &market_t1, &val_t0, &val_t1, as_of_t0, as_of_t1,
-)?;
-```
-
-### Per-tenor curve detail
-
-When parallel or waterfall runs request curve detail, the optional `rates_detail`
-field exposes per-`(curve_id, tenor)` P&L:
-
-```rust,ignore
-if let Some(rates) = &attribution.rates_detail {
-    for ((curve_id, tenor), pnl) in &rates.by_tenor {
-        println!("{curve_id} {tenor}: {pnl}");
-    }
-}
-```
+Metrics-based attribution needs `ValuationResult`s priced at both dates with
+the metrics in [`default_attribution_metrics`](src/spec.rs) (or a caller-chosen
+subset). When parallel or waterfall runs request curve detail, optional
+`rates_detail` exposes per-`(curve_id, tenor)` P&L.
 
 ## JSON specification
 
@@ -206,28 +138,8 @@ the Python and WASM layers. Schemas live under `schemas/attribution/1/`.
 | `compute_credit_factor_attribution`, `CreditAttributionInput`, `CreditFactorDetailOptions`, `credit_factor_model_id` | `credit_factor` | Calibrated credit-factor decomposition of `credit_curves_pnl`; the model type is `finstack_quant_factor_model::credit::hierarchy::CreditFactorModel` |
 | `AttributionEnvelope`, `AttributionSpec`, `AttributionConfig`, `AttributionResult`, `AttributionResultEnvelope`, `ATTRIBUTION_SCHEMA_V1`, `default_attribution_metrics` | `spec` | JSON contract |
 
-## Conventions
-
-- **Sign convention**: positive `PnlAttribution.total_pnl` is a gain to the
-  long-position holder. Each factor P&L follows the same sign.
-- **Currency**: every P&L term is `Money` in a single reporting currency.
-  Date-specific FX conversion uses `market_t0` for the T₀ value and `market_t1`
-  for the T₁ value when `compute_pnl_with_fx` is used.
-- **Carry definition**: `carry = value(T₁ market, T₁ date) − value(T₁ market, T₀ date)`
-  in parallel/waterfall runs; metrics-based carry uses theta × Δt.
-- **Curve moves** are applied as full-snapshot replacements, not parametric
-  shocks. "Parallel"/"per-tenor" labels refer to the *reporting* granularity,
-  not the shape of the underlying market move.
-- **Residual interpretation**:
-  - Waterfall residuals should be ≤ ~0.01% of total P&L; persistent larger
-    residuals indicate a factor not represented in the chosen order.
-  - Parallel residuals capture genuine cross-effects (e.g. rates × FX) and can
-    legitimately reach a few percent on large multi-factor moves.
-  - Metrics-based residuals scale with the size of the market move and
-    instrument convexity.
-- **Validation**: `PnlAttribution::residual_within_tolerance(abs, pct)` and
-  `residual_within_meta_tolerance()` compare residual against `AttributionMeta`
-  thresholds populated from `FinstackConfig`.
+Sign, carry, currency, and residual conventions are documented in the crate
+rustdoc.
 
 ## Numerical behavior
 

@@ -14,8 +14,8 @@
 //!
 //! # References
 //!
-//! - Li, D. X. (2000). "On Default Correlation: A Copula Function Approach."
-//! - Duffie, D., & Singleton, K. J. (1999). "Modeling Term Structures of Defaultable Bonds."
+//! - Li, D. X. (2000). "On Default Correlation: A Copula Function Approach." `docs/REFERENCES.md#li-2000-gaussian-copula`
+//! - Duffie, D., & Singleton, K. J. (1999). "Modeling Term Structures of Defaultable Bonds." `docs/REFERENCES.md#duffie-singleton-1999`
 //! - Schönbucher, P. J. (2003). "Credit Derivatives Pricing Models."
 
 mod copula_based;

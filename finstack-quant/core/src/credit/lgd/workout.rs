@@ -16,9 +16,9 @@
 //! # References
 //!
 //! - Basel Committee (2005). "Guidance on Paragraph 468 of the Framework
-//!   Document" (workout LGD methodology).
+//!   Document" (workout LGD methodology). `docs/REFERENCES.md#basel-ii-2006`
 //! - Qi, M. & Yang, X. (2009). "Loss Given Default of High Loan-to-Value
-//!   Residential Mortgages." Journal of Banking & Finance.
+//!   Residential Mortgages." Journal of Banking & Finance. `docs/REFERENCES.md#basel-ii-2006`
 
 use crate::error::{InputError, NonFiniteKind};
 use crate::Result;

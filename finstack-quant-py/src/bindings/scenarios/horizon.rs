@@ -63,7 +63,6 @@ pub(crate) fn compute_horizon_return<'py>(
     config: Option<&str>,
     calendar_id: Option<&str>,
 ) -> PyResult<PyHorizonResult> {
-    use finstack_quant_attribution::AttributionMethod;
     use finstack_quant_valuations::instruments::InstrumentEnvelope;
     use std::sync::Arc;
 
@@ -81,22 +80,9 @@ pub(crate) fn compute_horizon_return<'py>(
     let scenario: finstack_quant_scenarios::ScenarioSpec =
         serde_json::from_str(scenario_json).map_err(display_to_py)?;
 
-    // Parse method
-    let attribution_method = match method {
-        "parallel" => AttributionMethod::Parallel,
-        "waterfall" => {
-            AttributionMethod::Waterfall(finstack_quant_attribution::default_waterfall_order())
-        }
-        "metrics_based" => AttributionMethod::MetricsBased,
-        "taylor" => AttributionMethod::Taylor(
-            finstack_quant_attribution::TaylorAttributionConfig::default(),
-        ),
-        other => {
-            return Err(crate::errors::value_error(format!(
-                "Unknown attribution method '{other}'. Expected: parallel, waterfall, metrics_based, taylor"
-            )));
-        }
-    };
+    // Parse method via the canonical scenarios-crate parser (shared with WASM).
+    let attribution_method = finstack_quant_scenarios::horizon::attribution_method_from_str(method)
+        .map_err(|e| crate::errors::value_error(e.to_string()))?;
 
     // Parse config
     let finstack_config = match config {
@@ -219,24 +205,25 @@ impl PyHorizonResult {
     }
 
     /// Factor contribution as decimal fraction of initial value.
+    ///
+    /// ``factor`` must be one of the canonical serde names from
+    /// ``AttributionFactor::as_str()``: ``"carry"``, ``"rates_curves"``,
+    /// ``"credit_curves"``, ``"inflation_curves"``, ``"correlations"``,
+    /// ``"fx"``, ``"volatility"``, ``"market_scalars"``, or
+    /// ``"model_parameters"``. Historical Python-only aliases (``"rates"``,
+    /// ``"credit"``, ``"vol"``, ...) are no longer accepted.
     fn factor_contribution(&self, factor: &str) -> PyResult<f64> {
         use finstack_quant_attribution::AttributionFactor;
-        let f = match factor {
-            "carry" => AttributionFactor::Carry,
-            "rates" | "rates_curves" => AttributionFactor::RatesCurves,
-            "credit" | "credit_curves" => AttributionFactor::CreditCurves,
-            "inflation" | "inflation_curves" => AttributionFactor::InflationCurves,
-            "correlations" => AttributionFactor::Correlations,
-            "fx" => AttributionFactor::Fx,
-            "volatility" | "vol" => AttributionFactor::Volatility,
-            "model_parameters" | "model_params" => AttributionFactor::ModelParameters,
-            "market_scalars" | "scalars" => AttributionFactor::MarketScalars,
-            other => {
-                return Err(crate::errors::value_error(format!(
-                    "Unknown factor '{other}'"
-                )));
-            }
-        };
+        let f: AttributionFactor = serde_json::from_value(serde_json::Value::String(
+            factor.to_string(),
+        ))
+        .map_err(|_| {
+            crate::errors::value_error(format!(
+                "Unknown factor '{factor}'. Expected one of: carry, rates_curves, \
+                         credit_curves, inflation_curves, correlations, fx, volatility, \
+                         market_scalars, model_parameters"
+            ))
+        })?;
         Ok(self.inner.factor_contribution(&f))
     }
 

@@ -48,9 +48,11 @@ impl PyDiscountCurve {
     /// knots : list[tuple[float, float]]
     ///     ``(time_years, discount_factor)`` pairs.
     /// interp : str, optional
-    ///     Interpolation style (default ``"monotone_convex"``).
+    ///     Interpolation style. When omitted, the Rust builder default
+    ///     (``"monotone_convex"``) applies.
     /// extrapolation : str, optional
-    ///     Extrapolation policy (default ``"flat_forward"``).
+    ///     Extrapolation policy. When omitted, the Rust builder default
+    ///     (``"flat_forward"``) applies.
     /// day_count : str, optional
     ///     Day-count convention. When omitted, Rust infers a market default from the curve ID.
     /// validation_mode : str, optional
@@ -63,26 +65,26 @@ impl PyDiscountCurve {
         clippy::too_many_arguments,
         reason = "preserves existing positional arguments and appends validation options compatibly"
     )]
-    #[pyo3(signature = (id, base_date, knots, interp="monotone_convex", extrapolation="flat_forward", day_count=None, validation_mode="market_standard", forward_floor=None))]
+    #[pyo3(signature = (id, base_date, knots, interp=None, extrapolation=None, day_count=None, validation_mode="market_standard", forward_floor=None))]
     fn new(
         id: &str,
         base_date: &Bound<'_, PyAny>,
         knots: Vec<(f64, f64)>,
-        interp: &str,
-        extrapolation: &str,
+        interp: Option<&str>,
+        extrapolation: Option<&str>,
         day_count: Option<&str>,
         validation_mode: &str,
         forward_floor: Option<f64>,
     ) -> PyResult<Self> {
         let base = py_to_date(base_date)?;
-        let style = parse_interp_style(interp)?;
-        let extrap = parse_extrapolation(extrapolation)?;
 
-        let mut builder = DiscountCurve::builder(id)
-            .base_date(base)
-            .knots(knots)
-            .interp(style)
-            .extrapolation(extrap);
+        let mut builder = DiscountCurve::builder(id).base_date(base).knots(knots);
+        if let Some(interp) = interp {
+            builder = builder.interp(parse_interp_style(interp)?);
+        }
+        if let Some(extrapolation) = extrapolation {
+            builder = builder.extrapolation(parse_extrapolation(extrapolation)?);
+        }
         if let Some(day_count) = day_count {
             builder = builder.day_count(parse_day_count(day_count)?);
         }

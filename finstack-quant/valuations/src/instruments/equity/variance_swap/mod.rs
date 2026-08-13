@@ -58,7 +58,7 @@
 //!
 //! - Demeterfi, K., Derman, E., Kamal, M., & Zou, J. (1999). "More Than You
 //!   Ever Wanted to Know About Volatility Swaps." *Goldman Sachs Quantitative
-//!   Strategies Research Notes*.
+//!   Strategies Research Notes*. `docs/REFERENCES.md#demeterfi-1999-volatility-swaps`
 //!
 //! - Carr, P., & Madan, D. (1998). "Towards a Theory of Volatility Trading."
 //!   *Volatility: New Estimation Techniques for Pricing Derivatives*, 417-427.

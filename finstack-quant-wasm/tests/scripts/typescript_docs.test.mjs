@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { copyFileSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -68,10 +68,44 @@ test('completer removes only legacy fabricated documentation', (t) => {
   assert.doesNotMatch(completed, /supplied values are malformed, violate/);
   assert.doesNotMatch(completed, /void (?:api|factory);/);
   assert.doesNotMatch(completed, /Supply the documented arguments/);
-  assert.match(
-    completed,
-    /@returns Returns the resulting `Calculator` value or WebAssembly handle\./
+  assert.match(completed, /@returns Returns a `Calculator` handle\./);
+});
+
+test('completer does not emit residual generic boilerplate', (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'finstack-typescript-docs-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const target = join(directory, 'thin.d.ts');
+  writeFileSync(
+    target,
+    `export interface SampleResult {
+  intercept: number;
+}
+export interface Sample {
+  delta(spot: number): number;
+  items(): Float64Array;
+}
+`
   );
+  const result = run('complete-facade-jsdoc.mjs', `--declaration=${target}`, '--write');
+  assert.equal(result.status, 0, result.stderr);
+  const completed = readFileSync(target, 'utf8');
+  assert.doesNotMatch(completed, /exposed by this/);
+  assert.doesNotMatch(completed, /units described above/);
+  assert.doesNotMatch(completed, /in the documented order/);
+  assert.doesNotMatch(completed, /Perform delta for this/);
+  assert.doesNotMatch(completed, /declared TypeScript shape/);
+  assert.doesNotMatch(completed, /or WebAssembly handle/);
+  assert.doesNotMatch(completed, /requested string representation or JSON payload/);
+  assert.doesNotMatch(completed, /TypeScript view of the/);
+  assert.doesNotMatch(completed, /consumed by this/);
+  assert.doesNotMatch(completed, /documented condition/);
+  assert.doesNotMatch(completed, /Create a new `/);
+  assert.doesNotMatch(completed, /Create the object from its inputs/);
+  assert.doesNotMatch(completed, /Whether to enable/);
+  assert.doesNotMatch(completed, /accepted by this operation/);
+  assert.doesNotMatch(completed, /Construction and factory entry points/);
+  assert.doesNotMatch(completed, /Compute delta for this/);
+  assert.match(completed, /Spot delta: change in value per unit spot/);
 });
 
 test('checker accepts concrete contracts and rejects exact legacy shapes', () => {

@@ -37,32 +37,12 @@ fn parse_stage(s: &str) -> PyResult<rust_ecl::Stage> {
 }
 
 /// Render a [`rust_ecl::StagingTrigger`] as a short human-readable reason.
+///
+/// Delegates to the canonical `Display` implementation in the
+/// `finstack-quant-statements-analytics` crate, so the reason-string contract
+/// lives in exactly one place.
 fn trigger_reason(trigger: &rust_ecl::StagingTrigger) -> String {
-    match trigger {
-        rust_ecl::StagingTrigger::DpdStage3 { dpd, threshold } => {
-            format!("dpd_stage3 (dpd={} > {})", dpd, threshold)
-        }
-        rust_ecl::StagingTrigger::DpdStage2 { dpd, threshold } => {
-            format!("dpd_stage2 (dpd={} > {})", dpd, threshold)
-        }
-        rust_ecl::StagingTrigger::PdDeltaAbsolute { delta, threshold } => {
-            format!("pd_delta_absolute (delta={:.4} > {:.4})", delta, threshold)
-        }
-        rust_ecl::StagingTrigger::PdDeltaRelative { ratio, threshold } => {
-            format!(
-                "pd_delta_relative (ratio={:.2}x > {:.2}x)",
-                ratio, threshold
-            )
-        }
-        rust_ecl::StagingTrigger::RatingDowngrade { notches, threshold } => {
-            format!("rating_downgrade ({} >= {} notches)", notches, threshold)
-        }
-        rust_ecl::StagingTrigger::Qualitative { flag } => format!("qualitative:{}", flag),
-        rust_ecl::StagingTrigger::Stage3Qualitative { flag } => {
-            format!("stage3_qualitative:{}", flag)
-        }
-        rust_ecl::StagingTrigger::NoTrigger => "no_trigger".to_string(),
-    }
+    trigger.to_string()
 }
 
 // PyExposure
@@ -253,10 +233,12 @@ impl PyExposure {
 ///
 /// Returns
 /// -------
-/// tuple[str, str]
-///     ``(stage, trigger_reason)``. Stage is one of ``"Stage 1"``,
-///     ``"Stage 2"``, ``"Stage 3"``. The trigger reason describes the first
-///     trigger that fired (or ``"no_trigger"`` for a clean Stage 1).
+/// tuple[str, list[str]]
+///     ``(stage, trigger_reasons)``. Stage is one of ``"Stage 1"``,
+///     ``"Stage 2"``, ``"Stage 3"``. The trigger reasons list the full
+///     ordered audit trail of triggers that fired (``["no_trigger"]`` for a
+///     clean Stage 1), each rendered by the canonical Rust
+///     ``StagingTrigger`` display format.
 #[pyfunction]
 #[pyo3(signature = (exposure, pd_delta_stage2=None, dpd_30_trigger=None, dpd_90_trigger=None))]
 fn classify_stage(
@@ -264,19 +246,15 @@ fn classify_stage(
     pd_delta_stage2: Option<f64>,
     dpd_30_trigger: Option<bool>,
     dpd_90_trigger: Option<bool>,
-) -> PyResult<(String, String)> {
+) -> PyResult<(String, Vec<String>)> {
     let result = exposure
         .stage_request(pd_delta_stage2, dpd_30_trigger, dpd_90_trigger)
         .classify()
         .map_err(display_to_py)?;
 
-    let reason = result
-        .triggers
-        .first()
-        .map(trigger_reason)
-        .unwrap_or_else(|| "no_trigger".to_string());
+    let reasons: Vec<String> = result.triggers.iter().map(trigger_reason).collect();
 
-    Ok((result.stage.to_string(), reason))
+    Ok((result.stage.to_string(), reasons))
 }
 
 // ECL computation
@@ -297,8 +275,9 @@ fn classify_stage(
 ///     Effective interest rate (decimal). Used for discounting.
 /// max_horizon_years : float
 ///     Remaining maturity cap for the integration.
-/// bucket_width_years : float
-///     Width of each time bucket (e.g. ``0.25`` for quarterly).
+/// bucket_width_years : float | None
+///     Width of each time bucket (e.g. ``0.25`` for quarterly). ``None``
+///     uses the canonical IFRS 9 policy default.
 /// stage : str
 ///     ``"stage1"`` (12-month ECL) or ``"stage2"``/``"stage3"`` (lifetime ECL).
 /// ead_schedule : list[tuple[float, float]] | None
@@ -311,6 +290,12 @@ fn classify_stage(
 /// -------
 /// float
 ///     ECL amount in the exposure's base currency.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If ``stage`` is unknown, a PD or EAD schedule is invalid, or an ECL
+///     input is outside its accepted range.
 #[pyfunction]
 #[pyo3(signature = (ead, pd_schedule, lgd, eir, max_horizon_years, bucket_width_years=None, stage="stage1", ead_schedule=None, stage3_time_to_recovery_years=None))]
 #[allow(clippy::too_many_arguments)]
@@ -357,8 +342,12 @@ fn compute_ecl(
 ///     Loss given default (decimal).
 /// eir : float
 ///     Effective interest rate (decimal).
-/// max_horizon : float
-///     Remaining maturity cap.
+/// max_horizon_years : float
+///     Remaining maturity cap for the integration.
+/// bucket_width_years : float | None
+///     Width of each time bucket (e.g. ``0.25`` for quarterly). ``None``
+///     uses the canonical IFRS 9 policy default (same convention as
+///     ``compute_ecl``).
 /// stage : str
 ///     ``"stage1"``, ``"stage2"``, or ``"stage3"``.
 /// ead_schedule : list[tuple[float, float]] | None
@@ -371,15 +360,22 @@ fn compute_ecl(
 /// -------
 /// float
 ///     Probability-weighted ECL in the exposure's base currency.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If ``stage`` is unknown, scenario weights do not sum to 1.0, a PD or
+///     EAD schedule is invalid, or an ECL input is outside its accepted range.
 #[pyfunction]
-#[pyo3(signature = (ead, scenarios, lgd, eir, max_horizon, stage="stage1", ead_schedule=None, stage3_time_to_recovery_years=None))]
+#[pyo3(signature = (ead, scenarios, lgd, eir, max_horizon_years, bucket_width_years=None, stage="stage1", ead_schedule=None, stage3_time_to_recovery_years=None))]
 #[allow(clippy::too_many_arguments)]
 fn compute_ecl_weighted(
     ead: f64,
     scenarios: Vec<(f64, Vec<(f64, f64)>)>,
     lgd: f64,
     eir: f64,
-    max_horizon: f64,
+    max_horizon_years: f64,
+    bucket_width_years: Option<f64>,
     stage: &str,
     ead_schedule: Option<Vec<(f64, f64)>>,
     stage3_time_to_recovery_years: Option<f64>,
@@ -389,10 +385,10 @@ fn compute_ecl_weighted(
         ead,
         lgd,
         eir,
-        remaining_maturity_years: max_horizon,
+        remaining_maturity_years: max_horizon_years,
         stage: parse_stage(stage)?,
         scenarios,
-        bucket_width_years: None,
+        bucket_width_years,
         ead_schedule,
         stage3_time_to_recovery_years,
     };

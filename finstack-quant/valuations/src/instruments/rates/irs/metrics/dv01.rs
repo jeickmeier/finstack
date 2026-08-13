@@ -1,6 +1,7 @@
 //! Market-convention DV01 for interest rate swaps.
 //!
-//! Bloomberg SWPM reports IRS DV01 under a constant par-rate bump convention.
+//! Bloomberg SWPM reports IRS DV01 under a constant par-rate bump convention
+//! (`docs/REFERENCES.md#bloomberg-swpm`).
 //! This differs from generic curve DV01, which bumps zero/forward curves directly.
 
 use crate::instruments::common_impl::numeric::decimal_to_f64;

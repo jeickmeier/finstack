@@ -70,9 +70,9 @@
 //!
 //! ## References
 //!
-//! - ISDA CDS Standard Model (Markit, 2009)
-//! - O'Kane, D. "Modelling Single-name and Multi-name Credit Derivatives" (2008), Chapter 5
-//! - Hull, J.C. & White, A. "Valuing Credit Default Swaps I: No Counterparty Default Risk"
+//! - ISDA CDS Standard Model (Markit, 2009) `docs/REFERENCES.md#isda-cds-standard-model`
+//! - O'Kane, D. "Modelling Single-name and Multi-name Credit Derivatives" (2008), Chapter 5 `docs/REFERENCES.md#o-kane-2008`
+//! - Hull, J.C. & White, A. "Valuing Credit Default Swaps I: No Counterparty Default Risk" `docs/REFERENCES.md#hull-white-2000-cds`
 
 mod config;
 mod engine;

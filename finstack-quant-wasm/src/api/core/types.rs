@@ -68,12 +68,10 @@ impl JsRate {
 
     /// Create a rate from a whole number of basis points.
     ///
-    /// The canonical Rust `Rate::from_bp` takes an integer (`i32`) number
-    /// of basis points. Because JavaScript numbers are `f64`, this binding
-    /// accepts a float but **rejects fractional input** rather than
-    /// silently rounding it: a sub-bp rate quietly rounded to whole bp is a
-    /// pricing bug, not a convenience. Use `new Rate(decimal)` or
-    /// `Rate.fromPercent` for sub-bp rates.
+    /// The canonical Rust `Bps::try_new` is integer-backed and **rejects
+    /// fractional input** rather than silently rounding it: a sub-bp rate
+    /// quietly rounded to whole bp is a pricing bug, not a convenience.
+    /// Use `new Rate(decimal)` or `Rate.fromPercent` for sub-bp rates.
     ///
     /// @param bp - Rate in whole basis points (e.g. `500` for 5%).
     /// @returns The constructed `Rate`.
@@ -86,7 +84,7 @@ impl JsRate {
     /// ```
     #[wasm_bindgen(js_name = fromBp)]
     pub fn from_bp(bp: f64) -> Result<JsRate, JsValue> {
-        let b = try_whole_bp(bp)?;
+        let b = RustBps::try_new(bp).map_err(to_js_err)?;
         Ok(JsRate { inner: b.as_rate() })
     }
 
@@ -115,28 +113,6 @@ impl JsRate {
     }
 }
 
-/// Validate that a JS float is a whole, in-range basis-point count.
-///
-/// The canonical Rust `Bps` is integer-backed; silently rounding a
-/// fractional spread (e.g. an FRN margin of 62.5bp) to whole bp would make
-/// the typed construction path price differently from the JSON path. Reject
-/// instead, pointing callers at the sub-bp-capable alternatives.
-fn try_whole_bp(value: f64) -> Result<RustBps, JsValue> {
-    if !value.is_finite() {
-        return Err(JsValue::from_str(&format!(
-            "basis-point value must be finite; got {value}"
-        )));
-    }
-    if value.fract() != 0.0 {
-        return Err(JsValue::from_str(&format!(
-            "basis-point value must be a whole number of bp; got {value}. \
-             For sub-bp precision use a decimal rate (`new Rate(decimal)`) or \
-             the JSON instrument path, which preserves fractional spreads."
-        )));
-    }
-    RustBps::try_new(value).map_err(to_js_err)
-}
-
 /// Basis points (1 bp = 0.01%, 10_000 bp = 100%).
 ///
 /// Stored as integer bp internally; constructors reject fractional input.
@@ -158,6 +134,9 @@ pub struct JsBps {
 impl JsBps {
     /// Create basis points from a whole-number value.
     ///
+    /// Delegates to the canonical Rust `Bps::try_new`, which rejects
+    /// fractional basis points.
+    ///
     /// @param value - Value in whole basis points (e.g. `25` for 25 bp).
     /// @returns The constructed `Bps`.
     /// @throws If `value` is non-finite or not a whole number of basis
@@ -165,7 +144,9 @@ impl JsBps {
     /// preserves fractional values) or a decimal `Rate`.
     #[wasm_bindgen(constructor)]
     pub fn new(value: f64) -> Result<JsBps, JsValue> {
-        try_whole_bp(value).map(|inner| JsBps { inner })
+        RustBps::try_new(value)
+            .map(|inner| JsBps { inner })
+            .map_err(to_js_err)
     }
 
     /// Value as a decimal (e.g. 25 bp → 0.0025).
@@ -316,6 +297,11 @@ mod tests {
     #[test]
     fn bp_rejects_nan() {
         assert!(RustBps::try_new(f64::NAN).is_err());
+    }
+
+    #[test]
+    fn bp_rejects_fractional() {
+        assert!(RustBps::try_new(62.5).is_err());
     }
 
     #[test]

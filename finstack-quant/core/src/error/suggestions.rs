@@ -100,9 +100,9 @@ pub(crate) fn fuzzy_suggestions<'a>(
 /// # References
 ///
 /// - Wagner, R. A., & Fischer, M. J. (1974). "The String-to-String Correction
-///   Problem." *Journal of the ACM*, 21(1), 168-173.
+///   Problem." *Journal of the ACM*, 21(1), 168-173. `docs/REFERENCES.md#wagner-fischer-1974`
 /// - Levenshtein, V. I. (1966). "Binary codes capable of correcting deletions,
-///   insertions, and reversals." *Soviet Physics Doklady*, 10(8), 707-710.
+///   insertions, and reversals." *Soviet Physics Doklady*, 10(8), 707-710. `docs/REFERENCES.md#levenshtein-1966`
 pub(crate) fn edit_distance(a_chars: &[char], b: &str) -> usize {
     let b_chars: Vec<char> = b.chars().collect();
     let b_len = b_chars.len();

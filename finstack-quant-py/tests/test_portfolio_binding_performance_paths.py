@@ -18,6 +18,7 @@ from finstack_quant.portfolio import (
     parametric_var_decomposition,
     scenario_pnl,
     scenario_pnl_batch,
+    scenario_pnl_batch_json,
     value_portfolio,
 )
 from finstack_quant.scenarios import build_scenario_spec
@@ -119,9 +120,9 @@ def test_scenario_pnl_batch_matches_standalone_and_accepts_json_or_typed_inputs(
     scenarios_json = _scenario_batch_json()
     scenarios = json.loads(scenarios_json)
 
-    # `scenario_pnl_batch` is still a JSON-wire entry point, so the typed
+    # `scenario_pnl_batch_json` is the JSON-wire twin, so the typed
     # standalone results are compared through their canonical JSON.
-    batch = json.loads(scenario_pnl_batch(portfolio, scenarios_json, market))
+    batch = json.loads(scenario_pnl_batch_json(portfolio, scenarios_json, market))
     expected = []
     for scenario in scenarios:
         pnl, report = scenario_pnl(portfolio, json.dumps(scenario), market)
@@ -133,10 +134,14 @@ def test_scenario_pnl_batch_matches_standalone_and_accepts_json_or_typed_inputs(
 
     assert batch == expected
     assert [item["scenario_id"] for item in batch] == ["up_10bp", "down_15bp"]
-    assert json.loads(scenario_pnl_batch(_portfolio_json(), scenarios_json, market.to_json())) == batch
-    assert json.loads(scenario_pnl_batch(portfolio, "[]", market)) == []
+    assert json.loads(scenario_pnl_batch_json(_portfolio_json(), scenarios_json, market.to_json())) == batch
+    assert json.loads(scenario_pnl_batch_json(portfolio, "[]", market)) == []
+    # The typed entry point returns the same payloads as wrapper objects.
+    typed = scenario_pnl_batch(portfolio, scenarios_json, market)
+    assert [json.loads(item.to_json()) for item in typed] == batch
+    assert scenario_pnl_batch(portfolio, "[]", market) == []
     with pytest.raises(ValueError, match="invalid type"):
-        scenario_pnl_batch(portfolio, "{}", market)
+        scenario_pnl_batch_json(portfolio, "{}", market)
 
 
 @pytest.mark.parametrize(

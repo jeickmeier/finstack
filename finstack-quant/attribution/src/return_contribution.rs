@@ -12,14 +12,22 @@ const WEIGHT_TOLERANCE: f64 = 1e-9;
 /// leveraged (|weight| ≫ 1) and a diagnostic warning is emitted.
 const NET_MV_LEVERAGE_WARN_FRACTION: f64 = 0.01;
 
+/// Tolerance on `|Σw − 1|` beyond which explicit weights without a benchmark
+/// trigger a diagnostic warning. Leveraged or partially-invested books are
+/// legitimate, so this is a warning, never an error.
+const EXPLICIT_WEIGHT_SUM_WARN_TOLERANCE: f64 = 1e-6;
+
 /// Input weighting mode for market-value positions.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 #[derive(Default)]
 pub enum ReturnContributionWeighting {
-    /// Normalize by signed net market value.
+    /// Normalize by signed net market value: `w_i = MV_i / Σ MV_j`.
     NetMarketValue,
-    /// Normalize by gross absolute market value.
+    /// Normalize by gross absolute market value: `w_i = MV_i / Σ |MV_j|`.
+    ///
+    /// The numerator keeps its sign — a short position gets a negative
+    /// weight — only the denominator is absolute.
     #[default]
     Gross,
 }
@@ -85,10 +93,16 @@ pub struct ReturnContributionResult {
     pub group_contribution: BTreeMap<String, Vec<GroupContribution>>,
     /// Factor contribution rows.
     pub factor_contribution: Vec<FactorContribution>,
+    /// Idiosyncratic residual when factor rows are supplied:
+    /// `portfolio_return − Σ factor contributions`. `None` (and omitted from
+    /// JSON — additive schema) when the spec carries no factors.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub specific_return: Option<f64>,
     /// Benchmark-relative attribution, when benchmark fields are supplied.
     pub benchmark_relative: Option<BenchmarkRelativeContribution>,
     /// Diagnostic warnings (e.g. leveraged weights from a near-flat net-MV
-    /// book). Omitted from JSON when empty (additive schema).
+    /// book, explicit weights not summing to 1, or Brinson degenerate-group
+    /// return substitutions). Omitted from JSON when empty (additive schema).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<String>,
 }
@@ -251,11 +265,23 @@ impl ReturnContributionSpec {
             None
         };
 
+        let factor_contribution = factor_contributions(&self.factors)?;
+        let specific_return = if factor_contribution.is_empty() {
+            None
+        } else {
+            let mut factor_total = NeumaierAccumulator::new();
+            for row in &factor_contribution {
+                factor_total.add(row.contribution);
+            }
+            Some(portfolio_return - factor_total.total())
+        };
+
         Ok(ReturnContributionResult {
             portfolio_return,
             instrument_contribution: instrument_contributions(&weighted, benchmark_return),
             group_contribution: group_contributions(&weighted),
-            factor_contribution: factor_contributions(&self.factors)?,
+            factor_contribution,
+            specific_return,
             benchmark_relative: if benchmark_mode {
                 Some(benchmark_relative(
                     &weighted,
@@ -263,6 +289,7 @@ impl ReturnContributionSpec {
                     benchmark_return.ok_or_else(|| {
                         Error::Internal("benchmark mode lost benchmark return".to_string())
                     })?,
+                    &mut warnings,
                 )?)
             } else {
                 None
@@ -374,7 +401,29 @@ impl ReturnContributionSpec {
             .iter()
             .all(|position| position.weight.is_some())
         {
-            explicit_weights(&self.positions)?
+            let weights = explicit_weights(&self.positions)?;
+            // Audit fix: without a benchmark nothing else checks Σw, so a
+            // fat-fingered weight column would pass silently. Benchmark mode
+            // already enforces Σw == 1 as a hard error.
+            let benchmark_present = self
+                .positions
+                .iter()
+                .any(|position| position.benchmark_weight.is_some());
+            if !benchmark_present {
+                let mut weight_sum = NeumaierAccumulator::new();
+                for weight in &weights {
+                    weight_sum.add(*weight);
+                }
+                let weight_sum = weight_sum.total();
+                if (weight_sum - 1.0).abs() > EXPLICIT_WEIGHT_SUM_WARN_TOLERANCE {
+                    warnings.push(format!(
+                        "explicit weights sum to {weight_sum} rather than 1.0; contributions \
+                         are reported on the supplied (leveraged or partially invested) \
+                         weight basis"
+                    ));
+                }
+            }
+            weights
         } else {
             market_value_weights(&self.positions, self.weighting, warnings)?
         };
@@ -440,6 +489,17 @@ fn market_value_weights(
 
     let denominator = denominator.total();
     if denominator.abs() <= WEIGHT_TOLERANCE {
+        // Audit fix: an exactly-flat net-MV book has no defined net weights.
+        // Silently returning all-zero weights would make a real long/short
+        // P&L day indistinguishable from a flat book, so fail loud.
+        if matches!(weighting, ReturnContributionWeighting::NetMarketValue) {
+            return Err(Error::Validation(
+                "return contribution net market value sums to zero (exactly flat \
+                 long/short book), so net-MV weights are undefined; use gross \
+                 weighting for flat books"
+                    .to_string(),
+            ));
+        }
         return Ok(vec![0.0; positions.len()]);
     }
 
@@ -464,10 +524,9 @@ fn market_value_weights(
             let market_value = position.market_value.ok_or_else(|| {
                 Error::Internal("market value mode encountered missing market_value".to_string())
             })?;
-            Ok(match weighting {
-                ReturnContributionWeighting::Gross => market_value.abs() / denominator,
-                ReturnContributionWeighting::NetMarketValue => market_value / denominator,
-            })
+            // Both modes keep the signed market value in the numerator; only
+            // the denominator differs (Σ|MV| for gross, ΣMV for net).
+            Ok(market_value / denominator)
         })
         .collect()
 }
@@ -570,6 +629,7 @@ fn benchmark_relative(
     weighted: &[WeightedPosition<'_>],
     portfolio_return: f64,
     benchmark_return: f64,
+    warnings: &mut Vec<String>,
 ) -> Result<BenchmarkRelativeContribution> {
     validate_benchmark_weights(weighted)?;
     let group_dimension = brinson_group_dimension(weighted);
@@ -605,18 +665,33 @@ fn benchmark_relative(
     let mut selection = NeumaierAccumulator::new();
     let mut interaction = NeumaierAccumulator::new();
 
-    for group in groups.values() {
+    for (key, group) in &groups {
         let portfolio_weight = group.portfolio_weight.total();
         let benchmark_weight = group.benchmark_weight.total();
-        let portfolio_group_return = if portfolio_weight.abs() <= WEIGHT_TOLERANCE {
-            0.0
-        } else {
-            group.portfolio_contribution.total() / portfolio_weight
-        };
+        // Degenerate-group conventions (Bacon, Practical Portfolio Performance
+        // Measurement and Attribution, 2e, Ch. 5): a group absent from the
+        // benchmark takes the total benchmark return as its benchmark group
+        // return, and a group absent from the portfolio takes the benchmark
+        // group return as its portfolio group return. Forcing either to zero
+        // preserves the active total but mislabels allocation vs selection vs
+        // interaction.
         let benchmark_group_return = if benchmark_weight.abs() <= WEIGHT_TOLERANCE {
-            0.0
+            warnings.push(format!(
+                "group '{key}' has zero benchmark weight; using total benchmark \
+                 return as its benchmark group return for Brinson attribution"
+            ));
+            benchmark_return
         } else {
             group.benchmark_contribution.total() / benchmark_weight
+        };
+        let portfolio_group_return = if portfolio_weight.abs() <= WEIGHT_TOLERANCE {
+            warnings.push(format!(
+                "group '{key}' has zero portfolio weight; using its benchmark group return \
+                 as its portfolio group return for Brinson attribution"
+            ));
+            benchmark_group_return
+        } else {
+            group.portfolio_contribution.total() / portfolio_weight
         };
 
         let weight_delta = portfolio_weight - benchmark_weight;

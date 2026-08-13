@@ -30,13 +30,15 @@
 //! - `σ > 0`
 //! - `a + b × σ × √(1 - ρ²) ≥ 0` (non-negative variance at minimum)
 //!
-//! # Reference
+//! # References
 //!
 //! - Gatheral, J. (2004). "A parsimonious arbitrage-free implied volatility
 //!   parameterization with application to the valuation of volatility derivatives."
-//!   *Presentation at Global Derivatives & Risk Management*, Madrid.
+//!   *Presentation at Global Derivatives & Risk Management*, Madrid. `docs/REFERENCES.md#gatheral-2004-svi` `docs/REFERENCES.md#carr-lee-2009`
+//!
 //! - Gatheral, J., & Jacquier, A. (2014). "Arbitrage-free SVI volatility surfaces."
-//!   *Quantitative Finance*, 14(1), 59-71.
+//!   *Quantitative Finance*, 14(1), 59-71. `docs/REFERENCES.md#gatheral-jacquier-2014-svi` `docs/REFERENCES.md#gatheral-volatility-surface`
+//!
 
 /// SVI (Stochastic Volatility Inspired) raw parameterization.
 ///
@@ -385,7 +387,7 @@ impl SviParams {
 /// # Reference
 ///
 /// Gatheral, J. (2004). "A parsimonious arbitrage-free implied volatility
-/// parameterization with application to the valuation of volatility derivatives."
+/// parameterization with application to the valuation of volatility derivatives." `docs/REFERENCES.md#gatheral-2004-svi` `docs/REFERENCES.md#carr-lee-2009`
 pub fn calibrate_svi(
     strikes: &[f64],
     vols: &[f64],
@@ -456,11 +458,11 @@ pub fn calibrate_svi(
     let n_points = ks.len();
 
     // Unconstrained parametrisation:
-    //   x[0] = a                          (unconstrained)
-    //   x[1] = ln(b + epsilon)            → b = exp(x[1]) > 0
-    //   x[2] = atanh(rho)                 → rho = tanh(x[2]) ∈ (-1, 1)
-    //   x[3] = m                          (unconstrained)
-    //   x[4] = ln(sigma)                  → sigma = exp(x[4]) > 0
+    // x[0] = a (unconstrained)
+    // x[1] = ln(b + epsilon) → b = exp(x[1]) > 0
+    // x[2] = atanh(rho) → rho = tanh(x[2]) ∈ (-1, 1)
+    // x[3] = m (unconstrained)
+    // x[4] = ln(sigma) → sigma = exp(x[4]) > 0
     let residuals = |x: &[f64], resid: &mut [f64]| {
         let a = x[0];
         let b = x[1].exp();

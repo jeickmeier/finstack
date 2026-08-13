@@ -68,6 +68,7 @@
 //! - **registry**: Dynamic metric registry with namespace management and built-in `fin.*` metrics
 //! - **checks**: Financial-statement consistency checks framework
 //! - **formula**: Public formula helpers for identifier extraction and qualification
+//! - **schema**: Checked-in JSON Schema artifacts for persisted statement contracts
 //!
 //! ## Analytics
 //!

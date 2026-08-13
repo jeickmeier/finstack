@@ -15,19 +15,19 @@ import pytest
 from finstack_quant.core.market_data import DiscountCurve, MarketContext
 from finstack_quant.portfolio import (
     Portfolio,
-    aggregate_metrics,
+    aggregate_metrics_json,
     amihud_illiquidity,
     attribute_portfolio_pnl,
     build_portfolio_from_spec,
-    carino_link,
+    carino_link_json,
     compute_factor_sensitivities,
     decompose_factor_risk,
     factor_stress,
     kyle_lambda,
     position_what_if,
-    replay_portfolio,
+    replay_portfolio_json,
     roll_effective_spread,
-    twrr_linked,
+    twrr_linked_json,
     value_portfolio,
 )
 
@@ -208,7 +208,7 @@ def test_raw_valuation_metric_aggregation_releases_gil() -> None:
     valuation = value_portfolio(portfolio, market, metrics=[])
 
     metrics_json = _assert_releases_gil(
-        lambda: aggregate_metrics(
+        lambda: aggregate_metrics_json(
             valuation,
             "USD",
             market,
@@ -242,7 +242,7 @@ def test_replay_parse_compute_and_serialize_release_gil() -> None:
     portfolio = Portfolio.from_spec(_portfolio_spec_json(500))
     snapshots_json = _replay_snapshots_json(20)
 
-    result_json = _assert_releases_gil(lambda: replay_portfolio(portfolio, snapshots_json, '{"mode":"pv_only"}'))
+    result_json = _assert_releases_gil(lambda: replay_portfolio_json(portfolio, snapshots_json, '{"mode":"pv_only"}'))
     result = json.loads(result_json)
 
     assert isinstance(result_json, str)
@@ -254,7 +254,7 @@ def test_replay_detached_parse_preserves_value_error_mapping() -> None:
     portfolio = Portfolio.from_spec(_portfolio_spec_json(1))
 
     with pytest.raises(ValueError, match="invalid snapshots JSON"):
-        replay_portfolio(portfolio, "{}", '{"mode":"pv_only"}')
+        replay_portfolio_json(portfolio, "{}", '{"mode":"pv_only"}')
 
 
 def test_factor_stress_releases_gil_and_returns_position_results() -> None:
@@ -311,7 +311,7 @@ def test_position_what_if_uses_combined_baseline_analysis() -> None:
 def test_large_twrr_parse_link_and_serialize_release_gil() -> None:
     returns_json = json.dumps([0.000001] * 200_000)
 
-    result_json = _assert_releases_gil(lambda: twrr_linked(returns_json, 2.0))
+    result_json = _assert_releases_gil(lambda: twrr_linked_json(returns_json, 2.0))
     assert result_json is not None
     result = json.loads(result_json)
 
@@ -338,7 +338,7 @@ def test_large_carino_parse_compute_and_serialize_release_gil() -> None:
     ]
     periods_json = json.dumps([period] * 10_000)
 
-    result_json = _assert_releases_gil(lambda: carino_link(periods_json))
+    result_json = _assert_releases_gil(lambda: carino_link_json(periods_json))
     result = json.loads(result_json)
 
     assert len(result["periods"]) == 10_000

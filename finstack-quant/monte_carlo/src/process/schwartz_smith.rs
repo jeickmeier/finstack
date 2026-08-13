@@ -24,7 +24,7 @@
 //! # References
 //!
 //! - Schwartz, E. & Smith, J. E. (2000). "Short-Term Variations and Long-Term
-//!   Dynamics in Commodity Prices." *Management Science*, 46(7), 893–911.
+//!   Dynamics in Commodity Prices." *Management Science*, 46(7), 893–911. `docs/REFERENCES.md#schwartz-smith-2000`
 
 use super::super::traits::{StateKey, StochasticProcess};
 
@@ -220,7 +220,7 @@ impl SchwartzSmithProcess {
     ///
     /// - Schwartz, E. & Smith, J. E. (2000). "Short-Term Variations and
     ///   Long-Term Dynamics in Commodity Prices." *Management Science*,
-    ///   46(7), 893–911 (eq. 9).
+    ///   46(7), 893–911 (eq. 9). `docs/REFERENCES.md#schwartz-smith-2000`
     #[must_use]
     pub fn futures_price(&self, tau: f64) -> f64 {
         let p = &self.params;

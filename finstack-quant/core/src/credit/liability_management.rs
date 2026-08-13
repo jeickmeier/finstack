@@ -25,15 +25,15 @@
 //! - Moody's Investors Service (2024). *Rating Symbols and Definitions* —
 //!   definition of a distressed exchange as a default event where creditors
 //!   receive less value than originally promised and the offer has the effect
-//!   of allowing the issuer to avoid a bankruptcy or payment default.
+//!   of allowing the issuer to avoid a bankruptcy or payment default. `docs/REFERENCES.md#moodys-rating-symbols`
 //! - S&P Global Ratings (2022). "Methodology: Timeliness Of Payments: Grace
 //!   Periods, Guarantees, And Use Of 'D' And 'SD' Ratings", which classifies
 //!   below-par repurchases, amend-and-extend transactions and collateral
 //!   transfers ("dropdowns") as selective defaults when investors are offered
-//!   less than the original promise.
+//!   less than the original promise. `docs/REFERENCES.md#moodys-rating-symbols`
 //! - Moyer, S. G. (2005). *Distressed Debt Analysis: Strategies for
 //!   Speculative Investors*. J. Ross Publishing. Chapters 6 and 9 cover
-//!   exchange-offer participation economics and discount capture.
+//!   exchange-offer participation economics and discount capture. `docs/REFERENCES.md#moodys-rating-symbols`
 //!
 //! # Examples
 //!

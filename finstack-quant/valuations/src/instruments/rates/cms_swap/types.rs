@@ -11,7 +11,7 @@
 //! # Reference
 //!
 //! Hagan, P. S. (2003). "Convexity Conundrums: Pricing CMS Swaps, Caps,
-//! and Floors." *Wilmott Magazine*, March, 38-44.
+//! and Floors." *Wilmott Magazine*, March, 38-44. `docs/REFERENCES.md#hagan-2003-cms-convexity`
 
 use crate::cashflow::builder::CashFlowSchedule;
 use crate::cashflow::primitives::{CFKind, CashFlow};
@@ -35,7 +35,7 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
 /// # Reference
 ///
 /// Hagan, P. S. (2003). "Convexity Conundrums: Pricing CMS Swaps, Caps, and Floors."
-/// *Wilmott Magazine*, March, 38-44.
+/// *Wilmott Magazine*, March, 38-44. `docs/REFERENCES.md#hagan-2003-cms-convexity`
 #[derive(
     Clone,
     Debug,

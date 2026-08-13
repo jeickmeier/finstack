@@ -24,7 +24,7 @@
 //!
 //! # References
 //!
-//! - Demarta, S., & McNeil, A. J. (2005). "The t Copula and Related Copulas."
+//! - Demarta, S., & McNeil, A. J. (2005). "The t Copula and Related Copulas." `docs/REFERENCES.md#demarta-mcneil-2005-t-copula` `docs/REFERENCES.md#mcneil-frey-embrechts-qrm`
 //! - Hull, J., Predescu, M., & White, A. (2005). "The valuation of correlation-
 //!   dependent credit derivatives using a structural model."
 

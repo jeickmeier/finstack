@@ -15,15 +15,15 @@
 //!    swaption expiry, compute the exercise value:
 //!    - Payer: max(0, (S - K) * A * N)
 //!    - Receiver: max(0, (K - S) * A * N)
-//!    where S is the forward swap rate, A the annuity, N the notional.
-//! 4. The root node value is the present value.
+//!   where S is the forward swap rate, A the annuity, N the notional.
+//!   4. The root node value is the present value.
 //!
 //! # References
 //!
 //! - Hull, J. & White, A. (1994). "Numerical Procedures for Implementing
-//!   Term Structure Models I: Single-Factor Models", *Journal of Derivatives*.
+//!   Term Structure Models I: Single-Factor Models", *Journal of Derivatives*. `docs/REFERENCES.md#hull-white-1994-numerical-procedures`
 //! - Brigo, D. & Mercurio, F. (2006). *Interest Rate Models - Theory and
-//!   Practice*, Chapter 4.
+//!   Practice*, Chapter 4. `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
 
 use crate::instruments::common_impl::helpers::year_fraction;
 use crate::instruments::common_impl::parameters::OptionType;

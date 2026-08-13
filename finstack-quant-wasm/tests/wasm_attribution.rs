@@ -79,7 +79,8 @@ fn default_attribution_metrics_non_empty() {
 
 #[wasm_bindgen_test]
 fn attribute_pnl_end_to_end_parallel() {
-    let json = attribute_pnl(&params("\"parallel\"")).expect("attributePnl should succeed");
+    let json =
+        attribute_pnl_json(&params("\"parallel\"")).expect("attributePnlJson should succeed");
     let attr: serde_json::Value = serde_json::from_str(&json).expect("PnlAttribution JSON");
     // +20bp rates move on a long bond: the rates factor must be a loss.
     let rates: f64 = attr["rates_curves_pnl"]["amount"]
@@ -91,6 +92,24 @@ fn attribute_pnl_end_to_end_parallel() {
         rates < 0.0,
         "rates up must lose on a long bond, got {rates}"
     );
+}
+
+#[wasm_bindgen_test]
+fn attribute_pnl_returns_structured_object_matching_json_twin() {
+    let value = attribute_pnl(&params("\"parallel\"")).expect("attributePnl should succeed");
+    // The typed export returns a structured object, never a string.
+    assert!(
+        value.as_string().is_none(),
+        "attributePnl must not return a string"
+    );
+    let stringified = js_sys::JSON::stringify(&value)
+        .expect("structured result must JSON.stringify")
+        .as_string()
+        .expect("stringify yields a string");
+    let object: serde_json::Value = serde_json::from_str(&stringified).expect("object JSON");
+    let json = attribute_pnl_json(&params("\"parallel\"")).expect("attributePnlJson");
+    let wire: serde_json::Value = serde_json::from_str(&json).expect("wire JSON");
+    assert_eq!(object, wire, "structured object and wire JSON must agree");
 }
 
 #[wasm_bindgen_test]

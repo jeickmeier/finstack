@@ -57,6 +57,11 @@ class Theme:
         str
             Scoped ``style`` element containing the report theme rules.
 
+        Notes:
+        -----
+        Token values are interpolated as CSS literals; this method does not
+        raise.
+
         """
         s = f".{scope}"
         return f"""<style>

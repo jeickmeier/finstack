@@ -79,7 +79,7 @@ def instrument_cashflows(
         as_of: ISO 8601 valuation date.
         model: ``"discounting"`` (DF only) or ``"hazard_rate"`` (adds survival
             probability, conditional default probability, and recovery-adjusted
-            principal PV).
+            principal PV). ``"default"`` is not accepted.
 
     Returns:
         ``(envelope, df)`` where ``envelope`` is the parsed JSON dict and

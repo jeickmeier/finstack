@@ -11,23 +11,23 @@
 //!    - Per-curve (if BucketedDv01 available): Σ(DV01_i × Δr_i) for each curve i
 //!    - Fallback (aggregate DV01): DV01 × avg(Δr_i)
 //!    - Second-order: ½ × Convexity × (Δr)² (if available)
-//! 3. **CreditCurves**:
+//!   3. **CreditCurves**:
 //!    - First-order: CS01 × Δs
 //!    - Second-order: ½ × CS-Gamma × (Δs)² (if available)
-//! 4. **Fx**: FX01 × Δfx
-//! 5. **Volatility**:
+//!   4. **Fx**: FX01 × Δfx
+//!   5. **Volatility**:
 //!    - First-order: Vega × Δσ
 //!    - Second-order: ½ × Volga × (Δσ)²
 //!    - Cross-term: CrossGammaSpotVol × Δspot_pct × Δσ_vol_pt
 //!      (NOT Vanna — see the unit-contract note at the cross-factor site)
-//! 6. **Market Scalars** (for options):
+//!   6. **Market Scalars** (for options):
 //!    - First-order: Delta × Δspot
 //!    - Second-order: ½ × Gamma × (Δspot)²
-//! 7. **Inflation**:
+//!   7. **Inflation**:
 //!    - First-order: Inflation01 × Δi
 //!    - Second-order: ½ × InflationConvexity × (Δi)²
-//! 8. **ModelParameters**: Param01 metrics × param_shift
-//! 9. **Residual**: Total P&L - sum(approximations)
+//!   8. **ModelParameters**: Param01 metrics × param_shift
+//!   9. **Residual**: Total P&L - sum(approximations)
 //!
 //! # Advantages (Enhanced)
 //!

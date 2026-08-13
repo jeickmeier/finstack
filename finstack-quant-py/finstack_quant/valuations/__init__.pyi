@@ -2,30 +2,24 @@
 Instrument pricing, risk metrics, P&L attribution, and market-context bootstrapping.
 
 The canonical path to build a :class:`finstack_quant.core.market_data.MarketContext`
-from raw market quotes is :func:`calibrate`:
+from raw market quotes is :func:`calibrate`. A typical envelope has this shape::
 
-    >>> import json
-    >>> from finstack_quant.valuations import calibrate
-    >>> envelope = {  # doctest: +SKIP
-    ...     "schema": "finstack_quant.calibration/1",
-    ...     "plan": {
-    ...         "id": "usd_curves",
-    ...         "quote_sets": {"usd_quotes": ["USD-SOFR-DEP-1M", "USD-OIS-SWAP-1Y"]},
-    ...         "steps": [{"id": "USD-OIS", "quote_set": "usd_quotes",
-    ...                    "kind": "discount", ...}],
-    ...         "settings": {},
-    ...     },
-    ...     "market_data": [
-    ...         {"kind": "rate_quote", "type": "deposit", "id": "USD-SOFR-DEP-1M", ...},
-    ...         {"kind": "rate_quote", "type": "swap",    "id": "USD-OIS-SWAP-1Y", ...},
-    ...     ],
-    ... }
-    >>> result = calibrate(json.dumps(envelope))  # doctest: +SKIP
-    >>> result.success  # doctest: +SKIP
-    True
-    >>> result.rmse  # doctest: +SKIP
-    1.2e-9
-    >>> ctx = result.market  # doctest: +SKIP
+    {
+        "schema": "finstack_quant.calibration/1",
+        "plan": {
+            "id": "usd_curves",
+            "quote_sets": {"usd_quotes": ["USD-SOFR-DEP-1M", "USD-OIS-SWAP-1Y"]},
+            "steps": [{"id": "USD-OIS", "quote_set": "usd_quotes", "kind": "discount"}],
+            "settings": {},
+        },
+        "market_data": [
+            {"kind": "rate_quote", "type": "deposit", "id": "USD-SOFR-DEP-1M"},
+            {"kind": "rate_quote", "type": "swap", "id": "USD-OIS-SWAP-1Y"},
+        ],
+    }
+
+Pass that JSON to :func:`calibrate` and read ``result.market`` after
+``result.success`` is true.
 
 The :class:`CalibrationResult` wrapper carries the :class:`MarketContext` next
 to per-step residuals (:meth:`step_report_json`, :meth:`report_to_dataframe`)
@@ -121,6 +115,10 @@ class ValuationResult:
     Returned directly by the ``price_*`` helpers; :meth:`from_json` rebuilds one
     from a previously serialized payload.
 
+    The rich ``details`` (model-specific pricing detail) and ``meta`` (numeric
+    mode, rounding context, FX policy stamps) fields of the Rust envelope have
+    no typed getters yet; they are reachable through ``to_json()`` only.
+
     Examples
     --------
     >>> import datetime
@@ -187,6 +185,10 @@ class ValuationResult:
         str
             Pretty-printed JSON string.
 
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -200,6 +202,41 @@ class ValuationResult:
         str
             Instrument ID string.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def as_of(self) -> datetime.date:
+        """
+        Valuation date (T+0) for the calculation.
+
+        Returns
+        -------
+        datetime.date
+            The valuation date stamped on this result.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def schema_version(self) -> int:
+        """
+        Wire-format schema version of the result envelope.
+
+        Returns
+        -------
+        int
+            Schema version number (currently ``1``).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -213,6 +250,9 @@ class ValuationResult:
         float
             PV amount as a float.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -229,6 +269,9 @@ class ValuationResult:
         str
             Exact decimal string of the valuation amount, e.g. ``"1000000.00"``.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -242,6 +285,9 @@ class ValuationResult:
         str
             Currency code string.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -259,6 +305,9 @@ class ValuationResult:
         float or None
             Metric value, or ``None`` if missing.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -283,6 +332,10 @@ class ValuationResult:
         list[tuple[list[str], float]]
             Ordered ``(coordinate_components, value)`` pairs for matching
             composite metrics; the scalar aggregate stored at ``base`` is omitted.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -295,6 +348,9 @@ class ValuationResult:
         list[str]
             All measure keys as strings.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -307,6 +363,9 @@ class ValuationResult:
         int
             Number of entries in the measures map.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -319,6 +378,9 @@ class ValuationResult:
         bool
             ``True`` if no covenant failures are recorded.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -331,6 +393,9 @@ class ValuationResult:
         list[str]
             List of failed covenant identifiers.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -353,6 +418,11 @@ class ValuationResult:
         pd.DataFrame
             Single-row DataFrame with the identity columns followed by one
             column per metric.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -371,6 +441,10 @@ class ValuationResult:
         -------
         pd.DataFrame
             Single-row DataFrame with one column per metric.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -410,8 +484,8 @@ def instrument_cashflows(
             ISO-8601 valuation date used to exclude settled flows and calculate
             schedule-relative discount factors.
         model : str
-            Registered pricing model key, such as ``"discounting"``, for the
-            instrument cashflow projection.
+            Must be ``"discounting"`` or ``"hazard_rate"``. ``"default"`` is
+            not accepted on cashflow export.
 
         Returns
         -------
@@ -528,6 +602,11 @@ class CalibrationResult:
         -------
         str
             Pretty-printed JSON string.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -540,6 +619,10 @@ class CalibrationResult:
         -------
         bool
             ``True`` if all steps passed.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -552,6 +635,10 @@ class CalibrationResult:
         -------
         MarketContext
             Live market context ready for pricing and attribution.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -564,6 +651,10 @@ class CalibrationResult:
         -------
         str
             JSON snapshot of the calibrated market.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -576,6 +667,10 @@ class CalibrationResult:
         -------
         str
             JSON-serialized calibration report.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -588,6 +683,10 @@ class CalibrationResult:
         -------
         list[str]
             Step IDs in declared order.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -600,6 +699,10 @@ class CalibrationResult:
         -------
         int
             Sum of solver iterations.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -612,6 +715,10 @@ class CalibrationResult:
         -------
         float
             Largest absolute residual.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -624,6 +731,10 @@ class CalibrationResult:
         -------
         float
             RMSE of all step residuals.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -665,6 +776,11 @@ class CalibrationResult:
         -------
         pd.DataFrame
             DataFrame with one row per calibration step.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -679,6 +795,10 @@ class CalibrationResult:
         -------
         pd.DataFrame
             DataFrame with one row per calibration step.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -950,6 +1070,12 @@ def bs_price(
     >>> round(bs_price(100.0, 100.0, 0.05, 0.0, 0.2, 1.0, True), 4)
     10.4506
 
+    Sources
+    -------
+    - Black-Scholes (1973): see docs/REFERENCES.md#black-scholes-1973
+    - Merton (1973): see docs/REFERENCES.md#merton-1973
+    - Garman-Kohlhagen (1983): see docs/REFERENCES.md#garman-kohlhagen-1983
+
     """
     ...
 
@@ -1009,6 +1135,12 @@ def bs_greeks(
     >>> (round(greeks["delta"], 4), sorted(greeks))
     (0.6368, ['delta', 'gamma', 'rho', 'rho_q', 'theta', 'vega'])
 
+    Sources
+    -------
+    - Black-Scholes (1973): see docs/REFERENCES.md#black-scholes-1973
+    - Merton (1973): see docs/REFERENCES.md#merton-1973
+    - Garman-Kohlhagen (1983): see docs/REFERENCES.md#garman-kohlhagen-1983
+
     """
     ...
 
@@ -1058,6 +1190,11 @@ def bs_implied_vol(
     >>> round(bs_implied_vol(100.0, 100.0, 0.05, 0.0, 1.0, price, True), 6)
     0.2
 
+    Sources
+    -------
+    - Black-Scholes (1973): see docs/REFERENCES.md#black-scholes-1973
+    - Merton (1973): see docs/REFERENCES.md#merton-1973
+
     """
     ...
 
@@ -1102,6 +1239,10 @@ def black76_implied_vol(
     >>> from finstack_quant.valuations import black76_implied_vol
     >>> round(black76_implied_vol(100.0, 100.0, 0.95, 1.0, 7.5673, True), 6)
     0.2
+
+    Sources
+    -------
+    - Black (1976): see docs/REFERENCES.md#black-1976
 
     """
     ...
@@ -1162,6 +1303,10 @@ def barrier_call(
     >>> round(barrier_call(100.0, 100.0, 120.0, 0.05, 0.0, 0.2, 1.0, "up", "out"), 4)
     1.1761
 
+    Sources
+    -------
+    - Reiner-Rubinstein (1991): see docs/REFERENCES.md#reiner-rubinstein-1991
+
     """
     ...
 
@@ -1216,6 +1361,11 @@ def asian_option_price(
     >>> from finstack_quant.valuations import asian_option_price
     >>> round(asian_option_price(100.0, 100.0, 0.05, 0.0, 0.2, 1.0, 12), 4)
     6.1742
+
+    Sources
+    -------
+    - Kemna-Vorst (1990): see docs/REFERENCES.md#kemna-vorst-1990
+    - Turnbull-Wakeman (1991): see docs/REFERENCES.md#turnbull-wakeman-1991
 
     """
     ...
@@ -1275,6 +1425,10 @@ def lookback_option_price(
     >>> round(lookback_option_price(100.0, 100.0, 0.05, 0.0, 0.2, 1.0, 90.0), 4)
     17.2168
 
+    Sources
+    -------
+    - Conze-Viswanathan (1991): see docs/REFERENCES.md#conze-viswanathan-1991
+
     """
     ...
 
@@ -1332,6 +1486,10 @@ def quanto_option_price(
     >>> round(quanto_option_price(100.0, 100.0, 1.0, 0.05, 0.02, 0.01, 0.2, 0.1, 0.3), 4)
     7.7844
 
+    Sources
+    -------
+    - Garman-Kohlhagen (1983): see docs/REFERENCES.md#garman-kohlhagen-1983
+
     """
     ...
 
@@ -1343,6 +1501,10 @@ class SabrParameters:
 
     Enforces ``alpha > 0``, ``beta in [0, 1]``, ``nu >= 0``, ``rho in
     [-1, 1]``, and ``shift > 0`` when supplied.
+
+    Sources
+    -------
+    - Hagan SABR (2002): see docs/REFERENCES.md#hagan-2002-sabr
 
     Examples
     --------
@@ -1396,13 +1558,16 @@ class SabrParameters:
         SabrParameters
             Default equity SABR parameters.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.valuations import SabrParameters
         >>> params = SabrParameters.equity_default()
         >>> (params.alpha, params.beta, params.nu, params.rho)
         (0.2, 1.0, 0.3, -0.2)
-
         """
         ...
 
@@ -1416,13 +1581,16 @@ class SabrParameters:
         SabrParameters
             Default rates SABR parameters.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.valuations import SabrParameters
         >>> params = SabrParameters.rates_default()
         >>> (params.alpha, params.beta, params.nu, params.rho)
         (0.02, 0.5, 0.3, 0.0)
-
         """
         ...
 
@@ -1435,6 +1603,10 @@ class SabrParameters:
         -------
         float
             Alpha parameter value.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1447,6 +1619,10 @@ class SabrParameters:
         -------
         float
             Beta parameter value.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1459,6 +1635,10 @@ class SabrParameters:
         -------
         float
             Nu parameter value.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1471,6 +1651,10 @@ class SabrParameters:
         -------
         float
             Rho parameter value.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1483,6 +1667,10 @@ class SabrParameters:
         -------
         float or None
             Shift value, or ``None`` if not set.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1494,6 +1682,10 @@ class SabrParameters:
         -------
         bool
             ``True`` if a non-zero shift is present.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -1567,6 +1759,10 @@ class SabrModel:
         -------
         SabrParameters
             The SABR parameter set.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1578,12 +1774,20 @@ class SabrModel:
         -------
         bool
             ``True`` if the shift is non-zero, enabling negative-rate smiles.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
 class SabrSmile:
     """
     Volatility smile generator for a fixed ``(forward, t)`` pair.
+
+    Sources
+    -------
+    - Hagan SABR (2002): see docs/REFERENCES.md#hagan-2002-sabr
 
     Examples
     --------
@@ -1611,6 +1815,10 @@ class SabrSmile:
             Forward price at expiry.
         t : float
             Time to expiry in years.
+
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -1622,6 +1830,10 @@ class SabrSmile:
         -------
         float
             ATM implied vol as a decimal.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1710,6 +1922,10 @@ class SabrCalibrator:
     """
     SABR calibrator (Levenberg-Marquardt with beta fixed).
 
+    Sources
+    -------
+    - Hagan SABR (2002): see docs/REFERENCES.md#hagan-2002-sabr
+
     Examples
     --------
     >>> from finstack_quant.valuations import SabrCalibrator
@@ -1721,7 +1937,14 @@ class SabrCalibrator:
 
     def __init__(self) -> None:
         """
-        Create a default SABR calibrator with standard tolerance and iteration cap.
+        Create a SABR calibrator with the library default tolerance and iteration cap.
+
+        Use :meth:`high_precision` for a tighter production fit, or
+        :meth:`with_tolerance` to override the residual tolerance.
+
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
 
@@ -1735,13 +1958,16 @@ class SabrCalibrator:
         SabrCalibrator
             Calibrator with high-precision tolerance.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+
         Examples
         --------
         >>> from finstack_quant.valuations import SabrCalibrator
         >>> calibrator = SabrCalibrator.high_precision()
         >>> calibrator.with_tolerance(1e-6) is calibrator
         False
-
         """
         ...
 
@@ -1758,6 +1984,11 @@ class SabrCalibrator:
         -------
         SabrCalibrator
             New calibrator instance sharing other settings.
+
+        Notes
+        -----
+        This builder returns a copy with the field set and does not raise.
+
         """
         ...
 
@@ -1884,6 +2115,11 @@ def bs_cos_price(
     >>> round(bs_cos_price(100.0, 100.0, 0.05, 0.0, 0.2, 1.0, True), 4)
     10.4506
 
+    Sources
+    -------
+    - Fang-Oosterlee (2008): see docs/REFERENCES.md#fang-oosterlee-2008
+    - Black-Scholes (1973): see docs/REFERENCES.md#black-scholes-1973
+
     """
     ...
 
@@ -1942,6 +2178,11 @@ def vg_cos_price(
     >>> from finstack_quant.valuations import vg_cos_price
     >>> round(vg_cos_price(100.0, 100.0, 0.05, 0.0, 0.2, -0.1, 0.2, 1.0, True), 4)
     10.4445
+
+    Sources
+    -------
+    - Fang-Oosterlee (2008): see docs/REFERENCES.md#fang-oosterlee-2008
+    - Madan-Carr-Chang (1998): see docs/REFERENCES.md#madan-carr-chang-1998
 
     """
     ...
@@ -2004,6 +2245,11 @@ def merton_jump_cos_price(
     >>> from finstack_quant.valuations import merton_jump_cos_price
     >>> round(merton_jump_cos_price(100.0, 100.0, 0.05, 0.0, 0.2, -0.1, 0.2, 0.5, 1.0, True), 4)
     12.1642
+
+    Sources
+    -------
+    - Fang-Oosterlee (2008): see docs/REFERENCES.md#fang-oosterlee-2008
+    - Merton jump-diffusion (1976): see docs/REFERENCES.md#merton-1976-jump
 
     """
     ...

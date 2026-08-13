@@ -40,21 +40,37 @@ pub(super) fn apply_spot(
         // code multiplied the single Delta by EVERY spot's move and summed
         // (~N× overstatement for multi-spot instruments) while applying
         // Gamma once to the average. Both orders are now applied once, to
-        // the first declared spot with a measurable move; additional spot
-        // moves are unattributed (they flow to the residual) and noted.
-        let mut primary_shift: Option<f64> = None;
-        let mut extra_spots: Vec<&String> = Vec::new();
-        for spot_id in market_scalar_ids {
-            if let Ok(spot_abs_shift) =
+        // the measurable spot with the LARGEST |ΔS| (deterministic
+        // tie-break: first declared wins) — binding to the first measurable
+        // spot even when its move was 0.0 locked out the real driver.
+        // Additional spot moves are unattributed (they flow to the
+        // residual) and noted.
+        let measured: Vec<(&String, f64)> = market_scalar_ids
+            .iter()
+            .filter_map(|spot_id| {
                 measure_scalar_absolute_shift(spot_id, inputs.market_t0, inputs.market_t1)
-            {
-                if primary_shift.is_none() {
-                    primary_shift = Some(spot_abs_shift);
-                } else {
-                    extra_spots.push(spot_id);
-                }
+                    .ok()
+                    .map(|shift| (spot_id, shift))
+            })
+            .collect();
+        let mut primary: Option<(usize, f64)> = None;
+        for (idx, &(_, shift)) in measured.iter().enumerate() {
+            match primary {
+                Some((_, best)) if shift.abs() <= best.abs() => {}
+                _ => primary = Some((idx, shift)),
             }
         }
+        let primary_shift: Option<f64> = primary.map(|(_, shift)| shift);
+        let extra_spots: Vec<&String> = primary
+            .map(|(primary_idx, _)| {
+                measured
+                    .iter()
+                    .enumerate()
+                    .filter(|&(idx, _)| idx != primary_idx)
+                    .map(|(_, &(spot_id, _))| spot_id)
+                    .collect()
+            })
+            .unwrap_or_default();
 
         if let Some(spot_shift) = primary_shift {
             let mut total_spot_pnl = delta * spot_shift;

@@ -119,8 +119,9 @@ let pv = opt.value(&market_context, as_of)?;
 ## References
 
 - Bloomberg L.P. Quantitative Analytics, *Pricing Credit Index Options*, DOCS
-  2055833.
+  2055833. `docs/REFERENCES.md#bloomberg-cdso`
 - Bloomberg L.P. Quantitative Analytics, *The Bloomberg CDS Model*, DOCS
-  2057273.
+  2057273. `docs/REFERENCES.md#bloomberg-cds-model`
 - S&P Dow Jones Indices, *CDS Indices Primer* — clean-price strike
   factor/loss adjustment (the `107.0 -> 107.9874` fixture).
+  `docs/REFERENCES.md#sp-cds-indices-primer`

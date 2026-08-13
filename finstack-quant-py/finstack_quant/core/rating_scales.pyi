@@ -79,6 +79,9 @@ class UnknownScalePolicy:
         str
             Policy identifier string.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     def to_json(self) -> str:
@@ -89,6 +92,11 @@ class UnknownScalePolicy:
         -------
         str
             Canonical JSON representation of this `UnknownScalePolicy`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
     @classmethod
@@ -178,6 +186,9 @@ class RatingLevel:
         min_score : float
             Minimum score threshold required to qualify for this rating.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
     @property
@@ -190,6 +201,9 @@ class RatingLevel:
         str
             Rating label.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -202,6 +216,9 @@ class RatingLevel:
         float
             Representative score for the rating.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -214,6 +231,9 @@ class RatingLevel:
         float
             Lower bound on the scorecard scale.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     def to_json(self) -> str:
@@ -224,6 +244,11 @@ class RatingLevel:
         -------
         str
             Canonical JSON representation of this `RatingLevel`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
     @classmethod
@@ -300,6 +325,9 @@ class ScorecardScale:
         description : str, optional
             Human-readable description of the scale.
 
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
         """
         ...
     @property
@@ -312,6 +340,9 @@ class ScorecardScale:
         str
             Scale identifier.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -324,6 +355,9 @@ class ScorecardScale:
         str or None
             Description text when set.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -336,6 +370,9 @@ class ScorecardScale:
         list[RatingLevel]
             Rating threshold rows.
 
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     def to_json(self) -> str:
@@ -346,6 +383,11 @@ class ScorecardScale:
         -------
         str
             Canonical JSON representation of this `ScorecardScale`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
     @classmethod
@@ -422,6 +464,9 @@ class RatingScaleRegistry:
             Default score on the 0–100 scale used when interpolating between
             published rating thresholds.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
 
     def default_scale_id(self) -> str:
@@ -433,6 +478,9 @@ class RatingScaleRegistry:
         str
             Default scale identifier (e.g. ``"sp"``).
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
 
     def unknown_scale_policy(self) -> UnknownScalePolicy:
@@ -444,6 +492,9 @@ class RatingScaleRegistry:
         UnknownScalePolicy
             Error, fallback, or warn-and-fallback policy.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
 
     def is_known_rating_scale(self, name: str) -> bool:
@@ -461,6 +512,9 @@ class RatingScaleRegistry:
             ``True`` when the name resolves without applying the unknown-scale
             policy.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
 
     def rating_scale(self, name: str) -> ScorecardScale:
@@ -495,6 +549,11 @@ class RatingScaleRegistry:
         -------
         str
             Canonical JSON representation of this `RatingScaleRegistry`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
     @classmethod
@@ -545,6 +604,11 @@ def embedded_registry() -> RatingScaleRegistry:
     -------
     RatingScaleRegistry
         Registry shipped with the library containing standard agency scales.
+
+    Raises
+    ------
+    ValueError
+        If the embedded rating-scale registry cannot be constructed.
 
     Examples
     --------

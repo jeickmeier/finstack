@@ -44,21 +44,23 @@ impl PyForwardCurve {
         base_date: &Bound<'_, PyAny>,
         knots: Vec<(f64, f64)>,
         day_count: Option<&str>,
-        interp: &str,
-        extrapolation: &str,
+        interp: Option<&str>,
+        extrapolation: Option<&str>,
         projection_grid: Option<Vec<f64>>,
         reset_lag: Option<i32>,
     ) -> PyResult<Self> {
         let base = py_to_date(base_date)?;
-        let style = parse_interp_style(interp)?;
-        let extrap = parse_extrapolation(extrapolation)?;
 
         let mut builder = ForwardCurve::builder(id, tenor)
             .base_date(base)
             .knots(knots)
-            .interp(style)
-            .extrapolation(extrap)
             .projection_grid_opt(projection_grid);
+        if let Some(interp) = interp {
+            builder = builder.interp(parse_interp_style(interp)?);
+        }
+        if let Some(extrapolation) = extrapolation {
+            builder = builder.extrapolation(parse_extrapolation(extrapolation)?);
+        }
         if let Some(day_count) = day_count {
             builder = builder.day_count(parse_day_count(day_count)?);
         }
@@ -79,22 +81,27 @@ impl PyForwardCurve {
 impl PyForwardCurve {
     /// Construct a forward rate curve from knot points.
     ///
+    /// The positional argument order ``(id, tenor, base_date, knots, …)``
+    /// matches the WASM constructor and the ``DiscountCurve`` convention.
+    ///
     /// Parameters
     /// ----------
     /// id : str
     ///     Unique curve identifier (e.g. ``"USD-SOFR-3M"``).
     /// tenor : float
     ///     Index tenor in years (e.g. ``0.25`` for 3 months).
-    /// knots : list[tuple[float, float]]
-    ///     ``(time_years, forward_rate)`` pairs.
     /// base_date : datetime.date
     ///     Valuation date.
+    /// knots : list[tuple[float, float]]
+    ///     ``(time_years, forward_rate)`` pairs.
     /// day_count : str, optional
     ///     Day-count convention. When omitted, Rust infers a market default from the curve ID.
     /// interp : str, optional
-    ///     Interpolation style (default ``"linear"``).
+    ///     Interpolation style. When omitted, the Rust builder default
+    ///     (``"linear"``) applies.
     /// extrapolation : str, optional
-    ///     Extrapolation policy (default ``"flat_forward"``).
+    ///     Extrapolation policy. When omitted, the Rust builder default
+    ///     (``"flat_forward"``) applies.
     /// projection_grid : list[float] | None, optional
     ///     Contractual reset/end-date projection boundaries. Omit for legacy
     ///     fixed numeric-tenor DF stepping.
@@ -105,15 +112,15 @@ impl PyForwardCurve {
         clippy::too_many_arguments,
         reason = "the cross-host constructor includes curve identity, data, and optional projection metadata"
     )]
-    #[pyo3(signature = (id, tenor, knots, base_date, day_count=None, interp="linear", extrapolation="flat_forward", projection_grid=None, reset_lag=None))]
+    #[pyo3(signature = (id, tenor, base_date, knots, day_count=None, interp=None, extrapolation=None, projection_grid=None, reset_lag=None))]
     fn new(
         id: &str,
         tenor: f64,
-        knots: Vec<(f64, f64)>,
         base_date: &Bound<'_, PyAny>,
+        knots: Vec<(f64, f64)>,
         day_count: Option<&str>,
-        interp: &str,
-        extrapolation: &str,
+        interp: Option<&str>,
+        extrapolation: Option<&str>,
         projection_grid: Option<Vec<f64>>,
         reset_lag: Option<i32>,
     ) -> PyResult<Self> {
@@ -136,7 +143,7 @@ impl PyForwardCurve {
         clippy::too_many_arguments,
         reason = "the named factory exposes the complete curve specification"
     )]
-    #[pyo3(signature = (id, *, tenor, base_date, knots, day_count=None, interp="linear", extrapolation="flat_forward", projection_grid=None, reset_lag=None))]
+    #[pyo3(signature = (id, *, tenor, base_date, knots, day_count=None, interp=None, extrapolation=None, projection_grid=None, reset_lag=None))]
     fn from_knots(
         _cls: &Bound<'_, PyType>,
         id: &str,
@@ -144,8 +151,8 @@ impl PyForwardCurve {
         base_date: &Bound<'_, PyAny>,
         knots: Vec<(f64, f64)>,
         day_count: Option<&str>,
-        interp: &str,
-        extrapolation: &str,
+        interp: Option<&str>,
+        extrapolation: Option<&str>,
         projection_grid: Option<Vec<f64>>,
         reset_lag: Option<i32>,
     ) -> PyResult<Self> {

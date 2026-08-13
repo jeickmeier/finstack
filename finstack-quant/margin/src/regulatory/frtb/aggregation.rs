@@ -133,8 +133,8 @@ pub(super) fn inter_bucket(bucket_results: &[BucketResult], gamma: f64) -> f64 {
 ///
 /// # References
 ///
-/// - BCBS FRTB Minimum Capital Requirements:
-///   `docs/REFERENCES.md#bcbs-frtb-minimum-capital-requirements`
+/// - BCBS FRTB Minimum Capital Requirements: `docs/REFERENCES.md#bcbs-frtb-minimum-capital-requirements`
+///
 pub fn aggregate_sba(
     delta_charges: &HashMap<FrtbRiskClass, f64>,
     vega_charges: &HashMap<FrtbRiskClass, f64>,

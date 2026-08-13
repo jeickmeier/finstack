@@ -53,15 +53,15 @@ pub(crate) struct HazardCurveTarget {
 /// The grid has two parts:
 ///
 ///  * A *primary window* `[log_center − 4, log_center + 2]` decades around the
-///    spread-implied guess. The asymmetric `+2 / −4` shape concentrates resolution in
-///    the typical low-hazard regime.
+///   spread-implied guess. The asymmetric `+2 / −4` shape concentrates resolution in
+///   the typical low-hazard regime.
 ///
 ///  * A *distressed/JTD upside augmentation*: a coarser log-spaced set spanning
-///    `(log_center + 2, log10(hazard_hard_max)]`. The previous grid had only the lone
-///    `hazard_hard_max` anchor above the primary window, so a distressed name — whose
-///    true hazard can sit far above a moderate `spread/(1−R)` guess when the CDS curve
-///    is steep or inverted — could at best be bracketed against an extremely wide
-///    `[10^(log_center+2), hazard_hard_max]` interval with no interior resolution.
+///   `(log_center + 2, log10(hazard_hard_max)]`. The previous grid had only the lone
+///   `hazard_hard_max` anchor above the primary window, so a distressed name — whose
+///   true hazard can sit far above a moderate `spread/(1−R)` guess when the CDS curve
+///   is steep or inverted — could at best be bracketed against an extremely wide
+///   `[10^(log_center+2), hazard_hard_max]` interval with no interior resolution.
 ///
 /// The augmentation is **purely additive**: every primary-window point is retained
 /// unchanged. The bracketing solver selects the sign-change bracket whose midpoint is

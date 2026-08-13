@@ -144,7 +144,7 @@ impl From<RawFixedCouponSpec> for FixedCouponSpec {
 /// # Reference
 ///
 /// - ISDA (2021). "IBOR Fallbacks Supplement." Section 7.
-/// - ARRC (2020). "SOFR: A User's Guide." Federal Reserve Bank of New York.
+/// - ARRC (2020). "SOFR: A User's Guide." Federal Reserve Bank of New York. `docs/REFERENCES.md#arrc-sofr-users-guide`
 /// - `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
 /// - `docs/REFERENCES.md#isda-2006-definitions`
 #[derive(

@@ -31,10 +31,10 @@
 //!
 //! # References
 //!
-//! - Default/recovery empirical evidence:
-//!   `docs/REFERENCES.md#altman-et-al-2005-recovery`
-//! - Stochastic recovery model context:
-//!   `docs/REFERENCES.md#andersen-sidenius-2005-rfl`
+//! - Default/recovery empirical evidence: `docs/REFERENCES.md#altman-et-al-2005-recovery`
+//!
+//! - Stochastic recovery model context: `docs/REFERENCES.md#andersen-sidenius-2005-rfl`
+//!
 
 mod constant;
 mod correlated;

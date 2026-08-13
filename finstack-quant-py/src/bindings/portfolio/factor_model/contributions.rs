@@ -737,7 +737,7 @@ impl PyPositionRiskDecomposition {
     /// Returns
     /// -------
     /// float
-    ///     A **fraction** in ``(0, 1)`` — ``0.99``, not ``99``.
+    ///     A **fraction** strictly inside ``(0.5, 1)`` — ``0.99``, not ``99``.
     #[getter]
     fn confidence(&self) -> f64 {
         self.inner.confidence

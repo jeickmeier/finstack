@@ -21,6 +21,11 @@ use finstack_quant_valuations::metrics::MetricId;
 /// Beyond ~100bp, third-order and higher terms become significant.
 const LARGE_RATE_MOVE_THRESHOLD_BP: f64 = 100.0;
 
+/// Threshold below which the total |DV01| weight is treated as zero when
+/// forming the DV01-weighted convexity shift (falls back to the unweighted
+/// mean instead of dividing by ~0).
+const KEYRATE_WEIGHT_EPS: f64 = 1e-12;
+
 pub(super) fn apply(
     inputs: &AttributionInputs<'_>,
     attribution: &mut PnlAttribution,
@@ -66,6 +71,12 @@ pub(super) fn apply(
         // residual with no note.
         let mut rates_acc = NeumaierAccumulator::new();
         let mut shift_acc = NeumaierAccumulator::new();
+        // DV01-weighted shift for the convexity block: Σ|DV01_i|·Δr_i and
+        // Σ|DV01_i|. An unweighted mean over DV01 cells collapses to ~0 for a
+        // steepener even when the position's risk sits at one end of the
+        // curve, killing the convexity term.
+        let mut weighted_shift_acc = NeumaierAccumulator::new();
+        let mut weight_acc = NeumaierAccumulator::new();
         let mut shift_terms = 0usize;
         let mut curves_with_data = 0usize;
         let mut curves_via_fallback: Vec<String> = Vec::new();
@@ -80,6 +91,8 @@ pub(super) fn apply(
                     ) {
                         rates_acc.add(dv01_for_curve * shift);
                         shift_acc.add(shift);
+                        weighted_shift_acc.add(dv01_for_curve.abs() * shift);
+                        weight_acc.add(dv01_for_curve.abs());
                         shift_terms += 1;
                         curves_via_fallback.push(curve_id.as_str().to_string());
                     }
@@ -98,6 +111,8 @@ pub(super) fn apply(
             for ((_, dv01), shift) in buckets.iter().zip(shifts.iter()) {
                 rates_acc.add(dv01 * shift);
                 shift_acc.add(*shift);
+                weighted_shift_acc.add(dv01.abs() * shift);
+                weight_acc.add(dv01.abs());
                 shift_terms += 1;
             }
             curves_with_data += 1;
@@ -112,9 +127,17 @@ pub(super) fn apply(
         );
 
         if shift_terms > 0 {
-            // Mean per-tenor shift across all (curve, tenor) cells with data —
-            // used only as the scalar input to the coarse convexity block.
-            convexity_avg_shift_bp = Some(shift_acc.total() / shift_terms as f64);
+            // DV01-weighted mean shift across all (curve, tenor) cells with
+            // data — the scalar input to the coarse convexity block:
+            //   Σ|DV01_i|·Δr_i / Σ|DV01_i|.
+            // Guard: when Σ|DV01| ≈ 0 (all-zero DV01 cells) fall back to the
+            // unweighted mean rather than dividing by ~0.
+            let total_weight = weight_acc.total();
+            convexity_avg_shift_bp = Some(if total_weight > KEYRATE_WEIGHT_EPS {
+                weighted_shift_acc.total() / total_weight
+            } else {
+                shift_acc.total() / shift_terms as f64
+            });
         }
         if curves_with_data > 0 {
             attribution.meta.notes.push(format!(

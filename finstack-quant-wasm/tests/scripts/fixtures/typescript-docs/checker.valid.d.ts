@@ -65,3 +65,15 @@ export function calculate(value: number): number;
 
 /** Namespaced arithmetic entry point. */
 export const math: MathNamespace;
+
+/**
+ * Reusable WebAssembly report handle used by the documentation checker fixture.
+ */
+export declare class ReportHandle {
+  /**
+   * Serialize this report to canonical JSON.
+   * @returns Canonical JSON string for the report.
+   * @throws Error - Thrown when serialization cannot complete.
+   */
+  toJson(): string;
+}

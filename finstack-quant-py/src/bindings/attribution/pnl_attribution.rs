@@ -2,12 +2,13 @@
 
 use crate::bindings::pandas_utils::{
     serde_object_to_single_row_dataframe_with_schema, serde_rows_to_dataframe_with_schema,
-    ColumnSchema,
+    serde_to_py, ColumnSchema,
 };
 use crate::errors::display_to_py;
+use finstack_quant_attribution::{
+    pnl_attribution_carry_rows, pnl_attribution_credit_factor_rows, pnl_attribution_long_rows,
+};
 use pyo3::prelude::*;
-
-use super::dataframe::{build_carry_detail_rows, build_credit_factor_rows, build_long_detail_rows};
 
 /// P&L attribution result for a single instrument.
 ///
@@ -231,6 +232,132 @@ impl PyPnlAttribution {
         self.inner.result_invalid
     }
 
+    /// Absolute tolerance used for residual validation (``meta.tolerance_abs``).
+    #[getter]
+    fn tolerance_abs(&self) -> f64 {
+        self.inner.meta.tolerance_abs
+    }
+
+    /// Percentage tolerance used for residual validation (``meta.tolerance_pct``).
+    #[getter]
+    fn tolerance_pct(&self) -> f64 {
+        self.inner.meta.tolerance_pct
+    }
+
+    /// Rounding context in force for the run, as a serde-shaped dict.
+    #[getter]
+    fn rounding<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.meta.rounding)
+    }
+
+    /// FX policy metadata as a serde-shaped dict, or ``None`` when no FX
+    /// conversions were applied.
+    #[getter]
+    fn fx_policy<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.meta.fx_policy)
+    }
+
+    /// Execution policy the attribution ran under (``"serial"`` /
+    /// ``"parallel"``), or ``None`` for methods without a policy knob
+    /// (metrics-based).
+    #[getter]
+    fn execution_policy<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.meta.execution_policy)
+    }
+
+    // --- Typed detail payloads (serde-shaped dicts) ---
+
+    /// Carry decomposition detail as a serde-shaped dict, or ``None`` when not
+    /// populated. Keys mirror the Rust ``CarryDetail`` wire schema (``total``,
+    /// ``coupon_income``, ``pull_to_par``, ``roll_down``, ``funding_cost``).
+    #[getter]
+    fn carry_detail<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.carry_detail)
+    }
+
+    /// Rates-curves detail (``by_curve``, ``by_tenor``, ``discount_total``,
+    /// ``forward_total``) as a serde-shaped dict, or ``None`` when not
+    /// populated.
+    #[getter]
+    fn rates_detail<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.rates_detail)
+    }
+
+    /// Credit-curves detail (``by_curve``, ``by_tenor``) as a serde-shaped
+    /// dict, or ``None`` when not populated.
+    #[getter]
+    fn credit_detail<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.credit_detail)
+    }
+
+    /// Inflation-curves detail (``by_curve``, optional ``by_tenor``) as a
+    /// serde-shaped dict, or ``None`` when not populated.
+    #[getter]
+    fn inflation_detail<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.inflation_detail)
+    }
+
+    /// Base-correlation detail (``by_curve``) as a serde-shaped dict, or
+    /// ``None`` when not populated.
+    #[getter]
+    fn correlations_detail<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.correlations_detail)
+    }
+
+    /// FX detail (``by_pair``, keyed ``"FROM/TO"``) as a serde-shaped dict, or
+    /// ``None`` when not populated.
+    #[getter]
+    fn fx_detail<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.fx_detail)
+    }
+
+    /// Volatility detail (``by_surface``) as a serde-shaped dict, or ``None``
+    /// when not populated.
+    #[getter]
+    fn vol_detail<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.vol_detail)
+    }
+
+    /// Cross-factor interaction detail (``total``, ``by_pair``) as a
+    /// serde-shaped dict, or ``None`` when not populated.
+    #[getter]
+    fn cross_factor_detail<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.cross_factor_detail)
+    }
+
+    /// Model-parameter detail (``prepayment``, ``default_rate``,
+    /// ``recovery_rate``, ``conversion_ratio``, ``other``) as a serde-shaped
+    /// dict, or ``None`` when not populated.
+    #[getter]
+    fn model_params_detail<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.model_params_detail)
+    }
+
+    /// Market-scalars detail (``dividends``, ``inflation``, ``equity_prices``,
+    /// ``commodity_prices``) as a serde-shaped dict, or ``None`` when not
+    /// populated.
+    #[getter]
+    fn scalars_detail<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.scalars_detail)
+    }
+
+    /// Credit-factor hierarchy decomposition (``model_id``, ``generic_pnl``,
+    /// ``levels``, ``adder_pnl_total``, ``curve_shape_pnl``, ...) as a
+    /// serde-shaped dict, or ``None`` when no ``credit_factor_model`` was
+    /// supplied.
+    #[getter]
+    fn credit_factor_detail<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.credit_factor_detail)
+    }
+
+    /// Factor-cut decomposition of carry under a credit factor model
+    /// (``rates_carry_total``, ``credit_carry_total``, ``credit_by_level``)
+    /// as a serde-shaped dict, or ``None`` when not populated.
+    #[getter]
+    fn credit_carry_decomposition<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.credit_carry_decomposition)
+    }
+
     /// Check whether the residual is within tolerance.
     ///
     /// With no arguments this uses the attribution's own stored,
@@ -409,7 +536,7 @@ impl PyPnlAttribution {
     /// or ``df.pivot_table(index="key_a", columns="key_b", values="amount")``
     /// to slice the desired view.
     fn to_long_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let rows = build_long_detail_rows(&self.inner);
+        let rows = pnl_attribution_long_rows(&self.inner);
         serde_rows_to_dataframe_with_schema(py, &rows, &LONG_DETAIL_COLUMNS)
     }
 
@@ -428,7 +555,7 @@ impl PyPnlAttribution {
     /// Returns an empty DataFrame (zero rows, schema columns present) when
     /// ``carry_detail`` is not populated.
     fn to_carry_detail_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let rows = build_carry_detail_rows(&self.inner);
+        let rows = pnl_attribution_carry_rows(&self.inner);
         serde_rows_to_dataframe_with_schema(py, &rows, &LONG_DETAIL_COLUMNS)
     }
 
@@ -446,7 +573,7 @@ impl PyPnlAttribution {
     /// ``credit_factor_detail`` is not populated (no ``credit_factor_model``
     /// was supplied, or the instrument has no resolvable issuer).
     fn to_credit_factor_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let rows = build_credit_factor_rows(&self.inner);
+        let rows = pnl_attribution_credit_factor_rows(&self.inner);
         serde_rows_to_dataframe_with_schema(py, &rows, &LONG_DETAIL_COLUMNS)
     }
 

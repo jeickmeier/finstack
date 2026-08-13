@@ -275,13 +275,11 @@ pub struct PyScorecardReport {
 
 #[pymethods]
 impl PyScorecardReport {
-    /// ``"success"`` or ``"failed"``.
+    /// ``"success"`` or ``"failed"`` — the canonical serde discriminant of
+    /// the Rust ``ScorecardStatus`` enum.
     #[getter]
     fn status(&self) -> String {
-        match self.inner.status {
-            rust_scorecards::ScorecardStatus::Success => "success".to_string(),
-            rust_scorecards::ScorecardStatus::Failed => "failed".to_string(),
-        }
+        super::serde_variant_str(&self.inner.status)
     }
 
     /// Human-readable summary of the run.
@@ -402,10 +400,7 @@ impl PyScorecardReport {
     fn __repr__(&self) -> String {
         format!(
             "ScorecardReport(status='{}', warnings={}, errors={})",
-            match self.inner.status {
-                rust_scorecards::ScorecardStatus::Success => "success",
-                rust_scorecards::ScorecardStatus::Failed => "failed",
-            },
+            self.status(),
             self.inner.warnings.len(),
             self.inner.errors.len()
         )

@@ -3,11 +3,14 @@
 //! Mirrors the Python `StructuredCredit` metric methods — discount margin, OAS,
 //! break-even CDR and the scenario table — as free functions that wrap the
 //! `pricer::structured_credit_*_json` entry points: parse the market JSON,
-//! dispatch, and return JSON (or a scalar). The exported JS surface lives under
-//! `valuations.instruments`.
+//! dispatch, and return a scalar or a typed plain object. The OAS, metrics,
+//! and scenario-table entry points return structured JavaScript objects with
+//! the same snake_case fields Python exposes through its `OasResult` /
+//! `TrancheMetrics` / `ScenarioTable` wrappers. The exported JS surface lives
+//! under `valuations.instruments`.
 
 use super::pricing::{parse_market_json, validate_pricing_instrument_json};
-use crate::utils::{to_js_err, to_js_error};
+use crate::utils::{to_js_error, to_js_value};
 use wasm_bindgen::prelude::*;
 
 /// Z-spread-equivalent discount margin for a floating-rate tranche, returned in
@@ -17,7 +20,7 @@ use wasm_bindgen::prelude::*;
 /// then a constant additive spread is applied to the discount curve. The result
 /// is zero at model PV, negative for a richer (higher) `targetPv`, and positive
 /// for a cheaper (lower) `targetPv`; it is not the contractual quoted margin.
-/// @param instrument_json - Canonical JSON payload representing the instrument consumed by this API.
+/// @param instrument_json - Canonical instrument envelope JSON in the Finstack v1 schema.
 /// @param tranche_id - Identifier of the floating-rate tranche whose contractual cashflows are spread-discounted.
 /// @param market_json - Canonical market-context JSON supplying the discount curve and any forward curves or historical fixings required for cashflow projection.
 /// @param as_of - ISO-8601 valuation date used for projection and discounting.
@@ -53,7 +56,7 @@ pub fn structured_credit_tranche_discount_margin(
 /// malformed; the instrument fails pricing validation or is not a
 /// structured-credit deal; `as_of` is invalid; the tranche or required market
 /// data is missing; or the break-even calculation fails.
-/// @param instrument_json - Canonical JSON payload representing the instrument consumed by this API.
+/// @param instrument_json - Canonical instrument envelope JSON in the Finstack v1 schema.
 /// @param tranche_id - Stable tranche identifier used to select the required domain object.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
@@ -75,23 +78,30 @@ pub fn structured_credit_tranche_breakeven_cdr(
     .map_err(|e| to_js_error(&e))
 }
 
-/// Option-adjusted spread for a tranche; returns a JSON `OasResult`.
+/// Option-adjusted spread for a tranche; returns a typed `OasResult` object.
+///
+/// The result is a plain JavaScript object with snake_case fields (`oas`,
+/// `model_price`, `market_price`, `num_paths`, `price_std_error`) — the same
+/// shape Python exposes through its typed `OasResult` wrapper. Pass it to
+/// `JSON.stringify` if a wire string is needed.
 ///
 /// `marketPricePct` is the quoted price as a percentage of original balance.
-/// `config`, when present, is a JSON `OasConfig`; the default is used otherwise.
+/// `configJson`, when present, is a JSON `OasConfig`; the default is used
+/// otherwise.
 ///
 /// # Errors
 ///
 /// Throws a JavaScript exception if the instrument, market, or optional
 /// configuration JSON is malformed; the instrument fails pricing validation;
 /// `as_of` is invalid; the tranche or discount curve is missing; the OAS solve
-/// fails or produces a non-finite result; or the result cannot be serialized.
-/// @param instrument_json - Canonical JSON payload representing the instrument consumed by this API.
+/// fails or produces a non-finite result; or the result cannot be converted to
+/// a JavaScript value.
+/// @param instrument_json - Canonical instrument envelope JSON in the Finstack v1 schema.
 /// @param tranche_id - Stable tranche identifier used to select the required domain object.
 /// @param market_price_pct - Tranche market price as a percentage of original balance.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
-/// @param config - Optional OasConfig JSON; omit to use the default OAS solver configuration.
+/// @param config_json - Optional OasConfig JSON; omit to use the default OAS solver configuration.
 #[wasm_bindgen(js_name = structuredCreditTrancheOas)]
 pub fn structured_credit_tranche_oas(
     instrument_json: &str,
@@ -99,8 +109,8 @@ pub fn structured_credit_tranche_oas(
     market_price_pct: f64,
     market_json: &str,
     as_of: &str,
-    config: Option<String>,
-) -> Result<String, JsValue> {
+    config_json: Option<String>,
+) -> Result<JsValue, JsValue> {
     validate_pricing_instrument_json(instrument_json, None)?;
     let market = parse_market_json(market_json)?;
     let result = finstack_quant_valuations::pricer::structured_credit_tranche_oas_json(
@@ -109,35 +119,42 @@ pub fn structured_credit_tranche_oas(
         market_price_pct,
         &market,
         as_of,
-        config.as_deref(),
+        config_json.as_deref(),
     )
     .map_err(|e| to_js_error(&e))?;
-    serde_json::to_string(&result).map_err(to_js_err)
+    to_js_value(&result)
 }
 
-/// Scenario (CPR x CDR x severity) table for a tranche; returns a JSON
-/// `ScenarioTable`. `grid` is a JSON `ScenarioGrid` (`cprs`, `cdrs`,
-/// `severities`).
+/// Scenario (CPR x CDR x severity) table for a tranche; returns a typed
+/// `ScenarioTable` object. `gridJson` is a JSON `ScenarioGrid` (`cprs`,
+/// `cdrs`, `severities`).
+///
+/// The result is a plain JavaScript object with snake_case fields
+/// (`tranche_id`, `cells`; each cell carries `cpr`, `cdr`, `severity`,
+/// `price`, `wal`, `writedown`) — the same shape Python exposes through its
+/// typed `ScenarioTable` wrapper. Pass it to `JSON.stringify` if a wire
+/// string is needed.
 ///
 /// # Errors
 ///
 /// Throws a JavaScript exception if the instrument, market, or scenario-grid
 /// JSON is malformed; the instrument fails pricing validation; `as_of` is
 /// invalid; the tranche or required market data is missing; a scenario fails
-/// or produces a non-finite result; or the table cannot be serialized.
-/// @param instrument_json - Canonical JSON payload representing the instrument consumed by this API.
+/// or produces a non-finite result; or the table cannot be converted to a
+/// JavaScript value.
+/// @param instrument_json - Canonical instrument envelope JSON in the Finstack v1 schema.
 /// @param tranche_id - Stable tranche identifier used to select the required domain object.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
-/// @param grid - ScenarioGrid JSON containing the CPR, CDR, and severity axes for the table.
+/// @param grid_json - ScenarioGrid JSON containing the CPR, CDR, and severity axes for the table.
 #[wasm_bindgen(js_name = structuredCreditTrancheScenarioTable)]
 pub fn structured_credit_tranche_scenario_table(
     instrument_json: &str,
     tranche_id: &str,
     market_json: &str,
     as_of: &str,
-    grid: &str,
-) -> Result<String, JsValue> {
+    grid_json: &str,
+) -> Result<JsValue, JsValue> {
     validate_pricing_instrument_json(instrument_json, None)?;
     let market = parse_market_json(market_json)?;
     let result = finstack_quant_valuations::pricer::structured_credit_tranche_scenario_table_json(
@@ -145,10 +162,10 @@ pub fn structured_credit_tranche_scenario_table(
         tranche_id,
         &market,
         as_of,
-        grid,
+        grid_json,
     )
     .map_err(|e| to_js_error(&e))?;
-    serde_json::to_string(&result).map_err(to_js_err)
+    to_js_value(&result)
 }
 
 /// Per-tranche risk/spread metrics (PV, price, WAL, z-spread, CS01, spread/
@@ -156,15 +173,20 @@ pub fn structured_credit_tranche_scenario_table(
 ///
 /// `marketPricePct`, when provided, is the quoted price (% of original balance)
 /// the z-spread and CS01 are solved against; otherwise the tranche's own model
-/// price is used (zero z-spread). Returns a JSON-serialized `TrancheMetrics`.
+/// price is used (zero z-spread). Returns a typed `TrancheMetrics` object —
+/// a plain JavaScript object with the same snake_case fields (`tranche_id`,
+/// `currency`, `pv`, `price_pct`, `wal`, `z_spread_bp`, `cs01`,
+/// `spread_duration`, `modified_duration`, `convexity`, `target_price_pct`)
+/// Python exposes through its typed `TrancheMetrics` wrapper. Pass it to
+/// `JSON.stringify` if a wire string is needed.
 ///
 /// # Errors
 ///
 /// Throws a JavaScript exception if the instrument or market JSON is
 /// malformed; the instrument fails pricing validation; `as_of` is invalid;
 /// the tranche or discount curve is missing; a metric fails or is non-finite;
-/// or the result cannot be serialized.
-/// @param instrument_json - Canonical JSON payload representing the instrument consumed by this API.
+/// or the result cannot be converted to a JavaScript value.
+/// @param instrument_json - Canonical instrument envelope JSON in the Finstack v1 schema.
 /// @param tranche_id - Stable tranche identifier used to select the required domain object.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
@@ -176,7 +198,7 @@ pub fn structured_credit_tranche_metrics(
     market_json: &str,
     as_of: &str,
     market_price_pct: Option<f64>,
-) -> Result<String, JsValue> {
+) -> Result<JsValue, JsValue> {
     validate_pricing_instrument_json(instrument_json, None)?;
     let market = parse_market_json(market_json)?;
     let result = finstack_quant_valuations::pricer::structured_credit_tranche_metrics_json(
@@ -187,5 +209,5 @@ pub fn structured_credit_tranche_metrics(
         market_price_pct,
     )
     .map_err(|e| to_js_error(&e))?;
-    serde_json::to_string(&result).map_err(to_js_err)
+    to_js_value(&result)
 }

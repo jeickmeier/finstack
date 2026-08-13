@@ -10,6 +10,7 @@ pub use comps::{
     z_score,
 };
 
+use crate::api::statements::parse_validated_model;
 use crate::utils::{to_js_err, to_js_value};
 use wasm_bindgen::prelude::*;
 
@@ -25,12 +26,11 @@ use wasm_bindgen::prelude::*;
 /// Rejects malformed model or configuration JSON, invalid sensitivity modes or
 /// parameter perturbations, missing model nodes or periods, model-evaluation
 /// failures, or failure to serialize the sensitivity result to JavaScript.
-/// @param model_json - Canonical JSON payload representing the model consumed by this API.
-/// @param config_json - Canonical JSON payload representing the config consumed by this API.
+/// @param model_json - Financial-model specification JSON.
+/// @param config_json - Configuration JSON for this call.
 #[wasm_bindgen(js_name = runSensitivity)]
 pub fn run_sensitivity(model_json: &str, config_json: &str) -> Result<JsValue, JsValue> {
-    let model: finstack_quant_statements::FinancialModelSpec =
-        serde_json::from_str(model_json).map_err(to_js_err)?;
+    let model = parse_validated_model(model_json)?;
 
     let config: finstack_quant_statements_analytics::analysis::SensitivityConfig =
         serde_json::from_str(config_json).map_err(to_js_err)?;
@@ -50,9 +50,9 @@ pub fn run_sensitivity(model_json: &str, config_json: &str) -> Result<JsValue, J
 /// Rejects malformed result or configuration JSON, empty metric or period
 /// selections, a requested value missing from either result, or failure to
 /// serialize the variance report to JavaScript.
-/// @param base_json - Canonical JSON payload representing the base consumed by this API.
-/// @param comparison_json - Canonical JSON payload representing the comparison consumed by this API.
-/// @param config_json - Canonical JSON payload representing the config consumed by this API.
+/// @param base_json - Base statement-result JSON.
+/// @param comparison_json - Comparison statement-result JSON.
+/// @param config_json - Configuration JSON for this call.
 #[wasm_bindgen(js_name = runVariance)]
 pub fn run_variance(
     base_json: &str,
@@ -85,15 +85,14 @@ pub fn run_variance(
 /// Rejects malformed model or scenario-set JSON, an empty scenario set,
 /// invalid parent chains, overrides of missing nodes, failure to evaluate any
 /// scenario, or failure to serialize the result map to JavaScript.
-/// @param model_json - Canonical JSON payload representing the model consumed by this API.
-/// @param scenario_set_json - Canonical JSON payload representing the scenario set consumed by this API.
+/// @param model_json - Financial-model specification JSON.
+/// @param scenario_set_json - Scenario-set JSON keyed by scenario name.
 #[wasm_bindgen(js_name = evaluateScenarioSet)]
 pub fn evaluate_scenario_set(
     model_json: &str,
     scenario_set_json: &str,
 ) -> Result<JsValue, JsValue> {
-    let model: finstack_quant_statements::FinancialModelSpec =
-        serde_json::from_str(model_json).map_err(to_js_err)?;
+    let model = parse_validated_model(model_json)?;
 
     let scenario_set: finstack_quant_statements_analytics::analysis::ScenarioSet =
         serde_json::from_str(scenario_set_json).map_err(to_js_err)?;
@@ -144,7 +143,7 @@ pub fn backtest_forecast(actual: JsValue, forecast: JsValue) -> Result<JsValue, 
 /// Rejects malformed `result_json`, an invalid optional `period` identifier, or
 /// failure to serialize the generated entries. A missing metric produces no
 /// entry rather than rejecting.
-/// @param result_json - Canonical JSON payload representing the result consumed by this API.
+/// @param result_json - Result JSON produced by a prior call.
 /// @param metric_node - Statement metric node identifier selected for the requested analysis.
 /// @param period - Model period label for the requested statement value or calculation.
 #[wasm_bindgen(js_name = generateTornadoEntries)]
@@ -179,14 +178,16 @@ pub fn generate_tornado_entries(
 /// a missing UFCF series or model currency, inconsistent WACC or terminal-value
 /// assumptions, missing bridge inputs, valuation failures, or failure to
 /// serialize the sensitivity result.
-/// @param model_json - Canonical JSON payload representing the financial model spec consumed by this API.
+/// @param model_json - Financial-model specification JSON.
 /// @param wacc - Baseline weighted average cost of capital in decimal form (0.10 = 10%).
-/// @param terminal_value_json - Canonical JSON payload representing the terminal value spec, selecting whether growth or the exit multiple is shocked.
+/// @param terminal_value_json - Terminal-value spec JSON selecting whether growth or the exit multiple is shocked.
 /// @param ufcf_node - Node identifier holding unlevered free cash flow for the forecast periods.
 /// @param net_debt_override - Optional flat net-debt amount used instead of the model-derived bridge.
 /// @param wacc_sensitivity_bump - Absolute shock applied to WACC and to the terminal growth rate, in decimal (0.01 = +/-100 bp).
 /// @param wacc_denominator_epsilon - Minimum spread preserved between WACC and the terminal growth rate so 1/(wacc - g) stays defined, in decimal.
 /// @param exit_multiple_bump - Absolute shock applied to an exit multiple, in turns of the multiple (1.0 = +/-1.0x).
+/// @param mid_year_convention - Whether every DCF re-run uses the mid-year discounting convention.
+/// @param market_json - Optional canonical market-context JSON enabling curve-based discounting.
 #[wasm_bindgen(js_name = dcfSensitivity)]
 #[allow(clippy::too_many_arguments)]
 pub fn dcf_sensitivity(
@@ -198,16 +199,21 @@ pub fn dcf_sensitivity(
     wacc_sensitivity_bump: Option<f64>,
     wacc_denominator_epsilon: Option<f64>,
     exit_multiple_bump: Option<f64>,
+    mid_year_convention: Option<bool>,
+    market_json: Option<String>,
 ) -> Result<JsValue, JsValue> {
     use finstack_quant_statements_analytics::analysis::{DcfOptions, ExitMultipleBump};
 
-    let model: finstack_quant_statements::FinancialModelSpec =
-        serde_json::from_str(model_json).map_err(to_js_err)?;
+    let model = parse_validated_model(model_json)?;
     let terminal_value: finstack_quant_valuations::instruments::equity::dcf_equity::TerminalValueSpec =
         serde_json::from_str(terminal_value_json).map_err(to_js_err)?;
+    let market: Option<finstack_quant_core::market_data::context::MarketContext> = market_json
+        .map(|json| serde_json::from_str(&json).map_err(to_js_err))
+        .transpose()?;
 
     let defaults = DcfOptions::default();
     let options = DcfOptions {
+        mid_year_convention: mid_year_convention.unwrap_or(defaults.mid_year_convention),
         wacc_sensitivity_bump: wacc_sensitivity_bump.unwrap_or(defaults.wacc_sensitivity_bump),
         wacc_denominator_epsilon: wacc_denominator_epsilon
             .unwrap_or(defaults.wacc_denominator_epsilon),
@@ -223,21 +229,13 @@ pub fn dcf_sensitivity(
         ufcf_node,
         net_debt_override,
         &options,
-        None,
+        market.as_ref(),
     )
     .map_err(to_js_err)?;
 
-    let entries: Vec<serde_json::Value> = result
-        .entries
-        .iter()
-        .map(|entry| {
-            serde_json::json!({
-                "parameter_id": entry.parameter_id,
-                "downside": entry.downside,
-                "upside": entry.upside,
-            })
-        })
-        .collect();
+    // Serde-convert the entries so new `TornadoEntry` fields flow through
+    // without a hand-mapping edit (the Python twin does the same).
+    let entries = serde_json::to_value(&result.entries).map_err(to_js_err)?;
 
     to_js_value(&serde_json::json!({
         "baseline_enterprise_value": result.baseline_enterprise_value.amount(),
@@ -266,7 +264,7 @@ pub fn dcf_sensitivity(
 /// non-positive sponsor equity check, check-suite failures, or failure to
 /// serialize the result to JavaScript. The result is a structured JavaScript
 /// object.
-/// @param model_json - Canonical JSON payload representing the financial model spec consumed by this API.
+/// @param model_json - Financial-model specification JSON.
 /// @param entry_multiple - Entry valuation multiple applied to the entry metric (8.5 = 8.5x).
 /// @param entry_metric_node - Node identifier supplying the entry valuation metric, read at the model's first period.
 /// @param exit_multiple - Exit valuation multiple applied to the exit metric (9.5 = 9.5x).
@@ -297,8 +295,7 @@ pub fn evaluate_lbo(
         amount: f64,
     }
 
-    let model: finstack_quant_statements::FinancialModelSpec =
-        serde_json::from_str(model_json).map_err(to_js_err)?;
+    let model = parse_validated_model(model_json)?;
     let tranches: Vec<TrancheInput> = serde_json::from_str(sources_json).map_err(to_js_err)?;
     let exit_period: finstack_quant_core::dates::PeriodId =
         exit_period.parse().map_err(to_js_err)?;
@@ -381,7 +378,7 @@ pub fn wacc(
 /// exactly one supplied bound, missing target or driver nodes or periods,
 /// non-finite or unordered bounds, model-evaluation or solver-convergence
 /// failures, or failure to serialize the result or updated model.
-/// @param model_json - Canonical JSON payload representing the model consumed by this API.
+/// @param model_json - Financial-model specification JSON.
 /// @param target_node - Statement node identifier whose value is driven toward the target.
 /// @param target_period - Model period label in which the goal-seek target is evaluated.
 /// @param target_value - Numeric target value the goal-seek routine attempts to reach.
@@ -403,8 +400,7 @@ pub fn goal_seek(
     bounds_lo: Option<f64>,
     bounds_hi: Option<f64>,
 ) -> Result<JsValue, JsValue> {
-    let mut model: finstack_quant_statements::FinancialModelSpec =
-        serde_json::from_str(model_json).map_err(to_js_err)?;
+    let mut model = parse_validated_model(model_json)?;
     let tp: finstack_quant_core::dates::PeriodId = target_period.parse().map_err(to_js_err)?;
     let dp: finstack_quant_core::dates::PeriodId = driver_period.parse().map_err(to_js_err)?;
     let bounds = goal_seek_bounds(bounds_lo, bounds_hi).map_err(|e| JsValue::from_str(&e))?;
@@ -462,12 +458,11 @@ fn goal_seek_bounds(
 /// Rejects malformed `model_json`, formulas or clauses whose dependencies
 /// cannot be parsed, unknown formula references, a missing `node_id` or
 /// reachable dependency, or a dependency cycle.
-/// @param model_json - Canonical JSON payload representing the model consumed by this API.
+/// @param model_json - Financial-model specification JSON.
 /// @param node_id - Stable node identifier used to select the required domain object.
 #[wasm_bindgen(js_name = traceDependencies)]
 pub fn trace_dependencies(model_json: &str, node_id: &str) -> Result<String, JsValue> {
-    let model: finstack_quant_statements::FinancialModelSpec =
-        serde_json::from_str(model_json).map_err(to_js_err)?;
+    let model = parse_validated_model(model_json)?;
     let graph = finstack_quant_statements::evaluator::DependencyGraph::from_model(&model)
         .map_err(to_js_err)?;
     let tracer =
@@ -483,8 +478,8 @@ pub fn trace_dependencies(model_json: &str, node_id: &str) -> Result<String, JsV
 /// Rejects malformed model or result JSON, an invalid `period` identifier, a
 /// missing model node or node-period result, an invalid formula used to build
 /// the breakdown, or failure to serialize the explanation to JavaScript.
-/// @param model_json - Canonical JSON payload representing the model consumed by this API.
-/// @param results_json - Canonical JSON payload representing the results consumed by this API.
+/// @param model_json - Financial-model specification JSON.
+/// @param results_json - Evaluated statement-result JSON.
 /// @param node_id - Stable node identifier used to select the required domain object.
 /// @param period - Model period label for the requested statement value or calculation.
 #[wasm_bindgen(js_name = explainFormula)]
@@ -494,8 +489,7 @@ pub fn explain_formula(
     node_id: &str,
     period: &str,
 ) -> Result<JsValue, JsValue> {
-    let model: finstack_quant_statements::FinancialModelSpec =
-        serde_json::from_str(model_json).map_err(to_js_err)?;
+    let model = parse_validated_model(model_json)?;
     let results: finstack_quant_statements::evaluator::StatementResult =
         serde_json::from_str(results_json).map_err(to_js_err)?;
     let pid: finstack_quant_core::dates::PeriodId = period.parse().map_err(to_js_err)?;
@@ -512,8 +506,8 @@ pub fn explain_formula(
 /// Rejects malformed model or result JSON, an invalid `period` identifier, a
 /// missing model node or node-period result, or an invalid formula used to
 /// build the explanation breakdown.
-/// @param model_json - Canonical JSON payload representing the model consumed by this API.
-/// @param results_json - Canonical JSON payload representing the results consumed by this API.
+/// @param model_json - Financial-model specification JSON.
+/// @param results_json - Evaluated statement-result JSON.
 /// @param node_id - Stable node identifier used to select the required domain object.
 /// @param period - Model period label for the requested statement value or calculation.
 #[wasm_bindgen(js_name = explainFormulaText)]
@@ -523,8 +517,7 @@ pub fn explain_formula_text(
     node_id: &str,
     period: &str,
 ) -> Result<String, JsValue> {
-    let model: finstack_quant_statements::FinancialModelSpec =
-        serde_json::from_str(model_json).map_err(to_js_err)?;
+    let model = parse_validated_model(model_json)?;
     let results: finstack_quant_statements::evaluator::StatementResult =
         serde_json::from_str(results_json).map_err(to_js_err)?;
     let pid: finstack_quant_core::dates::PeriodId = period.parse().map_err(to_js_err)?;
@@ -541,7 +534,7 @@ pub fn explain_formula_text(
 /// Rejects malformed `results_json`, `line_items` or `periods` values that are
 /// not JavaScript string arrays, or any period string that is not a valid
 /// statement period identifier.
-/// @param results_json - Canonical JSON payload representing the results consumed by this API.
+/// @param results_json - Evaluated statement-result JSON.
 /// @param line_items - Ordered statement line-item definitions included in the summary report.
 /// @param periods - Ordered period labels or observations aligned with the supplied data.
 #[wasm_bindgen(js_name = plSummaryReportText)]
@@ -572,7 +565,7 @@ pub fn pl_summary_report_text(
 ///
 /// Rejects malformed `results_json` or an `as_of` value that is not a valid
 /// statement period identifier.
-/// @param results_json - Canonical JSON payload representing the results consumed by this API.
+/// @param results_json - Evaluated statement-result JSON.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 #[wasm_bindgen(js_name = creditAssessmentReportText)]
 pub fn credit_assessment_report_text(results_json: &str, as_of: &str) -> Result<String, JsValue> {
@@ -596,7 +589,7 @@ pub fn credit_assessment_report_text(results_json: &str, as_of: &str) -> Result<
 /// Rejects malformed `results_json`, an `as_of` value that is not a valid
 /// statement period identifier, or failure to serialize the assessment to
 /// JavaScript.
-/// @param results_json - Canonical JSON payload representing the results consumed by this API.
+/// @param results_json - Evaluated statement-result JSON.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 #[wasm_bindgen(js_name = creditAssessment)]
 pub fn credit_assessment(results_json: &str, as_of: &str) -> Result<JsValue, JsValue> {
@@ -620,17 +613,16 @@ pub fn credit_assessment(results_json: &str, as_of: &str) -> Result<JsValue, JsV
 /// resolution failures; model-evaluation failures when results are omitted;
 /// missing nodes, incompatible data, or invalid check configuration during
 /// execution; or failure to serialize the report.
-/// @param model_json - Canonical JSON payload representing the model consumed by this API.
-/// @param suite_spec_json - Canonical JSON payload representing the suite spec consumed by this API.
-/// @param results_json - Canonical JSON payload representing the results consumed by this API.
+/// @param model_json - Financial-model specification JSON.
+/// @param suite_spec_json - Check-suite specification JSON.
+/// @param results_json - Evaluated statement-result JSON.
 #[wasm_bindgen(js_name = runChecks)]
 pub fn run_checks(
     model_json: &str,
     suite_spec_json: &str,
     results_json: Option<String>,
 ) -> Result<String, JsValue> {
-    let model: finstack_quant_statements::FinancialModelSpec =
-        serde_json::from_str(model_json).map_err(to_js_err)?;
+    let model = parse_validated_model(model_json)?;
     let spec: finstack_quant_statements::checks::CheckSuiteSpec =
         serde_json::from_str(suite_spec_json).map_err(to_js_err)?;
     let suite = spec.resolve().map_err(to_js_err)?;
@@ -649,17 +641,16 @@ pub fn run_checks(
 /// Rejects malformed model, mapping, or supplied result JSON; model-evaluation
 /// failures when results are omitted; missing mapped nodes, incompatible data,
 /// or invalid check configuration; or failure to serialize the report.
-/// @param model_json - Canonical JSON payload representing the model consumed by this API.
-/// @param mapping_json - Canonical JSON payload representing the mapping consumed by this API.
-/// @param results_json - Canonical JSON payload representing the results consumed by this API.
+/// @param model_json - Financial-model specification JSON.
+/// @param mapping_json - Node-mapping JSON from statement nodes to check inputs.
+/// @param results_json - Evaluated statement-result JSON.
 #[wasm_bindgen(js_name = runThreeStatementChecks)]
 pub fn run_three_statement_checks(
     model_json: &str,
     mapping_json: &str,
     results_json: Option<String>,
 ) -> Result<String, JsValue> {
-    let model: finstack_quant_statements::FinancialModelSpec =
-        serde_json::from_str(model_json).map_err(to_js_err)?;
+    let model = parse_validated_model(model_json)?;
     let mapping: finstack_quant_statements_analytics::analysis::ThreeStatementMapping =
         serde_json::from_str(mapping_json).map_err(to_js_err)?;
     let suite = finstack_quant_statements_analytics::analysis::three_statement_checks(mapping);
@@ -675,17 +666,16 @@ pub fn run_three_statement_checks(
 /// Rejects malformed model, mapping, or supplied result JSON; model-evaluation
 /// failures when results are omitted; missing mapped nodes, incompatible data,
 /// or invalid check configuration; or failure to serialize the report.
-/// @param model_json - Canonical JSON payload representing the model consumed by this API.
-/// @param mapping_json - Canonical JSON payload representing the mapping consumed by this API.
-/// @param results_json - Canonical JSON payload representing the results consumed by this API.
+/// @param model_json - Financial-model specification JSON.
+/// @param mapping_json - Node-mapping JSON from statement nodes to check inputs.
+/// @param results_json - Evaluated statement-result JSON.
 #[wasm_bindgen(js_name = runCreditUnderwritingChecks)]
 pub fn run_credit_underwriting_checks(
     model_json: &str,
     mapping_json: &str,
     results_json: Option<String>,
 ) -> Result<String, JsValue> {
-    let model: finstack_quant_statements::FinancialModelSpec =
-        serde_json::from_str(model_json).map_err(to_js_err)?;
+    let model = parse_validated_model(model_json)?;
     let mapping: finstack_quant_statements_analytics::analysis::CreditMapping =
         serde_json::from_str(mapping_json).map_err(to_js_err)?;
     let suite = finstack_quant_statements_analytics::analysis::credit_underwriting_checks(mapping);
@@ -699,9 +689,10 @@ fn evaluate_or_parse_results(
     results_json: Option<String>,
 ) -> Result<finstack_quant_statements::evaluator::StatementResult, JsValue> {
     if let Some(results_json) = results_json {
-        if !results_json.trim().is_empty() {
-            return serde_json::from_str(&results_json).map_err(to_js_err);
-        }
+        // A supplied-but-blank payload is rejected (like any other malformed
+        // JSON) rather than silently re-evaluating the model — the Python twin
+        // errors on the same input, and falling back would hide a caller bug.
+        return serde_json::from_str(&results_json).map_err(to_js_err);
     }
     let mut evaluator = finstack_quant_statements::evaluator::Evaluator::new();
     evaluator.evaluate(model).map_err(to_js_err)
@@ -713,7 +704,7 @@ fn evaluate_or_parse_results(
 ///
 /// Rejects `report_json` when it is malformed or incompatible with the check
 /// report schema.
-/// @param report_json - Canonical JSON payload representing the report consumed by this API.
+/// @param report_json - Check-report JSON.
 #[wasm_bindgen(js_name = renderCheckReportText)]
 pub fn render_check_report_text(report_json: &str) -> Result<String, JsValue> {
     let report: finstack_quant_statements::checks::CheckReport =
@@ -727,7 +718,7 @@ pub fn render_check_report_text(report_json: &str) -> Result<String, JsValue> {
 ///
 /// Rejects `report_json` when it is malformed or incompatible with the check
 /// report schema.
-/// @param report_json - Canonical JSON payload representing the report consumed by this API.
+/// @param report_json - Check-report JSON.
 #[wasm_bindgen(js_name = renderCheckReportHtml)]
 pub fn render_check_report_html(report_json: &str) -> Result<String, JsValue> {
     let report: finstack_quant_statements::checks::CheckReport =

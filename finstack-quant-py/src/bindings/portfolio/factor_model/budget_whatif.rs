@@ -1,13 +1,11 @@
 use crate::bindings::module_utils::py_to_serde;
-use crate::bindings::pandas_utils::{dict_to_dataframe, serde_object_to_single_row_dataframe};
-use indexmap::IndexMap;
+use crate::bindings::pandas_utils::dict_to_dataframe;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde::Deserialize;
 
 use finstack_quant_portfolio::factor_model::{
-    self as fm, FactorContributionDelta, PositionBudgetEntry, RiskBudget, RiskBudgetResult,
-    WhatIfResult,
+    self as fm, FactorContributionDelta, PositionBudgetEntry, RiskBudgetResult, WhatIfResult,
 };
 use finstack_quant_portfolio::types::PositionId;
 
@@ -140,9 +138,25 @@ impl PyPositionBudgetEntry {
     ///
     /// Columns: ``position_id``, ``actual_component_var``,
     /// ``target_component_var``, ``utilization``, ``excess``.
+    ///
+    /// Built from the typed fields rather than the wire form so a non-finite
+    /// ``utilization`` (zero-target breach) stays a float ``inf`` column
+    /// value instead of the JSON ``"inf"`` string sentinel.
     #[pyo3(text_signature = "(self)")]
     fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        serde_object_to_single_row_dataframe(py, &self.inner)
+        let data = PyDict::new(py);
+        data.set_item("position_id", vec![self.inner.position_id.as_str()])?;
+        data.set_item(
+            "actual_component_var",
+            vec![self.inner.actual_component_var],
+        )?;
+        data.set_item(
+            "target_component_var",
+            vec![self.inner.target_component_var],
+        )?;
+        data.set_item("utilization", vec![self.inner.utilization])?;
+        data.set_item("excess", vec![self.inner.excess])?;
+        dict_to_dataframe(py, &data, None)
     }
 
     fn __repr__(&self) -> String {
@@ -470,8 +484,13 @@ impl PyWhatIfResult {
 
 /// Evaluate a per-position risk budget against actual component VaRs,
 /// returning a typed :class:`RiskBudgetResult`.
+///
+/// Validation (array-length agreement, duplicate position-id rejection) and
+/// the default ``utilization_threshold`` live in the Rust
+/// ``evaluate_risk_budget_arrays`` / ``DEFAULT_UTILIZATION_THRESHOLD``
+/// canonical path shared with the WASM binding.
 #[pyfunction]
-#[pyo3(signature = (position_ids, actual_var, target_var_pct, portfolio_var, utilization_threshold = 1.20))]
+#[pyo3(signature = (position_ids, actual_var, target_var_pct, portfolio_var, utilization_threshold = fm::DEFAULT_UTILIZATION_THRESHOLD))]
 pub(super) fn evaluate_risk_budget(
     py: Python<'_>,
     position_ids: Vec<String>,
@@ -480,45 +499,14 @@ pub(super) fn evaluate_risk_budget(
     portfolio_var: f64,
     utilization_threshold: f64,
 ) -> PyResult<PyRiskBudgetResult> {
-    let n = position_ids.len();
-    if actual_var.len() != n {
-        return Err(crate::errors::value_error(format!(
-            "actual_var length ({}) must match position_ids length ({n})",
-            actual_var.len()
-        )));
-    }
-    if target_var_pct.len() != n {
-        return Err(crate::errors::value_error(format!(
-            "target_var_pct length ({}) must match position_ids length ({n})",
-            target_var_pct.len()
-        )));
-    }
-
-    let (shared_ids, budget, actual_var) = py
-        .detach(move || {
-            let shared_ids: Vec<PositionId> =
-                position_ids.into_iter().map(PositionId::new).collect();
-            let mut targets: IndexMap<PositionId, f64> = IndexMap::with_capacity(n);
-            for (id, &pct) in shared_ids.iter().zip(target_var_pct.iter()) {
-                if targets.insert(id.clone(), pct).is_some() {
-                    return Err(format!(
-                        "duplicate position_id '{}' in position_ids",
-                        id.as_str()
-                    ));
-                }
-            }
-            Ok((
-                shared_ids,
-                RiskBudget::new(targets).with_threshold(utilization_threshold),
-                actual_var,
-            ))
-        })
-        .map_err(crate::errors::value_error)?;
     let result = py
         .detach(move || {
-            budget.evaluate_components(
-                shared_ids.iter().zip(actual_var.iter().copied()),
+            fm::evaluate_risk_budget_arrays(
+                position_ids,
+                &actual_var,
+                &target_var_pct,
                 portfolio_var,
+                utilization_threshold,
             )
         })
         .map_err(crate::errors::core_to_py)?;

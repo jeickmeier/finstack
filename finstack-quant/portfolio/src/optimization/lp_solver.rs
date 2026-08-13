@@ -22,6 +22,13 @@ use indexmap::IndexMap;
 #[derive(Default)]
 pub struct DefaultLpOptimizer;
 
+/// Filtered weight sums with absolute value at or below this are treated as
+/// zero when reporting `ValueWeightedAverage` bound slacks: the achieved
+/// average `Σ_F wᵢ·mᵢ / Σ_F wᵢ` is undefined (the bound holds vacuously) and
+/// the slack is reported as `NaN`. Matches the MO-18 post-solve tolerance on
+/// the filtered weight sum.
+const VWA_SLACK_DENOMINATOR_TOL: f64 = 1e-9;
+
 /// Linear constraint: `coefficients · w (<=,>=,=) rhs`.
 #[derive(Clone, Debug)]
 struct LpConstraint {
@@ -37,6 +44,11 @@ struct LpConstraint {
     /// to `average OP rhs` when `Σ_F wᵢ > 0`, so the solution is checked
     /// post-solve against this mask.
     vwa_filter_mask: Option<Vec<bool>>,
+    /// For `ValueWeightedAverage` bounds: the caller-facing bound `rhs` in
+    /// metric units. The row itself is lowered to `Σ_F wᵢ(mᵢ − rhs) OP 0`
+    /// (so `LpConstraint::rhs` is 0), and this value is used post-solve to
+    /// report the slack back in metric units.
+    vwa_rhs: Option<f64>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -104,13 +116,12 @@ impl DefaultLpOptimizer {
         &item.entity_id
     }
 
-    /// Lower a `PerPositionMetric` to a per‑decision value `m_i`.
-    fn per_position_metric_value(
-        ppm: &PerPositionMetric,
-        feat: &DecisionFeatures,
-        missing_policy: MissingMetricPolicy,
-    ) -> Result<f64> {
-        let val = match ppm {
+    /// Resolve a `PerPositionMetric` to its raw per‑decision value, if present.
+    ///
+    /// Returns `None` when the metric/attribute is missing for the position;
+    /// callers apply the [`MissingMetricPolicy`] on top of this.
+    fn per_position_metric_raw(ppm: &PerPositionMetric, feat: &DecisionFeatures) -> Option<f64> {
+        match ppm {
             PerPositionMetric::Metric(id) => feat.measures.get(id.as_str()).copied(),
             PerPositionMetric::CustomKey(key) => feat.measures.get(key).copied(),
             PerPositionMetric::PvBase => Some(feat.pv_base),
@@ -126,9 +137,16 @@ impl DefaultLpOptimizer {
                 })
             }
             PerPositionMetric::Constant(c) => Some(*c),
-        };
+        }
+    }
 
-        match (val, missing_policy) {
+    /// Lower a `PerPositionMetric` to a per‑decision value `m_i`.
+    fn per_position_metric_value(
+        ppm: &PerPositionMetric,
+        feat: &DecisionFeatures,
+        missing_policy: MissingMetricPolicy,
+    ) -> Result<f64> {
+        match (Self::per_position_metric_raw(ppm, feat), missing_policy) {
             (Some(v), _) => Ok(v),
             (None, MissingMetricPolicy::Zero | MissingMetricPolicy::Exclude) => Ok(0.0),
             (None, MissingMetricPolicy::Strict) => {
@@ -229,6 +247,18 @@ impl DefaultLpOptimizer {
                     continue;
                 }
             }
+            // Under `MissingMetricPolicy::Exclude` a position with a missing
+            // metric keeps its current weight and is excluded from constraint
+            // evaluation. Leaving it in the average with `m_i = 0` would
+            // contribute `−wᵢ·rhs` to the lowered row and distort the bound,
+            // so drop it from both numerator and denominator.
+            if matches!(missing_policy, MissingMetricPolicy::Exclude)
+                && Self::per_position_metric_raw(metric, feat).is_none()
+            {
+                coeffs.push(0.0);
+                mask.push(false);
+                continue;
+            }
             mask.push(true);
             if matches!(metric, PerPositionMetric::PvNative) {
                 return Err(Error::invalid_input(
@@ -294,6 +324,57 @@ impl DefaultLpOptimizer {
             ));
         }
 
+        let budget_constraints: Vec<f64> = problem
+            .constraints
+            .iter()
+            .filter_map(|c| match c {
+                Constraint::Budget { rhs } => Some(*rhs),
+                _ => None,
+            })
+            .collect();
+        if budget_constraints.len() > 1 {
+            return Err(Error::invalid_input(
+                "MO-21: duplicate Budget constraints are ambiguous (two Σwᵢ = rhs equalities); \
+                 combine them into one",
+            ));
+        }
+
+        // MO-19: an unfiltered ValueWeightedAverage objective is lowered to
+        // the plain linear form Σ wᵢ·mᵢ, which equals the true average
+        // Σ wᵢ·mᵢ / Σ wᵢ only when the weights sum to 1. Any other budget
+        // scales the reported objective by Σw — and sign-flips the
+        // optimization direction when Σw < 0 — so fail closed unless the
+        // problem guarantees Σw = 1 (no explicit budget, in which case the
+        // synthesized Σw = 1 row applies, or an explicit Budget { rhs: 1.0 }).
+        let objective_is_unfiltered_vwa = matches!(
+            &problem.objective,
+            super::types::Objective::Maximize(MetricExpr::ValueWeightedAverage {
+                filter: None,
+                ..
+            }) | super::types::Objective::Minimize(MetricExpr::ValueWeightedAverage {
+                filter: None,
+                ..
+            })
+        );
+        if objective_is_unfiltered_vwa {
+            if let Some(&rhs) = budget_constraints.first() {
+                // Exact comparison is deliberate: the Σw = 1 guarantee holds
+                // only for a budget rhs that is exactly 1.0 (a caller-typed
+                // literal); any other value — however close — scales the
+                // lowered objective.
+                #[allow(clippy::float_cmp)]
+                if rhs != 1.0 {
+                    return Err(Error::invalid_input(format!(
+                        "MO-19: a ValueWeightedAverage objective is lowered to Σ wᵢ·mᵢ, which \
+                         equals the true average only when the weights sum to 1; the explicit \
+                         Budget rhs is {rhs}, so the reported objective would be scaled by \
+                         Σw = {rhs} (and the optimization direction flipped for a negative \
+                         budget). Use Budget {{ rhs: 1.0 }} or a WeightedSum objective."
+                    )));
+                }
+            }
+        }
+
         // Step 4: Build objective coefficients.
         let objective_expr = &problem.objective;
         let coeffs_objective = match objective_expr {
@@ -318,7 +399,7 @@ impl DefaultLpOptimizer {
                     op,
                     rhs,
                 } => {
-                    let (a, lowered_rhs, vwa_filter_mask) = match metric {
+                    let (a, lowered_rhs, vwa_filter_mask, vwa_rhs) = match metric {
                         MetricExpr::ValueWeightedAverage { metric, filter } => {
                             let (coeffs, mask) =
                                 Self::build_value_weighted_average_bound_coefficients(
@@ -329,7 +410,7 @@ impl DefaultLpOptimizer {
                                     problem.missing_metric_policy,
                                     decision_items,
                                 )?;
-                            (coeffs, 0.0, Some(mask))
+                            (coeffs, 0.0, Some(mask), Some(*rhs))
                         }
                         MetricExpr::WeightedSum { .. } => (
                             Self::build_metric_coefficients(
@@ -340,6 +421,7 @@ impl DefaultLpOptimizer {
                             )?,
                             *rhs,
                             None,
+                            None,
                         ),
                     };
                     lp_constraints.push(LpConstraint {
@@ -349,6 +431,7 @@ impl DefaultLpOptimizer {
                         name: label.clone(),
                         is_turnover_placeholder: false,
                         vwa_filter_mask,
+                        vwa_rhs,
                     });
                 }
                 Constraint::WeightBounds { .. } => {
@@ -365,6 +448,7 @@ impl DefaultLpOptimizer {
                         name: label.clone().or_else(|| Some("turnover".to_string())),
                         is_turnover_placeholder: true,
                         vwa_filter_mask: None,
+                        vwa_rhs: None,
                     });
                 }
                 Constraint::Budget { rhs } => {
@@ -376,6 +460,7 @@ impl DefaultLpOptimizer {
                         name: Some("budget".to_string()),
                         is_turnover_placeholder: false,
                         vwa_filter_mask: None,
+                        vwa_rhs: None,
                     });
                 }
             }
@@ -395,6 +480,7 @@ impl DefaultLpOptimizer {
                 name: Some("budget".to_string()),
                 is_turnover_placeholder: false,
                 vwa_filter_mask: None,
+                vwa_rhs: None,
             });
         }
 
@@ -647,15 +733,47 @@ impl DefaultLpOptimizer {
                 continue;
             }
             if let Some(name) = &lc.name {
-                let mut lhs_val = 0.0;
-                for (var, coef) in w_vars.iter().zip(&lc.coefficients) {
-                    lhs_val += *coef * (solution.value(var.var) + var.offset);
-                }
+                let slack = if let (Some(mask), Some(bound_rhs)) = (&lc.vwa_filter_mask, lc.vwa_rhs)
+                {
+                    // ValueWeightedAverage bounds are lowered to
+                    // `Σ_F wᵢ(mᵢ − rhs) OP 0`, whose raw row slack is in
+                    // weight×metric units. Report the slack in metric units
+                    // instead: recompute the achieved filtered average
+                    // (`coef + rhs` recovers `mᵢ`) and compare against the
+                    // caller-facing rhs. When the filtered weight sum is ~0
+                    // the average is undefined (the bound holds vacuously),
+                    // so the slack is reported as NaN.
+                    let mut numerator = 0.0;
+                    let mut filtered_weight_sum = 0.0;
+                    for ((var, coef), matched) in w_vars.iter().zip(&lc.coefficients).zip(mask) {
+                        if !matched {
+                            continue;
+                        }
+                        let w = solution.value(var.var) + var.offset;
+                        numerator += w * (*coef + bound_rhs);
+                        filtered_weight_sum += w;
+                    }
+                    if filtered_weight_sum.abs() <= VWA_SLACK_DENOMINATOR_TOL {
+                        f64::NAN
+                    } else {
+                        let achieved_average = numerator / filtered_weight_sum;
+                        match lc.relation {
+                            Inequality::Le => bound_rhs - achieved_average,
+                            Inequality::Ge => achieved_average - bound_rhs,
+                            Inequality::Eq => (achieved_average - bound_rhs).abs(),
+                        }
+                    }
+                } else {
+                    let mut lhs_val = 0.0;
+                    for (var, coef) in w_vars.iter().zip(&lc.coefficients) {
+                        lhs_val += *coef * (solution.value(var.var) + var.offset);
+                    }
 
-                let slack = match lc.relation {
-                    Inequality::Le => lc.rhs - lhs_val,
-                    Inequality::Ge => lhs_val - lc.rhs,
-                    Inequality::Eq => (lhs_val - lc.rhs).abs(),
+                    match lc.relation {
+                        Inequality::Le => lc.rhs - lhs_val,
+                        Inequality::Ge => lhs_val - lc.rhs,
+                        Inequality::Eq => (lhs_val - lc.rhs).abs(),
+                    }
                 };
                 constraint_slacks.insert(name.clone(), slack);
             }

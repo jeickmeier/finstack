@@ -57,18 +57,18 @@
 //! anchors:
 //!
 //! - **Newton-Raphson**:
-//!   - Press, W. H., et al. (2007). *Numerical Recipes: The Art of Scientific Computing*
-//!     (3rd ed.). Cambridge University Press. Section 9.4.
-//!     ([`press-numerical-recipes`](../../../../docs/REFERENCES.md#press-numerical-recipes))
+//! - Press, W. H., et al. (2007). *Numerical Recipes: The Art of Scientific Computing*
+//!   (3rd ed.). Cambridge University Press. Section 9.4.
+//!   ([`press-numerical-recipes`](../../../../docs/REFERENCES.md#press-numerical-recipes)) `docs/REFERENCES.md#press-numerical-recipes`
 //!   - Burden, R. L., & Faires, J. D. (2010). *Numerical Analysis* (9th ed.).
-//!     Brooks/Cole. Section 2.3.
+//!   Brooks/Cole. Section 2.3.
 //!
-//! - **Brent's Method**:
-//!   - Brent, R. P. (1973). *Algorithms for Minimization without Derivatives*.
-//!     Prentice-Hall. Chapter 4.
-//!     ([`brent-1973`](../../../../docs/REFERENCES.md#brent-1973))
-//!   - Press, W. H., et al. (2007). *Numerical Recipes* (3rd ed.). Section 9.3.
-//!     ([`press-numerical-recipes`](../../../../docs/REFERENCES.md#press-numerical-recipes))
+//! - **Brent's Method**: `docs/REFERENCES.md#brent-1973`
+//! - Brent, R. P. (1973). *Algorithms for Minimization without Derivatives*.
+//!   Prentice-Hall. Chapter 4.
+//!   ([`brent-1973`](../../../../docs/REFERENCES.md#brent-1973)) `docs/REFERENCES.md#brent-1973`
+//! - Press, W. H., et al. (2007). *Numerical Recipes* (3rd ed.). Section 9.3.
+//!   ([`press-numerical-recipes`](../../../../docs/REFERENCES.md#press-numerical-recipes)) `docs/REFERENCES.md#press-numerical-recipes`
 
 use crate::Result;
 
@@ -309,7 +309,7 @@ pub trait Solver: Send + Sync {
 /// # References
 ///
 /// - Press, W. H., et al. (2007). *Numerical Recipes* (3rd ed.). Section 9.4.
-///   Recommends h ≈ sqrt(epsilon) × max(|x|, 1) for scale-adaptive derivatives.
+///   Recommends h ≈ sqrt(epsilon) × max(|x|, 1) for scale-adaptive derivatives. `docs/REFERENCES.md#press-numerical-recipes`
 /// - Ralston, A., & Rabinowitz, P. (2001). *A First Course in Numerical Analysis*
 ///   (2nd ed.). Dover. Chapter 8.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -416,7 +416,7 @@ impl NewtonSolver {
     ///
     /// # References
     ///
-    /// Press, W. H., et al. (2007). *Numerical Recipes* (3rd ed.). Section 9.4.
+    /// Press, W. H., et al. (2007). *Numerical Recipes* (3rd ed.). Section 9.4. `docs/REFERENCES.md#press-numerical-recipes`
     #[inline]
     fn adaptive_fd_step(&self, x: f64) -> f64 {
         let scale = x.abs().max(1.0);
@@ -499,7 +499,7 @@ impl NewtonSolver {
     /// # References
     ///
     /// - Press, W. H., et al. (2007). *Numerical Recipes* (3rd ed.). Section 9.4.
-    ///   "When derivatives are available analytically, Newton-Raphson is the method of choice."
+    ///   "When derivatives are available analytically, Newton-Raphson is the method of choice." `docs/REFERENCES.md#press-numerical-recipes`
     pub fn solve_with_derivative<F, G>(&self, f: F, f_prime: G, initial_guess: f64) -> Result<f64>
     where
         F: Fn(f64) -> f64,
@@ -693,9 +693,9 @@ impl NewtonSolver {
 /// # References
 ///
 /// - Brent, R. P. (1973). *Algorithms for Minimization without Derivatives*.
-///   Prentice-Hall. Chapter 4.
+///   Prentice-Hall. Chapter 4. `docs/REFERENCES.md#brent-1973`
 /// - Press, W. H., et al. (2007). *Numerical Recipes: The Art of Scientific Computing*
-///   (3rd ed.). Cambridge University Press. Section 9.3.
+///   (3rd ed.). Cambridge University Press. Section 9.3. `docs/REFERENCES.md#press-numerical-recipes`
 /// - Forsythe, G. E., Malcolm, M. A., & Moler, C. B. (1977). *Computer Methods
 ///   for Mathematical Computations*. Prentice-Hall.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]

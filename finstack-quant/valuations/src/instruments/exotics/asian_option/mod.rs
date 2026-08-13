@@ -20,8 +20,8 @@
 //! # References
 //!
 //! See the analytical module for complete citations to:
-//! - Kemna & Vorst (1990) - Geometric average
-//! - Turnbull & Wakeman (1991) - Arithmetic approximation
+//! - Kemna & Vorst (1990) - Geometric average `docs/REFERENCES.md#kemna-vorst-1990`
+//! - Turnbull & Wakeman (1991) - Arithmetic approximation `docs/REFERENCES.md#turnbull-wakeman-1991`
 //!
 //! # See Also
 //!

@@ -39,7 +39,8 @@ Release build (slower compile, faster runtime — large portfolios, batch notebo
 mise run python-build -- --release
 ```
 
-Python test tasks build the extension in release mode before invoking `pytest`:
+Python test tasks rebuild the extension with the fast **dev** profile, then
+run pytest:
 
 ```bash
 mise run python-test
@@ -122,6 +123,8 @@ parity-tested surface, update `parity_contract.toml` in the same change.
 | Check | Command |
 |-------|---------|
 | Python tests | `mise run python-test` (dev build, then pytest) |
+| Stub / module docs | `mise run python-doc` |
+| Stub doctests | `mise run python-doctest` |
 | Parity only | `uv run pytest finstack-quant-py/tests/parity` |
 | Type check | `mise run python-typecheck` |
 
@@ -155,7 +158,7 @@ Full surface: `finstack-quant-py/finstack_quant/**/*.pyi`.
 
 ### Decimal vs `float`
 
-Per `INVARIANTS.md` §1, `Money` stores its amount as Rust `Decimal`. Python
+Per [`INVARIANTS.md`](../INVARIANTS.md) §1, `Money` stores its amount as Rust `Decimal`. Python
 construction accepts `decimal.Decimal`, `float`, or `int`: `Decimal` inputs
 preserve full decimal precision, while `float`/`int` inputs are converted
 through Python's finite floating-point value. Use `amount_decimal` for the
@@ -183,21 +186,21 @@ schedule = ScheduleBuilder(start, end).frequency("3M").stub_rule(StubKind.SHORT_
 ### Errors
 
 Most fallible bindings raise `ValueError` with the Rust error chain in the message
-(`finstack-quant-py/src/errors.rs`: `core_to_py`, `display_to_py`).
-
-Domain-specific types (all subclass `ValueError` unless noted):
+(`finstack-quant-py/src/errors.rs`: `core_to_py`, `display_to_py`). Named
+library exceptions inherit `FinstackError`, which itself inherits
+`ValueError`, so `except ValueError` still covers them.
 
 | Exception | Module | Use |
 |-----------|--------|-----|
+| `FinstackError` | `finstack_quant.core` | Base for named library exceptions |
 | `AnalyticsError` | `finstack_quant.analytics` | Analytics validation / calculation |
 | `PortfolioError` | `finstack_quant.portfolio` | General portfolio errors |
 | `FinstackValuationError` | `finstack_quant.portfolio` | Valuation failures |
 | `FinstackFxError` | `finstack_quant.portfolio` | FX / missing market data |
 | `FinstackOptimizationError` | `finstack_quant.portfolio` | Optimization failures |
+| `ContractValidationError` | `finstack_quant.portfolio` | Canonical JSON / schema contract failures |
 | `CholeskyError` | `finstack_quant.core.math.linalg` | Cholesky decomposition |
-| `CalibrationEnvelopeError` | `finstack_quant.valuations` | Calibration envelope (`RuntimeError` subclass) |
-
-Catching `ValueError` still covers analytics and portfolio subclasses.
+| `CalibrationEnvelopeError` | `finstack_quant.valuations` | Calibration envelope (`RuntimeError` subclass; not under `FinstackError`) |
 
 ### Naming matches Rust
 
@@ -207,7 +210,7 @@ is missing from stubs — the name is usually the same.
 ## Documentation style
 
 Contributors: [`DOCS_STYLE.md`](DOCS_STYLE.md) (PyO3 `///` comments, `.pyi` NumPy-style
-docstrings, financial conventions, in-place builders).
+docstrings, financial conventions, fluent builders).
 
 ## Rust and WASM
 

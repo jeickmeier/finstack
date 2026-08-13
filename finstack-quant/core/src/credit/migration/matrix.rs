@@ -29,9 +29,9 @@ use super::{error::MigrationError, scale::RatingScale};
 ///
 /// - Jarrow, R. A., Lando, D., & Turnbull, S. M. (1997). "A Markov Model for
 ///   the Term Structure of Credit Risk Spreads." *Review of Financial Studies*,
-///   10(2), 481-523.
+///   10(2), 481-523. `docs/REFERENCES.md#jarrow-lando-turnbull-1997`
 /// - Gupton, G. M., Finger, C. C., & Bhatia, M. (1997). *CreditMetrics —
-///   Technical Document*. J.P. Morgan.
+///   Technical Document*. J.P. Morgan. `docs/REFERENCES.md#creditmetrics-1997`
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(try_from = "TransitionMatrixWire")]
 pub struct TransitionMatrix {

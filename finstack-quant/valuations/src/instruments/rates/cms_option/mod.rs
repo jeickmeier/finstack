@@ -30,10 +30,10 @@
 //! # References
 //!
 //! - Brigo, D., & Mercurio, F. (2006). *Interest Rate Models - Theory and Practice*
-//!   (2nd ed.). Springer. Chapter 13.7: CMS Products.
+//!   (2nd ed.). Springer. Chapter 13.7: CMS Products. `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
 //!
 //! - Hagan, P. S. (2003). "Convexity Conundrums: Pricing CMS Swaps, Caps, and
-//!   Floors." *Wilmott Magazine*, March, 38-44.
+//!   Floors." *Wilmott Magazine*, March, 38-44. `docs/REFERENCES.md#hagan-2003-cms-convexity`
 //!
 //! # See Also
 //!

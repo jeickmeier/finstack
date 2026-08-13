@@ -33,11 +33,11 @@
 //! - Brace, Gatarek, Musiela (1997). "The Market Model of Interest Rate
 //!   Dynamics." *Mathematical Finance*, 7(2), 127-155.
 //! - Glasserman (2003). *Monte Carlo Methods in Financial Engineering*,
-//!   Ch. 7, Springer.
+//!   Ch. 7, Springer. `docs/REFERENCES.md#glasserman-2004-monte-carlo`
 //! - Rebonato (2002). *Modern Pricing of Interest-Rate Derivatives*,
-//!   Ch. 8-9, Princeton University Press.
+//!   Ch. 8-9, Princeton University Press. `docs/REFERENCES.md#rebonato-2004-volatility-correlation`
 //! - Andersen & Piterbarg (2010). *Interest Rate Modeling*, Vol. 2,
-//!   Ch. 15-16, Atlantic Financial Press.
+//!   Ch. 15-16, Atlantic Financial Press. `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
 
 #[cfg(test)]
 use super::super::traits::state_keys;

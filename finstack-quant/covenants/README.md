@@ -18,25 +18,27 @@ covenants/
 ## Evaluation
 
 ```rust
+use finstack_quant_core::dates::{create_date, Month, Tenor};
 use finstack_quant_covenants::{
-    Covenant, CovenantEngine, CovenantMetricId, CovenantSpec, HashMapMetricSource, CovenantType,
+    Covenant, CovenantEngine, CovenantSpec, CovenantType, HashMapMetricSource,
 };
-use finstack_quant_core::dates::Tenor;
 
+# fn main() -> finstack_quant_core::Result<()> {
 let covenant = Covenant::new(
-    CovenantType::MaxTotalLeverage { threshold: 5.0 },
+    CovenantType::MaxDebtToEbitda { threshold: 4.5 },
     Tenor::quarterly(),
-)
-.with_cure_period(Some(30));
-
+);
 let mut engine = CovenantEngine::new();
-engine.add_spec(CovenantSpec::with_metric(
-    covenant,
-    CovenantMetricId::from("total_leverage"),
-));
+engine.add_spec(CovenantSpec::with_metric(covenant, "debt_to_ebitda"));
 
-let mut metrics = HashMapMetricSource::from_pairs([("total_leverage", 4.2)]);
+let mut metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 3.2)]);
+let test_date = create_date(2025, Month::March, 31)?;
 let reports = engine.evaluate(&mut metrics, test_date)?;
+
+assert!(reports["max_debt_ebitda"].passed);
+assert_eq!(reports["max_debt_ebitda"].threshold, Some(4.5));
+# Ok(())
+# }
 ```
 
 Built-in financial types include leverage, coverage, and asset-coverage tests. `CovenantType::Custom` and non-financial affirmative/negative covenants use registered metrics or `CovenantSpec::with_evaluator`.

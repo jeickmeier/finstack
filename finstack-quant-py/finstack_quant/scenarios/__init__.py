@@ -11,9 +11,13 @@ Examples:
 
 from __future__ import annotations
 
+import contextlib
 import sys
 
 from finstack_quant.finstack_quant import scenarios as _scenarios
+
+with contextlib.suppress(NameError):
+    del annotations
 
 parse_scenario_spec = _scenarios.parse_scenario_spec
 build_scenario_spec = _scenarios.build_scenario_spec

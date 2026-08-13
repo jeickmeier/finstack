@@ -220,6 +220,12 @@ impl PortfolioMarginAggregator {
             let sens = marginable
                 .simm_sensitivities(market, as_of)
                 .map_err(|e| Error::valuation(position.position_id.clone(), e.to_string()))?;
+            // B-6: instrument sensitivities are per unit (same contract as
+            // `mtm_for_vm`), so scale them to the HELD sensitivity by the signed
+            // position factor before the netting-set merge. The sign matters:
+            // ISDA SIMM nets signed trade-level sensitivities within a netting
+            // set, so a short position must offset an equal long.
+            let sens = sens.scaled(position.scale_factor());
             // FX-collapse to the aggregator base currency before the netting-set
             // merge sums raw amounts. Without this, sensitivities produced in a
             // position's own base currency are added across currencies, breaking
@@ -386,10 +392,17 @@ impl PortfolioMarginAggregator {
 
             match calculator.calculate(marginable, market, as_of) {
                 Ok(im_result) => {
-                    let amount = if im_result.amount.currency() == self.base_currency {
-                        Ok(im_result.amount.amount())
+                    // B-6: the calculator prices the marginable's per-unit
+                    // exposure (unit-notional contract, matching `mtm_for_vm`),
+                    // so scale the IM contribution by the signed position
+                    // factor. The sign is preserved: identical cleared
+                    // contracts are fungible at the CCP, so an offsetting
+                    // short cancels its long's IM contribution.
+                    let scaled_im = position.scale_value(im_result.amount);
+                    let amount = if scaled_im.currency() == self.base_currency {
+                        Ok(scaled_im.amount())
                     } else {
-                        self.convert_to_base(im_result.amount, market, as_of)
+                        self.convert_to_base(scaled_im, market, as_of)
                     };
                     match amount {
                         Ok(value) => total += value,

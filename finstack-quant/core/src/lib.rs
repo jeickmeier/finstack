@@ -84,6 +84,15 @@
 //! # Minimum Supported Rust Version (MSRV)
 //! This crate targets **Rust 1.90**.  It is tested in CI and follows the
 //! standard *cargo-semver* guideline: MSRV may only bump in a **minor** release.
+//!
+//! # References
+//!
+//! Canonical sources: `docs/REFERENCES.md`.
+//!
+//! - Day-count and business-day conventions: `docs/REFERENCES.md#isda-2006-definitions`
+//! - Bond-market accrued-interest conventions: `docs/REFERENCES.md#icma-rule-book`
+//! - Discounting and curve construction: `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
+//! - Interpolation: `docs/REFERENCES.md#hagan-west-monotone-convex`
 
 // Core modules
 //

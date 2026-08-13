@@ -118,6 +118,10 @@ class CFKind:
         str
             The Rust ``Display`` label, such as ``"float_reset"`` or
             ``"defaulted_notional"``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -133,6 +137,10 @@ class CFKind:
         -------
         bool
             ``True`` for interest-bearing coupon kinds, ``False`` otherwise.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
         ...
 
@@ -201,6 +209,10 @@ class CashFlow:
         -------
         datetime.date
             The payment (or reset, for ``FLOAT_RESET``) date of this flow.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -214,6 +226,10 @@ class CashFlow:
         datetime.date or None
             The reset date, or ``None`` when this flow has no separate
             reset event.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -226,6 +242,10 @@ class CashFlow:
         -------
         Money
             The currency-tagged amount of this cashflow.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -238,6 +258,10 @@ class CashFlow:
         -------
         CFKind
             The classification of this flow (interest, principal, fee, etc.).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -250,6 +274,10 @@ class CashFlow:
         -------
         float
             The accrual year fraction, non-negative.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -263,6 +291,10 @@ class CashFlow:
         float or None
             The rate used for interest/fee flows, or ``None`` when this flow
             is not rate-based or the rate is unknown.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 

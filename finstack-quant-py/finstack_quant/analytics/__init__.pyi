@@ -90,6 +90,11 @@ class PeriodStats:
         PeriodStats
             Parsed ``PeriodStats`` instance.
 
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or does not satisfy the serialized schema.
+
         Examples
         --------
         >>> from datetime import date
@@ -112,29 +117,42 @@ class PeriodStats:
         -------
         str
             Compact JSON string.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
     @property
     def best(self) -> float:
         """
-        Best period return.
+        Highest single-period return in the sample, as a decimal.
 
         Returns
         -------
         float
             Highest single-period return.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
     def worst(self) -> float:
         """
-        Worst period return.
+        Lowest single-period return in the sample, as a decimal.
 
         Returns
         -------
         float
             Lowest single-period return.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -146,6 +164,10 @@ class PeriodStats:
         -------
         int
             Maximum number of consecutive positive-return periods.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -157,6 +179,10 @@ class PeriodStats:
         -------
         int
             Maximum number of consecutive negative-return periods.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -168,6 +194,10 @@ class PeriodStats:
         -------
         float
             Win rate in ``[0, 1]``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -179,6 +209,10 @@ class PeriodStats:
         -------
         float
             Mean periodic return.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -190,6 +224,10 @@ class PeriodStats:
         -------
         float
             Mean return across winning periods.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -201,6 +239,10 @@ class PeriodStats:
         -------
         float
             Mean return across losing periods.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -212,6 +254,10 @@ class PeriodStats:
         -------
         float
             Ratio of average win to absolute average loss.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -223,6 +269,10 @@ class PeriodStats:
         -------
         float
             Sum of wins divided by sum of absolute losses.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -234,6 +284,10 @@ class PeriodStats:
         -------
         float
             Composite measure of profitability consistency.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -245,6 +299,10 @@ class PeriodStats:
         -------
         float
             Optimal bet fraction for maximizing long-run growth.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     def __repr__(self) -> str: ...
@@ -288,6 +346,11 @@ class BetaResult:
         BetaResult
             Parsed ``BetaResult`` instance.
 
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or does not satisfy the serialized schema.
+
         Examples
         --------
         >>> from datetime import date, timedelta
@@ -314,18 +377,27 @@ class BetaResult:
         -------
         str
             Compact JSON string.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
     @property
     def beta(self) -> float:
         """
-        Beta coefficient.
+        OLS slope of asset returns versus the benchmark.
 
         Returns
         -------
         float
             OLS regression slope vs benchmark.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -337,6 +409,10 @@ class BetaResult:
         -------
         float
             Standard error from the OLS fit.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -348,6 +424,10 @@ class BetaResult:
         -------
         float
             Lower bound of the 95% CI for beta.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -359,6 +439,10 @@ class BetaResult:
         -------
         float
             Upper bound of the 95% CI for beta.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     def to_dataframe(self) -> pd.DataFrame:
@@ -380,6 +464,11 @@ class BetaResult:
         -------
         pd.DataFrame
             Single-row frame with the beta point estimate and its interval.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -421,6 +510,11 @@ class GreeksResult:
         GreeksResult
             Parsed ``GreeksResult`` instance.
 
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or does not satisfy the serialized schema.
+
         Examples
         --------
         >>> from datetime import date, timedelta
@@ -447,6 +541,11 @@ class GreeksResult:
         -------
         str
             Compact JSON string.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -459,17 +558,25 @@ class GreeksResult:
         -------
         float
             Annualized intercept from the single-index regression.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
     def beta(self) -> float:
         """
-        Beta coefficient.
+        OLS slope of asset returns versus the benchmark.
 
         Returns
         -------
         float
             OLS regression slope vs benchmark.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -482,17 +589,25 @@ class GreeksResult:
         -------
         float
             Coefficient of determination.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
     def adjusted_r_squared(self) -> float:
         """
-        Adjusted R-squared.
+        Degrees-of-freedom-adjusted coefficient of determination.
 
         Returns
         -------
         float
             Degrees-of-freedom-adjusted R².
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     def to_dataframe(self) -> pd.DataFrame:
@@ -513,6 +628,11 @@ class GreeksResult:
         -------
         pd.DataFrame
             Single-row frame with alpha, beta, and goodness-of-fit.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -555,6 +675,11 @@ class RollingGreeks:
         RollingGreeks
             Parsed ``RollingGreeks`` instance.
 
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or does not satisfy the serialized schema.
+
         Examples
         --------
         >>> from datetime import date, timedelta
@@ -582,6 +707,11 @@ class RollingGreeks:
         -------
         str
             Compact JSON string.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -594,28 +724,40 @@ class RollingGreeks:
         -------
         list[datetime.date]
             Window-end dates aligned 1:1 with :attr:`alphas` and :attr:`betas`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
 
     @property
     def alphas(self) -> npt.NDArray[np.float64]:
         """
-        Rolling alpha values.
+        Rolling annualized Jensen alpha for each window.
 
         Returns
         -------
         npt.NDArray[np.float64]
             Annualized Jensen alpha per window.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
     def betas(self) -> npt.NDArray[np.float64]:
         """
-        Rolling beta values.
+        Rolling OLS beta versus the benchmark for each window.
 
         Returns
         -------
         npt.NDArray[np.float64]
             OLS beta per window.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     def to_dataframe(self) -> pd.DataFrame:
@@ -626,6 +768,11 @@ class RollingGreeks:
         -------
         pd.DataFrame
             DataFrame with columns ``alpha`` and ``beta``, indexed by date.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -663,6 +810,11 @@ class MultiFactorResult:
         MultiFactorResult
             Parsed ``MultiFactorResult`` instance.
 
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or does not satisfy the serialized schema.
+
         Examples
         --------
         >>> from datetime import date, timedelta
@@ -686,6 +838,11 @@ class MultiFactorResult:
         -------
         str
             Compact JSON string.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -698,6 +855,10 @@ class MultiFactorResult:
         -------
         float
             Annualized regression intercept.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -710,6 +871,10 @@ class MultiFactorResult:
         -------
         npt.NDArray[np.float64]
             One beta per factor, in factor order.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -722,28 +887,40 @@ class MultiFactorResult:
         -------
         float
             Coefficient of determination.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
     def adjusted_r_squared(self) -> float:
         """
-        Adjusted R-squared.
+        Degrees-of-freedom-adjusted coefficient of determination.
 
         Returns
         -------
         float
             Degrees-of-freedom-adjusted R².
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
     def residual_vol(self) -> float:
         """
-        Residual volatility.
+        Residual (idiosyncratic) volatility of the multi-factor fit.
 
         Returns
         -------
         float
             Standard deviation of regression residuals.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     def to_dataframe(self, factor_names: list[str] | None = None) -> pd.DataFrame:
@@ -813,6 +990,11 @@ class DrawdownEpisode:
         DrawdownEpisode
             Parsed ``DrawdownEpisode`` instance.
 
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or does not satisfy the serialized schema.
+
         Examples
         --------
         >>> from datetime import date, timedelta
@@ -833,6 +1015,11 @@ class DrawdownEpisode:
         -------
         str
             Compact JSON string.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -845,6 +1032,10 @@ class DrawdownEpisode:
         -------
         datetime.date
             Date when the drawdown began.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
 
     @property
@@ -856,6 +1047,10 @@ class DrawdownEpisode:
         -------
         datetime.date
             Date of the deepest point.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
 
     @property
@@ -867,6 +1062,10 @@ class DrawdownEpisode:
         -------
         datetime.date or None
             Recovery date, or ``None`` if the episode is ongoing.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
 
     @property
@@ -878,6 +1077,10 @@ class DrawdownEpisode:
         -------
         int
             Number of calendar days from start to end (or valley if ongoing).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -889,6 +1092,10 @@ class DrawdownEpisode:
         -------
         float
             Peak-to-trough drawdown as a negative decimal.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -900,6 +1107,10 @@ class DrawdownEpisode:
         -------
         float
             Price level that would signal near-recovery.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -911,6 +1122,10 @@ class DrawdownEpisode:
         -------
         bool
             ``True`` if the drawdown started before the available data window.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     def __repr__(self) -> str: ...
@@ -944,6 +1159,11 @@ class LookbackReturns:
         LookbackReturns
             Parsed ``LookbackReturns`` instance.
 
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or does not satisfy the serialized schema.
+
         Examples
         --------
         >>> from datetime import date, timedelta
@@ -964,6 +1184,11 @@ class LookbackReturns:
         -------
         str
             Compact JSON string.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -976,6 +1201,10 @@ class LookbackReturns:
         -------
         npt.NDArray[np.float64]
             Array of MTD returns, one per ticker.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -987,6 +1216,10 @@ class LookbackReturns:
         -------
         npt.NDArray[np.float64]
             Array of QTD returns, one per ticker.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -998,6 +1231,10 @@ class LookbackReturns:
         -------
         npt.NDArray[np.float64]
             Array of YTD returns, one per ticker.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -1009,6 +1246,10 @@ class LookbackReturns:
         -------
         npt.NDArray[np.float64] or None
             Array of FYTD returns, or ``None`` when no fiscal config is set.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     def to_dataframe(self, ticker_names: list[str]) -> pd.DataFrame:
@@ -1071,6 +1312,11 @@ class DatedSeries:
         DatedSeries
             Parsed ``DatedSeries`` instance, including its metric label.
 
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or does not satisfy the serialized schema.
+
         Examples
         --------
         >>> from datetime import date, timedelta
@@ -1094,6 +1340,11 @@ class DatedSeries:
         -------
         str
             Compact JSON string.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
         """
         ...
 
@@ -1106,6 +1357,10 @@ class DatedSeries:
         -------
         npt.NDArray[np.float64]
             Metric values aligned with :attr:`dates`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -1117,6 +1372,10 @@ class DatedSeries:
         -------
         list[datetime.date]
             Date labels for each rolling window.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
 
     @property
@@ -1128,6 +1387,10 @@ class DatedSeries:
         -------
         str
             Metric-specific column name (e.g. ``sharpe``, ``volatility``).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     def to_dataframe(self) -> pd.DataFrame:
@@ -1142,6 +1405,11 @@ class DatedSeries:
         pd.DataFrame
             DataFrame with a date index and one column named
             :attr:`value_column`.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -1397,17 +1665,25 @@ class Performance:
         -------
         list[str]
             Column labels from the input panel.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
     def benchmark_idx(self) -> int:
         """
-        Benchmark column index.
+        Zero-based column index of the benchmark series.
 
         Returns
         -------
         int
             Zero-based column index of the benchmark series.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     @property
@@ -1419,6 +1695,10 @@ class Performance:
         -------
         str
             One of ``"daily"``, ``"weekly"``, ``"monthly"``, etc.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
 
     def dates(self) -> list[datetime.date]:
@@ -1429,6 +1709,10 @@ class Performance:
         -------
         list[datetime.date]
             All observation dates in the panel.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
 
     def active_dates(self) -> list[datetime.date]:
@@ -1439,6 +1723,10 @@ class Performance:
         -------
         list[datetime.date]
             Dates within the active ``[start, end]`` range.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
 
     def active_dates_for_ticker(self, ticker_idx: int) -> list[datetime.date]:
@@ -1465,7 +1753,7 @@ class Performance:
 
     def cagr(self) -> pd.Series:
         """
-        CAGR for each ticker.
+        Compound annual growth rate for each ticker.
 
         Returns
         -------
@@ -1492,6 +1780,10 @@ class Performance:
         pd.Series
             Mean return indexed by ticker name.
 
+        Raises
+        ------
+        ValueError
+            If the computed values cannot be wrapped as a labelled pandas object.
         """
 
     def volatility(self, annualize: bool = True) -> pd.Series:
@@ -1508,6 +1800,10 @@ class Performance:
         pd.Series
             Standard deviation of returns indexed by ticker name.
 
+        Raises
+        ------
+        ValueError
+            If the computed values cannot be wrapped as a labelled pandas object.
         """
 
     def sharpe(self, risk_free_rate: float = 0.0) -> pd.Series:
@@ -1524,6 +1820,11 @@ class Performance:
         pd.Series
             Sharpe ratios over the active return window, indexed by ticker name.
 
+        Raises
+        ------
+        ValueError
+            If the computed values cannot be wrapped as a labelled pandas object.
+
         Examples
         --------
         >>> from datetime import date
@@ -1533,6 +1834,9 @@ class Performance:
         >>> (sharpe.name, list(sharpe.index))
         ('sharpe', ['FUND'])
 
+        Sources
+        -------
+        - Sharpe (1966): see docs/REFERENCES.md#sharpe1966
         """
 
     def sortino(self, mar: float = 0.0) -> pd.Series:
@@ -1553,6 +1857,14 @@ class Performance:
         -----
         ``mar`` is per-period; Sharpe ``risk_free_rate`` inputs are annualized.
 
+        Raises
+        ------
+        ValueError
+            If the computed values cannot be wrapped as a labelled pandas object.
+
+        Sources
+        -------
+        - Sortino and van der Meer (1991): see docs/REFERENCES.md#sortinoVanDerMeer1991
         """
 
     def calmar(self) -> pd.Series:
@@ -1568,6 +1880,10 @@ class Performance:
         ------
         ValueError
             If the active date window cannot be annualized.
+
+        Sources
+        -------
+        - Young (1991): see docs/REFERENCES.md#youngCalmar1991
         """
 
     def max_drawdown(self) -> pd.Series:
@@ -1578,6 +1894,10 @@ class Performance:
         -------
         pd.Series
             Peak-to-trough drawdown (negative), indexed by ticker name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
 
     def mean_drawdown(self) -> pd.Series:
@@ -1588,6 +1908,10 @@ class Performance:
         -------
         pd.Series
             Average drawdown (negative), indexed by ticker name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
 
     def value_at_risk(self, confidence: float = 0.95) -> pd.Series:
@@ -1604,6 +1928,14 @@ class Performance:
         pd.Series
             Historical VaR (negative), indexed by ticker name.
 
+        Raises
+        ------
+        ValueError
+            If the computed values cannot be wrapped as a labelled pandas object.
+
+        Sources
+        -------
+        - J.P. Morgan RiskMetrics (1996): see docs/REFERENCES.md#jpmorgan1996RiskMetrics
         """
 
     def expected_shortfall(self, confidence: float = 0.95) -> pd.Series:
@@ -1620,6 +1952,15 @@ class Performance:
         pd.Series
             Expected shortfall (negative), indexed by ticker name.
 
+        Raises
+        ------
+        ValueError
+            If the computed values cannot be wrapped as a labelled pandas object.
+
+        Sources
+        -------
+        - Artzner, Delbaen, Eber, and Heath (1999): see
+          docs/REFERENCES.md#artzner1999CoherentRisk
         """
 
     def tracking_error(self) -> pd.Series:
@@ -1630,6 +1971,14 @@ class Performance:
         -------
         pd.Series
             Annualized standard deviation of excess returns indexed by ticker name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+
+        Sources
+        -------
+        - Grinold and Kahn (1999): see docs/REFERENCES.md#grinoldKahn1999ActivePortfolio
         """
 
     def information_ratio(self) -> pd.Series:
@@ -1640,6 +1989,14 @@ class Performance:
         -------
         pd.Series
             Annualized excess return divided by tracking error indexed by ticker name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+
+        Sources
+        -------
+        - Grinold and Kahn (1999): see docs/REFERENCES.md#grinoldKahn1999ActivePortfolio
         """
 
     def skewness(self) -> pd.Series:
@@ -1650,6 +2007,14 @@ class Performance:
         -------
         pd.Series
             Third moment of returns indexed by ticker name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+
+        Sources
+        -------
+        - Joanes and Gill (1998): see docs/REFERENCES.md#joanesGill1998
         """
 
     def kurtosis(self) -> pd.Series:
@@ -1660,6 +2025,14 @@ class Performance:
         -------
         pd.Series
             Fourth moment of returns indexed by ticker name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+
+        Sources
+        -------
+        - Joanes and Gill (1998): see docs/REFERENCES.md#joanesGill1998
         """
 
     def geometric_mean(self) -> pd.Series:
@@ -1670,6 +2043,10 @@ class Performance:
         -------
         pd.Series
             Geometric mean return indexed by ticker name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
 
     def skew_kurt(self) -> tuple[pd.Series, pd.Series]:
@@ -1681,6 +2058,10 @@ class Performance:
         tuple[pd.Series, pd.Series]
             ``(skewness, kurtosis)``, each indexed by ticker name and named
             after its metric.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
 
     def value_at_risk_and_es(
@@ -1701,6 +2082,10 @@ class Performance:
             ``(value_at_risk, expected_shortfall)``, each indexed by ticker
             name and named after its metric.
 
+        Raises
+        ------
+        ValueError
+            If the computed values cannot be wrapped as a labelled pandas object.
         """
 
     def downside_deviation(self, mar: float = 0.0) -> pd.Series:
@@ -1719,6 +2104,10 @@ class Performance:
         pd.Series
             Downside deviation indexed by ticker name.
 
+        Raises
+        ------
+        ValueError
+            If the computed values cannot be wrapped as a labelled pandas object.
         """
 
     def max_drawdown_duration(self) -> pd.Series:
@@ -1730,6 +2119,10 @@ class Performance:
         pd.Series
             Longest drawdown duration in calendar days, indexed by ticker name
             and kept at an integer dtype.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
 
     def up_capture(self) -> pd.Series:
@@ -1740,6 +2133,10 @@ class Performance:
         -------
         pd.Series
             Up-capture ratio indexed by ticker name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
 
     def down_capture(self) -> pd.Series:
@@ -1750,6 +2147,10 @@ class Performance:
         -------
         pd.Series
             Down-capture ratio indexed by ticker name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
 
     def capture_ratio(self) -> pd.Series:
@@ -1760,6 +2161,10 @@ class Performance:
         -------
         pd.Series
             Up-capture divided by down-capture indexed by ticker name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
 
     def omega_ratio(self, threshold: float = 0.0) -> pd.Series:
@@ -1776,6 +2181,14 @@ class Performance:
         pd.Series
             Omega ratio indexed by ticker name.
 
+        Raises
+        ------
+        ValueError
+            If the computed values cannot be wrapped as a labelled pandas object.
+
+        Sources
+        -------
+        - Keating and Shadwick (2002): see docs/REFERENCES.md#keatingShadwick2002
         """
 
     def treynor(self, risk_free_rate: float = 0.0) -> pd.Series:
@@ -1792,6 +2205,14 @@ class Performance:
         pd.Series
             Excess return per unit of beta indexed by ticker name.
 
+        Raises
+        ------
+        ValueError
+            If the computed values cannot be wrapped as a labelled pandas object.
+
+        Sources
+        -------
+        - Treynor (1965): see docs/REFERENCES.md#treynor1965
         """
 
     def gain_to_pain(self) -> pd.Series:
@@ -1802,6 +2223,14 @@ class Performance:
         -------
         pd.Series
             Sum of gains divided by sum of absolute losses indexed by ticker name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+
+        Sources
+        -------
+        - Schwager (2012): see docs/REFERENCES.md#schwager2012
         """
 
     def ulcer_index(self) -> pd.Series:
@@ -1812,6 +2241,14 @@ class Performance:
         -------
         pd.Series
             Root-mean-square of drawdown depths indexed by ticker name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+
+        Sources
+        -------
+        - Martin (1987): see docs/REFERENCES.md#martinUlcer1987
         """
 
     def martin_ratio(self) -> pd.Series:
@@ -1827,6 +2264,10 @@ class Performance:
         ------
         ValueError
             If the active date window cannot be annualized.
+
+        Sources
+        -------
+        - Martin (1987): see docs/REFERENCES.md#martinUlcer1987
         """
 
     def recovery_factor(self) -> pd.Series:
@@ -1837,6 +2278,10 @@ class Performance:
         -------
         pd.Series
             Total return divided by max drawdown indexed by ticker name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
 
     def pain_index(self) -> pd.Series:
@@ -1847,6 +2292,14 @@ class Performance:
         -------
         pd.Series
             Average drawdown depth indexed by ticker name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+
+        Sources
+        -------
+        - Schwager (2012): see docs/REFERENCES.md#schwager2012
         """
 
     def pain_ratio(self, risk_free_rate: float = 0.0) -> pd.Series:
@@ -1867,6 +2320,10 @@ class Performance:
         ------
         ValueError
             If the active date window cannot be annualized.
+
+        Sources
+        -------
+        - Schwager (2012): see docs/REFERENCES.md#schwager2012
         """
 
     def tail_ratio(self, confidence: float = 0.95) -> pd.Series:
@@ -1883,6 +2340,16 @@ class Performance:
         pd.Series
             Right-tail gain divided by left-tail loss indexed by ticker name.
 
+        Raises
+        ------
+        ValueError
+            If the computed values cannot be wrapped as a labelled pandas object.
+
+        Notes
+        -----
+        The upper tail uses the ``confidence`` quantile and the lower tail uses
+        ``1 - confidence``. A zero lower tail with a positive upper tail returns
+        ``inf``; both tails zero returns ``NaN``.
         """
 
     def r_squared(self) -> pd.Series:
@@ -1893,6 +2360,10 @@ class Performance:
         -------
         pd.Series
             Coefficient of determination indexed by ticker name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
 
     def batting_average(self) -> pd.Series:
@@ -1904,6 +2375,10 @@ class Performance:
         pd.Series
             Fraction of periods where the ticker outperformed the benchmark,
             indexed by ticker name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
 
     def parametric_var(self, confidence: float = 0.95) -> pd.Series:
@@ -1920,6 +2395,14 @@ class Performance:
         pd.Series
             Parametric VaR (negative), indexed by ticker name.
 
+        Raises
+        ------
+        ValueError
+            If the computed values cannot be wrapped as a labelled pandas object.
+
+        Sources
+        -------
+        - J.P. Morgan RiskMetrics (1996): see docs/REFERENCES.md#jpmorgan1996RiskMetrics
         """
 
     def cornish_fisher_var(self, confidence: float = 0.95) -> pd.Series:
@@ -1936,11 +2419,19 @@ class Performance:
         pd.Series
             Cornish-Fisher modified VaR (negative), indexed by ticker name.
 
+        Raises
+        ------
+        ValueError
+            If the computed values cannot be wrapped as a labelled pandas object.
+
+        Sources
+        -------
+        - Cornish and Fisher (1937): see docs/REFERENCES.md#cornishFisher1937
         """
 
     def cdar(self, confidence: float = 0.95) -> pd.Series:
         """
-        CDaR for each ticker.
+        Conditional drawdown at risk for each ticker.
 
         Parameters
         ----------
@@ -1952,6 +2443,14 @@ class Performance:
         pd.Series
             Conditional drawdown-at-risk (negative), indexed by ticker name.
 
+        Raises
+        ------
+        ValueError
+            If the computed values cannot be wrapped as a labelled pandas object.
+
+        Sources
+        -------
+        - Chekhlov, Uryasev, and Zabarankin (2005): see docs/REFERENCES.md#chekhlov2005
         """
 
     def m_squared(self, risk_free_rate: float = 0.0) -> pd.Series:
@@ -1968,6 +2467,14 @@ class Performance:
         pd.Series
             M-squared measure indexed by ticker name.
 
+        Raises
+        ------
+        ValueError
+            If the computed values cannot be wrapped as a labelled pandas object.
+
+        Sources
+        -------
+        - Modigliani and Modigliani (1997): see docs/REFERENCES.md#modigliani1997
         """
 
     def modified_sharpe(
@@ -1990,6 +2497,14 @@ class Performance:
         pd.Series
             Modified Sharpe ratio indexed by ticker name.
 
+        Raises
+        ------
+        ValueError
+            If the computed values cannot be wrapped as a labelled pandas object.
+
+        Sources
+        -------
+        - Gregoriou and Gueyie (2003): see docs/REFERENCES.md#gregoriou2003
         """
 
     def sterling_ratio(self, risk_free_rate: float = 0.0, n: int = 5) -> pd.Series:
@@ -2012,6 +2527,10 @@ class Performance:
         ------
         ValueError
             If the active date window cannot be annualized.
+
+        Sources
+        -------
+        - Kestner (1996): see docs/REFERENCES.md#kestner1996
         """
 
     def burke_ratio(self, risk_free_rate: float = 0.0, n: int = 5) -> pd.Series:
@@ -2034,6 +2553,10 @@ class Performance:
         ------
         ValueError
             If the active date window cannot be annualized.
+
+        Sources
+        -------
+        - Burke (1994): see docs/REFERENCES.md#burke1994
         """
 
     # -- Vector-per-ticker methods --
@@ -2052,6 +2575,10 @@ class Performance:
         list[list[float]]
             Per-ticker simple return series as decimal fractions
             (``0.01`` for ``+1%``), in date order.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
 
     def returns_for_ticker(self, ticker_idx: int) -> list[float]:
@@ -2083,6 +2610,10 @@ class Performance:
         -------
         list[list[float]]
             Per-ticker cumulative return time series.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
 
     def drawdown_series(self) -> list[list[float]]:
@@ -2093,6 +2624,10 @@ class Performance:
         -------
         list[list[float]]
             Per-ticker drawdown time series (negative or zero).
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
 
     def correlation_matrix(self) -> list[list[float]]:
@@ -2103,6 +2638,10 @@ class Performance:
         -------
         list[list[float]]
             Symmetric correlation matrix indexed by ticker column order.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
 
     def cumulative_returns_outperformance(self) -> list[list[float]]:
@@ -2113,6 +2652,10 @@ class Performance:
         -------
         list[list[float]]
             Per-ticker cumulative excess return time series.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
 
     def drawdown_difference(self) -> list[list[float]]:
@@ -2123,6 +2666,10 @@ class Performance:
         -------
         list[list[float]]
             Per-ticker drawdown difference time series.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
 
     def excess_returns(
@@ -2146,6 +2693,9 @@ class Performance:
         list[list[float]]
             Per-ticker excess return series.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
 
     # -- Per-ticker structured methods --
@@ -2158,6 +2708,10 @@ class Performance:
         -------
         list[BetaResult]
             Per-ticker :class:`BetaResult` with CI.
+
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
 
     def greeks(self, risk_free_rate: float = 0.0) -> list[GreeksResult]:
@@ -2174,6 +2728,9 @@ class Performance:
         list[GreeksResult]
             Per-ticker :class:`GreeksResult`.
 
+        Notes
+        -----
+        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
         """
 
     def rolling_greeks(
@@ -2441,6 +2998,11 @@ class Performance:
         -------
         pd.DataFrame
             Summary statistics, one row per ticker.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -2490,6 +3052,10 @@ class Performance:
         -------
         pd.DataFrame
             Simple returns indexed by date, one column per ticker.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -2501,6 +3067,10 @@ class Performance:
         -------
         pd.DataFrame
             Cumulative returns indexed by date, one column per ticker.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -2536,6 +3106,10 @@ class Performance:
         -------
         pd.DataFrame
             Drawdown series indexed by date, one column per ticker.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -2547,6 +3121,10 @@ class Performance:
         -------
         pd.DataFrame
             Symmetric correlation matrix with ticker names on both axes.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
         """
         ...
 

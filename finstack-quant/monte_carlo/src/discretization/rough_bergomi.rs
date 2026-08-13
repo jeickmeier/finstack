@@ -47,13 +47,13 @@
 //! # References
 //!
 //! - Bayer, C., Friz, P., & Gatheral, J. (2016). "Pricing under rough
-//!   volatility." *Quantitative Finance*, 16(6), 887–904.
+//!   volatility." *Quantitative Finance*, 16(6), 887–904. `docs/REFERENCES.md#bayer-friz-gatheral-2016`
 //! - Bennedsen, M., Lunde, A. & Pakkanen, M. S. (2017). "Hybrid scheme for
 //!   Brownian semistationary processes." *Finance and Stochastics*, 21(4),
-//!   931–965.
+//!   931–965. `docs/REFERENCES.md#bennedsen-lunde-pakkanen-2017`
 //! - McCrickerd, R. & Pakkanen, M. S. (2018). "Turbocharging Monte Carlo
 //!   pricing for the rough Bergomi model." *Quantitative Finance*, 18(11),
-//!   1877–1886.
+//!   1877–1886. `docs/REFERENCES.md#mccrickerd-pakkanen-2018`
 
 use super::super::process::rough_bergomi::RoughBergomiProcess;
 use super::super::traits::Discretization;

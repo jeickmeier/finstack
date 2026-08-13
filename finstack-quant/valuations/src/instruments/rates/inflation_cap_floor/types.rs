@@ -623,7 +623,7 @@ impl InflationCapFloorBuilder {
 /// # References
 ///
 /// - Brigo, D. & Mercurio, F. (2006). *Interest Rate Models — Theory and
-///   Practice* (2nd ed.), Ch. 16 (inflation-indexed derivatives, JY model).
+///   Practice* (2nd ed.), Ch. 16 (inflation-indexed derivatives, JY model). `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
 /// - Mercurio, F. (2005). "Pricing Inflation-Indexed Derivatives."
 ///   *Quantitative Finance*, 5(3), 289-302.
 pub fn yoy_convexity_adjusted_rate(

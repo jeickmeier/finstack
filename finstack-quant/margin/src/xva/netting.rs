@@ -20,9 +20,9 @@
 //! # References
 //!
 //! - ISDA (2002). "2002 ISDA Master Agreement." Section 6 (Close-Out Netting).
-//! - Gregory, J. (2020). *The xVA Challenge*, Chapter 6.
+//! - Gregory, J. (2020). *The xVA Challenge*, Chapter 6. `docs/REFERENCES.md#gregory-xva-challenge`
 //! - BCBS 279 (2014). SA-CCR: "The standardised approach for measuring
-//!   counterparty credit risk exposures."
+//!   counterparty credit risk exposures." `docs/REFERENCES.md#bcbs-279-saccr`
 
 use super::types::CsaTerms;
 use finstack_quant_core::math::neumaier_sum;

@@ -23,7 +23,7 @@
 //!
 //! # References
 //!
-//! - Kirk, E. (1995). "Correlation in the Energy Markets."
+//! - Kirk, E. (1995). "Correlation in the Energy Markets." `docs/REFERENCES.md#kirk-1995`
 
 use crate::instruments::commodity::commodity_spread_option::CommoditySpreadOption;
 use crate::instruments::OptionType;
@@ -271,8 +271,8 @@ mod tests {
         let pv = opt.value(&market, as_of).expect("price spread option");
         // With identical forwards, zero strike, and perfect correlation,
         // Kirk's vol = sqrt(sigma1^2 - 2*1*sigma1*sigma2*(F2/(F2+0)) + (sigma2*(F2/(F2+0)))^2)
-        //            = sqrt(sigma1^2 - 2*sigma1*sigma2 + sigma2^2)
-        //            = |sigma1 - sigma2| = 0 when sigma1 == sigma2
+        // = sqrt(sigma1^2 - 2*sigma1*sigma2 + sigma2^2)
+        // = |sigma1 - sigma2| = 0 when sigma1 == sigma2
         // So the option should be worth ~0 (intrinsic only)
         assert!(
             pv.amount().abs() < 0.01,

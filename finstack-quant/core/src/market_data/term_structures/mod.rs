@@ -101,10 +101,10 @@
 //!
 //! # References
 //!
-//! - Discounting and term-structure context:
-//!   `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
-//! - Curve interpolation:
-//!   `docs/REFERENCES.md#hagan-west-monotone-convex`
+//! - Discounting and term-structure context: `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
+//!
+//! - Curve interpolation: `docs/REFERENCES.md#hagan-west-monotone-convex`
+//!
 
 /// Base correlation curves for CDS tranche pricing.
 mod base_correlation;

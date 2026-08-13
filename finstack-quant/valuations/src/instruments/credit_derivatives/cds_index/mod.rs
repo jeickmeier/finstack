@@ -66,7 +66,7 @@
 //! ## Academic References
 //!
 //! - O'Kane, D. (2008). *Modelling Single-name and Multi-name Credit Derivatives*.
-//!   Wiley Finance. Chapter 7: Index Products.
+//!   Wiley Finance. Chapter 7: Index Products. `docs/REFERENCES.md#o-kane-2008`
 //!
 //! - Laurent, J.-P., & Gregory, J. (2005). "Basket Default Swaps, CDOs and
 //!   Factor Copulas." *Journal of Risk*, 7(4), 103-122.

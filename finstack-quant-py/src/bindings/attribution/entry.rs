@@ -4,7 +4,38 @@ use crate::bindings::attribution::pnl_attribution::PyPnlAttribution;
 use crate::bindings::attribution::return_contribution::PyReturnContributionResult;
 use crate::bindings::module_utils::py_to_json_string;
 use crate::errors::{core_to_py, display_to_py, serde_json_to_py};
+use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
+
+/// Extract a human-readable message from a caught panic payload.
+fn panic_message(panic: &(dyn std::any::Any + Send)) -> String {
+    if let Some(s) = panic.downcast_ref::<&str>() {
+        (*s).to_string()
+    } else if let Some(s) = panic.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "unknown panic payload".to_string()
+    }
+}
+
+/// Run an attribution computation with the GIL released, converting a Rust
+/// panic into a catchable `RuntimeError` instead of letting it unwind as a
+/// `pyo3_runtime.PanicException` (a `BaseException` that escapes
+/// ``except Exception`` handlers). Mirrors the WASM binding's
+/// `catch_attribution_panic`.
+fn detach_catch_attribution_panic<T: Send>(
+    py: Python<'_>,
+    label: &str,
+    f: impl FnOnce() -> Result<T, finstack_quant_core::Error> + Send,
+) -> PyResult<T> {
+    match py.detach(|| std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))) {
+        Ok(result) => result.map_err(core_to_py),
+        Err(panic) => Err(PyRuntimeError::new_err(format!(
+            "internal panic in attribution ({label}): {}",
+            panic_message(panic.as_ref())
+        ))),
+    }
+}
 
 // Ergonomic entry point
 
@@ -76,16 +107,28 @@ pub(crate) fn attribute_pnl(
     let config_json = config
         .map(|value| py_to_json_string(py, value, "config"))
         .transpose()?;
-    let mut spec = finstack_quant_attribution::AttributionSpec::from_json_inputs(
-        instrument_json,
-        market_t0_json,
-        market_t1_json,
-        &as_of_t0,
-        &as_of_t1,
-        &method_json,
-        config_json.as_deref(),
-    )
-    .map_err(core_to_py)?;
+    // Parsing reconstructs instruments and markets and can panic on
+    // pathological payloads (e.g. `Money::new` on a non-finite amount), so it
+    // is guarded like the WASM twin's `attributePnl/from_json_inputs` wrap.
+    let mut spec = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        finstack_quant_attribution::AttributionSpec::from_json_inputs(
+            instrument_json,
+            market_t0_json,
+            market_t1_json,
+            &as_of_t0,
+            &as_of_t1,
+            &method_json,
+            config_json.as_deref(),
+        )
+    })) {
+        Ok(result) => result.map_err(core_to_py)?,
+        Err(panic) => {
+            return Err(PyRuntimeError::new_err(format!(
+                "internal panic in attribution (attribute_pnl/from_json_inputs): {}",
+                panic_message(panic.as_ref())
+            )))
+        }
+    };
 
     if let Some(val) = full_cross_attribution {
         spec.full_cross_attribution = val;
@@ -100,7 +143,7 @@ pub(crate) fn attribute_pnl(
     // data → KeyError, validation → ValueError, internal/operational →
     // RuntimeError — so production pipelines catching ValueError for bad
     // inputs do not silently swallow missing-curve failures.
-    let result = py.detach(|| spec.execute()).map_err(core_to_py)?;
+    let result = detach_catch_attribution_panic(py, "attribute_pnl", || spec.execute())?;
     Ok(PyPnlAttribution {
         inner: result.attribution,
     })
@@ -129,7 +172,8 @@ pub(crate) fn attribute_pnl_from_spec(py: Python<'_>, spec_json: &str) -> PyResu
 
     let envelope: AttributionEnvelope = serde_json::from_str(spec_json)
         .map_err(|e| serde_json_to_py(e, "invalid attribution envelope JSON"))?;
-    let result_envelope = py.detach(|| envelope.execute()).map_err(core_to_py)?;
+    let result_envelope =
+        detach_catch_attribution_panic(py, "attribute_pnl_from_spec", || envelope.execute())?;
     serde_json::to_string(&result_envelope).map_err(display_to_py)
 }
 
@@ -177,9 +221,7 @@ pub(crate) fn attribute_return_contribution(
 ///     Canonical compact JSON.
 #[pyfunction]
 pub(crate) fn validate_attribution_json(json: &str) -> PyResult<String> {
-    let envelope: finstack_quant_attribution::AttributionEnvelope =
-        serde_json::from_str(json).map_err(|e| serde_json_to_py(e, "invalid attribution JSON"))?;
-    serde_json::to_string(&envelope).map_err(display_to_py)
+    finstack_quant_attribution::validate_attribution_json(json).map_err(core_to_py)
 }
 
 /// Validate a return contribution specification JSON.

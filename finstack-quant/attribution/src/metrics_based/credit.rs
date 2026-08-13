@@ -53,10 +53,16 @@ pub(super) fn apply(
         // par-spread move. A credit-curve steepener is attributed per tenor
         // instead of collapsing to an average-shift × parallel-CS01 product —
         // so no twist guard / omit-on-twist workaround is needed.
+        // Mirrors the rates ladder (`rates.rs`): only set `credit_has_data`
+        // when at least one curve actually contributed. A non-empty
+        // `bucketed_cs01` map whose every curve was skipped (shift
+        // unmeasurable) must fall through to the aggregate Cs01 branch below
+        // instead of silently reporting zero credit P&L.
         let mut credit_acc = NeumaierAccumulator::new();
         let mut shift_acc = NeumaierAccumulator::new();
         let mut shift_terms = 0usize;
         let mut curves_with_data = 0usize;
+        let mut curves_skipped: Vec<String> = Vec::new();
         for curve_id in credit_curve_ids {
             let Some(buckets) = keyrate_cs01.get(curve_id) else {
                 continue;
@@ -68,6 +74,7 @@ pub(super) fn apply(
                 inputs.market_t1,
                 &tenors,
             ) else {
+                curves_skipped.push(curve_id.as_str().to_string());
                 continue;
             };
             for ((_, cs01), shift) in buckets.iter().zip(shifts.iter()) {
@@ -77,68 +84,78 @@ pub(super) fn apply(
             }
             curves_with_data += 1;
         }
-        attribution.credit_curves_pnl = factor_money_or_invalid(
-            credit_acc.total(),
-            inputs.val_t1.value.currency(),
-            "credit curves P&L (key-rate)",
-            &mut attribution.meta.notes,
-            non_finite_detected,
-        );
-        credit_has_data = true;
-        if shift_terms > 0 {
-            credit_convexity_avg_shift_bp = Some(shift_acc.total() / shift_terms as f64);
-        }
         if curves_with_data > 0 {
+            attribution.credit_curves_pnl = factor_money_or_invalid(
+                credit_acc.total(),
+                inputs.val_t1.value.currency(),
+                "credit curves P&L (key-rate)",
+                &mut attribution.meta.notes,
+                non_finite_detected,
+            );
+            credit_has_data = true;
+            if shift_terms > 0 {
+                credit_convexity_avg_shift_bp = Some(shift_acc.total() / shift_terms as f64);
+            }
             attribution.meta.notes.push(format!(
                 "Credit attribution computed using key-rate (per-tenor) BucketedCs01 across \
                      {} curve(s); non-parallel credit-curve moves are attributed per tenor",
                 curves_with_data
             ));
         }
-    } else if let Some(cs01) = inputs.val_t0.measures.get(MetricId::Cs01.as_str()) {
-        // Aggregate fallback: parallel CS01 × average credit-curve move.
-        let avg_shift = if let Some(avg_shift) = inputs.shifts.avg_credit_shift_bp {
-            avg_shift
-        } else {
-            note_warning(
+        if !curves_skipped.is_empty() {
+            attribution.meta.notes.push(format!(
+                "Credit curves with per-tenor BucketedCs01 but no measurable curve shift were \
+                     skipped in key-rate attribution: {}",
+                curves_skipped.join(", ")
+            ));
+        }
+    }
+    if !credit_has_data {
+        if let Some(cs01) = inputs.val_t0.measures.get(MetricId::Cs01.as_str()) {
+            // Aggregate fallback: parallel CS01 × average credit-curve move.
+            let avg_shift = if let Some(avg_shift) = inputs.shifts.avg_credit_shift_bp {
+                avg_shift
+            } else {
+                note_warning(
                     attribution,
                     "Credit attribution has Cs01 but no measurable credit-curve shift; credit P&L set to zero",
                     inputs.instrument.id(),
                     "credit_curves",
                 );
-            0.0
-        };
-        attribution.credit_curves_pnl = factor_money_or_invalid(
-            cs01 * avg_shift,
-            inputs.val_t1.value.currency(),
-            "credit curves P&L",
-            &mut attribution.meta.notes,
-            non_finite_detected,
-        );
-        credit_has_data = true;
-        credit_convexity_avg_shift_bp = inputs.shifts.avg_credit_shift_bp;
-        if inputs.shifts.credit_curves_measured > 1 {
-            attribution.meta.notes.push(format!(
+                0.0
+            };
+            attribution.credit_curves_pnl = factor_money_or_invalid(
+                cs01 * avg_shift,
+                inputs.val_t1.value.currency(),
+                "credit curves P&L",
+                &mut attribution.meta.notes,
+                non_finite_detected,
+            );
+            credit_has_data = true;
+            credit_convexity_avg_shift_bp = inputs.shifts.avg_credit_shift_bp;
+            if inputs.shifts.credit_curves_measured > 1 {
+                attribution.meta.notes.push(format!(
                 "Credit attribution uses aggregate Cs01 with average credit-curve shift across \
                      {} curves; provide BucketedCs01 for key-rate-aware attribution of \
                      non-parallel moves",
                 inputs.shifts.credit_curves_measured
             ));
-        }
-    } else if inputs
-        .shifts
-        .avg_credit_shift_bp
-        .is_some_and(|s| s.abs() > 0.0)
-    {
-        // No CS01 metric at all while the credit curves measurably moved —
-        // note the silent zero (see the rates-ladder counterpart above).
-        note_warning(
-            attribution,
-            "Credit attribution skipped: no Cs01/BucketedCs01 metric in the T0 valuation \
+            }
+        } else if inputs
+            .shifts
+            .avg_credit_shift_bp
+            .is_some_and(|s| s.abs() > 0.0)
+        {
+            // No CS01 metric at all while the credit curves measurably moved —
+            // note the silent zero (see the rates-ladder counterpart above).
+            note_warning(
+                attribution,
+                "Credit attribution skipped: no Cs01/BucketedCs01 metric in the T0 valuation \
                  while the credit curves moved; credit P&L set to zero (move flows to residual)",
-            inputs.instrument.id(),
-            "credit_curves",
-        );
+                inputs.instrument.id(),
+                "credit_curves",
+            );
+        }
     }
 
     // 3b. Credit curves gamma (second-order).

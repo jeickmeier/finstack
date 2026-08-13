@@ -135,7 +135,7 @@ fn is_last_day_of_february(date: Date) -> bool {
 ///
 /// # References
 ///
-/// - ISDA (2006). "2006 ISDA Definitions." Section 4.16(h).
+/// - ISDA (2006). "2006 ISDA Definitions." Section 4.16(h). `docs/REFERENCES.md#isda-2006-definitions`
 ///
 /// # Arguments
 ///

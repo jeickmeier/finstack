@@ -318,7 +318,7 @@ pub fn price_instrument_with_metrics(
 /// @param instrument_json - Required `finstack_quant.instrument/1` envelope.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
-/// @param model - Pricing-model identifier; use `"default"` for the instrument-native model when supported.
+/// @param model - Must be `"discounting"` or `"hazard_rate"`; `"default"` is not accepted.
 ///
 /// # Errors
 ///
@@ -411,7 +411,7 @@ pub fn list_models_grouped() -> Result<JsValue, JsValue> {
 ///
 /// Avoids the per-call market-parse overhead of `priceInstrument`. Returns the
 /// same plain JavaScript ValuationResult object.
-/// @param instrument_json - Canonical JSON payload representing the instrument consumed by this API.
+/// @param instrument_json - Canonical instrument envelope JSON in the Finstack v1 schema.
 /// @param market - Market context or JSON payload supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 /// @param model - Pricing-model identifier; use `"default"` for the instrument-native model when supported.
@@ -437,7 +437,7 @@ pub fn price_instrument_with_market(
 ///
 /// Returns the same plain JavaScript ValuationResult object as
 /// `priceInstrumentWithMetrics`.
-/// @param instrument_json - Canonical JSON payload representing the instrument consumed by this API.
+/// @param instrument_json - Canonical instrument envelope JSON in the Finstack v1 schema.
 /// @param market - Market context or JSON payload supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 /// @param model - Pricing-model identifier; use `"default"` for the instrument-native model when supported.
@@ -477,10 +477,10 @@ pub fn price_instrument_with_metrics_and_market(
 }
 
 /// Per-flow cashflow envelope using a pre-parsed [`JsMarket`].
-/// @param instrument_json - Canonical JSON payload representing the instrument consumed by this API.
+/// @param instrument_json - Canonical instrument envelope JSON in the Finstack v1 schema.
 /// @param market - Market context or JSON payload supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
-/// @param model - Pricing-model identifier; use `"default"` for the instrument-native model when supported.
+/// @param model - Must be `"discounting"` or `"hazard_rate"`; `"default"` is not accepted.
 ///
 /// # Errors
 ///

@@ -49,12 +49,13 @@
 //! # References
 //!
 //! - Hagan, P. S., Kumar, D., Lesniewski, A. S., & Woodward, D. E. (2002).
-//!   "Managing Smile Risk." *Wilmott Magazine*, September 2002, 84-108.
+//!   "Managing Smile Risk." *Wilmott Magazine*, September 2002, 84-108. `docs/REFERENCES.md#hagan-2002-sabr`
+//!
 //! - Obloj, J. (2008). "Fine-tune your smile: Correction to Hagan et al."
 //!   *Wilmott Magazine*, May 2008.
 //! - West, G. (2005). "Calibration of the SABR Model in Illiquid Markets."
-//!   *Applied Mathematical Finance*, 12(4), 371-385.
-//! - QuantLib SABR implementation: `ql/termstructures/volatility/sabr.cpp`
+//!   *Applied Mathematical Finance*, 12(4), 371-385. `docs/REFERENCES.md#hagan-2002-sabr`
+//! - QuantLib SABR implementation: `ql/termstructures/volatility/sabr.cpp` `docs/REFERENCES.md#hagan-2002-sabr`
 
 // SABR stochastic volatility model implementation.
 

@@ -82,7 +82,7 @@ pub(crate) fn extract_square_matrix(
         }
         if shape[1] != n {
             return Err(crate::errors::value_error(format!(
-                "{label} row 0 must have {n} columns, got {}",
+                "{label} must have {n} columns, got {}",
                 shape[1]
             )));
         }

@@ -362,8 +362,8 @@ pub fn joint_probabilities(p1: f64, p2: f64, correlation: f64) -> Result<Box<[f6
 /// checks unit diagonal, off-diagonal in `[-1, 1]`, symmetry, and positive
 /// semi-definiteness. Returns nothing on success; raises a descriptive error
 /// (including the failing dimension or constraint) otherwise.
-/// @param matrix - Square numeric matrix in the nested or row-major shape required by this callable.
-/// @param n - Positive square-matrix dimension; flat arrays must contain n × n entries.
+/// @param matrix - Flat row-major `n * n` correlation coefficients; unit diagonal, off-diagonals in `[-1, 1]`.
+/// @param n - Positive square-matrix dimension; `matrix` must contain exactly `n * n` entries.
 ///
 /// # Errors
 ///
@@ -381,8 +381,8 @@ pub fn validate_correlation_matrix(matrix: &[f64], n: usize) -> Result<(), JsVal
 /// matrix but fails Cholesky by a small margin, returns the nearest valid
 /// correlation matrix (symmetric, unit diagonal, PSD) in Frobenius norm.
 /// Gross input violations raise rather than being silently reshaped.
-/// @param matrix - Square numeric matrix in the nested or row-major shape required by this callable.
-/// @param n - Positive square-matrix dimension; flat arrays must contain n × n entries.
+/// @param matrix - Flat row-major `n * n` near-correlation matrix to project onto the correlation set.
+/// @param n - Positive square-matrix dimension; `matrix` must contain exactly `n * n` entries.
 /// @param max_iter - Maximum number of Higham nearest-correlation projection iterations.
 /// @param tol - Positive convergence tolerance for the nearest-correlation projection.
 ///

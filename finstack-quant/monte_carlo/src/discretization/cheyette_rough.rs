@@ -66,14 +66,14 @@
 //! # References
 //!
 //! - Cheyette, O. (1994). "Markov Representation of the Heath-Jarrow-Morton
-//!   Model." Working paper.
+//!   Model." Working paper. `docs/REFERENCES.md#jarrow-lando-turnbull-1997`
 //! - Andersen, L. & Piterbarg, V. (2010). *Interest Rate Modeling*, Volume II,
-//!   Chapter 12.
+//!   Chapter 12. `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
 //! - Bayer, C., Friz, P. & Gatheral, J. (2016). "Pricing under rough
-//!   volatility." *Quantitative Finance*, 16(6), 887–904.
+//!   volatility." *Quantitative Finance*, 16(6), 887–904. `docs/REFERENCES.md#bayer-friz-gatheral-2016`
 //! - Bennedsen, M., Lunde, A. & Pakkanen, M. S. (2017). "Hybrid scheme for
 //!   Brownian semistationary processes." *Finance and Stochastics*, 21(4),
-//!   931–965.
+//!   931–965. `docs/REFERENCES.md#bennedsen-lunde-pakkanen-2017`
 
 use super::super::process::cheyette_rough::CheyetteRoughVolProcess;
 use super::super::traits::Discretization;

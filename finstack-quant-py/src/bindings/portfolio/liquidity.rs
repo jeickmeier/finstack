@@ -8,7 +8,7 @@
 //! (PyO3 converts automatically). Results are returned as `PyDict`s rather
 //! than opaque `#[pyclass]` wrappers to keep the API numpy-friendly.
 
-use crate::errors::display_to_py;
+use crate::errors::portfolio_to_py;
 use finstack_quant_portfolio::liquidity::{self, KyleLambdaModel};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -35,6 +35,10 @@ use pyo3::types::PyDict;
 ///     or when ``len(returns) < 2``. ``None`` (rather than ``NaN``) forces
 ///     callers to handle the unestimable case explicitly instead of letting
 ///     it propagate silently through downstream arithmetic.
+///
+/// Sources
+/// -------
+/// - Roll (1984): see docs/REFERENCES.md#roll-1984
 #[pyfunction]
 fn roll_effective_spread(py: Python<'_>, returns: Vec<f64>) -> Option<f64> {
     py.detach(move || liquidity::roll_effective_spread(&returns))
@@ -58,6 +62,10 @@ fn roll_effective_spread(py: Python<'_>, returns: Vec<f64>) -> Option<f64> {
 /// float | None
 ///     Average daily illiquidity ratio, or ``None`` if inputs are empty,
 ///     mismatched in length, non-finite, or contain a zero/negative volume.
+///
+/// Sources
+/// -------
+/// - Amihud (2002): see docs/REFERENCES.md#amihud-2002
 #[pyfunction]
 fn amihud_illiquidity(py: Python<'_>, returns: Vec<f64>, volumes: Vec<f64>) -> Option<f64> {
     py.detach(move || liquidity::amihud_illiquidity(&returns, &volumes))
@@ -65,19 +73,21 @@ fn amihud_illiquidity(py: Python<'_>, returns: Vec<f64>, volumes: Vec<f64>) -> O
 
 // Position sizing / tiering
 
-/// Days required to liquidate a dollar-denominated position at the given
-/// participation rate.
+/// Trading days required to liquidate a position at the given participation
+/// rate.
 ///
-/// ``days = position_value / (avg_daily_volume * participation_rate)``. Both
-/// ``position_value`` and ``avg_daily_volume`` must be in the same units
-/// (e.g., USD notional).
+/// ``days = position_quantity / (adv * participation_rate)``. Both
+/// ``position_quantity`` and ``adv`` are in **share/contract space** — the
+/// same units the Rust ``days_to_liquidate`` contract defines. Passing a
+/// currency notional against a share-count ADV (or vice versa) silently
+/// mis-scales the result by the share price.
 ///
 /// Parameters
 /// ----------
-/// position_value : float
-///     Position size in currency units (absolute value used).
-/// avg_daily_volume : float
-///     Average daily traded volume in matching currency units.
+/// position_quantity : float
+///     Number of shares/contracts to liquidate (absolute value used).
+/// adv : float
+///     Average daily traded volume in shares/contracts.
 /// participation_rate : float
 ///     Fraction of ADV that can be traded per day, typically 0.05 to 0.25.
 ///
@@ -86,9 +96,14 @@ fn amihud_illiquidity(py: Python<'_>, returns: Vec<f64>, volumes: Vec<f64>) -> O
 /// float
 ///     Trading days to fully liquidate. ``inf`` if ADV or participation rate
 ///     is non-positive.
+///
+/// Notes
+/// -----
+/// This helper does not raise; non-positive ADV or participation rate returns
+/// ``inf`` rather than an exception.
 #[pyfunction]
-fn days_to_liquidate(position_value: f64, avg_daily_volume: f64, participation_rate: f64) -> f64 {
-    liquidity::days_to_liquidate(position_value, avg_daily_volume, participation_rate)
+fn days_to_liquidate(position_quantity: f64, adv: f64, participation_rate: f64) -> f64 {
+    liquidity::days_to_liquidate(position_quantity, adv, participation_rate)
 }
 
 /// Classify a position into a liquidity tier from its days-to-liquidate.
@@ -134,7 +149,7 @@ fn liquidity_tier(days_to_liquidate: f64) -> &'static str {
 /// spread_vol : float
 ///     Relative spread volatility (standard deviation of relative spread).
 /// confidence : float
-///     Confidence level in ``(0, 1)``, e.g. ``0.99``.
+///     Confidence level strictly inside ``(0.5, 1)``, e.g. ``0.99``.
 /// position_value : float
 ///     Market value of the position (sign ignored; only magnitude is used).
 ///
@@ -144,6 +159,11 @@ fn liquidity_tier(days_to_liquidate: f64) -> &'static str {
 ///     ``{var, spread_cost, lvar, lvar_ratio}`` where ``spread_cost`` is a
 ///     non-negative magnitude, ``lvar <= var <= 0``, and ``lvar_ratio =
 ///     lvar / var`` (or ``NaN`` if VaR is zero).
+///
+/// Sources
+/// -------
+/// - Bangia, Diebold, Schuermann, and Stroughair (1999): see
+///   docs/REFERENCES.md#bangia-1999-lvar
 #[pyfunction]
 #[pyo3(signature = (var, spread_mean, spread_vol, confidence, position_value))]
 fn lvar_bangia<'py>(
@@ -156,7 +176,7 @@ fn lvar_bangia<'py>(
 ) -> PyResult<Bound<'py, PyDict>> {
     let result =
         liquidity::lvar_bangia_scalar(var, spread_mean, spread_vol, confidence, position_value)
-            .map_err(display_to_py)?;
+            .map_err(portfolio_to_py)?;
 
     let out = PyDict::new(py);
     out.set_item("var", result.var)?;
@@ -168,7 +188,7 @@ fn lvar_bangia<'py>(
 
 // Market impact (Almgren-Chriss)
 
-/// Almgren-Chriss (2001) market impact decomposition for a uniform execution
+/// Almgren-Chriss (2000) market impact decomposition for a uniform execution
 /// over a fixed horizon.
 ///
 /// Parameters
@@ -194,10 +214,17 @@ fn lvar_bangia<'py>(
 /// Returns
 /// -------
 /// dict
-///     ``{permanent_impact, temporary_impact, total_impact, expected_cost_bp}``
-///     where impacts are expressed in model cost units and
+///     ``{permanent_impact, temporary_impact, total_impact, expected_cost_bp,
+///     execution_risk}`` where impacts are expressed in model cost units,
 ///     ``expected_cost_bp`` is scaled by ``abs(position_size) *
-///     reference_price`` when a reference price is supplied.
+///     reference_price`` when a reference price is supplied, and
+///     ``execution_risk`` is the timing-risk standard deviation of execution
+///     cost in the same cost units. The keys come from the canonical Rust
+///     ``AlmgrenChrissImpactView``, shared with the WASM binding.
+///
+/// Sources
+/// -------
+/// - Almgren and Chriss (2000): see docs/REFERENCES.md#almgren-chriss-2000
 #[pyfunction]
 #[pyo3(signature = (
     position_size,
@@ -218,7 +245,7 @@ fn almgren_chriss_impact<'py>(
     permanent_impact_coef: f64,
     temporary_impact_coef: f64,
     reference_price: Option<f64>,
-) -> PyResult<Bound<'py, PyDict>> {
+) -> PyResult<Bound<'py, PyAny>> {
     let est = liquidity::almgren_chriss_uniform_impact(
         position_size,
         avg_daily_volume,
@@ -228,14 +255,9 @@ fn almgren_chriss_impact<'py>(
         temporary_impact_coef,
         reference_price,
     )
-    .map_err(display_to_py)?;
+    .map_err(portfolio_to_py)?;
 
-    let out = PyDict::new(py);
-    out.set_item("permanent_impact", est.permanent_impact)?;
-    out.set_item("temporary_impact", est.temporary_impact)?;
-    out.set_item("total_impact", est.total_cost)?;
-    out.set_item("expected_cost_bp", est.cost_bp)?;
-    Ok(out)
+    crate::bindings::pandas_utils::serde_to_py(py, &liquidity::almgren_chriss_impact_view(&est))
 }
 
 // Kyle's lambda
@@ -263,6 +285,10 @@ fn almgren_chriss_impact<'py>(
 ///     Estimated price-space Kyle lambda, or ``None`` if inputs are invalid
 ///     (empty, mismatched length, non-finite, contain zero volumes, or have a
 ///     non-positive reference price).
+///
+/// Sources
+/// -------
+/// - Kyle (1985): see docs/REFERENCES.md#kyle-1985
 #[pyfunction]
 fn kyle_lambda(
     py: Python<'_>,

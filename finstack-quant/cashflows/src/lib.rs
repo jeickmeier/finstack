@@ -70,6 +70,11 @@
 //! # Ok(())
 //! # }
 //! ```
+//!
+//! # References
+//!
+//! - Day-count and schedule conventions: `docs/REFERENCES.md#isda-2006-definitions`
+//! - Bond-market accrued-interest conventions: `docs/REFERENCES.md#icma-rule-book`
 
 /// Cash-flow primitives (`CashFlow`, `CFKind`).
 pub mod primitives {
@@ -112,6 +117,10 @@ pub use accrual::{
     accrued_interest_amount, AccrualConfig, AccrualIndex, AccrualMethod, ExCouponRule,
 };
 pub use builder::CashFlowBuilder;
+// Prepayment/default rate-convention conversions, re-exported at the crate
+// root so host bindings can expose them flat beside the JSON bridge while the
+// canonical definitions stay in `builder::credit_rates`.
+pub use builder::{cdr_to_mdr, cpr_to_smm, mdr_to_cdr, smm_to_cpr};
 pub use json::{
     accrued_interest, build_cashflow_schedule_json, dated_flows_json, validate_cashflow_schedule,
     validate_cashflow_schedule_json, CashflowScheduleBuildSpec, CouponLegSpec, DatedFlowJson,

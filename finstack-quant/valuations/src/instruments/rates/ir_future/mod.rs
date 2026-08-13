@@ -52,7 +52,7 @@
 //!   8(3), 63-70. (Convexity bias in futures)
 //!
 //! - Hull, J. C. (2018). *Options, Futures, and Other Derivatives* (10th ed.).
-//!   Pearson. Chapter 6: Interest Rate Futures.
+//!   Pearson. Chapter 6: Interest Rate Futures. `docs/REFERENCES.md#hull-options-futures`
 //!
 //! # See Also
 //!

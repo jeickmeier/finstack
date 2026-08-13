@@ -24,10 +24,10 @@
 //! # References
 //!
 //! - Black, F. (1976). "The pricing of commodity contracts."
-//!   *Journal of Financial Economics*, 3(1-2), 167-179.
+//!   *Journal of Financial Economics*, 3(1-2), 167-179. `docs/REFERENCES.md#black-1976`
 //!
 //! - Hull, J. C. (2018). *Options, Futures, and Other Derivatives* (10th ed.).
-//!   Pearson. Chapter 18: Options on Futures.
+//!   Pearson. Chapter 18: Options on Futures. `docs/REFERENCES.md#hull-options-futures`
 
 pub(crate) mod metrics;
 pub(crate) mod pricer;

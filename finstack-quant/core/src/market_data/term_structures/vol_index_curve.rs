@@ -71,10 +71,10 @@
 //! # References
 //!
 //! - Whaley, R. E. (2009). "Understanding the VIX." *Journal of Portfolio Management*,
-//!   35(3), 98-105.
-//! - CBOE (2019). "VIX White Paper." CBOE Global Markets.
+//!   35(3), 98-105. `docs/REFERENCES.md#whaley-2009-vix`
+//! - CBOE (2019). "VIX White Paper." CBOE Global Markets. `docs/REFERENCES.md#cboe-vix-white-paper`
 //! - Carr, P., & Wu, L. (2006). "A Tale of Two Indices." *Journal of Derivatives*,
-//!   13(3), 13-29.
+//!   13(3), 13-29. `docs/REFERENCES.md#carr-wu-2006`
 
 use super::common::{
     build_interp_allow_any_values, bump_knots_parallel, bump_knots_percentage,
