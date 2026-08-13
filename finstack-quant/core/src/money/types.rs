@@ -109,7 +109,15 @@ impl Default for FormatOpts {
 /// assert_eq!(notional.amount(), 1_000_000.0);
 /// ```
 #[derive(
-    Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct Money {
@@ -1258,5 +1266,22 @@ mod tests {
         let mut total = Money::new(100.0, Currency::USD);
         total -= Money::new(30.0, Currency::USD);
         assert_eq!(total.amount(), 70.0);
+    }
+
+    fn hash_of(money: Money) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        money.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    #[test]
+    fn hash_matches_equality_across_decimal_scale() {
+        let a = Money::from_decimal(rust_decimal::Decimal::new(10, 1), Currency::USD)
+            .expect("1.0 is representable");
+        let b = Money::from_decimal(rust_decimal::Decimal::new(100, 2), Currency::USD)
+            .expect("1.00 is representable");
+        assert_eq!(a, b);
+        assert_eq!(hash_of(a), hash_of(b));
     }
 }

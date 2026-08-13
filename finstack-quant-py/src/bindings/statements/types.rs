@@ -10,10 +10,12 @@ use pyo3::prelude::*;
 #[pyclass(
     name = "ForecastMethod",
     module = "finstack_quant.statements",
+    frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PyForecastMethod {
     pub(super) inner: finstack_quant_statements::types::ForecastMethod,
 }
@@ -425,10 +427,12 @@ fn parse_params_json(params_json: Option<&str>) -> PyResult<IndexMap<String, ser
 #[pyclass(
     name = "NodeType",
     module = "finstack_quant.statements",
+    frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PyNodeType {
     pub(super) inner: finstack_quant_statements::types::NodeType,
 }
@@ -545,10 +549,12 @@ impl PyNodeId {
 #[pyclass(
     name = "NumericMode",
     module = "finstack_quant.statements",
+    frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PyNumericMode {
     pub(super) inner: finstack_quant_statements::evaluator::NumericMode,
 }

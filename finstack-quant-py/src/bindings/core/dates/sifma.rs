@@ -23,9 +23,10 @@ pub const EXPORTS: &[&str] = &[
     module = "finstack_quant.core.dates",
     frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PySifmaSettlementClass {
     inner: SifmaSettlementClass,
 }

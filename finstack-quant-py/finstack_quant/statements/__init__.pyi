@@ -471,7 +471,8 @@ class ForecastMethod:
     """
     Available forecast methods for projecting node values.
 
-    Construct variants via static factory methods (e.g. ``growth_pct()``).
+    Immutable, hashable enum-style type. Construct variants via static
+    factory methods (e.g. ``growth_pct()``).
 
     Examples
     --------

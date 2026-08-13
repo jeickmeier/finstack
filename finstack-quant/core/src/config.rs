@@ -512,7 +512,7 @@ impl RoundingContext {
 /// in floating point". (Clarified .)
 ///
 /// [`Money`]: crate::money::Money
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 pub enum NumericMode {

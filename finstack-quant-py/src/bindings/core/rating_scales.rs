@@ -20,9 +20,10 @@ use pyo3::types::{PyList, PyModule, PyType};
     name = "UnknownScalePolicy",
     frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct PyUnknownScalePolicy {
     /// Underlying Rust policy variant.
     pub(crate) inner: UnknownScalePolicy,

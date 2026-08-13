@@ -2,6 +2,8 @@
 //!
 //! Defines how principal amortizes over time for instruments and cashflow legs.
 
+use std::hash::{Hash, Hasher};
+
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::money::Money;
@@ -49,6 +51,24 @@ pub enum AmortizationSpec {
         #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, Money)>")]
         items: Vec<(Date, Money)>,
     },
+}
+
+/// [`Hash`] is manual because [`Self::PercentOfOriginalPerPeriod`] carries an
+/// `f64`, which cannot participate in a derived [`Eq`]/[`Hash`] impl.
+impl Hash for AmortizationSpec {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+        match self {
+            Self::None => {}
+            Self::LinearTo { final_notional } => final_notional.hash(state),
+            Self::StepRemaining { schedule } => schedule.hash(state),
+            Self::PercentOfOriginalPerPeriod { pct } => {
+                // `f64` PartialEq treats `-0.0 == 0.0`; canonicalize before hashing.
+                (pct + 0.0).to_bits().hash(state);
+            }
+            Self::CustomPrincipal { items } => items.hash(state),
+        }
+    }
 }
 
 /// Notional amount with an optional amortisation rule.

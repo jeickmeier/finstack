@@ -92,7 +92,7 @@ impl ScorecardScale {
 }
 
 /// Policy for unknown scorecard rating-scale names.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UnknownScalePolicy {
     /// Reject unknown scale names.

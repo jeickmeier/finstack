@@ -50,7 +50,15 @@ pub enum FeeSpec {
 
 /// Controls how the outstanding balance is sampled during fee accrual.
 #[derive(
-    Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum FeeAccrualBasis {

@@ -40,6 +40,7 @@ use rust_decimal::Decimal;
     Default,
     PartialEq,
     Eq,
+    Hash,
     serde::Serialize,
     serde::Deserialize,
     schemars::JsonSchema,

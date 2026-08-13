@@ -1032,8 +1032,9 @@ class CouponType:
     """
     Coupon settlement type: cash, PIK, or an explicit cash/PIK split.
 
-    Class attributes ``CASH`` and ``PIK`` are singletons for the fieldless
-    variants; :meth:`split` constructs the data-carrying ``Split`` variant.
+    Immutable, hashable enum-style type. Class attributes ``CASH`` and
+    ``PIK`` are singletons for the fieldless variants; :meth:`split`
+    constructs the data-carrying ``Split`` variant.
 
     Examples
     --------

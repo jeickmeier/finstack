@@ -101,7 +101,15 @@ fn advance_business_days<C: HolidayCalendar + ?Sized>(cal: &C, mut date: Date, d
 /// cashflow layer so it can be reused by any instrument that exposes a
 /// `CashFlowSchedule`.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+    Debug,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
