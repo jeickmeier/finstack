@@ -858,31 +858,37 @@ impl PyCreditExposure {
         }
     }
 
+    /// Stable identifier for this exposure.
     #[getter]
     fn id(&self) -> String {
         self.inner.id.clone()
     }
 
+    /// Exposure at default, in the portfolio currency.
     #[getter]
     fn notional(&self) -> f64 {
         self.inner.notional
     }
 
+    /// Marginal probability of default over the horizon, in [0, 1].
     #[getter]
     fn default_probability(&self) -> f64 {
         self.inner.default_probability
     }
 
+    /// Loss given default, as a fraction of notional in [0, 1].
     #[getter]
     fn lgd(&self) -> f64 {
         self.inner.lgd
     }
 
+    /// Systematic factor loadings driving correlated defaults.
     #[getter]
     fn factor_loadings(&self) -> Vec<f64> {
         self.inner.factor_loadings.clone()
     }
 
+    /// Serialize to the canonical JSON wire format.
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(|error| value_error(error.to_string()))
     }
@@ -944,26 +950,31 @@ impl PyPortfolioLossConfig {
         }
     }
 
+    /// Number of simulated paths.
     #[getter]
     fn num_paths(&self) -> usize {
         self.inner.num_paths
     }
 
+    /// RNG seed; the same seed reproduces the same paths exactly.
     #[getter]
     fn seed(&self) -> u64 {
         self.inner.seed
     }
 
+    /// Confidence level for VaR and expected shortfall, in (0, 1).
     #[getter]
     fn confidence(&self) -> f64 {
         self.inner.confidence
     }
 
+    /// Dependence structure used to couple the marginal defaults.
     #[getter]
     fn copula(&self) -> PyCopulaSpec {
         PyCopulaSpec::from_inner(self.inner.copula.clone())
     }
 
+    /// Serialize to the canonical JSON wire format.
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(|error| value_error(error.to_string()))
     }
@@ -1009,26 +1020,31 @@ pub struct PyPortfolioLossResult {
 
 #[pymethods]
 impl PyPortfolioLossResult {
+    /// Simulated portfolio loss per path, in the ascending path order Rust produced.
     #[getter]
     fn losses(&self) -> Vec<f64> {
         self.inner.losses.clone()
     }
 
+    /// Mean simulated loss.
     #[getter]
     fn expected_loss(&self) -> f64 {
         self.inner.expected_loss
     }
 
+    /// Value at risk at `confidence`, loss-positive (larger is worse).
     #[getter]
     fn var(&self) -> f64 {
         self.inner.var
     }
 
+    /// Mean loss beyond `var`, loss-positive.
     #[getter]
     fn expected_shortfall(&self) -> f64 {
         self.inner.expected_shortfall
     }
 
+    /// Confidence level for VaR and expected shortfall, in (0, 1).
     #[getter]
     fn confidence(&self) -> f64 {
         self.inner.confidence
@@ -1118,6 +1134,7 @@ impl PyPortfolioLossResult {
         )
     }
 
+    /// Serialize to the canonical JSON wire format.
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(|error| value_error(error.to_string()))
     }
@@ -1163,56 +1180,67 @@ pub struct PyTrancheLossStatistics {
 
 #[pymethods]
 impl PyTrancheLossStatistics {
+    /// Attachment point as a fraction of portfolio notional.
     #[getter]
     fn attachment(&self) -> f64 {
         self.inner.attachment
     }
 
+    /// Detachment point as a fraction of portfolio notional.
     #[getter]
     fn detachment(&self) -> f64 {
         self.inner.detachment
     }
 
+    /// Tranche width in currency: `(detachment - attachment)` x portfolio notional.
     #[getter]
     fn tranche_notional(&self) -> f64 {
         self.inner.tranche_notional
     }
 
+    /// Mean tranche loss as a fraction of `tranche_notional`.
     #[getter]
     fn expected_loss_fraction(&self) -> f64 {
         self.inner.expected_loss_fraction
     }
 
+    /// Mean tranche loss in currency.
     #[getter]
     fn expected_loss_amount(&self) -> f64 {
         self.inner.expected_loss_amount
     }
 
+    /// Tranche value at risk as a fraction of `tranche_notional`.
     #[getter]
     fn var_fraction(&self) -> f64 {
         self.inner.var_fraction
     }
 
+    /// Tranche value at risk in currency, loss-positive.
     #[getter]
     fn var_amount(&self) -> f64 {
         self.inner.var_amount
     }
 
+    /// Tranche expected shortfall as a fraction of `tranche_notional`.
     #[getter]
     fn expected_shortfall_fraction(&self) -> f64 {
         self.inner.expected_shortfall_fraction
     }
 
+    /// Tranche expected shortfall in currency, loss-positive.
     #[getter]
     fn expected_shortfall_amount(&self) -> f64 {
         self.inner.expected_shortfall_amount
     }
 
+    /// Probability the tranche takes any loss at all.
     #[getter]
     fn prob_attachment_breached(&self) -> f64 {
         self.inner.prob_attachment_breached
     }
 
+    /// Probability the tranche is written down in full.
     #[getter]
     fn prob_full_writedown(&self) -> f64 {
         self.inner.prob_full_writedown
@@ -1273,6 +1301,7 @@ impl PyTrancheLossStatistics {
         )
     }
 
+    /// Serialize to the canonical JSON wire format.
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(|error| value_error(error.to_string()))
     }
