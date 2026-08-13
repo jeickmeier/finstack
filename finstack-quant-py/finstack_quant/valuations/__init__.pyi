@@ -22,7 +22,7 @@ Pass that JSON to :func:`calibrate` and read ``result.market`` after
 ``result.success`` is true.
 
 The :class:`CalibrationResult` wrapper carries the :class:`MarketContext` next
-to per-step residuals (:meth:`step_report_json`, :meth:`report_to_dataframe`)
+to per-step residuals (:meth:`step_report_json`, :meth:`to_report_dataframe`)
 so users can verify their curves actually fit before consuming them downstream.
 
 A ``CalibrationEnvelope`` carries inputs in three sections:
@@ -427,7 +427,7 @@ class ValuationResult:
         """
         ...
 
-    def metrics_to_dataframe(self) -> pd.DataFrame:
+    def to_metrics_dataframe(self) -> pd.DataFrame:
         """
         Export as a single-row pandas DataFrame.
 
@@ -769,7 +769,7 @@ class CalibrationResult:
         plan execution order.
 
         This is the default export and the same table as
-        :meth:`report_to_dataframe`. The plan-level roll-ups (``success``,
+        :meth:`to_report_dataframe`. The plan-level roll-ups (``success``,
         ``iterations``, ``max_residual``, ``rmse``) are properties on the
         result and are not repeated per row.
 
@@ -785,7 +785,7 @@ class CalibrationResult:
         """
         ...
 
-    def report_to_dataframe(self) -> pd.DataFrame:
+    def to_report_dataframe(self) -> pd.DataFrame:
         """
         Per-step summary as a pandas DataFrame.
 
@@ -988,7 +988,7 @@ def calibrate(json: str) -> CalibrationResult:
         - ``.market_json`` — same context as a JSON snapshot for
           persistence or comparison.
         - ``.report_json`` / ``.step_report_json(id)`` /
-          ``.report_to_dataframe()`` — diagnostics. Always check
+          ``.to_report_dataframe()`` — diagnostics. Always check
           ``.success`` and ``.rmse`` before relying on the produced market.
         - ``.iterations``, ``.max_residual``, ``.step_ids`` — summary stats.
 

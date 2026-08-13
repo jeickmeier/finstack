@@ -24,7 +24,7 @@ const FACTOR_CONTRIBUTION_COLUMNS: &[ColumnSchema<'static>] = &[
 ];
 
 /// Column schema for
-/// [`PyFactorBrinsonResult::asset_contributions_to_dataframe`].
+/// [`PyFactorBrinsonResult::to_asset_contributions_dataframe`].
 const ASSET_CONTRIBUTION_COLUMNS: &[ColumnSchema<'static>] = &[
     ("asset", "str"),
     ("specific_return", "float64"),
@@ -95,7 +95,7 @@ impl PyFactorBrinsonResult {
     /// Per-factor contributions as a :class:`pandas.DataFrame`.
     ///
     /// The primary frame is the factor axis; the per-asset selection
-    /// breakdown is available from :meth:`asset_contributions_to_dataframe`.
+    /// breakdown is available from :meth:`to_asset_contributions_dataframe`.
     ///
     /// Columns: ``factor``, ``active_loading``, ``factor_return``,
     /// ``contribution``.
@@ -111,7 +111,7 @@ impl PyFactorBrinsonResult {
     ///
     /// Columns: ``asset``, ``specific_return``, ``active_weight``,
     /// ``contribution``.
-    fn asset_contributions_to_dataframe<'py>(
+    fn to_asset_contributions_dataframe<'py>(
         &self,
         py: Python<'py>,
     ) -> PyResult<Bound<'py, PyAny>> {

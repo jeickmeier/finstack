@@ -6308,8 +6308,8 @@ class GridAttributionResult:
         Columns: ``cell``, ``portfolio_weight``, ``benchmark_weight``, ``benchmark_cell_return``, ``curve_effect``. The schema is pinned, so an empty result keeps the
         same dtypes as a populated one.
         The primary frame is the duration-cell axis; the two (cell,
-        sector) tables come from :meth:`sector_effects_to_dataframe` and
-        :meth:`selection_effects_to_dataframe`.
+        sector) tables come from :meth:`to_sector_effects_dataframe` and
+        :meth:`to_selection_effects_dataframe`.
 
         Returns
         -------
@@ -6323,7 +6323,7 @@ class GridAttributionResult:
         """
         ...
 
-    def sector_effects_to_dataframe(self) -> pd.DataFrame:
+    def to_sector_effects_dataframe(self) -> pd.DataFrame:
         """
         Per-(cell, sector) allocation effects as a pandas DataFrame.
 
@@ -6342,7 +6342,7 @@ class GridAttributionResult:
         """
         ...
 
-    def selection_effects_to_dataframe(self) -> pd.DataFrame:
+    def to_selection_effects_dataframe(self) -> pd.DataFrame:
         """
         Per-(cell, sector) selection effects as a pandas DataFrame.
 
@@ -6928,7 +6928,7 @@ class FactorBrinsonResult:
         Columns: ``factor``, ``active_loading``, ``factor_return``, ``contribution``. The schema is pinned, so an empty result keeps the
         same dtypes as a populated one.
         The primary frame is the factor axis; the per-asset selection
-        breakdown comes from :meth:`asset_contributions_to_dataframe`.
+        breakdown comes from :meth:`to_asset_contributions_dataframe`.
 
         Returns
         -------
@@ -6942,7 +6942,7 @@ class FactorBrinsonResult:
         """
         ...
 
-    def asset_contributions_to_dataframe(self) -> pd.DataFrame:
+    def to_asset_contributions_dataframe(self) -> pd.DataFrame:
         """
         Per-asset specific contributions as a pandas DataFrame.
 

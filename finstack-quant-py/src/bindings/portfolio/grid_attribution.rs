@@ -24,7 +24,7 @@ const GRID_CURVE_COLUMNS: &[ColumnSchema<'static>] = &[
     ("curve_effect", "float64"),
 ];
 
-/// Column schema for [`PyGridAttributionResult::sector_effects_to_dataframe`].
+/// Column schema for [`PyGridAttributionResult::to_sector_effects_dataframe`].
 const GRID_SECTOR_COLUMNS: &[ColumnSchema<'static>] = &[
     ("cell", "str"),
     ("sector", "str"),
@@ -32,7 +32,7 @@ const GRID_SECTOR_COLUMNS: &[ColumnSchema<'static>] = &[
 ];
 
 /// Column schema for
-/// [`PyGridAttributionResult::selection_effects_to_dataframe`].
+/// [`PyGridAttributionResult::to_selection_effects_dataframe`].
 const GRID_SELECTION_COLUMNS: &[ColumnSchema<'static>] = &[
     ("cell", "str"),
     ("sector", "str"),
@@ -113,8 +113,8 @@ impl PyGridAttributionResult {
     /// Per-cell curve effects as a :class:`pandas.DataFrame`.
     ///
     /// The primary frame is the duration-cell axis; the two (cell, sector)
-    /// tables are available from :meth:`sector_effects_to_dataframe` and
-    /// :meth:`selection_effects_to_dataframe`.
+    /// tables are available from :meth:`to_sector_effects_dataframe` and
+    /// :meth:`to_selection_effects_dataframe`.
     ///
     /// Columns: ``cell``, ``portfolio_weight``, ``benchmark_weight``,
     /// ``benchmark_cell_return``, ``curve_effect``.
@@ -125,14 +125,14 @@ impl PyGridAttributionResult {
     /// Per-(cell, sector) allocation effects as a :class:`pandas.DataFrame`.
     ///
     /// Columns: ``cell``, ``sector``, ``allocation_effect``.
-    fn sector_effects_to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    fn to_sector_effects_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         serde_rows_to_dataframe_with_schema(py, &self.inner.sector_effects, GRID_SECTOR_COLUMNS)
     }
 
     /// Per-(cell, sector) selection effects as a :class:`pandas.DataFrame`.
     ///
     /// Columns: ``cell``, ``sector``, ``selection_effect``.
-    fn selection_effects_to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    fn to_selection_effects_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         serde_rows_to_dataframe_with_schema(
             py,
             &self.inner.selection_effects,

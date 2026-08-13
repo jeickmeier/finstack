@@ -153,7 +153,7 @@ impl PyValuationResult {
     /// ``pd.concat([r.to_dataframe() for r in results])``; instruments with
     /// different metric sets align on column name and leave ``NaN`` elsewhere.
     ///
-    /// ``metrics_to_dataframe`` is the older, near-identical view that names
+    /// ``to_metrics_dataframe`` is the older, near-identical view that names
     /// the value column ``price`` and omits the valuation date.
     #[pyo3(text_signature = "($self)")]
     fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
@@ -172,7 +172,7 @@ impl PyValuationResult {
     /// ``pd.concat``.
     ///
     /// Prefer ``to_dataframe``, which additionally carries the valuation date.
-    fn metrics_to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    fn to_metrics_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let data = PyDict::new(py);
         data.set_item("instrument_id", vec![&self.inner.instrument_id])?;
         data.set_item("price", vec![self.inner.value.amount()])?;

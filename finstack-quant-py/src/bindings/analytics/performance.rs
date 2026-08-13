@@ -1203,13 +1203,13 @@ impl PyPerformance {
     /// The primary pandas view of this object: the summary statistics table.
     ///
     /// One row per ticker, one column per scalar metric. This is an alias for
-    /// :meth:`summary_to_dataframe` with default arguments, provided so every
+    /// :meth:`to_summary_dataframe` with default arguments, provided so every
     /// result type in the library answers to a plain ``to_dataframe()``. The
     /// ``*_to_dataframe`` methods on this class are the secondary views
     /// (returns, drawdowns, correlations, lookbacks); use those when you want
     /// something other than the summary.
     fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        self.summary_to_dataframe(py, 0.0, 0.95)
+        self.to_summary_dataframe(py, 0.0, 0.95)
     }
 
     /// Summary statistics for all tickers as a pandas ``DataFrame``.
@@ -1224,7 +1224,7 @@ impl PyPerformance {
     /// directly for non-zero thresholds. ``confidence`` applies to
     /// ``value_at_risk``, ``expected_shortfall``, and ``tail_ratio``.
     #[pyo3(signature = (risk_free_rate = 0.0, confidence = 0.95))]
-    fn summary_to_dataframe<'py>(
+    fn to_summary_dataframe<'py>(
         &self,
         py: Python<'py>,
         risk_free_rate: f64,
@@ -1280,15 +1280,15 @@ impl PyPerformance {
     /// Ragged per-ticker series are padded with ``NaN`` onto the active date
     /// grid. Prefer this over :meth:`excess_returns` with an all-zero
     /// risk-free series or un-compounding
-    /// :meth:`cumulative_returns_to_dataframe`.
-    fn returns_to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    /// :meth:`to_cumulative_returns_dataframe`.
+    fn to_returns_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         panel_to_dataframe(py, &self.inner, self.inner.returns())
     }
 
     /// Cumulative returns for all tickers as a pandas ``DataFrame``.
     ///
     /// Returns a DataFrame with a date index and one column per ticker.
-    fn cumulative_returns_to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    fn to_cumulative_returns_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         panel_to_dataframe(py, &self.inner, self.inner.cumulative_returns())
     }
 
@@ -1297,9 +1297,9 @@ impl PyPerformance {
     /// ``frequency`` is one of ``"daily"``, ``"weekly"``, ``"monthly"``,
     /// ``"quarterly"``, ``"semiannual"``, or ``"annual"``. Returns a DataFrame
     /// indexed by period-end date with one column per ticker; buckets reconcile
-    /// with :meth:`cumulative_returns_to_dataframe`.
+    /// with :meth:`to_cumulative_returns_dataframe`.
     #[pyo3(signature = (frequency = "monthly"))]
-    fn periodic_returns_to_dataframe<'py>(
+    fn to_periodic_returns_dataframe<'py>(
         &self,
         py: Python<'py>,
         frequency: &str,
@@ -1311,14 +1311,14 @@ impl PyPerformance {
     /// Drawdown series for all tickers as a pandas ``DataFrame``.
     ///
     /// Returns a DataFrame with a date index and one column per ticker.
-    fn drawdown_series_to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    fn to_drawdown_series_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         panel_to_dataframe(py, &self.inner, self.inner.drawdown_series())
     }
 
     /// Correlation matrix as a pandas ``DataFrame``.
     ///
     /// Returns a ticker × ticker matrix with ticker names as index and columns.
-    fn correlation_to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    fn to_correlation_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let names = self.inner.ticker_names();
         let matrix = self.inner.correlation_matrix();
 
@@ -1336,7 +1336,7 @@ impl PyPerformance {
     /// Columns: start, valley, end, duration_days, max_drawdown,
     /// near_recovery_threshold, truncated_at_start.
     #[pyo3(signature = (ticker_idx, n = 5))]
-    fn drawdown_details_to_dataframe<'py>(
+    fn to_drawdown_details_dataframe<'py>(
         &self,
         py: Python<'py>,
         ticker_idx: usize,
@@ -1391,7 +1391,7 @@ impl PyPerformance {
     /// mtd, qtd, ytd, and fytd. See :meth:`lookback_returns` for the FYTD
     /// fiscal-start and ``calendar`` semantics (default ``"nyse"``).
     #[pyo3(signature = (ref_date, fiscal_year_start_month = None, fiscal_year_start_day = None, calendar = "nyse"))]
-    fn lookback_returns_to_dataframe<'py>(
+    fn to_lookback_returns_dataframe<'py>(
         &self,
         py: Python<'py>,
         ref_date: Bound<'_, PyAny>,
