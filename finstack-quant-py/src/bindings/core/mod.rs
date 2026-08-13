@@ -48,27 +48,31 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         [
             "FinstackError",
             "config",
-            "types",
+            "credit",
             "currency",
-            "money",
-            "math",
             "dates",
             "market_data",
-            "credit",
+            "math",
+            "money",
             "rating_scales",
-            "table",
-            // Schema
             "schema",
+            "table",
+            "types",
         ],
     )?;
     m.setattr("__all__", all)?;
+    // `Name`, not `Package`: every other domain registers the compiled module
+    // under the extension's own path so the pure-Python shim package owns
+    // `finstack_quant.core`. Deriving from `__package__` here claimed the
+    // public key first, leaving `finstack_quant/core/__init__.py` — its
+    // docstring, doctest and sorted `__all__` — permanently unreachable.
     crate::bindings::module_utils::register_submodule(
         py,
         parent,
         &m,
         "core",
-        "finstack_quant",
-        crate::bindings::module_utils::ParentNameSource::Package,
+        crate::bindings::module_utils::ROOT_PACKAGE,
+        crate::bindings::module_utils::ParentNameSource::Name,
     )?;
     Ok(())
 }

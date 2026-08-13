@@ -10,10 +10,12 @@ use pyo3::prelude::*;
 #[pyclass(
     name = "ImMethodology",
     module = "finstack_quant.margin",
+    frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PyImMethodology {
     pub(super) inner: fm::ImMethodology,
 }
@@ -84,10 +86,12 @@ impl PyImMethodology {
 #[pyclass(
     name = "MarginTenor",
     module = "finstack_quant.margin",
+    frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PyMarginTenor {
     pub(super) inner: fm::MarginTenor,
 }
@@ -150,10 +154,12 @@ impl PyMarginTenor {
 #[pyclass(
     name = "MarginCallType",
     module = "finstack_quant.margin",
+    frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PyMarginCallType {
     pub(super) inner: fm::MarginCallType,
 }
@@ -211,10 +217,12 @@ impl PyMarginCallType {
 #[pyclass(
     name = "ClearingStatus",
     module = "finstack_quant.margin",
+    frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PyClearingStatus {
     pub(super) inner: fm::ClearingStatus,
 }
@@ -266,10 +274,12 @@ impl PyClearingStatus {
 #[pyclass(
     name = "CollateralAssetClass",
     module = "finstack_quant.margin",
+    frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PyCollateralAssetClass {
     pub(super) inner: fm::CollateralAssetClass,
 }

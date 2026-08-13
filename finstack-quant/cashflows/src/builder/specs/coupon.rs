@@ -18,6 +18,8 @@ use super::schedule::ScheduleParams;
     Copy,
     Default,
     PartialEq,
+    Eq,
+    Hash,
     serde::Serialize,
     serde::Deserialize,
     schemars::JsonSchema,
@@ -154,6 +156,7 @@ impl From<RawFixedCouponSpec> for FixedCouponSpec {
     Default,
     PartialEq,
     Eq,
+    Hash,
     serde::Serialize,
     serde::Deserialize,
     schemars::JsonSchema,
@@ -232,7 +235,15 @@ fn default_reset_lag() -> i32 {
 /// - `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
 /// - `docs/REFERENCES.md#hull-options-futures`
 #[derive(
-    Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
@@ -275,6 +286,7 @@ impl FloatingRateFallback {
     Default,
     PartialEq,
     Eq,
+    Hash,
     serde::Serialize,
     serde::Deserialize,
     schemars::JsonSchema,

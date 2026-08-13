@@ -10,10 +10,12 @@ use pyo3::prelude::*;
 #[pyclass(
     name = "ForecastMethod",
     module = "finstack_quant.statements",
+    frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PyForecastMethod {
     pub(super) inner: finstack_quant_statements::types::ForecastMethod,
 }
@@ -425,10 +427,12 @@ fn parse_params_json(params_json: Option<&str>) -> PyResult<IndexMap<String, ser
 #[pyclass(
     name = "NodeType",
     module = "finstack_quant.statements",
+    frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PyNodeType {
     pub(super) inner: finstack_quant_statements::types::NodeType,
 }
@@ -545,10 +549,12 @@ impl PyNodeId {
 #[pyclass(
     name = "NumericMode",
     module = "finstack_quant.statements",
+    frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PyNumericMode {
     pub(super) inner: finstack_quant_statements::evaluator::NumericMode,
 }
@@ -602,6 +608,28 @@ pub struct PyFinancialModelSpec {
 
 #[pymethods]
 impl PyFinancialModelSpec {
+    /// Start a staged model build.
+    ///
+    /// The canonical entry point, mirroring Rust's
+    /// `FinancialModelSpec::builder(id)` and the ``Type.builder()`` form every
+    /// other builder-backed type uses. Constructing
+    /// :class:`~finstack_quant.statements.ModelBuilder` directly is equivalent.
+    ///
+    /// Parameters
+    /// ----------
+    /// id : str
+    ///     Stable model identifier.
+    ///
+    /// Returns
+    /// -------
+    /// ModelBuilder
+    ///     A fresh builder awaiting ``periods(...)``.
+    #[staticmethod]
+    #[pyo3(text_signature = "(id)")]
+    fn builder(id: &str) -> crate::bindings::statements::builder::PyModelBuilder {
+        crate::bindings::statements::builder::PyModelBuilder::start(id)
+    }
+
     /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
     ///
     /// Reconstruction goes through the same strict serde round-trip as

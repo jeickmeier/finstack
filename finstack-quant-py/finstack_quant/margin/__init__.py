@@ -9,7 +9,7 @@ Examples:
 0.0
 """
 
-import sys
+import sys as _sys
 
 from finstack_quant.finstack_quant import margin as _margin
 
@@ -57,8 +57,8 @@ schema = _margin.schema
 
 # `schema` is a real submodule, so `import finstack_quant.margin.schema`
 # must work as well as attribute access.
-if "finstack_quant.margin.schema" not in sys.modules:
-    sys.modules["finstack_quant.margin.schema"] = schema
+if "finstack_quant.margin.schema" not in _sys.modules:
+    _sys.modules["finstack_quant.margin.schema"] = schema
 
 __all__: list[str] = [
     "CONSTANTS",

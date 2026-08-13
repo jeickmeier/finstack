@@ -347,7 +347,7 @@ class MonteCarloResults:
         """
         ...
 
-    def get_percentile_series(self, metric: str, percentile: float) -> dict[str, float] | None:
+    def percentile_by_period(self, metric: str, percentile: float) -> dict[str, float] | None:
         """
         Look up one percentile of one metric as a period-keyed dict.
 
@@ -471,7 +471,8 @@ class ForecastMethod:
     """
     Available forecast methods for projecting node values.
 
-    Construct variants via static factory methods (e.g. ``growth_pct()``).
+    Immutable, hashable enum-style type. Construct variants via static
+    factory methods (e.g. ``growth_pct()``).
 
     Examples
     --------
@@ -1438,6 +1439,40 @@ class FinancialModelSpec:
     """
 
     @staticmethod
+    def builder(id: str) -> ModelBuilder:
+        """
+        Start a staged model build.
+
+        The canonical entry point, mirroring Rust's
+        ``FinancialModelSpec::builder(id)`` and the ``Type.builder()`` form
+        every other builder-backed type uses. Constructing
+        :class:`ModelBuilder` directly is equivalent.
+
+        Parameters
+        ----------
+        id : str
+            Stable model identifier.
+
+        Returns
+        -------
+        ModelBuilder
+            A fresh builder awaiting ``periods(...)``.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import FinancialModelSpec
+        >>> builder = FinancialModelSpec.builder("demo")
+        >>> _ = builder.periods("2025Q1..Q1")
+        >>> builder.build().id
+        'demo'
+
+        Notes
+        -----
+        This constructor does not raise; validation happens in ``build()``.
+        """
+        ...
+
+    @staticmethod
     def from_json(json: str) -> FinancialModelSpec:
         """
         Deserialize a model specification from JSON text.
@@ -1674,6 +1709,10 @@ class ModelBuilder:
         >>> _ = builder.periods("2025Q1..Q1")
         >>> builder.build().id
         'demo'
+
+        Notes
+        -----
+        This constructor does not raise; validation happens in ``build()``.
         """
         ...
 
@@ -3198,9 +3237,9 @@ def parse_formula(formula: str) -> str:
     """
     ...
 
-def validate_formula(formula: str) -> bool:
+def validate_formula(formula: str) -> None:
     """
-    Return ``True`` if ``formula`` parses and compiles successfully.
+    Validate that ``formula`` parses and compiles successfully.
 
     Parameters
     ----------
@@ -3209,8 +3248,9 @@ def validate_formula(formula: str) -> bool:
 
     Returns
     -------
-    bool
-        Always ``True`` when no error is raised.
+    None
+        Returns nothing on success. Validation is reported by raising, so
+        ``if validate_formula(f):`` is not a validity check.
 
     Raises
     ------
@@ -3220,7 +3260,7 @@ def validate_formula(formula: str) -> bool:
     Examples
     --------
     >>> from finstack_quant.statements import validate_formula
-    >>> validate_formula("revenue - cogs")
+    >>> validate_formula("revenue - cogs") is None
     True
 
     """

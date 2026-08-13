@@ -85,13 +85,11 @@ class TestReduceCoverage:
         exempt any such type rather than flag it. Pin the known set instead, so
         a new result type that ships without a `from_json` fails here.
 
-        `PortfolioOptimizationResult` has a hand-written `Serialize` via a
-        wire struct and no `Deserialize`. Closing it needs a change in the
-        portfolio crate.
+        The set is currently empty: every type carrying `to_json` also carries
+        `from_json`. Keep it that way — a new result type that ships without a
+        `from_json` fails here rather than silently losing pickle support.
         """
-        expected = {
-            "portfolio.PortfolioOptimizationResult",
-        }
+        expected: set[str] = set()
         actual = {name for name, cls in _walk_classes() if hasattr(cls, "to_json") and not hasattr(cls, "from_json")}
         assert actual == expected, (
             f"un-pickleable set changed.\n  newly un-pickleable: {sorted(actual - expected)}\n"

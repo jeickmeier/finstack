@@ -105,7 +105,7 @@ class TestConstruction:
         perf = Performance(prices, benchmark_ticker="BENCH")
         assert perf.active_dates_for_ticker(1) == [date(2024, 1, 4), date(2024, 1, 5)]
 
-        cumulative = perf.cumulative_returns_to_dataframe()
+        cumulative = perf.to_cumulative_returns_dataframe()
         assert list(cumulative.index.date) == _daily_dates(5, start=date(2024, 1, 2))
         assert pd.isna(cumulative.loc[pd.Timestamp(date(2024, 1, 2)), "PORT"])
         assert pd.isna(cumulative.loc[pd.Timestamp(date(2024, 1, 3)), "PORT"])
@@ -192,7 +192,7 @@ class TestReturnRiskMetrics:
             assert not values.isna().any()
 
     def test_summary_to_dataframe_has_one_row_per_ticker(self, perf_prices: Performance) -> None:
-        summary = perf_prices.summary_to_dataframe()
+        summary = perf_prices.to_summary_dataframe()
         assert list(summary.index) == ["ACME", "BENCH"]
         assert "cagr" in summary.columns
         assert "sharpe" in summary.columns

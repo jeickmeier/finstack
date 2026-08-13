@@ -169,7 +169,7 @@ def test_statement_monte_carlo_percentile_series_preserves_period_order() -> Non
     model = builder.build()
 
     results = run_monte_carlo(model, MonteCarloConfig(2, 7, [0.5]))
-    series = results.get_percentile_series("revenue", 0.5)
+    series = results.percentile_by_period("revenue", 0.5)
 
     assert series is not None
     assert list(series) == periods[1:]

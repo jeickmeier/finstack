@@ -240,7 +240,7 @@ def test_monte_carlo_to_dataframe_matches_get_percentile_series() -> None:
     """The frame reshapes exactly what the scalar accessor returns."""
     results = _monte_carlo_results(include_path_data=False)
     df = results.to_dataframe("revenue")
-    series = results.get_percentile_series("revenue", 0.5)
+    series = results.percentile_by_period("revenue", 0.5)
 
     assert series is not None
     for period, value in series.items():

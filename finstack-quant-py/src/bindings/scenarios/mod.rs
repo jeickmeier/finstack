@@ -200,19 +200,20 @@ fn compose_scenarios(specs_json: &str) -> PyResult<String> {
 ///
 /// Returns
 /// -------
-/// bool
-///     ``True`` when the spec parses and validates. Never returns ``False`` —
-///     an invalid spec raises instead, so the message names the problem.
+/// None
+///     Returns nothing on success. An invalid spec raises instead, so
+///     ``if validate_scenario_spec(s):`` is not a validity check — call it
+///     bare and catch ``ValueError``.
 ///
 /// Raises
 /// ------
 /// ValueError
 ///     If the JSON is malformed or the spec fails validation.
 #[pyfunction]
-fn validate_scenario_spec(json_str: &str) -> PyResult<bool> {
+fn validate_scenario_spec(json_str: &str) -> PyResult<()> {
     let spec = parse_spec(json_str)?;
     validate_spec(&spec)?;
-    Ok(true)
+    Ok(())
 }
 
 // Template registry

@@ -8,14 +8,7 @@ Examples:
 3
 """
 
-from __future__ import annotations
-
-import contextlib
-
 from finstack_quant.finstack_quant import covenants as _covenants
-
-with contextlib.suppress(NameError):
-    del annotations
 
 CovenantReport = _covenants.CovenantReport
 cov_lite_json = _covenants.cov_lite_json

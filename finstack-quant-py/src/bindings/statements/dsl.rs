@@ -32,8 +32,10 @@ fn parse_formula(formula: &str) -> PyResult<String> {
 ///
 /// Returns
 /// -------
-/// bool
-///     ``True`` if the formula is valid.
+/// None
+///     Returns nothing on success. Validation is reported by raising, so
+///     ``if validate_formula(f):`` is not a validity check — call it bare and
+///     catch ``ValueError``.
 ///
 /// Raises
 /// ------
@@ -41,9 +43,9 @@ fn parse_formula(formula: &str) -> PyResult<String> {
 ///     If the formula fails to parse or compile.
 #[pyfunction]
 #[pyo3(text_signature = "(formula, /)")]
-fn validate_formula(formula: &str) -> PyResult<bool> {
+fn validate_formula(formula: &str) -> PyResult<()> {
     finstack_quant_statements::dsl::parse_and_compile(formula).map_err(display_to_py)?;
-    Ok(true)
+    Ok(())
 }
 
 /// Register DSL functions.

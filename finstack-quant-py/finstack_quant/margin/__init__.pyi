@@ -71,14 +71,8 @@ class ImMethodology:
     """
     Initial margin calculation methodology.
 
-    Parameters
-    ----------
-    (Constructed via class methods; not directly instantiated.)
-
-    Returns
-    -------
-    ImMethodology
-        Enum-like value for IM approach.
+    Immutable, hashable enum-style type. Constructed via class methods;
+    not directly instantiated.
 
     Examples
     --------
@@ -3813,7 +3807,7 @@ class XvaResult:
         frame keeps its schema across netting sets.
 
         This is the default export; the time-indexed exposure profiles are a
-        separate table -- see :meth:`profiles_to_dataframe`.
+        separate table -- see :meth:`to_profiles_dataframe`.
 
         Returns
         -------
@@ -3828,7 +3822,7 @@ class XvaResult:
         """
         ...
 
-    def profiles_to_dataframe(self) -> pd.DataFrame:
+    def to_profiles_dataframe(self) -> pd.DataFrame:
         """
         Export exposure profiles as a pandas DataFrame.
 

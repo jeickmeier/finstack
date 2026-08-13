@@ -17,9 +17,10 @@ use crate::errors::core_to_py;
     module = "finstack_quant.cashflows.accrual",
     frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PyAccrualMethod {
     /// Inner accrual method.
     pub(crate) inner: AccrualMethod,

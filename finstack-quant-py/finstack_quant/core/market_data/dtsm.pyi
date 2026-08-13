@@ -9,7 +9,7 @@ Function-based API for:
 
 Rates in ``yields_matrix`` are continuously compounded zero yields in decimal
 form (e.g. ``0.045`` for 4.5%). Tenors are in years unless you also rescale
-``lambda_decay`` to a months convention.
+``lambda_`` to a months convention.
 
 Examples
 --------
@@ -34,7 +34,7 @@ __all__ = [
 def diebold_li_fit_factors(
     tenors: list[float],
     yields_matrix: list[list[float]],
-    lambda_decay: float = 0.7308,
+    lambda_: float = 0.7308,
     /,
 ) -> dict[str, Any]:
     """
@@ -47,11 +47,10 @@ def diebold_li_fit_factors(
     yields_matrix : list[list[float]]
         Yield panel ``yields_matrix[date_idx][tenor_idx]`` with ``T`` rows of
         ``N`` continuously compounded zero rates each.
-    lambda_decay : float, optional
+    lambda_ : float, optional
         Diebold-Li decay parameter for tenors **in years** (default ``0.7308``,
         the years-equivalent of Diebold-Li's canonical ``0.0609`` months value).
-        The runtime binding exposes this positionally as ``lambda``; the stub
-        uses ``lambda_decay`` because ``lambda`` is a Python keyword.
+        Named ``lambda_`` because ``lambda`` is a Python keyword.
 
     Returns
     -------
@@ -88,7 +87,7 @@ def diebold_li_forecast(
     tenors: list[float],
     yields_matrix: list[list[float]],
     horizon: int,
-    lambda_decay: float = 0.7308,
+    lambda_: float = 0.7308,
     /,
 ) -> dict[str, Any]:
     """
@@ -105,7 +104,7 @@ def diebold_li_forecast(
         Yield panel ``yields_matrix[date_idx][tenor_idx]`` (``T`` rows, ``N`` columns).
     horizon : int
         Forecast horizon in observation periods (must be ``>= 1``).
-    lambda_decay : float, optional
+    lambda_ : float, optional
         Diebold-Li decay for tenors in years (default ``0.7308``). See
         :func:`diebold_li_fit_factors` for the years-vs-months convention.
 
@@ -153,7 +152,7 @@ def diebold_li_forecast(
     ...
 
 def nelson_siegel_yields(
-    lambda_decay: float,
+    lambda_: float,
     factors: tuple[float, float, float],
     tenors: list[float],
     /,
@@ -171,13 +170,12 @@ def nelson_siegel_yields(
 
     Parameters
     ----------
-    lambda_decay : float
+    lambda_ : float
         Exponential decay parameter for tenors **in years**; must be finite and
         strictly positive. ``0.7308`` is the years-equivalent of Diebold-Li's
         canonical ``0.0609`` months value and places the curvature peak at
-        ≈2.45 years. The runtime binding exposes this positionally as
-        ``lambda``; the stub uses ``lambda_decay`` because ``lambda`` is a
-        Python keyword.
+        ≈2.45 years. Named ``lambda_`` because ``lambda`` is a Python
+        keyword.
     factors : tuple[float, float, float]
         The triple ``(beta1, beta2, beta3)`` = ``(level, slope, curvature)`` in
         decimal yield units (``0.045`` for 4.5%). All three must be finite.
@@ -194,7 +192,7 @@ def nelson_siegel_yields(
     Raises
     ------
     ValueError
-        If ``lambda_decay`` is non-positive or non-finite, a factor is
+        If ``lambda_`` is non-positive or non-finite, a factor is
         non-finite, or a tenor is negative or non-finite.
 
     Sources

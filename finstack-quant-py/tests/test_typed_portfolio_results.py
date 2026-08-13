@@ -359,8 +359,8 @@ def test_grid_attribution_returns_typed_result() -> None:
         "benchmark_cell_return",
         "curve_effect",
     ]
-    assert list(result.sector_effects_to_dataframe().columns) == ["cell", "sector", "allocation_effect"]
-    assert list(result.selection_effects_to_dataframe().columns) == ["cell", "sector", "selection_effect"]
+    assert list(result.to_sector_effects_dataframe().columns) == ["cell", "sector", "allocation_effect"]
+    assert list(result.to_selection_effects_dataframe().columns) == ["cell", "sector", "selection_effect"]
 
 
 def test_grid_carino_link_returns_typed_result() -> None:
@@ -395,7 +395,7 @@ def test_factor_brinson_attribution_returns_typed_result() -> None:
     assert result.active_return == pytest.approx(expected["active_return"])
     assert result.allocation == pytest.approx(expected["allocation"])
     assert _frame_columns(result) == ["factor", "active_loading", "factor_return", "contribution"]
-    assert list(result.asset_contributions_to_dataframe().columns) == [
+    assert list(result.to_asset_contributions_dataframe().columns) == [
         "asset",
         "specific_return",
         "active_weight",

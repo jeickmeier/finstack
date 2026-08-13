@@ -41,6 +41,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     all_names.extend_from_slice(sifma::EXPORTS);
     all_names.extend_from_slice(imm::EXPORTS);
     all_names.extend_from_slice(&["create_date", "days_since_epoch", "date_from_epoch_days"]);
+    all_names.sort_unstable();
 
     let all = PyList::new(py, &all_names)?;
     m.setattr("__all__", all)?;

@@ -29,6 +29,11 @@ from . import charts, format as fmt, tables
 from .document import KPI, Section, TearSheet, _resolve_sections
 from .theme import INSTITUTIONAL, Theme
 
+__all__ = [
+    "ALL_SECTIONS",
+    "benchmark_tearsheet",
+]
+
 ALL_SECTIONS = ["summary", "relative", "rolling", "multifactor"]
 
 _SECONDARY = "#3a5a82"
@@ -71,7 +76,7 @@ def _section_summary(perf: Any, t: int, rf: float) -> Section:
 
 
 def _section_relative(perf: Any, t: int, theme: Theme) -> Section:
-    dates = fmt._dates_of(perf.cumulative_returns_to_dataframe())
+    dates = fmt._dates_of(perf.to_cumulative_returns_dataframe())
     op = perf.cumulative_returns_outperformance()[t]
     dd = perf.drawdown_difference()[t]
     n_op = min(len(dates), len(op))

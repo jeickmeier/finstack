@@ -67,46 +67,55 @@ impl PyRecoveryClaim {
         }
     }
 
+    /// Stable identifier for this claim.
     #[getter]
     fn id(&self) -> String {
         self.inner.id.clone()
     }
 
+    /// Seniority class the claim sits in.
     #[getter]
     fn seniority(&self) -> String {
         self.inner.seniority.clone()
     }
 
+    /// Absolute-priority rank; lower ranks are paid first.
     #[getter]
     fn priority(&self) -> u32 {
         self.inner.priority
     }
 
+    /// Principal outstanding, before accrued interest and penalties.
     #[getter]
     fn principal(&self) -> f64 {
         self.inner.principal
     }
 
+    /// Accrued but unpaid interest included in the claim.
     #[getter]
     fn accrued(&self) -> f64 {
         self.inner.accrued
     }
 
+    /// Penalties and fees included in the claim.
     #[getter]
     fn penalties(&self) -> f64 {
         self.inner.penalties
     }
 
+    /// Gross value of collateral pledged to this claim.
     #[getter]
     fn collateral_value(&self) -> Option<f64> {
         self.inner.collateral_value
     }
 
+    /// Haircut applied to `collateral_value`, as a fraction in [0, 1].
     #[getter]
     fn collateral_haircut(&self) -> f64 {
         self.inner.collateral_haircut
     }
 
+    /// Principal plus accrued interest and penalties.
     #[getter]
     fn total_claim(&self) -> f64 {
         self.inner.total_claim()
@@ -137,49 +146,67 @@ pub struct PyRecoveryAllocation {
 
 #[pymethods]
 impl PyRecoveryAllocation {
+    /// Stable identifier for this claim.
     #[getter]
     fn id(&self) -> String {
         self.inner.id.clone()
     }
 
+    /// Seniority class the claim sits in.
     #[getter]
     fn seniority(&self) -> String {
         self.inner.seniority.clone()
     }
 
+    /// Absolute-priority rank; lower ranks are paid first.
     #[getter]
     fn priority(&self) -> u32 {
         self.inner.priority
     }
 
+    /// Principal plus accrued interest and penalties.
     #[getter]
     fn total_claim(&self) -> f64 {
         self.inner.total_claim
     }
 
+    /// Amount recovered from pledged collateral.
     #[getter]
     fn collateral_recovery(&self) -> f64 {
         self.inner.collateral_recovery
     }
 
+    /// Amount recovered from the general estate.
     #[getter]
     fn general_recovery(&self) -> f64 {
         self.inner.general_recovery
     }
 
+    /// Collateral plus general recovery.
     #[getter]
     fn total_recovery(&self) -> f64 {
         self.inner.total_recovery
     }
 
+    /// `total_recovery / total_claim`, as a fraction in [0, 1].
     #[getter]
     fn recovery_rate(&self) -> f64 {
         self.inner.recovery_rate
     }
 
+    /// Unrecovered claim: `total_claim - total_recovery`, floored at zero.
     #[getter]
     fn deficiency(&self) -> f64 {
         self.inner.deficiency
+    }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("RecoveryAllocation", &self.inner)
     }
 }
 
@@ -197,21 +224,25 @@ pub struct PyRecoveryWaterfallResult {
 
 #[pymethods]
 impl PyRecoveryWaterfallResult {
+    /// Sum of every claim's `total_recovery`.
     #[getter]
     fn total_distributed(&self) -> f64 {
         self.inner.total_distributed
     }
 
+    /// Estate value left after all claims are satisfied.
     #[getter]
     fn undistributed_estate(&self) -> f64 {
         self.inner.undistributed_estate
     }
 
+    /// Whether the run respected absolute priority end to end.
     #[getter]
     fn apr_satisfied(&self) -> bool {
         self.inner.apr_satisfied
     }
 
+    /// Per-claim allocations, in absolute-priority order.
     #[getter]
     fn allocations(&self) -> Vec<PyRecoveryAllocation> {
         self.inner
@@ -254,6 +285,15 @@ impl PyRecoveryWaterfallResult {
         let frame = self.to_dataframe(py).ok()?;
         frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("RecoveryWaterfallResult", &self.inner)
+    }
 }
 
 /// Allocate an estate, inclusive of collateral, across recovery claims.
@@ -289,8 +329,8 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let all = PyList::new(
         py,
         [
-            "RecoveryClaim",
             "RecoveryAllocation",
+            "RecoveryClaim",
             "RecoveryWaterfallResult",
             "allocate_recovery",
         ],

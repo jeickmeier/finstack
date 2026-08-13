@@ -226,7 +226,7 @@ pub fn attribute_return_contribution_json(spec_json: &str) -> Result<String> {
         .map_err(|err| Error::Internal(format!("failed to serialize return contribution: {err}")))
 }
 
-/// Validate a return contribution JSON specification.
+/// Validate a return contribution JSON specification and return its canonical form.
 ///
 /// # Arguments
 ///
@@ -236,9 +236,18 @@ pub fn attribute_return_contribution_json(spec_json: &str) -> Result<String> {
 /// # Errors
 ///
 /// Returns a validation error when the JSON is malformed or cannot be executed.
-pub fn validate_return_contribution_json(spec_json: &str) -> Result<()> {
+///
+/// # Returns
+///
+/// The canonical compact JSON re-serialization of the accepted spec.
+pub fn validate_return_contribution_json(spec_json: &str) -> Result<String> {
     let spec = parse_return_contribution_spec(spec_json)?;
-    spec.execute().map(|_| ())
+    spec.execute()?;
+    serde_json::to_string(&spec).map_err(|err| {
+        Error::Validation(format!(
+            "failed to canonicalize return contribution spec: {err}"
+        ))
+    })
 }
 
 fn parse_return_contribution_spec(spec_json: &str) -> Result<ReturnContributionSpec> {

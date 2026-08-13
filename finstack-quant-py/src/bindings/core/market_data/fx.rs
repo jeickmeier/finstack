@@ -281,7 +281,7 @@ impl PyFxMatrix {
 
 // Module registration
 
-pub(super) const EXPORTS: &[&str] = &["FxConversionPolicy", "FxRateResult", "FxMatrix"];
+pub(super) const EXPORTS: &[&str] = &["FxConversionPolicy", "FxMatrix", "FxRateResult"];
 
 /// Register the `finstack_quant.core.market_data.fx` submodule.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {

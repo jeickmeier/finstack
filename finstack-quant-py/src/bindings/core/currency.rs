@@ -166,7 +166,8 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         export_names.push(code);
     }
 
-    let name_refs: Vec<&str> = export_names.iter().map(|s| s.as_str()).collect();
+    let mut name_refs: Vec<&str> = export_names.iter().map(|s| s.as_str()).collect();
+    name_refs.sort_unstable();
     let all = PyList::new(py, &name_refs)?;
     module.setattr("__all__", all)?;
 

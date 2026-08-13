@@ -24,6 +24,11 @@ from . import charts, format as fmt, tables
 from .document import KPI, Section, TearSheet, _resolve_sections
 from .theme import INSTITUTIONAL, Theme
 
+__all__ = [
+    "ALL_SECTIONS",
+    "performance_tearsheet",
+]
+
 ALL_SECTIONS = ["summary", "stats", "cumulative", "drawdown", "rolling", "monthly", "annual", "drawdowns"]
 
 
@@ -79,7 +84,7 @@ def _section_stats(row: Any, total_return: float) -> Section:
 
 
 def _section_drawdown(perf: Any, ticker: int, theme: Theme) -> Section:
-    dd = perf.drawdown_series_to_dataframe()
+    dd = perf.to_drawdown_series_dataframe()
     dd_series = [v * 100.0 for v in dd[dd.columns[ticker]].tolist()]
     return Section(
         "Drawdown",
@@ -116,8 +121,8 @@ def _section_rolling(perf: Any, ticker: int, theme: Theme) -> Section:
 
 
 def _build_heatmap_data(perf: Any, ticker: int) -> tuple[dict[int, list[Any]], dict[int, float]]:
-    monthly = perf.periodic_returns_to_dataframe("monthly")
-    annual = perf.periodic_returns_to_dataframe("annual")
+    monthly = perf.to_periodic_returns_dataframe("monthly")
+    annual = perf.to_periodic_returns_dataframe("annual")
     m_col = monthly[monthly.columns[ticker]]
     a_col = annual[annual.columns[ticker]]
     annual_by_year = {ix.year: v * 100.0 for ix, v in a_col.items()}
@@ -128,7 +133,7 @@ def _build_heatmap_data(perf: Any, ticker: int) -> tuple[dict[int, list[Any]], d
 
 
 def _section_drawdowns(perf: Any, ticker: int) -> Section:
-    det = perf.drawdown_details_to_dataframe(ticker, n=5)
+    det = perf.to_drawdown_details_dataframe(ticker, n=5)
     dd_rows = []
     for _, r in det.iterrows():
         end = r["end"]
@@ -203,8 +208,8 @@ def performance_tearsheet(
     """
     wanted = _resolve_sections(sections, ALL_SECTIONS)
 
-    summary = perf.summary_to_dataframe()
-    cum = perf.cumulative_returns_to_dataframe()
+    summary = perf.to_summary_dataframe()
+    cum = perf.to_cumulative_returns_dataframe()
     col = cum.columns[ticker]
     row = summary.iloc[ticker]
 

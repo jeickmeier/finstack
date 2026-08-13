@@ -117,6 +117,15 @@ impl PyMonteCarloConfig {
     fn include_path_data(&self) -> bool {
         self.inner.include_path_data
     }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("MonteCarloConfig", &self.inner)
+    }
 }
 
 /// Typed results for statement-model Monte Carlo evaluation.
@@ -215,13 +224,13 @@ impl PyMonteCarloResults {
     ///     Period identifier → percentile value, in forecast-period order.
     ///     ``None`` when the metric is unknown or the percentile was not
     ///     configured for this run.
-    fn get_percentile_series<'py>(
+    fn percentile_by_period<'py>(
         &self,
         py: Python<'py>,
         metric: &str,
         percentile: f64,
     ) -> PyResult<Option<Bound<'py, PyDict>>> {
-        let Some(values) = self.inner.get_percentile_series(metric, percentile) else {
+        let Some(values) = self.inner.percentile_by_period(metric, percentile) else {
             return Ok(None);
         };
         let series = PyDict::new(py);
@@ -262,7 +271,7 @@ impl PyMonteCarloResults {
         let columns = PyDict::new(py);
         for &quantile in &self.inner.percentiles {
             // Match a configured quantile the same way the Rust accessor does
-            // (exact-to-1e-12), so the frame and `get_percentile_series` can
+            // (exact-to-1e-12), so the frame and `percentile_by_period` can
             // never disagree about which stored pair a column refers to.
             let column: Vec<f64> = series
                 .values
@@ -307,6 +316,15 @@ impl PyMonteCarloResults {
                 dict_to_dataframe(py, &columns, None)
             }
         }
+    }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("MonteCarloResults", &self.inner)
     }
 }
 

@@ -9,15 +9,9 @@ Examples:
 ['gfc_2008', 'covid_2020']
 """
 
-from __future__ import annotations
-
-import contextlib
-import sys
+import sys as _sys
 
 from finstack_quant.finstack_quant import scenarios as _scenarios
-
-with contextlib.suppress(NameError):
-    del annotations
 
 parse_scenario_spec = _scenarios.parse_scenario_spec
 build_scenario_spec = _scenarios.build_scenario_spec
@@ -46,8 +40,8 @@ schema = _scenarios.schema
 
 # `schema` is a real submodule, so `import finstack_quant.scenarios.schema`
 # must work as well as attribute access.
-if "finstack_quant.scenarios.schema" not in sys.modules:
-    sys.modules["finstack_quant.scenarios.schema"] = schema
+if "finstack_quant.scenarios.schema" not in _sys.modules:
+    _sys.modules["finstack_quant.scenarios.schema"] = schema
 
 __all__: list[str] = [
     "ApplicationReport",

@@ -49,9 +49,10 @@ class AccrualMethod:
     """
     Generic accrual method usable across instruments.
 
-    Mirrors the semantics of bond accrual methods but is defined at the
-    cashflow layer so it can be reused by any instrument that exposes a
-    ``CashFlowSchedule``.
+    Immutable, hashable enum-style type with class attributes ``LINEAR``
+    and ``COMPOUNDED``. Mirrors the semantics of bond accrual methods but
+    is defined at the cashflow layer so it can be reused by any instrument
+    that exposes a ``CashFlowSchedule``.
 
     Examples
     --------

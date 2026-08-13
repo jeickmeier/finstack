@@ -195,9 +195,9 @@ library exceptions inherit `FinstackError`, which itself inherits
 | `FinstackError` | `finstack_quant.core` | Base for named library exceptions |
 | `AnalyticsError` | `finstack_quant.analytics` | Analytics validation / calculation |
 | `PortfolioError` | `finstack_quant.portfolio` | General portfolio errors |
-| `FinstackValuationError` | `finstack_quant.portfolio` | Valuation failures |
-| `FinstackFxError` | `finstack_quant.portfolio` | FX / missing market data |
-| `FinstackOptimizationError` | `finstack_quant.portfolio` | Optimization failures |
+| `ValuationError` | `finstack_quant.portfolio` | Valuation failures |
+| `FxError` | `finstack_quant.portfolio` | FX / missing market data |
+| `OptimizationError` | `finstack_quant.portfolio` | Optimization failures |
 | `ContractValidationError` | `finstack_quant.portfolio` | Canonical JSON / schema contract failures |
 | `CholeskyError` | `finstack_quant.core.math.linalg` | Cholesky decomposition |
 | `CalibrationEnvelopeError` | `finstack_quant.valuations` | Calibration envelope (`RuntimeError` subclass; not under `FinstackError`) |

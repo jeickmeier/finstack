@@ -481,7 +481,7 @@ impl PyXvaResult {
     /// This is the default export; one row per result, so a portfolio of
     /// netting sets stacks with
     /// ``pd.concat([r.to_dataframe() for r in results])``. The time-indexed
-    /// exposure profiles are a separate table — see ``profiles_to_dataframe``.
+    /// exposure profiles are a separate table — see ``to_profiles_dataframe``.
     #[pyo3(text_signature = "($self)")]
     fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         // Built explicitly rather than from `XvaResult`'s serde, which also
@@ -515,7 +515,7 @@ impl PyXvaResult {
     ///
     /// Columns: ``epe``, ``ene``, ``pfe``, ``effective_epe`` — indexed by
     /// time in years.  Time values are taken from the EPE profile.
-    fn profiles_to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    fn to_profiles_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let data = PyDict::new(py);
         let (times, epe_vals): (Vec<f64>, Vec<f64>) =
             self.inner.epe_profile.iter().copied().unzip();

@@ -20,7 +20,7 @@ Examples:
 True
 """
 
-import sys
+import sys as _sys
 
 from finstack_quant.finstack_quant import monte_carlo as _mc
 
@@ -54,8 +54,8 @@ finite_diff_gamma = _mc.finite_diff_gamma
 finite_diff_gamma_crn = _mc.finite_diff_gamma_crn
 
 _key = "finstack_quant.monte_carlo"
-if _key not in sys.modules:
-    sys.modules[_key] = sys.modules[__name__]
+if _key not in _sys.modules:
+    _sys.modules[_key] = _sys.modules[__name__]
 
 __all__: list[str] = [
     "Estimate",

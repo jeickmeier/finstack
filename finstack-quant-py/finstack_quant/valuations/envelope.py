@@ -13,8 +13,6 @@ Examples:
 
 """
 
-from __future__ import annotations
-
 type _JsonValue = bool | int | float | str | list[_JsonValue] | dict[str, _JsonValue] | None
 
 type CalibrationEnvelope = dict[str, _JsonValue]

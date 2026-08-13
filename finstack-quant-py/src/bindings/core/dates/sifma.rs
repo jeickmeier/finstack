@@ -23,9 +23,10 @@ pub const EXPORTS: &[&str] = &[
     module = "finstack_quant.core.dates",
     frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PySifmaSettlementClass {
     inner: SifmaSettlementClass,
 }
@@ -71,6 +72,26 @@ fn month(value: u8) -> PyResult<time::Month> {
         .map_err(|_| crate::errors::value_error(format!("invalid month: {value}")))
 }
 
+/// Published SIFMA settlement date for a delivery month.
+///
+/// Parameters
+/// ----------
+/// month : int
+///     Delivery month, 1-12.
+/// year : int
+///     Delivery year.
+///
+/// Returns
+/// -------
+/// datetime.date | None
+///     The published date, or ``None`` when SIFMA has not published one for
+///     that month. Use :func:`estimated_sifma_settlement_date_for_class` when
+///     an estimate is acceptable.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If ``month`` is outside 1-12.
 #[pyfunction(name = "sifma_settlement_date")]
 #[pyo3(text_signature = "(month, year)")]
 fn py_sifma_settlement_date<'py>(
@@ -83,6 +104,28 @@ fn py_sifma_settlement_date<'py>(
         .transpose()
 }
 
+/// Published SIFMA settlement date for one settlement class.
+///
+/// Parameters
+/// ----------
+/// month : int
+///     Delivery month, 1-12.
+/// year : int
+///     Delivery year.
+/// settlement_class : SifmaSettlementClass
+///     Class whose calendar applies (classes settle on different days of the
+///     same delivery month).
+///
+/// Returns
+/// -------
+/// datetime.date | None
+///     The published date, or ``None`` when SIFMA has not published one for
+///     that month and class.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If ``month`` is outside 1-12.
 #[pyfunction(name = "sifma_settlement_date_for_class")]
 #[pyo3(text_signature = "(month, year, settlement_class)")]
 fn py_sifma_settlement_date_for_class<'py>(
@@ -96,6 +139,30 @@ fn py_sifma_settlement_date_for_class<'py>(
         .transpose()
 }
 
+/// Estimated SIFMA settlement date for one settlement class.
+///
+/// Unlike :func:`sifma_settlement_date_for_class` this always returns a date:
+/// months SIFMA has not published are projected from the published rule, so
+/// forward schedules can be built beyond the calendar.
+///
+/// Parameters
+/// ----------
+/// month : int
+///     Delivery month, 1-12.
+/// year : int
+///     Delivery year.
+/// settlement_class : SifmaSettlementClass
+///     Class whose calendar applies.
+///
+/// Returns
+/// -------
+/// datetime.date
+///     The published date when one exists, otherwise the projected date.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If ``month`` is outside 1-12.
 #[pyfunction(name = "estimated_sifma_settlement_date_for_class")]
 #[pyo3(text_signature = "(month, year, settlement_class)")]
 fn py_estimated_sifma_settlement_date_for_class<'py>(

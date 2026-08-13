@@ -59,6 +59,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     all_names.extend_from_slice(scalars::EXPORTS);
     all_names.extend_from_slice(context::EXPORTS);
 
+    all_names.sort_unstable();
     let all = PyList::new(py, &all_names)?;
     m.setattr("__all__", all)?;
 

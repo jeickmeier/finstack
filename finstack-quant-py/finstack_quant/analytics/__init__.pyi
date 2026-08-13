@@ -2990,7 +2990,7 @@ class Performance:
         The primary pandas view: the summary statistics table.
 
         One row per ticker, one column per scalar metric. Alias for
-        `summary_to_dataframe` with default arguments, so every result type
+        `to_summary_dataframe` with default arguments, so every result type
         answers to a plain `to_dataframe()`. The other `*_to_dataframe`
         methods are the secondary views.
 
@@ -3006,7 +3006,7 @@ class Performance:
         """
         ...
 
-    def summary_to_dataframe(
+    def to_summary_dataframe(
         self,
         risk_free_rate: float = 0.0,
         confidence: float = 0.95,
@@ -3039,14 +3039,14 @@ class Performance:
         """
         ...
 
-    def returns_to_dataframe(self) -> pd.DataFrame:
+    def to_returns_dataframe(self) -> pd.DataFrame:
         """
         Per-period simple returns for all tickers as a pandas DataFrame.
 
         Ragged per-ticker series are padded with ``NaN`` onto the active date
         grid. Prefer this over :meth:`excess_returns` with an all-zero
         risk-free series or un-compounding
-        :meth:`cumulative_returns_to_dataframe`.
+        :meth:`to_cumulative_returns_dataframe`.
 
         Returns
         -------
@@ -3059,7 +3059,7 @@ class Performance:
         """
         ...
 
-    def cumulative_returns_to_dataframe(self) -> pd.DataFrame:
+    def to_cumulative_returns_dataframe(self) -> pd.DataFrame:
         """
         Cumulative returns for all tickers as a pandas DataFrame.
 
@@ -3074,7 +3074,7 @@ class Performance:
         """
         ...
 
-    def periodic_returns_to_dataframe(self, frequency: str = "monthly") -> pd.DataFrame:
+    def to_periodic_returns_dataframe(self, frequency: str = "monthly") -> pd.DataFrame:
         """
         Calendar-bucketed compounded returns for all tickers.
 
@@ -3089,7 +3089,7 @@ class Performance:
         pd.DataFrame
             Compounded period returns indexed by period-end date, one column
             per ticker. Buckets reconcile with
-            :meth:`cumulative_returns_to_dataframe`.
+            :meth:`to_cumulative_returns_dataframe`.
 
         Raises
         ------
@@ -3098,7 +3098,7 @@ class Performance:
         """
         ...
 
-    def drawdown_series_to_dataframe(self) -> pd.DataFrame:
+    def to_drawdown_series_dataframe(self) -> pd.DataFrame:
         """
         Drawdown series for all tickers as a pandas DataFrame.
 
@@ -3113,7 +3113,7 @@ class Performance:
         """
         ...
 
-    def correlation_to_dataframe(self) -> pd.DataFrame:
+    def to_correlation_dataframe(self) -> pd.DataFrame:
         """
         Correlation matrix as a pandas DataFrame indexed by ticker name.
 
@@ -3128,7 +3128,7 @@ class Performance:
         """
         ...
 
-    def drawdown_details_to_dataframe(
+    def to_drawdown_details_dataframe(
         self,
         ticker_idx: int,
         n: int = 5,
@@ -3158,7 +3158,7 @@ class Performance:
         """
         ...
 
-    def lookback_returns_to_dataframe(
+    def to_lookback_returns_dataframe(
         self,
         ref_date: object,
         fiscal_year_start_month: int | None = None,

@@ -152,9 +152,9 @@ def compose_scenarios(specs_json: str) -> str:
     """
     ...
 
-def validate_scenario_spec(json_str: str) -> bool:
+def validate_scenario_spec(json_str: str) -> None:
     """
-    Return ``True`` after successfully parsing and validating JSON.
+    Validate a scenario specification without applying it.
 
     Parameters
     ----------
@@ -163,8 +163,9 @@ def validate_scenario_spec(json_str: str) -> bool:
 
     Returns
     -------
-    bool
-        Always ``True`` on success.
+    None
+        Returns nothing on success. An invalid spec raises instead, so
+        ``if validate_scenario_spec(s):`` is not a validity check.
 
     Raises
     ------
@@ -175,7 +176,7 @@ def validate_scenario_spec(json_str: str) -> bool:
     --------
     >>> from finstack_quant.scenarios import validate_scenario_spec
     >>> spec = '{"id":"s","name":"S","operations":[]}'
-    >>> validate_scenario_spec(spec)
+    >>> validate_scenario_spec(spec) is None
     True
     """
     ...

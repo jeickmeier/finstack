@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use super::types::{check_finite, CreditScoringError, ScoringResult, ScoringZone};
 
 /// Mapping from an Altman score to a PD-like heuristic.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AltmanPdCalibration {
     /// Uncalibrated house heuristic, not an empirical Altman

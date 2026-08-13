@@ -15,8 +15,6 @@ Examples:
 
 """
 
-from __future__ import annotations
-
 from finstack_quant.finstack_quant import valuations as _valuations
 
 cds_index_example_json = _valuations.credit_derivatives.cds_index_example_json

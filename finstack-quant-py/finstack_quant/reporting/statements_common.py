@@ -20,6 +20,14 @@ from typing import Any
 from . import format as fmt, tables
 from .document import Section
 
+__all__ = [
+    "StatementView",
+    "json_or_dict",
+    "parse_statement",
+    "pl_matrix_table",
+    "variance_table",
+]
+
 
 class StatementView:
     """Read-only view over a ``StatementResult``'s scalar node values.

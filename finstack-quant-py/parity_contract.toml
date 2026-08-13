@@ -61,29 +61,29 @@ public = ["get", "index", "validate"]
 [crates.core.market_data]
 python_package = "finstack_quant.core.market_data"
 public = [
-    "curves",
-    "fx",
-    "context",
-    "scalars",
-    "dtsm",
-    "arbitrage",
     "BaseCorrelationCurve",
     "CreditIndexData",
     "DiscountCurve",
     "ForwardCurve",
+    "FxConversionPolicy",
     "FxDeltaVolSurface",
+    "FxMatrix",
+    "FxRateResult",
     "HazardCurve",
     "InflationCurve",
-    "PriceCurve",
-    "VolSurface",
-    "VolCube",
-    "VolatilityIndexCurve",
-    "FxConversionPolicy",
-    "FxRateResult",
-    "FxMatrix",
-    "ScalarTimeSeries",
     "InflationIndex",
     "MarketContext",
+    "PriceCurve",
+    "ScalarTimeSeries",
+    "VolCube",
+    "VolSurface",
+    "VolatilityIndexCurve",
+    "arbitrage",
+    "context",
+    "curves",
+    "dtsm",
+    "fx",
+    "scalars",
 ]
 
 # Symbol-level contracts for every exposed core submodule. These are checked
@@ -711,6 +711,7 @@ calibration  = { python = "finstack_quant.valuations",              status = "fl
 correlation  = { python = "finstack_quant.valuations.correlation",  status = "exists", note = "Former standalone finstack-correlation crate; nested under valuations" }
 credit_derivatives = { python = "finstack_quant.valuations.credit_derivatives", status = "exists", note = "CDS-family example-payload factories; mirrors WASM valuations.creditDerivatives" }
 schema       = { python = "finstack_quant.valuations.schema",       status = "exists", note = "Compiled-in JSON Schema accessors and envelope/type validators; no WASM twin" }
+envelope     = { python = "finstack_quant.valuations.envelope",     status = "exists", note = "Pure-Python typing aid: the CalibrationEnvelope alias. Rust owns envelope validation and the versioned schema, so there is no Rust or WASM twin" }
 # Rust-only infrastructure modules, listed for completeness so the module
 # inventory covers the whole crate root. None is surfaced as a host namespace.
 constants    = { python = "finstack_quant.valuations.constants",    status = "missing", note = "Rust-only numeric/convention constants; hosts see the values through APIs that consume them (e.g. theta_days defaults), not as a namespace" }
@@ -1487,7 +1488,7 @@ builder      = { python = "finstack_quant.portfolio.builder",      status = "mis
 cashflows    = { python = "finstack_quant.portfolio.cashflows",    status = "missing", note = "Bindings are currently exported from finstack_quant.portfolio root" }
 dataframe    = { python = "finstack_quant.portfolio.dataframe",    status = "missing", note = "The Rust root re-exports positions_to_table/entities_to_table/metrics_to_table/aggregated_metrics_to_table, but Python does not bind the free functions; they back the typed exits (PortfolioValuation.to_dataframe/to_arrow_positions, PortfolioMetrics.to_position_dataframe/to_aggregated_dataframe). entities_to_table has no host consumer yet." }
 dependencies = { python = "finstack_quant.portfolio.dependencies", status = "missing" }
-error        = { python = "finstack_quant.portfolio",              status = "flattened", note = "The Rust Error/Result surface flattens onto the Python root as the exception types PortfolioError, FinstackValuationError, FinstackFxError, and FinstackOptimizationError (plus the materialization ContractValidationError family)" }
+error        = { python = "finstack_quant.portfolio",              status = "flattened", note = "The Rust Error/Result surface flattens onto the Python root as the exception types PortfolioError, ValuationError, FxError, and OptimizationError (plus the materialization ContractValidationError family)" }
 excess_return = { python = "finstack_quant.portfolio",             status = "flattened", note = "Duration-matched credit excess return functions (cell_returns_from_reference, cell_returns_from_curves, excess_returns) are exported flat on finstack_quant.portfolio (Dynkin, Hyman & Vankudre 1998, Appendix B); duration_cell_label remains Rust-only" }
 factor_brinson = { python = "finstack_quant.portfolio",            status = "flattened", note = "Jeet-Partani (2023) factor-Brinson unified attribution (factor_brinson_attribution) is exported flat on finstack_quant.portfolio" }
 factor_model = { python = "finstack_quant.portfolio",              status = "flattened", note = "Result types (RiskDecomposition, PositionRiskDecomposition, RiskBudgetResult, WhatIfResult, StressResult, StressAttribution, FactorAssignmentReport, CreditVolReport, VolHorizon, DecompositionConfig, ...) plus typed allocation and risk functions are exported flat on finstack_quant.portfolio; engine and builder types remain Rust-only" }
@@ -1549,6 +1550,9 @@ public = [
     "FinstackFxError",
     "FinstackOptimizationError",
     "FinstackValuationError",
+    "FxError",
+    "OptimizationError",
+    "ValuationError",
     "GridAttributionResult",
     "GridCarinoLinkedResult",
     "Inequality",
@@ -1789,6 +1793,9 @@ python_only = [
   "FinstackFxError",
   "FinstackOptimizationError",
   "FinstackValuationError",
+  "FxError",
+  "OptimizationError",
+  "ValuationError",
   "ContractLimitExceededError",
   "ContractValidationError",
   "Inequality",

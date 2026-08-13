@@ -142,6 +142,7 @@ __all__: list[str] = [
     "credit_derivatives",
     "dependency_graph_json",
     "dry_run",
+    "envelope",
     "instrument_cashflows",
     "instruments",
     "inverse_floater_coupon_profile",

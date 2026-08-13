@@ -10,8 +10,6 @@ Examples:
 True
 """
 
-from __future__ import annotations
-
 from finstack_quant.finstack_quant import factor_model as _factor_model
 
 _credit = _factor_model.credit

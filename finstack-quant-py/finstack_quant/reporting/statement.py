@@ -22,6 +22,11 @@ from .document import KPI, Section, TearSheet, _resolve_sections
 from .statements_common import _section_variance, parse_statement, pl_matrix_table
 from .theme import INSTITUTIONAL, Theme
 
+__all__ = [
+    "ALL_SECTIONS",
+    "statement_tearsheet",
+]
+
 ALL_SECTIONS = ["summary", "trend", "margins", "variance"]
 
 # (label, node_id, formatter). Money rows first, then percent-valued margin/growth nodes.

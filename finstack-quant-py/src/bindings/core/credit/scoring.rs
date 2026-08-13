@@ -33,9 +33,10 @@ fn zone_to_str(zone: ScoringZone) -> &'static str {
     module = "finstack_quant.core.credit.scoring",
     frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct PyAltmanPdCalibration {
     inner: AltmanPdCalibration,
 }
@@ -275,10 +276,10 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         py,
         [
             "AltmanPdCalibration",
-            "altman_z_score",
-            "altman_z_prime",
-            "altman_z_double_prime",
             "altman_em_score",
+            "altman_z_double_prime",
+            "altman_z_prime",
+            "altman_z_score",
             "ohlson_o_score",
             "zmijewski_score",
         ],

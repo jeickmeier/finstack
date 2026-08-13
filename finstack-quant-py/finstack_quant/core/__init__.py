@@ -9,9 +9,7 @@ Examples:
 
 """
 
-from __future__ import annotations
-
-import sys
+import sys as _sys
 
 from finstack_quant.finstack_quant import core as _core
 
@@ -26,8 +24,11 @@ credit = _core.credit
 rating_scales = _core.rating_scales
 table = _core.table
 
-# Canonical home of the shared exception base (see `finstack_quant.errors`
-# rationale): every named exception in the library inherits from it.
+# Canonical home of the shared exception base. Every named exception inherits
+# from it except `valuations.CalibrationEnvelopeError`, which derives from
+# `RuntimeError` instead — `pyo3::create_exception!` accepts one base type, and
+# reparenting it would break existing `except RuntimeError` handlers. The full
+# rationale lives beside the declarations in the binding crate's `src/errors.rs`.
 FinstackError = _core.FinstackError
 schema = _core.schema
 
@@ -53,8 +54,8 @@ _submodules = {
 
 for _name, _mod in _submodules.items():
     _key = f"finstack_quant.core.{_name}"
-    if _key not in sys.modules:
-        sys.modules[_key] = _mod
+    if _key not in _sys.modules:
+        _sys.modules[_key] = _mod
 
 __all__: list[str] = [
     "FinstackError",

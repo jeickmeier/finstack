@@ -11,14 +11,7 @@ Examples:
 
 """
 
-from __future__ import annotations
-
-import contextlib
-
 from finstack_quant.finstack_quant import statements_analytics as _sa
-
-with contextlib.suppress(NameError):
-    del annotations
 
 SensitivityConfig = _sa.SensitivityConfig
 VarianceConfig = _sa.VarianceConfig

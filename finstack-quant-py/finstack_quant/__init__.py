@@ -19,8 +19,6 @@ Examples:
 
 """
 
-from __future__ import annotations
-
 import importlib as _importlib
 from types import ModuleType
 from typing import TYPE_CHECKING

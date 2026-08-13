@@ -542,6 +542,15 @@ impl PyFactorRiskDecomposition {
         crate::bindings::pandas_utils::serde_to_py(py, &self.residual_contributions)
     }
 
+    /// Primary table: the factor-level risk decomposition.
+    ///
+    /// Alias of :meth:`to_factor_dataframe`. Every tabular result type in the
+    /// library answers ``to_dataframe()``; the position × factor view stays on
+    /// :meth:`to_position_factor_dataframe`.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.to_factor_dataframe(py)
+    }
+
     /// Export factor contributions as a pandas ``DataFrame``.
     ///
     /// Columns: ``factor_id``, ``absolute_risk``, ``relative_risk``,

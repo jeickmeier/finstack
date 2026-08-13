@@ -111,7 +111,11 @@ impl PyValuationResult {
         self.inner.metric_str(key)
     }
 
-    /// Return decoded component vectors and values for a composite base metric.
+    /// Decoded component vectors and values for a composite base metric.
+    ///
+    /// Despite the ``_series`` suffix (which mirrors the Rust name) this is a
+    /// plain ``list`` of tuples, not a :class:`pandas.Series`. Use
+    /// :meth:`to_metrics_dataframe` for the tabular view.
     ///
     /// Results preserve the underlying ``measures`` insertion order. Legacy
     /// malformed escapes remain literal, and decoded-coordinate collisions
@@ -153,7 +157,7 @@ impl PyValuationResult {
     /// ``pd.concat([r.to_dataframe() for r in results])``; instruments with
     /// different metric sets align on column name and leave ``NaN`` elsewhere.
     ///
-    /// ``metrics_to_dataframe`` is the older, near-identical view that names
+    /// ``to_metrics_dataframe`` is the older, near-identical view that names
     /// the value column ``price`` and omits the valuation date.
     #[pyo3(text_signature = "($self)")]
     fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
@@ -172,7 +176,7 @@ impl PyValuationResult {
     /// ``pd.concat``.
     ///
     /// Prefer ``to_dataframe``, which additionally carries the valuation date.
-    fn metrics_to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    fn to_metrics_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let data = PyDict::new(py);
         data.set_item("instrument_id", vec![&self.inner.instrument_id])?;
         data.set_item("price", vec![self.inner.value.amount()])?;
@@ -378,7 +382,7 @@ fn register_instruments(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResul
         parent,
         &m,
         "instruments",
-        "finstack_quant.finstack_quant.valuations",
+        "finstack_quant.valuations",
     )?;
     m.setattr(
         "__doc__",
@@ -470,7 +474,7 @@ fn register_models(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()>
         parent,
         &m,
         "models",
-        "finstack_quant.finstack_quant.valuations",
+        "finstack_quant.valuations",
     )?;
     m.setattr("__doc__", "Pricing model wrappers for valuation workflows.")?;
 

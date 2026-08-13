@@ -146,6 +146,21 @@ class TestBuilderSpecs:
                 amort=AmortizationSpec.linear_to(Money(200.0, "USD")),
             ).validate()
 
+    def test_amortization_spec_hash_matches_equality(self) -> None:
+        from decimal import Decimal
+
+        from finstack_quant.cashflows.builder import AmortizationSpec
+
+        pos_zero = AmortizationSpec.percent_of_original_per_period(0.0)
+        neg_zero = AmortizationSpec.percent_of_original_per_period(-0.0)
+        assert pos_zero == neg_zero
+        assert hash(pos_zero) == hash(neg_zero)
+
+        scale_a = AmortizationSpec.linear_to(Money(Decimal("1.0"), "USD"))
+        scale_b = AmortizationSpec.linear_to(Money(Decimal("1.00"), "USD"))
+        assert scale_a == scale_b
+        assert hash(scale_a) == hash(scale_b)
+
     def test_fee_spec_factories(self) -> None:
         from finstack_quant.cashflows.builder import FeeAccrualBasis, FeeBase, FeeSpec
         from finstack_quant.core.dates import DayCount, Tenor
@@ -824,6 +839,13 @@ class TestAccrual:
 
         schedule = self._semiannual_bond()
         assert accrued_interest_amount(schedule, dt.date(2024, 12, 31)) == pytest.approx(0.0)
+
+    def test_accrual_method_is_hashable(self) -> None:
+        from finstack_quant.cashflows.accrual import AccrualMethod
+
+        assert hash(AccrualMethod.LINEAR) == hash(AccrualMethod.LINEAR)
+        assert AccrualMethod.LINEAR in {AccrualMethod.LINEAR}
+        assert AccrualMethod.LINEAR != AccrualMethod.COMPOUNDED
 
     def test_accrual_index_matches_one_shot(self) -> None:
         from finstack_quant.cashflows.accrual import (

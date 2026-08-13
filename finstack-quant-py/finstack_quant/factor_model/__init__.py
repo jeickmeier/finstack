@@ -13,18 +13,10 @@ Examples:
 True
 """
 
-from __future__ import annotations
-
-import contextlib as _contextlib
 import sys as _sys
 
 from finstack_quant.factor_model import credit as credit
 from finstack_quant.finstack_quant import factor_model as _factor_model
-
-# Keep the module's public dir() limited to contracted names (the parity
-# symbols gate counts every non-module attribute).
-with _contextlib.suppress(NameError):
-    del annotations
 
 # `schema` is a compiled submodule with no pure-Python shim package, so alias it
 # onto the public dotted path that `import finstack_quant.factor_model.schema` uses.

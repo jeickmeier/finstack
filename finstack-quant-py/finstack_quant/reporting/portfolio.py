@@ -27,6 +27,11 @@ from .document import KPI, Section, TearSheet, _resolve_sections
 from .statements_common import json_or_dict
 from .theme import INSTITUTIONAL, Theme
 
+__all__ = [
+    "ALL_SECTIONS",
+    "portfolio_tearsheet",
+]
+
 ALL_SECTIONS = ["holdings", "exposure", "sensitivities", "buckets", "cashflows"]
 _HOLDINGS_TOP_N = 15
 _HEADLINE_METRICS = ["dv01", "cs01", "theta", "delta", "gamma", "vega", "rho", "pv01"]

@@ -18,27 +18,27 @@ from typing import Sequence
 import pandas as pd
 
 __all__ = [
-    "MAX_PORTFOLIO_LOSS_PATHS",
-    "CopulaSpec",
     "Copula",
+    "CopulaSpec",
+    "CorrelatedBernoulli",
     "CreditExposure",
-    "PortfolioLossConfig",
-    "PortfolioLossResult",
-    "TrancheLossStatistics",
-    "RecoverySpec",
-    "RecoveryModel",
-    "LatentFactorSpec",
     "LatentFactorKind",
+    "LatentFactorSpec",
+    "LatentMultiFactor",
     "LatentSingleFactor",
     "LatentTwoFactor",
-    "LatentMultiFactor",
-    "CorrelatedBernoulli",
+    "MAX_PORTFOLIO_LOSS_PATHS",
+    "PortfolioLossConfig",
+    "PortfolioLossResult",
+    "RecoveryModel",
+    "RecoverySpec",
+    "TrancheLossStatistics",
+    "cholesky_decompose",
     "correlation_bounds",
     "joint_probabilities",
-    "validate_correlation_matrix",
     "nearest_correlation",
-    "cholesky_decompose",
     "simulate_portfolio_loss",
+    "validate_correlation_matrix",
 ]
 
 MAX_PORTFOLIO_LOSS_PATHS: int
@@ -868,6 +868,28 @@ class PortfolioLossResult:
         ValueError
             If a boundary lies outside ``[0, 1]``, ``attachment >= detachment``,
             or ``pool_notional`` is not finite and strictly positive.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Primary table: the simulated loss distribution.
+
+        Alias of :meth:`to_distribution_dataframe`. Every tabular result type in the library
+        answers ``to_dataframe()``; the one-row aggregate view stays on :meth:`to_summary_dataframe`.
+
+        Returns
+        -------
+        pd.DataFrame
+            The same frame :meth:`to_distribution_dataframe` returns.
+
+        Examples
+        --------
+        >>> frame = result.to_dataframe()  # doctest: +SKIP
+
+        Notes
+        -----
+        This alias does not raise; it delegates to the method named above.
         """
         ...
 

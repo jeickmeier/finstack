@@ -151,7 +151,7 @@ def valuation_result_schema() -> str:
 
     """
 
-def validate_instrument_envelope_json(instrument_json: str) -> bool:
+def validate_instrument_envelope_json(instrument_json: str) -> str:
     """
     Validate an instrument envelope payload against the canonical schemas.
 
@@ -167,10 +167,10 @@ def validate_instrument_envelope_json(instrument_json: str) -> bool:
 
     Returns
     -------
-    bool
-        ``True`` when the payload validates. A failure raises rather than
-        returning ``False``, so the individual schema violations are never
-        discarded.
+    str
+        Canonical compact JSON of the validated payload. A failure raises
+        rather than returning a falsy value, so the individual schema
+        violations are never discarded.
 
     Raises
     ------
@@ -184,12 +184,12 @@ def validate_instrument_envelope_json(instrument_json: str) -> bool:
     >>> import json
     >>> from finstack_quant.valuations import schema
     >>> example = json.loads(schema.instrument_schema("bond"))["examples"][0]
-    >>> schema.validate_instrument_envelope_json(json.dumps(example))
-    True
+    >>> json.loads(schema.validate_instrument_envelope_json(json.dumps(example)))["schema"]
+    'finstack_quant.instrument/1'
 
     """
 
-def validate_instrument_type_json(instrument_type: str, instrument_json: str) -> bool:
+def validate_instrument_type_json(instrument_type: str, instrument_json: str) -> str:
     """
     Validate a payload against one specific instrument type's schema.
 
@@ -226,8 +226,8 @@ def validate_instrument_type_json(instrument_type: str, instrument_json: str) ->
     >>> import json
     >>> from finstack_quant.valuations import schema
     >>> example = json.loads(schema.instrument_schema("bond"))["examples"][0]
-    >>> schema.validate_instrument_type_json("bond", json.dumps(example))
-    True
+    >>> json.loads(schema.validate_instrument_type_json("bond", json.dumps(example)))["schema"]
+    'finstack_quant.instrument/1'
 
     """
 

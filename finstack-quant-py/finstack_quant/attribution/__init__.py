@@ -7,7 +7,7 @@ Examples:
 ['carry', 'rates_curves']
 """
 
-import sys
+import sys as _sys
 
 from finstack_quant.finstack_quant import attribution as _attribution
 
@@ -24,8 +24,8 @@ schema = _attribution.schema
 
 # `schema` is a real submodule, so `import finstack_quant.attribution.schema`
 # must work as well as attribute access.
-if "finstack_quant.attribution.schema" not in sys.modules:
-    sys.modules["finstack_quant.attribution.schema"] = schema
+if "finstack_quant.attribution.schema" not in _sys.modules:
+    _sys.modules["finstack_quant.attribution.schema"] = schema
 
 __all__: list[str] = [
     "PnlAttribution",

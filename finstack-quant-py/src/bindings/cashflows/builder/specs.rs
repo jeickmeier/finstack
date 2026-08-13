@@ -63,9 +63,10 @@ fn date_money_pairs(items: Vec<(Bound<'_, PyAny>, PyMoney)>) -> PyResult<Vec<(Da
     module = "finstack_quant.cashflows.builder",
     frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PyRollRule {
     /// Inner roll-date rule.
     pub(crate) inner: RollRule,
@@ -103,9 +104,10 @@ impl PyRollRule {
     module = "finstack_quant.cashflows.builder",
     frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PyCouponType {
     /// Inner coupon settlement type.
     pub(crate) inner: CouponType,
@@ -150,9 +152,10 @@ impl PyCouponType {
     module = "finstack_quant.cashflows.builder",
     frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PyOvernightCompoundingMethod {
     /// Inner compounding method.
     pub(crate) inner: OvernightCompoundingMethod,
@@ -210,9 +213,10 @@ impl PyOvernightCompoundingMethod {
     module = "finstack_quant.cashflows.builder",
     frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PyOvernightIndexConstraintApplication {
     /// Inner constraint-application policy.
     pub(crate) inner: OvernightIndexConstraintApplication,
@@ -243,9 +247,10 @@ impl PyOvernightIndexConstraintApplication {
     module = "finstack_quant.cashflows.builder",
     frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PyFloatingRateFallback {
     /// Inner fallback policy.
     pub(crate) inner: FloatingRateFallback,
@@ -291,9 +296,10 @@ impl PyFloatingRateFallback {
     module = "finstack_quant.cashflows.builder",
     frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PyFeeAccrualBasis {
     /// Inner fee accrual basis.
     pub(crate) inner: FeeAccrualBasis,
@@ -770,9 +776,10 @@ impl PyStepUpCouponSpec {
     module = "finstack_quant.cashflows.builder",
     frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Hash)]
 pub struct PyAmortizationSpec {
     /// Inner amortization rule.
     pub(crate) inner: AmortizationSpec,

@@ -24,11 +24,9 @@ Examples:
 [0.0, 1.0]
 """
 
-from __future__ import annotations
-
 from collections.abc import Mapping, Sequence
-from importlib import import_module
-import json
+from importlib import import_module as _import_module
+import json as _json
 from typing import Any
 
 from . import (
@@ -67,7 +65,7 @@ __all__ = [
 
 def _require_pandas() -> Any:
     try:
-        return import_module("pandas")
+        return _import_module("pandas")
     except ModuleNotFoundError as exc:
         raise ImportError(
             "finstack_quant.features.dataframe requires pandas; install pandas to use DataFrame helpers"
@@ -370,7 +368,7 @@ def panel(
             role="time_key",
             default_datetime_index=True,
         )
-    result = json.loads(_transform_panel(json.dumps(spec)))
+    result = _json.loads(_transform_panel(_json.dumps(spec)))
     columns = {column["name"]: column["values"] for column in result["columns"]}
     ordered = {operation["name"]: columns[operation["name"]] for operation in operations}
     return pd.DataFrame(ordered, index=df.index)

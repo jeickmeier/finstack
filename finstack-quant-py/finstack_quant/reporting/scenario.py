@@ -25,6 +25,11 @@ from .document import KPI, Section, TearSheet, _resolve_sections
 from .statements_common import _section_variance
 from .theme import INSTITUTIONAL, Theme
 
+__all__ = [
+    "ALL_SECTIONS",
+    "scenario_tearsheet",
+]
+
 ALL_SECTIONS = ["tornado", "scenarios", "montecarlo", "variance"]
 
 

@@ -17,9 +17,9 @@
 //!     ├── AnalyticsError
 //!     ├── CholeskyError
 //!     ├── PortfolioError
-//!     │   ├── FinstackValuationError
-//!     │   ├── FinstackFxError
-//!     │   └── FinstackOptimizationError
+//!     │   ├── ValuationError      (alias: FinstackValuationError)
+//!     │   ├── FxError             (alias: FinstackFxError)
+//!     │   └── OptimizationError   (alias: FinstackOptimizationError)
 //!     └── ContractValidationError
 //!         ├── UnsupportedContractVersionError
 //!         ├── MissingContractVersionError
@@ -74,21 +74,21 @@ pyo3::create_exception!(
 
 pyo3::create_exception!(
     finstack_quant.portfolio,
-    FinstackValuationError,
+    ValuationError,
     PortfolioError,
     "Portfolio valuation failure (inherits PortfolioError)."
 );
 
 pyo3::create_exception!(
     finstack_quant.portfolio,
-    FinstackFxError,
+    FxError,
     PortfolioError,
     "Portfolio FX conversion or market-data failure (inherits PortfolioError)."
 );
 
 pyo3::create_exception!(
     finstack_quant.portfolio,
-    FinstackOptimizationError,
+    OptimizationError,
     PortfolioError,
     "Portfolio optimization failure (inherits PortfolioError)."
 );
@@ -232,14 +232,14 @@ pub fn portfolio_to_py(e: finstack_quant_portfolio::Error) -> PyErr {
     match e {
         finstack_quant_portfolio::Error::Core(core) => core_to_py(core),
         err @ finstack_quant_portfolio::Error::ValuationError { .. } => {
-            FinstackValuationError::new_err(format_chain(&err))
+            ValuationError::new_err(format_chain(&err))
         }
         err @ (finstack_quant_portfolio::Error::FxConversionFailed { .. }
         | finstack_quant_portfolio::Error::MissingMarketData(_)) => {
-            FinstackFxError::new_err(format_chain(&err))
+            FxError::new_err(format_chain(&err))
         }
         err @ finstack_quant_portfolio::Error::OptimizationError(_) => {
-            FinstackOptimizationError::new_err(format_chain(&err))
+            OptimizationError::new_err(format_chain(&err))
         }
         err => PortfolioError::new_err(format_chain(&err)),
     }

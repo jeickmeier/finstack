@@ -88,7 +88,7 @@ pub(super) fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult
         parent,
         &m,
         "credit_derivatives",
-        "finstack_quant.finstack_quant.valuations",
+        "finstack_quant.valuations",
     )?;
     m.setattr(
         "__doc__",

@@ -510,6 +510,15 @@ impl PyMertonModel {
             .map_err(display_to_py)?;
         Ok(PySimulatedPaths::from_inner(paths))
     }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("MertonModel", &self.inner)
+    }
 }
 
 #[pyclass(
@@ -576,6 +585,17 @@ impl PySimulatedPaths {
     /// Materialize nested path storage as a list of path rows.
     fn to_nested(&self) -> Vec<Vec<f64>> {
         self.inner.to_nested()
+    }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// The inner type is not `Serialize`, so the headline shape is rendered
+    /// directly; the path arrays themselves are summarised by length.
+    fn __repr__(&self) -> String {
+        format!(
+            "SimulatedPaths(num_paths={}, num_steps={})",
+            self.inner.num_paths, self.inner.num_steps
+        )
     }
 }
 
@@ -648,6 +668,15 @@ impl PyDynamicRecoverySpec {
     /// Export the recovery specification as a single-row :class:`pandas.DataFrame`.
     fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         serde_object_to_single_row_dataframe(py, &self.inner)
+    }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("DynamicRecoverySpec", &self.inner)
     }
 }
 
@@ -725,6 +754,15 @@ impl PyEndogenousHazardSpec {
     /// Export the hazard specification as a single-row :class:`pandas.DataFrame`.
     fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         serde_object_to_single_row_dataframe(py, &self.inner)
+    }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("EndogenousHazardSpec", &self.inner)
     }
 }
 
@@ -822,6 +860,15 @@ impl PyCreditState {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("CreditState", &self.inner)
+    }
 }
 
 #[pyclass(
@@ -917,6 +964,15 @@ impl PyToggleExerciseModel {
             ToggleExerciseModel::OptimalExercise(spec) => serde_to_py(py, spec),
         }
     }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("ToggleExerciseModel", &self.inner)
+    }
 }
 
 pub(crate) fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -948,7 +1004,7 @@ pub(crate) fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult
         parent,
         &module,
         "credit",
-        "finstack_quant.finstack_quant.valuations",
+        "finstack_quant.valuations",
         crate::bindings::module_utils::ParentNameSource::Package,
     )?;
     Ok(())

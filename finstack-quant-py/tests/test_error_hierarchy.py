@@ -36,15 +36,15 @@ from finstack_quant.portfolio import (
     ContractLimitExceededError,
     ContractValidationError,
     FinstackError,
-    FinstackFxError,
-    FinstackOptimizationError,
-    FinstackValuationError,
+    FxError,
     MalformedContractSchemaError,
     MissingContractVersionError,
+    OptimizationError,
     Portfolio,
     PortfolioError,
     PortfolioResult,
     UnsupportedContractVersionError,
+    ValuationError,
     portfolio_result_get_metric,
     portfolio_result_total_value,
     value_portfolio,
@@ -54,9 +54,9 @@ from finstack_quant.valuations import CalibrationEnvelopeError
 REPARENTED_ERRORS = [
     AnalyticsError,
     PortfolioError,
-    FinstackValuationError,
-    FinstackFxError,
-    FinstackOptimizationError,
+    ValuationError,
+    FxError,
+    OptimizationError,
     ContractValidationError,
     UnsupportedContractVersionError,
     MissingContractVersionError,
@@ -220,9 +220,9 @@ class TestRealFailuresRaiseTheMappedClass:
         assert isinstance(excinfo.value, FinstackError)
 
     def test_missing_curve_raises_valuation_error(self) -> None:
-        """A position priced off an absent curve raises ``FinstackValuationError``."""
+        """A position priced off an absent curve raises ``ValuationError``."""
         portfolio = Portfolio.from_spec(_portfolio_json(discount_curve_id="MISSING-CURVE"))
-        with pytest.raises(FinstackValuationError, match="MISSING-CURVE"):
+        with pytest.raises(ValuationError, match="MISSING-CURVE"):
             value_portfolio(portfolio, MarketContext())
 
     def test_missing_curve_failure_is_still_caught_by_value_error(self) -> None:
@@ -237,11 +237,11 @@ class TestRealFailuresRaiseTheMappedClass:
         """Collapsing a USD position into an EUR base without FX is an FX failure.
 
         This is the sibling variant: same portfolio, same market, only the base
-        currency differs — so it discriminates ``FinstackFxError`` from
-        ``FinstackValuationError`` rather than merely reaching ``PortfolioError``.
+        currency differs — so it discriminates ``FxError`` from
+        ``ValuationError`` rather than merely reaching ``PortfolioError``.
         """
         portfolio = Portfolio.from_spec(_portfolio_json(base_currency="EUR"))
-        with pytest.raises(FinstackFxError, match=r"(?i)fx"):
+        with pytest.raises(FxError, match=r"(?i)fx"):
             value_portfolio(portfolio, _usd_market())
 
     def test_the_same_market_prices_cleanly_in_the_native_base(self) -> None:
@@ -301,7 +301,7 @@ class TestRealFailuresRaiseTheMappedClass:
                 caught.append(type(exc).__name__)
         assert caught == [
             "AnalyticsError",
-            "FinstackValuationError",
+            "ValuationError",
             "ContractValidationError",
         ]
 
@@ -335,9 +335,9 @@ class TestBackwardCompatibility:
     def test_portfolio_subclasses_keep_their_intermediate_base(self) -> None:
         """The portfolio family kept its own two-level shape."""
         for error_type in (
-            FinstackValuationError,
-            FinstackFxError,
-            FinstackOptimizationError,
+            ValuationError,
+            FxError,
+            OptimizationError,
         ):
             assert issubclass(error_type, PortfolioError)
 

@@ -49,16 +49,24 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         py.get_type::<crate::errors::PortfolioError>(),
     )?;
     m.add(
-        "FinstackValuationError",
-        py.get_type::<crate::errors::FinstackValuationError>(),
+        "ValuationError",
+        py.get_type::<crate::errors::ValuationError>(),
     )?;
+    m.add("FxError", py.get_type::<crate::errors::FxError>())?;
     m.add(
-        "FinstackFxError",
-        py.get_type::<crate::errors::FinstackFxError>(),
+        "OptimizationError",
+        py.get_type::<crate::errors::OptimizationError>(),
     )?;
+    // Deprecated aliases for the pre-rename names. They bind the *same* class
+    // objects, so `except FinstackFxError` still catches what it always did.
+    m.add(
+        "FinstackValuationError",
+        py.get_type::<crate::errors::ValuationError>(),
+    )?;
+    m.add("FinstackFxError", py.get_type::<crate::errors::FxError>())?;
     m.add(
         "FinstackOptimizationError",
-        py.get_type::<crate::errors::FinstackOptimizationError>(),
+        py.get_type::<crate::errors::OptimizationError>(),
     )?;
     m.add(
         "ContractValidationError",
@@ -102,6 +110,10 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let exports = vec![
         "FinstackError",
         "PortfolioError",
+        "ValuationError",
+        "FxError",
+        "OptimizationError",
+        // Deprecated aliases; same class objects as the three names above.
         "FinstackValuationError",
         "FinstackFxError",
         "FinstackOptimizationError",

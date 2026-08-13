@@ -35,21 +35,25 @@ impl PyRatingScale {
 
 #[pymethods]
 impl PyRatingScale {
+    /// The standard rating scale, highest grade first.
     #[staticmethod]
     fn standard() -> Self {
         Self::from_inner(RatingScale::standard())
     }
 
+    /// The standard scale with an explicit not-rated state appended.
     #[staticmethod]
     fn standard_with_nr() -> Self {
         Self::from_inner(RatingScale::standard_with_nr())
     }
 
+    /// A notched scale (e.g. AA+/AA/AA-) rather than whole grades.
     #[staticmethod]
     fn notched() -> Self {
         Self::from_inner(RatingScale::notched())
     }
 
+    /// A scale built from explicit labels, highest grade first.
     #[staticmethod]
     fn custom(labels: Vec<String>) -> PyResult<Self> {
         RatingScale::custom(labels)
@@ -57,6 +61,7 @@ impl PyRatingScale {
             .map_err(migration_to_py)
     }
 
+    /// A custom scale with an explicit default state appended.
     #[staticmethod]
     fn custom_with_default(labels: Vec<String>, default_label: String) -> PyResult<Self> {
         RatingScale::custom_with_default(labels, default_label)
@@ -64,26 +69,32 @@ impl PyRatingScale {
             .map_err(migration_to_py)
     }
 
+    /// Number of rating states in the scale.
     fn n_states(&self) -> usize {
         self.inner.n_states()
     }
 
+    /// Index of a label in the scale.
     fn index_of(&self, label: &str) -> Option<usize> {
         self.inner.index_of(label)
     }
 
+    /// Index of the default state.
     fn default_state(&self) -> Option<usize> {
         self.inner.default_state()
     }
 
+    /// Rating labels, highest grade first.
     fn labels(&self) -> Vec<String> {
         self.inner.labels().to_vec()
     }
 
+    /// Weighted-average rating factor for a state index.
     fn warf(&self, label: &str) -> PyResult<f64> {
         self.inner.warf(label).map_err(migration_to_py)
     }
 
+    /// Nearest rating state for a weighted-average rating factor.
     fn rating_from_warf(&self, warf: f64) -> PyResult<String> {
         self.inner
             .rating_from_warf(warf)
@@ -118,26 +129,32 @@ impl PyTransitionMatrix {
             .map_err(migration_to_py)
     }
 
+    /// Transition probability from one state to another.
     fn probability(&self, from: &str, to: &str) -> PyResult<f64> {
         self.inner.probability(from, to).map_err(migration_to_py)
     }
 
+    /// One row of transition probabilities, indexed by destination state.
     fn row(&self, from: &str) -> PyResult<Vec<f64>> {
         self.inner.row(from).map_err(migration_to_py)
     }
 
+    /// Row-major copy of the underlying matrix.
     fn to_matrix(&self) -> Vec<Vec<f64>> {
         matrix_rows(self.inner.as_matrix())
     }
 
+    /// Horizon this object is defined over, in years.
     fn horizon(&self) -> f64 {
         self.inner.horizon()
     }
 
+    /// Number of rating states in the scale.
     fn n_states(&self) -> usize {
         self.inner.n_states()
     }
 
+    /// Probability of reaching the default state, per origin state.
     fn default_probabilities(&self) -> Option<Vec<f64>> {
         self.inner.default_probabilities()
     }
@@ -169,6 +186,7 @@ impl PyGeneratorMatrix {
             .map_err(migration_to_py)
     }
 
+    /// Embed a transition matrix as a generator via the matrix logarithm.
     #[staticmethod]
     fn from_transition_matrix(p: &PyTransitionMatrix) -> PyResult<Self> {
         GeneratorMatrix::from_transition_matrix(&p.inner)
@@ -176,18 +194,22 @@ impl PyGeneratorMatrix {
             .map_err(migration_to_py)
     }
 
+    /// Off-diagonal generator intensity from one state to another.
     fn intensity(&self, from: &str, to: &str) -> PyResult<f64> {
         self.inner.intensity(from, to).map_err(migration_to_py)
     }
 
+    /// Total intensity of leaving a state (the negated diagonal entry).
     fn exit_rate(&self, state: &str) -> PyResult<f64> {
         self.inner.exit_rate(state).map_err(migration_to_py)
     }
 
+    /// Row-major copy of the underlying matrix.
     fn to_matrix(&self) -> Vec<Vec<f64>> {
         matrix_rows(self.inner.as_matrix())
     }
 
+    /// Number of rating states in the scale.
     fn n_states(&self) -> usize {
         self.inner.n_states()
     }
@@ -202,6 +224,15 @@ impl PyGeneratorMatrix {
     #[getter]
     fn round_trip_error(&self) -> f64 {
         self.inner.round_trip_error()
+    }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("GeneratorMatrix", &self.inner)
     }
 }
 
@@ -224,30 +255,37 @@ impl PyRatingPath {
 
 #[pymethods]
 impl PyRatingPath {
+    /// Rating state occupied at a given time.
     fn state_at(&self, t: f64) -> usize {
         self.inner.state_at(t)
     }
 
+    /// Rating label occupied at a given time.
     fn label_at(&self, t: f64) -> String {
         self.inner.label_at(t).to_owned()
     }
 
+    /// Whether the path reached the default state.
     fn defaulted(&self) -> bool {
         self.inner.defaulted()
     }
 
+    /// Time of default, or `None` if the path never defaulted.
     fn default_time(&self) -> Option<f64> {
         self.inner.default_time()
     }
 
+    /// Number of transitions on the path.
     fn n_transitions(&self) -> usize {
         self.inner.n_transitions()
     }
 
+    /// Every `(time, from_state, to_state)` transition on the path.
     fn transitions(&self) -> Vec<(f64, usize)> {
         self.inner.transitions().to_vec()
     }
 
+    /// Horizon this object is defined over, in years.
     fn horizon(&self) -> f64 {
         self.inner.horizon()
     }
@@ -320,6 +358,7 @@ impl PyMigrationSimulator {
             .map_err(migration_to_py)
     }
 
+    /// Horizon this object is defined over, in years.
     fn horizon(&self) -> f64 {
         self.inner.horizon()
     }
@@ -381,11 +420,11 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let all = PyList::new(
         py,
         [
+            "GeneratorMatrix",
+            "MigrationSimulator",
+            "RatingPath",
             "RatingScale",
             "TransitionMatrix",
-            "GeneratorMatrix",
-            "RatingPath",
-            "MigrationSimulator",
             "project",
         ],
     )?;

@@ -254,8 +254,10 @@ pub fn parse_formula_text(formula: &str) -> Result<String, JsValue> {
 
 /// Validate that a DSL formula parses and compiles successfully.
 ///
-/// Returns `true` when the formula is valid; throws a `FinstackError`
-/// otherwise. This mirrors the Python `validate_formula` API.
+/// Returns `undefined` when the formula is valid; throws a `FinstackError`
+/// otherwise. This mirrors the Python `validate_formula` API, which returns
+/// `None` — an invalid formula raises rather than returning a falsy value, so
+/// `if (validateFormula(f))` is not a validity check.
 ///
 /// # Errors
 ///
@@ -264,9 +266,9 @@ pub fn parse_formula_text(formula: &str) -> Result<String, JsValue> {
 /// operator form.
 /// @param formula - Financial-model formula string to parse and validate without evaluation.
 #[wasm_bindgen(js_name = validateFormula)]
-pub fn validate_formula(formula: &str) -> Result<bool, JsValue> {
+pub fn validate_formula(formula: &str) -> Result<(), JsValue> {
     finstack_quant_statements::dsl::parse_and_compile(formula).map_err(to_js_err)?;
-    Ok(true)
+    Ok(())
 }
 
 #[cfg(test)]
@@ -417,8 +419,7 @@ mod tests {
 
     #[test]
     fn validate_formula_accepts_valid() {
-        let ok = validate_formula("revenue * 0.5").expect("should accept valid formula");
-        assert!(ok);
+        validate_formula("revenue * 0.5").expect("should accept valid formula");
     }
 
     #[test]

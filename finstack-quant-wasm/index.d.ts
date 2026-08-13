@@ -7587,13 +7587,15 @@ export interface StatementsNamespace {
   /**
    * Validate that a DSL formula parses and compiles successfully.
    *
-   * Returns `true` when the formula is valid; throws a `FinstackError`
-   * otherwise. This mirrors the Python `validate_formula` API.
-   * @returns `true` when the formula parses and compiles.
+   * Returns `undefined` when the formula is valid; throws a `FinstackError`
+   * otherwise. This mirrors the Python `validate_formula` API, which returns
+   * `None` — an invalid formula raises rather than returning a falsy value, so
+   * `if (validateFormula(f))` is not a validity check.
+   * @returns nothing; failure is reported by throwing.
    * @param formula - Financial-model formula string to parse and validate without evaluation.
    * @throws Error - Rejects any formula that cannot be parsed as one complete DSL expression or compiled because it contains an unsupported component, function, or operator form.
    */
-  validateFormula(formula: string): boolean;
+  validateFormula(formula: string): void;
 }
 
 /**
@@ -9556,12 +9558,15 @@ export interface ScenariosNamespace {
   /**
    * Validate a scenario specification JSON without executing it.
    *
-   * Returns `true` if valid, throws on error.
-   * @returns `true` when the scenario specification is valid.
+   * Returns `undefined` when the spec is valid, throws on error. This mirrors
+   * the Python `validate_scenario_spec` API, which returns `None` — an invalid
+   * spec raises rather than returning a falsy value, so
+   * `if (validateScenarioSpec(s))` is not a validity check.
+   * @returns nothing; failure is reported by throwing.
    * @param jsonStr - Canonical JSON string to validate and re-serialize.
    * @throws Error - Rejects malformed or schema-incompatible `json_str`, a blank scenario ID, multiple time-roll operations, invalid operation identifiers or numeric fields, or variant-specific operation violations.
    */
-  validateScenarioSpec(jsonStr: string): boolean;
+  validateScenarioSpec(jsonStr: string): void;
   /**
    * List all built-in template identifiers.
    *

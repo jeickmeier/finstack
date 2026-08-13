@@ -15,6 +15,13 @@ from typing import Any
 from . import charts, format as fmt
 from .theme import Theme
 
+__all__ = [
+    "data_table",
+    "heatmap",
+    "kv_table",
+    "scroll",
+]
+
 _MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 

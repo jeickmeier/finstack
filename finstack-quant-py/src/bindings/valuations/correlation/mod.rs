@@ -858,31 +858,37 @@ impl PyCreditExposure {
         }
     }
 
+    /// Stable identifier for this exposure.
     #[getter]
     fn id(&self) -> String {
         self.inner.id.clone()
     }
 
+    /// Exposure at default, in the portfolio currency.
     #[getter]
     fn notional(&self) -> f64 {
         self.inner.notional
     }
 
+    /// Marginal probability of default over the horizon, in [0, 1].
     #[getter]
     fn default_probability(&self) -> f64 {
         self.inner.default_probability
     }
 
+    /// Loss given default, as a fraction of notional in [0, 1].
     #[getter]
     fn lgd(&self) -> f64 {
         self.inner.lgd
     }
 
+    /// Systematic factor loadings driving correlated defaults.
     #[getter]
     fn factor_loadings(&self) -> Vec<f64> {
         self.inner.factor_loadings.clone()
     }
 
+    /// Serialize to the canonical JSON wire format.
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(|error| value_error(error.to_string()))
     }
@@ -902,6 +908,15 @@ impl PyCreditExposure {
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("CreditExposure", &self.inner)
     }
 }
 
@@ -935,26 +950,31 @@ impl PyPortfolioLossConfig {
         }
     }
 
+    /// Number of simulated paths.
     #[getter]
     fn num_paths(&self) -> usize {
         self.inner.num_paths
     }
 
+    /// RNG seed; the same seed reproduces the same paths exactly.
     #[getter]
     fn seed(&self) -> u64 {
         self.inner.seed
     }
 
+    /// Confidence level for VaR and expected shortfall, in (0, 1).
     #[getter]
     fn confidence(&self) -> f64 {
         self.inner.confidence
     }
 
+    /// Dependence structure used to couple the marginal defaults.
     #[getter]
     fn copula(&self) -> PyCopulaSpec {
         PyCopulaSpec::from_inner(self.inner.copula.clone())
     }
 
+    /// Serialize to the canonical JSON wire format.
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(|error| value_error(error.to_string()))
     }
@@ -975,6 +995,15 @@ impl PyPortfolioLossConfig {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("PortfolioLossConfig", &self.inner)
+    }
 }
 
 /// Simulated loss distribution and loss-positive VaR/expected shortfall.
@@ -991,26 +1020,31 @@ pub struct PyPortfolioLossResult {
 
 #[pymethods]
 impl PyPortfolioLossResult {
+    /// Simulated portfolio loss per path, in the ascending path order Rust produced.
     #[getter]
     fn losses(&self) -> Vec<f64> {
         self.inner.losses.clone()
     }
 
+    /// Mean simulated loss.
     #[getter]
     fn expected_loss(&self) -> f64 {
         self.inner.expected_loss
     }
 
+    /// Value at risk at `confidence`, loss-positive (larger is worse).
     #[getter]
     fn var(&self) -> f64 {
         self.inner.var
     }
 
+    /// Mean loss beyond `var`, loss-positive.
     #[getter]
     fn expected_shortfall(&self) -> f64 {
         self.inner.expected_shortfall
     }
 
+    /// Confidence level for VaR and expected shortfall, in (0, 1).
     #[getter]
     fn confidence(&self) -> f64 {
         self.inner.confidence
@@ -1037,6 +1071,15 @@ impl PyPortfolioLossResult {
         })
         .map(|inner| PyTrancheLossStatistics { inner })
         .map_err(display_to_py)
+    }
+
+    /// Primary table: the simulated loss distribution.
+    ///
+    /// Alias of :meth:`to_distribution_dataframe`. Every tabular result type
+    /// in the library answers ``to_dataframe()``; the one-row aggregate view
+    /// stays on :meth:`to_summary_dataframe`.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.to_distribution_dataframe(py)
     }
 
     /// Export the simulated loss distribution as a pandas ``DataFrame``.
@@ -1091,6 +1134,7 @@ impl PyPortfolioLossResult {
         )
     }
 
+    /// Serialize to the canonical JSON wire format.
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(|error| value_error(error.to_string()))
     }
@@ -1111,6 +1155,15 @@ impl PyPortfolioLossResult {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("PortfolioLossResult", &self.inner)
+    }
 }
 
 /// Expected loss, tail statistics, and breach probabilities for one tranche.
@@ -1127,56 +1180,67 @@ pub struct PyTrancheLossStatistics {
 
 #[pymethods]
 impl PyTrancheLossStatistics {
+    /// Attachment point as a fraction of portfolio notional.
     #[getter]
     fn attachment(&self) -> f64 {
         self.inner.attachment
     }
 
+    /// Detachment point as a fraction of portfolio notional.
     #[getter]
     fn detachment(&self) -> f64 {
         self.inner.detachment
     }
 
+    /// Tranche width in currency: `(detachment - attachment)` x portfolio notional.
     #[getter]
     fn tranche_notional(&self) -> f64 {
         self.inner.tranche_notional
     }
 
+    /// Mean tranche loss as a fraction of `tranche_notional`.
     #[getter]
     fn expected_loss_fraction(&self) -> f64 {
         self.inner.expected_loss_fraction
     }
 
+    /// Mean tranche loss in currency.
     #[getter]
     fn expected_loss_amount(&self) -> f64 {
         self.inner.expected_loss_amount
     }
 
+    /// Tranche value at risk as a fraction of `tranche_notional`.
     #[getter]
     fn var_fraction(&self) -> f64 {
         self.inner.var_fraction
     }
 
+    /// Tranche value at risk in currency, loss-positive.
     #[getter]
     fn var_amount(&self) -> f64 {
         self.inner.var_amount
     }
 
+    /// Tranche expected shortfall as a fraction of `tranche_notional`.
     #[getter]
     fn expected_shortfall_fraction(&self) -> f64 {
         self.inner.expected_shortfall_fraction
     }
 
+    /// Tranche expected shortfall in currency, loss-positive.
     #[getter]
     fn expected_shortfall_amount(&self) -> f64 {
         self.inner.expected_shortfall_amount
     }
 
+    /// Probability the tranche takes any loss at all.
     #[getter]
     fn prob_attachment_breached(&self) -> f64 {
         self.inner.prob_attachment_breached
     }
 
+    /// Probability the tranche is written down in full.
     #[getter]
     fn prob_full_writedown(&self) -> f64 {
         self.inner.prob_full_writedown
@@ -1237,6 +1301,7 @@ impl PyTrancheLossStatistics {
         )
     }
 
+    /// Serialize to the canonical JSON wire format.
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(|error| value_error(error.to_string()))
     }
@@ -1267,6 +1332,15 @@ impl PyTrancheLossStatistics {
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Identify this value in notebooks and logs.
+    ///
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names. Collections are summarised by length; use
+    /// `to_json()` or a DataFrame exit when the contents matter.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("TrancheLossStatistics", &self.inner)
     }
 }
 
@@ -1436,27 +1510,27 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let all = PyList::new(
         py,
         [
-            "CopulaSpec",
             "Copula",
-            "RecoverySpec",
-            "RecoveryModel",
-            "LatentFactorSpec",
-            "LatentFactorKind",
-            "LatentSingleFactor",
-            "LatentTwoFactor",
-            "LatentMultiFactor",
+            "CopulaSpec",
             "CorrelatedBernoulli",
             "CreditExposure",
+            "LatentFactorKind",
+            "LatentFactorSpec",
+            "LatentMultiFactor",
+            "LatentSingleFactor",
+            "LatentTwoFactor",
             "MAX_PORTFOLIO_LOSS_PATHS",
             "PortfolioLossConfig",
             "PortfolioLossResult",
+            "RecoveryModel",
+            "RecoverySpec",
             "TrancheLossStatistics",
+            "cholesky_decompose",
             "correlation_bounds",
             "joint_probabilities",
-            "validate_correlation_matrix",
             "nearest_correlation",
-            "cholesky_decompose",
             "simulate_portfolio_loss",
+            "validate_correlation_matrix",
         ],
     )?;
     m.setattr("__all__", all)?;
@@ -1466,7 +1540,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         parent,
         &m,
         "correlation",
-        "finstack_quant.finstack_quant.valuations",
+        "finstack_quant.valuations",
         crate::bindings::module_utils::ParentNameSource::Package,
     )?;
 

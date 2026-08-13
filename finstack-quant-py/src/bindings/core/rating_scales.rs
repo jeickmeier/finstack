@@ -20,9 +20,10 @@ use pyo3::types::{PyList, PyModule, PyType};
     name = "UnknownScalePolicy",
     frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct PyUnknownScalePolicy {
     /// Underlying Rust policy variant.
     pub(crate) inner: UnknownScalePolicy,
@@ -437,13 +438,13 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let all = PyList::new(
         py,
         [
-            "UnknownScalePolicy",
+            "RATING_SCALES_EXTENSION_KEY",
             "RatingLevel",
-            "ScorecardScale",
             "RatingScaleRegistry",
+            "ScorecardScale",
+            "UnknownScalePolicy",
             "embedded_registry",
             "registry_from_config",
-            "RATING_SCALES_EXTENSION_KEY",
         ],
     )?;
     m.setattr("__all__", all)?;

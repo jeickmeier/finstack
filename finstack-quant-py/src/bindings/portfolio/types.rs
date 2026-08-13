@@ -424,7 +424,11 @@ impl PyPortfolioMetrics {
         self.inner.unaggregated_metrics.clone()
     }
 
-    /// Return decoded components, total, and ordered entity breakdown by base metric.
+    /// Decoded components, total, and ordered entity breakdown by base metric.
+    ///
+    /// Despite the ``_series`` suffix (which mirrors the Rust name) this is a
+    /// plain ``list`` of tuples, not a :class:`pandas.Series`. Use
+    /// :meth:`to_dataframe` for the tabular view.
     fn metric_series(&self, py: Python<'_>, base: &str) -> PyResult<Vec<PyMetricSeriesEntry>> {
         let base = finstack_quant_valuations::metrics::MetricId::custom(base);
         self.inner

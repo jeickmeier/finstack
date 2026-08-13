@@ -675,13 +675,13 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let all = PyList::new(
         py,
         [
-            "Rate",
+            "Attributes",
             "Bps",
-            "Percentage",
             "CreditRating",
             "CurveId",
             "InstrumentId",
-            "Attributes",
+            "Percentage",
+            "Rate",
         ],
     )?;
     m.setattr("__all__", all)?;

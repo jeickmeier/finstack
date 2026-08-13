@@ -22,84 +22,130 @@ from finstack_quant.core.market_data import DiscountCurve, MarketContext
 from finstack_quant.core.money import Money
 from finstack_quant.core.table import ArrowTable
 from finstack_quant.factor_model.credit import CreditFactorModel
+from finstack_quant.portfolio import schema as schema
 from finstack_quant.scenarios import ApplicationReport
 
 __all__ = [
+    "BrinsonPeriodResult",
+    "CandidatePosition",
+    "CarinoLinkedAttribution",
+    "Constraint",
     "ContractLimitExceededError",
     "ContractValidationError",
+    "CreditVolReport",
+    "DecompositionConfig",
+    "DurationCellTable",
+    "ExcessReturnResult",
+    "FactorAssignmentReport",
+    "FactorBrinsonResult",
+    "FactorContribution",
+    "FactorContributionDelta",
+    "FactorPnlProfile",
+    "FactorRiskDecomposition",
+    "FiAttributionResult",
+    "FiCarinoLinkedResult",
+    "FiReconciliationReport",
     "FinstackError",
     "FinstackFxError",
     "FinstackOptimizationError",
     "FinstackValuationError",
+    "FxError",
+    "GridAttributionResult",
+    "GridCarinoLinkedResult",
+    "Inequality",
     "InstrumentArtifactCache",
+    "LevelVolContribution",
+    "LinkedReturn",
     "MalformedContractSchemaError",
     "MaterializationReport",
+    "MetricExpr",
     "MissingContractVersionError",
+    "MissingMetricPolicy",
+    "Objective",
+    "OptimizationError",
+    "OptimizationStatus",
+    "PerPositionMetric",
     "Portfolio",
     "PortfolioAttribution",
     "PortfolioCashflows",
     "PortfolioError",
     "PortfolioMetrics",
+    "PortfolioOptimizationResult",
+    "PortfolioOptimizationSpec",
     "PortfolioResult",
     "PortfolioValuation",
+    "PositionAssignment",
+    "PositionBudgetEntry",
+    "PositionEsContribution",
+    "PositionFactorContribution",
+    "PositionFilter",
+    "PositionResidualContribution",
+    "PositionRiskDecomposition",
+    "PositionVarContribution",
+    "PositionVolContribution",
+    "ReplayResult",
+    "RiskBudgetResult",
+    "RiskDecomposition",
     "ScenarioPnl",
     "ScenarioPnlBatchItem",
+    "SensitivityMatrix",
+    "StressAttribution",
+    "StressPositionEntry",
+    "StressResult",
+    "TailScenarioBreakdown",
+    "TradeDirection",
+    "TradeSpec",
+    "TradeType",
+    "TradeUniverse",
+    "UnmatchedEntry",
     "UnsupportedContractVersionError",
-    "BrinsonPeriodResult",
-    "CarinoLinkedAttribution",
-    "DurationCellTable",
-    "ExcessReturnResult",
-    "FactorBrinsonResult",
-    "FiAttributionResult",
-    "FiCarinoLinkedResult",
-    "FiReconciliationReport",
-    "GridAttributionResult",
-    "GridCarinoLinkedResult",
-    "LinkedReturn",
-    "ReplayResult",
+    "ValuationError",
+    "VolHorizon",
     "WeightAllocationResult",
-    "aggregate_metrics_json",
-    "allocate_weights_json",
-    "brinson_fachler_json",
-    "campisi_attribution_json",
-    "campisi_carino_link_from_snapshots_json",
-    "campisi_carino_link_json",
-    "campisi_reconciliation_check_json",
-    "carino_link_json",
-    "cell_returns_from_curves_json",
-    "cell_returns_from_reference_json",
-    "excess_returns_json",
-    "factor_brinson_attribution_json",
-    "grid_attribution_json",
-    "grid_carino_link_json",
-    "replay_portfolio_json",
-    "scenario_pnl_batch_json",
-    "twrr_linked_json",
+    "WeightingScheme",
+    "WhatIfResult",
     "aggregate_full_cashflows",
     "aggregate_metrics",
+    "aggregate_metrics_json",
+    "allocate_weights",
+    "allocate_weights_json",
     "almgren_chriss_impact",
     "amihud_illiquidity",
     "apply_scenario_and_revalue",
     "attribute_portfolio_pnl",
-    "allocate_weights",
     "brinson_fachler",
+    "brinson_fachler_json",
     "build_credit_vol_report",
     "build_portfolio_from_spec",
     "build_stress_attribution",
     "campisi_attribution",
+    "campisi_attribution_json",
     "campisi_carino_link",
     "campisi_carino_link_from_snapshots",
+    "campisi_carino_link_from_snapshots_json",
+    "campisi_carino_link_json",
     "campisi_reconciliation_check",
+    "campisi_reconciliation_check_json",
     "carino_link",
+    "carino_link_json",
     "cell_returns_from_curves",
+    "cell_returns_from_curves_json",
     "cell_returns_from_reference",
+    "cell_returns_from_reference_json",
+    "compute_factor_sensitivities",
+    "compute_pnl_profiles",
     "days_to_liquidate",
+    "decompose_factor_risk",
     "evaluate_risk_budget",
     "excess_returns",
+    "excess_returns_json",
     "factor_brinson_attribution",
+    "factor_brinson_attribution_json",
     "factor_stress",
     "grid_attribution",
+    "grid_attribution_json",
     "grid_carino_link",
+    "grid_carino_link_json",
     "historical_var_decomposition",
     "kyle_lambda",
     "liquidity_tier",
@@ -111,64 +157,20 @@ __all__ = [
     "parse_portfolio_spec",
     "portfolio_result_get_metric",
     "portfolio_result_total_value",
-    "replay_portfolio",
+    "position_component_var",
     "position_what_if",
+    "replay_portfolio",
+    "replay_portfolio_json",
     "roll_effective_spread",
     "scenario_pnl",
     "scenario_pnl_batch",
+    "scenario_pnl_batch_json",
     "schema",
     "twrr_linked",
+    "twrr_linked_json",
     "twrr_modified_dietz",
     "validate_allocation_json",
     "value_portfolio",
-    # factor_model typed result classes
-    "FactorContribution",
-    "PositionFactorContribution",
-    "PositionResidualContribution",
-    "RiskDecomposition",
-    "FactorRiskDecomposition",
-    "SensitivityMatrix",
-    "FactorPnlProfile",
-    "compute_factor_sensitivities",
-    "compute_pnl_profiles",
-    "decompose_factor_risk",
-    "PositionVarContribution",
-    "PositionEsContribution",
-    "PositionRiskDecomposition",
-    "PositionBudgetEntry",
-    "RiskBudgetResult",
-    "FactorContributionDelta",
-    "WhatIfResult",
-    "StressResult",
-    "StressPositionEntry",
-    "TailScenarioBreakdown",
-    "StressAttribution",
-    "PositionAssignment",
-    "UnmatchedEntry",
-    "FactorAssignmentReport",
-    "LevelVolContribution",
-    "PositionVolContribution",
-    "CreditVolReport",
-    "VolHorizon",
-    "DecompositionConfig",
-    "position_component_var",
-    # optimization spec/result classes
-    "WeightingScheme",
-    "MissingMetricPolicy",
-    "Inequality",
-    "TradeDirection",
-    "TradeType",
-    "PerPositionMetric",
-    "PositionFilter",
-    "MetricExpr",
-    "Objective",
-    "Constraint",
-    "CandidatePosition",
-    "TradeUniverse",
-    "OptimizationStatus",
-    "TradeSpec",
-    "PortfolioOptimizationSpec",
-    "PortfolioOptimizationResult",
 ]
 
 class FinstackError(ValueError):
@@ -207,38 +209,47 @@ class PortfolioError(FinstackError):
     'invalid portfolio'
     """
 
-class FinstackValuationError(PortfolioError):
+class ValuationError(PortfolioError):
     """
     Portfolio valuation failure.
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import FinstackValuationError
-    >>> str(FinstackValuationError("valuation failed"))
+    >>> from finstack_quant.portfolio import ValuationError
+    >>> str(ValuationError("valuation failed"))
     'valuation failed'
     """
 
-class FinstackFxError(PortfolioError):
+class FxError(PortfolioError):
     """
     Portfolio FX conversion or market-data failure.
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import FinstackFxError
-    >>> str(FinstackFxError("missing FX rate"))
+    >>> from finstack_quant.portfolio import FxError
+    >>> str(FxError("missing FX rate"))
     'missing FX rate'
     """
 
-class FinstackOptimizationError(PortfolioError):
+class OptimizationError(PortfolioError):
     """
     Portfolio optimization failure.
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import FinstackOptimizationError
-    >>> str(FinstackOptimizationError("infeasible"))
+    >>> from finstack_quant.portfolio import OptimizationError
+    >>> str(OptimizationError("infeasible"))
     'infeasible'
     """
+
+FinstackValuationError = ValuationError
+"""Deprecated alias for :class:`ValuationError`; the same class object."""
+
+FinstackFxError = FxError
+"""Deprecated alias for :class:`FxError`; the same class object."""
+
+FinstackOptimizationError = OptimizationError
+"""Deprecated alias for :class:`OptimizationError`; the same class object."""
 
 class ContractValidationError(FinstackError):
     """
@@ -1525,7 +1536,7 @@ class PortfolioCashflows:
         ValueError
             If the market JSON, currency, or date is invalid, or monetary
             aggregation cannot represent the result.
-        FinstackFxError
+        FxError
             If an FX rate required for base-currency conversion is unavailable.
         """
         ...
@@ -2454,7 +2465,7 @@ def aggregate_metrics(
     PortfolioError
         If the valuation base currency or date is inconsistent with the
         requested aggregation context.
-    FinstackFxError
+    FxError
         If an FX rate required for base-currency aggregation is unavailable.
 
     Examples
@@ -2506,7 +2517,7 @@ def aggregate_metrics_json(
         If supplied JSON, ``base_currency``, or ``as_of`` is invalid.
     PortfolioError
         If the valuation is inconsistent with the aggregation context.
-    FinstackFxError
+    FxError
         If a required FX rate is unavailable.
 
     Examples
@@ -3072,7 +3083,7 @@ def allocate_weights_json(spec_json: str) -> str:
     """
     ...
 
-def validate_allocation_json(spec_json: str) -> None:
+def validate_allocation_json(spec_json: str) -> str:
     """
     Validate a strategy allocation JSON specification.
 
@@ -3084,6 +3095,11 @@ def validate_allocation_json(spec_json: str) -> None:
     spec_json : str
         JSON-serialized allocation specification.
 
+    Returns
+    -------
+    str
+        Canonical compact JSON of the accepted specification.
+
     Raises
     ------
     ValueError
@@ -3091,10 +3107,11 @@ def validate_allocation_json(spec_json: str) -> None:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.portfolio import validate_allocation_json
     >>> spec = '{"scheme":"equal","total_capital":1000.0,"strategies":[{"id":"a"},{"id":"b"}]}'
-    >>> validate_allocation_json(spec) is None
-    True
+    >>> json.loads(validate_allocation_json(spec))["scheme"]
+    'equal'
     """
     ...
 
@@ -6308,8 +6325,8 @@ class GridAttributionResult:
         Columns: ``cell``, ``portfolio_weight``, ``benchmark_weight``, ``benchmark_cell_return``, ``curve_effect``. The schema is pinned, so an empty result keeps the
         same dtypes as a populated one.
         The primary frame is the duration-cell axis; the two (cell,
-        sector) tables come from :meth:`sector_effects_to_dataframe` and
-        :meth:`selection_effects_to_dataframe`.
+        sector) tables come from :meth:`to_sector_effects_dataframe` and
+        :meth:`to_selection_effects_dataframe`.
 
         Returns
         -------
@@ -6323,7 +6340,7 @@ class GridAttributionResult:
         """
         ...
 
-    def sector_effects_to_dataframe(self) -> pd.DataFrame:
+    def to_sector_effects_dataframe(self) -> pd.DataFrame:
         """
         Per-(cell, sector) allocation effects as a pandas DataFrame.
 
@@ -6342,7 +6359,7 @@ class GridAttributionResult:
         """
         ...
 
-    def selection_effects_to_dataframe(self) -> pd.DataFrame:
+    def to_selection_effects_dataframe(self) -> pd.DataFrame:
         """
         Per-(cell, sector) selection effects as a pandas DataFrame.
 
@@ -6928,7 +6945,7 @@ class FactorBrinsonResult:
         Columns: ``factor``, ``active_loading``, ``factor_return``, ``contribution``. The schema is pinned, so an empty result keeps the
         same dtypes as a populated one.
         The primary frame is the factor axis; the per-asset selection
-        breakdown comes from :meth:`asset_contributions_to_dataframe`.
+        breakdown comes from :meth:`to_asset_contributions_dataframe`.
 
         Returns
         -------
@@ -6942,7 +6959,7 @@ class FactorBrinsonResult:
         """
         ...
 
-    def asset_contributions_to_dataframe(self) -> pd.DataFrame:
+    def to_asset_contributions_dataframe(self) -> pd.DataFrame:
         """
         Per-asset specific contributions as a pandas DataFrame.
 
@@ -7901,6 +7918,29 @@ class RiskDecomposition:
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Primary table: the factor-level risk decomposition.
+
+        Alias of :meth:`to_factor_dataframe`. Every tabular result type in the library
+        answers ``to_dataframe()``; the position × factor view stays on
+        :meth:`to_position_factor_dataframe`.
+
+        Returns
+        -------
+        pd.DataFrame
+            The same frame :meth:`to_factor_dataframe` returns.
+
+        Examples
+        --------
+        >>> frame = result.to_dataframe()  # doctest: +SKIP
+
+        Notes
+        -----
+        This alias does not raise; it delegates to the method named above.
         """
         ...
 
@@ -10231,6 +10271,29 @@ class CreditVolReport:
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Primary table: the per-hierarchy-level rollup.
+
+        Alias of :meth:`to_level_dataframe`. Every tabular result type in the library
+        answers ``to_dataframe()``; the optional per-position breakdown stays on
+        :meth:`to_position_dataframe`.
+
+        Returns
+        -------
+        pd.DataFrame
+            The same frame :meth:`to_level_dataframe` returns.
+
+        Examples
+        --------
+        >>> frame = result.to_dataframe()  # doctest: +SKIP
+
+        Notes
+        -----
+        This alias does not raise; it delegates to the method named above.
         """
         ...
 
@@ -13606,7 +13669,10 @@ class PortfolioOptimizationSpec:
 
 class PortfolioOptimizationResult:
     """
-    Result of an optimization run (Serialize-only; no ``from_json``).
+    Result of an optimization run.
+
+    Round-trips through ``to_json`` / ``from_json`` and therefore supports
+    ``pickle``, ``copy.deepcopy``, and ``multiprocessing``.
 
     Examples
     --------
@@ -13617,6 +13683,33 @@ class PortfolioOptimizationResult:
     ...     print(exc)
     cannot create 'finstack_quant.portfolio.PortfolioOptimizationResult' instances
     """
+
+    @staticmethod
+    def from_json(json_str: str) -> PortfolioOptimizationResult:
+        """
+        Rebuild a `PortfolioOptimizationResult` from ``to_json`` output.
+
+        Parameters
+        ----------
+        json_str : str
+            Canonical JSON produced by :meth:`to_json`.
+
+        Returns
+        -------
+        PortfolioOptimizationResult
+            The reconstructed optimization result, field for field.
+
+        Raises
+        ------
+        ValueError
+            If ``json_str`` is malformed or does not match the wire schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import PortfolioOptimizationResult
+        >>> restored = PortfolioOptimizationResult.from_json(result.to_json())  # doctest: +SKIP
+        """
+        ...
 
     def to_json(self) -> str:
         """
@@ -13910,11 +14003,11 @@ def optimize_portfolio(
         If supplied market JSON is malformed or schema-incompatible.
     PortfolioError
         If the embedded portfolio specification cannot be constructed.
-    FinstackValuationError
+    ValuationError
         If a required position metric cannot be valued.
-    FinstackFxError
+    FxError
         If a required base-currency conversion is unavailable.
-    FinstackOptimizationError
+    OptimizationError
         If the optimization problem or solver fails.
 
     Examples
@@ -14426,6 +14519,29 @@ class FactorRiskDecomposition:
         Notes
         -----
         This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Primary table: the factor-level risk decomposition.
+
+        Alias of :meth:`to_factor_dataframe`. Every tabular result type in the library
+        answers ``to_dataframe()``; the position-level views stay on :meth:`to_position_factor_dataframe`
+        and :meth:`to_position_residual_dataframe`.
+
+        Returns
+        -------
+        pd.DataFrame
+            The same frame :meth:`to_factor_dataframe` returns.
+
+        Examples
+        --------
+        >>> frame = result.to_dataframe()  # doctest: +SKIP
+
+        Notes
+        -----
+        This alias does not raise; it delegates to the method named above.
         """
         ...
 

@@ -22,46 +22,55 @@ pub struct PyExchangeOfferAnalysis {
 
 #[pymethods]
 impl PyExchangeOfferAnalysis {
+    /// Which exchange structure this analyses.
     #[getter]
     fn exchange_type(&self) -> String {
         self.inner.exchange_type.as_str().to_string()
     }
 
+    /// Net present value of the existing instrument.
     #[getter]
     fn old_npv(&self) -> f64 {
         self.inner.old_npv
     }
 
+    /// Net present value of the instrument offered in exchange.
     #[getter]
     fn new_npv(&self) -> f64 {
         self.inner.new_npv
     }
 
+    /// Fee paid to holders for consenting.
     #[getter]
     fn consent_fee(&self) -> f64 {
         self.inner.consent_fee
     }
 
+    /// Value of any equity offered alongside the new instrument.
     #[getter]
     fn equity_sweetener_value(&self) -> f64 {
         self.inner.equity_sweetener_value
     }
 
+    /// Total consideration offered per unit tendered.
     #[getter]
     fn tender_total(&self) -> f64 {
         self.inner.tender_total
     }
 
+    /// `new_npv - old_npv`; positive means the holder gains.
     #[getter]
     fn delta_npv(&self) -> f64 {
         self.inner.delta_npv
     }
 
+    /// Recovery rate at which tendering and holding are worth the same.
     #[getter]
     fn breakeven_recovery(&self) -> f64 {
         self.inner.breakeven_recovery
     }
 
+    /// Whether `delta_npv` favours tendering.
     #[getter]
     fn tender_recommended(&self) -> bool {
         self.inner.tender_recommended
@@ -145,26 +154,31 @@ pub struct PyLeverageImpact {
 
 #[pymethods]
 impl PyLeverageImpact {
+    /// Total debt before the transaction.
     #[getter]
     fn pre_total_debt(&self) -> f64 {
         self.inner.pre_total_debt
     }
 
+    /// Total debt after the transaction.
     #[getter]
     fn post_total_debt(&self) -> f64 {
         self.inner.post_total_debt
     }
 
+    /// Leverage multiple before the transaction.
     #[getter]
     fn pre_leverage(&self) -> f64 {
         self.inner.pre_leverage
     }
 
+    /// Leverage multiple after the transaction.
     #[getter]
     fn post_leverage(&self) -> f64 {
         self.inner.post_leverage
     }
 
+    /// `pre_leverage - post_leverage`; negative when the deal levers up.
     #[getter]
     fn leverage_reduction(&self) -> f64 {
         self.inner.leverage_reduction
@@ -192,21 +206,25 @@ pub struct PyLmeAnalysis {
 
 #[pymethods]
 impl PyLmeAnalysis {
+    /// Which liability-management exercise this analyses.
     #[getter]
     fn lme_type(&self) -> String {
         self.inner.lme_type.as_str().to_string()
     }
 
+    /// Cash cost of the exercise, including fees.
     #[getter]
     fn cost(&self) -> f64 {
         self.inner.cost
     }
 
+    /// Face amount retired by the exercise.
     #[getter]
     fn notional_reduction(&self) -> f64 {
         self.inner.notional_reduction
     }
 
+    /// Value captured by retiring debt below par.
     #[getter]
     fn discount_capture(&self) -> f64 {
         self.inner.discount_capture
@@ -225,6 +243,7 @@ impl PyLmeAnalysis {
         self.inner.remaining_holder_impact_pct
     }
 
+    /// Leverage before and after the exercise.
     #[getter]
     fn leverage_impact(&self) -> Option<PyLeverageImpact> {
         self.inner

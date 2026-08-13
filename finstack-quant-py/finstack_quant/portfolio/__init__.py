@@ -59,21 +59,20 @@ Examples:
 ('empty', 0)
 """
 
-from __future__ import annotations
-
-import contextlib
-import sys
+import sys as _sys
 
 from finstack_quant.finstack_quant import portfolio as _portfolio
 
-with contextlib.suppress(NameError):
-    del annotations
-
 FinstackError = _portfolio.FinstackError
 PortfolioError = _portfolio.PortfolioError
-FinstackValuationError = _portfolio.FinstackValuationError
-FinstackFxError = _portfolio.FinstackFxError
-FinstackOptimizationError = _portfolio.FinstackOptimizationError
+ValuationError = _portfolio.ValuationError
+FxError = _portfolio.FxError
+OptimizationError = _portfolio.OptimizationError
+# Deprecated aliases for the pre-rename names; the same class objects, so
+# `except FinstackFxError` still catches what it always did.
+FinstackValuationError = ValuationError
+FinstackFxError = FxError
+FinstackOptimizationError = OptimizationError
 ContractValidationError = _portfolio.ContractValidationError
 UnsupportedContractVersionError = _portfolio.UnsupportedContractVersionError
 MissingContractVersionError = _portfolio.MissingContractVersionError
@@ -222,8 +221,8 @@ schema = _portfolio.schema
 
 # `schema` is a real submodule, so `import finstack_quant.portfolio.schema`
 # must work as well as attribute access.
-if "finstack_quant.portfolio.schema" not in sys.modules:
-    sys.modules["finstack_quant.portfolio.schema"] = schema
+if "finstack_quant.portfolio.schema" not in _sys.modules:
+    _sys.modules["finstack_quant.portfolio.schema"] = schema
 
 __all__: list[str] = [
     "BrinsonPeriodResult",
@@ -249,6 +248,7 @@ __all__: list[str] = [
     "FinstackFxError",
     "FinstackOptimizationError",
     "FinstackValuationError",
+    "FxError",
     "GridAttributionResult",
     "GridCarinoLinkedResult",
     "Inequality",
@@ -261,6 +261,7 @@ __all__: list[str] = [
     "MissingContractVersionError",
     "MissingMetricPolicy",
     "Objective",
+    "OptimizationError",
     "OptimizationStatus",
     "PerPositionMetric",
     "Portfolio",
@@ -297,6 +298,7 @@ __all__: list[str] = [
     "TradeUniverse",
     "UnmatchedEntry",
     "UnsupportedContractVersionError",
+    "ValuationError",
     "VolHorizon",
     "WeightAllocationResult",
     "WeightingScheme",

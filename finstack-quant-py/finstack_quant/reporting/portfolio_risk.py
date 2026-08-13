@@ -21,6 +21,11 @@ from .document import KPI, Section, TearSheet, _resolve_sections
 from .statements_common import json_or_dict
 from .theme import INSTITUTIONAL, Theme
 
+__all__ = [
+    "ALL_SECTIONS",
+    "portfolio_risk_tearsheet",
+]
+
 ALL_SECTIONS = ["contributions", "es", "budget"]
 _TOP_N = 12
 

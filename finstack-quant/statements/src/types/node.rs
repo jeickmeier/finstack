@@ -205,7 +205,7 @@ impl NodeSpec {
 /// - **Value**: Only explicit values (actuals, assumptions)
 /// - **Calculated**: Only formula-derived
 /// - **Mixed**: Value OR Forecast OR Formula (precedence: Value > Forecast > Formula)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum NodeType {
     /// Only explicit values
@@ -402,7 +402,7 @@ impl ForecastSpec {
 }
 
 /// Available forecast methods.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ForecastMethod {
     /// Carry last value forward

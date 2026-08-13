@@ -140,14 +140,14 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let all = PyList::new(
         py,
         [
+            "CholeskyError",
+            "DIAGONAL_TOLERANCE",
+            "SINGULAR_THRESHOLD",
+            "SYMMETRY_TOLERANCE",
             "apply_lower_triangular",
             "cholesky_decomposition",
             "cholesky_solve",
             "validate_correlation_matrix",
-            "CholeskyError",
-            "SINGULAR_THRESHOLD",
-            "DIAGONAL_TOLERANCE",
-            "SYMMETRY_TOLERANCE",
         ],
     )?;
     m.setattr("__all__", all)?;

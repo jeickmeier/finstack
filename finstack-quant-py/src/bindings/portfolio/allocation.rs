@@ -143,9 +143,14 @@ fn allocate_weights_json(py: Python<'_>, spec_json: &str) -> PyResult<String> {
 /// ----------
 /// spec_json : str
 ///     JSON-serialized ``WeightAllocationSpec``.
+///
+/// Returns
+/// -------
+/// str
+///     Canonical compact JSON.
 #[pyfunction]
 #[pyo3(text_signature = "(spec_json)")]
-fn validate_allocation_json(py: Python<'_>, spec_json: &str) -> PyResult<()> {
+fn validate_allocation_json(py: Python<'_>, spec_json: &str) -> PyResult<String> {
     let spec_json = spec_json.to_owned();
     py.detach(move || finstack_quant_portfolio::validate_allocation_json(&spec_json))
         .map_err(portfolio_to_py)

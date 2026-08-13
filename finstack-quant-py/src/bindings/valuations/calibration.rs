@@ -273,20 +273,20 @@ impl PyCalibrationResult {
     /// execution order.
     ///
     /// This is the default export and the same table as
-    /// ``report_to_dataframe`` — both call one implementation, so the two
+    /// ``to_report_dataframe`` — both call one implementation, so the two
     /// cannot drift apart. The plan-level roll-ups (``success``,
     /// ``iterations``, ``max_residual``, ``rmse``) are getters on the result
     /// and are not repeated per row.
     #[pyo3(text_signature = "($self)")]
     fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        self.report_to_dataframe(py)
+        self.to_report_dataframe(py)
     }
 
     /// Per-step summary as a pandas ``DataFrame``.
     ///
     /// Columns: ``step_id``, ``success``, ``iterations``, ``max_residual``,
     /// ``rmse``, ``convergence_reason``. Identical to ``to_dataframe``.
-    fn report_to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    fn to_report_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let n = self.inner.result.step_reports.len();
         let mut ids: Vec<String> = Vec::with_capacity(n);
         let mut successes: Vec<bool> = Vec::with_capacity(n);

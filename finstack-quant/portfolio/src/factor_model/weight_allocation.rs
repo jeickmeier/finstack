@@ -132,7 +132,7 @@ pub fn allocate_weights_json(spec_json: &str) -> Result<String> {
         .map_err(|err| Error::InvalidInput(format!("failed to serialize allocation result: {err}")))
 }
 
-/// Validate a strategy allocation JSON specification.
+/// Validate a strategy allocation JSON specification and return its canonical form.
 ///
 /// # Errors
 ///
@@ -141,10 +141,17 @@ pub fn allocate_weights_json(spec_json: &str) -> Result<String> {
 /// # Arguments
 ///
 /// * `spec_json` - UTF-8 JSON [`WeightAllocationSpec`] to parse and execute
-///   solely for validation; no allocation result is serialized on success.
-pub fn validate_allocation_json(spec_json: &str) -> Result<()> {
+///   solely for validation; the allocation result itself is discarded.
+///
+/// # Returns
+///
+/// The canonical compact JSON re-serialization of the accepted spec.
+pub fn validate_allocation_json(spec_json: &str) -> Result<String> {
     let spec = parse_allocation_spec(spec_json)?;
-    spec.execute().map(|_| ())
+    spec.execute()?;
+    serde_json::to_string(&spec).map_err(|err| {
+        Error::InvalidInput(format!("failed to canonicalize allocation spec: {err}"))
+    })
 }
 
 fn default_money_decimal_places() -> u32 {

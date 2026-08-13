@@ -906,3 +906,32 @@ mod computation {
         }
     }
 }
+
+fn hash_of<T: std::hash::Hash>(value: &T) -> u64 {
+    use std::hash::Hasher;
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    value.hash(&mut hasher);
+    hasher.finish()
+}
+
+#[test]
+fn percent_signed_zero_hashes_equal() {
+    let pos = AmortizationSpec::PercentOfOriginalPerPeriod { pct: 0.0 };
+    let neg = AmortizationSpec::PercentOfOriginalPerPeriod { pct: -0.0 };
+    assert_eq!(pos, neg);
+    assert_eq!(hash_of(&pos), hash_of(&neg));
+}
+
+#[test]
+fn linear_to_decimal_scale_hashes_equal() {
+    let pos = AmortizationSpec::LinearTo {
+        final_notional: Money::from_decimal(rust_decimal::Decimal::new(10, 1), Currency::USD)
+            .expect("1.0 is representable"),
+    };
+    let neg = AmortizationSpec::LinearTo {
+        final_notional: Money::from_decimal(rust_decimal::Decimal::new(100, 2), Currency::USD)
+            .expect("1.00 is representable"),
+    };
+    assert_eq!(pos, neg);
+    assert_eq!(hash_of(&pos), hash_of(&neg));
+}

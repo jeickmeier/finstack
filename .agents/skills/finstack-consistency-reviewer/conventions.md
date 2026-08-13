@@ -141,7 +141,8 @@ languages implement; deviations from it are findings, not style choices.
 | `_json` / `*Json` suffix means *returns* a JSON string | `allocate_weights_json` | `accrued_interest_json` returning `f64` |
 | Non-JSON text returns say so | `plSummaryReportText` | `plSummaryReport` returning prose |
 | One primary frame per class | `to_dataframe()` | `to_pandas_long` / `to_pandas_wide` |
-| Multi-table classes may add secondaries | `to_dataframe()` + `returns_to_dataframe()` | only `<x>_to_dataframe`, no plain one |
+| Multi-table classes may add secondaries | `to_dataframe()` + `to_returns_dataframe()` | secondaries with no plain `to_dataframe()` |
+| Secondary frames read `to_<thing>_dataframe` | `to_trade_dataframe`, `to_returns_dataframe` | `<thing>_to_dataframe` (sorts away from `to_dataframe`) |
 | Orientation is a parameter, not a method | `to_dataframe(orient="wide")` | `to_pandas_wide()` |
 
 ### Type suffix policy

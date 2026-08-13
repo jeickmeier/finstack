@@ -17,4 +17,8 @@ from finstack_quant.core.market_data import FxConversionPolicy as FxConversionPo
 from finstack_quant.core.market_data import FxMatrix as FxMatrix
 from finstack_quant.core.market_data import FxRateResult as FxRateResult
 
-__all__ = ["FxConversionPolicy", "FxRateResult", "FxMatrix"]
+__all__ = [
+    "FxConversionPolicy",
+    "FxMatrix",
+    "FxRateResult",
+]
