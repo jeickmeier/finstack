@@ -3,7 +3,13 @@
 //! Every binding submodule needs to:
 //!
 //! 1. Call `parent.add_submodule(&m)?` so attribute access works.
-//! 2. Set `m.__package__` to the fully-qualified dotted path.
+//! 2. Set `m.__name__` **and** `m.__package__` to the fully-qualified dotted
+//!    path. Both, not one: PyO3 leaves `__name__` at the bare name the module
+//!    was constructed with, so setting only `__package__` yields
+//!    `__name__ == "dates"` beside `__package__ == "finstack_quant.core.dates"`
+//!    — which satisfies neither CPython invariant and makes
+//!    `logging.getLogger(mod.__name__)`, `inspect.getmodule`, and `help()`
+//!    name a module that does not exist.
 //! 3. Insert `m` into `sys.modules` under the qualified name so `import
 //!    finstack_quant.x.y` resolves correctly (matters for re-export shims, the
 //!    importlib machinery, and tools like `inspect.getmodule`).
@@ -85,6 +91,7 @@ pub(crate) fn register_submodule_at(
     qual: &str,
 ) -> PyResult<()> {
     parent.add_submodule(submodule)?;
+    submodule.setattr("__name__", qual)?;
     submodule.setattr("__package__", qual)?;
     let sys = PyModule::import(py, "sys")?;
     sys.getattr("modules")?.set_item(qual, submodule)?;

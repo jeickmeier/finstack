@@ -378,7 +378,7 @@ fn register_instruments(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResul
         parent,
         &m,
         "instruments",
-        "finstack_quant.finstack_quant.valuations",
+        "finstack_quant.valuations",
     )?;
     m.setattr(
         "__doc__",
@@ -470,7 +470,7 @@ fn register_models(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()>
         parent,
         &m,
         "models",
-        "finstack_quant.finstack_quant.valuations",
+        "finstack_quant.valuations",
     )?;
     m.setattr("__doc__", "Pricing model wrappers for valuation workflows.")?;
 

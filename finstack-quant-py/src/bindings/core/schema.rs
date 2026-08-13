@@ -29,7 +29,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         parent,
         &m,
         "schema",
-        "finstack_quant.finstack_quant.core",
+        "finstack_quant.core",
         crate::bindings::module_utils::ParentNameSource::Package,
     )?;
 

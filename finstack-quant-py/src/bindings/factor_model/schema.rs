@@ -194,7 +194,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         parent,
         &m,
         "schema",
-        "finstack_quant.finstack_quant.factor_model",
+        "finstack_quant.factor_model",
         crate::bindings::module_utils::ParentNameSource::Package,
     )?;
 
