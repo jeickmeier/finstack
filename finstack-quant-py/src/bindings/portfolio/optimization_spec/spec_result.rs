@@ -576,7 +576,12 @@ impl PyPortfolioOptimizationResult {
             .binding_constraints
             .iter()
             .map(|name| {
-                let slack = self.inner.constraint_slacks.get(name).copied().unwrap_or(0.0);
+                let slack = self
+                    .inner
+                    .constraint_slacks
+                    .get(name)
+                    .copied()
+                    .unwrap_or(0.0);
                 (name.clone(), slack)
             })
             .collect()

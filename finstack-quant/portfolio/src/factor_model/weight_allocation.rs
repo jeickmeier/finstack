@@ -149,8 +149,9 @@ pub fn allocate_weights_json(spec_json: &str) -> Result<String> {
 pub fn validate_allocation_json(spec_json: &str) -> Result<String> {
     let spec = parse_allocation_spec(spec_json)?;
     spec.execute()?;
-    serde_json::to_string(&spec)
-        .map_err(|err| Error::InvalidInput(format!("failed to canonicalize allocation spec: {err}")))
+    serde_json::to_string(&spec).map_err(|err| {
+        Error::InvalidInput(format!("failed to canonicalize allocation spec: {err}"))
+    })
 }
 
 fn default_money_decimal_places() -> u32 {

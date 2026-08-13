@@ -908,7 +908,7 @@ mod computation {
 }
 
 fn hash_of<T: std::hash::Hash>(value: &T) -> u64 {
-    use std::hash::{Hash, Hasher};
+    use std::hash::Hasher;
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     value.hash(&mut hasher);
     hasher.finish()

@@ -23,9 +23,15 @@ def test_table_module_exports_only_arrow_table() -> None:
 
 
 def test_table_module_reports_qualified_package() -> None:
-    """The submodule is registered under the `finstack_quant.core` package."""
+    """The submodule is registered under the `finstack_quant.core` package.
+
+    `__name__` and `__package__` must agree: a compiled submodule that reports
+    a bare `__name__` beside a qualified `__package__` satisfies neither
+    CPython invariant, and `logging.getLogger(mod.__name__)` then names a
+    module that does not exist.
+    """
     assert table_module.__package__ == "finstack_quant.core.table"
-    assert table_module.__name__ == "table"
+    assert table_module.__name__ == "finstack_quant.core.table"
 
 
 def test_arrow_table_has_expected_methods() -> None:

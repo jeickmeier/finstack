@@ -1465,6 +1465,10 @@ class FinancialModelSpec:
         >>> _ = builder.periods("2025Q1..Q1")
         >>> builder.build().id
         'demo'
+
+        Notes
+        -----
+        This constructor does not raise; validation happens in ``build()``.
         """
         ...
 
@@ -1705,6 +1709,10 @@ class ModelBuilder:
         >>> _ = builder.periods("2025Q1..Q1")
         >>> builder.build().id
         'demo'
+
+        Notes
+        -----
+        This constructor does not raise; validation happens in ``build()``.
         """
         ...
 

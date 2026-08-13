@@ -61,29 +61,29 @@ public = ["get", "index", "validate"]
 [crates.core.market_data]
 python_package = "finstack_quant.core.market_data"
 public = [
-    "curves",
-    "fx",
-    "context",
-    "scalars",
-    "dtsm",
-    "arbitrage",
     "BaseCorrelationCurve",
     "CreditIndexData",
     "DiscountCurve",
     "ForwardCurve",
+    "FxConversionPolicy",
     "FxDeltaVolSurface",
+    "FxMatrix",
+    "FxRateResult",
     "HazardCurve",
     "InflationCurve",
-    "PriceCurve",
-    "VolSurface",
-    "VolCube",
-    "VolatilityIndexCurve",
-    "FxConversionPolicy",
-    "FxRateResult",
-    "FxMatrix",
-    "ScalarTimeSeries",
     "InflationIndex",
     "MarketContext",
+    "PriceCurve",
+    "ScalarTimeSeries",
+    "VolCube",
+    "VolSurface",
+    "VolatilityIndexCurve",
+    "arbitrage",
+    "context",
+    "curves",
+    "dtsm",
+    "fx",
+    "scalars",
 ]
 
 # Symbol-level contracts for every exposed core submodule. These are checked
@@ -711,6 +711,7 @@ calibration  = { python = "finstack_quant.valuations",              status = "fl
 correlation  = { python = "finstack_quant.valuations.correlation",  status = "exists", note = "Former standalone finstack-correlation crate; nested under valuations" }
 credit_derivatives = { python = "finstack_quant.valuations.credit_derivatives", status = "exists", note = "CDS-family example-payload factories; mirrors WASM valuations.creditDerivatives" }
 schema       = { python = "finstack_quant.valuations.schema",       status = "exists", note = "Compiled-in JSON Schema accessors and envelope/type validators; no WASM twin" }
+envelope     = { python = "finstack_quant.valuations.envelope",     status = "exists", note = "Pure-Python typing aid: the CalibrationEnvelope alias. Rust owns envelope validation and the versioned schema, so there is no Rust or WASM twin" }
 # Rust-only infrastructure modules, listed for completeness so the module
 # inventory covers the whole crate root. None is surfaced as a host namespace.
 constants    = { python = "finstack_quant.valuations.constants",    status = "missing", note = "Rust-only numeric/convention constants; hosts see the values through APIs that consume them (e.g. theta_days defaults), not as a namespace" }
@@ -1546,6 +1547,9 @@ public = [
     "FiCarinoLinkedResult",
     "FiReconciliationReport",
     "FinstackError",
+    "FinstackFxError",
+    "FinstackOptimizationError",
+    "FinstackValuationError",
     "FxError",
     "OptimizationError",
     "ValuationError",
@@ -1786,6 +1790,9 @@ python_only = [
   "FactorPnlProfile",
   "FactorRiskDecomposition",
   "FinstackError",
+  "FinstackFxError",
+  "FinstackOptimizationError",
+  "FinstackValuationError",
   "FxError",
   "OptimizationError",
   "ValuationError",

@@ -8,7 +8,6 @@ Examples:
 3
 """
 
-
 from finstack_quant.finstack_quant import covenants as _covenants
 
 CovenantReport = _covenants.CovenantReport

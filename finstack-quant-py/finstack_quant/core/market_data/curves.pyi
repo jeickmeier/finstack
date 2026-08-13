@@ -31,7 +31,7 @@ __all__ = [
     "HazardCurve",
     "InflationCurve",
     "PriceCurve",
-    "VolSurface",
     "VolCube",
+    "VolSurface",
     "VolatilityIndexCurve",
 ]

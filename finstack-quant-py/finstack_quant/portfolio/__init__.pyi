@@ -26,84 +26,126 @@ from finstack_quant.portfolio import schema as schema
 from finstack_quant.scenarios import ApplicationReport
 
 __all__ = [
+    "BrinsonPeriodResult",
+    "CandidatePosition",
+    "CarinoLinkedAttribution",
+    "Constraint",
     "ContractLimitExceededError",
     "ContractValidationError",
+    "CreditVolReport",
+    "DecompositionConfig",
+    "DurationCellTable",
+    "ExcessReturnResult",
+    "FactorAssignmentReport",
+    "FactorBrinsonResult",
+    "FactorContribution",
+    "FactorContributionDelta",
+    "FactorPnlProfile",
+    "FactorRiskDecomposition",
+    "FiAttributionResult",
+    "FiCarinoLinkedResult",
+    "FiReconciliationReport",
     "FinstackError",
     "FinstackFxError",
     "FinstackOptimizationError",
     "FinstackValuationError",
     "FxError",
-    "OptimizationError",
-    "ValuationError",
+    "GridAttributionResult",
+    "GridCarinoLinkedResult",
+    "Inequality",
     "InstrumentArtifactCache",
+    "LevelVolContribution",
+    "LinkedReturn",
     "MalformedContractSchemaError",
     "MaterializationReport",
+    "MetricExpr",
     "MissingContractVersionError",
+    "MissingMetricPolicy",
+    "Objective",
+    "OptimizationError",
+    "OptimizationStatus",
+    "PerPositionMetric",
     "Portfolio",
     "PortfolioAttribution",
     "PortfolioCashflows",
     "PortfolioError",
     "PortfolioMetrics",
+    "PortfolioOptimizationResult",
+    "PortfolioOptimizationSpec",
     "PortfolioResult",
     "PortfolioValuation",
+    "PositionAssignment",
+    "PositionBudgetEntry",
+    "PositionEsContribution",
+    "PositionFactorContribution",
+    "PositionFilter",
+    "PositionResidualContribution",
+    "PositionRiskDecomposition",
+    "PositionVarContribution",
+    "PositionVolContribution",
+    "ReplayResult",
+    "RiskBudgetResult",
+    "RiskDecomposition",
     "ScenarioPnl",
     "ScenarioPnlBatchItem",
+    "SensitivityMatrix",
+    "StressAttribution",
+    "StressPositionEntry",
+    "StressResult",
+    "TailScenarioBreakdown",
+    "TradeDirection",
+    "TradeSpec",
+    "TradeType",
+    "TradeUniverse",
+    "UnmatchedEntry",
     "UnsupportedContractVersionError",
-    "BrinsonPeriodResult",
-    "CarinoLinkedAttribution",
-    "DurationCellTable",
-    "ExcessReturnResult",
-    "FactorBrinsonResult",
-    "FiAttributionResult",
-    "FiCarinoLinkedResult",
-    "FiReconciliationReport",
-    "GridAttributionResult",
-    "GridCarinoLinkedResult",
-    "LinkedReturn",
-    "ReplayResult",
+    "ValuationError",
+    "VolHorizon",
     "WeightAllocationResult",
-    "aggregate_metrics_json",
-    "allocate_weights_json",
-    "brinson_fachler_json",
-    "campisi_attribution_json",
-    "campisi_carino_link_from_snapshots_json",
-    "campisi_carino_link_json",
-    "campisi_reconciliation_check_json",
-    "carino_link_json",
-    "cell_returns_from_curves_json",
-    "cell_returns_from_reference_json",
-    "excess_returns_json",
-    "factor_brinson_attribution_json",
-    "grid_attribution_json",
-    "grid_carino_link_json",
-    "replay_portfolio_json",
-    "scenario_pnl_batch_json",
-    "twrr_linked_json",
+    "WeightingScheme",
+    "WhatIfResult",
     "aggregate_full_cashflows",
     "aggregate_metrics",
+    "aggregate_metrics_json",
+    "allocate_weights",
+    "allocate_weights_json",
     "almgren_chriss_impact",
     "amihud_illiquidity",
     "apply_scenario_and_revalue",
     "attribute_portfolio_pnl",
-    "allocate_weights",
     "brinson_fachler",
+    "brinson_fachler_json",
     "build_credit_vol_report",
     "build_portfolio_from_spec",
     "build_stress_attribution",
     "campisi_attribution",
+    "campisi_attribution_json",
     "campisi_carino_link",
     "campisi_carino_link_from_snapshots",
+    "campisi_carino_link_from_snapshots_json",
+    "campisi_carino_link_json",
     "campisi_reconciliation_check",
+    "campisi_reconciliation_check_json",
     "carino_link",
+    "carino_link_json",
     "cell_returns_from_curves",
+    "cell_returns_from_curves_json",
     "cell_returns_from_reference",
+    "cell_returns_from_reference_json",
+    "compute_factor_sensitivities",
+    "compute_pnl_profiles",
     "days_to_liquidate",
+    "decompose_factor_risk",
     "evaluate_risk_budget",
     "excess_returns",
+    "excess_returns_json",
     "factor_brinson_attribution",
+    "factor_brinson_attribution_json",
     "factor_stress",
     "grid_attribution",
+    "grid_attribution_json",
     "grid_carino_link",
+    "grid_carino_link_json",
     "historical_var_decomposition",
     "kyle_lambda",
     "liquidity_tier",
@@ -115,64 +157,20 @@ __all__ = [
     "parse_portfolio_spec",
     "portfolio_result_get_metric",
     "portfolio_result_total_value",
-    "replay_portfolio",
+    "position_component_var",
     "position_what_if",
+    "replay_portfolio",
+    "replay_portfolio_json",
     "roll_effective_spread",
     "scenario_pnl",
     "scenario_pnl_batch",
+    "scenario_pnl_batch_json",
     "schema",
     "twrr_linked",
+    "twrr_linked_json",
     "twrr_modified_dietz",
     "validate_allocation_json",
     "value_portfolio",
-    # factor_model typed result classes
-    "FactorContribution",
-    "PositionFactorContribution",
-    "PositionResidualContribution",
-    "RiskDecomposition",
-    "FactorRiskDecomposition",
-    "SensitivityMatrix",
-    "FactorPnlProfile",
-    "compute_factor_sensitivities",
-    "compute_pnl_profiles",
-    "decompose_factor_risk",
-    "PositionVarContribution",
-    "PositionEsContribution",
-    "PositionRiskDecomposition",
-    "PositionBudgetEntry",
-    "RiskBudgetResult",
-    "FactorContributionDelta",
-    "WhatIfResult",
-    "StressResult",
-    "StressPositionEntry",
-    "TailScenarioBreakdown",
-    "StressAttribution",
-    "PositionAssignment",
-    "UnmatchedEntry",
-    "FactorAssignmentReport",
-    "LevelVolContribution",
-    "PositionVolContribution",
-    "CreditVolReport",
-    "VolHorizon",
-    "DecompositionConfig",
-    "position_component_var",
-    # optimization spec/result classes
-    "WeightingScheme",
-    "MissingMetricPolicy",
-    "Inequality",
-    "TradeDirection",
-    "TradeType",
-    "PerPositionMetric",
-    "PositionFilter",
-    "MetricExpr",
-    "Objective",
-    "Constraint",
-    "CandidatePosition",
-    "TradeUniverse",
-    "OptimizationStatus",
-    "TradeSpec",
-    "PortfolioOptimizationSpec",
-    "PortfolioOptimizationResult",
 ]
 
 class FinstackError(ValueError):
@@ -7939,6 +7937,10 @@ class RiskDecomposition:
         Examples
         --------
         >>> frame = result.to_dataframe()  # doctest: +SKIP
+
+        Notes
+        -----
+        This alias does not raise; it delegates to the method named above.
         """
         ...
 
@@ -10288,6 +10290,10 @@ class CreditVolReport:
         Examples
         --------
         >>> frame = result.to_dataframe()  # doctest: +SKIP
+
+        Notes
+        -----
+        This alias does not raise; it delegates to the method named above.
         """
         ...
 
@@ -13701,9 +13707,7 @@ class PortfolioOptimizationResult:
         Examples
         --------
         >>> from finstack_quant.portfolio import PortfolioOptimizationResult
-        >>> restored = PortfolioOptimizationResult.from_json(
-        ...     result.to_json()
-        ... )  # doctest: +SKIP
+        >>> restored = PortfolioOptimizationResult.from_json(result.to_json())  # doctest: +SKIP
         """
         ...
 
@@ -14534,6 +14538,10 @@ class FactorRiskDecomposition:
         Examples
         --------
         >>> frame = result.to_dataframe()  # doctest: +SKIP
+
+        Notes
+        -----
+        This alias does not raise; it delegates to the method named above.
         """
         ...
 

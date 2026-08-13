@@ -303,10 +303,7 @@ fn validate_instrument_envelope_json(instrument_json: &str) -> PyResult<String> 
 /// 'finstack_quant.instrument/1'
 #[pyfunction]
 #[pyo3(text_signature = "(instrument_type, instrument_json)")]
-fn validate_instrument_type_json(
-    instrument_type: &str,
-    instrument_json: &str,
-) -> PyResult<String> {
+fn validate_instrument_type_json(instrument_type: &str, instrument_json: &str) -> PyResult<String> {
     ensure_known_instrument_type(instrument_type)?;
     let instance = parse_instance(instrument_json)?;
     let schema = canonical::instrument_schema(instrument_type).map_err(core_to_py)?;
@@ -357,13 +354,15 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
 
     let all = PyList::new(py, exports)?;
     m.setattr("__all__", all)?;
-    crate::bindings::module_utils::register_submodule(
+    // Explicit public path: unlike its sibling subpackages this module has no
+    // pure-Python shim, so it owns `finstack_quant.valuations.schema` itself.
+    // Deriving from the parent's `__package__` would put it on the extension's
+    // private path, where `import finstack_quant.valuations.schema` cannot see it.
+    crate::bindings::module_utils::register_submodule_at(
         py,
         parent,
         &m,
-        "schema",
-        "finstack_quant.valuations",
-        crate::bindings::module_utils::ParentNameSource::Package,
+        "finstack_quant.valuations.schema",
     )?;
 
     Ok(())

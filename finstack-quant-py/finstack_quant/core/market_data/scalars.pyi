@@ -14,4 +14,7 @@ Examples
 from finstack_quant.core.market_data import InflationIndex as InflationIndex
 from finstack_quant.core.market_data import ScalarTimeSeries as ScalarTimeSeries
 
-__all__ = ["ScalarTimeSeries", "InflationIndex"]
+__all__ = [
+    "InflationIndex",
+    "ScalarTimeSeries",
+]

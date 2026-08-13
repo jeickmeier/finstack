@@ -985,7 +985,7 @@ def test_core_market_data_scalars_exports_are_explicit() -> None:
     root = importlib.import_module("finstack_quant.core.market_data")
     scalars = importlib.import_module("finstack_quant.core.market_data.scalars")
 
-    assert scalars.__all__ == ["ScalarTimeSeries", "InflationIndex"]
+    assert scalars.__all__ == ["InflationIndex", "ScalarTimeSeries"]
     assert root.ScalarTimeSeries is scalars.ScalarTimeSeries
     assert root.InflationIndex is scalars.InflationIndex
 

@@ -18,27 +18,27 @@ from typing import Sequence
 import pandas as pd
 
 __all__ = [
-    "MAX_PORTFOLIO_LOSS_PATHS",
-    "CopulaSpec",
     "Copula",
+    "CopulaSpec",
+    "CorrelatedBernoulli",
     "CreditExposure",
-    "PortfolioLossConfig",
-    "PortfolioLossResult",
-    "TrancheLossStatistics",
-    "RecoverySpec",
-    "RecoveryModel",
-    "LatentFactorSpec",
     "LatentFactorKind",
+    "LatentFactorSpec",
+    "LatentMultiFactor",
     "LatentSingleFactor",
     "LatentTwoFactor",
-    "LatentMultiFactor",
-    "CorrelatedBernoulli",
+    "MAX_PORTFOLIO_LOSS_PATHS",
+    "PortfolioLossConfig",
+    "PortfolioLossResult",
+    "RecoveryModel",
+    "RecoverySpec",
+    "TrancheLossStatistics",
+    "cholesky_decompose",
     "correlation_bounds",
     "joint_probabilities",
-    "validate_correlation_matrix",
     "nearest_correlation",
-    "cholesky_decompose",
     "simulate_portfolio_loss",
+    "validate_correlation_matrix",
 ]
 
 MAX_PORTFOLIO_LOSS_PATHS: int
@@ -886,6 +886,10 @@ class PortfolioLossResult:
         Examples
         --------
         >>> frame = result.to_dataframe()  # doctest: +SKIP
+
+        Notes
+        -----
+        This alias does not raise; it delegates to the method named above.
         """
         ...
 

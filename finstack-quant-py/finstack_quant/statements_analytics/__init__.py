@@ -11,7 +11,6 @@ Examples:
 
 """
 
-
 from finstack_quant.finstack_quant import statements_analytics as _sa
 
 SensitivityConfig = _sa.SensitivityConfig

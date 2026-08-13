@@ -221,8 +221,11 @@ def _bond_example_payload() -> str:
 def test_validators_accept_a_known_good_envelope() -> None:
     """Both validators accept the schema's own worked bond example."""
     payload = _bond_example_payload()
-    assert valuations_schema.validate_instrument_envelope_json(payload) is True
-    assert valuations_schema.validate_instrument_type_json("bond", payload) is True
+    # Both validators echo the canonical JSON of the accepted payload.
+    envelope_echo = valuations_schema.validate_instrument_envelope_json(payload)
+    assert json.loads(envelope_echo)["schema"] == "finstack_quant.instrument/1"
+    type_echo = valuations_schema.validate_instrument_type_json("bond", payload)
+    assert json.loads(type_echo)["instrument"]["type"] == "bond"
 
 
 def test_validators_reject_a_malformed_envelope() -> None:
@@ -355,7 +358,8 @@ def test_validate_instrument_type_json_rejects_another_types_payload() -> None:
     still pass.
     """
     payload = _bond_example_payload()
-    assert valuations_schema.validate_instrument_type_json("bond", payload) is True
+    echo = valuations_schema.validate_instrument_type_json("bond", payload)
+    assert json.loads(echo)["instrument"]["type"] == "bond"
     with pytest.raises(ValueError, match="validation failed"):
         valuations_schema.validate_instrument_type_json("interest_rate_swap", payload)
 

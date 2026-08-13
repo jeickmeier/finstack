@@ -348,7 +348,7 @@ impl PyInflationIndex {
     }
 }
 
-pub(super) const EXPORTS: &[&str] = &[ "InflationIndex", "ScalarTimeSeries" ];
+pub(super) const EXPORTS: &[&str] = &["InflationIndex", "ScalarTimeSeries"];
 
 /// Register the `finstack_quant.core.market_data.scalars` submodule.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {

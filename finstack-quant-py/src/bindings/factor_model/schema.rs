@@ -189,13 +189,15 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
 
     let all = PyList::new(py, exports)?;
     m.setattr("__all__", all)?;
-    crate::bindings::module_utils::register_submodule(
+    // Explicit public path: unlike its sibling subpackages this module has no
+    // pure-Python shim, so it owns `finstack_quant.factor_model.schema` itself.
+    // Deriving from the parent's `__package__` would put it on the extension's
+    // private path, where `import finstack_quant.factor_model.schema` cannot see it.
+    crate::bindings::module_utils::register_submodule_at(
         py,
         parent,
         &m,
-        "schema",
-        "finstack_quant.factor_model",
-        crate::bindings::module_utils::ParentNameSource::Package,
+        "finstack_quant.factor_model.schema",
     )?;
 
     Ok(())

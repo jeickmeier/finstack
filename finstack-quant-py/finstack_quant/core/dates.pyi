@@ -2607,9 +2607,7 @@ class Schedule:
     """
 
     @staticmethod
-    def builder(
-        start: datetime.date | str, end: datetime.date | str
-    ) -> ScheduleBuilder:
+    def builder(start: datetime.date | str, end: datetime.date | str) -> ScheduleBuilder:
         """
         Start a schedule build between two dates.
 
@@ -2633,13 +2631,13 @@ class Schedule:
         --------
         >>> import datetime
         >>> from finstack_quant.core.dates import Schedule
-        >>> schedule = (
-        ...     Schedule.builder(datetime.date(2025, 1, 15), datetime.date(2025, 7, 15))
-        ...     .frequency("3M")
-        ...     .build()
-        ... )
+        >>> schedule = Schedule.builder(datetime.date(2025, 1, 15), datetime.date(2025, 7, 15)).frequency("3M").build()
         >>> len(schedule.dates)
         3
+
+        Notes
+        -----
+        This constructor does not raise; validation happens in ``build()``.
         """
         ...
 
