@@ -22,6 +22,12 @@ from pathlib import Path
 from . import format as fmt
 from .theme import Theme
 
+__all__ = [
+    "KPI",
+    "Section",
+    "TearSheet",
+]
+
 
 def _resolve_sections(
     sections: list[str] | None,

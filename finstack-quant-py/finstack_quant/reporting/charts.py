@@ -20,6 +20,18 @@ from typing import Any
 from . import format as fmt
 from .theme import Theme
 
+__all__ = [
+    "bar_chart",
+    "cashflow_ladder",
+    "color_scale",
+    "fan_chart",
+    "line_chart",
+    "nice_ticks",
+    "rgba",
+    "tornado_chart",
+    "waterfall_chart",
+]
+
 _W = 620
 _MINUS = chr(0x2212)  # U+2212 MINUS SIGN (used in value labels)
 

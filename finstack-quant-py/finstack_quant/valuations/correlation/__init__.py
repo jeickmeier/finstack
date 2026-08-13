@@ -12,8 +12,6 @@ Examples:
 
 """
 
-from __future__ import annotations
-
 from finstack_quant.finstack_quant import valuations as _valuations
 
 _corr = _valuations.correlation

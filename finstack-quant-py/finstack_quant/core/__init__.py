@@ -9,9 +9,7 @@ Examples:
 
 """
 
-from __future__ import annotations
-
-import sys
+import sys as _sys
 
 from finstack_quant.finstack_quant import core as _core
 
@@ -53,8 +51,8 @@ _submodules = {
 
 for _name, _mod in _submodules.items():
     _key = f"finstack_quant.core.{_name}"
-    if _key not in sys.modules:
-        sys.modules[_key] = _mod
+    if _key not in _sys.modules:
+        _sys.modules[_key] = _mod
 
 __all__: list[str] = [
     "FinstackError",

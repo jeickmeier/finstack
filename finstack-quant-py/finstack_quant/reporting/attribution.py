@@ -22,6 +22,11 @@ from . import charts, format as fmt, tables
 from .document import KPI, Section, TearSheet, _resolve_sections
 from .theme import INSTITUTIONAL, Theme
 
+__all__ = [
+    "ALL_SECTIONS",
+    "attribution_tearsheet",
+]
+
 ALL_SECTIONS = ["waterfall", "factors", "carry", "credit"]
 
 # Canonical waterfall-order factor name -> (display label, PnlAttribution attribute).

@@ -85,6 +85,7 @@ __all__ = [
     "validate_calibration_json",
     "calibrate",
     "dry_run",
+    "envelope",
     "dependency_graph_json",
     "bs_cos_price",
     "vg_cos_price",

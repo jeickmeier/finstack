@@ -26,6 +26,11 @@ from . import charts, format as fmt, tables
 from .document import KPI, Section, TearSheet, _resolve_sections
 from .theme import INSTITUTIONAL, Theme
 
+__all__ = [
+    "ALL_SECTIONS",
+    "instrument_tearsheet",
+]
+
 _TENOR_ORDER = ["3m", "6m", "1y", "2y", "3y", "5y", "7y", "10y", "15y", "20y", "30y"]
 
 

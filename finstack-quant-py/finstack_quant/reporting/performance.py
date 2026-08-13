@@ -24,6 +24,11 @@ from . import charts, format as fmt, tables
 from .document import KPI, Section, TearSheet, _resolve_sections
 from .theme import INSTITUTIONAL, Theme
 
+__all__ = [
+    "ALL_SECTIONS",
+    "performance_tearsheet",
+]
+
 ALL_SECTIONS = ["summary", "stats", "cumulative", "drawdown", "rolling", "monthly", "annual", "drawdowns"]
 
 

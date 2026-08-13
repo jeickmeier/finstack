@@ -29,6 +29,11 @@ from . import charts, format as fmt, tables
 from .document import KPI, Section, TearSheet, _resolve_sections
 from .theme import INSTITUTIONAL, Theme
 
+__all__ = [
+    "ALL_SECTIONS",
+    "benchmark_tearsheet",
+]
+
 ALL_SECTIONS = ["summary", "relative", "rolling", "multifactor"]
 
 _SECONDARY = "#3a5a82"

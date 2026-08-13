@@ -9,9 +9,7 @@ Examples:
 
 """
 
-from __future__ import annotations
-
-import sys
+import sys as _sys
 
 from finstack_quant.finstack_quant import cashflows as _cashflows
 
@@ -31,8 +29,8 @@ _submodules = {
 
 for _name, _mod in _submodules.items():
     _key = f"finstack_quant.cashflows.{_name}"
-    if _key not in sys.modules:
-        sys.modules[_key] = _mod
+    if _key not in _sys.modules:
+        _sys.modules[_key] = _mod
 
 build_cashflow_schedule_json = _cashflows.build_cashflow_schedule_json
 validate_cashflow_schedule_json = _cashflows.validate_cashflow_schedule_json

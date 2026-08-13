@@ -16,6 +16,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+__all__ = [
+    "INSTITUTIONAL",
+    "Theme",
+]
+
 
 @dataclass(frozen=True)
 class Theme:

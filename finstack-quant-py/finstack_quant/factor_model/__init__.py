@@ -13,8 +13,6 @@ Examples:
 True
 """
 
-from __future__ import annotations
-
 import contextlib as _contextlib
 import sys as _sys
 

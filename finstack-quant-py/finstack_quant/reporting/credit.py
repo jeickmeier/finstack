@@ -24,6 +24,11 @@ from .document import KPI, Section, TearSheet, _resolve_sections
 from .statements_common import json_or_dict, parse_statement, pl_matrix_table
 from .theme import INSTITUTIONAL, Theme
 
+__all__ = [
+    "ALL_SECTIONS",
+    "credit_tearsheet",
+]
+
 ALL_SECTIONS = ["ratios", "coverage", "covenants", "pl"]
 
 # EBITDA-build rows (label, node_id, formatter) for the P&L section.

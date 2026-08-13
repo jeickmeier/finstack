@@ -24,6 +24,11 @@ from .document import KPI, Section, TearSheet, _resolve_sections
 from .statements_common import json_or_dict, parse_statement, pl_matrix_table
 from .theme import INSTITUTIONAL, Theme
 
+__all__ = [
+    "ALL_SECTIONS",
+    "dcf_tearsheet",
+]
+
 ALL_SECTIONS = ["bridge", "ufcf", "sensitivity", "pl"]
 
 _PL_ROWS: list[tuple[str, str, Any]] = [

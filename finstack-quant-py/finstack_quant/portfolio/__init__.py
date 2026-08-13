@@ -59,15 +59,9 @@ Examples:
 ('empty', 0)
 """
 
-from __future__ import annotations
-
-import contextlib
-import sys
+import sys as _sys
 
 from finstack_quant.finstack_quant import portfolio as _portfolio
-
-with contextlib.suppress(NameError):
-    del annotations
 
 FinstackError = _portfolio.FinstackError
 PortfolioError = _portfolio.PortfolioError
@@ -222,8 +216,8 @@ schema = _portfolio.schema
 
 # `schema` is a real submodule, so `import finstack_quant.portfolio.schema`
 # must work as well as attribute access.
-if "finstack_quant.portfolio.schema" not in sys.modules:
-    sys.modules["finstack_quant.portfolio.schema"] = schema
+if "finstack_quant.portfolio.schema" not in _sys.modules:
+    _sys.modules["finstack_quant.portfolio.schema"] = schema
 
 __all__: list[str] = [
     "BrinsonPeriodResult",
