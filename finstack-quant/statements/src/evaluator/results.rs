@@ -122,7 +122,7 @@ impl Default for EvalStats {
 }
 
 /// Numeric mode used for evaluation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 // Distinct from `finstack_quant_core::config::NumericMode`, which carries a
 // different value set.
