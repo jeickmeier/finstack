@@ -226,10 +226,10 @@ fn valuation_result_schema() -> PyResult<String> {
 ///
 /// Returns
 /// -------
-/// bool
-///     ``True`` when the payload validates. A failure raises rather than
-///     returning ``False``, so the individual schema violations are never
-///     discarded.
+/// str
+///     Canonical compact JSON of the validated payload. A failure raises
+///     rather than returning a falsy value, so the individual schema
+///     violations are never discarded.
 ///
 /// Raises
 /// ------
@@ -243,11 +243,11 @@ fn valuation_result_schema() -> PyResult<String> {
 /// >>> import json
 /// >>> from finstack_quant.valuations import schema
 /// >>> example = json.loads(schema.instrument_schema("bond"))["examples"][0]
-/// >>> schema.validate_instrument_envelope_json(json.dumps(example))
-/// True
+/// >>> json.loads(schema.validate_instrument_envelope_json(json.dumps(example)))["schema"]
+/// 'finstack_quant.instrument/1'
 #[pyfunction]
 #[pyo3(text_signature = "(instrument_json)")]
-fn validate_instrument_envelope_json(instrument_json: &str) -> PyResult<bool> {
+fn validate_instrument_envelope_json(instrument_json: &str) -> PyResult<String> {
     let instance = parse_instance(instrument_json)?;
     let envelope = canonical::instrument_envelope_schema().map_err(core_to_py)?;
     ensure_valid_against(envelope, &instance, "instrument envelope")?;
@@ -281,10 +281,10 @@ fn validate_instrument_envelope_json(instrument_json: &str) -> PyResult<bool> {
 ///
 /// Returns
 /// -------
-/// bool
-///     ``True`` when the payload validates. A failure raises rather than
-///     returning ``False``, so the individual schema violations are never
-///     discarded.
+/// str
+///     Canonical compact JSON of the validated payload. A failure raises
+///     rather than returning a falsy value, so the individual schema
+///     violations are never discarded.
 ///
 /// Raises
 /// ------
@@ -299,16 +299,26 @@ fn validate_instrument_envelope_json(instrument_json: &str) -> PyResult<bool> {
 /// >>> import json
 /// >>> from finstack_quant.valuations import schema
 /// >>> example = json.loads(schema.instrument_schema("bond"))["examples"][0]
-/// >>> schema.validate_instrument_type_json("bond", json.dumps(example))
-/// True
+/// >>> json.loads(schema.validate_instrument_type_json("bond", json.dumps(example)))["schema"]
+/// 'finstack_quant.instrument/1'
 #[pyfunction]
 #[pyo3(text_signature = "(instrument_type, instrument_json)")]
-fn validate_instrument_type_json(instrument_type: &str, instrument_json: &str) -> PyResult<bool> {
+fn validate_instrument_type_json(
+    instrument_type: &str,
+    instrument_json: &str,
+) -> PyResult<String> {
     ensure_known_instrument_type(instrument_type)?;
     let instance = parse_instance(instrument_json)?;
     let schema = canonical::instrument_schema(instrument_type).map_err(core_to_py)?;
     ensure_valid_against(&schema, &instance, instrument_type)?;
-    Ok(true)
+    canonical_json(&instance)
+}
+
+/// Re-serialize a validated instance as canonical compact JSON.
+fn canonical_json(instance: &Value) -> PyResult<String> {
+    serde_json::to_string(instance).map_err(|err| {
+        crate::errors::value_error(format!("failed to canonicalize instrument JSON: {err}"))
+    })
 }
 
 schema_registry_functions!(

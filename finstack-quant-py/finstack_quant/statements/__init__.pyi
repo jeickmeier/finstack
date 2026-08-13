@@ -3199,9 +3199,9 @@ def parse_formula(formula: str) -> str:
     """
     ...
 
-def validate_formula(formula: str) -> bool:
+def validate_formula(formula: str) -> None:
     """
-    Return ``True`` if ``formula`` parses and compiles successfully.
+    Validate that ``formula`` parses and compiles successfully.
 
     Parameters
     ----------
@@ -3210,8 +3210,9 @@ def validate_formula(formula: str) -> bool:
 
     Returns
     -------
-    bool
-        Always ``True`` when no error is raised.
+    None
+        Returns nothing on success. Validation is reported by raising, so
+        ``if validate_formula(f):`` is not a validity check.
 
     Raises
     ------
@@ -3221,7 +3222,7 @@ def validate_formula(formula: str) -> bool:
     Examples
     --------
     >>> from finstack_quant.statements import validate_formula
-    >>> validate_formula("revenue - cogs")
+    >>> validate_formula("revenue - cogs") is None
     True
 
     """

@@ -3072,7 +3072,7 @@ def allocate_weights_json(spec_json: str) -> str:
     """
     ...
 
-def validate_allocation_json(spec_json: str) -> None:
+def validate_allocation_json(spec_json: str) -> str:
     """
     Validate a strategy allocation JSON specification.
 
@@ -3084,6 +3084,11 @@ def validate_allocation_json(spec_json: str) -> None:
     spec_json : str
         JSON-serialized allocation specification.
 
+    Returns
+    -------
+    str
+        Canonical compact JSON of the accepted specification.
+
     Raises
     ------
     ValueError
@@ -3091,10 +3096,11 @@ def validate_allocation_json(spec_json: str) -> None:
 
     Examples
     --------
+    >>> import json
     >>> from finstack_quant.portfolio import validate_allocation_json
     >>> spec = '{"scheme":"equal","total_capital":1000.0,"strategies":[{"id":"a"},{"id":"b"}]}'
-    >>> validate_allocation_json(spec) is None
-    True
+    >>> json.loads(validate_allocation_json(spec))["scheme"]
+    'equal'
     """
     ...
 

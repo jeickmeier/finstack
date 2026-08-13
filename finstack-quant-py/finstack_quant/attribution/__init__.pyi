@@ -1420,7 +1420,7 @@ def validate_attribution_json(json: str) -> str:
     """
     ...
 
-def validate_return_contribution_json(spec_json: str) -> None:
+def validate_return_contribution_json(spec_json: str) -> str:
     """
     Validate a return contribution specification JSON.
 
@@ -1428,6 +1428,11 @@ def validate_return_contribution_json(spec_json: str) -> None:
     ----------
     spec_json : str
         JSON-serialized return contribution specification.
+
+    Returns
+    -------
+    str
+        Canonical compact JSON of the accepted specification.
 
     Examples
     --------
@@ -1439,8 +1444,8 @@ def validate_return_contribution_json(spec_json: str) -> None:
     ...     "factors": [],
     ...     "positions": [{"id": "A", "market_value": 100.0, "return": 0.02, "groups": {}}],
     ... }
-    >>> validate_return_contribution_json(json.dumps(spec)) is None
-    True
+    >>> json.loads(validate_return_contribution_json(json.dumps(spec)))["weighting"]
+    'gross'
 
     Raises
     ------

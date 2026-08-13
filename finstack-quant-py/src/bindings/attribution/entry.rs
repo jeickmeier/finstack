@@ -230,8 +230,13 @@ pub(crate) fn validate_attribution_json(json: &str) -> PyResult<String> {
 /// ----------
 /// spec_json : str
 ///     JSON-serialized return contribution specification.
+///
+/// Returns
+/// -------
+/// str
+///     Canonical compact JSON.
 #[pyfunction]
-pub(crate) fn validate_return_contribution_json(spec_json: &str) -> PyResult<()> {
+pub(crate) fn validate_return_contribution_json(spec_json: &str) -> PyResult<String> {
     finstack_quant_attribution::validate_return_contribution_json(spec_json).map_err(core_to_py)
 }
 

@@ -84,7 +84,10 @@ fn compose_scenarios_json(specs_json: &str) -> Result<String, String> {
 
 /// Validate a scenario specification JSON without executing it.
 ///
-/// Returns `true` if valid, throws on error.
+/// Returns `undefined` when the spec is valid, throws on error. This mirrors
+/// the Python `validate_scenario_spec` API, which returns `None` — an invalid
+/// spec raises rather than returning a falsy value, so
+/// `if (validateScenarioSpec(s))` is not a validity check.
 ///
 /// # Errors
 ///
@@ -93,12 +96,12 @@ fn compose_scenarios_json(specs_json: &str) -> Result<String, String> {
 /// fields, or variant-specific operation violations.
 /// @param json_str - Canonical JSON string to validate and re-serialize.
 #[wasm_bindgen(js_name = validateScenarioSpec)]
-pub fn validate_scenario_spec(json_str: &str) -> Result<bool, JsValue> {
+pub fn validate_scenario_spec(json_str: &str) -> Result<(), JsValue> {
     let spec: finstack_quant_scenarios::ScenarioSpec =
         serde_json::from_str(json_str).map_err(to_js_err)?;
 
     spec.validate().map_err(to_js_err)?;
-    Ok(true)
+    Ok(())
 }
 
 /// List all built-in template identifiers.
@@ -438,14 +441,14 @@ mod tests {
         let spec_json =
             build_scenario_spec("test_id", "[]", Some("Test".to_string()), None, None, None)
                 .expect("build_scenario_spec");
-        assert!(validate_scenario_spec(&spec_json).expect("validate"));
+        validate_scenario_spec(&spec_json).expect("validate");
         let parsed = parse_scenario_spec(&spec_json).expect("parse");
         let before: serde_json::Value = serde_json::from_str(&spec_json).expect("before");
         let after: serde_json::Value = serde_json::from_str(&parsed).expect("after");
         assert_eq!(before, after);
 
         let composed = compose_scenarios("[]").expect("compose");
-        assert!(validate_scenario_spec(&composed).expect("composed valid"));
+        validate_scenario_spec(&composed).expect("composed valid");
     }
 
     #[test]
@@ -471,7 +474,7 @@ mod tests {
         let s2 = build_scenario_spec("s2", "[]", None, None, Some(1), None).expect("s2");
         let arr = format!("[{s1},{s2}]");
         let composed = compose_scenarios(&arr).expect("compose");
-        assert!(validate_scenario_spec(&composed).expect("valid"));
+        validate_scenario_spec(&composed).expect("valid");
     }
 
     #[test]
