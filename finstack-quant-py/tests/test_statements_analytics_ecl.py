@@ -11,21 +11,21 @@ def test_classify_stage_uses_canonical_defaults_and_backstop_toggles() -> None:
 
     exposure = Exposure("loan", 100.0, 0.4, 0.05, 5.0, 0.02, 0.015)
     assert exposure.dpd == 0
-    assert classify_stage(exposure) == ("Stage 1", "no_trigger")
+    assert classify_stage(exposure) == ("Stage 1", ["no_trigger"])
 
     exposure.dpd = 31
-    stage, reason = classify_stage(exposure)
+    stage, reasons = classify_stage(exposure)
     assert stage == "Stage 2"
-    assert reason.startswith("dpd_stage2")
-    assert classify_stage(exposure, dpd_30_trigger=False) == ("Stage 1", "no_trigger")
+    assert reasons[0].startswith("dpd_stage2")
+    assert classify_stage(exposure, dpd_30_trigger=False) == ("Stage 1", ["no_trigger"])
 
     exposure.dpd = 91
-    stage, reason = classify_stage(exposure)
+    stage, reasons = classify_stage(exposure)
     assert stage == "Stage 3"
-    assert reason.startswith("dpd_stage3")
+    assert reasons[0].startswith("dpd_stage3")
     assert classify_stage(exposure, dpd_30_trigger=False, dpd_90_trigger=False) == (
         "Stage 1",
-        "no_trigger",
+        ["no_trigger"],
     )
 
 
@@ -34,10 +34,10 @@ def test_classify_stage_uses_default_or_explicit_pd_threshold() -> None:
     from finstack_quant.statements_analytics import Exposure, classify_stage
 
     exposure = Exposure("loan", 100.0, 0.4, 0.05, 5.0, 0.026, 0.015)
-    stage, reason = classify_stage(exposure)
+    stage, reasons = classify_stage(exposure)
     assert stage == "Stage 2"
-    assert reason.startswith("pd_delta_absolute")
-    assert classify_stage(exposure, pd_delta_stage2=0.02) == ("Stage 1", "no_trigger")
+    assert reasons[0].startswith("pd_delta_absolute")
+    assert classify_stage(exposure, pd_delta_stage2=0.02) == ("Stage 1", ["no_trigger"])
 
 
 def test_compute_ecl_weighted_validates_scenario_weights() -> None:

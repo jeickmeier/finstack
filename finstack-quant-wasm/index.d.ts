@@ -5557,18 +5557,22 @@ export interface ValuationInstrumentsNamespace {
     asOf: string
   ): number;
   /**
-   * Option-adjusted spread for a tranche; returns a JSON `OasResult`.
+   * Option-adjusted spread for a tranche; returns a typed `OasResult` object.
+   *
+   * The result is a plain object with snake_case fields — the same shape
+   * Python exposes through its typed `OasResult` wrapper. Pass it to
+   * `JSON.stringify` if a wire string is needed.
    *
    * `marketPricePct` is the quoted price as a percentage of original balance.
    * `config`, when present, is a JSON `OasConfig`; the default is used otherwise.
-   * @returns JSON `OasResult` for the tranche.
+   * @returns Typed `OasResult` object for the tranche.
    * @param instrumentJson - Canonical instrument envelope JSON in the Finstack v1 schema.
    * @param trancheId - Stable tranche identifier used to select the required domain object.
    * @param marketPricePct - Tranche market price as a percentage of original balance.
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
    * @param config - Optional OasConfig JSON; omit to use the default OAS solver configuration.
-   * @throws Error - Throws a JavaScript exception if the instrument, market, or optional configuration JSON is malformed; the instrument fails pricing validation; `as_of` is invalid; the tranche or discount curve is missing; the OAS solve fails or produces a non-finite result; or the result cannot be serialized.
+   * @throws Error - Throws a JavaScript exception if the instrument, market, or optional configuration JSON is malformed; the instrument fails pricing validation; `as_of` is invalid; the tranche or discount curve is missing; the OAS solve fails or produces a non-finite result; or the result cannot be converted to a JavaScript value.
    */
   structuredCreditTrancheOas(
     instrumentJson: string,
@@ -5577,18 +5581,22 @@ export interface ValuationInstrumentsNamespace {
     marketJson: string,
     asOf: string,
     config?: string | null
-  ): string;
+  ): OasResult;
   /**
-   * Scenario (CPR x CDR x severity) table for a tranche; returns a JSON
-   * `ScenarioTable`. `grid` is a JSON `ScenarioGrid` (`cprs`, `cdrs`,
+   * Scenario (CPR x CDR x severity) table for a tranche; returns a typed
+   * `ScenarioTable` object. `grid` is a JSON `ScenarioGrid` (`cprs`, `cdrs`,
    * `severities`).
-   * @returns JSON `ScenarioTable` over the CPR/CDR/severity grid.
+   *
+   * The result is a plain object with snake_case fields — the same shape
+   * Python exposes through its typed `ScenarioTable` wrapper. Pass it to
+   * `JSON.stringify` if a wire string is needed.
+   * @returns Typed `ScenarioTable` object over the CPR/CDR/severity grid.
    * @param instrumentJson - Canonical instrument envelope JSON in the Finstack v1 schema.
    * @param trancheId - Stable tranche identifier used to select the required domain object.
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
    * @param grid - ScenarioGrid JSON containing the CPR, CDR, and severity axes for the table.
-   * @throws Error - Throws a JavaScript exception if the instrument, market, or scenario-grid JSON is malformed; the instrument fails pricing validation; `as_of` is invalid; the tranche or required market data is missing; a scenario fails or produces a non-finite result; or the table cannot be serialized.
+   * @throws Error - Throws a JavaScript exception if the instrument, market, or scenario-grid JSON is malformed; the instrument fails pricing validation; `as_of` is invalid; the tranche or required market data is missing; a scenario fails or produces a non-finite result; or the table cannot be converted to a JavaScript value.
    */
   structuredCreditTrancheScenarioTable(
     instrumentJson: string,
@@ -5596,21 +5604,24 @@ export interface ValuationInstrumentsNamespace {
     marketJson: string,
     asOf: string,
     grid: string
-  ): string;
+  ): ScenarioTable;
   /**
    * Per-tranche risk/spread metrics (PV, price, WAL, z-spread, CS01, spread/
    * modified duration, convexity) computed from one tranche's own cashflows.
    *
    * `marketPricePct`, when provided, is the quoted price (% of original balance)
    * the z-spread and CS01 are solved against; otherwise the tranche's own model
-   * price is used (zero z-spread). Returns a JSON-serialized `TrancheMetrics`.
-   * @returns JSON `TrancheMetrics` (PV, price, WAL, z-spread, CS01, duration, convexity).
+   * price is used (zero z-spread). Returns a typed `TrancheMetrics` object —
+   * a plain object with the same snake_case fields Python exposes through its
+   * typed `TrancheMetrics` wrapper. Pass it to `JSON.stringify` if a wire
+   * string is needed.
+   * @returns Typed `TrancheMetrics` object (PV, price, WAL, z-spread, CS01, duration, convexity).
    * @param instrumentJson - Canonical instrument envelope JSON in the Finstack v1 schema.
    * @param trancheId - Stable tranche identifier used to select the required domain object.
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
    * @param marketPricePct - Optional tranche market price as a percentage of original balance; omit for model price.
-   * @throws Error - Throws a JavaScript exception if the instrument or market JSON is malformed; the instrument fails pricing validation; `as_of` is invalid; the tranche or discount curve is missing; a metric fails or is non-finite; or the result cannot be serialized.
+   * @throws Error - Throws a JavaScript exception if the instrument or market JSON is malformed; the instrument fails pricing validation; `as_of` is invalid; the tranche or discount curve is missing; a metric fails or is non-finite; or the result cannot be converted to a JavaScript value.
    */
   structuredCreditTrancheMetrics(
     instrumentJson: string,
@@ -5618,7 +5629,95 @@ export interface ValuationInstrumentsNamespace {
     marketJson: string,
     asOf: string,
     marketPricePct?: number | null
-  ): string;
+  ): TrancheMetrics;
+}
+
+/**
+ * Option-adjusted-spread result for a structured-credit tranche, as returned
+ * by `valuations.instruments.structuredCreditTrancheOas`. Field names and
+ * units match the Rust `OasResult` and Python's typed `OasResult` wrapper.
+ */
+export interface OasResult {
+  /** Option-adjusted spread, as an annual decimal (`0.01` = 100 bp). */
+  oas: number;
+  /** Model price at the solved OAS, as a percentage of original balance. */
+  model_price: number;
+  /** Target market price, as a percentage of original balance. */
+  market_price: number;
+  /** Number of Monte-Carlo scenarios used. */
+  num_paths: number;
+  /**
+   * Monte-Carlo standard error of the mean price, as a percentage of
+   * original balance.
+   */
+  price_std_error: number;
+}
+
+/**
+ * Summary risk/pricing metrics for a structured-credit tranche, as returned
+ * by `valuations.instruments.structuredCreditTrancheMetrics`. Field names and
+ * units match the Rust `TrancheMetrics` and Python's typed wrapper.
+ */
+export interface TrancheMetrics {
+  /** Identifier of the tranche. */
+  tranche_id: string;
+  /** ISO-4217 code of the currency `pv` and `cs01` are denominated in. */
+  currency: string;
+  /** Present value of the tranche, in `currency` units. */
+  pv: number;
+  /** Model price, as a percentage of original balance. */
+  price_pct: number;
+  /** Weighted-average life, in years. */
+  wal: number;
+  /** Z-spread to `target_price_pct`, in basis points. */
+  z_spread_bp: number;
+  /**
+   * Credit-spread DV01 — currency change for a +1 bp z-spread shock, in
+   * `currency` units. Negative for a long tranche.
+   */
+  cs01: number;
+  /** Spread duration, in years (`-cs01 / (pv * 1bp)`). */
+  spread_duration: number;
+  /** Modified (rate) duration of the projected cashflows, in years. */
+  modified_duration: number;
+  /** Modified convexity of the projected cashflows, in years squared. */
+  convexity: number;
+  /**
+   * Price the z-spread/CS01 were solved against, as a percentage of original
+   * balance.
+   */
+  target_price_pct: number;
+}
+
+/**
+ * One evaluated scenario cell of a structured-credit tranche scenario table.
+ */
+export interface TrancheScenarioCell {
+  /** Constant prepayment rate for the cell, annual decimal. */
+  cpr: number;
+  /** Constant default rate for the cell, annual decimal. */
+  cdr: number;
+  /** Loss severity for the cell, decimal. */
+  severity: number;
+  /** Tranche price, as a percentage of original balance. */
+  price: number;
+  /** Weighted-average life, in years. */
+  wal: number;
+  /** Principal writedown, in currency units. */
+  writedown: number;
+}
+
+/**
+ * Scenario (CPR x CDR x severity) table for a structured-credit tranche, as
+ * returned by `valuations.instruments.structuredCreditTrancheScenarioTable`.
+ * Field names and units match the Rust `ScenarioTable` and Python's typed
+ * wrapper.
+ */
+export interface ScenarioTable {
+  /** Identifier of the tranche evaluated. */
+  tranche_id: string;
+  /** Evaluated cells, in CPR-major, then CDR, then severity order. */
+  cells: TrancheScenarioCell[];
 }
 
 /**
@@ -5630,6 +5729,10 @@ export type FxInstrumentSpec = Record<string, unknown> | string;
  * FX instrument handle priced against a market context.
  */
 export interface FxInstrument extends WasmOwned {
+  /**
+   * Instrument identifier (mirrors the Python typed wrappers' `id` property).
+   */
+  readonly id: string;
   /**
    * Serialize this `FxInstrument` value to canonical JSON.
    * @returns Canonical JSON instrument specification.
@@ -6596,10 +6699,11 @@ export interface CreditDerivativesNamespace {
  */
 export interface ValuationsNamespace {
   /**
-   * Pearson correlation coefficient.
-   * @param x - First numeric series; must have the same length as `y`.
-   * @param y - Second numeric series, aligned one-for-one with `x`.
-   * @throws Error - Throws a JavaScript exception if `x` or `y` cannot be decoded as a numeric array.
+   * Copula/correlation toolkit for credit portfolio modelling: copula and
+   * recovery specs, correlation-matrix helpers, and portfolio-loss
+   * simulation. Mirrors Python's `finstack_quant.valuations.correlation`
+   * namespace (the analytics Pearson `correlation` function is a separate
+   * export on the `analytics` namespace).
    */
   correlation: CorrelationNamespace;
   /**

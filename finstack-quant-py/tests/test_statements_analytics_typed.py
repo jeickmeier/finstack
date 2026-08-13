@@ -16,7 +16,7 @@ from finstack_quant.statements import (
 from finstack_quant.statements_analytics import (
     BridgeChart,
     ScenarioDiff,
-    ScenarioResultSet,
+    ScenarioResults,
     ScenarioSet,
     SensitivityConfig,
     SensitivityResult,
@@ -125,12 +125,12 @@ def test_analysis_functions_accept_typed_configs_and_return_typed_results() -> N
         model,
         ScenarioSet({"base": {}, "downside": {"revenue": 90.0}}),
     )
-    assert isinstance(scenario_results, ScenarioResultSet)
+    assert isinstance(scenario_results, ScenarioResults)
     assert scenario_results.names == ["base", "downside"]
     downside = scenario_results.get("downside")
     assert downside is not None
     assert downside.get("profit", "2025Q2") == pytest.approx(25.0)
-    assert ScenarioResultSet.from_json(scenario_results.to_json()).get("missing") is None
+    assert ScenarioResults.from_json(scenario_results.to_json()).get("missing") is None
 
 
 def test_analysis_functions_retain_json_config_input() -> None:

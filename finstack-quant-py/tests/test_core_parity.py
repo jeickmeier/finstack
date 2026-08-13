@@ -540,8 +540,8 @@ class TestForwardCurveParity:
 
     def test_constructor_runtime_signature_matches_stub(self) -> None:
         assert str(signature(ForwardCurve)) == (
-            "(id, tenor, knots, base_date, day_count=None, interp='linear', "
-            "extrapolation='flat_forward', projection_grid=None, reset_lag=None)"
+            "(id, tenor, base_date, knots, day_count=None, interp=None, "
+            "extrapolation=None, projection_grid=None, reset_lag=None)"
         )
 
     def test_projection_grid_defaults_to_legacy_numeric_tenor_mode(self) -> None:

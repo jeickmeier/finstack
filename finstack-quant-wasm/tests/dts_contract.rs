@@ -291,6 +291,10 @@ fn valuations_dts_exposes_direct_fx_instruments() {
         &dts,
         "greeks(marketJson: string, asOf: string, model?: string | null): Record<string, number>;",
     ));
+    // Every FX class carries an `id` getter, mirroring the Python typed
+    // wrappers' `id` property.
+    let fx_instrument = interface_block(&dts, "FxInstrument");
+    assert!(fx_instrument.contains("readonly id: string;"));
 }
 
 #[test]
@@ -337,6 +341,40 @@ fn pricing_entry_points_declare_structured_valuation_results() {
     assert!(contains_ignoring_ws(
         &dts,
         "validateValuationResultJson(json: string): string;",
+    ));
+}
+
+#[test]
+fn structured_credit_tranche_analytics_declare_typed_results() {
+    // OAS / metrics / scenario-table are computation results: they return
+    // typed plain objects matching the Python `OasResult` / `TrancheMetrics`
+    // / `ScenarioTable` wrappers' snake_case shape, not JSON strings. The
+    // scalar entry points (discount margin, break-even CDR) stay numbers.
+    let dts = index_dts();
+
+    assert!(dts.contains("export interface OasResult {"));
+    assert!(dts.contains("export interface TrancheMetrics {"));
+    assert!(dts.contains("export interface ScenarioTable {"));
+    assert!(dts.contains("export interface TrancheScenarioCell {"));
+    assert!(contains_ignoring_ws(
+        &dts,
+        "structuredCreditTrancheOas(instrumentJson: string, trancheId: string, marketPricePct: number, marketJson: string, asOf: string, config?: string | null): OasResult;",
+    ));
+    assert!(contains_ignoring_ws(
+        &dts,
+        "structuredCreditTrancheMetrics(instrumentJson: string, trancheId: string, marketJson: string, asOf: string, marketPricePct?: number | null): TrancheMetrics;",
+    ));
+    assert!(contains_ignoring_ws(
+        &dts,
+        "structuredCreditTrancheScenarioTable(instrumentJson: string, trancheId: string, marketJson: string, asOf: string, grid: string): ScenarioTable;",
+    ));
+    assert!(contains_ignoring_ws(
+        &dts,
+        "structuredCreditTrancheDiscountMargin(instrumentJson: string, trancheId: string, marketJson: string, asOf: string, targetPv: number): number;",
+    ));
+    assert!(contains_ignoring_ws(
+        &dts,
+        "structuredCreditTrancheBreakevenCdr(instrumentJson: string, trancheId: string, marketJson: string, asOf: string): number;",
     ));
 }
 
@@ -713,6 +751,35 @@ fn factor_model_dts_exposes_credit_namespace() {
     assert!(!factor_model.contains("CreditFactorModel"));
     assert!(!factor_model.contains("decomposeLevels"));
     assert!(dts.contains("export declare const factor_model: FactorModelNamespace;"));
+}
+
+#[test]
+fn monte_carlo_dts_matches_pricing_surface() {
+    let dts = index_dts();
+    let monte_carlo = interface_block(&dts, "MonteCarloNamespace");
+
+    assert!(dts.contains("export interface MonteCarloNamespace"));
+    // The 12 facade root exports pinned by [wasm_monte_carlo_subset].
+    for name in [
+        "priceEuropeanCall(",
+        "priceEuropeanPut(",
+        "priceHestonCall(",
+        "priceHestonPut(",
+        "priceAsianCall(",
+        "priceAsianPut(",
+        "priceAmericanPut(",
+        "priceAmericanCall(",
+        "priceAmericanPutUnbiased(",
+        "priceAmericanCallUnbiased(",
+        "blackScholesCall(",
+        "blackScholesPut(",
+    ] {
+        assert!(
+            monte_carlo.contains(name),
+            "MonteCarloNamespace is missing `{name}`"
+        );
+    }
+    assert!(dts.contains("export declare const monte_carlo: MonteCarloNamespace;"));
 }
 
 #[test]

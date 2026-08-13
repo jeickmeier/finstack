@@ -947,11 +947,12 @@ class HorizonResult:
         Parameters
         ----------
         factor : str
-            One of ``"carry"``, ``"rates"``/``"rates_curves"``,
-            ``"credit"``/``"credit_curves"``, ``"inflation"``/``"inflation_curves"``,
-            ``"correlations"``, ``"fx"``, ``"volatility"``/``"vol"``,
-            ``"model_parameters"``/``"model_params"``, or
-            ``"market_scalars"``/``"scalars"``.
+            Canonical ``AttributionFactor`` serde name: one of ``"carry"``,
+            ``"rates_curves"``, ``"credit_curves"``, ``"inflation_curves"``,
+            ``"correlations"``, ``"fx"``, ``"volatility"``,
+            ``"market_scalars"``, or ``"model_parameters"``. Historical
+            Python-only aliases (``"rates"``, ``"credit"``, ``"vol"``, ...)
+            are no longer accepted.
 
         Returns
         -------
@@ -961,7 +962,7 @@ class HorizonResult:
         Raises
         ------
         ValueError
-            If ``factor`` is not a recognized factor key.
+            If ``factor`` is not a canonical factor name.
         """
         ...
 

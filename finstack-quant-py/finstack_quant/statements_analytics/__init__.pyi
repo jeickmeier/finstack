@@ -1405,9 +1405,9 @@ def dcf_sensitivity(
     terminal_value_json: str,
     ufcf_node: str = "ufcf",
     net_debt_override: float | None = None,
-    wacc_sensitivity_bump: float = 0.01,
-    wacc_denominator_epsilon: float = 0.005,
-    exit_multiple_bump: float = 1.0,
+    wacc_sensitivity_bump: float | None = None,
+    wacc_denominator_epsilon: float | None = None,
+    exit_multiple_bump: float | None = None,
     mid_year_convention: bool = False,
     market: MarketContext | str | None = None,
 ) -> dict[str, object]:
@@ -1432,14 +1432,17 @@ def dcf_sensitivity(
         Node ID holding unlevered free cash flow for the forecast periods.
     net_debt_override : float or None
         Flat net-debt amount used instead of the model-derived balance-sheet bridge.
-    wacc_sensitivity_bump : float
+    wacc_sensitivity_bump : float or None
         Absolute shock applied to WACC and to terminal growth, as a decimal
-        (``0.01`` = +/-100 bp).
-    wacc_denominator_epsilon : float
+        (``0.01`` = +/-100 bp). ``None`` uses the canonical Rust
+        ``DcfOptions`` default.
+    wacc_denominator_epsilon : float or None
         Minimum spread preserved between WACC and terminal growth so the terminal
-        denominator stays defined, as a decimal (``0.005`` = 50 bp).
-    exit_multiple_bump : float
-        Absolute shock applied to an exit multiple, in turns (``1.0`` = +/-1.0x).
+        denominator stays defined, as a decimal (``0.005`` = 50 bp). ``None``
+        uses the canonical Rust ``DcfOptions`` default.
+    exit_multiple_bump : float or None
+        Absolute shock applied to an exit multiple, in turns (``1.0`` =
+        +/-1.0x). ``None`` uses the canonical Rust ``DcfOptions`` default.
     mid_year_convention : bool
         Use mid-year discounting on every re-run when ``True``.
     market : MarketContext or str or None
@@ -2064,8 +2067,12 @@ def explain_formula(
     Returns
     -------
     dict[str, Any]
-        Dict with ``node_id``, ``period_id``, ``final_value``, ``node_type``, ``formula_text``,
-        and ``breakdown`` (list of component dicts: ``component``, ``value``, ``operation``).
+        The canonical serde form of the Rust ``Explanation``: ``node_id``,
+        ``period_id``, ``final_value``, ``node_type`` (snake_case
+        discriminant, e.g. ``"calculated"``), ``formula_text``, and
+        ``breakdown`` (list of ``ExplanationStep`` dicts: ``component``,
+        ``value``, and ``operation`` — the ``operation`` key is omitted when
+        absent). Matches the WASM ``explainFormula`` output exactly.
 
     Raises
     ------
@@ -2442,7 +2449,7 @@ def classify_stage(
     pd_delta_stage2: float | None = None,
     dpd_30_trigger: bool | None = None,
     dpd_90_trigger: bool | None = None,
-) -> tuple[str, str]:
+) -> tuple[str, list[str]]:
     """
     Classify an exposure into an IFRS 9 stage.
 
@@ -2459,9 +2466,12 @@ def classify_stage(
 
     Returns
     -------
-    tuple[str, str]
-        ``(stage, trigger_reason)`` where stage is ``"Stage 1"``, ``"Stage 2"``,
-        or ``"Stage 3"``.
+    tuple[str, list[str]]
+        ``(stage, trigger_reasons)`` where stage is ``"Stage 1"``,
+        ``"Stage 2"``, or ``"Stage 3"`` and ``trigger_reasons`` is the full
+        ordered audit trail of fired triggers (``["no_trigger"]`` for a
+        clean Stage 1), rendered by the canonical Rust ``StagingTrigger``
+        display format.
 
     Raises
     ------
@@ -2655,13 +2665,15 @@ def z_score(value: float, peer_values: list[float]) -> float | None:
     """
     ...
 
-def peer_stats(peer_values: list[float]) -> dict[str, float]:
+def peer_stats(peer_values: list[float]) -> dict[str, float] | None:
     """
     Descriptive statistics for a peer distribution.
 
     Returns a dict with keys ``mean``, ``median``, ``q1``, ``q3``, ``iqr``,
-    ``std_dev``, ``min``, ``max``, ``count`` (mirroring the Rust ``PeerStats``
-    field names), or an empty dict when ``peer_values`` is empty.
+    ``std_dev``, ``min``, ``max``, ``count`` (the Rust ``PeerStats`` serde
+    form), or ``None`` when no statistics can be computed — matching the
+    WASM twin's ``undefined`` and the sibling ``percentile_rank`` /
+    ``z_score`` no-result convention.
 
     Parameters
     ----------
@@ -2670,8 +2682,8 @@ def peer_stats(peer_values: list[float]) -> dict[str, float]:
 
     Returns
     -------
-    dict[str, float]
-        Descriptive statistics.
+    dict[str, float] or None
+        Descriptive statistics, or ``None`` when ``peer_values`` is empty.
 
     Raises
     ------
@@ -2692,7 +2704,7 @@ def regression_fair_value(
     y_values: list[float],
     subject_x: float,
     subject_y: float,
-) -> dict[str, float]:
+) -> dict[str, float] | None:
     """
     Single-factor OLS regression fair value with canonical residual semantics.
 
@@ -2709,8 +2721,11 @@ def regression_fair_value(
 
     Returns
     -------
-    dict[str, float]
-        Regression fair value metrics.
+    dict[str, float] or None
+        Regression fair value metrics (the Rust ``RegressionResult`` serde
+        form), or ``None`` when fewer than three observations are available
+        or the fit is unidentifiable — matching the WASM twin's
+        ``undefined``.
 
     Raises
     ------

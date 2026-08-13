@@ -21,6 +21,7 @@ from typing import Literal
 import pandas as pd
 
 from finstack_quant.core.currency import Currency
+from finstack_quant.core.dates import BusinessDayConvention, DayCount, Tenor
 from finstack_quant.core.market_data import MarketContext
 from finstack_quant.core.money import Money
 from finstack_quant.core.table import ArrowTable
@@ -2022,6 +2023,161 @@ class ModelBuilder:
         """
         ...
 
+    def add_bond_with_convention(
+        self,
+        id: str,
+        notional: Money,
+        coupon_rate: float,
+        issue_date: date,
+        maturity_date: date,
+        convention: str,
+        discount_curve_id: str,
+    ) -> ModelBuilder:
+        """
+        Add a fixed-rate bond with a market convention preset.
+
+        Applies regional day-count, coupon-frequency, and calendar
+        conventions automatically; :meth:`add_bond` uses US corporate
+        conventions instead.
+
+        Parameters
+        ----------
+        id:
+            Bond identifier.
+        notional:
+            Face value as a :class:`Money` amount.
+        coupon_rate:
+            Annual coupon rate as a decimal (e.g. ``0.03`` for 3%).
+        issue_date:
+            Bond issue date.
+        maturity_date:
+            Bond maturity date.
+        convention:
+            Regional preset as the canonical snake_case identifier:
+            ``"us_treasury"``, ``"us_agency"``, ``"german_bund"``,
+            ``"uk_gilt"``, ``"french_oat"``, ``"jgb"``, or ``"corporate"``.
+        discount_curve_id:
+            Curve ID for discounting (e.g. ``"EUR-OIS"``).
+
+        Returns
+        -------
+        ModelBuilder
+            This builder, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If the convention is unknown, a date is invalid, or the builder
+            has already been consumed.
+        RuntimeError
+            If the bond cannot be added to the model capital structure.
+
+        Examples
+        --------
+        >>> from datetime import date
+        >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.money import Money
+        >>> from finstack_quant.statements import ModelBuilder
+        >>> builder = ModelBuilder("cs-model")
+        >>> _ = builder.add_bond_with_convention(
+        ...     "BUND-001",
+        ...     Money(10_000_000.0, Currency("EUR")),
+        ...     0.03,
+        ...     date(2025, 1, 15),
+        ...     date(2030, 1, 15),
+        ...     "german_bund",
+        ...     "EUR-OIS",
+        ... )
+        """
+        ...
+
+    def add_swap_with_conventions(
+        self,
+        id: str,
+        notional: Money,
+        fixed_rate: float,
+        start_date: date,
+        maturity_date: date,
+        discount_curve_id: str,
+        forward_curve_id: str,
+        fixed_frequency: Tenor | str,
+        fixed_day_count: DayCount,
+        float_frequency: Tenor | str,
+        float_day_count: DayCount,
+        business_day_convention: BusinessDayConvention | str | None = None,
+    ) -> ModelBuilder:
+        """
+        Add an interest rate swap with custom leg conventions.
+
+        Exposes day-count, frequency, and business-day-convention parameters
+        for non-USD swaps (e.g. EUR annual ACT/360 fixed legs);
+        :meth:`add_swap` uses US conventions instead.
+
+        Parameters
+        ----------
+        id:
+            Swap identifier.
+        notional:
+            Notional amount as a :class:`Money` value.
+        fixed_rate:
+            Fixed leg rate as a decimal (e.g. ``0.04`` for 4%).
+        start_date:
+            Swap start date.
+        maturity_date:
+            Swap maturity date.
+        discount_curve_id:
+            Curve ID for discounting.
+        forward_curve_id:
+            Curve ID for floating-leg forward rates.
+        fixed_frequency:
+            Payment frequency of the fixed leg (e.g. ``"1Y"``).
+        fixed_day_count:
+            Day-count convention applied to the fixed leg.
+        float_frequency:
+            Payment / fixing frequency of the floating leg (e.g. ``"3M"``).
+        float_day_count:
+            Day-count convention applied to the floating leg.
+        business_day_convention:
+            Schedule-date rolling convention (default Modified Following).
+
+        Returns
+        -------
+        ModelBuilder
+            This builder, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If a tenor, day count, convention, or date is invalid, or the
+            builder has already been consumed.
+        RuntimeError
+            If the swap cannot be added to the model capital structure.
+
+        Examples
+        --------
+        >>> from datetime import date
+        >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.dates import DayCount
+        >>> from finstack_quant.core.money import Money
+        >>> from finstack_quant.statements import ModelBuilder
+        >>> builder = ModelBuilder("cs-model")
+        >>> _ = builder.add_swap_with_conventions(
+        ...     "SWAP-EUR",
+        ...     Money(5_000_000.0, Currency("EUR")),
+        ...     0.03,
+        ...     date(2025, 1, 15),
+        ...     date(2030, 1, 15),
+        ...     "EUR-OIS",
+        ...     "EUR-EURIBOR-6M",
+        ...     "1Y",
+        ...     DayCount.ACT_360,
+        ...     "6M",
+        ...     DayCount.ACT_360,
+        ...     "modified_following",
+        ... )
+        """
+        ...
+
     def add_debt(self, id: str, spec_json: str) -> ModelBuilder:
         """
         Add a debt instrument via its canonical v1 instrument envelope.
@@ -2564,6 +2720,88 @@ class StatementResult:
         """
         ...
 
+    def get_or(self, node_id: str, period: str, default: float) -> float:
+        """
+        Return the value for a node at a period, or a default when missing.
+
+        Parameters
+        ----------
+        node_id:
+            Node identifier.
+        period:
+            Period label such as ``"2025Q1"``.
+        default:
+            Value returned when the node or period is unknown.
+
+        Returns
+        -------
+        float
+            The evaluated value in the node's own units, or ``default``.
+
+        Raises
+        ------
+        ValueError
+            If ``period`` cannot be parsed as a period id.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import Evaluator, ModelBuilder
+        >>> builder = ModelBuilder("demo")
+        >>> _ = builder.periods("2025Q1..Q1")
+        >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
+        >>> result = Evaluator().evaluate(builder.build())
+        >>> result.get_or("missing", "2025Q1", 0.0)
+        0.0
+        """
+        ...
+
+    def all_periods(self, node_id: str) -> list[tuple[str, float]]:
+        """
+        Get every evaluated period for one node as ordered pairs.
+
+        Parameters
+        ----------
+        node_id:
+            Node identifier.
+
+        Returns
+        -------
+        list[tuple[str, float]]
+            ``(period, value)`` pairs in evaluation order, in the node's own
+            units. Empty when the node is not in the result.
+
+        Notes
+        -----
+        This method does not raise; an unknown *node_id* yields an empty list.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import Evaluator, ModelBuilder
+        >>> builder = ModelBuilder("demo")
+        >>> _ = builder.periods("2025Q1..Q1")
+        >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
+        >>> Evaluator().evaluate(builder.build()).all_periods("revenue")
+        [('2025Q1', 100.0)]
+        """
+        ...
+
+    @property
+    def check_report(self) -> CheckReport | None:
+        """
+        Check report attached by an evaluator configured with checks.
+
+        Returns
+        -------
+        CheckReport | None
+            The report produced by :meth:`Evaluator.with_checks`, or
+            ``None`` when no check suite ran during evaluation.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
     def get_node(self, node_id: str) -> dict[str, float] | None:
         """
         Get every evaluated period for one node as a dict.
@@ -2836,6 +3074,43 @@ class Evaluator:
         Notes
         -----
         Construction does not raise; arguments are stored as supplied.
+        """
+        ...
+
+    def with_checks(self, suite_spec: CheckSuiteSpec) -> Evaluator:
+        """
+        Attach a check suite to run automatically after each evaluation.
+
+        The suite spec is resolved (built-in and formula checks) and the
+        resulting report is attached to
+        :attr:`StatementResult.check_report` on every subsequent
+        ``evaluate`` / ``evaluate_with_market`` call.
+
+        Parameters
+        ----------
+        suite_spec:
+            The check-suite specification to resolve and attach.
+
+        Returns
+        -------
+        Evaluator
+            This evaluator, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If the suite spec cannot be resolved into runnable checks.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import CheckSuiteSpec, Evaluator, ModelBuilder
+        >>> spec = CheckSuiteSpec.from_json('{"name": "s", "builtin_checks": [], "formula_checks": []}')
+        >>> builder = ModelBuilder("demo")
+        >>> _ = builder.periods("2025Q1..Q1")
+        >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
+        >>> evaluator = Evaluator().with_checks(spec)
+        >>> evaluator.evaluate(builder.build()).check_report.passed
+        True
         """
         ...
 
@@ -3334,6 +3609,8 @@ class CheckReport:
         """
         Number of checks that ran, one per row of :meth:`to_dataframe`.
 
+        Reads the canonical Rust ``CheckSummary.total_checks`` counter.
+
         Returns
         -------
         int
@@ -3342,6 +3619,94 @@ class CheckReport:
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def has_errors(self) -> bool:
+        """
+        Whether the report contains at least one error-severity finding.
+
+        Delegates to the canonical Rust ``CheckReport::has_errors``.
+
+        Returns
+        -------
+        bool
+            ``True`` when any retained finding has error severity.
+
+        Notes
+        -----
+        This method does not raise; it reads the stored summary.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import CheckReport
+        >>> report = CheckReport.from_json(
+        ...     '{"results": [], "summary": {"total_checks": 0, "passed": 0,'
+        ...     ' "failed": 0, "errors": 0, "warnings": 0, "infos": 0}}'
+        ... )
+        >>> report.has_errors()
+        False
+        """
+        ...
+
+    def has_warnings(self) -> bool:
+        """
+        Whether the report contains at least one warning-severity finding.
+
+        Delegates to the canonical Rust ``CheckReport::has_warnings``.
+
+        Returns
+        -------
+        bool
+            ``True`` when any retained finding has warning severity.
+
+        Notes
+        -----
+        This method does not raise; it reads the stored summary.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import CheckReport
+        >>> report = CheckReport.from_json(
+        ...     '{"results": [], "summary": {"total_checks": 0, "passed": 0,'
+        ...     ' "failed": 0, "errors": 0, "warnings": 0, "infos": 0}}'
+        ... )
+        >>> report.has_warnings()
+        False
+        """
+        ...
+
+    def findings_by_severity(self, severity: str) -> list[dict[str, object]]:
+        """
+        Return all retained findings of one severity as serde dicts.
+
+        Delegates to the canonical Rust ``CheckReport::findings_by_severity``.
+
+        Parameters
+        ----------
+        severity:
+            One of ``"info"``, ``"warning"``, ``"error"`` (the canonical
+            snake_case severity discriminants).
+
+        Returns
+        -------
+        list[dict[str, object]]
+            One ``CheckFinding`` serde dict per matching retained finding.
+
+        Raises
+        ------
+        ValueError
+            If ``severity`` is not a canonical severity discriminant.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import CheckReport
+        >>> report = CheckReport.from_json(
+        ...     '{"results": [], "summary": {"total_checks": 0, "passed": 0,'
+        ...     ' "failed": 0, "errors": 0, "warnings": 0, "infos": 0}}'
+        ... )
+        >>> report.findings_by_severity("error")
+        []
         """
         ...
 

@@ -315,15 +315,18 @@ class InstrumentArtifactCache:
     (0, 0, 0)
     """
 
-    def __init__(self, capacity: int = 4_096) -> None:
+    def __init__(self, capacity: int | None = None) -> None:
         """
         Create an empty cache with an explicit artifact-entry bound.
 
         Parameters
         ----------
-        capacity : int, default 4096
-            Maximum decoded artifacts retained by the cache. Benchmarks should
-            pass the fixture's unique-artifact count explicitly.
+        capacity : int, optional
+            Maximum decoded artifacts retained by the cache. ``None`` falls
+            through to the native ``InstrumentArtifactCache::default`` bound
+            (currently 4,096 entries), matching the WASM constructor.
+            Benchmarks should pass the fixture's unique-artifact count
+            explicitly.
 
         Raises
         ------
@@ -1991,8 +1994,10 @@ class ScenarioPnl:
         Returns
         -------
         dict[str, float]
-            Base-currency amounts ordered by position id. Sums to
-            :attr:`total`.
+            Base-currency amounts in the canonical Rust ``IndexMap``
+            iteration order (stressed positions first, then base-only
+            positions), matching :meth:`to_dataframe`, :meth:`to_series`,
+            and :meth:`to_json`. Sums to :attr:`total`.
 
         Notes
         -----
@@ -3442,7 +3447,8 @@ def evaluate_risk_budget(
         Total portfolio VaR used to convert target percentages
         into target VaR amounts.
     utilization_threshold : float, default 1.20
-        Breach threshold for actual / target utilization.
+        Breach threshold for actual / target utilization. The default is the
+        Rust ``DEFAULT_UTILIZATION_THRESHOLD`` shared with the WASM binding.
 
     Returns
     -------
@@ -3452,7 +3458,8 @@ def evaluate_risk_budget(
     Raises
     ------
     ValueError
-        If input lengths differ or risk-budget inputs are invalid.
+        If input lengths differ, a position id is duplicated, or risk-budget
+        inputs are invalid.
 
     Examples
     --------
@@ -3684,7 +3691,11 @@ def almgren_chriss_impact(
     Returns
     -------
     dict[str, float]
-        Dict of permanent, temporary, and total impact estimates.
+        ``{permanent_impact, temporary_impact, total_impact,
+        expected_cost_bp, execution_risk}`` — the canonical Rust
+        ``AlmgrenChrissImpactView`` keys shared with the WASM binding.
+        ``execution_risk`` is the timing-risk standard deviation of
+        execution cost in the same cost units as the impacts.
 
     Raises
     ------

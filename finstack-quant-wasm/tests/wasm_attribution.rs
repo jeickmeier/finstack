@@ -109,7 +109,34 @@ fn attribute_pnl_returns_structured_object_matching_json_twin() {
     let object: serde_json::Value = serde_json::from_str(&stringified).expect("object JSON");
     let json = attribute_pnl_json(&params("\"parallel\"")).expect("attributePnlJson");
     let wire: serde_json::Value = serde_json::from_str(&json).expect("wire JSON");
-    assert_eq!(object, wire, "structured object and wire JSON must agree");
+    assert_eq!(
+        canonicalize_numbers(object),
+        canonicalize_numbers(wire),
+        "structured object and wire JSON must agree"
+    );
+}
+
+/// Normalize every JSON number to f64 before comparing.
+///
+/// `JSON.stringify` on a JS number cannot express a float-typed whole number
+/// (`0.0` stringifies as `0`), while serde_json keeps the int/float
+/// distinction, so a structural comparison across the two routes must not
+/// hinge on number subtype.
+fn canonicalize_numbers(value: serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Number(n) => {
+            serde_json::Value::from(n.as_f64().expect("finite JSON number"))
+        }
+        serde_json::Value::Array(items) => {
+            serde_json::Value::Array(items.into_iter().map(canonicalize_numbers).collect())
+        }
+        serde_json::Value::Object(map) => serde_json::Value::Object(
+            map.into_iter()
+                .map(|(k, v)| (k, canonicalize_numbers(v)))
+                .collect(),
+        ),
+        other => other,
+    }
 }
 
 #[wasm_bindgen_test]

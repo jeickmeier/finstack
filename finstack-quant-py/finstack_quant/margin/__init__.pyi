@@ -1219,6 +1219,31 @@ class CsaSpec:
         """
         ...
 
+    def validate(self) -> None:
+        """
+        Validate CSA identifiers and the contractual holiday calendar.
+
+        Runs the same Rust-side validation that ``from_json`` applies on
+        ingest, so an already-constructed spec can be re-checked in place.
+
+        Returns
+        -------
+        None
+            Returns ``None`` when the spec is valid.
+
+        Raises
+        ------
+        ValueError
+            If an identifier is empty or the calendar id is unknown.
+
+        Examples
+        --------
+        >>> from finstack_quant.margin import CsaSpec
+        >>> CsaSpec.usd_regulatory().validate() is None
+        True
+        """
+        ...
+
     def __repr__(self) -> str: ...
 
 class EligibleCollateralSchedule:
@@ -2298,16 +2323,17 @@ class SimmCalculator:
     ('v2_6', 10)
     """
 
-    def __init__(self, version: str = "v2_6", mpor_days: int | None = None) -> None:
+    def __init__(self, version: str | None = None, mpor_days: int | None = None) -> None:
         """
         Create a SIMM calculator from the embedded margin registry.
 
         Parameters
         ----------
-        version : str, default "v2_6"
+        version : str or None, optional
             SIMM version alias. Supported values include ``"v2_5"``,
             ``"2.5"``, ``"SIMM 2.5"``, ``"v2_6"``, ``"2.6"``, and
-            ``"SIMM 2.6"``.
+            ``"SIMM 2.6"``. When omitted, the Rust ``SimmVersion::default()``
+            (currently ``"v2_6"``) is used.
         mpor_days : int | None, optional
             Optional margin period of risk override in calendar days. When
             omitted, the registry default for the SIMM version is used.

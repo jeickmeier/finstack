@@ -28,11 +28,14 @@ visibility = "pub"
 status = "exists"  # Python package already present
 
 [crates.core.modules]
+canonical     = { python = "finstack_quant.core.canonical",     status = "missing", note = "Rust-only canonical-form normalization infrastructure; no host-language surface planned." }
 cashflow      = { python = "finstack_quant.core.cashflow",      status = "missing", note = "Core cashflow APIs are not yet materialized as a dedicated Python submodule" }
 config        = { python = "finstack_quant.core.config",        status = "exists" }
+contract      = { python = "finstack_quant.core.contract",      status = "missing", note = "Rust-only API-contract helper infrastructure; no host-language surface planned." }
 credit        = { python = "finstack_quant.core.credit",        status = "exists", note = "Includes scoring, pd, lgd, migration, recovery_waterfall, and liability_management submodules." }
 currency      = { python = "finstack_quant.core.currency",      status = "exists" }
 dates         = { python = "finstack_quant.core.dates",         status = "exists" }
+decimal       = { python = "finstack_quant.core.decimal",       status = "missing", note = "Rust-only Decimal representation internals; hosts read amounts via Money / amount_decimal." }
 error         = { python = "finstack_quant.core.error",         status = "missing" }
 explain       = { python = "finstack_quant.core.explain",       status = "missing", note = "Explain helpers are not yet surfaced as a dedicated Python submodule" }
 expr          = { python = "finstack_quant.core.expr",          status = "missing", note = "Expression APIs are not yet surfaced as a dedicated Python submodule" }
@@ -41,10 +44,12 @@ math          = { python = "finstack_quant.core.math",          status = "exists
 money         = { python = "finstack_quant.core.money",         status = "exists" }
 prelude       = { python = "finstack_quant.core.prelude",       status = "missing" }
 rating_scales = { python = "finstack_quant.core.rating_scales", status = "exists" }
+serde_guard   = { python = "finstack_quant.core.serde_guard",   status = "missing", note = "Rust-only strict-serde guard helpers; enforcement happens inside (de)serialization, not as a host API." }
 table         = { python = "finstack_quant.core.table",         status = "exists", note = "Arrow interchange surface. `ArrowTable` is a binding-level host-interop type backed by the supporting crate finstack-quant-arrow (not umbrella re-exported); exempt from strict crate mirroring like `reporting`. Intentionally NO WASM parity: arrow-rs is not built for wasm32." }
 types         = { python = "finstack_quant.core.types",         status = "exists" }
-validation    = { python = "finstack_quant.core.validation",    status = "missing" }
-# golden is feature-gated test-only — excluded (see [exclusions])
+validation    = { python = "finstack_quant.core.validation",    status = "missing", note = "Deliberately excluded, not a backlog gap: internal validation helpers — see [exclusions] entry for finstack_quant_core::validation." }
+versions      = { python = "finstack_quant.core.versions",      status = "missing", note = "Rust-only schema/version metadata registry; hosts see versions stamped in result envelopes." }
+wire          = { python = "finstack_quant.core.wire",          status = "missing", note = "Rust-only wire-format (de)serialization helpers backing the stable serde field names." }
 schema = { python = "finstack_quant.core.schema", status = "exists", note = "Registry-backed index/get/validate over the crate's published JSON Schemas; no WASM twin." }
 
 [crates.core.module_symbols.schema]
@@ -86,10 +91,12 @@ public = [
 [crates.core.module_symbols.config]
 python_package = "finstack_quant.core.config"
 public = ["RoundingMode", "ToleranceConfig", "FinstackConfig"]
+note = "Subset scope: the Rust config module also exposes ConfigExtensions, CurrencyScalePolicy, RoundingPolicy, RoundingContext, ZeroKind, NumericMode, ResultsMeta and the rounding_context_from/results_meta* helpers. These policy-stamp types stay Rust-only; hosts see them serialized inside result envelopes rather than as constructible objects."
 
 [crates.core.module_symbols.types]
 python_package = "finstack_quant.core.types"
 public = ["Rate", "Bps", "Percentage", "CreditRating", "CurveId", "InstrumentId", "Attributes"]
+note = "Subset scope: Rust-only extras are BarrierType, RatingFactorTable, RatingLabel, moodys_warf_factor, and the remaining id newtypes (CalendarId, DealId, Id, IndexId, IssuerId, PoolId, PriceId, UnderlyingId) — hosts pass those ids as plain strings on JSON/typed surfaces."
 
 [crates.core.module_symbols.currency]
 python_package = "finstack_quant.core.currency"
@@ -99,10 +106,12 @@ allow_additional = true # ISO-4217 code constants are generated from the Rust re
 [crates.core.module_symbols.money]
 python_package = "finstack_quant.core.money"
 public = ["Money"]
+note = "Subset scope: the Rust money module's FormatOpts family (FormatOpts + Money formatting entry points taking it), fx submodule types beyond the bound FxMatrix/FxConversionPolicy/FxRateResult (FxProvider, FxConfig, FxQuery, SimpleFxProvider), rounding helpers, and Money::convert(&dyn FxProvider) remain Rust-only; hosts format via Money.format(...) and convert via convert_at_rate or MarketContext-level FX."
 
 [crates.core.module_symbols.math]
 python_package = "finstack_quant.core.math"
 public = ["count_consecutive", "linalg", "stats", "special_functions", "summation"]
+note = "Subset scope: 13 Rust-only math submodules are deliberately unbound (characteristic_function, compounding, distributions, fractional, integration, interp, piecewise, probability, random, solver, solver_multi, time_grid, volatility) — they are engine internals consumed by the domain crates, not host-facing numerics."
 
 [crates.core.module_symbols.dates]
 python_package = "finstack_quant.core.dates"
@@ -121,6 +130,7 @@ public = [
     "next_equity_option_expiry",
     "create_date", "days_since_epoch", "date_from_epoch_days",
 ]
+note = "Subset scope: the Rust dates::fx (FX spot-lag/settlement date logic) and dates::calendar (calendar registry internals beyond adjust/available_calendars/CalendarMetadata) submodules remain Rust-only; hosts reach calendars by string id through adjust and the schedule builder."
 
 [crates.core.module_symbols.market_data]
 python_package = "finstack_quant.core.market_data"
@@ -131,10 +141,12 @@ public = [
     "VolCube", "VolatilityIndexCurve", "FxConversionPolicy", "FxRateResult", "FxMatrix",
     "ScalarTimeSeries", "InflationIndex", "MarketContext",
 ]
+note = "Subset scope: Rust-only market_data extras — the dividends, fixings, hierarchy, bumps and diff submodules, curve/surface builders (DiscountCurveBuilder etc.), ValidationMode, and the BasisSpreadCurve / ParametricCurve term structures — are deliberately unbound. Hosts construct curves through the bound constructors and apply bumps/diffs through the scenarios crate."
 
 [crates.core.module_symbols.credit]
 python_package = "finstack_quant.core.credit"
 public = ["scoring", "pd", "lgd", "migration", "recovery_waterfall", "liability_management"]
+note = "Subset scope: the Rust credit::registry submodule (market default assumptions, e.g. default_market_recovery_rate) is Rust-only; hosts inherit its values as builder defaults (e.g. HazardCurve recovery_rate) instead of querying the registry directly."
 
 [crates.core.credit_migration_members]
 "GeneratorMatrix.regularization_l1" = "regularization_l1"
@@ -152,6 +164,7 @@ python_package = "finstack_quant.core.table"
 public = [
     "ArrowTable",
 ]
+note = "Subset scope: the canonical Rust core::table columnar envelope types (TableEnvelope and its schema/column companions) are not bound in any host — `ArrowTable` is the Python-side Arrow interop wrapper, not a binding of those types. The Rust envelope crosses host boundaries only as serialized JSON inside result payloads. No WASM parity (arrow-rs not built for wasm32)."
 
 # ---------------------------------------------------------------------------
 # finstack-quant-factor-model  →  finstack_quant.factor_model
@@ -165,9 +178,19 @@ status = "exists"
 note = "Generic factor-model types are exported at the Rust crate root and cross host boundaries through JSON contracts; credit hierarchy APIs are exposed under finstack_quant.factor_model.credit. Known asymmetry: WASM handles (finstack-quant-wasm/src/api/factor_model/mod.rs) are toJson-only, while Python exposes typed accessors on CreditFactorModel/LevelsAtDate/PeriodDecomposition; this is an accepted host-language divergence, not drift."
 
 [crates.factor_model.modules]
-matching           = { python = "finstack_quant.factor_model.matching", status = "missing", note = "MatchingConfig typed host-language constructors deferred; JSON contracts remain Rust-owned." }
-credit             = { python = "finstack_quant.factor_model.credit", status = "exists", note = "CreditFactorModel, CreditCalibrator, LevelsAtDate, PeriodDecomposition, FactorCovarianceForecast, decompose_levels, decompose_period." }
+matching           = { python = "finstack_quant.factor_model.matching", status = "missing", note = "MatchingConfig typed host-language constructors deferred; JSON contracts remain Rust-owned. The crate-root matching re-exports (CascadeMatcher, HierarchicalMatcher, MappingTableMatcher, FactorMatcher trait family, MappingRule, AttributeFilter, DependencyFilter) are Rust-only." }
+credit             = { python = "finstack_quant.factor_model.credit", status = "exists", note = "CreditFactorModel, CreditCalibrator, LevelsAtDate, PeriodDecomposition, FactorCovarianceForecast, decompose_levels, decompose_period. Rust submodules credit::calibration, credit::decomposition, and credit::hierarchy are flattened into this one Python namespace; their remaining Rust items (calibration internals, peel helpers, hierarchy node types) are Rust-only. FactorCovarianceForecast is bound here but its canonical Rust home is finstack-quant-portfolio::factor_model::credit_vol_forecast (cross-crate; see the portfolio section)." }
 schema             = { python = "finstack_quant.factor_model.schema", status = "exists", note = "Compiled-in JSON Schema accessors; no WASM twin." }
+
+# The crate-root `pub use` surface (FactorModelConfig, BumpSizeConfig,
+# FactorBumpUnit, PricingMode, RiskMeasure, UnmatchedPolicy,
+# FactorCovarianceMatrix, SensitivityMatrix, the envelope types, and the
+# primitives FactorId/FactorType/FactorDefinition/MarketDependency/
+# MarketMapping/CurveType/DependencyType) is Rust-only: hosts consume these
+# through JSON contracts (factor_model.schema / covariance_at /
+# factor_model_at), not as typed bindings.
+[crates.factor_model.symbols]
+public = []
 
 [crates.factor_model.module_symbols.schema]
 python_package = "finstack_quant.factor_model.schema"
@@ -180,6 +203,20 @@ public = [
     "index",
     "validate",
 ]
+
+[wasm_factor_model_subset]
+status = "explicit_subset"
+note = "WASM factor_model exposes a single nested `credit` namespace mirroring finstack_quant.factor_model.credit (toJson-only handles; see the crate note). `schema` has no WASM twin."
+js_export_file = "../finstack-quant-wasm/exports/factor_model.js"
+root_exports = [
+  "credit",
+]
+python_only = [
+  "schema",
+]
+
+[wasm_factor_model_subset.python_js_map]
+credit = "credit"
 
 # ---------------------------------------------------------------------------
 # finstack-quant-analytics  →  finstack_quant.analytics
@@ -448,17 +485,24 @@ python_package = "finstack_quant.margin"
 visibility = "pub"
 status = "exists"
 
+# NOTE: `registry` is pub(crate) in Rust and therefore out of contract scope
+# (the contract tracks the crate's public boundary only). The registry's
+# shared defaults struct is named `PythonBindingDefaults` for historical
+# reasons but feeds both host bindings and Rust convenience pricers.
 [crates.margin.modules]
-calculators = { python = "finstack_quant.margin", status = "flattened", note = "VmCalculator, VmResult, and ImResult exposed flat on finstack_quant.margin" }
+calculators = { python = "finstack_quant.margin", status = "flattened", note = "VmCalculator, VmResult, and ImResult exposed flat on finstack_quant.margin. Rust-only, uncontracted-by-design: the CCP IM engine (ClearingHouseImCalculator, CcpMethodology), ExternalImSource, the ImCalculator trait, and SimmVersion (hosts pass version strings; the Python default derives from Rust SimmVersion::default())." }
 constants   = { python = "finstack_quant.margin", status = "flattened", note = "CONSTANTS exposed flat on finstack_quant.margin" }
 metrics     = { python = "finstack_quant.margin", status = "flattened", note = "MarginUtilization, ExcessCollateral, MarginFundingCost, and Haircut01 exposed flat on finstack_quant.margin" }
-regulatory  = { python = "finstack_quant.margin", status = "flattened", note = "FRTB and SA-CCR regulatory classes/functions exposed flat on finstack_quant.margin" }
-registry    = { python = "finstack_quant.margin.registry",    status = "missing" }
+regulatory  = { python = "finstack_quant.margin", status = "flattened", note = "FRTB and SA-CCR regulatory classes/functions exposed flat on finstack_quant.margin. Rust-only, uncontracted-by-design leaves: FRTB-SBA leaf functions and parameter tables, and SA-CCR leaf functions (pfe, replacement_cost, maturity_factor_*, supervisory tables) — hosts consume them through FrtbSbaEngine / SaCcrEngine / frtb_sba_charge / saccr_ead rather than as standalone bindings." }
 traits      = { python = "finstack_quant.margin.traits",      status = "missing" }
-types       = { python = "finstack_quant.margin", status = "flattened", note = "CSA, collateral, netting, and enum wrappers exposed flat on finstack_quant.margin" }
-xva         = { python = "finstack_quant.margin", status = "flattened", note = "XVA config/result/netting container wrappers plus MVA (ImDecayProfile, ImProfile, MvaResult, compute_mva, im_profile_from_simm) and compute_bilateral_xva exposed flat on finstack_quant.margin. PathValuer and PathImModel are Rust-only traits (not bindable)." }
+types       = { python = "finstack_quant.margin", status = "flattened", note = "CSA, collateral, netting, and enum wrappers exposed flat on finstack_quant.margin. Rust-only, uncontracted-by-design: the CSA spec detail types (OtcMarginSpec, RepoMarginSpec, VmParameters, ImParameters, CollateralEligibility, MarginCall, MarginCallTiming, MaturityConstraints, ConcentrationBreach) reachable through CsaSpec JSON, and the margin cashflow generators (generate_margin_cashflows, generate_margin_interest_cashflows, margin_calls_to_cashflows)." }
+xva         = { python = "finstack_quant.margin", status = "flattened", note = "XVA config/result/netting container wrappers plus MVA (ImDecayProfile, ImProfile, MvaResult, compute_mva, im_profile_from_simm) and compute_bilateral_xva exposed flat on finstack_quant.margin. PathValuer and PathImModel are Rust-only traits (not bindable). Rust-only, uncontracted-by-design leaves: compute_cva/compute_dva/compute_fva and the netting/collateral appliers — hosts consume them through compute_bilateral_xva." }
 schema = { python = "finstack_quant.margin.schema", status = "exists", note = "Registry-backed index/get/validate over the crate's published JSON Schemas; no WASM twin." }
 
+# NOTE: Python `SimmCalculator.calculate_from_sensitivities` maps to Rust
+# `SimmCalculator::calculate_from_sensitivities_result` (typed ImResult).
+# The Rust method of the same name returns the `(total, breakdown)` tuple and
+# is Rust-only; the typed-result mapping is the contract-correct host shape.
 [crates.margin.symbols]
 public = [
     "CONSTANTS",
@@ -544,14 +588,29 @@ status = "exists"
 # payoff/process module.
 
 [crates.monte_carlo.modules]
-engine             = { python = "finstack_quant.monte_carlo", status = "flattened", note = "McEngine and process helpers exposed flat on finstack_quant.monte_carlo" }
+engine             = { python = "finstack_quant.monte_carlo", status = "flattened", note = "McEngine and process helpers exposed flat on finstack_quant.monte_carlo. McEngineConfig/McEngineBuilder/PathCaptureConfig/PathCaptureMode are Rust-only; hosts configure through the McEngine constructor." }
 estimate           = { python = "finstack_quant.monte_carlo", status = "flattened", note = "Estimate exposed flat on finstack_quant.monte_carlo" }
 gbm_paths          = { python = "finstack_quant.monte_carlo", status = "flattened", note = "Compact GbmPathSummary and simulate_gbm_paths exposed flat; generic process/path graph remains Rust-only" }
-greeks             = { python = "finstack_quant.monte_carlo", status = "flattened", note = "finite_diff_delta/_crn and finite_diff_gamma/_crn exposed flat on finstack_quant.monte_carlo" }
-pricer             = { python = "finstack_quant.monte_carlo", status = "flattened", note = "European, path-dependent, and LSMC pricers exposed flat on finstack_quant.monte_carlo" }
-results            = { python = "finstack_quant.monte_carlo", status = "flattened", note = "MoneyEstimate exposed flat on finstack_quant.monte_carlo" }
-time_grid          = { python = "finstack_quant.monte_carlo", status = "flattened", note = "TimeGrid exposed flat on finstack_quant.monte_carlo" }
-variance_reduction = { python = "finstack_quant.monte_carlo", status = "flattened", note = "Black-Scholes analytical helpers exposed flat on finstack_quant.monte_carlo" }
+greeks             = { python = "finstack_quant.monte_carlo", status = "flattened", note = "finite_diff_delta/_crn and finite_diff_gamma/_crn exposed flat on finstack_quant.monte_carlo. The LRM and pathwise Greeks estimators are Rust-only." }
+pricer             = { python = "finstack_quant.monte_carlo", status = "flattened", note = "European, path-dependent, LSMC, and canonical Heston pricing (price_heston_call/put from pricer::heston) exposed flat on finstack_quant.monte_carlo. LSMC basis types (LaguerreBasis, PolynomialBasis, LsmcBasis) and ExercisePolicy are Rust-only; hosts select bases by name." }
+results            = { python = "finstack_quant.monte_carlo", status = "flattened", note = "MoneyEstimate exposed flat on finstack_quant.monte_carlo. MonteCarloResult and RunMetadata are Rust-only." }
+time_grid          = { python = "finstack_quant.monte_carlo", status = "flattened", note = "TimeGrid exposed flat on finstack_quant.monte_carlo (uniform constructor, from_times, uniform_with_required_times). The date-to-step mapping helpers (map_date_to_step, map_dates_to_steps, map_exercise_dates_to_steps) are Rust-only." }
+variance_reduction = { python = "finstack_quant.monte_carlo", status = "flattened", note = "Black-Scholes analytical helpers exposed flat on finstack_quant.monte_carlo. Control-variate/antithetic strategy types are Rust-only." }
+# Rust-only, uncontracted-by-design modules: hosts consume these through the
+# productized pricer/engine entry points above, not as standalone bindings.
+barriers           = { python = "finstack_quant.monte_carlo.barriers", status = "missing", note = "Rust-only: barrier-crossing bridge adjustments (consumed by pricers)." }
+discretization     = { python = "finstack_quant.monte_carlo.discretization", status = "missing", note = "Rust-only: all discretization schemes (ExactGbm, EulerMaruyama, Milstein, QeHeston, QeCir, rough-vol schemes, ...)." }
+engine_fractional  = { python = "finstack_quant.monte_carlo.engine_fractional", status = "missing", note = "Rust-only: fractional-noise path simulation." }
+online_stats       = { python = "finstack_quant.monte_carlo.online_stats", status = "missing", note = "Rust-only: streaming estimator internals (OnlineStats, OnlineCovariance, required_samples)." }
+paths              = { python = "finstack_quant.monte_carlo.paths", status = "missing", note = "Rust-only: path capture dataset types (PathDataset, SimulatedPath, ProcessParams, ...); hosts see the compact GbmPathSummary." }
+payoff             = { python = "finstack_quant.monte_carlo.payoff", status = "missing", note = "Rust-only: payoff types (EuropeanCall/Put, Digital, Forward, Asian, barrier) incl. geometric_asian_call_closed_form; hosts select payoffs via pricer entry points." }
+process            = { python = "finstack_quant.monte_carlo.process", status = "missing", note = "Rust-only: stochastic process types (GBM, Heston, CIR, Hull-White, Brownian, Schwartz-Smith, ...); hosts pass raw parameters. The inclusive Feller predicate process::heston::feller_condition backs heston_satisfies_feller." }
+registry           = { python = "finstack_quant.monte_carlo.registry", status = "missing", note = "Rust-only: embedded runtime defaults. The shared defaults struct is named PythonBindingDefaults for historical reasons but feeds both host bindings and the canonical Rust convenience pricers." }
+rng                = { python = "finstack_quant.monte_carlo.rng", status = "missing", note = "Rust-only: PhiloxRng, SobolRng, and fractional-Brownian generators; hosts pass integer seeds." }
+seed               = { python = "finstack_quant.monte_carlo.seed", status = "missing", note = "Rust-only: seed-derivation helpers for deterministic stream splitting." }
+# `traits` (RandomStream/StochasticProcess/Discretization/Payoff) is excluded:
+# Rust trait contracts are not bindable surfaces.
+# `prelude` is excluded as a re-export convenience module.
 
 [crates.monte_carlo.symbols]
 public = [
@@ -579,6 +638,59 @@ public = [
 # function-oriented browser entry points. Python exposes canonical European
 # GBM pricing through `EuropeanPricer` and `McEngine` methods instead.
 
+[wasm_monte_carlo_subset]
+status = "explicit_subset"
+note = "WASM monte_carlo is a function-oriented browser subset. The GBM European/Asian/American free functions have no Python free-function twins (Python uses the EuropeanPricer/PathDependentPricer/LsmcPricer/McEngine classes); the Heston pair delegates to the same canonical Rust pricer::heston entry points as Python."
+js_export_file = "../finstack-quant-wasm/exports/monte_carlo.js"
+root_exports = [
+  "priceEuropeanCall",
+  "priceEuropeanPut",
+  "priceHestonCall",
+  "priceHestonPut",
+  "priceAsianCall",
+  "priceAsianPut",
+  "priceAmericanPut",
+  "priceAmericanCall",
+  "priceAmericanPutUnbiased",
+  "priceAmericanCallUnbiased",
+  "blackScholesCall",
+  "blackScholesPut",
+]
+python_only = [
+  "Estimate",
+  "EuropeanPricer",
+  "GbmPathSummary",
+  "LsmcPricer",
+  "McEngine",
+  "MoneyEstimate",
+  "PathDependentPricer",
+  "TimeGrid",
+  "finite_diff_delta",
+  "finite_diff_delta_crn",
+  "finite_diff_gamma",
+  "finite_diff_gamma_crn",
+  "heston_satisfies_feller",
+  "simulate_gbm_paths",
+]
+
+[wasm_monte_carlo_subset.python_js_map]
+black_scholes_call = "blackScholesCall"
+black_scholes_put = "blackScholesPut"
+price_heston_call = "priceHestonCall"
+price_heston_put = "priceHestonPut"
+
+[wasm_monte_carlo_subset.wasm_only]
+symbols = [
+  "priceEuropeanCall",
+  "priceEuropeanPut",
+  "priceAsianCall",
+  "priceAsianPut",
+  "priceAmericanPut",
+  "priceAmericanCall",
+  "priceAmericanPutUnbiased",
+  "priceAmericanCallUnbiased",
+]
+
 # ---------------------------------------------------------------------------
 # finstack-quant-valuations  →  finstack_quant.valuations
 # ---------------------------------------------------------------------------
@@ -599,6 +711,15 @@ calibration  = { python = "finstack_quant.valuations",              status = "fl
 correlation  = { python = "finstack_quant.valuations.correlation",  status = "exists", note = "Former standalone finstack-correlation crate; nested under valuations" }
 credit_derivatives = { python = "finstack_quant.valuations.credit_derivatives", status = "exists", note = "CDS-family example-payload factories; mirrors WASM valuations.creditDerivatives" }
 schema       = { python = "finstack_quant.valuations.schema",       status = "exists", note = "Compiled-in JSON Schema accessors and envelope/type validators; no WASM twin" }
+# Rust-only infrastructure modules, listed for completeness so the module
+# inventory covers the whole crate root. None is surfaced as a host namespace.
+constants    = { python = "finstack_quant.valuations.constants",    status = "missing", note = "Rust-only numeric/convention constants; hosts see the values through APIs that consume them (e.g. theta_days defaults), not as a namespace" }
+error        = { python = "finstack_quant.valuations.error",        status = "missing", note = "Rust-only error types; hosts receive mapped exceptions (Python ValueError/KeyError, JS Error), not the enum" }
+market       = { python = "finstack_quant.valuations.market",       status = "missing", note = "Rust-only market-object builders behind the calibrate JSON pipeline; not yet surfaced to hosts" }
+metrics      = { python = "finstack_quant.valuations.metrics",      status = "missing", note = "Rust-only MetricId/MetricRegistry plumbing; hosts enumerate metrics via list_standard_metrics* instead" }
+pricer       = { python = "finstack_quant.valuations.pricer",       status = "missing", note = "Rust-only pricer registry and JSON pricing entry points; hosts reach them through the flattened price_* / validate_* helpers under instruments" }
+prelude      = { python = "finstack_quant.valuations.prelude",      status = "missing", note = "Rust-only re-export bag; no host-language meaning" }
+results      = { python = "finstack_quant.valuations.results",      status = "missing", note = "Rust-only result envelope types; the host-facing ValuationResult wrapper is pinned in [crates.valuations.symbols]" }
 
 # Symbol-level pinning for the valuations domain. Names listed here MUST
 # resolve when imported from `finstack_quant.valuations`. Adding a public name to
@@ -606,6 +727,12 @@ schema       = { python = "finstack_quant.valuations.schema",       status = "ex
 [crates.valuations.symbols]
 # Existing PyO3/Python classes plus the broad JSON-native CalibrationEnvelope
 # alias from finstack-quant-py/finstack_quant/valuations/envelope.py.
+#
+# Documented rename: the `Sabr*` classes wrap the Rust `SABR*` types
+# (SABRParameters/SABRModel/SABRSmile/SABRCalibrator in
+# finstack_quant_valuations::models::volatility::sabr). Hosts use the
+# host-conventional acronym casing `Sabr*`, mirroring the documented
+# `CDS*` -> `Cds*` precedent.
 public = [
     "CalibrationEnvelope",
     "CalibrationEnvelopeError",
@@ -658,7 +785,10 @@ public = [
 # `finstack_quant.valuations.correlation.__all__` must appear here (alphabetical,
 # matching the package __all__ ordering). Python names mirror the canonical
 # Rust names in finstack_quant_valuations::correlation (LatentFactorKind, not
-# LatentFactor).
+# LatentFactor) with one documented rename: hosts expose `nearest_correlation`
+# for the Rust `nearest_correlation_matrix` (canonical home
+# finstack_quant_analytics::correlation, re-exported through
+# finstack_quant_valuations::correlation).
 [crates.valuations.correlation]
 python_package = "finstack_quant.valuations.correlation"
 public = [
@@ -683,6 +813,20 @@ public = [
     "nearest_correlation",
     "simulate_portfolio_loss",
     "validate_correlation_matrix",
+]
+
+# Symbol-level pinning for finstack_quant.valuations.credit_derivatives.
+# The four example-payload factories mirror the Rust
+# finstack_quant_valuations::instruments::credit_derivatives example
+# constructors and the WASM `valuations.creditDerivatives` namespace
+# (pinned in [wasm_valuations_subset.nested_exports] below).
+[crates.valuations.credit_derivatives]
+python_package = "finstack_quant.valuations.credit_derivatives"
+public = [
+    "cds_index_example_json",
+    "cds_option_example_json",
+    "cds_tranche_example_json",
+    "credit_default_swap_example_json",
 ]
 
 [crates.valuations.instruments]
@@ -879,17 +1023,52 @@ status = "exists"
 adjustments      = { python = "finstack_quant.statements.adjustments",       status = "missing", note = "Bindings are currently exported from finstack_quant.statements root" }
 builder          = { python = "finstack_quant.statements.builder",           status = "missing", note = "Bindings are currently exported from finstack_quant.statements root" }
 capital_structure = { python = "finstack_quant.statements.capital_structure", status = "missing", note = "Bindings are currently exported from finstack_quant.statements root" }
-checks           = { python = "finstack_quant.statements.checks",            status = "missing", note = "Bindings are currently exported from finstack_quant.statements root" }
+checks           = { python = "finstack_quant.statements.checks",            status = "missing", note = "Bindings are currently exported from finstack_quant.statements root. CheckSuite/CheckSuiteBuilder and the builtin-check constructors stay Rust-only; hosts attach suites via CheckSuiteSpec + Evaluator.with_checks" }
 dsl              = { python = "finstack_quant.statements.dsl",               status = "missing", note = "Bindings are currently exported from finstack_quant.statements root" }
 error            = { python = "finstack_quant.statements.error",             status = "missing" }
-evaluator        = { python = "finstack_quant.statements.evaluator",         status = "missing", note = "Bindings are currently exported from finstack_quant.statements root" }
-extensions       = { python = "finstack_quant.statements.extensions",        status = "missing", note = "Bindings are currently exported from finstack_quant.statements root" }
+evaluator        = { python = "finstack_quant.statements.evaluator",         status = "missing", note = "Bindings are currently exported from finstack_quant.statements root. Evaluator::prepare / evaluate_prepared are Rust-only performance seams; hosts use evaluate / evaluate_with_market" }
 forecast         = { python = "finstack_quant.statements.forecast",          status = "missing", note = "Bindings are currently exported from finstack_quant.statements root" }
+formula          = { python = "finstack_quant.statements.formula",           status = "missing", note = "Formula identifier-extraction helpers; Rust-only, consumed internally by the analytics introspection tools" }
 prelude          = { python = "finstack_quant.statements.prelude",           status = "missing" }
 registry         = { python = "finstack_quant.statements.registry",          status = "missing", note = "Bindings are currently exported from finstack_quant.statements root" }
 schema           = { python = "finstack_quant.statements.schema",            status = "exists", note = "Compiled-in JSON Schema accessors; no WASM twin" }
 types            = { python = "finstack_quant.statements.types",             status = "missing", note = "Bindings are currently exported from finstack_quant.statements root" }
 utils            = { python = "finstack_quant.statements.utils",             status = "missing" }
+
+# Rust-only type inventories (categories, not every name): the
+# capital-structure runtime surface (execute_waterfall, CapitalStructureState,
+# instrument cashflow plumbing), evaluator internals (DependencyGraph,
+# EvalWarning, forecast engine types), dsl AST types, registry metric-spec
+# types, and adjustments detail types are deliberately unbound in both hosts.
+# Hosts reach capital structure by embedding CapitalStructureSpec in the model
+# JSON and evaluating with a market context.
+
+[crates.statements.symbols]
+public = [
+    "CheckReport",
+    "CheckSuiteSpec",
+    "EcfSweepSpec",
+    "Evaluator",
+    "FinancialModelSpec",
+    "ForecastMethod",
+    "ForecastSpec",
+    "MetricRegistry",
+    "MixedNodeBuilder",
+    "ModelBuilder",
+    "MonteCarloConfig",
+    "MonteCarloResults",
+    "NodeId",
+    "NodeType",
+    "NormalizationConfig",
+    "NumericMode",
+    "PikToggleSpec",
+    "StatementResult",
+    "WaterfallSpec",
+    "normalize",
+    "parse_formula",
+    "run_monte_carlo",
+    "validate_formula",
+]
 
 [crates.statements.module_symbols.schema]
 python_package = "finstack_quant.statements.schema"
@@ -919,9 +1098,23 @@ status = "exists"
 
 [crates.statements_analytics.modules]
 analysis                    = { python = "finstack_quant.statements_analytics.analysis",         status = "missing", note = "Bindings are currently exported from finstack_quant.statements_analytics root" }
-comps                       = { python = "finstack_quant.statements_analytics",                  status = "flattened", note = "Comparable-company analysis exposed flat on finstack_quant.statements_analytics" }
+comps                       = { python = "finstack_quant.statements_analytics",                  status = "flattened", note = "analysis::comps is pub(crate) in Rust — not a crate-boundary module — reached only via the flattened comparable-company functions/types re-exported through analysis and bound flat on finstack_quant.statements_analytics" }
 extensions                  = { python = "finstack_quant.statements_analytics",                  status = "flattened", note = "Credit-scorecard and corkscrew extensions exposed flat on finstack_quant.statements_analytics (ScorecardMetric/Config/Report, CreditScorecardExtension, AccountType, CorkscrewAccount/Config/Report, CorkscrewExtension, validate_scorecard_config)" }
-templates                   = { python = "finstack_quant.statements_analytics",                  status = "flattened", note = "Vintage, roll-forward, and real-estate templates exposed flat on finstack_quant.statements_analytics (add_vintage_buildup, add_roll_forward, add_noi_buildup, add_ncf_buildup, add_rent_roll, add_rent_roll_rental_revenue, add_property_operating_statement, plus LeaseSpec/SimpleLeaseSpec/RentStepSpec/FreeRentWindowSpec/RenewalSpec/LeaseGrowthConvention/RentRollOutputNodes/ManagementFeeBase/ManagementFeeSpec/PropertyTemplateNodes)" }
+templates                   = { python = "finstack_quant.statements_analytics",                  status = "flattened", note = "Vintage, roll-forward, and real-estate templates exposed flat on finstack_quant.statements_analytics (add_vintage_buildup, add_roll_forward, add_roll_forward_with_opening, add_noi_buildup, add_ncf_buildup, add_rent_roll, add_rent_roll_rental_revenue, add_property_operating_statement, plus LeaseSpec/SimpleLeaseSpec/RentStepSpec/FreeRentWindowSpec/RenewalSpec/LeaseGrowthConvention/RentRollOutputNodes/ManagementFeeBase/ManagementFeeSpec/PropertyTemplateNodes)" }
+
+# Rust-only surfaces (categories, not every name), deliberately unbound in
+# both hosts for now:
+# - ECL configuration: EclConfig/EclConfigBuilder, StagingConfig, CeclConfig,
+#   the policy default_* constructors, EclEngine/CeclEngine, portfolio
+#   aggregation (PortfolioEclResult, ProvisionWaterfall) and the full result
+#   envelopes (EclResult/WeightedEclResult buckets). The bound compute_ecl /
+#   compute_ecl_weighted / classify_stage cover the simplified request
+#   surface only; rating-downgrade and qualitative SICR triggers are NOT yet
+#   reachable from hosts (EclStageRequest::classify hardcodes them off).
+# - analysis::credit covenant forecasting (forecast_breaches,
+#   forecast_covenant(s), compute_credit_context, StatementsAdapter),
+#   lbo_model_checks, compute_peer_multiples, and the comps/scenarios/
+#   reports/valuation typed result surfaces beyond the bound entry points.
 
 [crates.statements_analytics.symbols]
 public = [
@@ -1026,6 +1219,34 @@ root_exports = [
     "validateFormula",
 ]
 
+# Python-only surface: the typed wrappers (spec/builder/evaluator/results and
+# the CheckSuiteSpec/CheckReport typed check surface), the EBITDA
+# normalization pair, and the compiled `schema` submodule. WASM covers the
+# same Rust calls through its JSON-first root exports above.
+python_only = [
+    "CheckReport",
+    "CheckSuiteSpec",
+    "EcfSweepSpec",
+    "Evaluator",
+    "FinancialModelSpec",
+    "ForecastMethod",
+    "ForecastSpec",
+    "MetricRegistry",
+    "MixedNodeBuilder",
+    "ModelBuilder",
+    "MonteCarloConfig",
+    "MonteCarloResults",
+    "NodeId",
+    "NodeType",
+    "NormalizationConfig",
+    "NumericMode",
+    "PikToggleSpec",
+    "StatementResult",
+    "WaterfallSpec",
+    "normalize",
+    "schema",
+]
+
 [wasm_statements_subset.python_js_map]
 parse_formula = "parseFormulaText"
 run_monte_carlo = "runMonteCarlo"
@@ -1085,6 +1306,65 @@ root_exports = [
     "scoreRelativeValue",
 ]
 
+# Python-only surface: typed analysis config/result wrappers, the class-based
+# DependencyTracer plus freestanding dependency helpers, scenario-diff /
+# variance-bridge / corporate-analysis / base-DCF entry points, the simplified
+# ECL surface, and the extension/template families. WASM's derivatives
+# (dcfSensitivity/evaluateLbo/wacc) exist without the base evaluateDcf — a
+# tracked asymmetry, not an accident.
+python_only = [
+    "AccountType",
+    "BridgeChart",
+    "BridgeStep",
+    "CorkscrewAccount",
+    "CorkscrewConfig",
+    "CorkscrewExtension",
+    "CorkscrewReport",
+    "CreditScorecardExtension",
+    "DependencyTracer",
+    "Exposure",
+    "FreeRentWindowSpec",
+    "LeaseGrowthConvention",
+    "LeaseSpec",
+    "ManagementFeeBase",
+    "ManagementFeeSpec",
+    "PropertyTemplateNodes",
+    "RenewalSpec",
+    "RentRollOutputNodes",
+    "RentStepSpec",
+    "ScenarioDiff",
+    "ScenarioResults",
+    "ScenarioSet",
+    "ScorecardConfig",
+    "ScorecardMetric",
+    "ScorecardReport",
+    "SensitivityConfig",
+    "SensitivityResult",
+    "SimpleLeaseSpec",
+    "VarianceConfig",
+    "VarianceReport",
+    "VarianceRow",
+    "add_ncf_buildup",
+    "add_noi_buildup",
+    "add_property_operating_statement",
+    "add_rent_roll",
+    "add_rent_roll_rental_revenue",
+    "add_roll_forward",
+    "add_roll_forward_with_opening",
+    "add_vintage_buildup",
+    "all_dependencies",
+    "classify_stage",
+    "compute_ecl",
+    "compute_ecl_weighted",
+    "dependents",
+    "direct_dependencies",
+    "evaluate_dcf",
+    "run_corporate_analysis",
+    "scenario_diff",
+    "validate_scorecard_config",
+    "variance_bridge",
+]
+
 [wasm_statements_analytics_subset.python_js_map]
 run_sensitivity = "runSensitivity"
 run_variance = "runVariance"
@@ -1126,6 +1406,11 @@ rust_lib   = "finstack-quant/features/src/lib.rs"
 python_package = "finstack_quant.features"
 visibility = "pub"
 status = "exists"
+# Per the crate's stated intent (features/src/lib.rs conventions): the
+# string/JSON entry points ARE the host surface, retained for Python and WASM
+# bindings; Rust callers use the typed-op variants (TimeSeriesOp,
+# CrossSectionalOp, PairwiseOp, PanelTransformSpec), which are deliberately
+# Rust-only and not a parity gap.
 
 [crates.features.symbols]
 public = [
@@ -1574,6 +1859,7 @@ wasm_only = [
 Portfolio = [
   "fromSpec",
   "fromMaterialization",
+  "validateMaterializationJson",
   "id",
   "asOf",
   "baseCurrency",
@@ -1581,14 +1867,11 @@ Portfolio = [
   "toJson",
 ]
 
-# Class methods that exist only in WASM (no Python twin). Python validates
-# materialization bundles implicitly via Portfolio.from_materialization;
-# the form-UI diagnostics entry point is browser-only.
-[wasm_portfolio_subset.class_methods_wasm_only]
-Portfolio = ["validateMaterializationJson"]
-
 [wasm_portfolio_subset.python_js_method_map]
 "Portfolio.from_materialization" = "Portfolio.fromMaterialization"
+# Naming: the Python twin returns typed diagnostics (not raised) without the
+# `Json` wire suffix; the WASM name keeps the historical `*Json` spelling.
+"Portfolio.validate_materialization" = "Portfolio.validateMaterializationJson"
 "Portfolio.base_currency" = "Portfolio.baseCurrency"
 # Naming: Python spells the spec round-trip `to_spec_json` (it returns the
 # canonical PortfolioSpec JSON string); WASM uses the shorter wire-surface
@@ -1808,7 +2091,6 @@ compute_horizon_return = "computeHorizonReturn"
 # Items intentionally not mapped to Python.
 # ---------------------------------------------------------------------------
 [exclusions]
-"finstack_quant_core::golden"          = "Test-only module, feature-gated `golden`; not part of public API"
 "finstack_quant_core::validation"      = "Internal validation helpers; not exposed in Python bindings"
 "finstack_quant_statements::utils"     = "Internal utilities; not part of public Python surface"
 "finstack_quant_portfolio::scenarios"  = "Feature-gated `scenarios`; available through finstack_quant.scenarios instead"
@@ -1907,7 +2189,7 @@ discount_curve_members = ["id", "baseDate", "flat", "df", "zero", "forward"]
 discount_curve_optional_constructor_args = [
     "interp", "extrapolation", "dayCount", "validationMode", "forwardFloor",
 ]
-hazard_curve_members = ["id", "baseDate", "sp", "hazardRate"]
+hazard_curve_members = ["id", "baseDate", "sp", "hazardRate", "recoveryRate"]
 hazard_curve_optional_constructor_args = ["recoveryRate", "dayCount"]
 forward_curve_members = ["id", "baseDate", "projectionGrid", "resetLag", "rate", "rateBetween"]
 forward_curve_optional_constructor_args = [
@@ -2002,19 +2284,161 @@ python_only_market_data = [
     "MarketContext",
 ]
 
-# Published SIFMA operational calendars remain Python/server-side. Browser
-# callers may use the generic date primitives but do not receive embedded TBA
-# settlement tables until a concrete browser workflow requires them.
+# finstack_quant.core.dates symbols intentionally absent from the WASM core
+# facade. WASM binds only the generic primitives (DayCount, DayCountContext,
+# Tenor, createDate, dateFromEpochDays, adjust, availableCalendars). The
+# period-plan/fiscal machinery, the schedule builder, the roll-date helpers,
+# and the SIFMA operational calendars remain Python/server-side until a
+# concrete browser workflow requires them.
 python_only_dates = [
+    "DayCountContextState",
+    "Thirty360Convention",
+    "TenorUnit",
+    "PeriodKind",
+    "PeriodId",
+    "Period",
+    "PeriodPlan",
+    "FiscalConfig",
+    "build_periods",
+    "build_fiscal_periods",
+    "BusinessDayConvention",
+    "CalendarMetadata",
+    "HolidayCalendar",
+    "StubKind",
+    "ScheduleErrorPolicy",
+    "Schedule",
+    "ScheduleBuilder",
     "SifmaSettlementClass",
     "sifma_settlement_date",
     "sifma_settlement_date_for_class",
     "estimated_sifma_settlement_date_for_class",
     "next_sifma_settlement",
+    "third_wednesday",
+    "third_friday",
+    "next_imm",
+    "is_imm_date",
+    "is_cds_date",
+    "next_cds_date",
+    "prev_cds_date",
+    "prev_cds_semiannual_roll",
+    "next_semiannual_cds_maturity",
+    "imm_option_expiry",
+    "next_imm_option_expiry",
+    "next_equity_option_expiry",
+    "days_since_epoch",
 ]
+
+# finstack_quant.core.types symbols intentionally absent from the WASM core
+# facade. WASM binds only the rate trio (Rate, Bps, Percentage); ratings and
+# id newtypes travel as plain strings on the JSON surfaces.
+python_only_types = [
+    "CreditRating",
+    "CurveId",
+    "InstrumentId",
+    "Attributes",
+]
+
+# Python-only members on classes whose WASM twins exist. Money's zero/
+# from_decimal constructors, exact-decimal tuple round-trip, and format()
+# are Python conveniences; WASM callers construct via `new Money(number,
+# currency)` and read amountDecimal(). Currency.from_numeric has no WASM
+# twin (JS callers construct from the alphabetic code).
+python_only_money_members = [
+    "zero",
+    "from_decimal",
+    "format",
+    "to_tuple",
+    "from_tuple",
+]
+python_only_currency_members = [
+    "from_numeric",
+]
+
+# Python-only math functions (dotted relative to finstack_quant.core.math).
+# The Student-t special functions and the nested-list correlation-matrix
+# validator have no WASM twins; WASM exposes only the flat/typed-array
+# variants listed under wasm_only.
+python_only_math = [
+    "special_functions.student_t_cdf",
+    "special_functions.student_t_inv_cdf",
+    "linalg.validate_correlation_matrix",
+]
+
+# JS-only root exports with no Python twin: Float64Array-input variants of
+# the stats/summation helpers and flat row-major matrix variants of the
+# linalg helpers. Python callers pass lists to the single canonical
+# function; JS gets a typed-array/flat fast path per name.
+wasm_only = [
+    "meanArray",
+    "varianceArray",
+    "populationVarianceArray",
+    "correlationArray",
+    "covarianceArray",
+    "quantileArray",
+    "kahanSumArray",
+    "neumaierSumArray",
+    "countConsecutiveArray",
+    "choleskyDecompositionFlat",
+    "choleskySolveFlat",
+    "validateCorrelationMatrixFlat",
+]
+
+# Python ↔ WASM name map for the core namespace. Keys are dotted paths
+# relative to `finstack_quant.core`; values are `core.<name>` JS root
+# exports. Together with `wasm_only` this accounts for every root export.
+[wasm_core_subset.python_js_map]
+"currency.Currency" = "Currency"
+"money.Money" = "Money"
+"types.Rate" = "Rate"
+"types.Bps" = "Bps"
+"types.Percentage" = "Percentage"
+"dates.DayCount" = "DayCount"
+"dates.DayCountContext" = "DayCountContext"
+"dates.Tenor" = "Tenor"
+"dates.create_date" = "createDate"
+"dates.date_from_epoch_days" = "dateFromEpochDays"
+"dates.adjust" = "adjust"
+"dates.available_calendars" = "availableCalendars"
+"market_data.DiscountCurve" = "DiscountCurve"
+"market_data.HazardCurve" = "HazardCurve"
+"market_data.ForwardCurve" = "ForwardCurve"
+"market_data.VolCube" = "VolCube"
+"market_data.FxDeltaVolSurface" = "FxDeltaVolSurface"
+"market_data.FxConversionPolicy" = "FxConversionPolicy"
+"market_data.FxRateResult" = "FxRateResult"
+"market_data.FxMatrix" = "FxMatrix"
+"market_data.dtsm.nelson_siegel_yields" = "nelsonSiegelYields"
+"math.linalg.apply_lower_triangular" = "applyLowerTriangular"
+"math.linalg.cholesky_decomposition" = "choleskyDecomposition"
+"math.linalg.cholesky_solve" = "choleskySolve"
+"math.stats.mean" = "mean"
+"math.stats.variance" = "variance"
+"math.stats.population_variance" = "populationVariance"
+"math.stats.correlation" = "correlation"
+"math.stats.covariance" = "covariance"
+"math.stats.quantile" = "quantile"
+"math.special_functions.norm_cdf" = "normCdf"
+"math.special_functions.norm_pdf" = "normPdf"
+"math.special_functions.standard_normal_inv_cdf" = "standardNormalInvCdf"
+"math.special_functions.erf" = "erf"
+"math.special_functions.ln_gamma" = "lnGamma"
+"math.summation.kahan_sum" = "kahanSum"
+"math.summation.neumaier_sum" = "neumaierSum"
+"math.count_consecutive" = "countConsecutive"
+"credit.liability_management.analyze_exchange_offer" = "analyzeExchangeOffer"
+"credit.liability_management.analyze_lme" = "analyzeLme"
 
 # Method-level gaps on types that *are* partially exposed in WASM.
 [wasm_core_subset.method_gaps]
+"ForwardCurve.from_knots" = "WASM twin is the options-object factory ForwardCurve.fromOptions; same builder surface, host-idiomatic spelling."
+"FxMatrix.rate" = "Python rate(base, quote, date, policy=None) defaults the policy; WASM splits this into rate(base, quote, date, policy) plus the wasm-only convenience rateDefault(base, quote, date)."
+"VolCube.expiries" = "Python-only getter; WASM exposes point queries plus id/interpolationMode only."
+"VolCube.tenors" = "Python-only getter; WASM exposes point queries plus id/interpolationMode only."
+"VolCube.grid_shape" = "Python-only getter; WASM exposes point queries plus id/interpolationMode only."
+"DiscountCurve.methods" = "Rust DiscountCurve has ~24 further public methods (builder round-trips, bump/roll transforms, calibration metadata) bound in neither host; triaged as Rust-only until a concrete host workflow needs them."
+"MarketContext.methods" = "Rust MarketContext has ~25 further public methods (convert_money, roll_forward, bump, completeness_report, ...) not bound in Python beyond the contracted surface and absent from WASM; Rust-only by design for now."
+"FxMatrix.methods" = "Rust FxMatrix exposes ~10 further methods beyond the bound quote/rate surface; Rust-only until a host workflow needs them."
+"VolSurface.methods" = "Rust VolSurface has ~11 methods unbound beyond the Python subset; VolSurface itself is python_only_market_data for WASM."
 "FxDeltaVolSurface.to_vol_surface" = "VolSurface is not on the WASM core facade; use impliedVol or calibrate JSON."
 "VolCube.materialize_tenor_slice" = "VolSurface is not on the WASM core facade; use vol/volClamped point queries."
 "VolCube.materialize_tenor_slice_normal" = "VolSurface is not on the WASM core facade; use volNormal/volNormalClamped point queries."
@@ -2119,6 +2543,22 @@ dry_run = "dryRun"
 "instruments.instrument_cashflows_json" = "instrumentCashflowsJson"
 "instruments.FxForward" = "FxForward"
 "instruments.FxOption" = "FxOption"
+"instruments.list_models" = "listModels"
+"instruments.list_models_grouped" = "listModelsGrouped"
+"instruments.list_standard_metrics" = "listStandardMetrics"
+"instruments.list_standard_metrics_grouped" = "listStandardMetricsGrouped"
+"instruments.price_instrument" = "priceInstrument"
+"instruments.price_instrument_with_metrics" = "priceInstrumentWithMetrics"
+# The OAS / metrics / scenario-table entries return typed values in BOTH
+# hosts: Python returns the OasResult / TrancheMetrics / ScenarioTable
+# wrapper classes; WASM returns plain objects with the same snake_case
+# fields (converted via crate::utils::to_js_value).
+"instruments.structured_credit_tranche_breakeven_cdr" = "structuredCreditTrancheBreakevenCdr"
+"instruments.structured_credit_tranche_discount_margin" = "structuredCreditTrancheDiscountMargin"
+"instruments.structured_credit_tranche_metrics" = "structuredCreditTrancheMetrics"
+"instruments.structured_credit_tranche_oas" = "structuredCreditTrancheOas"
+"instruments.structured_credit_tranche_scenario_table" = "structuredCreditTrancheScenarioTable"
+"instruments.validate_instrument_json" = "validateInstrumentJson"
 
 # Explicit alias pins for `python_path_js_map` namespace resolution.
 #
@@ -2137,6 +2577,10 @@ instruments = ["fx"]
 # subsets; Python uses the consolidated JSON-first instrument API instead of
 # mirroring the WASM host wrappers class-for-class.
 [wasm_valuations_subset.nested_exports]
+# Known kind mismatch: `trancheLossStatistics` is a free FUNCTION on the WASM
+# facade, while Python's `TrancheLossStatistics` is a result CLASS (pinned in
+# [crates.valuations.correlation]). The WASM function returns the same
+# statistics as a plain object; a WASM class wrapper has not been built.
 correlation = [
     "Copula",
     "CopulaSpec",
@@ -2209,6 +2653,155 @@ instruments = [
     "structuredCreditTrancheScenarioTable",
     "validateInstrumentJson",
 ]
+
+# Per-namespace WASM-only exports (no Python twin). Documentation-grade
+# accounting for the nested facades, mirroring the root-level `wasm_only`
+# list; entries here must appear in the matching `nested_exports` list.
+[wasm_valuations_subset.nested_wasm_only]
+# JSON-holding host wrapper classes; Python covers these products through the
+# consolidated JSON-first instrument API (validate_instrument_json +
+# price_instrument*) instead of one class per product. FxForward/FxOption are
+# the shared exceptions, pinned in python_path_js_map and class_methods.
+fx = [
+    "FxBarrierOption",
+    "FxDigitalOption",
+    "FxSpot",
+    "FxSwap",
+    "FxTouchOption",
+    "FxVarianceSwap",
+    "Ndf",
+    "QuantoOption",
+]
+# `*WithMarket` variants reuse a pre-parsed WASM `Market` handle to avoid
+# re-parsing market JSON per call; Python passes a typed MarketContext to the
+# base entry points instead, so no snake_case twins exist.
+instruments = [
+    "instrumentCashflowsWithMarket",
+    "priceInstrumentWithMarket",
+    "priceInstrumentWithMetricsAndMarket",
+]
+
+# Per-namespace Python-only symbols (no WASM twin) for the shared
+# `instruments` namespace. Documentation-grade accounting mirroring the
+# root-level `python_only` list; entries here must appear in
+# [crates.valuations.instruments].public.
+#
+# Known asymmetry (pending WASM typed wrappers): Python has full typed
+# instrument families — rates (InterestRateSwap/Swaption/CapFloor), credit
+# (CreditDefaultSwap/CDSIndex/CDSTranche), equity
+# (EquityOption/ConvertibleBond), legs (FixedLegSpec/FloatLegSpec/
+# PremiumLegSpec/ProtectionLegSpec), and structured credit (StructuredCredit
+# + component types) — while WASM reaches these products through JSON-first
+# entry points only. The old "structured credit is JSON-only in both hosts"
+# note is stale: Python grew typed wrappers in 2026-06; WASM has not.
+#
+# `Bond.price_merton_mc` and the whole Merton-MC family (MertonMcConfig/
+# MertonMcResult/PathStatistics/PikMode/PikSchedule) are deliberately
+# Python-only: MC pricing is not being ported to the WASM facade.
+#
+# `validate_typed_instrument_json` / `pretty_instrument_json` are canonical
+# Rust pricer helpers; WASM consumes them internally inside its typed FX
+# classes (fromJson/toJson) rather than exporting them as facade functions.
+[wasm_valuations_subset.nested_python_only]
+instruments = [
+    "AssetPool",
+    "BarrierCrossing",
+    "CDSIndex",
+    "CDSIndexBuilder",
+    "CDSTranche",
+    "CDSTrancheBuilder",
+    "CapFloor",
+    "CapFloorBuilder",
+    "ConvertibleBond",
+    "ConvertibleBondBuilder",
+    "CreditDefaultSwap",
+    "CreditDefaultSwapBuilder",
+    "EquityOption",
+    "EquityOptionBuilder",
+    "FixedLegSpec",
+    "FloatLegSpec",
+    "FxForwardBuilder",
+    "FxOptionBuilder",
+    "InterestRateSwap",
+    "InterestRateSwapBuilder",
+    "MertonMcConfig",
+    "MertonMcResult",
+    "OasResult",
+    "PathStatistics",
+    "PikMode",
+    "PikSchedule",
+    "PremiumLegSpec",
+    "ProtectionLegSpec",
+    "RepLine",
+    "ScenarioTable",
+    "StructuredCredit",
+    "StructuredCreditBuilder",
+    "Swaption",
+    "SwaptionBuilder",
+    "Tranche",
+    "TrancheBuilder",
+    "TrancheMetrics",
+    "TrancheStructure",
+    "pretty_instrument_json",
+    "validate_typed_instrument_json",
+]
+
+# Method-level accounting for the shared FX classes (mirrors the
+# [wasm_portfolio_subset.class_methods] precedent). WASM method names are
+# camelCase as emitted by wasm-bindgen.
+[wasm_valuations_subset.class_methods]
+FxForward = ["fromJson", "toJson", "id", "price", "priceWithMetrics"]
+FxOption = [
+    "fromJson",
+    "toJson",
+    "id",
+    "price",
+    "priceWithMetrics",
+    "delta",
+    "gamma",
+    "vega",
+    "theta",
+    "rho",
+    "foreignRho",
+    "vanna",
+    "volga",
+    "greeks",
+]
+
+[wasm_valuations_subset.python_js_method_map]
+"FxForward.from_json" = "FxForward.fromJson"
+"FxForward.to_json" = "FxForward.toJson"
+"FxForward.id" = "FxForward.id"
+"FxForward.price" = "FxForward.price"
+"FxForward.price_with_metrics" = "FxForward.priceWithMetrics"
+"FxOption.from_json" = "FxOption.fromJson"
+"FxOption.to_json" = "FxOption.toJson"
+"FxOption.id" = "FxOption.id"
+"FxOption.price" = "FxOption.price"
+"FxOption.price_with_metrics" = "FxOption.priceWithMetrics"
+"FxOption.delta" = "FxOption.delta"
+"FxOption.gamma" = "FxOption.gamma"
+"FxOption.vega" = "FxOption.vega"
+"FxOption.theta" = "FxOption.theta"
+"FxOption.rho" = "FxOption.rho"
+"FxOption.foreign_rho" = "FxOption.foreignRho"
+"FxOption.vanna" = "FxOption.vanna"
+"FxOption.volga" = "FxOption.volga"
+"FxOption.greeks" = "FxOption.greeks"
+
+# Remaining declared per-host method gaps on the shared FX classes:
+# - Python-only: `builder()` + fluent `FxForwardBuilder`/`FxOptionBuilder`
+#   (WASM constructs from a bare spec object instead) and pickle support
+#   (`__reduce__`), a host-runtime concern.
+# - WASM-only: the `new(spec)` constructor taking a bare JS spec object;
+#   Python builds through the typed builder or `from_json`.
+# - Return-shape divergence on `price`/`priceWithMetrics`: Python returns the
+#   typed `ValuationResult`; WASM returns the valuation JSON string (its
+#   class methods predate the typed-object migration of the free
+#   `priceInstrument*` functions). Tracked, not silently equivalent.
+[wasm_valuations_subset.class_method_gaps]
+python_only = ["builder", "__reduce__"]
+wasm_only = ["new"]
 
 # Member-level pinning for the shared valuations.correlation classes.
 #

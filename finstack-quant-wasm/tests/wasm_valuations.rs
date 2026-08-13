@@ -377,6 +377,12 @@ fn price_instrument_structured_credit_waterfall_rules() {
     assert_eq!(parsed["details"]["type"], "structured_credit_stochastic");
 }
 
+/// Round a typed JS object result through `JSON.stringify` for assertions.
+fn js_object_to_json(value: &wasm_bindgen::JsValue) -> serde_json::Value {
+    let text = js_sys::JSON::stringify(value).expect("typed result stringifies");
+    serde_json::from_str(&String::from(text)).expect("stringified result parses")
+}
+
 #[wasm_bindgen_test]
 fn structured_credit_tranche_metrics_through_json() {
     use finstack_quant_wasm::api::valuations::structured_credit::{
@@ -402,24 +408,24 @@ fn structured_credit_tranche_metrics_through_json() {
 
     let oas = structured_credit_tranche_oas(&inst, "SR", 99.0, &mkt, "2024-01-01", None)
         .expect("tranche oas");
-    let oas_parsed: serde_json::Value = serde_json::from_str(&oas).unwrap();
+    let oas_parsed = js_object_to_json(&oas);
     assert!(oas_parsed["model_price"].as_f64().expect("model_price") > 0.0);
 
     let grid = r#"{"cprs":[0.10,0.20],"cdrs":[0.02],"severities":[0.40]}"#;
     let table = structured_credit_tranche_scenario_table(&inst, "SR", &mkt, "2024-01-01", grid)
         .expect("scenario table");
-    let table_parsed: serde_json::Value = serde_json::from_str(&table).unwrap();
+    let table_parsed = js_object_to_json(&table);
     assert_eq!(table_parsed["cells"].as_array().expect("cells").len(), 2);
 
     // Per-tranche metrics bundle: model-price z-spread ~ 0, widening at a cheaper price.
     let tm = structured_credit_tranche_metrics(&inst, "SR", &mkt, "2024-01-01", None)
         .expect("tranche metrics");
-    let tm_parsed: serde_json::Value = serde_json::from_str(&tm).unwrap();
+    let tm_parsed = js_object_to_json(&tm);
     assert_eq!(tm_parsed["tranche_id"], "SR");
     assert!(tm_parsed["pv"].as_f64().expect("pv") > 0.0);
     let tm_cheap = structured_credit_tranche_metrics(&inst, "SR", &mkt, "2024-01-01", Some(95.0))
         .expect("tranche metrics @95");
-    let cheap_parsed: serde_json::Value = serde_json::from_str(&tm_cheap).unwrap();
+    let cheap_parsed = js_object_to_json(&tm_cheap);
     assert!(
         cheap_parsed["z_spread_bp"].as_f64().expect("z")
             > tm_parsed["z_spread_bp"].as_f64().expect("z")

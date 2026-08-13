@@ -5042,6 +5042,84 @@ class FxForward:
         """
         ...
 
+    def price(
+        self,
+        market: MarketContext | str,
+        as_of: datetime.date | str,
+        model: str = "default",
+    ) -> ValuationResult:
+        """
+        Price this FX forward and return a typed :class:`ValuationResult`.
+
+        Delegates to the same canonical Rust pricer entry point as
+        ``price_instrument(self, market, as_of, model)``; mirrors the WASM
+        ``FxForward.price`` method.
+
+        Parameters
+        ----------
+        market : MarketContext or str
+            Typed ``MarketContext`` or serialized market-context JSON.
+        as_of : datetime.date or str
+            Valuation date, either a date-like object or an ISO 8601 string.
+        model : str, default "default"
+            Pricing model selector; ``"default"`` uses the instrument-native
+            model.
+
+        Returns
+        -------
+        ValuationResult
+            Typed valuation envelope carrying value, currency, and metrics.
+
+        Raises
+        ------
+        ValueError
+            If the market JSON, ``as_of``, or ``model`` is invalid, required
+            market data is missing, or the selected pricer fails.
+        """
+        ...
+
+    def price_with_metrics(
+        self,
+        market: MarketContext | str,
+        as_of: datetime.date | str,
+        model: str = "default",
+        metrics: list[str] = ...,
+        pricing_options: str | None = None,
+        market_history: str | None = None,
+    ) -> ValuationResult:
+        """
+        Price this FX forward with explicit metric requests.
+
+        Parameters
+        ----------
+        market : MarketContext or str
+            Typed ``MarketContext`` or serialized market-context JSON.
+        as_of : datetime.date or str
+            Valuation date, either a date-like object or an ISO 8601 string.
+        model : str, default "default"
+            Pricing model selector.
+        metrics : list[str], optional
+            Metric identifiers to compute (e.g. ``["dv01", "theta"]``).
+        pricing_options : str or None
+            Optional JSON ``MetricPricingOverrides`` merged into the
+            instrument's ``pricing_overrides`` before pricing.
+        market_history : str or None
+            Optional JSON ``MarketHistory`` scenarios required by ``hvar``
+            and ``expected_shortfall`` metrics.
+
+        Returns
+        -------
+        ValuationResult
+            Typed valuation envelope including the requested metrics.
+
+        Raises
+        ------
+        ValueError
+            If any input payload is invalid, required market data is missing,
+            or pricing or a metric calculation fails.
+        """
+        ...
+
 class FxForwardBuilder:
     """
     Fluent builder returned by :meth:`FxForward.builder`.
@@ -5448,6 +5526,367 @@ class FxOption:
         ------
         ValueError
             If the value cannot be serialized to JSON.
+        """
+        ...
+
+    def price(
+        self,
+        market: MarketContext | str,
+        as_of: datetime.date | str,
+        model: str = "default",
+    ) -> ValuationResult:
+        """
+        Price this FX option and return a typed :class:`ValuationResult`.
+
+        Delegates to the same canonical Rust pricer entry point as
+        ``price_instrument(self, market, as_of, model)``; mirrors the WASM
+        ``FxOption.price`` method.
+
+        Parameters
+        ----------
+        market : MarketContext or str
+            Typed ``MarketContext`` or serialized market-context JSON.
+        as_of : datetime.date or str
+            Valuation date, either a date-like object or an ISO 8601 string.
+        model : str, default "default"
+            Pricing model selector; ``"default"`` uses the instrument-native
+            model.
+
+        Returns
+        -------
+        ValuationResult
+            Typed valuation envelope carrying value, currency, and metrics.
+
+        Raises
+        ------
+        ValueError
+            If the market JSON, ``as_of``, or ``model`` is invalid, required
+            market data is missing, or the selected pricer fails.
+        """
+        ...
+
+    def price_with_metrics(
+        self,
+        market: MarketContext | str,
+        as_of: datetime.date | str,
+        model: str = "default",
+        metrics: list[str] = ...,
+        pricing_options: str | None = None,
+        market_history: str | None = None,
+    ) -> ValuationResult:
+        """
+        Price this FX option with explicit metric requests.
+
+        Parameters
+        ----------
+        market : MarketContext or str
+            Typed ``MarketContext`` or serialized market-context JSON.
+        as_of : datetime.date or str
+            Valuation date, either a date-like object or an ISO 8601 string.
+        model : str, default "default"
+            Pricing model selector.
+        metrics : list[str], optional
+            Metric identifiers to compute (e.g. ``["delta", "vega"]``).
+        pricing_options : str or None
+            Optional JSON ``MetricPricingOverrides`` merged into the
+            instrument's ``pricing_overrides`` before pricing.
+        market_history : str or None
+            Optional JSON ``MarketHistory`` scenarios required by ``hvar``
+            and ``expected_shortfall`` metrics.
+
+        Returns
+        -------
+        ValuationResult
+            Typed valuation envelope including the requested metrics.
+
+        Raises
+        ------
+        ValueError
+            If any input payload is invalid, required market data is missing,
+            or pricing or a metric calculation fails.
+        """
+        ...
+
+    def delta(
+        self,
+        market: MarketContext | str,
+        as_of: datetime.date | str,
+        model: str = "default",
+    ) -> float:
+        """
+        Spot delta of the option.
+
+        Parameters
+        ----------
+        market : MarketContext or str
+            Typed ``MarketContext`` or serialized market-context JSON.
+        as_of : datetime.date or str
+            Valuation date, either a date-like object or an ISO 8601 string.
+        model : str, default "default"
+            Pricing model selector.
+
+        Returns
+        -------
+        float
+            Spot delta produced by the selected model.
+
+        Raises
+        ------
+        ValueError
+            If an input is invalid, required market data is missing, pricing
+            fails, or the model does not produce delta.
+        """
+        ...
+
+    def gamma(
+        self,
+        market: MarketContext | str,
+        as_of: datetime.date | str,
+        model: str = "default",
+    ) -> float:
+        """
+        Spot gamma of the option.
+
+        Parameters
+        ----------
+        market : MarketContext or str
+            Typed ``MarketContext`` or serialized market-context JSON.
+        as_of : datetime.date or str
+            Valuation date, either a date-like object or an ISO 8601 string.
+        model : str, default "default"
+            Pricing model selector.
+
+        Returns
+        -------
+        float
+            Spot gamma produced by the selected model.
+
+        Raises
+        ------
+        ValueError
+            If an input is invalid, required market data is missing, pricing
+            fails, or the model does not produce gamma.
+        """
+        ...
+
+    def vega(
+        self,
+        market: MarketContext | str,
+        as_of: datetime.date | str,
+        model: str = "default",
+    ) -> float:
+        """
+        Vega of the option.
+
+        Parameters
+        ----------
+        market : MarketContext or str
+            Typed ``MarketContext`` or serialized market-context JSON.
+        as_of : datetime.date or str
+            Valuation date, either a date-like object or an ISO 8601 string.
+        model : str, default "default"
+            Pricing model selector.
+
+        Returns
+        -------
+        float
+            Vega produced by the selected model.
+
+        Raises
+        ------
+        ValueError
+            If an input is invalid, required market data is missing, pricing
+            fails, or the model does not produce vega.
+        """
+        ...
+
+    def theta(
+        self,
+        market: MarketContext | str,
+        as_of: datetime.date | str,
+        model: str = "default",
+    ) -> float:
+        """
+        Theta of the option.
+
+        Parameters
+        ----------
+        market : MarketContext or str
+            Typed ``MarketContext`` or serialized market-context JSON.
+        as_of : datetime.date or str
+            Valuation date, either a date-like object or an ISO 8601 string.
+        model : str, default "default"
+            Pricing model selector.
+
+        Returns
+        -------
+        float
+            Theta produced by the selected model.
+
+        Raises
+        ------
+        ValueError
+            If an input is invalid, required market data is missing, pricing
+            fails, or the model does not produce theta.
+        """
+        ...
+
+    def rho(
+        self,
+        market: MarketContext | str,
+        as_of: datetime.date | str,
+        model: str = "default",
+    ) -> float:
+        """
+        Domestic-rate rho of the option.
+
+        Parameters
+        ----------
+        market : MarketContext or str
+            Typed ``MarketContext`` or serialized market-context JSON.
+        as_of : datetime.date or str
+            Valuation date, either a date-like object or an ISO 8601 string.
+        model : str, default "default"
+            Pricing model selector.
+
+        Returns
+        -------
+        float
+            Domestic-rate rho produced by the selected model.
+
+        Raises
+        ------
+        ValueError
+            If an input is invalid, required market data is missing, pricing
+            fails, or the model does not produce rho.
+        """
+        ...
+
+    def foreign_rho(
+        self,
+        market: MarketContext | str,
+        as_of: datetime.date | str,
+        model: str = "default",
+    ) -> float:
+        """
+        Foreign-rate rho of the option.
+
+        Parameters
+        ----------
+        market : MarketContext or str
+            Typed ``MarketContext`` or serialized market-context JSON.
+        as_of : datetime.date or str
+            Valuation date, either a date-like object or an ISO 8601 string.
+        model : str, default "default"
+            Pricing model selector.
+
+        Returns
+        -------
+        float
+            Foreign-rate rho produced by the selected model.
+
+        Raises
+        ------
+        ValueError
+            If an input is invalid, required market data is missing, pricing
+            fails, or the model does not produce foreign rho.
+        """
+        ...
+
+    def vanna(
+        self,
+        market: MarketContext | str,
+        as_of: datetime.date | str,
+        model: str = "default",
+    ) -> float:
+        """
+        Vanna of the option.
+
+        Parameters
+        ----------
+        market : MarketContext or str
+            Typed ``MarketContext`` or serialized market-context JSON.
+        as_of : datetime.date or str
+            Valuation date, either a date-like object or an ISO 8601 string.
+        model : str, default "default"
+            Pricing model selector.
+
+        Returns
+        -------
+        float
+            Vanna produced by the selected model.
+
+        Raises
+        ------
+        ValueError
+            If an input is invalid, required market data is missing, pricing
+            fails, or the model does not produce vanna.
+        """
+        ...
+
+    def volga(
+        self,
+        market: MarketContext | str,
+        as_of: datetime.date | str,
+        model: str = "default",
+    ) -> float:
+        """
+        Volga of the option.
+
+        Parameters
+        ----------
+        market : MarketContext or str
+            Typed ``MarketContext`` or serialized market-context JSON.
+        as_of : datetime.date or str
+            Valuation date, either a date-like object or an ISO 8601 string.
+        model : str, default "default"
+            Pricing model selector.
+
+        Returns
+        -------
+        float
+            Volga produced by the selected model.
+
+        Raises
+        ------
+        ValueError
+            If an input is invalid, required market data is missing, pricing
+            fails, or the model does not produce volga.
+        """
+        ...
+
+    def greeks(
+        self,
+        market: MarketContext | str,
+        as_of: datetime.date | str,
+        model: str = "default",
+    ) -> dict[str, float]:
+        """
+        Compute the standard FX option Greek set as a dict.
+
+        Mirrors the WASM ``greeks`` method: Greeks the selected model cannot
+        produce are omitted, and any non-finite Greek raises rather than
+        being returned.
+
+        Parameters
+        ----------
+        market : MarketContext or str
+            Typed ``MarketContext`` or serialized market-context JSON.
+        as_of : datetime.date or str
+            Valuation date, either a date-like object or an ISO 8601 string.
+        model : str, default "default"
+            Pricing model selector.
+
+        Returns
+        -------
+        dict[str, float]
+            Mapping of Greek name to value for every Greek produced.
+
+        Raises
+        ------
+        ValueError
+            If an input is invalid, required market data is missing, pricing
+            fails, or a returned Greek is non-finite.
         """
         ...
 

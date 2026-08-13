@@ -1,7 +1,7 @@
 """Tests for the `statements_analytics` pandas ``DataFrame`` accessors.
 
 Covers every ``to_dataframe`` / ``to_*_dataframe`` on the domain's result and
-spec types: `VarianceReport`, `SensitivityResult`, `ScenarioResultSet`,
+spec types: `VarianceReport`, `SensitivityResult`, `ScenarioResults`,
 `BridgeChart`, `ScorecardReport`, `CorkscrewReport`, `Exposure`, and the
 real-estate template specs.
 
@@ -25,7 +25,7 @@ from finstack_quant.statements_analytics import (
     PropertyTemplateNodes,
     RenewalSpec,
     RentRollOutputNodes,
-    ScenarioResultSet,
+    ScenarioResults,
     ScorecardReport,
     SensitivityConfig,
     SensitivityResult,
@@ -210,11 +210,11 @@ def test_sensitivity_result_to_dataframe_row_per_scenario() -> None:
     assert df.set_index("scenario")["revenue@2025Q1"].to_dict() == {0: 90.0, 1: 110.0}
 
 
-# ScenarioResultSet
+# ScenarioResults
 
 
-def _scenario_result_set() -> ScenarioResultSet:
-    return ScenarioResultSet.from_json(
+def _scenario_result_set() -> ScenarioResults:
+    return ScenarioResults.from_json(
         json.dumps({
             "base": _statement_result({"2025Q1": 100.0}),
             "downside": _statement_result({"2025Q1": 90.0}),

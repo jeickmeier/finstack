@@ -169,7 +169,8 @@ pub enum RequestedMetrics {
 }
 
 impl RequestedMetrics {
-    /// Build a metric selection from binding-supplied metric-id strings.
+    /// Strictly build a metric selection from binding-supplied metric-id
+    /// strings.
     ///
     /// This is the canonical conversion behind the Python `value_portfolio`
     /// `metrics=` keyword and the WASM `valuePortfolio` `metrics` parameter,
@@ -177,26 +178,34 @@ impl RequestedMetrics {
     ///
     /// - `None` requests [`RequestedMetrics::Standard`].
     /// - `Some(names)` requests [`RequestedMetrics::Only`] with each name
-    ///   resolved through [`std::str::FromStr`], falling back to
-    ///   [`MetricId::custom`] for non-standard identifiers. An empty list
-    ///   therefore performs a PV-only valuation.
+    ///   resolved through [`MetricId::parse_strict`]. An empty list therefore
+    ///   performs a PV-only valuation.
+    ///
+    /// `MetricId`'s `FromStr` is deliberately not used here: it is infallible
+    /// (unknown names silently become custom metrics the valuation engine
+    /// cannot compute), so a typo would degrade to PV-only valuation instead
+    /// of failing loudly at the API boundary.
     ///
     /// # Arguments
     ///
     /// * `metrics` - Optional exact metric-id strings to request.
-    #[must_use]
-    pub fn from_metric_names(metrics: Option<Vec<String>>) -> Self {
-        use std::str::FromStr;
-        metrics.map_or(Self::Standard, |metrics| {
-            Self::Only(
-                metrics
-                    .into_iter()
-                    .map(|metric| {
-                        MetricId::from_str(&metric).unwrap_or_else(|_| MetricId::custom(metric))
-                    })
-                    .collect(),
-            )
-        })
+    ///
+    /// # Errors
+    ///
+    /// Returns [`finstack_quant_core::Error::UnknownMetric`] when a name is
+    /// not a standard metric identifier; the error lists the available ids.
+    pub fn try_from_metric_names(
+        metrics: Option<Vec<String>>,
+    ) -> finstack_quant_core::Result<Self> {
+        match metrics {
+            None => Ok(Self::Standard),
+            Some(names) => Ok(Self::Only(
+                names
+                    .iter()
+                    .map(|name| MetricId::parse_strict(name))
+                    .collect::<finstack_quant_core::Result<Vec<_>>>()?,
+            )),
+        }
     }
 }
 

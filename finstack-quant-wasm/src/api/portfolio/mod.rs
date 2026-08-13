@@ -761,24 +761,15 @@ pub fn value_portfolio_built(
     let market: finstack_quant_core::market_data::context::MarketContext =
         serde_json::from_str(market_json).map_err(to_js_err)?;
     let config = finstack_quant_core::config::FinstackConfig::default();
-    // `MetricId::from_str` is infallible (typos become custom metrics and
-    // degrade to PV-only valuation), so this API boundary parses strictly —
-    // matching the Python `value_portfolio` binding.
-    let metrics = match metrics {
-        None => finstack_quant_portfolio::valuation::RequestedMetrics::Standard,
-        Some(names) => finstack_quant_portfolio::valuation::RequestedMetrics::Only(
-            names
-                .iter()
-                .map(|name| {
-                    finstack_quant_valuations::metrics::MetricId::parse_strict(name)
-                        .map_err(to_js_err)
-                })
-                .collect::<Result<Vec<_>, JsValue>>()?,
-        ),
-    };
+    // Strict parsing via the canonical portfolio-crate helper (shared with
+    // the Python binding): an unknown metric name throws instead of silently
+    // degrading to PV-only valuation.
     let options = finstack_quant_portfolio::valuation::PortfolioValuationOptions {
         strict_risk,
-        metrics,
+        metrics: finstack_quant_portfolio::valuation::RequestedMetrics::try_from_metric_names(
+            metrics,
+        )
+        .map_err(to_js_err)?,
     };
     let valuation = finstack_quant_portfolio::valuation::value_portfolio(
         &portfolio.inner,

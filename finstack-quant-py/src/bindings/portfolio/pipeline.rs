@@ -15,29 +15,16 @@ use pyo3::prelude::*;
 
 /// Strictly parse user-supplied metric names into [`RequestedMetrics`].
 ///
-/// `MetricId::from_str` is infallible (unknown names silently become custom
-/// metrics, which the valuation engine cannot compute — a typo would degrade
-/// to PV-only valuation). API boundaries therefore use
-/// `MetricId::parse_strict`, which rejects unknown standard-metric names with
-/// a `ValueError` listing the available identifiers.
+/// Delegates to the canonical
+/// `RequestedMetrics::try_from_metric_names` in the portfolio crate (shared
+/// with the WASM binding), which rejects unknown standard-metric names —
+/// surfaced here as a `ValueError` listing the available identifiers —
+/// instead of letting a typo silently degrade to PV-only valuation.
 fn parse_requested_metrics(
     metrics: Option<Vec<String>>,
 ) -> PyResult<finstack_quant_portfolio::valuation::RequestedMetrics> {
-    match metrics {
-        None => Ok(finstack_quant_portfolio::valuation::RequestedMetrics::Standard),
-        Some(names) => {
-            let parsed = names
-                .iter()
-                .map(|name| {
-                    finstack_quant_valuations::metrics::MetricId::parse_strict(name)
-                        .map_err(crate::errors::core_to_py)
-                })
-                .collect::<PyResult<Vec<_>>>()?;
-            Ok(finstack_quant_portfolio::valuation::RequestedMetrics::Only(
-                parsed,
-            ))
-        }
-    }
+    finstack_quant_portfolio::valuation::RequestedMetrics::try_from_metric_names(metrics)
+        .map_err(crate::errors::core_to_py)
 }
 
 /// Run the shared valuation engine for the typed Python entry point.

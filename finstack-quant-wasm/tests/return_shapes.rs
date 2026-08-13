@@ -136,6 +136,11 @@ fn computation_results_are_structured_not_strings() {
         // The audit found attributePnl missing from this list — it was
         // declared `string` while its Python twin returned a typed wrapper.
         "attributePnl",
+        // Structured-credit tranche analytics: typed plain objects matching
+        // the Python OasResult / TrancheMetrics / ScenarioTable wrappers.
+        "structuredCreditTrancheOas",
+        "structuredCreditTrancheMetrics",
+        "structuredCreditTrancheScenarioTable",
     ] {
         let Some(ret) = declared_return(&dts, export) else {
             panic!("{export} is missing from index.d.ts");

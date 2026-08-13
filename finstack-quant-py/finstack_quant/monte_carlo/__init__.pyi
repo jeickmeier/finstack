@@ -681,6 +681,55 @@ class TimeGrid:
         """
         ...
 
+    @staticmethod
+    def uniform_with_required_times(
+        t_max: float,
+        steps_per_year: float,
+        min_steps: int,
+        required_times: Sequence[float],
+    ) -> TimeGrid:
+        """
+        Build a near-uniform grid that includes required knot times exactly.
+
+        Builds a uniform grid of ``max(round(t_max * steps_per_year),
+        min_steps)`` steps over ``[0, t_max]``, then merges each
+        ``required_times`` entry (e.g. exercise dates, barrier monitoring or
+        cashflow dates) as an exact grid knot.
+
+        Parameters
+        ----------
+        t_max : float
+            Terminal time in years; must be finite and strictly positive.
+        steps_per_year : float
+            Target uniform step density; must be finite and strictly
+            positive.
+        min_steps : int
+            Minimum number of uniform steps; must be at least 1.
+        required_times : Sequence[float]
+            Knot times in ``[0, t_max]`` that must appear exactly on the
+            merged grid.
+
+        Returns
+        -------
+        TimeGrid
+            A merged ``TimeGrid`` containing every required knot exactly.
+
+        Raises
+        ------
+        ValueError
+            If ``t_max`` or ``steps_per_year`` is non-finite or non-positive,
+            ``min_steps`` is zero, the step count overflows, or the merged
+            knots fail ``from_times`` validation.
+
+        Examples
+        --------
+        >>> from finstack_quant.monte_carlo import TimeGrid
+        >>> grid = TimeGrid.uniform_with_required_times(1.0, 4.0, 2, [0.3])
+        >>> 0.3 in grid.times
+        True
+        """
+        ...
+
     @property
     def num_steps(self) -> int:
         """

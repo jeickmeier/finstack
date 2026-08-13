@@ -1020,6 +1020,15 @@ test('portfolio.almgrenChrissImpact returns the Python-parity dict shape', () =>
     'temporary_impact',
     'total_impact',
   ]);
+  // The ADV-calibrated model derives gamma/eta from a profile whose mid is
+  // the reference price: monetary costs scale linearly with price while
+  // cost-in-bp of traded notional is price-invariant.
   const unpriced = portfolio.almgrenChrissImpact(10_000, 1_000_000, 0.02, 1.0, 0.0, 0.01);
-  assert.ok(Math.abs(impact.expected_cost_bp - unpriced.expected_cost_bp / 100) < 1e-12);
+  assert.ok(Math.abs(impact.expected_cost_bp - unpriced.expected_cost_bp) < 1e-12);
+  assert.ok(
+    Math.abs(impact.total_impact - 100 * unpriced.total_impact) < 1e-9 * impact.total_impact
+  );
+  assert.ok(
+    Math.abs(impact.execution_risk - 100 * unpriced.execution_risk) < 1e-9 * impact.execution_risk
+  );
 });

@@ -405,7 +405,7 @@ def _parse_exported_const_object_keys(js_path: Path, const_name: str) -> set[str
             continue
         stripped = line.strip()
         if depth == 1 and stripped and not stripped.startswith("//"):
-            key_match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)\s*:", stripped)
+            key_match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)\s*[:,]", stripped)
             if key_match:
                 keys.add(key_match.group(1))
         depth += line.count("{") - line.count("}")
@@ -511,8 +511,10 @@ def test_cashflows_has_no_cross_crate_symbols() -> None:
 WASM_NAMESPACE_SUBSETS = [
     ("wasm_analytics_subset", "analytics", "finstack_quant.analytics"),
     ("wasm_covenants_subset", "covenants", "finstack_quant.covenants"),
+    ("wasm_factor_model_subset", "factor_model", "finstack_quant.factor_model"),
     ("wasm_features_subset", "features", "finstack_quant.features"),
     ("wasm_margin_subset", "margin", "finstack_quant.margin"),
+    ("wasm_monte_carlo_subset", "monte_carlo", "finstack_quant.monte_carlo"),
     ("wasm_scenarios_subset", "scenarios", "finstack_quant.scenarios"),
     ("wasm_statements_subset", "statements", "finstack_quant.statements"),
     ("wasm_statements_analytics_subset", "statements_analytics", "finstack_quant.statements_analytics"),
@@ -866,6 +868,44 @@ def test_wasm_core_market_data_types_on_facade() -> None:
     assert not missing, f"market_data WASM subset missing from core.js: {sorted(missing)}"
 
 
+def test_wasm_core_root_exports_accounted() -> None:
+    """Every core root export is pinned in python_js_map or listed wasm_only."""
+    block = CONTRACT["wasm_core_subset"]
+    _assert_wasm_subset_root_exports_accounted(
+        "wasm_core_subset",
+        root_exports=set(block["root_exports"]),
+        mapped_js=set(block["python_js_map"].values()),
+        wasm_only=set(block["wasm_only"]),
+    )
+
+
+def test_wasm_core_python_js_map_paths_resolve() -> None:
+    """Each dotted python_js_map key must resolve under finstack_quant.core."""
+    block = CONTRACT["wasm_core_subset"]
+    core = importlib.import_module("finstack_quant.core")
+    missing = []
+    for dotted in block["python_js_map"]:
+        obj: Any = core
+        for part in dotted.split("."):
+            obj = getattr(obj, part, None)
+            if obj is None:
+                missing.append(dotted)
+                break
+    assert not missing, f"finstack_quant.core missing python_js_map twins: {missing}"
+
+
+def test_wasm_core_python_only_lists_stay_within_contracted_surfaces() -> None:
+    """python_only_dates/types entries must remain contracted Python symbols."""
+    block = CONTRACT["wasm_core_subset"]
+    core_crate = CONTRACT["crates"]["core"]
+    dates_public = set(core_crate["module_symbols"]["dates"]["public"])
+    types_public = set(core_crate["module_symbols"]["types"]["public"])
+    stray_dates = set(block["python_only_dates"]) - dates_public
+    stray_types = set(block["python_only_types"]) - types_public
+    assert not stray_dates, f"python_only_dates not in contracted dates surface: {sorted(stray_dates)}"
+    assert not stray_types, f"python_only_types not in contracted types surface: {sorted(stray_types)}"
+
+
 def test_wasm_core_curve_member_pins_match_binding_source() -> None:
     """Pinned curve/cube members must use their canonical wasm-bindgen JS names."""
     block = CONTRACT["wasm_core_subset"]
@@ -875,6 +915,7 @@ def test_wasm_core_curve_member_pins_match_binding_source() -> None:
 
     for member_key in [
         "discount_curve_members",
+        "hazard_curve_members",
         "forward_curve_members",
         "vol_cube_members",
     ]:

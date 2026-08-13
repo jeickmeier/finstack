@@ -176,19 +176,29 @@ fn almgren_chriss_impact_uses_reference_price_for_bp() {
 
     let priced_json = as_json(&priced);
     let priced_object = priced_json.as_object().expect("impact object");
-    assert_eq!(priced_object.len(), 4);
+    assert_eq!(priced_object.len(), 5);
     for key in [
         "permanent_impact",
         "temporary_impact",
         "total_impact",
         "expected_cost_bp",
+        "execution_risk",
     ] {
         assert!(priced_object.contains_key(key), "missing key {key}");
     }
 
+    // Since the ADV-calibrated model (gamma/eta derive from a profile whose
+    // mid is the reference price), monetary costs scale linearly with the
+    // reference price while cost-in-bp of traded notional is price-invariant.
     let default_bp = get_f64(&default, "expected_cost_bp");
     let priced_bp = get_f64(&priced, "expected_cost_bp");
-    assert!((priced_bp - default_bp / 100.0).abs() < 1e-12);
+    assert!((priced_bp - default_bp).abs() < 1e-12 * default_bp.abs().max(1.0));
+    let default_cost = get_f64(&default, "total_impact");
+    let priced_cost = get_f64(&priced, "total_impact");
+    assert!((priced_cost - 100.0 * default_cost).abs() < 1e-9 * priced_cost.abs().max(1.0));
+    let default_risk = get_f64(&default, "execution_risk");
+    let priced_risk = get_f64(&priced, "execution_risk");
+    assert!((priced_risk - 100.0 * default_risk).abs() < 1e-9 * priced_risk.abs().max(1.0));
 }
 
 #[wasm_bindgen_test]
