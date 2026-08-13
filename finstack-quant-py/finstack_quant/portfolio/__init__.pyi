@@ -13612,7 +13612,10 @@ class PortfolioOptimizationSpec:
 
 class PortfolioOptimizationResult:
     """
-    Result of an optimization run (Serialize-only; no ``from_json``).
+    Result of an optimization run.
+
+    Round-trips through ``to_json`` / ``from_json`` and therefore supports
+    ``pickle``, ``copy.deepcopy``, and ``multiprocessing``.
 
     Examples
     --------
@@ -13623,6 +13626,35 @@ class PortfolioOptimizationResult:
     ...     print(exc)
     cannot create 'finstack_quant.portfolio.PortfolioOptimizationResult' instances
     """
+
+    @staticmethod
+    def from_json(json_str: str) -> PortfolioOptimizationResult:
+        """
+        Rebuild a `PortfolioOptimizationResult` from ``to_json`` output.
+
+        Parameters
+        ----------
+        json_str : str
+            Canonical JSON produced by :meth:`to_json`.
+
+        Returns
+        -------
+        PortfolioOptimizationResult
+            The reconstructed optimization result, field for field.
+
+        Raises
+        ------
+        ValueError
+            If ``json_str`` is malformed or does not match the wire schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import PortfolioOptimizationResult
+        >>> restored = PortfolioOptimizationResult.from_json(
+        ...     result.to_json()
+        ... )  # doctest: +SKIP
+        """
+        ...
 
     def to_json(self) -> str:
         """

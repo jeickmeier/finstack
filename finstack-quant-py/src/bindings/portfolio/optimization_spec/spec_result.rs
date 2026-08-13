@@ -6,7 +6,8 @@ use pyo3::types::{PyDict, PyList, PyType};
 
 use finstack_quant_portfolio::optimization::{
     CandidatePosition, MissingMetricPolicy, OptimizationStatus, PortfolioOptimizationResult,
-    PortfolioOptimizationSpec, TradeUniverse, WeightingScheme,
+    PortfolioOptimizationResultWire, PortfolioOptimizationSpec, TradeType, TradeUniverse,
+    WeightingScheme,
 };
 use finstack_quant_portfolio::types::PositionId;
 
@@ -320,20 +321,25 @@ const TRADE_COLUMNS: [ColumnSchema<'static>; 9] = [
 
 /// Result of an optimization run.
 ///
-/// `PortfolioOptimizationResult` implements `Serialize` but not
-/// `Deserialize` in the Rust source, so this wrapper exposes ``to_json``
-/// only — there is no ``from_json``.
+/// The wrapper holds the canonical `PortfolioOptimizationResultWire` rather
+/// than `PortfolioOptimizationResult` itself: the latter echoes the original
+/// problem, whose `Arc<dyn Instrument>` values do not round-trip through
+/// serde. The wire type carries every field this class exposes, so storing it
+/// is what lets the wrapper satisfy the result-return contract — typed
+/// getters, `to_json`, `from_json`, and pickle — like its 154 siblings.
 #[pyclass(
     name = "PortfolioOptimizationResult",
     module = "finstack_quant.portfolio"
 )]
 pub(super) struct PyPortfolioOptimizationResult {
-    pub(crate) inner: PortfolioOptimizationResult,
+    pub(crate) inner: PortfolioOptimizationResultWire,
 }
 
 impl PyPortfolioOptimizationResult {
     pub(crate) fn from_inner(inner: PortfolioOptimizationResult) -> Self {
-        Self { inner }
+        Self {
+            inner: PortfolioOptimizationResultWire::from(&inner),
+        }
     }
 }
 
@@ -345,6 +351,35 @@ impl PyPortfolioOptimizationResult {
         serialize_json(&self.inner)
     }
 
+    /// Rebuild from :meth:`to_json` output.
+    ///
+    /// Parameters
+    /// ----------
+    /// json_str : str
+    ///     Canonical JSON produced by :meth:`to_json`.
+    ///
+    /// Returns
+    /// -------
+    /// PortfolioOptimizationResult
+    ///     The reconstructed result, field for field.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
+        let inner = serde_json::from_str(json_str)
+            .map_err(|e| crate::errors::serde_json_to_py(e, "invalid optimization result JSON"))?;
+        Ok(Self { inner })
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     /// Solver outcome (optimal, feasible-but-suboptimal, infeasible, ...).
     #[getter]
     fn status(&self) -> PyOptimizationStatus {
@@ -354,7 +389,7 @@ impl PyPortfolioOptimizationResult {
     /// Whether :attr:`status` represents a solution that may be consumed.
     #[getter]
     fn is_feasible(&self) -> bool {
-        self.inner.status.is_feasible()
+        self.inner.is_feasible
     }
 
     /// Value of the objective function at the solution, in the objective's own
@@ -450,15 +485,16 @@ impl PyPortfolioOptimizationResult {
     /// Total turnover (sum of absolute weight changes).
     #[getter]
     fn turnover(&self) -> f64 {
-        self.inner.turnover()
+        self.inner.turnover
     }
 
     /// Trade list sorted by absolute quantity delta (largest first).
     #[pyo3(text_signature = "(self)")]
     fn to_trade_list(&self) -> Vec<PyTradeSpec> {
         self.inner
-            .to_trade_list()
-            .into_iter()
+            .trades
+            .iter()
+            .cloned()
             .map(PyTradeSpec::from_inner)
             .collect()
     }
@@ -467,8 +503,10 @@ impl PyPortfolioOptimizationResult {
     #[pyo3(text_signature = "(self)")]
     fn new_position_trades(&self) -> Vec<PyTradeSpec> {
         self.inner
-            .new_position_trades()
-            .into_iter()
+            .trades
+            .iter()
+            .filter(|t| t.trade_type == TradeType::NewPosition)
+            .cloned()
             .map(PyTradeSpec::from_inner)
             .collect()
     }
@@ -527,7 +565,7 @@ impl PyPortfolioOptimizationResult {
     /// ``target_weight`` (weights are fractions, not percentages).
     #[pyo3(text_signature = "(self)")]
     fn to_trade_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let trades = self.inner.to_trade_list();
+        let trades = self.inner.trades.clone();
         serde_rows_to_dataframe_with_schema(py, &trades, &TRADE_COLUMNS)
     }
 
@@ -535,9 +573,12 @@ impl PyPortfolioOptimizationResult {
     #[pyo3(text_signature = "(self)")]
     fn binding_constraints(&self) -> Vec<(String, f64)> {
         self.inner
-            .binding_constraints()
-            .into_iter()
-            .map(|(name, slack)| (name.to_owned(), slack))
+            .binding_constraints
+            .iter()
+            .map(|name| {
+                let slack = self.inner.constraint_slacks.get(name).copied().unwrap_or(0.0);
+                (name.clone(), slack)
+            })
             .collect()
     }
 
@@ -552,7 +593,7 @@ impl PyPortfolioOptimizationResult {
                 OptimizationStatus::Error { .. } => "error",
             },
             self.inner.objective_value,
-            self.inner.turnover(),
+            self.inner.turnover,
         )
     }
 
