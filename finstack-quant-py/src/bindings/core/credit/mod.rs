@@ -35,12 +35,12 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let all = PyList::new(
         py,
         [
-            "scoring",
-            "pd",
             "lgd",
-            "migration",
-            "recovery_waterfall",
             "liability_management",
+            "migration",
+            "pd",
+            "recovery_waterfall",
+            "scoring",
         ],
     )?;
     m.setattr("__all__", all)?;

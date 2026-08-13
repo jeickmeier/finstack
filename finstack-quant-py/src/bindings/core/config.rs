@@ -301,7 +301,11 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyRoundingMode>()?;
     m.add_class::<PyToleranceConfig>()?;
     m.add_class::<PyFinstackConfig>()?;
-    let all = PyList::new(py, ["RoundingMode", "ToleranceConfig", "FinstackConfig"])?;
+    let all = PyList::new(py, [
+            "FinstackConfig",
+            "RoundingMode",
+            "ToleranceConfig",
+        ])?;
     m.setattr("__all__", all)?;
 
     crate::bindings::module_utils::register_submodule(

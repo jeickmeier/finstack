@@ -438,13 +438,13 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let all = PyList::new(
         py,
         [
-            "UnknownScalePolicy",
+            "RATING_SCALES_EXTENSION_KEY",
             "RatingLevel",
-            "ScorecardScale",
             "RatingScaleRegistry",
+            "ScorecardScale",
+            "UnknownScalePolicy",
             "embedded_registry",
             "registry_from_config",
-            "RATING_SCALES_EXTENSION_KEY",
         ],
     )?;
     m.setattr("__all__", all)?;

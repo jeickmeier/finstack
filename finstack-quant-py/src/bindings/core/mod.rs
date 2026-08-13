@@ -48,17 +48,16 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         [
             "FinstackError",
             "config",
-            "types",
+            "credit",
             "currency",
-            "money",
-            "math",
             "dates",
             "market_data",
-            "credit",
+            "math",
+            "money",
             "rating_scales",
-            "table",
-            // Schema
             "schema",
+            "table",
+            "types",
         ],
     )?;
     m.setattr("__all__", all)?;

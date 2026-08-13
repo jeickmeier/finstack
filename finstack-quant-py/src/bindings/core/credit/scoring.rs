@@ -276,10 +276,10 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         py,
         [
             "AltmanPdCalibration",
-            "altman_z_score",
-            "altman_z_prime",
-            "altman_z_double_prime",
             "altman_em_score",
+            "altman_z_double_prime",
+            "altman_z_prime",
+            "altman_z_score",
             "ohlson_o_score",
             "zmijewski_score",
         ],

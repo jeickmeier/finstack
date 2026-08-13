@@ -289,8 +289,8 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let all = PyList::new(
         py,
         [
-            "RecoveryClaim",
             "RecoveryAllocation",
+            "RecoveryClaim",
             "RecoveryWaterfallResult",
             "allocate_recovery",
         ],

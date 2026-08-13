@@ -31,8 +31,8 @@ pub(super) const EXPORTS: &[&str] = &[
     "HazardCurve",
     "InflationCurve",
     "PriceCurve",
-    "VolSurface",
     "VolCube",
+    "VolSurface",
     "VolatilityIndexCurve",
 ];
 

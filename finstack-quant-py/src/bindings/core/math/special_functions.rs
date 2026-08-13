@@ -90,11 +90,11 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let all = PyList::new(
         py,
         [
+            "erf",
+            "ln_gamma",
             "norm_cdf",
             "norm_pdf",
             "standard_normal_inv_cdf",
-            "erf",
-            "ln_gamma",
             "student_t_cdf",
             "student_t_inv_cdf",
         ],

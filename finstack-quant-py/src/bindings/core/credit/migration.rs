@@ -381,11 +381,11 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let all = PyList::new(
         py,
         [
+            "GeneratorMatrix",
+            "MigrationSimulator",
+            "RatingPath",
             "RatingScale",
             "TransitionMatrix",
-            "GeneratorMatrix",
-            "RatingPath",
-            "MigrationSimulator",
             "project",
         ],
     )?;

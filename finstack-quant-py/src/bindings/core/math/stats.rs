@@ -80,12 +80,12 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let all = PyList::new(
         py,
         [
-            "mean",
-            "variance",
-            "population_variance",
             "correlation",
             "covariance",
+            "mean",
+            "population_variance",
             "quantile",
+            "variance",
         ],
     )?;
     m.setattr("__all__", all)?;

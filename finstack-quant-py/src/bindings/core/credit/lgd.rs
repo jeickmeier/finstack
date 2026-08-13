@@ -231,14 +231,14 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let all = PyList::new(
         py,
         [
-            "seniority_recovery_stats",
-            "beta_recovery_sample",
             "beta_recovery_quantile",
-            "workout_lgd",
-            "downturn_lgd_stressed",
+            "beta_recovery_sample",
             "downturn_lgd_regulatory_floor",
-            "ead_term_loan",
+            "downturn_lgd_stressed",
             "ead_revolver",
+            "ead_term_loan",
+            "seniority_recovery_stats",
+            "workout_lgd",
         ],
     )?;
     m.setattr("__all__", all)?;
