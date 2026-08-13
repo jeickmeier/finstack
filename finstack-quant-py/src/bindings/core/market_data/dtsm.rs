@@ -23,10 +23,10 @@ use crate::errors::core_to_py;
 ///     yields_matrix: Yield panel ``yields_matrix[date_idx][tenor_idx]`` as a
 ///         list of lists (T rows of N tenors each). Yields are continuously
 ///         compounded zero rates.
-///     lambda: Diebold-Li decay parameter for tenors **in years** (default
+///     lambda_: Diebold-Li decay parameter for tenors **in years** (default
 ///         0.7308, the years-equivalent of Diebold-Li's canonical 0.0609
 ///         months value; curvature loading peaks at ~2.45 years ~ 30 months).
-///         Pass a months-scaled lambda only if you also supply tenors in
+///         Pass a months-scaled ``lambda_`` only if you also supply tenors in
 ///         months.
 ///
 /// Returns a dict with keys:
@@ -36,19 +36,19 @@ use crate::errors::core_to_py;
 ///     r_squared: list[float] -- R-squared per tenor (length N).
 ///     r_squared_avg: float -- cross-sectional average R-squared.
 #[pyfunction]
-#[pyo3(signature = (tenors, yields_matrix, lambda=0.7308))]
-#[pyo3(text_signature = "(tenors, yields_matrix, lambda=0.7308)")]
+#[pyo3(signature = (tenors, yields_matrix, lambda_=0.7308))]
+#[pyo3(text_signature = "(tenors, yields_matrix, lambda_=0.7308)")]
 fn diebold_li_fit_factors<'py>(
     py: Python<'py>,
     tenors: Vec<f64>,
     yields_matrix: Vec<Vec<f64>>,
-    lambda: f64,
+    lambda_: f64,
 ) -> PyResult<Bound<'py, PyDict>> {
     let model = py
         .detach(|| {
             let panel = YieldPanel::from_rows(tenors, yields_matrix, None)?;
             DieboldLi::builder()
-                .lambda(lambda)
+                .lambda(lambda_)
                 .build()?
                 .extract_factors(&panel)
         })
@@ -87,7 +87,7 @@ fn diebold_li_fit_factors<'py>(
 ///     yields_matrix: Yield panel as ``yields_matrix[date_idx][tenor_idx]``
 ///         (T rows, N columns).
 ///     horizon: Forecast horizon (>= 1) in observation periods.
-///     lambda: Diebold-Li decay parameter for tenors **in years** (default
+///     lambda_: Diebold-Li decay parameter for tenors **in years** (default
 ///         0.7308; see ``diebold_li_fit_factors`` for the years-vs-months
 ///         convention).
 ///
@@ -100,20 +100,20 @@ fn diebold_li_fit_factors<'py>(
 ///         each a list[float] of length N (95% Gaussian forecast band from
 ///         the h-step VAR(1) forecast error covariance).
 #[pyfunction]
-#[pyo3(signature = (tenors, yields_matrix, horizon, lambda=0.7308))]
-#[pyo3(text_signature = "(tenors, yields_matrix, horizon, lambda=0.7308)")]
+#[pyo3(signature = (tenors, yields_matrix, horizon, lambda_=0.7308))]
+#[pyo3(text_signature = "(tenors, yields_matrix, horizon, lambda_=0.7308)")]
 fn diebold_li_forecast<'py>(
     py: Python<'py>,
     tenors: Vec<f64>,
     yields_matrix: Vec<Vec<f64>>,
     horizon: usize,
-    lambda: f64,
+    lambda_: f64,
 ) -> PyResult<Bound<'py, PyDict>> {
     let fc = py
         .detach(|| {
             let panel = YieldPanel::from_rows(tenors, yields_matrix, None)?;
             DieboldLi::builder()
-                .lambda(lambda)
+                .lambda(lambda_)
                 .build()?
                 .extract_factors(&panel)?
                 .fit_var()?
@@ -276,7 +276,7 @@ fn yield_pca_scenario(
 /// ``diebold_li_fit_factors`` / ``diebold_li_forecast``.
 ///
 /// Arguments:
-///     lambda: Decay parameter for tenors **in years**; must be finite and > 0.
+///     lambda_: Decay parameter for tenors **in years**; must be finite and > 0.
 ///         The 0.7308 default used elsewhere in this module is the
 ///         years-equivalent of Diebold-Li's canonical 0.0609 months value.
 ///     factors: ``[beta1, beta2, beta3]`` = ``[level, slope, curvature]`` in
@@ -287,10 +287,10 @@ fn yield_pca_scenario(
 /// Returns a list[float] of fitted yields, one per input tenor, in decimal
 /// units and in the same order as ``tenors``.
 #[pyfunction]
-#[pyo3(signature = (lambda, factors, tenors))]
-#[pyo3(text_signature = "(lambda, factors, tenors)")]
-fn nelson_siegel_yields(lambda: f64, factors: [f64; 3], tenors: Vec<f64>) -> PyResult<Vec<f64>> {
-    finstack_quant_core::market_data::dtsm::nelson_siegel_yields(lambda, factors, &tenors)
+#[pyo3(signature = (lambda_, factors, tenors))]
+#[pyo3(text_signature = "(lambda_, factors, tenors)")]
+fn nelson_siegel_yields(lambda_: f64, factors: [f64; 3], tenors: Vec<f64>) -> PyResult<Vec<f64>> {
+    finstack_quant_core::market_data::dtsm::nelson_siegel_yields(lambda_, factors, &tenors)
         .map_err(core_to_py)
 }
 
