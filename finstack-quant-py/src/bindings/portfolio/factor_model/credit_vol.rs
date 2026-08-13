@@ -199,6 +199,15 @@ impl PyCreditVolReport {
         })
     }
 
+    /// Primary table: the per-hierarchy-level rollup.
+    ///
+    /// Alias of :meth:`to_level_dataframe`. Every tabular result type in the
+    /// library answers ``to_dataframe()``; the optional per-position
+    /// breakdown stays on :meth:`to_position_dataframe`.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.to_level_dataframe(py)
+    }
+
     /// Export the per-hierarchy-level rollup as a pandas ``DataFrame``.
     ///
     /// One row per entry of :attr:`by_level`. The per-bucket drill-down stays

@@ -7910,6 +7910,25 @@ class RiskDecomposition:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Primary table: the factor-level risk decomposition.
+
+        Alias of :meth:`to_factor_dataframe`. Every tabular result type in the library
+        answers ``to_dataframe()``; the position × factor view stays on
+        :meth:`to_position_factor_dataframe`.
+
+        Returns
+        -------
+        pd.DataFrame
+            The same frame :meth:`to_factor_dataframe` returns.
+
+        Examples
+        --------
+        >>> frame = result.to_dataframe()  # doctest: +SKIP
+        """
+        ...
+
     def to_factor_dataframe(self) -> pd.DataFrame:
         """
         Export factor contributions as a pandas DataFrame.
@@ -10237,6 +10256,25 @@ class CreditVolReport:
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Primary table: the per-hierarchy-level rollup.
+
+        Alias of :meth:`to_level_dataframe`. Every tabular result type in the library
+        answers ``to_dataframe()``; the optional per-position breakdown stays on
+        :meth:`to_position_dataframe`.
+
+        Returns
+        -------
+        pd.DataFrame
+            The same frame :meth:`to_level_dataframe` returns.
+
+        Examples
+        --------
+        >>> frame = result.to_dataframe()  # doctest: +SKIP
         """
         ...
 
@@ -14464,6 +14502,25 @@ class FactorRiskDecomposition:
         Notes
         -----
         This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Primary table: the factor-level risk decomposition.
+
+        Alias of :meth:`to_factor_dataframe`. Every tabular result type in the library
+        answers ``to_dataframe()``; the position-level views stay on :meth:`to_position_factor_dataframe`
+        and :meth:`to_position_residual_dataframe`.
+
+        Returns
+        -------
+        pd.DataFrame
+            The same frame :meth:`to_factor_dataframe` returns.
+
+        Examples
+        --------
+        >>> frame = result.to_dataframe()  # doctest: +SKIP
         """
         ...
 

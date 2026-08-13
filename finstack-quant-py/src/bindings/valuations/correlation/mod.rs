@@ -1039,6 +1039,15 @@ impl PyPortfolioLossResult {
         .map_err(display_to_py)
     }
 
+    /// Primary table: the simulated loss distribution.
+    ///
+    /// Alias of :meth:`to_distribution_dataframe`. Every tabular result type
+    /// in the library answers ``to_dataframe()``; the one-row aggregate view
+    /// stays on :meth:`to_summary_dataframe`.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.to_distribution_dataframe(py)
+    }
+
     /// Export the simulated loss distribution as a pandas ``DataFrame``.
     ///
     /// Columns: ``loss``.

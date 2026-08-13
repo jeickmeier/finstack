@@ -366,6 +366,17 @@ impl PyRiskDecomposition {
             .collect()
     }
 
+    /// Primary table: the factor-level risk decomposition.
+    ///
+    /// Alias of :meth:`to_factor_dataframe`. Every tabular result type in the
+    /// library answers ``to_dataframe()``; the position-level views stay on
+    /// :meth:`to_position_factor_dataframe` and
+    /// :meth:`to_position_residual_dataframe`.
+    #[pyo3(text_signature = "(self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.to_factor_dataframe(py)
+    }
+
     /// Export factor contributions as a pandas ``DataFrame``.
     ///
     /// Columns: ``factor_id``, ``absolute_risk``, ``relative_risk``,

@@ -871,6 +871,24 @@ class PortfolioLossResult:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Primary table: the simulated loss distribution.
+
+        Alias of :meth:`to_distribution_dataframe`. Every tabular result type in the library
+        answers ``to_dataframe()``; the one-row aggregate view stays on :meth:`to_summary_dataframe`.
+
+        Returns
+        -------
+        pd.DataFrame
+            The same frame :meth:`to_distribution_dataframe` returns.
+
+        Examples
+        --------
+        >>> frame = result.to_dataframe()  # doctest: +SKIP
+        """
+        ...
+
     def to_distribution_dataframe(self) -> pd.DataFrame:
         """
         Export the simulated loss distribution as a pandas DataFrame.
