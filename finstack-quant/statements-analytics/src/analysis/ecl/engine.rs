@@ -89,12 +89,12 @@ pub struct MacroScenario {
 ///   `lgd_override` sets the base and the downturn stress is layered on top
 ///   of it):
 ///   - Stressed (`DownturnMethod::StressedApproximation`):
-///   `LGD_eff = clamp(base + s·√ρ·Φ⁻¹(q)·√(base·(1−base)), 0, 1)`, core's
-///   documented mean-plus-Bernoulli-stdev approximation (see
-///   `core/src/credit/lgd/downturn.rs` Methodology Note; Frye & Jacobs
-///   (2012) is related literature only, not the formula implemented here).
+///     `LGD_eff = clamp(base + s·√ρ·Φ⁻¹(q)·√(base·(1−base)), 0, 1)`, core's
+///     documented mean-plus-Bernoulli-stdev approximation (see
+///     `core/src/credit/lgd/downturn.rs` Methodology Note; Frye & Jacobs
+///     (2012) is related literature only, not the formula implemented here).
 ///   - Regulatory floor (`DownturnMethod::RegulatoryFloor`):
-///   `LGD_eff = clamp(max(base + add_on, floor), 0, 1)`.
+///     `LGD_eff = clamp(max(base + add_on, floor), 0, 1)`.
 ///
 /// # References
 ///

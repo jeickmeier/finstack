@@ -24,7 +24,7 @@
 /// Act/365F is the right common basis here rather than the curve's own
 /// convention:
 ///   * The bump metrics (z-spread, CS01, convexity) DEFINE their shocks in
-///   this basis, and duration is compared against them in the expansion.
+///     this basis, and duration is compared against them in the expansion.
 ///   * A duration quoted "in years" conventionally means Act/365-style years.
 ///
 /// Aligning duration to the majority also leaves nine of eleven call sites

@@ -59,6 +59,7 @@ Examples
 
 from __future__ import annotations
 
+import datetime
 from typing import Any
 
 import pandas as pd

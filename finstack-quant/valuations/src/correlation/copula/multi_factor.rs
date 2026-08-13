@@ -14,15 +14,15 @@
 //! 2. **[`MultiFactorCopula::conditional_default_prob_with_sector`]** (inherent
 //!    method): per-name sector routing using an explicit `sector_idx`:
 //!    - `sector_idx == 0` — name is **cross-sector only** (sector loading
-//!   zeroed, `ρᵢⱼ = β_G²`).
+//!      zeroed, `ρᵢⱼ = β_G²`).
 //!    - `sector_idx ∈ [1, num_sectors]` — picks the corresponding slot of
-//!   `factor_realization` as the sector shock; idiosyncratic loading is
-//!   `γᵢ = √(1 − β_G² − β_S²)`.
+//!      `factor_realization` as the sector shock; idiosyncratic loading is
+//!      `γᵢ = √(1 − β_G² − β_S²)`.
 //!    - `sector_idx > num_sectors` — out-of-range falls back to zero sector
-//!   shock without panicking (treated like `sector_idx == 0`).
+//!      shock without panicking (treated like `sector_idx == 0`).
 //!    - Length mismatches between `factor_realization` and `num_factors_count`
-//!   trigger `debug_assert_eq!`; in release builds, return the unconditional
-//!   PD `Φ(c)` (a structured fallback rather than a biased zeroed-shock).
+//!      trigger `debug_assert_eq!`; in release builds, return the unconditional
+//!      PD `Φ(c)` (a structured fallback rather than a biased zeroed-shock).
 //!
 //! Use `Copula::num_factors == 2` as a signal that the caller is supplying
 //! `[Z_G, Z_S]`. Pricers that need per-name sector resolution should call the

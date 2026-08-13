@@ -20,10 +20,10 @@ pub(crate) fn diagnostics_bump_h(config: &CalibrationConfig) -> f64 {
 /// This intentionally replaces `a.signum() != b.signum()` for sign-change detection.
 /// `f64::signum` is the wrong tool here:
 ///   * `signum(+0.0) = +1.0` and `signum(-0.0) = -1.0`, so `signum` reports a "sign
-///   change" between `+0.0` and `-0.0` (both are roots, not a bracket) and reports
-///   "same sign" between an exact `0.0` root and a positive value (hiding the root).
+///     change" between `+0.0` and `-0.0` (both are roots, not a bracket) and reports
+///     "same sign" between an exact `0.0` root and a positive value (hiding the root).
 ///   * `signum(NaN) = NaN`, and `NaN != NaN`, so a non-finite objective value would be
-///   mistaken for a sign change and drive bisection/false-position on a bogus bracket.
+///     mistaken for a sign change and drive bisection/false-position on a bogus bracket.
 ///
 /// With explicit `> 0.0` / `< 0.0` comparisons a zero or NaN endpoint yields `false`
 /// (no bracket), which is the safe answer — the caller's separate `|f| < tol` and

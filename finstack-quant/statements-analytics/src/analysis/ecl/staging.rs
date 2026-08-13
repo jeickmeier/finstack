@@ -274,8 +274,8 @@ fn rating_downgrade_notches(orig: &str, curr: &str, config: &StagingConfig) -> O
 ///
 /// 1. **Stage 3 backstop**: DPD exceeds `dpd_stage3_threshold` (non-rebuttable)
 /// 2. **Stage 2 quantitative**: PD delta exceeds absolute OR relative
-/// threshold, or a rating downgrade exceeds `rating_downgrade_notches`
-/// (IFRS 9 B5.5.17(f))
+///    threshold, or a rating downgrade exceeds `rating_downgrade_notches`
+///    (IFRS 9 B5.5.17(f))
 /// 3. **Stage 2 qualitative**: Any qualitative flag is active (if enabled)
 /// 4. **Stage 2 DPD backstop**: DPD exceeds `dpd_stage2_threshold`
 /// 5. **Curing**: Previous stage was higher, sufficient performing periods

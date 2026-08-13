@@ -193,7 +193,7 @@ fn unit_betas(num_levels: usize) -> IssuerBetas {
 ///    `r_1_i = S_i - β_i^PC · observed_generic`.
 /// 3. **Level peel.** For each level `k` in `0..L`:
 ///    - Group issuers by their bucket path at level `k`
-///   (e.g. `"IG.EU"` for level 1).
+///      (e.g. `"IG.EU"` for level 1).
 ///    - Compute `L_k(g) = mean over issuers in g of r_(k+1)_i`.
 ///    - Update `r_(k+2)_i = r_(k+1)_i - β_i^level_k · L_k(g_i^k)`.
 ///   4. The remaining residual `r_(L+1)_i` is the per-issuer adder.

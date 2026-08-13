@@ -37,17 +37,17 @@
 //!
 //! - **Gaussian Quadrature**:
 //!   - Abramowitz, M., & Stegun, I. A. (1964). *Handbook of Mathematical Functions*.
-//!   Chapter 25 (Numerical Integration).
+//!     Chapter 25 (Numerical Integration).
 //! - Press, W. H., et al. (2007). *Numerical Recipes* (3rd ed.). Section 4.5.
 //!   ([`press-numerical-recipes`](../../../../docs/REFERENCES.md#press-numerical-recipes)) `docs/REFERENCES.md#press-numerical-recipes`
 //!
 //! - **Adaptive Methods**:
 //!   - Davis, P. J., & Rabinowitz, P. (1984). *Methods of Numerical Integration*
-//!   (2nd ed.). Academic Press.
+//!     (2nd ed.). Academic Press.
 //!
 //! - **Financial Applications**:
 //!   - Lewis, A. L. (2000). *Option Valuation under Stochastic Volatility*.
-//!   Finance Press. (Fourier methods and quadrature)
+//!     Finance Press. (Fourier methods and quadrature)
 
 use crate::error::InputError;
 use crate::Error;

@@ -70,15 +70,15 @@
 //!
 //! - **Binomial Distribution**:
 //!   - Johnson, N. L., Kotz, S., & Kemp, A. W. (1993). *Univariate Discrete Distributions*
-//!   (2nd ed.). Wiley. Chapter 3. `docs/REFERENCES.md#press-numerical-recipes`
+//!     (2nd ed.). Wiley. Chapter 3. `docs/REFERENCES.md#press-numerical-recipes`
 //!
 //! - **Continuous Distributions**:
 //!   - Johnson, N. L., Kotz, S., & Balakrishnan, N. (1994, 1995). *Continuous Univariate
-//!   Distributions, Volumes 1 & 2* (2nd ed.). Wiley. `docs/REFERENCES.md#press-numerical-recipes`
+//!     Distributions, Volumes 1 & 2* (2nd ed.). Wiley. `docs/REFERENCES.md#press-numerical-recipes`
 //!
 //! - **Gamma Sampling**:
 //!   - Marsaglia, G., & Tsang, W. W. (2000). "A Simple Method for Generating Gamma
-//!   Variables." *ACM Transactions on Mathematical Software*, 26(3), 363-372. `docs/REFERENCES.md#press-numerical-recipes`
+//!     Variables." *ACM Transactions on Mathematical Software*, 26(3), 363-372. `docs/REFERENCES.md#press-numerical-recipes`
 
 use super::random::RandomNumberGenerator;
 

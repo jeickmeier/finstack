@@ -61,7 +61,7 @@
 //!   (3rd ed.). Cambridge University Press. Section 9.4.
 //!   ([`press-numerical-recipes`](../../../../docs/REFERENCES.md#press-numerical-recipes)) `docs/REFERENCES.md#press-numerical-recipes`
 //!   - Burden, R. L., & Faires, J. D. (2010). *Numerical Analysis* (9th ed.).
-//!   Brooks/Cole. Section 2.3.
+//!     Brooks/Cole. Section 2.3.
 //!
 //! - **Brent's Method**: `docs/REFERENCES.md#brent-1973`
 //! - Brent, R. P. (1973). *Algorithms for Minimization without Derivatives*.
