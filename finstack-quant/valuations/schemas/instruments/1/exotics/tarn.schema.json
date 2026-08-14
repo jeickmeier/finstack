@@ -7,7 +7,7 @@
     },
     "Tarn": {
       "additionalProperties": false,
-      "description": "Target Redemption Note (TARN).\n\nPays periodic coupons = max(fixed_rate - floating_rate, floor) until the\ncumulative coupon reaches a target level, at which point the note redeems\nat par. Path-dependent due to the knockout on cumulative coupon.\n\n# Coupon Formula\n\n```text\nc_i = max(fixed_rate - L_i, floor)\n```\n\nwhere L_i is the floating rate (e.g., SOFR) for period i.\n\n# Target Knockout\n\n```text\nIf sum(c_1, ..., c_i) >= target => redeem at par, stop paying coupons\n```\n\nThe final coupon is reduced so the cumulative equals the target exactly.\n\n# References\n\n- Brigo, D., & Mercurio, F. (2006). *Interest Rate Models - Theory and\n  Practice* (2nd ed.). Springer. Chapter 14: Exotic Derivatives.",
+      "description": "Target Redemption Note (TARN).\n\nPays periodic coupons = max(fixed_rate - floating_rate, floor) until the\ncumulative coupon reaches a target level, at which point the note redeems\nat par. Path-dependent due to the knockout on cumulative coupon.\n\n# Coupon Formula\n\n```text\nc_i = max(fixed_rate - L_i, floor)\n```\n\nwhere L_i is the floating rate (e.g., SOFR) for period i.\n\n# Target Knockout\n\n```text\nIf sum(c_1, ..., c_i) >= target => redeem at par, stop paying coupons\n```\n\nThe final coupon is reduced so the cumulative equals the target exactly.\n\n# References\n\n- Brigo, D., & Mercurio, F. (2006). *Interest Rate Models - Theory and\n  Practice* (2nd ed.). Springer. Chapter 14: Exotic Derivatives. `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`",
       "properties": {
         "attributes": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",

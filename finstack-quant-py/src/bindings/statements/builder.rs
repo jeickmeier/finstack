@@ -773,7 +773,7 @@ impl PyModelBuilder {
         let float_frequency = crate::bindings::core::dates::tenor::extract_tenor(float_frequency)?;
         let fixed_day_count = fixed_day_count.inner;
         let float_day_count = float_day_count.inner;
-        let bdc = match business_day_convention {
+        let resolved_business_day_convention = match business_day_convention {
             Some(obj) => {
                 crate::bindings::core::dates::calendar::extract_business_day_convention(obj)?
             }
@@ -794,7 +794,7 @@ impl PyModelBuilder {
                     fixed_day_count,
                     float_frequency,
                     float_day_count,
-                    bdc,
+                    resolved_business_day_convention,
                 )
                 .map_err(statements_to_py)?,
             ),
@@ -811,7 +811,7 @@ impl PyModelBuilder {
                     fixed_day_count,
                     float_frequency,
                     float_day_count,
-                    bdc,
+                    resolved_business_day_convention,
                 )
                 .map_err(statements_to_py)?,
             ),

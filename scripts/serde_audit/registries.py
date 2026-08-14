@@ -73,6 +73,10 @@ ONE_WAY_EXCEPTIONS = (
         ("WeightAllocationResult", "StrategyAllocation", "AllocationDiagnostics"),
         "allocation-output",
         "Computed allocation output; callers persist inputs and rerun allocation.",
+        # These three gained `Deserialize`, so the exception no longer needs to
+        # cover it. Narrowed rather than left broad: a blanket allowance would
+        # stop the audit noticing if `Deserialize` were dropped again.
+        allowed_missing=frozenset({"JsonSchema"}),
     ),
     *_exception(
         "portfolio",

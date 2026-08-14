@@ -1487,7 +1487,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "RiskMetrics exponentially weighted moving-average estimate.\n\nPersists both the smoothing parameter and the calibrated annualized\nvariance. `lambda` is retained as calibration provenance: no consumer\nreads it back today (the martingale forecast in\n`FactorCovarianceForecast` matches on the `Ewma { variance, .. }`\nshape and ignores λ, since horizon scaling doesn't depend on it), but\nkeeping it on the wire preserves the option for a future\nterm-structure-aware forecaster to recompute or extend the estimate\nwithout re-reading the calibration config.\n\n# References\n\n- Longerstaey, J., & Spencer, M. (1996). *RiskMetrics — Technical\n  Document* (4th ed.). J.P. Morgan/Reuters. §5.2.",
+          "description": "RiskMetrics exponentially weighted moving-average estimate.\n\nPersists both the smoothing parameter and the calibrated annualized\nvariance. `lambda` is retained as calibration provenance: no consumer\nreads it back today (the martingale forecast in\n`FactorCovarianceForecast` matches on the `Ewma { variance, .. }`\nshape and ignores λ, since horizon scaling doesn't depend on it), but\nkeeping it on the wire preserves the option for a future\nterm-structure-aware forecaster to recompute or extend the estimate\nwithout re-reading the calibration config.\n\n# References\n\n- Longerstaey, J., & Spencer, M. (1996). *RiskMetrics — Technical\n  Document* (4th ed.). J.P. Morgan/Reuters. §5.2. `docs/REFERENCES.md#jpmorgan1996RiskMetrics`",
           "properties": {
             "ewma": {
               "properties": {
@@ -1683,7 +1683,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "RiskMetrics exponentially weighted moving-average estimate.\n\nPersists both the smoothing parameter and the calibrated annualized\nvariance. `lambda` is retained as calibration provenance: no consumer\nreads it back today (the martingale forecast in\n`FactorCovarianceForecast` matches on the `Ewma { variance, .. }`\nshape and ignores λ, since horizon scaling doesn't depend on it), but\nkeeping it on the wire preserves the option for a future\nterm-structure-aware forecaster to recompute or extend the estimate\nwithout re-reading the calibration config.\n\n# References\n\n- Longerstaey, J., & Spencer, M. (1996). *RiskMetrics — Technical\n  Document* (4th ed.). J.P. Morgan/Reuters. §5.2.",
+          "description": "RiskMetrics exponentially weighted moving-average estimate.\n\nPersists both the smoothing parameter and the calibrated annualized\nvariance. `lambda` is retained as calibration provenance: no consumer\nreads it back today (the martingale forecast in\n`FactorCovarianceForecast` matches on the `Ewma { variance, .. }`\nshape and ignores λ, since horizon scaling doesn't depend on it), but\nkeeping it on the wire preserves the option for a future\nterm-structure-aware forecaster to recompute or extend the estimate\nwithout re-reading the calibration config.\n\n# References\n\n- Longerstaey, J., & Spencer, M. (1996). *RiskMetrics — Technical\n  Document* (4th ed.). J.P. Morgan/Reuters. §5.2. `docs/REFERENCES.md#jpmorgan1996RiskMetrics`",
           "properties": {
             "ewma": {
               "properties": {

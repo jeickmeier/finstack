@@ -235,7 +235,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "RiskMetrics exponentially weighted moving-average variance.\n\nUncentered (zero-mean) squared moves, no demeaning step — see the\nenum-level docs above. Implemented by `ewma_variance`. `lambda` must\nbe in the open interval `(0, 1)`; validated by\n`validate_calibration_config`.\n\n# References\n\n- Longerstaey, J., & Spencer, M. (1996). *RiskMetrics — Technical\n  Document* (4th ed.). J.P. Morgan/Reuters. §5.2.",
+          "description": "RiskMetrics exponentially weighted moving-average variance.\n\nUncentered (zero-mean) squared moves, no demeaning step — see the\nenum-level docs above. Implemented by `ewma_variance`. `lambda` must\nbe in the open interval `(0, 1)`; validated by\n`validate_calibration_config`.\n\n# References\n\n- Longerstaey, J., & Spencer, M. (1996). *RiskMetrics — Technical\n  Document* (4th ed.). J.P. Morgan/Reuters. §5.2. `docs/REFERENCES.md#jpmorgan1996RiskMetrics`",
           "properties": {
             "ewma": {
               "properties": {
