@@ -342,47 +342,11 @@ fn pv_coupon_from_custom_schedule(
     Ok(pv.total())
 }
 
-/// Compute Par ASW using a forward-based methodology with explicit parameters.
+/// Compute Par ASW using a forward-based methodology.
 ///
-/// Note:
-/// - This helper uses the bond's coupon day-count for the fixed-leg annuity.
-/// - In many markets, par asset swaps are quoted on swap fixed-leg conventions
-///   that may differ from the bond's coupon convention.
-///
-/// For explicit control over the fixed-leg convention (e.g., to align with
-/// a swap market standard per currency), prefer
-/// [`asw_par_with_forward_config`], which accepts an optional fixed-leg
-/// day-count override.
-///
-/// # Arguments
-///
-/// * `bond` - Bond whose future fixed cashflows and contractual discount-curve
-///   identifier define the asset-swap fixed leg.
-/// * `curves` - Market context providing the bond's discount curve and the
-///   named forward curve.
-/// * `as_of` - Valuation date used to select future bond cashflows and build
-///   the mirrored fixed-leg schedule.
-/// * `fwd_curve_id` - Market-context identifier of the floating-leg forward
-///   curve.
-/// * `float_spread_bp` - Floating-leg contractual spread in basis points,
-///   added to projected forward coupons.
-pub fn asw_par_with_forward(
-    bond: &Bond,
-    curves: &finstack_quant_core::market_data::context::MarketContext,
-    as_of: finstack_quant_core::dates::Date,
-    fwd_curve_id: &str,
-    float_spread_bp: f64,
-) -> finstack_quant_core::Result<f64> {
-    asw_par_with_forward_config(bond, curves, as_of, fwd_curve_id, float_spread_bp, None)
-}
-
-/// Compute Par ASW using a forward-based methodology with explicit fixed-leg
-/// conventions.
-///
-/// - `fixed_leg_day_count`: when `Some`, this day-count is used to build the
-///   fixed-leg annuity, allowing callers to align with swap fixed-leg market
-///   conventions (e.g., 30E/360) instead of the bond's coupon convention.
-/// - When `None`, this falls back to `bond.cashflow_spec.day_count()`.
+/// When `fixed_leg_day_count` is `Some`, that day-count builds the fixed-leg
+/// annuity so callers can align with swap-market conventions (e.g. 30E/360).
+/// `None` uses `bond.cashflow_spec.day_count()`.
 ///
 /// # Arguments
 ///
@@ -398,7 +362,7 @@ pub fn asw_par_with_forward(
 ///   added to projected forward coupons.
 /// * `fixed_leg_day_count` - Optional swap fixed-leg day-count convention for
 ///   the annuity. `None` uses the bond's coupon day count.
-pub fn asw_par_with_forward_config(
+pub fn asw_par_with_forward(
     bond: &Bond,
     curves: &finstack_quant_core::market_data::context::MarketContext,
     as_of: finstack_quant_core::dates::Date,
@@ -463,61 +427,13 @@ pub fn asw_par_with_forward_config(
     Ok((eq_coupon * fixed_ann - float_pv) / float_ann)
 }
 
-/// Compute Market ASW using forward-based methodology with explicit parameters.
+/// Compute Market ASW using a forward-based methodology.
 ///
-/// Note:
-/// - This helper requires an explicit dirty market price in currency.
-///   Callers **must** pass `Some(dirty_price_currency)` even when interpreting
-///   ASW relative to par (in which case, pass `bond.notional.amount()`).
-/// - In many markets, the fixed leg follows swap fixed-leg conventions that
-///   may differ from the bond's coupon convention.
-///
-/// For explicit control over fixed-leg conventions (e.g., swap day-count),
-/// prefer [`asw_market_with_forward_config`], which accepts an optional
-/// fixed-leg day-count override.
-///
-/// # Arguments
-///
-/// * `bond` - Bond whose future fixed cashflows and contractual discount-curve
-///   identifier define the asset-swap fixed leg.
-/// * `curves` - Market context providing the bond's discount curve and the
-///   named forward curve.
-/// * `as_of` - Valuation date used to select future bond cashflows and build
-///   the mirrored fixed-leg schedule.
-/// * `fwd_curve_id` - Market-context identifier of the floating-leg forward
-///   curve.
-/// * `float_spread_bp` - Floating-leg contractual spread in basis points,
-///   added to projected forward coupons.
-/// * `dirty_price_currency` - Required dirty market price in the bond currency.
-///   Pass `Some(bond.notional.amount())` to value a par market price; `None`
-///   is rejected rather than silently assuming par.
-pub fn asw_market_with_forward(
-    bond: &Bond,
-    curves: &finstack_quant_core::market_data::context::MarketContext,
-    as_of: finstack_quant_core::dates::Date,
-    fwd_curve_id: &str,
-    float_spread_bp: f64,
-    dirty_price_currency: Option<f64>,
-) -> finstack_quant_core::Result<f64> {
-    asw_market_with_forward_config(
-        bond,
-        curves,
-        as_of,
-        fwd_curve_id,
-        float_spread_bp,
-        dirty_price_currency,
-        None,
-    )
-}
-
-/// Compute Market ASW using forward-based methodology with explicit
-/// fixed-leg conventions.
-///
-/// - `dirty_price_currency`: dirty market price expressed in currency. When
-///   `None`, this returns `InputError::NotFound { id: "dirty_price_currency" }`
-///   instead of silently assuming par.
-/// - `fixed_leg_day_count`: when `Some`, this day-count is used to build
-///   the fixed-leg annuity; otherwise the bond's coupon day-count is used.
+/// `dirty_price_currency` is required: `None` returns
+/// `InputError::NotFound { id: "dirty_price_currency" }` instead of assuming
+/// par. Pass `Some(bond.notional.amount())` for a par market price.
+/// When `fixed_leg_day_count` is `Some`, that day-count builds the fixed-leg
+/// annuity; `None` uses the bond's coupon day-count.
 ///
 /// # Arguments
 ///
@@ -535,7 +451,7 @@ pub fn asw_market_with_forward(
 ///   returns `InputError::NotFound` instead of silently assuming par.
 /// * `fixed_leg_day_count` - Optional swap fixed-leg day-count convention for
 ///   the annuity. `None` uses the bond's coupon day count.
-pub fn asw_market_with_forward_config(
+pub fn asw_market_with_forward(
     bond: &Bond,
     curves: &finstack_quant_core::market_data::context::MarketContext,
     as_of: finstack_quant_core::dates::Date,
@@ -621,6 +537,7 @@ impl MetricCalculator for AssetSwapParCalculator {
                         context.as_of,
                         spec.rate_spec.index_id.as_str(),
                         spec.rate_spec.spread_bp.to_f64().unwrap_or_default(),
+                        None,
                     );
                 }
                 _ => {
@@ -831,6 +748,7 @@ impl MetricCalculator for AssetSwapMarketCalculator {
                         spec.rate_spec.index_id.as_str(),
                         spec.rate_spec.spread_bp.to_f64().unwrap_or_default(),
                         Some(dirty_currency),
+                        None,
                     );
                 }
                 _ => {

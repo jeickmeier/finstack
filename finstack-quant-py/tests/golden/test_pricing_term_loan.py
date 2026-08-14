@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from finstack_quant.valuations.instruments import price_instrument_with_metrics
+from finstack_quant.valuations.instruments import price_instrument
 
 from .conftest import discover_fixtures, fixture_path, run_golden
 from .pricing_validation import validated_instrument_json
@@ -23,7 +23,7 @@ def test_pricing_term_loan(fixture: str) -> None:
 def test_registered_term_loan_metrics_cross_python_json_boundary(fixture: str) -> None:
     """Loan-specific registered metrics remain requestable from Python."""
     body = json.loads(fixture_path(fixture).read_text(encoding="utf-8"))
-    result = price_instrument_with_metrics(
+    result = price_instrument(
         validated_instrument_json(body["instrument"]),
         _resolve_market(body["market"]),
         body["metadata"]["valuation_date"],

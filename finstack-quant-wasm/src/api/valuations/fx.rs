@@ -2,7 +2,7 @@
 //!
 //! # Monte-Carlo determinism
 //!
-//! The `price` / `priceWithMetrics` methods accept Monte-Carlo models for
+//! The `price` method accepts Monte-Carlo models for
 //! path-dependent FX products (e.g. barrier / touch options). As with the
 //! generic `priceInstrument` bindings, no explicit RNG-seed parameter is
 //! exposed: the seed is an instrument-level concern. When an instrument's
@@ -13,8 +13,7 @@
 
 use super::pricing::{
     metric_value_with_context, parse_market_json, price_instrument_with_context,
-    price_instrument_with_metrics_context, standard_option_greeks_with_context,
-    validate_pricing_instrument_json,
+    standard_option_greeks_with_context, validate_pricing_instrument_json,
 };
 use crate::utils::{to_js_err, to_js_error, to_js_value};
 use finstack_quant_valuations::pricer::{
@@ -55,25 +54,18 @@ fn price_payload(
     market_json: &str,
     as_of: &str,
     model: Option<String>,
-) -> Result<String, JsValue> {
-    validate_pricing_instrument_json(json, None)?;
-    let market = parse_market_json(market_json)?;
-    price_instrument_with_context(json, &market, as_of, model.as_deref().unwrap_or("default"))
-}
-
-fn price_payload_with_metrics(
-    json: &str,
-    market_json: &str,
-    as_of: &str,
-    metrics: JsValue,
-    model: Option<String>,
+    metrics: Option<JsValue>,
     pricing_options: Option<String>,
     market_history: Option<String>,
 ) -> Result<String, JsValue> {
     validate_pricing_instrument_json(json, pricing_options.as_deref())?;
     let market = parse_market_json(market_json)?;
-    let metrics: Vec<String> = serde_wasm_bindgen::from_value(metrics).map_err(to_js_err)?;
-    price_instrument_with_metrics_context(
+    let metrics: Vec<String> = match metrics {
+        None => Vec::new(),
+        Some(value) if value.is_undefined() || value.is_null() => Vec::new(),
+        Some(value) => serde_wasm_bindgen::from_value(value).map_err(to_js_err)?,
+    };
+    price_instrument_with_context(
         json,
         &market,
         as_of,
@@ -206,24 +198,11 @@ macro_rules! fx_class {
             /// Throws a JavaScript exception if the instrument or market JSON,
             /// `asOf`, or `model` is invalid; required market data is missing; the
             /// selected pricer fails; or the valuation cannot be serialized.
-            pub fn price(
-                &self,
-                market_json: &str,
-                as_of: &str,
-                model: Option<String>,
-            ) -> Result<String, JsValue> {
-                price_payload(&self.json, market_json, as_of, model)
-            }
-
-            /// Price the instrument and compute the requested metrics.
-            ///
-            /// WASM keeps optional arguments trailing for JavaScript callers,
-            /// so the order is `(marketJson, asOf, metrics, model?, ...)`.
-            /// Python uses `(market, as_of, model="default", metrics=...)`.
+            /// Price the instrument against a market JSON snapshot.
             /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
             /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
-            /// @param metrics - Array of canonical metric identifiers to calculate with the instrument price.
             /// @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+            /// @param metrics - Optional array of canonical metric identifiers to calculate with the instrument price.
             /// @param pricing_options - Optional JSON pricing overrides accepted by the canonical instrument validator.
             /// @param market_history - Optional serialized historical market snapshots required by historical pricing models.
             ///
@@ -234,22 +213,21 @@ macro_rules! fx_class {
             /// string array; `asOf`, `model`, or a metric identifier is invalid;
             /// required market data is missing; pricing or a metric fails; or the
             /// valuation cannot be serialized.
-            #[wasm_bindgen(js_name = priceWithMetrics)]
-            pub fn price_with_metrics(
+            pub fn price(
                 &self,
                 market_json: &str,
                 as_of: &str,
-                metrics: JsValue,
                 model: Option<String>,
+                metrics: Option<JsValue>,
                 pricing_options: Option<String>,
                 market_history: Option<String>,
             ) -> Result<String, JsValue> {
-                price_payload_with_metrics(
+                price_payload(
                     &self.json,
                     market_json,
                     as_of,
-                    metrics,
                     model,
+                    metrics,
                     pricing_options,
                     market_history,
                 )

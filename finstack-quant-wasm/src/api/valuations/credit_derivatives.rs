@@ -4,7 +4,7 @@
 //! file exists so the Rust source tree matches the Python wrapper layout.
 //!
 //! Pricing / validation / serialization for CDS instruments is provided by the
-//! generic `priceInstrument`, `priceInstrumentWithMetrics`, and
+//! generic `priceInstrument` and
 //! `validateInstrumentJson` entry points exposed from the JS facade at
 //! `valuations.instruments`; this module only owns the example-payload
 //! factories.

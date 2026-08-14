@@ -136,8 +136,16 @@ fn stochastic_single_path(sc: &StructuredCredit, market: &MarketContext) -> Valu
         Box::new(sc.clone()),
     )))
     .expect("instrument envelope JSON");
-    price_instrument_json(&json, market, "2024-01-01", "structured_credit_stochastic")
-        .expect("stochastic json pricing")
+    price_instrument_json(
+        &json,
+        market,
+        "2024-01-01",
+        "structured_credit_stochastic",
+        &[],
+        None,
+        None,
+    )
+    .expect("stochastic json pricing")
 }
 
 fn stochastic_details(result: &ValuationResult) -> StochasticPricingResult {

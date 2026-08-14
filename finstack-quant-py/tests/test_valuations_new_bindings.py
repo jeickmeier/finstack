@@ -39,7 +39,7 @@ from finstack_quant.valuations.correlation import nearest_correlation
 from finstack_quant.valuations.instruments import (
     instrument_cashflows_json,
     price_instrument,
-    price_instrument_with_metrics,
+    price_instrument,
     validate_instrument_json,
 )
 
@@ -293,7 +293,7 @@ def test_revolving_credit_binding_validates_floating_rate_spec() -> None:
 
 
 def test_revolving_credit_custom_metrics_use_as_of_balance() -> None:
-    result = price_instrument_with_metrics(
+    result = price_instrument(
         _revolving_credit_json(),
         _revolving_credit_market().to_json(),
         "2024-07-01",

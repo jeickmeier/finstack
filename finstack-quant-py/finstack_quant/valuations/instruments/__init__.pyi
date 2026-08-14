@@ -84,7 +84,6 @@ __all__ = [
     "list_standard_metrics",
     "list_standard_metrics_grouped",
     "price_instrument",
-    "price_instrument_with_metrics",
     "pretty_instrument_json",
     "structured_credit_tranche_breakeven_cdr",
     "structured_credit_tranche_discount_margin",
@@ -102,7 +101,7 @@ class Bond:
     Construct via :meth:`Bond.fixed`, :meth:`Bond.floating`, or
     :meth:`Bond.from_json`; serialize with :meth:`Bond.to_json`. Instances
     are accepted directly by :func:`price_instrument`,
-    :func:`price_instrument_with_metrics`, and
+    :func:`price_instrument`, and
     :func:`instrument_cashflows_json`.
 
     Examples
@@ -1428,7 +1427,7 @@ class TermLoan:
     loans; construct via :meth:`TermLoan.from_json` with a canonical
     ``finstack_quant.instrument/1`` envelope or start from
     :meth:`TermLoan.example`. Instances are accepted directly by
-    :func:`price_instrument`, :func:`price_instrument_with_metrics`, and
+    :func:`price_instrument`, :func:`price_instrument`, and
     :func:`instrument_cashflows_json`.
 
     Examples
@@ -5047,42 +5046,6 @@ class FxForward:
         market: MarketContext | str,
         as_of: datetime.date | str,
         model: str = "default",
-    ) -> ValuationResult:
-        """
-        Price this FX forward and return a typed :class:`ValuationResult`.
-
-        Delegates to the same canonical Rust pricer entry point as
-        ``price_instrument(self, market, as_of, model)``; mirrors the WASM
-        ``FxForward.price`` method.
-
-        Parameters
-        ----------
-        market : MarketContext or str
-            Typed ``MarketContext`` or serialized market-context JSON.
-        as_of : datetime.date or str
-            Valuation date, either a date-like object or an ISO 8601 string.
-        model : str, default "default"
-            Pricing model selector; ``"default"`` uses the instrument-native
-            model.
-
-        Returns
-        -------
-        ValuationResult
-            Typed valuation envelope carrying value, currency, and metrics.
-
-        Raises
-        ------
-        ValueError
-            If the market JSON, ``as_of``, or ``model`` is invalid, required
-            market data is missing, or the selected pricer fails.
-        """
-        ...
-
-    def price_with_metrics(
-        self,
-        market: MarketContext | str,
-        as_of: datetime.date | str,
-        model: str = "default",
         metrics: list[str] = ...,
         pricing_options: str | None = None,
         market_history: str | None = None,
@@ -5530,42 +5493,6 @@ class FxOption:
         ...
 
     def price(
-        self,
-        market: MarketContext | str,
-        as_of: datetime.date | str,
-        model: str = "default",
-    ) -> ValuationResult:
-        """
-        Price this FX option and return a typed :class:`ValuationResult`.
-
-        Delegates to the same canonical Rust pricer entry point as
-        ``price_instrument(self, market, as_of, model)``; mirrors the WASM
-        ``FxOption.price`` method.
-
-        Parameters
-        ----------
-        market : MarketContext or str
-            Typed ``MarketContext`` or serialized market-context JSON.
-        as_of : datetime.date or str
-            Valuation date, either a date-like object or an ISO 8601 string.
-        model : str, default "default"
-            Pricing model selector; ``"default"`` uses the instrument-native
-            model.
-
-        Returns
-        -------
-        ValuationResult
-            Typed valuation envelope carrying value, currency, and metrics.
-
-        Raises
-        ------
-        ValueError
-            If the market JSON, ``as_of``, or ``model`` is invalid, required
-            market data is missing, or the selected pricer fails.
-        """
-        ...
-
-    def price_with_metrics(
         self,
         market: MarketContext | str,
         as_of: datetime.date | str,
@@ -8214,80 +8141,6 @@ def price_instrument(
     market: MarketContext | str,
     as_of: datetime.date | str,
     model: str = "default",
-) -> ValuationResult:
-    """
-    Price one instrument and return a typed :class:`ValuationResult`.
-
-    Parameters
-    ----------
-    instrument_json : str or Bond or TermLoan or InterestRateSwap or Swaption or CapFloor or CreditDefaultSwap or CDSIndex or FxForward or FxOption or CDSTranche or ConvertibleBond or EquityOption or StructuredCredit
-        Canonical ``finstack_quant.instrument/1`` envelope accepted by
-        :func:`validate_instrument_json`, or a typed :class:`Bond` /
-        :class:`TermLoan` / :class:`InterestRateSwap` / :class:`Swaption` /
-        :class:`CapFloor` / :class:`CreditDefaultSwap` /
-        :class:`CDSIndex` / :class:`FxForward` / :class:`FxOption` /
-        :class:`CDSTranche` / :class:`ConvertibleBond` /
-        :class:`EquityOption` / :class:`StructuredCredit` instance.
-    market : MarketContext or str
-        Typed ``MarketContext`` or serialized market-context JSON.
-    as_of : datetime.date | str
-        Valuation date, either a date-like object or an ISO 8601 string.
-    model : str, default "default"
-        Pricing model selector. Common values include ``"default"``,
-        ``"discounting"``, ``"hazard_rate"``, and option-model keys such
-        as ``"black76"`` where supported by the instrument.
-
-    Returns
-    -------
-    ValuationResult
-        Typed valuation envelope containing value, currency, metrics, and
-        covenant flags when applicable.
-
-    Raises
-    ------
-    ValueError
-        If any input JSON is malformed, required market data is
-        missing, or the selected model is unsupported for the instrument.
-
-    Notes
-    -----
-    The wire payload is still one call away: ``result.to_json()`` returns the
-    JSON that :meth:`ValuationResult.from_json` accepts, for pipelines that
-    serialize results.
-
-    Examples
-    --------
-    >>> import datetime
-    >>> from finstack_quant.core.market_data import DiscountCurve, MarketContext
-    >>> from finstack_quant.valuations.instruments import TermLoan
-    >>> loan = TermLoan.example()
-    >>> market = MarketContext().insert(DiscountCurve.flat("USD-OIS", datetime.date(2024, 1, 1), 0.04))
-    >>> from finstack_quant.valuations.instruments import price_instrument
-    >>> result = price_instrument(loan, market, "2024-01-01")
-    >>> (result.instrument_id, round(result.price, 2), result.currency)
-    ('TERM-LOAN-USD-5Y', 10727162.26, 'USD')
-
-    """
-    ...
-
-def price_instrument_with_metrics(
-    instrument_json: str
-    | Bond
-    | TermLoan
-    | InterestRateSwap
-    | Swaption
-    | CapFloor
-    | CreditDefaultSwap
-    | CDSIndex
-    | FxForward
-    | FxOption
-    | CDSTranche
-    | ConvertibleBond
-    | EquityOption
-    | StructuredCredit,
-    market: MarketContext | str,
-    as_of: datetime.date | str,
-    model: str = "default",
     metrics: list[str] = [],
     pricing_options: str | None = None,
     market_history: str | None = None,
@@ -8344,8 +8197,8 @@ def price_instrument_with_metrics(
     >>> from finstack_quant.valuations.instruments import TermLoan
     >>> loan = TermLoan.example()
     >>> market = MarketContext().insert(DiscountCurve.flat("USD-OIS", datetime.date(2024, 1, 1), 0.04))
-    >>> from finstack_quant.valuations.instruments import price_instrument_with_metrics
-    >>> result = price_instrument_with_metrics(loan, market, "2024-01-01", metrics=["all_in_rate"])
+    >>> from finstack_quant.valuations.instruments import price_instrument
+    >>> result = price_instrument(loan, market, "2024-01-01", metrics=["all_in_rate"])
     >>> (result.metric_keys(), round(result.get_metric("all_in_rate"), 4))
     (['all_in_rate'], 0.06)
 

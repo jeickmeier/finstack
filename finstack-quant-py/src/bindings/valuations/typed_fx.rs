@@ -2,7 +2,7 @@
 //! Mirrors the `PyInterestRateSwap` pattern in `typed_rates.rs`.
 //!
 //! Both classes also carry the pricing methods their WASM twins expose
-//! (`price`, `price_with_metrics`, and — for `FxOption` — the standard Greek
+//! (`price`, and — for `FxOption` — the standard Greek
 //! accessors), delegating to the same canonical Rust pricer entry points.
 
 use pyo3::prelude::*;
@@ -22,33 +22,8 @@ use super::instruments::{
 use super::PyValuationResult;
 
 /// Price a typed instrument envelope through the canonical Rust pricer.
-fn price_envelope(
-    py: Python<'_>,
-    envelope_json: String,
-    market: &Bound<'_, PyAny>,
-    as_of: &Bound<'_, PyAny>,
-    model: &str,
-) -> PyResult<PyValuationResult> {
-    let market = extract_market(py, market)?;
-    let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
-    let model = model.to_owned();
-    let inner = py
-        .detach(move || {
-            finstack_quant_valuations::pricer::price_instrument_json(
-                &envelope_json,
-                &market,
-                &as_of,
-                &model,
-            )
-        })
-        .map_err(core_to_py)?;
-    Ok(PyValuationResult { inner })
-}
-
-/// Price a typed instrument envelope with explicit metric requests.
-// Mirrors the Python keyword-argument API of `price_instrument_with_metrics`.
 #[allow(clippy::too_many_arguments)]
-fn price_envelope_with_metrics(
+fn price_envelope(
     py: Python<'_>,
     envelope_json: String,
     market: &Bound<'_, PyAny>,
@@ -65,7 +40,7 @@ fn price_envelope_with_metrics(
     let market_history = market_history.map(str::to_owned);
     let inner = py
         .detach(move || {
-            finstack_quant_valuations::pricer::price_instrument_json_with_metrics_and_history(
+            finstack_quant_valuations::pricer::price_instrument_json(
                 &envelope_json,
                 &market,
                 &as_of,
@@ -270,6 +245,15 @@ impl PyFxForward {
     ///     Valuation date, either a date-like object or an ISO 8601 string.
     /// model : str, optional
     ///     Model key (default ``"default"`` — the instrument-native model).
+    /// metrics : list[str], optional
+    ///     Metric identifiers to compute (e.g. ``["dv01", "theta"]``).
+    ///     Empty or omitted means valuation only.
+    /// pricing_options : str | None
+    ///     Optional JSON ``MetricPricingOverrides`` merged into the
+    ///     instrument's ``pricing_overrides`` before pricing.
+    /// market_history : str | None
+    ///     Optional JSON ``MarketHistory`` scenarios required by ``hvar`` and
+    ///     ``expected_shortfall`` metrics.
     ///
     /// Returns
     /// -------
@@ -281,65 +265,25 @@ impl PyFxForward {
     /// ValueError
     ///     If the market JSON, ``as_of``, or ``model`` is invalid, required
     ///     market data is missing, or the selected pricer fails.
-    #[pyo3(signature = (market, as_of, model="default"))]
+    #[pyo3(signature = (market, as_of, model="default", metrics=None, pricing_options=None, market_history=None))]
+    #[allow(clippy::too_many_arguments)]
     fn price(
         &self,
         py: Python<'_>,
         market: &Bound<'_, PyAny>,
         as_of: &Bound<'_, PyAny>,
         model: &str,
-    ) -> PyResult<PyValuationResult> {
-        price_envelope(py, self.envelope_json()?, market, as_of, model)
-    }
-
-    /// Price this FX forward with explicit metric requests.
-    ///
-    /// Parameters
-    /// ----------
-    /// market : MarketContext | str
-    ///     A ``MarketContext`` object or serialized market-context JSON.
-    /// as_of : datetime.date | str
-    ///     Valuation date, either a date-like object or an ISO 8601 string.
-    /// model : str, optional
-    ///     Model key (default ``"default"``).
-    /// metrics : list[str], optional
-    ///     Metric identifiers to compute (e.g. ``["dv01", "theta"]``).
-    /// pricing_options : str | None
-    ///     Optional JSON ``MetricPricingOverrides`` merged into the
-    ///     instrument's ``pricing_overrides`` before pricing.
-    /// market_history : str | None
-    ///     Optional JSON ``MarketHistory`` scenarios required by ``hvar`` and
-    ///     ``expected_shortfall`` metrics.
-    ///
-    /// Returns
-    /// -------
-    /// ValuationResult
-    ///     Typed valuation envelope including the requested metrics.
-    ///
-    /// Raises
-    /// ------
-    /// ValueError
-    ///     If any input payload is invalid, required market data is missing,
-    ///     or pricing or a metric calculation fails.
-    #[pyo3(signature = (market, as_of, model="default", metrics=vec![], pricing_options=None, market_history=None))]
-    #[allow(clippy::too_many_arguments)]
-    fn price_with_metrics(
-        &self,
-        py: Python<'_>,
-        market: &Bound<'_, PyAny>,
-        as_of: &Bound<'_, PyAny>,
-        model: &str,
-        metrics: Vec<String>,
+        metrics: Option<Vec<String>>,
         pricing_options: Option<&str>,
         market_history: Option<&str>,
     ) -> PyResult<PyValuationResult> {
-        price_envelope_with_metrics(
+        price_envelope(
             py,
             self.envelope_json()?,
             market,
             as_of,
             model,
-            metrics,
+            metrics.unwrap_or_default(),
             pricing_options,
             market_history,
         )
@@ -752,6 +696,15 @@ impl PyFxOption {
     ///     Valuation date, either a date-like object or an ISO 8601 string.
     /// model : str, optional
     ///     Model key (default ``"default"`` — the instrument-native model).
+    /// metrics : list[str], optional
+    ///     Metric identifiers to compute (e.g. ``["delta", "vega"]``).
+    ///     Empty or omitted means valuation only.
+    /// pricing_options : str | None
+    ///     Optional JSON ``MetricPricingOverrides`` merged into the
+    ///     instrument's ``pricing_overrides`` before pricing.
+    /// market_history : str | None
+    ///     Optional JSON ``MarketHistory`` scenarios required by ``hvar`` and
+    ///     ``expected_shortfall`` metrics.
     ///
     /// Returns
     /// -------
@@ -763,65 +716,25 @@ impl PyFxOption {
     /// ValueError
     ///     If the market JSON, ``as_of``, or ``model`` is invalid, required
     ///     market data is missing, or the selected pricer fails.
-    #[pyo3(signature = (market, as_of, model="default"))]
+    #[pyo3(signature = (market, as_of, model="default", metrics=None, pricing_options=None, market_history=None))]
+    #[allow(clippy::too_many_arguments)]
     fn price(
         &self,
         py: Python<'_>,
         market: &Bound<'_, PyAny>,
         as_of: &Bound<'_, PyAny>,
         model: &str,
-    ) -> PyResult<PyValuationResult> {
-        price_envelope(py, self.envelope_json()?, market, as_of, model)
-    }
-
-    /// Price this FX option with explicit metric requests.
-    ///
-    /// Parameters
-    /// ----------
-    /// market : MarketContext | str
-    ///     A ``MarketContext`` object or serialized market-context JSON.
-    /// as_of : datetime.date | str
-    ///     Valuation date, either a date-like object or an ISO 8601 string.
-    /// model : str, optional
-    ///     Model key (default ``"default"``).
-    /// metrics : list[str], optional
-    ///     Metric identifiers to compute (e.g. ``["delta", "vega"]``).
-    /// pricing_options : str | None
-    ///     Optional JSON ``MetricPricingOverrides`` merged into the
-    ///     instrument's ``pricing_overrides`` before pricing.
-    /// market_history : str | None
-    ///     Optional JSON ``MarketHistory`` scenarios required by ``hvar`` and
-    ///     ``expected_shortfall`` metrics.
-    ///
-    /// Returns
-    /// -------
-    /// ValuationResult
-    ///     Typed valuation envelope including the requested metrics.
-    ///
-    /// Raises
-    /// ------
-    /// ValueError
-    ///     If any input payload is invalid, required market data is missing,
-    ///     or pricing or a metric calculation fails.
-    #[pyo3(signature = (market, as_of, model="default", metrics=vec![], pricing_options=None, market_history=None))]
-    #[allow(clippy::too_many_arguments)]
-    fn price_with_metrics(
-        &self,
-        py: Python<'_>,
-        market: &Bound<'_, PyAny>,
-        as_of: &Bound<'_, PyAny>,
-        model: &str,
-        metrics: Vec<String>,
+        metrics: Option<Vec<String>>,
         pricing_options: Option<&str>,
         market_history: Option<&str>,
     ) -> PyResult<PyValuationResult> {
-        price_envelope_with_metrics(
+        price_envelope(
             py,
             self.envelope_json()?,
             market,
             as_of,
             model,
-            metrics,
+            metrics.unwrap_or_default(),
             pricing_options,
             market_history,
         )

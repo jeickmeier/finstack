@@ -304,11 +304,7 @@ fn valuations_dts_exposes_reusable_market_handle_pricing() {
     assert!(dts.contains("export declare class Market {"));
     assert!(contains_ignoring_ws(
         &dts,
-        "priceInstrumentWithMarket(instrumentJson: string, market: Market, asOf: string, model: string): ValuationResult;",
-    ));
-    assert!(contains_ignoring_ws(
-        &dts,
-        "priceInstrumentWithMetricsAndMarket(instrumentJson: string, market: Market, asOf: string, model: string, metrics: string[], pricingOptions?: string | null, marketHistory?: string | null): ValuationResult;",
+        "priceInstrumentWithMarket(instrumentJson: string, market: Market, asOf: string, model: string, metrics?: string[] | null, pricingOptions?: string | null, marketHistory?: string | null): ValuationResult;",
     ));
     assert!(contains_ignoring_ws(
         &dts,
@@ -331,11 +327,7 @@ fn pricing_entry_points_declare_structured_valuation_results() {
     ));
     assert!(contains_ignoring_ws(
         &dts,
-        "priceInstrument(instrumentJson: string, marketJson: string, asOf: string, model?: string | null): ValuationResult;",
-    ));
-    assert!(contains_ignoring_ws(
-        &dts,
-        "priceInstrumentWithMetrics(instrumentJson: string, marketJson: string, asOf: string, model?: string | null, metrics?: string[] | null, pricingOptions?: string | null, marketHistory?: string | null): ValuationResult;",
+        "priceInstrument(instrumentJson: string, marketJson: string, asOf: string, model?: string | null, metrics?: string[] | null, pricingOptions?: string | null, marketHistory?: string | null): ValuationResult;",
     ));
     // The valuation-result *validator* still takes and returns a wire string.
     assert!(contains_ignoring_ws(

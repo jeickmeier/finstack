@@ -9,7 +9,7 @@ from finstack_quant.valuations import (
     CalibrationEnvelopeError,
     calibrate,
 )
-from finstack_quant.valuations.instruments import price_instrument_with_metrics
+from finstack_quant.valuations.instruments import price_instrument
 from tests.golden.pricing_validation import requested_metrics, validated_instrument_json
 from tests.golden.schema import GoldenFixture
 
@@ -44,7 +44,7 @@ def run_pricing_fixture(fixture: GoldenFixture) -> dict[str, float]:
     body = fixture.body
     market = _resolve_market(body["market"])
     instrument_json = validated_instrument_json(body["instrument"])
-    result = price_instrument_with_metrics(
+    result = price_instrument(
         instrument_json,
         market,
         fixture.metadata.valuation_date,

@@ -7,7 +7,7 @@
 //! reboots the hazard curve under the bumped recovery so quoted spreads remain
 //! invariant. Curves without par quotes fall back to a frozen-curve local bump.
 
-use crate::calibration::bumps::hazard::recalibrate_hazard_with_recovery_and_doc_clause_and_valuation_convention;
+use crate::calibration::bumps::hazard::recalibrate_hazard_with_recovery;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::credit_derivatives::cds::metrics::market_doc_clause;
 use crate::instruments::credit_derivatives::cds_option::pricer::synthetic_underlying_cds;
@@ -37,15 +37,14 @@ fn price_at_bumped_recovery(
     let has_par_quotes = hazard.par_spread_points().next().is_some();
     let market_for_pricing = if has_par_quotes {
         let synthetic = synthetic_underlying_cds(option, as_of)?;
-        let recalibrated =
-            recalibrate_hazard_with_recovery_and_doc_clause_and_valuation_convention(
-                hazard.as_ref(),
-                new_recovery,
-                base_market,
-                Some(&option.discount_curve_id),
-                Some(market_doc_clause(&synthetic)),
-                Some(synthetic.valuation_convention),
-            )?;
+        let recalibrated = recalibrate_hazard_with_recovery(
+            hazard.as_ref(),
+            new_recovery,
+            base_market,
+            Some(&option.discount_curve_id),
+            Some(market_doc_clause(&synthetic)),
+            Some(synthetic.valuation_convention),
+        )?;
         base_market.clone().insert(recalibrated)
     } else {
         // Frozen-curve fallback: keep the hazard λ knots unchanged but realign

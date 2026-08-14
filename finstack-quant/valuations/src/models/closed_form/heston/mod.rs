@@ -41,10 +41,8 @@ mod quadrature;
 mod strip_pricer;
 
 pub use fourier_prices::{
-    heston_call_price_fourier, heston_call_price_fourier_with_settings, heston_call_prices_fourier,
-    heston_call_prices_fourier_with_settings, heston_put_price_fourier,
-    heston_put_price_fourier_with_settings, heston_put_prices_fourier,
-    heston_put_prices_fourier_with_settings,
+    heston_call_price_fourier, heston_call_prices_fourier, heston_put_price_fourier,
+    heston_put_prices_fourier,
 };
 pub use params::{heston_defaults, HestonFourierSettings, HestonParams};
 pub use strip_pricer::HestonStripPricer;

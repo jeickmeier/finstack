@@ -37,7 +37,7 @@
 //! the full direct sensitivity across both legs.
 
 use super::{hazard_with_deal_quote, market_doc_clause};
-use crate::calibration::bumps::hazard::recalibrate_hazard_with_recovery_and_doc_clause_and_valuation_convention;
+use crate::calibration::bumps::hazard::recalibrate_hazard_with_recovery;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::credit_derivatives::cds::CreditDefaultSwap;
 use crate::metrics::{MetricCalculator, MetricContext};
@@ -86,7 +86,7 @@ fn price_at_bumped_recovery(
     };
 
     let market_for_pricing: MarketContext = if has_par_quotes {
-        let recalibrated = recalibrate_hazard_with_recovery_and_doc_clause_and_valuation_convention(
+        let recalibrated = recalibrate_hazard_with_recovery(
             hazard.as_ref(),
             new_recovery,
             base_market,

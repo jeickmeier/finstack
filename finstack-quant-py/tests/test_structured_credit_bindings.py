@@ -1,7 +1,7 @@
 """Structured-credit tranche analytics are exported from the instruments module.
 
 These take a tranche id, so they are not reachable through
-``price_instrument_with_metrics``. The surface mirrors the five WASM
+``price_instrument``. The surface mirrors the five WASM
 ``structuredCreditTranche*`` entry points.
 """
 

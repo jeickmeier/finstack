@@ -17,7 +17,7 @@ from finstack_quant.valuations.instruments import (
     TermLoan,
     instrument_cashflows_json,
     price_instrument,
-    price_instrument_with_metrics,
+    price_instrument,
 )
 
 
@@ -155,11 +155,11 @@ class TestBondTyped:
         via_json = price_instrument(bond.to_json(), market, "2024-06-30")
         assert _without_timestamp(typed) == _without_timestamp(via_json)
 
-    def test_price_instrument_with_metrics_accepts_typed(self) -> None:
+    def test_price_instrument_accepts_typed(self) -> None:
         bond = _fixed_bond()
         market = _market_json()
-        typed = price_instrument_with_metrics(bond, market, "2024-06-30", "discounting", ["ytm", "dv01"])
-        via_json = price_instrument_with_metrics(bond.to_json(), market, "2024-06-30", "discounting", ["ytm", "dv01"])
+        typed = price_instrument(bond, market, "2024-06-30", "discounting", ["ytm", "dv01"])
+        via_json = price_instrument(bond.to_json(), market, "2024-06-30", "discounting", ["ytm", "dv01"])
         assert _without_timestamp(typed) == _without_timestamp(via_json)
 
     def test_price_instrument_returns_typed_result(self) -> None:
@@ -177,11 +177,9 @@ class TestBondTyped:
         reparsed = json.loads(ValuationResult.from_json(wire).to_json())
         assert reparsed == _approx_payload(json.loads(wire))
 
-    def test_price_instrument_with_metrics_returns_typed_result(self) -> None:
-        """``price_instrument_with_metrics`` hands back a ``ValuationResult``."""
-        result = price_instrument_with_metrics(
-            _fixed_bond(), _market_json(), "2024-06-30", "discounting", ["ytm", "dv01"]
-        )
+    def test_price_instrument_returns_typed_result(self) -> None:
+        """``price_instrument`` hands back a ``ValuationResult``."""
+        result = price_instrument(_fixed_bond(), _market_json(), "2024-06-30", "discounting", ["ytm", "dv01"])
 
         assert isinstance(result, ValuationResult)
         assert not isinstance(result, str)

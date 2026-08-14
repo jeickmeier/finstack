@@ -79,7 +79,7 @@ fn bench_heston_fourier_strip(c: &mut Criterion) {
             b.iter(|| {
                 let mut acc = 0.0_f64;
                 for &k in strikes {
-                    acc += heston_call_price_fourier(spot, black_box(k), time, &params);
+                    acc += heston_call_price_fourier(spot, black_box(k), time, &params, None);
                 }
                 black_box(acc)
             });

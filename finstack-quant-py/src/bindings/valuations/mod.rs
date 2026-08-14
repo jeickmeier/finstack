@@ -448,7 +448,6 @@ fn register_instruments(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResul
         "list_standard_metrics_grouped",
         "pretty_instrument_json",
         "price_instrument",
-        "price_instrument_with_metrics",
         "validate_instrument_json",
         "validate_typed_instrument_json",
     ];

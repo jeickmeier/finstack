@@ -102,6 +102,8 @@ fn price_strike_gamma(
             curves,
             &BumpRequest::Parallel(bump_bp),
             Some(&option.discount_curve_id),
+            None,
+            None,
         )?;
         Ok(curves.clone().insert(bumped))
     };

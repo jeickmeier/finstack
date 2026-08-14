@@ -137,6 +137,8 @@ fn test_cs01_preserves_bespoke_index_structure_during_bumps() {
         &market,
         &finstack_quant_valuations::calibration::bumps::BumpRequest::Parallel(bump_bp),
         Some(&tranche.discount_curve_id),
+        None,
+        None,
     )
     .unwrap();
     let bumped_curve_down = finstack_quant_valuations::calibration::bumps::bump_hazard_spreads(
@@ -144,6 +146,8 @@ fn test_cs01_preserves_bespoke_index_structure_during_bumps() {
         &market,
         &finstack_quant_valuations::calibration::bumps::BumpRequest::Parallel(-bump_bp),
         Some(&tranche.discount_curve_id),
+        None,
+        None,
     )
     .unwrap();
 

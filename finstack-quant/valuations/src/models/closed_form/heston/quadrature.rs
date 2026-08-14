@@ -221,7 +221,7 @@ pub(super) fn heston_pj_with_diagnostics(
 /// composite Gauss-Legendre grid.
 ///
 /// The grid depends only on `settings` (not on `j`, `spot`, `strike`, or
-/// `time`), so [`heston_call_price_fourier_with_settings`] builds it once and
+/// `time`), so [`heston_call_price_fourier`] builds it once and
 /// shares it across the `j = 1` and `j = 2` evaluations instead of rebuilding
 /// the `gl_order * panels`-node grid twice per scalar price.
 pub(super) fn heston_pj_on_grid(

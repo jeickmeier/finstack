@@ -19,7 +19,7 @@
 //! coupon trajectories, and validating analytics — they are **not** a
 //! substitute for the full Monte-Carlo / copula / LSMC pricers, which
 //! require market data and are exposed via the standard
-//! ``price_instrument`` / ``price_instrument_with_metrics`` pipeline.
+//! ``price_instrument`` pipeline.
 
 use crate::errors::display_to_py;
 use finstack_quant_valuations::instruments::rates::hw1f::coupon_profiles;

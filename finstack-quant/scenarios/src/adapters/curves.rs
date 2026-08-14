@@ -382,8 +382,14 @@ pub(crate) fn curve_parallel_effects(
                 .map_err(|_| missing_market_err(curve_id.as_str()))?;
             let (discount_id, warning) =
                 resolve_discount_curve_id(ctx.market, discount_curve_id, Some(curve_id))?;
-            let new_curve =
-                bump_hazard_spreads(&base_curve, ctx.market, &bump_req, Some(&discount_id))?;
+            let new_curve = bump_hazard_spreads(
+                &base_curve,
+                ctx.market,
+                &bump_req,
+                Some(&discount_id),
+                None,
+                None,
+            )?;
 
             let mut effects = vec![ScenarioEffect::UpdateCurve(CurveStorage::from(new_curve))];
             if let Some(w) = warning {
@@ -536,8 +542,14 @@ pub(crate) fn curve_node_effects(
             let (discount_id, warning) =
                 resolve_discount_curve_id(ctx.market, discount_curve_id, Some(curve_id))?;
 
-            let new_curve =
-                bump_hazard_spreads(&base_curve, ctx.market, &bump_req, Some(&discount_id))?;
+            let new_curve = bump_hazard_spreads(
+                &base_curve,
+                ctx.market,
+                &bump_req,
+                Some(&discount_id),
+                None,
+                None,
+            )?;
 
             let mut effects = vec![ScenarioEffect::UpdateCurve(CurveStorage::from(new_curve))];
             effects.extend(result.warnings.into_iter().map(ScenarioEffect::Warning));

@@ -18,7 +18,7 @@
 //! knots are reused unchanged. That partial sensitivity typically understates
 //! the true value by 2-5x for spread-bootstrapped curves.
 
-use crate::calibration::bumps::hazard::recalibrate_hazard_with_recovery_and_doc_clause_and_valuation_convention;
+use crate::calibration::bumps::hazard::recalibrate_hazard_with_recovery;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::credit_derivatives::cds::metrics::market_doc_clause;
 use crate::instruments::credit_derivatives::cds_index::CDSIndex;
@@ -49,7 +49,7 @@ fn market_with_recovery(
     };
 
     if hazard.par_spread_points().next().is_some() {
-        let recalibrated = recalibrate_hazard_with_recovery_and_doc_clause_and_valuation_convention(
+        let recalibrated = recalibrate_hazard_with_recovery(
             hazard.as_ref(),
             new_recovery,
             market,

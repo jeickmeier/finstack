@@ -994,14 +994,10 @@ async function main() {
       w.priceInstrument(INSTRUMENT_JSON, MARKET_CONTEXT_JSON, '2024-01-02', 'discounting');
     });
 
-    benchTry('valuations', 'priceInstrumentWithMetrics', 120, () => {
-      w.priceInstrumentWithMetrics(
-        INSTRUMENT_JSON,
-        MARKET_CONTEXT_JSON,
-        '2024-01-02',
-        'discounting',
-        [firstStandardMetric]
-      );
+    benchTry('valuations', 'priceInstrument', 120, () => {
+      w.priceInstrument(INSTRUMENT_JSON, MARKET_CONTEXT_JSON, '2024-01-02', 'discounting', [
+        firstStandardMetric,
+      ]);
     });
 
     bench('valuations', 'validateValuationResultJson', 2000, () => {
@@ -1009,7 +1005,7 @@ async function main() {
     });
   } else {
     skipBench('valuations', 'priceInstrument (discounting)', 'pricing fixture failed');
-    skipBench('valuations', 'priceInstrumentWithMetrics', 'pricing fixture failed');
+    skipBench('valuations', 'priceInstrument', 'pricing fixture failed');
     skipBench('valuations', 'validateValuationResultJson', 'pricing fixture failed');
   }
 

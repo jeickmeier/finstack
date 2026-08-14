@@ -19,9 +19,7 @@ use finstack_quant_valuations::calibration::api::{
         ForwardCurveParams, StepParams,
     },
 };
-use finstack_quant_valuations::calibration::bumps::{
-    bump_hazard_spreads_with_doc_clause_and_valuation_convention, BumpRequest,
-};
+use finstack_quant_valuations::calibration::bumps::{bump_hazard_spreads, BumpRequest};
 use finstack_quant_valuations::calibration::CalibrationConfig;
 use finstack_quant_valuations::calibration::CalibrationMethod;
 use finstack_quant_valuations::instruments::rates::fra::ForwardRateAgreement;
@@ -345,7 +343,7 @@ fn bench_hazard_bootstrap(c: &mut Criterion) {
 
     c.bench_function("calibration_hazard_rebootstrap_parallel_5_pillars", |b| {
         b.iter(|| {
-            bump_hazard_spreads_with_doc_clause_and_valuation_convention(
+            bump_hazard_spreads(
                 black_box(hazard.as_ref()),
                 black_box(&market),
                 black_box(&BumpRequest::Parallel(1.0)),

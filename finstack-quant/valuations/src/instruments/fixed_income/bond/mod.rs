@@ -119,8 +119,7 @@ pub use cashflow_spec::{BondBuilderParams, CashflowSpec, FloatingConventionParam
 pub use json::bond_from_cashflows_json;
 #[doc(hidden)]
 pub use metrics::price_yield_spread::asw::{
-    asw_market_with_forward, asw_market_with_forward_config, asw_par_with_forward,
-    asw_par_with_forward_config, AssetSwapConfig,
+    asw_market_with_forward, asw_par_with_forward, AssetSwapConfig,
 };
 #[doc(hidden)]
 pub use metrics::{

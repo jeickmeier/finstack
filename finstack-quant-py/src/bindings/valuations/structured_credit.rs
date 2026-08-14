@@ -2,7 +2,7 @@
 //! scenario table.
 //!
 //! These take a tranche id, so they are not reachable through
-//! `price_instrument_with_metrics`. Signatures mirror the WASM facade. The
+//! `price_instrument`. Signatures mirror the WASM facade. The
 //! OAS, metrics, and scenario-table entry points return the typed
 //! `OasResult` / `TrancheMetrics` / `ScenarioTable` wrapper classes defined
 //! in this module; each wrapper's `to_json` still yields the wire payload,

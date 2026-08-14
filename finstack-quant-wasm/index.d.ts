@@ -148,8 +148,8 @@ export interface FactorCovarianceForecast extends WasmOwned {}
 /**
  * Opaque handle wrapping a parsed [`MarketContext`].
  *
- * Construct once from JSON, then pass to `priceInstrumentWithMarket`,
- * `priceInstrumentWithMetricsAndMarket`, etc.  Eliminates the per-call
+ * Construct once from JSON, then pass to `priceInstrumentWithMarket`.
+ * Eliminates the per-call
  * market-parse overhead in bulk-pricing and Greeks-sweep loops.
  *
  * @example
@@ -5069,8 +5069,8 @@ export declare const covenants: CovenantsNamespace;
 /**
  * Opaque handle wrapping a parsed [`MarketContext`].
  *
- * Construct once from JSON, then pass to `priceInstrumentWithMarket`,
- * `priceInstrumentWithMetricsAndMarket`, etc.  Eliminates the per-call
+ * Construct once from JSON, then pass to `priceInstrumentWithMarket`.
+ * Eliminates the per-call
  * market-parse overhead in bulk-pricing and Greeks-sweep loops.
  *
  * @example
@@ -5381,28 +5381,6 @@ export interface ValuationInstrumentsNamespace {
     instrumentJson: string,
     marketJson: string,
     asOf: string,
-    model?: string | null
-  ): ValuationResult;
-  /**
-   * Price an instrument with explicit metric requests.
-   *
-   * Omit `model` (or pass `"default"`) for the instrument-native default
-   * model, and omit `metrics` for none — matching the Python binding's
-   * `model="default"`, `metrics=[]` defaults.
-   * @returns Returns the resulting `ValuationResult` object.
-   * @param instrumentJson - Required `finstack_quant.instrument/1` envelope.
-   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
-   * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
-   * @param model - Optional pricing-model identifier; omit for the instrument-native model.
-   * @param metrics - Optional array of canonical metric identifiers to calculate with the instrument price.
-   * @param pricingOptions - Optional JSON pricing overrides accepted by the canonical instrument validator.
-   * @param marketHistory - Optional serialized historical market snapshots required by historical pricing models.
-   * @throws Error - Throws a JavaScript exception if an instrument, market, pricing-option, or market-history payload is invalid; `metrics` is not a string array; `asOf`, `model`, or a metric identifier is invalid; required market data is missing; pricing or a metric calculation fails; or the valuation cannot be converted to a JavaScript value.
-   */
-  priceInstrumentWithMetrics(
-    instrumentJson: string,
-    marketJson: string,
-    asOf: string,
     model?: string | null,
     metrics?: string[] | null,
     pricingOptions?: string | null,
@@ -5423,26 +5401,8 @@ export interface ValuationInstrumentsNamespace {
     instrumentJson: string,
     market: Market,
     asOf: string,
-    model: string
-  ): ValuationResult;
-  /**
-   * Price an instrument with explicit metric requests using a pre-parsed [`Market`].
-   * @returns Returns the resulting `ValuationResult` object.
-   * @param instrumentJson - Canonical instrument envelope JSON in the Finstack v1 schema.
-   * @param market - Market context or JSON payload supplying curves, quotes, and FX data.
-   * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
-   * @param model - Pricing-model identifier; use `"default"` for the instrument-native model when supported.
-   * @param metrics - Array of canonical metric identifiers to calculate with the instrument price.
-   * @param pricingOptions - Optional JSON pricing overrides accepted by the canonical instrument validator.
-   * @param marketHistory - Optional serialized historical market snapshots required by historical pricing models.
-   * @throws Error - Throws a JavaScript exception if an instrument, pricing-option, or market- history payload is invalid; `metrics` is not a string array; `asOf`, `model`, or a metric identifier is invalid; required market data is missing; pricing or a metric calculation fails; or the valuation cannot be converted to a JavaScript value.
-   */
-  priceInstrumentWithMetricsAndMarket(
-    instrumentJson: string,
-    market: Market,
-    asOf: string,
     model: string,
-    metrics: string[],
+    metrics?: string[] | null,
     pricingOptions?: string | null,
     marketHistory?: string | null
   ): ValuationResult;
@@ -5743,24 +5703,16 @@ export interface FxInstrument extends WasmOwned {
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
    * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
-   * @returns Canonical JSON valuation result for the selected model.
-   */
-  price(marketJson: string, asOf: string, model?: string | null): string;
-  /**
-   * Price this FX instrument and return the requested metrics.
-   * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
-   * @param asOf - ISO-8601 valuation date used to select market inputs and date-dependent cashflows.
-   * @param metrics - Metric keys included in the valuation result, such as `"delta"` or `"vega"`.
-   * @param model - Optional pricing-model identifier; omit to use the instrument's default model.
+   * @param metrics - Optional metric keys included in the valuation result, such as `"delta"` or `"vega"`.
    * @param pricingOptions - Pricing options that select calculation behavior and output detail.
    * @param marketHistory - Chronological market snapshots used to project or backtest the result.
-   * @returns Canonical JSON valuation result including the requested metrics.
+   * @returns Canonical JSON valuation result for the selected model.
    */
-  priceWithMetrics(
+  price(
     marketJson: string,
     asOf: string,
-    metrics: string[],
     model?: string | null,
+    metrics?: string[] | null,
     pricingOptions?: string | null,
     marketHistory?: string | null
   ): string;

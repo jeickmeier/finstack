@@ -150,6 +150,8 @@ fn diag_cdx_ig_46_spot_cds_reconciliation() {
         &market,
         &BumpRequest::Parallel(1.0),
         Some(&cds.premium.discount_curve_id),
+        None,
+        None,
     )
     .unwrap();
 
@@ -179,6 +181,8 @@ fn diag_cdx_ig_46_spot_cds_reconciliation() {
             &market,
             &BumpRequest::Parallel(bump_bp),
             Some(&cds.premium.discount_curve_id),
+            None,
+            None,
         )
         .unwrap();
         let pv_b = cds
@@ -257,6 +261,8 @@ fn diag_cdx_ig_46_spot_cds_reconciliation() {
             &market,
             &BumpRequest::Parallel(0.0),
             Some(&cds.premium.discount_curve_id),
+            None,
+            None,
         )
         .unwrap();
         cds.value(&market.clone().insert(bumped_zero), as_of)

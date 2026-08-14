@@ -3,7 +3,7 @@
 //! Mirrors `finstack-quant-py`'s `valuations/exotic_rates.rs`: lightweight, market-
 //! data-free helpers useful for building test fixtures and inspecting coupon
 //! trajectories. Full MC / copula / LSMC pricers stay on the standard
-//! `priceInstrument` / `priceInstrumentWithMetrics` pipeline.
+//! `priceInstrument` pipeline.
 
 use crate::utils::{to_js_err, to_js_value};
 use finstack_quant_valuations::instruments::rates::hw1f::coupon_profiles;

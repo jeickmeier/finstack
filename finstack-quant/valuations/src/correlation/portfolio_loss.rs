@@ -294,7 +294,7 @@ impl PortfolioLossResult {
 /// Simulate portfolio losses using deterministic path-indexed Philox streams.
 ///
 /// Native builds evaluate paths in parallel; path `i` always uses Philox
-/// substream `i`, so output is bit-identical to [`simulate_portfolio_loss_serial`].
+/// substream `i`, so output is bit-identical to serial path evaluation.
 /// `wasm32` builds use the serial implementation.
 ///
 /// Each path draws the configured Gaussian or Student-t copula, compares latent
@@ -327,26 +327,9 @@ pub fn simulate_portfolio_loss(
     simulate(exposures, config, None, Execution::Parallel)
 }
 
-/// Simulate portfolio losses serially with the canonical path-indexed streams.
-///
-/// This uses the same model, seed, path-to-Philox-substream assignment, and
-/// loss conventions as [`simulate_portfolio_loss`], but evaluates paths in
-/// index order on one thread. Use it for debugging or environments where
-/// parallel execution is unavailable; given identical inputs it produces the
-/// same loss distribution and tail statistics as the native parallel variant.
-///
-/// # Errors
-///
-/// Returns the same validation, copula, allocation, and finite-loss errors as
-/// [`simulate_portfolio_loss`]. No partial result is returned.
-///
-/// # Arguments
-///
-/// * `exposures` - Same-currency credit exposures with default probabilities,
-///   LGDs, notionals, and factor loadings used for every simulated path.
-/// * `config` - Copula, confidence, path count, random seed, and simulation
-///   policy; its seed produces deterministic path-indexed streams.
-pub fn simulate_portfolio_loss_serial(
+/// Serial path evaluation used for determinism checks against the parallel
+/// public entry point.
+pub(crate) fn simulate_portfolio_loss_serial(
     exposures: &[CreditExposure],
     config: &PortfolioLossConfig,
 ) -> Result<PortfolioLossResult> {
@@ -721,4 +704,47 @@ where
         *loss = simulate_path(path_index)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::correlation::CopulaSpec;
+
+    #[test]
+    fn parallel_and_serial_path_indexed_streams_are_bit_identical() {
+        let exposures = [
+            CreditExposure {
+                id: "a".to_string(),
+                notional: 100.0,
+                default_probability: 0.02,
+                lgd: 0.6,
+                factor_loadings: vec![0.35, 0.10],
+            },
+            CreditExposure {
+                id: "b".to_string(),
+                notional: 80.0,
+                default_probability: 0.08,
+                lgd: 0.5,
+                factor_loadings: vec![0.20, 0.25],
+            },
+            CreditExposure {
+                id: "c".to_string(),
+                notional: 120.0,
+                default_probability: 0.04,
+                lgd: 0.7,
+                factor_loadings: vec![0.30, -0.15],
+            },
+        ];
+        let config = PortfolioLossConfig {
+            num_paths: 4_096,
+            seed: 42,
+            confidence: 0.99,
+            copula: CopulaSpec::student_t(6.0).expect("valid t copula"),
+        };
+
+        let parallel = simulate_portfolio_loss(&exposures, &config).expect("parallel");
+        let serial = simulate_portfolio_loss_serial(&exposures, &config).expect("serial");
+        assert_eq!(parallel, serial);
+    }
 }

@@ -1,13 +1,12 @@
 //! wasm-bindgen-test suite for `finstack_quant_wasm::api::valuations`.
 //!
-//! Covers list_standard_metrics and price_instrument_with_metrics
+//! Covers list_standard_metrics and price_instrument
 //! which use JsValue.
 
 #![cfg(target_arch = "wasm32")]
 
 use finstack_quant_wasm::api::valuations::pricing::{
     instrument_cashflows_json, list_standard_metrics, price_instrument,
-    price_instrument_with_metrics,
 };
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_test::*;
@@ -178,11 +177,11 @@ fn list_standard_metrics_returns_non_empty_array() {
 }
 
 #[wasm_bindgen_test]
-fn price_instrument_with_metrics_returns_result() {
+fn price_instrument_returns_result() {
     let inst = bond_instrument_json();
     let mkt = market_context_json();
     let metrics = serde_wasm_bindgen::to_value(&vec!["dirty_price".to_string()]).unwrap();
-    let result = price_instrument_with_metrics(
+    let result = price_instrument(
         &inst,
         &mkt,
         "2024-01-01",
@@ -197,11 +196,11 @@ fn price_instrument_with_metrics_returns_result() {
 }
 
 #[wasm_bindgen_test]
-fn price_instrument_with_metrics_accepts_pricing_options() {
+fn price_instrument_accepts_pricing_options() {
     let inst = bond_instrument_json();
     let mkt = market_context_json();
     let metrics = serde_wasm_bindgen::to_value(&vec!["dirty_price".to_string()]).unwrap();
-    let result = price_instrument_with_metrics(
+    let result = price_instrument(
         &inst,
         &mkt,
         "2024-01-01",
@@ -219,7 +218,7 @@ fn price_instrument_with_metrics_accepts_pricing_options() {
 fn registered_term_loan_metrics_cross_wasm_json_boundary() {
     let metrics =
         serde_wasm_bindgen::to_value(&vec!["all_in_rate".to_string(), "yt2y".to_string()]).unwrap();
-    let result = price_instrument_with_metrics(
+    let result = price_instrument(
         &term_loan_instrument_json(),
         &market_context_json(),
         "2024-01-01",
@@ -254,7 +253,7 @@ fn public_json_routes_validate_instrument_before_malformed_market() {
             Some("not-a-model".to_string()),
         )
         .unwrap_err(),
-        price_instrument_with_metrics(
+        price_instrument(
             &instrument,
             market,
             "not-a-date",
@@ -318,11 +317,11 @@ fn fx_price_with_metrics_validates_merged_overrides_before_market() {
     let option = JsFxOption::from_json(&fx_option_instrument_json()).unwrap();
     let metrics = serde_wasm_bindgen::to_value(&Vec::<String>::new()).unwrap();
     let error = option
-        .price_with_metrics(
+        .price(
             "not-market-json",
             "not-a-date",
-            metrics,
             Some("not-a-model".to_string()),
+            Some(metrics),
             Some(r#"{"bump_config":{"vol_bump_pct":-0.20}}"#.to_string()),
             None,
         )

@@ -850,8 +850,12 @@ impl crate::pricer::Pricer for EquityOptionHestonFourierPricer {
             .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx))?;
 
         let price = match equity_option.option_type {
-            OptionType::Call => heston_call_price_fourier(spot, equity_option.strike, t, &params),
-            OptionType::Put => heston_put_price_fourier(spot, equity_option.strike, t, &params),
+            OptionType::Call => {
+                heston_call_price_fourier(spot, equity_option.strike, t, &params, None)
+            }
+            OptionType::Put => {
+                heston_put_price_fourier(spot, equity_option.strike, t, &params, None)
+            }
         };
 
         let pv = Money::new(

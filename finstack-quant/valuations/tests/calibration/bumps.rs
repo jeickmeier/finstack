@@ -637,6 +637,8 @@ fn hazard_par_spread_tenor_bump_reprices_strict_fuzzy_targets() {
             (12.0, 13.0), // Beyond the final par tenor.
         ]),
         Some(&discount_id),
+        None,
+        None,
     )
     .expect("hazard par-spread bump succeeds");
     let expected_quotes = [(1, 89.0), (3, 100.0), (5, 133.0), (10, 180.0)];
@@ -677,6 +679,8 @@ fn hazard_par_spread_bucket_risk_reconciles_to_parallel() {
         &source_market,
         &BumpRequest::Parallel(0.0),
         Some(&discount_id),
+        None,
+        None,
     )
     .expect("base par curve calibration");
     let market = source_market.insert(calibrated);
@@ -691,6 +695,8 @@ fn hazard_par_spread_bucket_risk_reconciles_to_parallel() {
         &market,
         &BumpRequest::Parallel(1.0),
         Some(&discount_id),
+        None,
+        None,
     )
     .expect("parallel par bump");
     let parallel_risk = instrument
@@ -709,6 +715,8 @@ fn hazard_par_spread_bucket_risk_reconciles_to_parallel() {
             &market,
             &BumpRequest::Tenors(vec![(tenor, 1.0)]),
             Some(&discount_id),
+            None,
+            None,
         )
         .unwrap_or_else(|error| panic!("{tenor}y par bucket failed: {error}"));
         bucket_sum += instrument

@@ -11,7 +11,7 @@ use wasm_bindgen::prelude::*;
 /// Opaque handle wrapping a parsed [`MarketContext`].
 ///
 /// Construct once from JSON, then pass to `priceInstrumentWithMarket`,
-/// `priceInstrumentWithMetricsAndMarket`, etc.  Eliminates the per-call
+/// `priceInstrumentWithMarket`, etc.  Eliminates the per-call
 /// market-parse overhead in bulk-pricing and Greeks-sweep loops.
 ///
 /// @example

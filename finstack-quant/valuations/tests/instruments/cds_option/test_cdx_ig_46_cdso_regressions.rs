@@ -6,9 +6,7 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_valuations::calibration::api::engine;
 use finstack_quant_valuations::calibration::api::schema::CalibrationEnvelope;
-use finstack_quant_valuations::calibration::bumps::{
-    bump_hazard_spreads_with_doc_clause_and_valuation_convention, BumpRequest,
-};
+use finstack_quant_valuations::calibration::bumps::{bump_hazard_spreads, BumpRequest};
 use finstack_quant_valuations::constants::bloomberg_cdso;
 use finstack_quant_valuations::instruments::credit_derivatives::cds::CdsValuationConvention;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::bloomberg_quadrature::{
@@ -122,7 +120,7 @@ fn cdx_ig_46_reported_npv_uses_supplied_curve_not_zero_rebootstrap() {
         .amount();
 
     let hazard = market.get_hazard(&option.credit_curve_id).expect("hazard");
-    let zero_hazard = bump_hazard_spreads_with_doc_clause_and_valuation_convention(
+    let zero_hazard = bump_hazard_spreads(
         hazard.as_ref(),
         &market,
         &BumpRequest::Parallel(0.0),

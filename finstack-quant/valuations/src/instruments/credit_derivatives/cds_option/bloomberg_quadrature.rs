@@ -1136,6 +1136,8 @@ mod tests {
             &market,
             &BumpRequest::Parallel(1.0),
             Some(&option.discount_curve_id),
+            None,
+            None,
         )
         .expect("bumped hazard");
         let bumped_market = market.insert(bumped_hazard);

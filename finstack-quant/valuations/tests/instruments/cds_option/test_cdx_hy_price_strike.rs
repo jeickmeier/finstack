@@ -132,6 +132,8 @@ fn price_delta_matches_independent_cs01_ratio() {
             &market,
             &BumpRequest::Parallel(bp),
             Some(&option.discount_curve_id),
+            None,
+            None,
         )
         .expect("bumped hazard");
         market.clone().insert(curve)
@@ -170,6 +172,8 @@ fn price_gamma_positive_and_consistent_with_bumped_deltas() {
                 &market,
                 &BumpRequest::Parallel(bp),
                 Some(&option.discount_curve_id),
+                None,
+                None,
             )
             .expect("bumped hazard");
             market.clone().insert(curve)

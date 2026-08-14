@@ -7,8 +7,8 @@
 //!
 //! # Monte-Carlo determinism
 //!
-//! `priceInstrument` / `priceInstrumentWithMetrics` (and their `Market`
-//! variants) accept Monte-Carlo models (e.g. `monte_carlo_gbm`,
+//! `priceInstrument` (and its `Market` variant) accept Monte-Carlo models
+//! (e.g. `monte_carlo_gbm`,
 //! `monte_carlo_hull_white_1f`). These bindings deliberately expose **no**
 //! explicit RNG-seed parameter: the seed is part of the *instrument*
 //! contract, not the pricing call.
@@ -62,21 +62,11 @@ pub(super) fn price_result_with_context(
     market: &MarketContext,
     as_of: &str,
     model: &str,
-) -> Result<ValuationResult, JsValue> {
-    finstack_quant_valuations::pricer::price_instrument_json(instrument_json, market, as_of, model)
-        .map_err(|e| to_js_error(&e))
-}
-
-pub(super) fn price_result_with_metrics_context(
-    instrument_json: &str,
-    market: &MarketContext,
-    as_of: &str,
-    model: &str,
     metrics: Vec<String>,
     pricing_options: Option<&str>,
     market_history_json: Option<&str>,
 ) -> Result<ValuationResult, JsValue> {
-    finstack_quant_valuations::pricer::price_instrument_json_with_metrics_and_history(
+    finstack_quant_valuations::pricer::price_instrument_json(
         instrument_json,
         market,
         as_of,
@@ -93,25 +83,11 @@ pub(super) fn price_instrument_with_context(
     market: &MarketContext,
     as_of: &str,
     model: &str,
-) -> Result<String, JsValue> {
-    valuation_result_json(price_result_with_context(
-        instrument_json,
-        market,
-        as_of,
-        model,
-    )?)
-}
-
-pub(super) fn price_instrument_with_metrics_context(
-    instrument_json: &str,
-    market: &MarketContext,
-    as_of: &str,
-    model: &str,
     metrics: Vec<String>,
     pricing_options: Option<&str>,
     market_history_json: Option<&str>,
 ) -> Result<String, JsValue> {
-    valuation_result_json(price_result_with_metrics_context(
+    valuation_result_json(price_result_with_context(
         instrument_json,
         market,
         as_of,
@@ -127,6 +103,7 @@ pub(super) fn price_instrument_with_metrics_context(
 /// Kept separate from the `#[wasm_bindgen]` wrapper because `JsValue`
 /// construction aborts on non-wasm32 targets, so the unit tests below drive
 /// this function and assert on the `ValuationResult` directly.
+#[cfg(test)]
 fn price_instrument_result(
     instrument_json: &str,
     market_json: &str,
@@ -135,7 +112,15 @@ fn price_instrument_result(
 ) -> Result<ValuationResult, JsValue> {
     validate_pricing_instrument_json(instrument_json, None)?;
     let market = parse_market_json(market_json)?;
-    price_result_with_context(instrument_json, &market, as_of, model.unwrap_or("default"))
+    price_result_with_context(
+        instrument_json,
+        &market,
+        as_of,
+        model.unwrap_or("default"),
+        Vec::new(),
+        None,
+        None,
+    )
 }
 
 pub(super) fn metric_value_with_context(
@@ -240,35 +225,6 @@ pub fn bond_from_cashflows_json(
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 /// @param model - Optional pricing-model identifier; omit for the instrument-native model.
-///
-/// # Errors
-///
-/// Throws a JavaScript exception if the instrument or market JSON, `asOf`, or
-/// `model` is invalid; required market data is missing; the selected pricer
-/// fails; or the valuation cannot be converted to a JavaScript value.
-#[wasm_bindgen(js_name = priceInstrument)]
-pub fn price_instrument(
-    instrument_json: &str,
-    market_json: &str,
-    as_of: &str,
-    model: Option<String>,
-) -> Result<JsValue, JsValue> {
-    let result = price_instrument_result(instrument_json, market_json, as_of, model.as_deref())?;
-    valuation_result_value(&result)
-}
-
-/// Price an instrument with explicit metric requests.
-///
-/// Returns a plain JavaScript object; `result.measures` is a plain object
-/// keyed by metric ID, readable without `JSON.parse`.
-///
-/// Omit `model` (or pass `"default"`) to use the instrument-native default
-/// model, and omit `metrics` (undefined/null) for none — matching the Python
-/// binding's `model="default"`, `metrics=[]` defaults.
-/// @param instrument_json - Required `finstack_quant.instrument/1` envelope.
-/// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
-/// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
-/// @param model - Optional pricing-model identifier; omit for the instrument-native model.
 /// @param metrics - Optional array of canonical metric identifiers to calculate with the instrument price.
 /// @param pricing_options - Optional JSON pricing overrides accepted by the canonical instrument validator.
 /// @param market_history - Optional serialized historical market snapshots required by historical pricing models.
@@ -280,25 +236,25 @@ pub fn price_instrument(
 /// `model`, or a metric identifier is invalid; required market data is missing;
 /// pricing or a metric calculation fails; or the valuation cannot be converted
 /// to a JavaScript value.
-#[wasm_bindgen(js_name = priceInstrumentWithMetrics)]
-pub fn price_instrument_with_metrics(
+#[wasm_bindgen(js_name = priceInstrument)]
+pub fn price_instrument(
     instrument_json: &str,
     market_json: &str,
     as_of: &str,
     model: Option<String>,
-    metrics: JsValue,
+    metrics: Option<JsValue>,
     pricing_options: Option<String>,
     market_history: Option<String>,
 ) -> Result<JsValue, JsValue> {
     validate_pricing_instrument_json(instrument_json, pricing_options.as_deref())?;
     let market = parse_market_json(market_json)?;
     let model = model.as_deref().unwrap_or("default");
-    let metric_strs: Vec<String> = if metrics.is_undefined() || metrics.is_null() {
-        Vec::new()
-    } else {
-        serde_wasm_bindgen::from_value(metrics).map_err(to_js_err)?
+    let metric_strs: Vec<String> = match metrics {
+        None => Vec::new(),
+        Some(value) if value.is_undefined() || value.is_null() => Vec::new(),
+        Some(value) => serde_wasm_bindgen::from_value(value).map_err(to_js_err)?,
     };
-    let result = price_result_with_metrics_context(
+    let result = price_result_with_context(
         instrument_json,
         &market,
         as_of,
@@ -415,33 +371,7 @@ pub fn list_models_grouped() -> Result<JsValue, JsValue> {
 /// @param market - Market context or JSON payload supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 /// @param model - Pricing-model identifier; use `"default"` for the instrument-native model when supported.
-///
-/// # Errors
-///
-/// Throws a JavaScript exception if `instrumentJson`, `asOf`, or `model` is
-/// invalid; required market data is missing; the selected pricer fails; or the
-/// valuation cannot be converted to a JavaScript value.
-#[wasm_bindgen(js_name = priceInstrumentWithMarket)]
-pub fn price_instrument_with_market(
-    instrument_json: &str,
-    market: &JsMarket,
-    as_of: &str,
-    model: &str,
-) -> Result<JsValue, JsValue> {
-    validate_pricing_instrument_json(instrument_json, None)?;
-    let result = price_result_with_context(instrument_json, market.inner(), as_of, model)?;
-    valuation_result_value(&result)
-}
-
-/// Price an instrument with explicit metric requests using a pre-parsed [`JsMarket`].
-///
-/// Returns the same plain JavaScript ValuationResult object as
-/// `priceInstrumentWithMetrics`.
-/// @param instrument_json - Canonical instrument envelope JSON in the Finstack v1 schema.
-/// @param market - Market context or JSON payload supplying curves, quotes, and FX data.
-/// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
-/// @param model - Pricing-model identifier; use `"default"` for the instrument-native model when supported.
-/// @param metrics - Array of canonical metric identifiers to calculate with the instrument price.
+/// @param metrics - Optional array of canonical metric identifiers to calculate with the instrument price.
 /// @param pricing_options - Optional JSON pricing overrides accepted by the canonical instrument validator.
 /// @param market_history - Optional serialized historical market snapshots required by historical pricing models.
 ///
@@ -452,19 +382,23 @@ pub fn price_instrument_with_market(
 /// or a metric identifier is invalid; required market data is missing; pricing
 /// or a metric calculation fails; or the valuation cannot be converted to a
 /// JavaScript value.
-#[wasm_bindgen(js_name = priceInstrumentWithMetricsAndMarket)]
-pub fn price_instrument_with_metrics_and_market(
+#[wasm_bindgen(js_name = priceInstrumentWithMarket)]
+pub fn price_instrument_with_market(
     instrument_json: &str,
     market: &JsMarket,
     as_of: &str,
     model: &str,
-    metrics: JsValue,
+    metrics: Option<JsValue>,
     pricing_options: Option<String>,
     market_history: Option<String>,
 ) -> Result<JsValue, JsValue> {
     validate_pricing_instrument_json(instrument_json, pricing_options.as_deref())?;
-    let metric_strs: Vec<String> = serde_wasm_bindgen::from_value(metrics).map_err(to_js_err)?;
-    let result = price_result_with_metrics_context(
+    let metric_strs: Vec<String> = match metrics {
+        None => Vec::new(),
+        Some(value) if value.is_undefined() || value.is_null() => Vec::new(),
+        Some(value) => serde_wasm_bindgen::from_value(value).map_err(to_js_err)?,
+    };
+    let result = price_result_with_context(
         instrument_json,
         market.inner(),
         as_of,
@@ -989,7 +923,7 @@ mod tests {
     fn revolving_credit_metrics_and_cashflow_fail_closed_cross_wasm_context() {
         let instrument = revolving_credit_json(false, false);
         let market = revolving_credit_market(false);
-        let result = price_instrument_with_metrics_context(
+        let result = price_instrument_with_context(
             &instrument,
             &market,
             "2024-07-01",
@@ -1036,8 +970,16 @@ mod tests {
         let inst = bond_instrument_json();
         let market = JsMarket::new(&market_context_json()).expect("market handle");
 
-        let priced = price_result_with_context(&inst, market.inner(), "2024-01-01", "discounting")
-            .expect("price");
+        let priced = price_result_with_context(
+            &inst,
+            market.inner(),
+            "2024-01-01",
+            "discounting",
+            Vec::new(),
+            None,
+            None,
+        )
+        .expect("price");
         let parsed = serde_json::to_value(&priced).expect("price json");
         assert!(parsed.is_object());
 
@@ -1251,7 +1193,7 @@ mod tests {
             "xirr".to_string(),
             "xirr_to_worst".to_string(),
         ];
-        let result_json = price_instrument_with_metrics_context(
+        let result_json = price_instrument_with_context(
             &inst,
             &market,
             "2024-01-01",
@@ -1295,7 +1237,7 @@ mod tests {
         let mkt = return_floor_market_json();
         let market = parse_market_json(&mkt).expect("market");
         let metrics = vec!["xirr".to_string(), "xirr_to_worst".to_string()];
-        let result_json = price_instrument_with_metrics_context(
+        let result_json = price_instrument_with_context(
             &inst,
             &market,
             "2024-01-01",

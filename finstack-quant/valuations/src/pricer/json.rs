@@ -296,9 +296,8 @@ fn resolve_model_key(
 
 /// Price a canonical instrument envelope using the shared standard registry.
 ///
-/// This is the host-language-friendly path for a single valuation with no
-/// explicit metric requests. Pass `"default"` for `model` to use the
-/// instrument's native pricing model.
+/// Pass `"default"` for `model` to use the instrument's native pricing model.
+/// `metrics` may be empty for a valuation-only result.
 ///
 /// # Arguments
 ///
@@ -307,31 +306,8 @@ fn resolve_model_key(
 ///   fixings, and FX data.
 /// * `as_of` - ISO-8601 valuation date.
 /// * `model` - A concrete model key or the case-insensitive `"default"`.
-///
-/// # Errors
-///
-/// Returns an error when the instrument JSON, valuation date, or model key is
-/// invalid, required market data is missing, or the selected pricer fails.
-pub fn price_instrument_json(
-    instrument_json: &str,
-    market: &MarketContext,
-    as_of: &str,
-    model: &str,
-) -> finstack_quant_core::Result<ValuationResult> {
-    price_instrument_json_request(instrument_json, market, as_of, model, &[], None, None)
-}
-
-/// Price a canonical instrument envelope with explicit metric requests and
-/// optional historical scenarios for VaR-style metrics.
-///
-/// # Arguments
-///
-/// * `instrument_json` - Required canonical v1 instrument envelope.
-/// * `market` - Market context used for pricing and risk calculations.
-/// * `as_of` - ISO-8601 valuation date.
-/// * `model` - A concrete model key or the case-insensitive `"default"`.
 /// * `metrics` - Strict metric identifiers requested in addition to the base
-///   valuation.
+///   valuation; pass an empty slice for price only.
 /// * `pricing_options` - Optional JSON metric-pricing overrides applied to the
 ///   instrument before validation.
 /// * `market_history_json` - Optional serialized market history for metrics
@@ -342,27 +318,7 @@ pub fn price_instrument_json(
 /// Returns an error for invalid JSON, date, model, metric identifier, or market
 /// history; missing required market data; or a failure in the selected pricer or
 /// metric calculation.
-pub fn price_instrument_json_with_metrics_and_history(
-    instrument_json: &str,
-    market: &MarketContext,
-    as_of: &str,
-    model: &str,
-    metrics: &[String],
-    pricing_options: Option<&str>,
-    market_history_json: Option<&str>,
-) -> finstack_quant_core::Result<ValuationResult> {
-    price_instrument_json_request(
-        instrument_json,
-        market,
-        as_of,
-        model,
-        metrics,
-        pricing_options,
-        market_history_json,
-    )
-}
-
-fn price_instrument_json_request(
+pub fn price_instrument_json(
     instrument_json: &str,
     market: &MarketContext,
     as_of: &str,
@@ -436,7 +392,7 @@ pub fn metric_value_from_instrument_json(
     metric: &str,
 ) -> finstack_quant_core::Result<f64> {
     let metric_ids = [metric.to_string()];
-    let result = price_instrument_json_request(
+    let result = price_instrument_json(
         instrument_json,
         market,
         as_of,
@@ -482,7 +438,7 @@ pub fn present_metric_values_from_instrument_json<'a>(
     metrics: &'a [&'a str],
 ) -> finstack_quant_core::Result<Vec<(&'a str, f64)>> {
     let metric_ids: Vec<String> = metrics.iter().map(|m| (*m).to_string()).collect();
-    let result = price_instrument_json_request(
+    let result = price_instrument_json(
         instrument_json,
         market,
         as_of,
@@ -972,9 +928,17 @@ mod tests {
         let invalid = equity_option_json_with_invalid_strike();
         let market = MarketContext::new();
 
-        let plain = price_instrument_json(&invalid, &market, "not-a-date", "not-a-model")
-            .expect_err("instrument validation must win");
-        let with_metrics = price_instrument_json_with_metrics_and_history(
+        let plain = price_instrument_json(
+            &invalid,
+            &market,
+            "not-a-date",
+            "not-a-model",
+            &[],
+            None,
+            None,
+        )
+        .expect_err("instrument validation must win");
+        let with_metrics = price_instrument_json(
             &invalid,
             &market,
             "not-a-date",
@@ -1036,14 +1000,17 @@ mod tests {
             &market_context(),
             "2024-01-01",
             "discounting",
+            &[],
+            None,
+            None,
         )
         .expect("price");
         assert_eq!(result.instrument_id, "TEST-BOND");
     }
 
     #[test]
-    fn price_instrument_json_with_metrics_and_history_accepts_pricing_options() {
-        let result = price_instrument_json_with_metrics_and_history(
+    fn price_instrument_json_accepts_pricing_options() {
+        let result = price_instrument_json(
             &bond_instrument_json(),
             &market_context(),
             "2024-01-01",
@@ -1060,7 +1027,7 @@ mod tests {
     fn json_pricing_accepts_registered_custom_term_loan_metrics() {
         let loan = TermLoan::example().expect("term loan");
         let json = envelope_json(InstrumentJson::TermLoan(loan));
-        let result = price_instrument_json_with_metrics_and_history(
+        let result = price_instrument_json(
             &json,
             &market_context(),
             "2024-01-01",
@@ -1082,7 +1049,7 @@ mod tests {
         let mut facility = RevolvingCredit::example().expect("revolving credit");
         facility.base_rate_spec = BaseRateSpec::Fixed { rate: 0.05 };
         let json = envelope_json(InstrumentJson::RevolvingCredit(facility));
-        let result = price_instrument_json_with_metrics_and_history(
+        let result = price_instrument_json(
             &json,
             &market_context(),
             "2024-07-01",
@@ -1101,8 +1068,8 @@ mod tests {
     }
 
     #[test]
-    fn price_instrument_json_with_metrics_and_history_rejects_unknown_metric_names() {
-        let err = price_instrument_json_with_metrics_and_history(
+    fn price_instrument_json_rejects_unknown_metric_names() {
+        let err = price_instrument_json(
             &bond_instrument_json(),
             &market_context(),
             "2024-01-01",
@@ -1120,7 +1087,7 @@ mod tests {
     }
 
     #[test]
-    fn price_instrument_json_with_metrics_and_history_accepts_market_history_for_hvar() {
+    fn price_instrument_json_accepts_market_history_for_hvar() {
         let history = crate::metrics::risk::MarketHistory::new(
             time::Date::from_calendar_date(2024, time::Month::January, 1).expect("date"),
             2,
@@ -1149,7 +1116,7 @@ mod tests {
         );
         let history_json = serde_json::to_string(&history).expect("history JSON");
 
-        let result = price_instrument_json_with_metrics_and_history(
+        let result = price_instrument_json(
             &bond_instrument_json(),
             &market_context(),
             "2024-01-01",

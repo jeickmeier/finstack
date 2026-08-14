@@ -4,7 +4,7 @@ use crate::golden::schema::{GoldenFixture, Market};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_valuations::calibration::api::engine::{self, ExecuteError};
 use finstack_quant_valuations::calibration::api::schema::CalibrationEnvelope;
-use finstack_quant_valuations::pricer::price_instrument_json_with_metrics_and_history;
+use finstack_quant_valuations::pricer::price_instrument_json;
 use std::collections::BTreeMap;
 
 fn metric_base(metric: &str) -> &str {
@@ -68,7 +68,7 @@ pub(crate) fn run_pricing_fixture(
         .map_err(|err| format!("serialize instrument: {err}"))?;
     let metrics = requested_metrics(fixture);
 
-    let result = price_instrument_json_with_metrics_and_history(
+    let result = price_instrument_json(
         &instrument_json,
         &market,
         &fixture.metadata.valuation_date,
@@ -167,7 +167,7 @@ mod tests {
         instrument_json: &str,
     ) -> f64 {
         let pricing = fixture.pricing().expect("pricing body");
-        let result = price_instrument_json_with_metrics_and_history(
+        let result = price_instrument_json(
             instrument_json,
             market,
             &fixture.metadata.valuation_date,
@@ -317,7 +317,7 @@ mod tests {
             &[CurveId::new("USD-SOFR-DISC"), CurveId::new("SOFR-3M")],
         );
 
-        let registry_result = price_instrument_json_with_metrics_and_history(
+        let registry_result = price_instrument_json(
             &instrument_json,
             &market,
             &fixture.metadata.valuation_date,

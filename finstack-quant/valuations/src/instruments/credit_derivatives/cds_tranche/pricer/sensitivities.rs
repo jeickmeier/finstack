@@ -587,6 +587,8 @@ impl CDSTranchePricer {
                 market_ctx,
                 &crate::calibration::bumps::BumpRequest::Parallel(sign * bump_bp),
                 Some(&tranche.discount_curve_id),
+                None,
+                None,
             )?;
             self.rebuild_credit_index(
                 original_index_arc.as_ref(),

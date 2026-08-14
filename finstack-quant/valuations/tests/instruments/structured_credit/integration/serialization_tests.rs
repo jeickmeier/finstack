@@ -684,7 +684,7 @@ fn waterfall_rules_round_trip_and_price_through_json() {
             .build()
             .unwrap(),
     );
-    price_instrument_json(&json, &market, "2024-01-01", "default")
+    price_instrument_json(&json, &market, "2024-01-01", "default", &[], None, None)
         .expect("a waterfall_rules deal must price through the JSON binding path");
 }
 

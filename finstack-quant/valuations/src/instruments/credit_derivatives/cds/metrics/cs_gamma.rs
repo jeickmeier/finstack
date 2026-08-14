@@ -47,9 +47,7 @@
 //! is rebuilt from that single point before the bump grid is applied — identical
 //! to the CS01 `cs01_curve_override` path.
 
-use crate::calibration::bumps::hazard::{
-    bump_hazard_shift, bump_hazard_spreads_with_doc_clause_and_valuation_convention,
-};
+use crate::calibration::bumps::hazard::{bump_hazard_shift, bump_hazard_spreads};
 use crate::calibration::bumps::BumpRequest;
 use crate::constants::BASIS_POINTS_PER_UNIT;
 use crate::instruments::common_impl::traits::Instrument;
@@ -113,7 +111,7 @@ impl MetricCalculator for CsGammaCalculator {
             // this file was written to eliminate.
             let has_par_points = hazard_ref.par_spread_points().next().is_some();
             let used_rebootstrap = if discount_id.is_some() && has_par_points {
-                bump_hazard_spreads_with_doc_clause_and_valuation_convention(
+                bump_hazard_spreads(
                     hazard_ref,
                     base_ctx,
                     &BumpRequest::Parallel(0.0),
@@ -140,7 +138,7 @@ impl MetricCalculator for CsGammaCalculator {
             let make_bumped = |shift_bp: f64| -> finstack_quant_core::Result<_> {
                 let req = BumpRequest::Parallel(shift_bp);
                 if used_rebootstrap {
-                    bump_hazard_spreads_with_doc_clause_and_valuation_convention(
+                    bump_hazard_spreads(
                         hazard_ref,
                         base_ctx,
                         &req,

@@ -25,6 +25,8 @@ impl MetricCalculator for UnderlyingSpreadDv01Calculator {
             &context.curves,
             &BumpRequest::Parallel(1.0),
             Some(&option.discount_curve_id),
+            None,
+            None,
         )?;
         let bumped_market = context.curves.as_ref().clone().insert(bumped_hazard);
         let base_pv = cds.value(&context.curves, context.as_of)?.amount();

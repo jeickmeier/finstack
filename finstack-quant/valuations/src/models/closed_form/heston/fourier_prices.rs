@@ -7,6 +7,16 @@ use crate::instruments::common_impl::parameters::OptionType;
 use crate::models::closed_form::vanilla::bs_price;
 use tracing::warn;
 
+fn resolve_heston_settings(
+    time: f64,
+    params: &HestonParams,
+    settings: Option<&HestonFourierSettings>,
+) -> HestonFourierSettings {
+    settings
+        .copied()
+        .unwrap_or_else(|| HestonFourierSettings::for_maturity_with_variance(time, params.v0))
+}
+
 /// Price a European call option under the Heston model using Fourier inversion.
 ///
 /// # Arguments
@@ -16,6 +26,9 @@ use tracing::warn;
 /// * `time` - Remaining time to maturity in years.
 /// * `params` - Validated Heston rate, carry, variance, mean-reversion,
 ///   volatility-of-variance, and correlation parameters.
+/// * `settings` - Optional Fourier integration grid, truncation, and damping
+///   settings. `None` uses [`HestonFourierSettings::for_maturity_with_variance`]
+///   so short-dated and low-variance options get a wider/finer grid.
 ///
 /// # Returns
 ///
@@ -26,14 +39,6 @@ use tracing::warn;
 /// C = S * exp(-qT) * P1 - K * exp(-rT) * P2
 ///
 /// where P1 and P2 are risk-neutral probabilities computed via Fourier inversion.
-///
-/// # Integration Settings
-///
-/// Uses [`HestonFourierSettings::for_maturity_with_variance`] to adapt the
-/// integration grid to the option's time to maturity and initial variance.
-/// Short-dated and low-variance options use wider/finer grids to handle the
-/// slower-decaying characteristic function. For custom control, use
-/// [`heston_call_price_fourier_with_settings`].
 ///
 /// # Example
 ///
@@ -53,182 +58,18 @@ use tracing::warn;
 /// )
 /// .unwrap();
 ///
-/// let price = heston_call_price_fourier(100.0, 100.0, 1.0, &params);
+/// let price = heston_call_price_fourier(100.0, 100.0, 1.0, &params, None);
 /// assert!(price > 0.0 && price < 100.0);
 /// ```
 #[must_use]
-pub fn heston_call_price_fourier(spot: f64, strike: f64, time: f64, params: &HestonParams) -> f64 {
-    heston_call_price_fourier_with_settings(
-        spot,
-        strike,
-        time,
-        params,
-        &HestonFourierSettings::for_maturity_with_variance(time, params.v0),
-    )
-}
-
-/// Price a strip of European call options under the Heston model using shared
-/// characteristic-function precomputation.
-///
-/// # Arguments
-///
-/// * `spot` - Current underlying spot price in the option quote currency.
-/// * `strikes` - Exercise prices in result order, each in the same units as
-///   `spot`; the returned vector has the same length and order.
-/// * `time` - Common remaining time to expiry in years.
-/// * `params` - Validated Heston rate, carry, variance, mean-reversion,
-///   volatility-of-variance, and correlation parameters.
-#[must_use]
-pub fn heston_call_prices_fourier(
-    spot: f64,
-    strikes: &[f64],
-    time: f64,
-    params: &HestonParams,
-) -> Vec<f64> {
-    heston_call_prices_fourier_with_settings(
-        spot,
-        strikes,
-        time,
-        params,
-        &HestonFourierSettings::for_maturity_with_variance(time, params.v0),
-    )
-}
-
-/// Price a strip of European call options with custom integration settings.
-///
-/// # Arguments
-///
-/// * `spot` - Current underlying spot price in the option quote currency.
-/// * `strikes` - Exercise prices in result order, each in the same units as
-///   `spot`; the returned vector has the same length and order.
-/// * `time` - Common remaining time to expiry in years.
-/// * `params` - Validated Heston rate, carry, variance, mean-reversion,
-///   volatility-of-variance, and correlation parameters.
-/// * `settings` - Fourier integration grid, truncation, and damping settings
-///   applied consistently to the whole strike strip.
-#[must_use]
-pub fn heston_call_prices_fourier_with_settings(
-    spot: f64,
-    strikes: &[f64],
-    time: f64,
-    params: &HestonParams,
-    settings: &HestonFourierSettings,
-) -> Vec<f64> {
-    if time <= 0.0 {
-        return strikes
-            .iter()
-            .map(|&strike| (spot - strike).max(0.0))
-            .collect();
-    }
-
-    if params.sigma_v < 1e-10 {
-        let avg_vol = params.deterministic_avg_variance(time).sqrt();
-        return strikes
-            .iter()
-            .map(|&strike| black_scholes_call(spot, strike, time, params.r, params.q, avg_vol))
-            .collect();
-    }
-
-    if let Some(pricer) = HestonStripPricer::new(spot, time, params, settings) {
-        pricer.price_calls(strikes)
-    } else {
-        strikes
-            .iter()
-            .map(|&strike| {
-                heston_call_price_fourier_with_settings(spot, strike, time, params, settings)
-            })
-            .collect()
-    }
-}
-
-/// Price a strip of European put options under the Heston model using shared
-/// characteristic-function precomputation.
-///
-/// # Arguments
-///
-/// * `spot` - Current underlying spot price in the option quote currency.
-/// * `strikes` - Exercise prices in result order, each in the same units as
-///   `spot`; the returned vector has the same length and order.
-/// * `time` - Common remaining time to expiry in years.
-/// * `params` - Validated Heston rate, carry, variance, mean-reversion,
-///   volatility-of-variance, and correlation parameters.
-#[must_use]
-pub fn heston_put_prices_fourier(
-    spot: f64,
-    strikes: &[f64],
-    time: f64,
-    params: &HestonParams,
-) -> Vec<f64> {
-    heston_put_prices_fourier_with_settings(
-        spot,
-        strikes,
-        time,
-        params,
-        &HestonFourierSettings::for_maturity_with_variance(time, params.v0),
-    )
-}
-
-/// Price a strip of European put options with custom integration settings.
-///
-/// # Arguments
-///
-/// * `spot` - Current underlying spot price in the option quote currency.
-/// * `strikes` - Exercise prices in result order, each in the same units as
-///   `spot`; the returned vector has the same length and order.
-/// * `time` - Common remaining time to expiry in years.
-/// * `params` - Validated Heston rate, carry, variance, mean-reversion,
-///   volatility-of-variance, and correlation parameters.
-/// * `settings` - Fourier integration grid, truncation, and damping settings
-///   applied consistently to the whole strike strip.
-#[must_use]
-pub fn heston_put_prices_fourier_with_settings(
-    spot: f64,
-    strikes: &[f64],
-    time: f64,
-    params: &HestonParams,
-    settings: &HestonFourierSettings,
-) -> Vec<f64> {
-    if time <= 0.0 {
-        return strikes
-            .iter()
-            .map(|&strike| (strike - spot).max(0.0))
-            .collect();
-    }
-
-    let call_prices =
-        heston_call_prices_fourier_with_settings(spot, strikes, time, params, settings);
-    call_prices
-        .into_iter()
-        .zip(strikes.iter())
-        .map(|(call_price, strike)| {
-            let forward = spot * (-params.q * time).exp();
-            let discount_k = *strike * (-params.r * time).exp();
-            (call_price - forward + discount_k).max(0.0)
-        })
-        .collect()
-}
-
-/// Price a European call option with custom integration settings.
-///
-/// See [`heston_call_price_fourier`] for details.
-///
-/// # Arguments
-///
-/// * `spot` - Current underlying spot price in the option quote currency.
-/// * `strike` - Exercise price in the same units as `spot`.
-/// * `time` - Remaining time to expiry in years.
-/// * `params` - Validated Heston rate, carry, variance, mean-reversion,
-///   volatility-of-variance, and correlation parameters.
-/// * `settings` - Fourier integration grid, truncation, and damping settings
-///   for this single-option inversion.
-#[must_use]
-pub fn heston_call_price_fourier_with_settings(
+pub fn heston_call_price_fourier(
     spot: f64,
     strike: f64,
     time: f64,
     params: &HestonParams,
-    settings: &HestonFourierSettings,
+    settings: Option<&HestonFourierSettings>,
 ) -> f64 {
+    let settings = resolve_heston_settings(time, params, settings);
     if time <= 0.0 {
         return (spot - strike).max(0.0);
     }
@@ -256,12 +97,12 @@ pub fn heston_call_price_fourier_with_settings(
         composite_gauss_legendre_grid(0.0, settings.u_max, settings.gl_order, settings.panels);
     let (d1, d2) = match &grid {
         Some(g) => (
-            heston_pj_on_grid(1, spot, strike, time, params, settings, g),
-            heston_pj_on_grid(2, spot, strike, time, params, settings, g),
+            heston_pj_on_grid(1, spot, strike, time, params, &settings, g),
+            heston_pj_on_grid(2, spot, strike, time, params, &settings, g),
         ),
         None => (
-            heston_pj_with_diagnostics(1, spot, strike, time, params, settings),
-            heston_pj_with_diagnostics(2, spot, strike, time, params, settings),
+            heston_pj_with_diagnostics(1, spot, strike, time, params, &settings),
+            heston_pj_with_diagnostics(2, spot, strike, time, params, &settings),
         ),
     };
 
@@ -345,6 +186,95 @@ pub fn heston_call_price_fourier_with_settings(
     call_price.max(0.0)
 }
 
+/// Price a strip of European call options under the Heston model using shared
+/// characteristic-function precomputation.
+///
+/// # Arguments
+///
+/// * `spot` - Current underlying spot price in the option quote currency.
+/// * `strikes` - Exercise prices in result order, each in the same units as
+///   `spot`; the returned vector has the same length and order.
+/// * `time` - Common remaining time to expiry in years.
+/// * `params` - Validated Heston rate, carry, variance, mean-reversion,
+///   volatility-of-variance, and correlation parameters.
+/// * `settings` - Optional Fourier integration settings applied consistently
+///   to the whole strike strip. `None` uses
+///   [`HestonFourierSettings::for_maturity_with_variance`].
+#[must_use]
+pub fn heston_call_prices_fourier(
+    spot: f64,
+    strikes: &[f64],
+    time: f64,
+    params: &HestonParams,
+    settings: Option<&HestonFourierSettings>,
+) -> Vec<f64> {
+    let settings = resolve_heston_settings(time, params, settings);
+    if time <= 0.0 {
+        return strikes
+            .iter()
+            .map(|&strike| (spot - strike).max(0.0))
+            .collect();
+    }
+
+    if params.sigma_v < 1e-10 {
+        let avg_vol = params.deterministic_avg_variance(time).sqrt();
+        return strikes
+            .iter()
+            .map(|&strike| black_scholes_call(spot, strike, time, params.r, params.q, avg_vol))
+            .collect();
+    }
+
+    if let Some(pricer) = HestonStripPricer::new(spot, time, params, &settings) {
+        pricer.price_calls(strikes)
+    } else {
+        strikes
+            .iter()
+            .map(|&strike| heston_call_price_fourier(spot, strike, time, params, Some(&settings)))
+            .collect()
+    }
+}
+
+/// Price a strip of European put options under the Heston model using shared
+/// characteristic-function precomputation.
+///
+/// # Arguments
+///
+/// * `spot` - Current underlying spot price in the option quote currency.
+/// * `strikes` - Exercise prices in result order, each in the same units as
+///   `spot`; the returned vector has the same length and order.
+/// * `time` - Common remaining time to expiry in years.
+/// * `params` - Validated Heston rate, carry, variance, mean-reversion,
+///   volatility-of-variance, and correlation parameters.
+/// * `settings` - Optional Fourier integration settings applied consistently
+///   to the whole strike strip. `None` uses
+///   [`HestonFourierSettings::for_maturity_with_variance`].
+#[must_use]
+pub fn heston_put_prices_fourier(
+    spot: f64,
+    strikes: &[f64],
+    time: f64,
+    params: &HestonParams,
+    settings: Option<&HestonFourierSettings>,
+) -> Vec<f64> {
+    if time <= 0.0 {
+        return strikes
+            .iter()
+            .map(|&strike| (strike - spot).max(0.0))
+            .collect();
+    }
+
+    let call_prices = heston_call_prices_fourier(spot, strikes, time, params, settings);
+    call_prices
+        .into_iter()
+        .zip(strikes.iter())
+        .map(|(call_price, strike)| {
+            let forward = spot * (-params.q * time).exp();
+            let discount_k = *strike * (-params.r * time).exp();
+            (call_price - forward + discount_k).max(0.0)
+        })
+        .collect()
+}
+
 /// Price a European put option under the Heston model using Fourier inversion.
 ///
 /// # Arguments
@@ -354,6 +284,8 @@ pub fn heston_call_price_fourier_with_settings(
 /// * `time` - Remaining time to maturity in years.
 /// * `params` - Validated Heston rate, carry, variance, mean-reversion,
 ///   volatility-of-variance, and correlation parameters.
+/// * `settings` - Optional Fourier integration settings. `None` uses
+///   [`HestonFourierSettings::for_maturity_with_variance`].
 ///
 /// # Returns
 ///
@@ -363,42 +295,19 @@ pub fn heston_call_price_fourier_with_settings(
 ///
 /// Uses put-call parity: P = C - S*exp(-qT) + K*exp(-rT)
 #[must_use]
-pub fn heston_put_price_fourier(spot: f64, strike: f64, time: f64, params: &HestonParams) -> f64 {
-    heston_put_price_fourier_with_settings(
-        spot,
-        strike,
-        time,
-        params,
-        &HestonFourierSettings::for_maturity_with_variance(time, params.v0),
-    )
-}
-
-/// Price a European put option with custom integration settings.
-///
-/// See [`heston_put_price_fourier`] for details.
-///
-/// # Arguments
-///
-/// * `spot` - Current underlying spot price in the option quote currency.
-/// * `strike` - Exercise price in the same units as `spot`.
-/// * `time` - Remaining time to expiry in years.
-/// * `params` - Validated Heston rate, carry, variance, mean-reversion,
-///   volatility-of-variance, and correlation parameters.
-/// * `settings` - Fourier integration grid, truncation, and damping settings
-///   for this single-option inversion.
-pub fn heston_put_price_fourier_with_settings(
+pub fn heston_put_price_fourier(
     spot: f64,
     strike: f64,
     time: f64,
     params: &HestonParams,
-    settings: &HestonFourierSettings,
+    settings: Option<&HestonFourierSettings>,
 ) -> f64 {
     if time <= 0.0 {
         return (strike - spot).max(0.0);
     }
 
     // Use put-call parity: P = C - S*exp(-qT) + K*exp(-rT)
-    let call_price = heston_call_price_fourier_with_settings(spot, strike, time, params, settings);
+    let call_price = heston_call_price_fourier(spot, strike, time, params, settings);
     let forward = spot * (-params.q * time).exp();
     let discount_k = strike * (-params.r * time).exp();
 

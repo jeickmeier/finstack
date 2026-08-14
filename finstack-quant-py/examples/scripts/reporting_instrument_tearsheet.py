@@ -12,7 +12,7 @@ import json
 from finstack_quant import reporting
 from finstack_quant.core.market_data import DiscountCurve, MarketContext
 from finstack_quant.valuations import instrument_cashflows
-from finstack_quant.valuations.instruments import price_instrument_with_metrics
+from finstack_quant.valuations.instruments import price_instrument
 
 
 def main() -> None:
@@ -70,7 +70,7 @@ def main() -> None:
     as_of = "2026-06-19"
 
     metrics = ["dirty_price", "clean_price", "accrued", "ytm", "duration_mod", "dv01", "bucketed_dv01"]
-    result = price_instrument_with_metrics(
+    result = price_instrument(
         bond, mc.to_json(), as_of, model="discounting", metrics=metrics
     )
     _, cashflows = instrument_cashflows(bond, mc.to_json(), as_of, model="discounting")

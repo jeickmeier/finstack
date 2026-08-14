@@ -109,6 +109,8 @@ pub(super) fn price_strike_delta(
             curves,
             &BumpRequest::Parallel(bump_bp),
             Some(&option.discount_curve_id),
+            None,
+            None,
         )?;
         Ok(curves.clone().insert(bumped))
     };

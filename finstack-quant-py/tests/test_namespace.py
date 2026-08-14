@@ -455,7 +455,7 @@ class TestValuationsNamespace:
 
         assert hasattr(instruments, "validate_instrument_json")
         assert hasattr(instruments, "price_instrument")
-        assert hasattr(instruments, "price_instrument_with_metrics")
+        assert hasattr(instruments, "price_instrument")
         assert hasattr(instruments, "list_standard_metrics")
 
     def test_valuations_models_credit_namespace_exports(self) -> None:

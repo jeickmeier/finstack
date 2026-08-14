@@ -43,67 +43,9 @@ fn validate_pricing_instrument_json(
 ///     Model key: ``"default"`` (default), ``"discounting"``, ``"black76"``, ``"hazard_rate"``,
 ///     ``"hull_white_1f"``, ``"tree"``, ``"normal"``, ``"monte_carlo_gbm"``,
 ///     ``"bond_future_clean_price_proxy"``, etc.
-///
-/// Returns
-/// -------
-/// ValuationResult
-///     Typed valuation envelope carrying value, currency, metrics, and
-///     covenant flags.
-///
-/// Notes
-/// -----
-/// The wire payload is still one call away: ``result.to_json()`` returns the
-/// JSON that ``ValuationResult.from_json`` accepts, for pipelines that
-/// serialize results.
-#[pyfunction]
-#[pyo3(signature = (instrument_json, market, as_of, model="default"))]
-fn price_instrument(
-    py: Python<'_>,
-    instrument_json: &Bound<'_, PyAny>,
-    market: &Bound<'_, PyAny>,
-    as_of: &Bound<'_, PyAny>,
-    model: &str,
-) -> PyResult<PyValuationResult> {
-    let instrument_json = extract_instrument_json(instrument_json)?;
-    validate_pricing_instrument_json(py, &instrument_json, None)?;
-    let market = extract_market(py, market)?;
-    let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
-    let model = model.to_owned();
-
-    let inner = py
-        .detach(move || {
-            finstack_quant_valuations::pricer::price_instrument_json(
-                &instrument_json,
-                &market,
-                &as_of,
-                &model,
-            )
-        })
-        .map_err(core_to_py)?;
-    Ok(PyValuationResult { inner })
-}
-
-/// Price an instrument with explicit metric requests.
-///
-/// Parameters
-/// ----------
-/// instrument_json : str | Bond | TermLoan | InterestRateSwap | Swaption |
-///     CapFloor | CreditDefaultSwap | CDSIndex | FxForward | FxOption |
-///     CDSTranche | ConvertibleBond | EquityOption | StructuredCredit
-///     A ``finstack_quant.instrument/1`` envelope or a typed ``Bond`` / ``TermLoan`` /
-///     ``InterestRateSwap`` / ``Swaption`` / ``CapFloor`` /
-///     ``CreditDefaultSwap`` / ``CDSIndex`` / ``FxForward`` / ``FxOption`` /
-///     ``CDSTranche`` / ``ConvertibleBond`` / ``EquityOption`` /
-///     ``StructuredCredit`` instance.
-/// market : MarketContext | str
-///     A ``MarketContext`` object or a JSON string.
-/// as_of : datetime.date | str
-///     Valuation date, either a date-like object (``datetime.date``,
-///     ``pandas.Timestamp``) or an ISO 8601 string.
-/// model : str
-///     Model key string.
 /// metrics : list[str]
-///     Metric identifiers to compute (e.g. ``["ytm", "dv01", "modified_duration"]``).
+///     Optional metric identifiers to compute (e.g. ``["ytm", "dv01"]``).
+///     Empty or omitted means valuation only.
 /// pricing_options : str | None
 ///     Optional JSON string of ``MetricPricingOverrides`` merged into the instrument's
 ///     ``pricing_overrides`` before pricing.  Supported fields include
@@ -117,7 +59,8 @@ fn price_instrument(
 /// Returns
 /// -------
 /// ValuationResult
-///     Typed valuation envelope including the requested metrics.
+///     Typed valuation envelope carrying value, currency, metrics, and
+///     covenant flags.
 ///
 /// Notes
 /// -----
@@ -125,17 +68,17 @@ fn price_instrument(
 /// JSON that ``ValuationResult.from_json`` accepts, for pipelines that
 /// serialize results.
 #[pyfunction]
-#[pyo3(signature = (instrument_json, market, as_of, model="default", metrics=vec![], pricing_options=None, market_history=None))]
+#[pyo3(signature = (instrument_json, market, as_of, model="default", metrics=None, pricing_options=None, market_history=None))]
 // PyO3 binding: the argument list mirrors the Python keyword-argument API, so
 // it cannot be collapsed into a parameter struct without changing that API.
 #[allow(clippy::too_many_arguments)]
-fn price_instrument_with_metrics(
+fn price_instrument(
     py: Python<'_>,
     instrument_json: &Bound<'_, PyAny>,
     market: &Bound<'_, PyAny>,
     as_of: &Bound<'_, PyAny>,
     model: &str,
-    metrics: Vec<String>,
+    metrics: Option<Vec<String>>,
     pricing_options: Option<&str>,
     market_history: Option<&str>,
 ) -> PyResult<PyValuationResult> {
@@ -144,12 +87,13 @@ fn price_instrument_with_metrics(
     let market = extract_market(py, market)?;
     let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     let model = model.to_owned();
+    let metrics = metrics.unwrap_or_default();
     let pricing_options = pricing_options.map(str::to_owned);
     let market_history = market_history.map(str::to_owned);
 
     let inner = py
         .detach(move || {
-            finstack_quant_valuations::pricer::price_instrument_json_with_metrics_and_history(
+            finstack_quant_valuations::pricer::price_instrument_json(
                 &instrument_json,
                 &market,
                 &as_of,
@@ -280,7 +224,6 @@ fn instrument_cashflows_json(
 /// Register pricing functions on the valuations submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(price_instrument, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(price_instrument_with_metrics, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(list_models, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(list_models_grouped, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(list_standard_metrics, m)?)?;

@@ -7,7 +7,6 @@ use super::types::RateOptionType;
 use finstack_quant_core::{
     dates::{BusinessDayConvention, DayCount, StubKind, Tenor},
     money::Money,
-    types::Rate,
 };
 use rust_decimal::Decimal;
 
@@ -44,6 +43,13 @@ impl CapFloorParams {
     }
 
     /// Create cap parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `notional` - Cap notional in the instrument currency.
+    /// * `strike` - Cap strike as a decimal rate (0.03 = 3%).
+    /// * `frequency` - Payment frequency used to generate the caplet schedule.
+    /// * `day_count` - Accrual day-count convention for each caplet.
     pub fn cap(
         notional: Money,
         strike: f64,
@@ -62,26 +68,14 @@ impl CapFloorParams {
         })
     }
 
-    /// Create cap parameters using a typed strike rate.
-    pub fn cap_rate(
-        notional: Money,
-        strike: Rate,
-        frequency: Tenor,
-        day_count: DayCount,
-    ) -> finstack_quant_core::Result<Self> {
-        Ok(Self {
-            rate_option_type: RateOptionType::Cap,
-            notional,
-            strike: Self::to_decimal(strike.as_decimal())?,
-            frequency,
-            day_count,
-            stub: StubKind::ShortFront,
-            business_day_convention: BusinessDayConvention::ModifiedFollowing,
-            calendar_id: None,
-        })
-    }
-
     /// Create floor parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `notional` - Floor notional in the instrument currency.
+    /// * `strike` - Floor strike as a decimal rate (0.03 = 3%).
+    /// * `frequency` - Payment frequency used to generate the floorlet schedule.
+    /// * `day_count` - Accrual day-count convention for each floorlet.
     pub fn floor(
         notional: Money,
         strike: f64,
@@ -92,25 +86,6 @@ impl CapFloorParams {
             rate_option_type: RateOptionType::Floor,
             notional,
             strike: Self::to_decimal(strike)?,
-            frequency,
-            day_count,
-            stub: StubKind::ShortFront,
-            business_day_convention: BusinessDayConvention::ModifiedFollowing,
-            calendar_id: None,
-        })
-    }
-
-    /// Create floor parameters using a typed strike rate.
-    pub fn floor_rate(
-        notional: Money,
-        strike: Rate,
-        frequency: Tenor,
-        day_count: DayCount,
-    ) -> finstack_quant_core::Result<Self> {
-        Ok(Self {
-            rate_option_type: RateOptionType::Floor,
-            notional,
-            strike: Self::to_decimal(strike.as_decimal())?,
             frequency,
             day_count,
             stub: StubKind::ShortFront,

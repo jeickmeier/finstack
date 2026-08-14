@@ -163,7 +163,7 @@ impl HestonStripPricer {
     /// characteristic function (see HESTON_STRIP_MAX_CORRUPT_FRACTION), the
     /// cached Gil-Pelaez integral is unreliable and this degrades to a
     /// Black-Scholes price at the integrated vol `sqrt(v0)` — mirroring the
-    /// scalar [`super::heston_call_price_fourier_with_settings`] fallback rather than
+    /// scalar [`super::heston_call_price_fourier`] fallback rather than
     /// returning a plausible-but-wrong finite number.
     #[must_use]
     pub fn price_call(&self, strike: f64) -> f64 {

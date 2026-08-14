@@ -276,57 +276,11 @@ pub(crate) fn bump_hazard_spreads_cached(
 ///   basis point units.
 /// * `discount_id` - Optional discount curve ID; `None` is rejected because
 ///   spread re-calibration must choose a discounting curve.
-pub fn bump_hazard_spreads(
-    hazard: &HazardCurve,
-    context: &MarketContext,
-    bump: &BumpRequest,
-    discount_id: Option<&CurveId>,
-) -> finstack_quant_core::Result<HazardCurve> {
-    bump_hazard_spreads_with_doc_clause(hazard, context, bump, discount_id, None)
-}
-
-/// Bump hazard curve by shocking par spreads and re-calibrating with an
-/// explicit CDS documentation clause.
-///
-/// # Arguments
-///
-/// * `hazard` - Existing hazard curve from which par CDS spreads are implied.
-/// * `context` - Market context supplying discounting and other dependencies.
-/// * `bump` - Parallel or tenor-specific CDS spread shock in basis point units.
-/// * `discount_id` - Optional discount curve ID; `None` is rejected.
 /// * `doc_clause` - Optional ISDA CDS documentation clause; `None` uses the
 ///   canonical North American clause.
-pub fn bump_hazard_spreads_with_doc_clause(
-    hazard: &HazardCurve,
-    context: &MarketContext,
-    bump: &BumpRequest,
-    discount_id: Option<&CurveId>,
-    doc_clause: Option<CdsDocClause>,
-) -> finstack_quant_core::Result<HazardCurve> {
-    bump_hazard_spreads_with_doc_clause_and_valuation_convention(
-        hazard,
-        context,
-        bump,
-        discount_id,
-        doc_clause,
-        None,
-    )
-}
-
-/// Bump hazard curve by shocking par spreads and re-calibrating with an
-/// explicit CDS documentation clause and valuation convention.
-///
-/// # Arguments
-///
-/// * `hazard` - Existing hazard curve from which par CDS spreads are implied.
-/// * `context` - Market context supplying discounting and other dependencies.
-/// * `bump` - Parallel or tenor-specific CDS spread shock in basis point units.
-/// * `discount_id` - Optional discount curve ID; `None` is rejected.
-/// * `doc_clause` - Optional ISDA CDS documentation clause; `None` selects
-///   the canonical North American clause.
 /// * `cds_valuation_convention` - Optional premium-leg/accrual convention;
 ///   `None` uses the calibration runtime default.
-pub fn bump_hazard_spreads_with_doc_clause_and_valuation_convention(
+pub fn bump_hazard_spreads(
     hazard: &HazardCurve,
     context: &MarketContext,
     bump: &BumpRequest,
@@ -404,43 +358,11 @@ pub fn bump_hazard_shift(
 /// * `new_recovery` — recovery rate to use during re-bootstrapping (clamped to `[0, 1)`)
 /// * `context` — market context providing the discount curve referenced by `discount_id`
 /// * `discount_id` — discount curve identifier used to value the protection leg during bootstrap
+/// * `doc_clause` — optional ISDA CDS documentation clause; `None` uses the
+///   canonical North American clause
+/// * `cds_valuation_convention` — optional premium-leg/accrual convention;
+///   `None` uses the calibration runtime default
 pub fn recalibrate_hazard_with_recovery(
-    hazard: &HazardCurve,
-    new_recovery: f64,
-    context: &MarketContext,
-    discount_id: Option<&CurveId>,
-) -> finstack_quant_core::Result<HazardCurve> {
-    recalibrate_hazard_with_recovery_and_doc_clause(
-        hazard,
-        new_recovery,
-        context,
-        discount_id,
-        None,
-    )
-}
-
-/// Re-bootstrap a hazard curve with a new recovery and explicit CDS
-/// documentation clause.
-pub fn recalibrate_hazard_with_recovery_and_doc_clause(
-    hazard: &HazardCurve,
-    new_recovery: f64,
-    context: &MarketContext,
-    discount_id: Option<&CurveId>,
-    doc_clause: Option<CdsDocClause>,
-) -> finstack_quant_core::Result<HazardCurve> {
-    recalibrate_hazard_with_recovery_and_doc_clause_and_valuation_convention(
-        hazard,
-        new_recovery,
-        context,
-        discount_id,
-        doc_clause,
-        None,
-    )
-}
-
-/// Re-bootstrap a hazard curve with a new recovery, explicit CDS
-/// documentation clause, and valuation convention.
-pub fn recalibrate_hazard_with_recovery_and_doc_clause_and_valuation_convention(
     hazard: &HazardCurve,
     new_recovery: f64,
     context: &MarketContext,

@@ -526,7 +526,7 @@ pub(crate) fn shift_credit_curves_par_spread(
             continue;
         };
         let bumped = if discount_id.is_some() && cur.par_spread_points().next().is_some() {
-            match bump_hazard_spreads(cur.as_ref(), base_market, &req, discount_id) {
+            match bump_hazard_spreads(cur.as_ref(), base_market, &req, discount_id, None, None) {
                 Ok(c) => c,
                 Err(_) => bump_hazard_for_par_spread_move(cur.as_ref(), delta_bp)?,
             }

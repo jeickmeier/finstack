@@ -212,10 +212,8 @@ European option pricing under the Heston (1993) model via Fourier inversion.
 
 | Function | Description |
 |----------|-------------|
-| `heston_call_price_fourier` | Call price (default integration settings) |
-| `heston_put_price_fourier` | Put price via put-call parity |
-| `heston_call_price_fourier_with_settings` | Call with custom `HestonFourierSettings` |
-| `heston_put_price_fourier_with_settings` | Put with custom settings |
+| `heston_call_price_fourier` | Call price; pass `None` for adaptive integration settings or `Some(&HestonFourierSettings)` to override |
+| `heston_put_price_fourier` | Put price via put-call parity; same optional settings argument |
 
 **`HestonParams`**: `r`, `q`, `kappa` (mean reversion), `theta` (long-run variance), `sigma_v` (vol-of-vol), `rho` (correlation), `v0` (initial variance).
 
@@ -348,7 +346,7 @@ let params = HestonParams::new(
 )
 .unwrap();
 
-let price = heston_call_price_fourier(100.0, 100.0, 1.0, &params);
+let price = heston_call_price_fourier(100.0, 100.0, 1.0, &params, None);
 ```
 
 ### Implied Volatility

@@ -4,7 +4,7 @@
 //! (exposed on the JS facade as `valuations.creditDerivatives`).
 //!
 //! Pricing / validation / serialization for CDS instruments is provided by
-//! the generic `price_instrument`, `price_instrument_with_metrics`, and
+//! the generic `price_instrument` and
 //! `validate_instrument_json` entry points under
 //! `finstack_quant.valuations.instruments`; this module only owns the
 //! example-payload factories that produce canonical v1 instrument envelopes.

@@ -104,6 +104,8 @@ fn recalibrated_market_at_bumped_recovery(
         new_recovery,
         base_market,
         Some(&tranche.discount_curve_id),
+        None,
+        None,
     ) {
         Ok(recalibrated) => {
             bumped_index.index_credit_curve = Arc::new(recalibrated);

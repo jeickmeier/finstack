@@ -129,9 +129,7 @@ fn computation_results_are_structured_not_strings() {
     let dts = index_dts();
     for export in [
         "priceInstrument",
-        "priceInstrumentWithMetrics",
         "priceInstrumentWithMarket",
-        "priceInstrumentWithMetricsAndMarket",
         "calibrate",
         // The audit found attributePnl missing from this list — it was
         // declared `string` while its Python twin returned a typed wrapper.

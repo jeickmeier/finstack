@@ -5,7 +5,7 @@
  * pricing path: `return_floor` is a serde field on the Rust Bond type, so it
  * round-trips through `validateInstrumentJson` and the four return metrics
  * (`moic`, `moic_to_worst`, `xirr`, `xirr_to_worst`) are computed via the
- * standard `priceInstrumentWithMetrics` entry-point.  No new Rust binding code
+ * standard `priceInstrument` entry-point.  No new Rust binding code
  * is required.
  *
  * The bond fixture is the same 5-year 10% annual bullet used in
@@ -117,7 +117,7 @@ function bondInstrumentJson(returnFloor = null) {
  *   returns a plain JS object, matching the Python `ValuationResult`).
  */
 function priceWithMetrics(instrumentJson, metrics) {
-  return valuations.instruments.priceInstrumentWithMetrics(
+  return valuations.instruments.priceInstrument(
     instrumentJson,
     MARKET_JSON,
     '2024-01-01',
@@ -156,7 +156,7 @@ test('priceInstrument returns a plain ValuationResult object, not a JSON string'
   assert.ok(numericAmount(roundTripped) > 0, 'round-tripped value survives stringify');
 });
 
-test('priceInstrumentWithMetrics returns readable measures without JSON.parse', () => {
+test('priceInstrument returns readable measures without JSON.parse', () => {
   const result = priceWithMetrics(bondInstrumentJson(), ['moic', 'xirr']);
   assert.equal(typeof result, 'object');
   assert.ok(!(result instanceof Map));
@@ -178,7 +178,7 @@ test('priceInstrumentWithMarket / …WithMetricsAndMarket return objects too', (
     assert.ok(!(priced instanceof Map));
     assert.equal(priced.instrument_id, 'WASM-RETURN-FLOOR-BOND');
 
-    const withMetrics = valuations.instruments.priceInstrumentWithMetricsAndMarket(
+    const withMetrics = valuations.instruments.priceInstrumentWithMarket(
       bondInstrumentJson(),
       market,
       '2024-01-01',

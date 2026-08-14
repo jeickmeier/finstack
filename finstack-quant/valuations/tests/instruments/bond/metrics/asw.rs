@@ -472,11 +472,12 @@ fn test_asw_par_with_forward_day_count_override_changes_result() {
             as_of,
             "USD-SOFR-3M",
             0.0,
+            None,
         )
         .expect("par asw default");
 
     let par_act365f =
-        finstack_quant_valuations::instruments::fixed_income::bond::asw_par_with_forward_config(
+        finstack_quant_valuations::instruments::fixed_income::bond::asw_par_with_forward(
             &bond,
             &market,
             as_of,
@@ -504,17 +505,16 @@ fn test_asw_market_with_forward_requires_dirty_price() {
     let fwd = simple_forward_curve("USD-SOFR-3M", as_of);
     let market = MarketContext::new().insert(disc).insert(fwd);
 
-    let err =
-        finstack_quant_valuations::instruments::fixed_income::bond::asw_market_with_forward_config(
-            &bond,
-            &market,
-            as_of,
-            "USD-SOFR-3M",
-            0.0,
-            None,
-            None,
-        )
-        .expect_err("should require dirty price");
+    let err = finstack_quant_valuations::instruments::fixed_income::bond::asw_market_with_forward(
+        &bond,
+        &market,
+        as_of,
+        "USD-SOFR-3M",
+        0.0,
+        None,
+        None,
+    )
+    .expect_err("should require dirty price");
 
     let msg = format!("{err}");
     assert!(
@@ -537,11 +537,12 @@ fn test_asw_market_with_forward_moves_with_dirty_price() {
         as_of,
         "USD-SOFR-3M",
         0.0,
+        None,
     )
     .expect("par asw");
 
     let ann_asw_par_px =
-        finstack_quant_valuations::instruments::fixed_income::bond::asw_market_with_forward_config(
+        finstack_quant_valuations::instruments::fixed_income::bond::asw_market_with_forward(
             &bond,
             &market,
             as_of,
@@ -553,7 +554,7 @@ fn test_asw_market_with_forward_moves_with_dirty_price() {
         .expect("asw mkt at par");
 
     let rich_asw =
-        finstack_quant_valuations::instruments::fixed_income::bond::asw_market_with_forward_config(
+        finstack_quant_valuations::instruments::fixed_income::bond::asw_market_with_forward(
             &bond,
             &market,
             as_of,
@@ -590,6 +591,7 @@ fn test_asw_par_forward_returns_zero_for_zero_notional() {
         as_of,
         "USD-SOFR-3M",
         0.0,
+        None,
     )
     .expect("asw par");
 
@@ -622,6 +624,7 @@ fn test_asw_par_forward_rejects_matured_schedule() {
         as_of,
         "USD-SOFR-3M",
         0.0,
+        None,
     )
     .expect_err("matured schedule should fail");
     let msg = format!("{err}");
@@ -658,6 +661,7 @@ fn test_asw_market_forward_rejects_matured_schedule() {
         "USD-SOFR-3M",
         0.0,
         Some(bond.notional.amount()),
+        None,
     )
     .expect_err("matured schedule should fail");
     let msg = format!("{err}");

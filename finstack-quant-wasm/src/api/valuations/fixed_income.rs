@@ -8,7 +8,7 @@
 //!
 //! To price a typed instrument, pass its `toJson()` output to the generic
 //! pricing entry points (`valuations.instruments.priceInstrument`,
-//! `priceInstrumentWithMetrics`, `instrumentCashflowsJson`).
+//! `priceInstrument`, `instrumentCashflowsJson`).
 
 use crate::api::core::dates::{JsDayCount, JsTenor};
 use crate::api::core::money::JsMoney;

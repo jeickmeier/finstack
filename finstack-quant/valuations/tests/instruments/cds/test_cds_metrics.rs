@@ -769,6 +769,8 @@ fn test_cds_dv01_recalibrates_par_spread_hazard_curve() {
             &bumped_market,
             &BumpRequest::Parallel(0.0),
             Some(&discount_id),
+            None,
+            None,
         )
         .unwrap();
         cds.value_raw(&bumped_market.insert(recalibrated), as_of)

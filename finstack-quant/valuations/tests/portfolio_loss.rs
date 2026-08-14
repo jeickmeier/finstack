@@ -1,9 +1,8 @@
 //! Behavioral tests for portfolio credit-loss simulation.
 
 use finstack_quant_valuations::correlation::{
-    simulate_portfolio_loss, simulate_portfolio_loss_serial, simulate_portfolio_loss_with_recovery,
-    CopulaSpec, CreditExposure, PortfolioLossConfig, PortfolioLossResult, RecoverySpec,
-    MAX_PORTFOLIO_LOSS_PATHS,
+    simulate_portfolio_loss, simulate_portfolio_loss_with_recovery, CopulaSpec, CreditExposure,
+    PortfolioLossConfig, PortfolioLossResult, RecoverySpec, MAX_PORTFOLIO_LOSS_PATHS,
 };
 
 fn exposure(
@@ -60,7 +59,7 @@ fn one_name_probability_limits_are_exact_for_gaussian_and_student_t() {
 }
 
 #[test]
-fn path_indexed_streams_make_repeated_and_serial_parallel_results_identical() {
+fn path_indexed_streams_make_repeated_results_identical() {
     let exposures = vec![
         exposure("a", 100.0, 0.02, 0.6, vec![0.35, 0.10]),
         exposure("b", 80.0, 0.08, 0.5, vec![0.20, 0.25]),
@@ -70,10 +69,8 @@ fn path_indexed_streams_make_repeated_and_serial_parallel_results_identical() {
 
     let first = simulate_portfolio_loss(&exposures, &cfg).expect("parallel simulation");
     let second = simulate_portfolio_loss(&exposures, &cfg).expect("repeat simulation");
-    let serial = simulate_portfolio_loss_serial(&exposures, &cfg).expect("serial simulation");
 
     assert_eq!(first, second);
-    assert_eq!(first, serial);
 }
 
 #[test]

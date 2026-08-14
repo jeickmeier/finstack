@@ -883,7 +883,6 @@ public = [
     "list_standard_metrics_grouped",
     "pretty_instrument_json",
     "price_instrument",
-    "price_instrument_with_metrics",
     "structured_credit_tranche_breakeven_cdr",
     "structured_credit_tranche_discount_margin",
     "structured_credit_tranche_metrics",
@@ -2555,7 +2554,6 @@ dry_run = "dryRun"
 "instruments.list_standard_metrics" = "listStandardMetrics"
 "instruments.list_standard_metrics_grouped" = "listStandardMetricsGrouped"
 "instruments.price_instrument" = "priceInstrument"
-"instruments.price_instrument_with_metrics" = "priceInstrumentWithMetrics"
 # The OAS / metrics / scenario-table entries return typed values in BOTH
 # hosts: Python returns the OasResult / TrancheMetrics / ScenarioTable
 # wrapper classes; WASM returns plain objects with the same snake_case
@@ -2651,8 +2649,8 @@ instruments = [
     "listStandardMetricsGrouped",
     "priceInstrument",
     "priceInstrumentWithMarket",
-    "priceInstrumentWithMetrics",
-    "priceInstrumentWithMetricsAndMarket",
+    "priceInstrument",
+    "priceInstrumentWithMarket",
     "structuredCreditTrancheBreakevenCdr",
     "structuredCreditTrancheDiscountMargin",
     "structuredCreditTrancheMetrics",
@@ -2685,7 +2683,7 @@ fx = [
 instruments = [
     "instrumentCashflowsWithMarket",
     "priceInstrumentWithMarket",
-    "priceInstrumentWithMetricsAndMarket",
+    "priceInstrumentWithMarket",
 ]
 
 # Per-namespace Python-only symbols (no WASM twin) for the shared
@@ -2757,13 +2755,12 @@ instruments = [
 # [wasm_portfolio_subset.class_methods] precedent). WASM method names are
 # camelCase as emitted by wasm-bindgen.
 [wasm_valuations_subset.class_methods]
-FxForward = ["fromJson", "toJson", "id", "price", "priceWithMetrics"]
+FxForward = ["fromJson", "toJson", "id", "price"]
 FxOption = [
     "fromJson",
     "toJson",
     "id",
     "price",
-    "priceWithMetrics",
     "delta",
     "gamma",
     "vega",
@@ -2780,12 +2777,10 @@ FxOption = [
 "FxForward.to_json" = "FxForward.toJson"
 "FxForward.id" = "FxForward.id"
 "FxForward.price" = "FxForward.price"
-"FxForward.price_with_metrics" = "FxForward.priceWithMetrics"
 "FxOption.from_json" = "FxOption.fromJson"
 "FxOption.to_json" = "FxOption.toJson"
 "FxOption.id" = "FxOption.id"
 "FxOption.price" = "FxOption.price"
-"FxOption.price_with_metrics" = "FxOption.priceWithMetrics"
 "FxOption.delta" = "FxOption.delta"
 "FxOption.gamma" = "FxOption.gamma"
 "FxOption.vega" = "FxOption.vega"
@@ -2802,7 +2797,7 @@ FxOption = [
 #   (`__reduce__`), a host-runtime concern.
 # - WASM-only: the `new(spec)` constructor taking a bare JS spec object;
 #   Python builds through the typed builder or `from_json`.
-# - Return-shape divergence on `price`/`priceWithMetrics`: Python returns the
+# - Return-shape divergence on `price`: Python returns the
 #   typed `ValuationResult`; WASM returns the valuation JSON string (its
 #   class methods predate the typed-object migration of the free
 #   `priceInstrument*` functions). Tracked, not silently equivalent.

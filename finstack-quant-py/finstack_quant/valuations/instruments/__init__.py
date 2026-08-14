@@ -60,7 +60,6 @@ validate_typed_instrument_json = _valuations.instruments.validate_typed_instrume
 pretty_instrument_json = _valuations.instruments.pretty_instrument_json
 bond_from_cashflows_json = _valuations.instruments.bond_from_cashflows_json
 price_instrument = _valuations.instruments.price_instrument
-price_instrument_with_metrics = _valuations.instruments.price_instrument_with_metrics
 instrument_cashflows_json = _valuations.instruments.instrument_cashflows_json
 list_models = _valuations.instruments.list_models
 list_models_grouped = _valuations.instruments.list_models_grouped
@@ -125,7 +124,6 @@ __all__: list[str] = [
     "list_standard_metrics_grouped",
     "pretty_instrument_json",
     "price_instrument",
-    "price_instrument_with_metrics",
     "structured_credit_tranche_breakeven_cdr",
     "structured_credit_tranche_discount_margin",
     "structured_credit_tranche_metrics",

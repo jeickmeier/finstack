@@ -450,6 +450,8 @@ impl CDSIndexPricer {
                     curves,
                     &BumpRequest::Parallel(bp),
                     Some(discount_id),
+                    None,
+                    None,
                 )
                 .map_err(|e| finstack_quant_core::Error::Calibration {
                     message: format!(

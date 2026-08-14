@@ -9,7 +9,7 @@ import pytest
 from finstack_quant.valuations.instruments import (
     instrument_cashflows_json,
     price_instrument,
-    price_instrument_with_metrics,
+    price_instrument,
     validate_instrument_json,
 )
 
@@ -628,7 +628,7 @@ def test_python_pricing_routes_validate_instrument_before_other_inputs() -> None
 
     calls = [
         lambda: price_instrument(invalid, market, "not-a-date", "not-a-model"),
-        lambda: price_instrument_with_metrics(
+        lambda: price_instrument(
             invalid,
             market,
             "not-a-date",

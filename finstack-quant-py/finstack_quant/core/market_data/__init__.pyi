@@ -3532,7 +3532,7 @@ class MarketContext:
         Returns
         -------
         str
-            JSON string accepted by ``price_instrument`` / ``price_instrument_with_metrics``.
+            JSON string accepted by ``price_instrument``.
 
         Raises
         ------
