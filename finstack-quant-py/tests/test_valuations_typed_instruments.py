@@ -176,8 +176,8 @@ class TestBondTyped:
         reparsed = json.loads(ValuationResult.from_json(wire).to_json())
         assert reparsed == _approx_payload(json.loads(wire))
 
-    def test_price_instrument_returns_typed_result(self) -> None:
-        """``price_instrument`` hands back a ``ValuationResult``."""
+    def test_price_instrument_returns_typed_result_with_metrics(self) -> None:
+        """``price_instrument`` hands back a ``ValuationResult`` with requested metrics."""
         result = price_instrument(_fixed_bond(), _market_json(), "2024-06-30", "discounting", ["ytm", "dv01"])
 
         assert isinstance(result, ValuationResult)

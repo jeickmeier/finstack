@@ -22,7 +22,7 @@ serde = { workspace = true }
 serde_json = { workspace = true, features = ["raw_value"] }
 schemars = { workspace = true }
 indexmap = { workspace = true, features = ["serde"] }
-tracing = "0.1"
+tracing = { version = "0.1", default-features = false }
 time = { workspace = true, features = ["macros", "serde", "parsing", "formatting"] }
 rayon = "1.11"
 good_lp = { version = "1.15", default-features = false, features = ["microlp"] }

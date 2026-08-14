@@ -78,7 +78,7 @@ arrow = { version = "57", default-features = false, features = ["ipc"] }
 # Standard development profile (cargo-llvm-cov will override these for coverage runs)
 incremental = true
 opt-level = 0
-debug = 2
+debug = 1
 
 [profile.test]
 # Standard test profile

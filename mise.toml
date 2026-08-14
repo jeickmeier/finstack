@@ -234,6 +234,10 @@ run = "uv run --no-sync python scripts/cargo_publish_checks.py"
 description = "Update Rust dependencies"
 run = "cargo update"
 
+[tasks.rust-clean-incremental]
+description = "Delete Cargo incremental caches without a full cargo clean"
+run = "python3 scripts/clean_workspace.py --incremental"
+
 # ─────────────────────────────────────────────────────────────────
 # Python
 # ─────────────────────────────────────────────────────────────────
@@ -416,6 +420,10 @@ run = "uv run python finstack-quant-py/examples/notebooks/run_all_notebooks.py"
 # ─────────────────────────────────────────────────────────────────
 # WASM
 # ─────────────────────────────────────────────────────────────────
+
+[tasks.wasm-clean]
+description = "Remove wasm-pack output and wasm32 target artifacts"
+run = "python3 scripts/clean_workspace.py --wasm"
 
 [tasks.wasm-build]
 description = "Build WASM package (web target)"

@@ -18,7 +18,7 @@ sha2 = { workspace = true }
 strum = { workspace = true }
 strum_macros = { workspace = true }
 thiserror = { workspace = true }
-time = { workspace = true, features = ["macros", "formatting", "parsing", "serde", "serde-human-readable", "wasm-bindgen"] }
+time = { workspace = true, features = ["macros", "formatting", "parsing", "serde", "serde-human-readable"] }
 smallvec = { version = "1.15", default-features = false }
 phf = { version = "0.13", features = ["macros"], default-features = false }
 rustc-hash = { workspace = true }
@@ -38,13 +38,16 @@ rust_decimal = { workspace = true }
 # for `valuations/schemas/` regeneration).
 schemars = { workspace = true }
 statrs = { version = "0.18", default-features = false }
-nalgebra = { version = "0.34", features = ["serde-serialize"] }
+nalgebra = { version = "0.34", default-features = false, features = ["std", "serde-serialize"] }
 num-complex = "0.4"
 # Production-grade random number generation
 rand = { version = "0.9.3", default-features = false, features = ["std"] }
 rand_pcg = { version = "0.9", features = ["serde"] }
 tracing = { version = "0.1", default-features = false }
 ts-rs = { version = "12", optional = true, features = ["serde-compat", "no-serde-warnings"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+time = { workspace = true, features = ["wasm-bindgen"] }
 
 [features]
 default = []

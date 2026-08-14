@@ -683,7 +683,7 @@ pub fn results_meta(cfg: &FinstackConfig) -> ResultsMeta {
 /// * `cfg` - Library configuration used to derive the result's rounding
 ///   snapshot before the current UTC timestamp is added.
 pub fn results_meta_now(cfg: &FinstackConfig) -> ResultsMeta {
-    // With `wasm-bindgen` feature enabled in `time` crate, `now_utc()` works on WASM too.
+    // On wasm32, core enables time's `wasm-bindgen` feature so `now_utc()` works.
     results_meta_with_timestamp(cfg, Some(time::OffsetDateTime::now_utc()))
 }
 

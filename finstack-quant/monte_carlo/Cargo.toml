@@ -16,7 +16,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { version = "0.1", default-features = false, features = ["attributes"] }
 rayon = "1.11"
-nalgebra = { version = "0.34" }
+nalgebra = { version = "0.34", default-features = false, features = ["std"] }
 
 [features]
 default = []
