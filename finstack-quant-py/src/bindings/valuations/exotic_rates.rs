@@ -254,8 +254,6 @@ fn callable_range_accrual_accrued(
     .map_err(display_to_py)
 }
 
-// Module registration
-
 /// Register exotic rate helpers on the valuations submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(tarn_coupon_profile, m)?)?;

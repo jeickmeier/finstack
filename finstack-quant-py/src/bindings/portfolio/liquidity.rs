@@ -299,8 +299,6 @@ fn kyle_lambda(
     py.detach(move || KyleLambdaModel::lambda_from_series(&volumes, &returns, reference_price))
 }
 
-// Registration
-
 /// Register liquidity-risk functions on the portfolio submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(roll_effective_spread, m)?)?;

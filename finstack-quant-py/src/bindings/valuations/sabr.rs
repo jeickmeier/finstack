@@ -469,8 +469,6 @@ fn check_smile_lengths(strikes: &[f64], market_vols: &[f64]) -> PyResult<()> {
     Ok(())
 }
 
-// Registration
-
 /// Register the SABR classes on the valuations submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PySabrParameters>()?;

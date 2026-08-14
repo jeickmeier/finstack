@@ -209,8 +209,6 @@ fn ead_revolver(drawn: f64, undrawn: f64, ccf: f64) -> PyResult<f64> {
     lgd::ead_revolver(drawn, undrawn, ccf).map_err(core_to_py)
 }
 
-// Register
-
 /// Build the `finstack_quant.core.credit.lgd` submodule.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let m = PyModule::new(py, "lgd")?;

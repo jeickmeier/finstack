@@ -965,8 +965,6 @@ impl PyFactorCovarianceForecast {
     }
 }
 
-// Module registration
-
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCreditFactorModel>()?;
     m.add_class::<PyCreditCalibrator>()?;

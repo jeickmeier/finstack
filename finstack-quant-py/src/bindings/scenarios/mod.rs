@@ -362,8 +362,6 @@ fn build_template_component(template_id: &str, component_id: &str) -> PyResult<S
     to_json(&spec, "Failed to serialize component spec")
 }
 
-// Module registration
-
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let m = PyModule::new(py, "scenarios")?;
     m.setattr(

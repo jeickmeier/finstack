@@ -35,10 +35,8 @@ impl MetricCalculator for FxDeltaCalculator {
         let curves = std::sync::Arc::clone(&context.curves);
         let as_of = context.as_of;
 
-        // Use shared pricing context for consistent calculations
         let ctx = FxSwapPricingContext::build(fx_swap, &curves, as_of)?;
 
-        // Helper to calculate PV for a given spot rate
         let calculate_pv = |spot: f64| -> Result<f64> {
             // Recompute near/far rates with bumped spot when not fixed
             let near_rate = fx_swap.near_rate.unwrap_or(spot);

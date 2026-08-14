@@ -827,8 +827,6 @@ impl PyDatedSeries {
     }
 }
 
-// Registration
-
 pub fn register(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPeriodStats>()?;
     m.add_class::<PyBetaResult>()?;

@@ -689,8 +689,6 @@ impl PyPortfolioCashflows {
     }
 }
 
-// Registration
-
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPortfolio>()?;
     m.add_class::<PyPortfolioValuation>()?;

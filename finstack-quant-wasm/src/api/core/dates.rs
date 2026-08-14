@@ -8,8 +8,6 @@ use finstack_quant_core::dates::{
 };
 use wasm_bindgen::prelude::*;
 
-// JsDayCountContext
-
 /// Optional context for day-count conventions that need market metadata.
 #[wasm_bindgen(js_name = DayCountContext)]
 #[derive(Clone, Default)]
@@ -120,8 +118,6 @@ impl JsDayCountContext {
         next
     }
 }
-
-// JsDayCount
 
 /// Day-count convention for computing year fractions and day counts.
 ///
@@ -351,8 +347,6 @@ impl JsDayCount {
     }
 }
 
-// JsTenor
-
 /// A financial tenor such as `3M`, `1Y`, or `2W`.
 ///
 /// Tenors carry a numeric count and a unit (days, weeks, months, years).
@@ -458,8 +452,6 @@ impl JsTenor {
         self.inner.to_string()
     }
 }
-
-// Free functions
 
 /// Create a date and return it as epoch days (days since 1970-01-01).
 /// @param year - Four-digit calendar year component of the supplied date.

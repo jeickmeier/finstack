@@ -231,8 +231,6 @@ pub fn run_monte_carlo(model_json: &str, config_json: &str) -> Result<JsValue, J
     crate::utils::to_js_value(&results)
 }
 
-// DSL
-
 /// Parse a DSL formula and return a human-readable rendering of its AST.
 ///
 /// Useful for previewing expression structure in UI tooling before

@@ -817,7 +817,6 @@ fn add_rent_roll_impl(
                 (None, None, 1.0, 0)
             };
 
-        // Helper to compute contractual rent for an idx within a phase using rent steps.
         let mut step_points: Vec<(usize, f64)> = Vec::new();
         step_points.push((start_idx, lease.base_rent));
         for s in &lease.rent_steps {

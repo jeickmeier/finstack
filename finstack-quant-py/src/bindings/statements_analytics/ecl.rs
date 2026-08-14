@@ -394,8 +394,6 @@ fn compute_ecl_weighted(
         .map_err(display_to_py)
 }
 
-// Registration
-
 /// Register ECL types and functions on the `statements_analytics` submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyExposure>()?;

@@ -1256,7 +1256,6 @@ impl InflationLinkedBond {
         // This assumes the "Duration" metric refers to the duration of the real bond component.
         let flows = self.build_real_schedule(as_of)?;
 
-        // Helper to compute price from yield, propagating errors
         let price_from_yield = |y: f64| -> Result<f64> {
             let price = price_from_ytm_compounded_params(
                 self.day_count,

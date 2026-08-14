@@ -664,8 +664,6 @@ fn decompose_factor_risk(
     })
 }
 
-// Module registration
-
 /// Register factor-model functions on the valuations submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PySensitivityMatrix>()?;

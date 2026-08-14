@@ -305,8 +305,6 @@ fn bond_from_cashflows_json(
     })
 }
 
-// Module registration
-
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let m = PyModule::new(py, "valuations")?;
     let qual = crate::bindings::module_utils::set_submodule_package(

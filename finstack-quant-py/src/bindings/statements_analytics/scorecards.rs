@@ -505,8 +505,6 @@ fn validate_scorecard_config(config: &PyScorecardConfig) -> PyResult<()> {
     rust_scorecards::CreditScorecardExtension::validate_config(&config.inner).map_err(display_to_py)
 }
 
-// Registration
-
 /// Register scorecard types and functions on the parent module.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyScorecardMetric>()?;

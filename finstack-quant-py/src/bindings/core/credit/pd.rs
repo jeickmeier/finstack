@@ -303,8 +303,6 @@ impl PyMasterScale {
     }
 }
 
-// Register
-
 /// Build the `finstack_quant.core.credit.pd` submodule.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let m = PyModule::new(py, "pd")?;

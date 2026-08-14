@@ -480,8 +480,6 @@ fn quanto_option_wrapper(
     .map_err(crate::errors::core_to_py)
 }
 
-// Registration
-
 /// Register the analytic option primitives on the valuations submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bs_price_wrapper, m)?)?;

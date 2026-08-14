@@ -270,8 +270,6 @@ impl PyFxMatrix {
     }
 }
 
-// Module registration
-
 pub(super) const EXPORTS: &[&str] = &["FxConversionPolicy", "FxMatrix", "FxRateResult"];
 
 /// Register the `finstack_quant.core.market_data.fx` submodule.

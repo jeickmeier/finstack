@@ -1367,8 +1367,6 @@ fn simulate_portfolio_loss(
     .map_err(display_to_py)
 }
 
-// Module-level functions
-
 /// Fréchet-Hoeffding correlation bounds for two Bernoulli marginals.
 ///
 /// Returns ``(rho_min, rho_max)`` — the feasible correlation range.
@@ -1474,8 +1472,6 @@ fn cholesky_decompose(py: Python<'_>, matrix: Vec<f64>, n: usize) -> PyResult<Ve
     py.detach(|| corr::cholesky_decompose(&matrix, n).map(|f| f.factor_matrix().to_vec()))
         .map_err(display_to_py)
 }
-
-// Module registration
 
 /// Register the `correlation` submodule on the parent module.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {

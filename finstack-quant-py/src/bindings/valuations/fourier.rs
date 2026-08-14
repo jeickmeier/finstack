@@ -221,8 +221,6 @@ fn merton_jump_cos_price(
     })
 }
 
-// Module registration
-
 /// Register Fourier pricing functions on the valuations submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(bs_cos_price, m)?)?;

@@ -1002,7 +1002,6 @@ mod tests {
             Some(&pac_context),
         );
 
-        // Helper to extract (scheduled, prepayment) for a given tranche ID.
         let find = |res: &CmoWaterfallPeriodResult, id: &str| {
             res.allocations
                 .iter()

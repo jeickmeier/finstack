@@ -217,8 +217,6 @@ fn score_relative_value<'py>(
     serde_to_py(py, &result)
 }
 
-// Registration
-
 /// Register comps bindings on the analytics submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(percentile_rank, m)?)?;

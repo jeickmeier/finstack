@@ -37,8 +37,6 @@ fn parse_extrapolation(s: &str) -> Result<ExtrapolationPolicy, JsValue> {
     s.parse::<ExtrapolationPolicy>().map_err(to_js_err)
 }
 
-// JsDiscountCurve
-
 /// Discount factor curve for present-value calculations.
 ///
 /// Built from `(time, discount_factor)` pillars where `time` is a year
@@ -202,8 +200,6 @@ impl JsDiscountCurve {
     }
 }
 
-// JsHazardCurve
-
 /// Credit hazard-rate curve for default-probability modelling.
 ///
 /// Built from `(time, hazard_rate)` pillars where `time` is a year fraction
@@ -308,8 +304,6 @@ impl JsHazardCurve {
         self.inner.recovery_rate()
     }
 }
-
-// JsForwardCurve
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -490,8 +484,6 @@ impl JsForwardCurve {
     }
 }
 
-// JsFxConversionPolicy / JsFxRateResult
-
 /// Typed FX conversion policy wrapper for WASM callers.
 #[wasm_bindgen(js_name = FxConversionPolicy)]
 #[derive(Clone, Copy, Debug)]
@@ -575,8 +567,6 @@ impl JsFxRateResult {
         self.inner.triangulated
     }
 }
-
-// JsFxMatrix
 
 /// Foreign-exchange rate matrix for currency conversion.
 #[wasm_bindgen(js_name = FxMatrix)]
@@ -710,8 +700,6 @@ impl JsFxMatrix {
             .map_err(to_js_err)
     }
 }
-
-// JsVolCube
 
 /// SABR volatility cube for swaption pricing.
 ///
@@ -876,8 +864,6 @@ impl JsVolCube {
         self.inner.id().as_str().to_string()
     }
 }
-
-// JsFxDeltaVolSurface
 
 /// FX vol surface quoted in **delta space** (ATM, 25-delta RR/BF, optional
 /// 10-delta wings).

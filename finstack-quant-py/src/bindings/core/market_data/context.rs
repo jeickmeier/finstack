@@ -332,8 +332,6 @@ impl PyMarketContext {
     }
 }
 
-// Module registration
-
 pub(super) const EXPORTS: &[&str] = &["MarketContext"];
 
 /// Register the `finstack_quant.core.market_data.context` submodule.

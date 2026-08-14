@@ -9,8 +9,6 @@ use crate::utils::to_js_err;
 use finstack_quant_valuations::correlation::{self as corr, Copula, CopulaSpec, RecoveryModel};
 use wasm_bindgen::prelude::*;
 
-// CopulaSpec
-
 /// Copula model specification for configuration and deferred construction.
 #[wasm_bindgen(js_name = CopulaSpec)]
 pub struct JsCopulaSpec {
@@ -189,8 +187,6 @@ impl JsCopula {
     }
 }
 
-// RecoverySpec
-
 /// Recovery model specification for configuration and deferred construction.
 #[wasm_bindgen(js_name = RecoverySpec)]
 pub struct JsRecoverySpec {
@@ -320,8 +316,6 @@ impl JsRecoveryModel {
         self.inner.model_name().to_string()
     }
 }
-
-// Module-level functions
 
 /// Fréchet-Hoeffding correlation bounds for two Bernoulli marginals.
 ///

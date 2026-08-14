@@ -252,8 +252,6 @@ fn zmijewski_score(
     Ok((r.score, zone_to_str(r.zone).to_string(), r.implied_pd))
 }
 
-// Register
-
 /// Build the `finstack_quant.core.credit.scoring` submodule.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let m = PyModule::new(py, "scoring")?;

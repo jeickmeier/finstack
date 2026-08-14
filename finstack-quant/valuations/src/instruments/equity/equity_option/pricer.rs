@@ -534,7 +534,6 @@ pub(crate) fn compute_greeks(
                 option_type: inst.option_type,
             };
 
-            // Helper to price
             let price_fn = |p: &OptionMarketParams| -> Result<f64> { tree.price_american(p) };
 
             let scale = inst.notional.amount();

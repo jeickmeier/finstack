@@ -325,8 +325,6 @@ impl PyCalibrationResult {
     }
 }
 
-// Free functions
-
 /// Validate a calibration plan JSON and return the canonical (pretty-printed) form.
 ///
 /// Parameters
@@ -421,8 +419,6 @@ fn calibrate(py: Python<'_>, json: &str) -> PyResult<PyCalibrationResult> {
         .map_err(|e| execute_error_to_py(py, *e))?;
     Ok(PyCalibrationResult::new(result))
 }
-
-// Module registration
 
 /// Register calibration functions and types on the valuations submodule.
 pub fn register(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

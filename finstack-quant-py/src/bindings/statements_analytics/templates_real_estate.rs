@@ -1311,8 +1311,6 @@ fn add_property_operating_statement(
     finalize_json(builder, meta, capital_structure)
 }
 
-// Registration
-
 /// Register real-estate template types and functions on the parent module.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PySimpleLeaseSpec>()?;

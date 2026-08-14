@@ -11,8 +11,6 @@ use finstack_quant_valuations::models::volatility::sabr::{
 };
 use wasm_bindgen::prelude::*;
 
-// SabrParameters
-
 /// SABR model parameters `(alpha, beta, nu, rho)` with optional `shift`.
 #[wasm_bindgen(js_name = SabrParameters)]
 pub struct JsSabrParameters {
@@ -110,8 +108,6 @@ impl JsSabrParameters {
     }
 }
 
-// SabrModel
-
 /// Hagan-2002 SABR volatility model.
 #[wasm_bindgen(js_name = SabrModel)]
 pub struct JsSabrModel {
@@ -160,8 +156,6 @@ impl JsSabrModel {
         self.inner.supports_negative_rates()
     }
 }
-
-// SabrSmile
 
 /// Volatility smile generator for a fixed `(forward, t)` pair.
 #[wasm_bindgen(js_name = SabrSmile)]
@@ -290,8 +284,6 @@ impl JsSabrSmile {
         to_js_value(&out)
     }
 }
-
-// SabrCalibrator
 
 /// SABR calibrator (Levenberg-Marquardt with beta fixed).
 #[wasm_bindgen(js_name = SabrCalibrator)]

@@ -132,8 +132,6 @@ impl<'a> TsiveriotisZhangEngine<'a> {
         // State tracking: (Total Value, Cash Component)
         let mut values: Vec<(f64, f64)> = Vec::with_capacity(2 * self.steps + 1);
 
-        // Helper to get spot at (step, node).
-        //
         // Trinomial node spot: for a recombining trinomial the recombination
         // identity is `up·down = middle²`, so the spot at `net` net up-moves
         // after `step` total moves depends only on `net` and equals

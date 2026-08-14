@@ -4,8 +4,6 @@ use finstack_quant_core::math::linalg;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
 
-// Custom exception
-
 pyo3::create_exception!(
     finstack_quant.core.math.linalg,
     CholeskyError,
@@ -41,8 +39,6 @@ fn flatten_matrix(rows: Vec<Vec<f64>>) -> PyResult<(Vec<f64>, usize)> {
 fn unflatten_matrix(flat: Vec<f64>, n: usize) -> Vec<Vec<f64>> {
     flat.chunks(n).map(|c| c.to_vec()).collect()
 }
-
-// Module-level functions
 
 /// Compute the Cholesky decomposition L of a symmetric positive-definite matrix
 /// such that A = L L^T.
@@ -115,8 +111,6 @@ fn validate_correlation_matrix(py: Python<'_>, matrix: Vec<Vec<f64>>) -> PyResul
     py.detach(|| linalg::validate_correlation_matrix(&flat, n))
         .map_err(|e| CholeskyError::new_err(e.to_string()))
 }
-
-// Register
 
 /// Build the `finstack_quant.core.math.linalg` submodule.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {

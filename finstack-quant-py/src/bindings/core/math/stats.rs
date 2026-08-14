@@ -4,8 +4,6 @@ use finstack_quant_core::math::stats;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
 
-// Module-level functions
-
 /// Arithmetic mean of a data series.
 ///
 /// Returns ``0.0`` for an empty list.
@@ -59,8 +57,6 @@ fn covariance(x: Vec<f64>, y: Vec<f64>) -> f64 {
 fn quantile(mut data: Vec<f64>, q: f64) -> f64 {
     stats::quantile(&mut data, q)
 }
-
-// Register
 
 /// Build the `finstack_quant.core.math.stats` submodule.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {

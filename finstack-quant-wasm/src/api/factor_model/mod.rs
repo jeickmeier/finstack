@@ -94,8 +94,6 @@ fn ensure_period_finite(
     Ok(())
 }
 
-// CreditFactorModel
-
 /// Calibrated credit factor hierarchy artifact.
 ///
 /// Produced by [`JsCreditCalibrator`] or loaded from JSON via
@@ -141,8 +139,6 @@ impl JsCreditFactorModel {
         self.inner.schema.as_str().to_owned()
     }
 }
-
-// CreditCalibrator
 
 /// Deterministic calibrator that produces a [`JsCreditFactorModel`].
 ///
@@ -315,8 +311,6 @@ pub fn decompose_period(
     .map_err(to_js_err)?;
     Ok(JsPeriodDecomposition { inner })
 }
-
-// FactorCovarianceForecast
 
 /// Vol-forecast view over a calibrated `CreditFactorModel`.
 ///

@@ -20,8 +20,6 @@ pub use surfaces::{PyFxDeltaVolSurface, PyVolCube, PyVolSurface, PyVolatilityInd
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 
-// Module registration
-
 pub(super) const EXPORTS: &[&str] = &[
     "BaseCorrelationCurve",
     "CreditIndexData",

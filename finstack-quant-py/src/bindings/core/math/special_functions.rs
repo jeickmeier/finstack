@@ -6,8 +6,6 @@ use pyo3::types::{PyList, PyModule};
 
 use crate::errors::core_to_py;
 
-// Module-level functions
-
 /// Standard normal cumulative distribution function Φ(x).
 ///
 /// Returns the probability P(Z ≤ x) where Z ~ N(0, 1).
@@ -68,8 +66,6 @@ fn student_t_cdf(x: f64, df: f64) -> PyResult<f64> {
 fn student_t_inv_cdf(p: f64, df: f64) -> PyResult<f64> {
     special_functions::student_t_inv_cdf(p, df).map_err(core_to_py)
 }
-
-// Register
 
 /// Build the `finstack_quant.core.math.special_functions` submodule.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {

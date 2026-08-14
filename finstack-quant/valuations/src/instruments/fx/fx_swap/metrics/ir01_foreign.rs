@@ -41,7 +41,6 @@ impl MetricCalculator for ForeignIR01 {
             finstack_quant_core::dates::DayCountContext::default(),
         )?;
 
-        // Helper to calculate PV with bumped foreign DFs
         let calculate_pv = |bump: f64| -> Result<f64> {
             // Apply parallel bump: df_bumped = df * exp(-bump * t)
             let df_for_near_b = ctx.df_for_near * (-bump * t_near).exp();

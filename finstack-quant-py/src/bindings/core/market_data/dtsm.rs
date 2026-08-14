@@ -294,8 +294,6 @@ fn nelson_siegel_yields(lambda_: f64, factors: [f64; 3], tenors: Vec<f64>) -> Py
         .map_err(core_to_py)
 }
 
-// Register
-
 /// Build the `finstack_quant.core.market_data.dtsm` submodule.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let m = PyModule::new(py, "dtsm")?;

@@ -48,7 +48,6 @@ impl ReinvestmentManager {
     ) -> Vec<PoolAsset> {
         let mut remaining_cash = available_cash;
 
-        // Helper to calculate price pct safely
         let get_price_pct = |asset: &PoolAsset| -> f64 {
             if let Some(price) = asset.purchase_price {
                 if asset.balance.amount() > 0.0 {

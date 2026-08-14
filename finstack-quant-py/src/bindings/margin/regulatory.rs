@@ -785,8 +785,6 @@ impl PySaCcrEngine {
     }
 }
 
-// Module-level functions
-
 fn frtb_result_to_py(
     py: Python<'_>,
     result: &finstack_quant_margin::regulatory::frtb::FrtbSbaResult,
