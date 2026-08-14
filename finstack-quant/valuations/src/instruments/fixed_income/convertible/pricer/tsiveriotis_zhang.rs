@@ -49,7 +49,6 @@ impl<'a> TsiveriotisZhangEngine<'a> {
         initial_vars: HashMap<&'static str, f64>,
         tree_type: ConvertibleTreeType,
     ) -> Result<(f64, f64)> {
-        // Extract parameters
         let spot = *initial_vars
             .get("spot")
             .ok_or(Error::Input(InputError::NotFound {

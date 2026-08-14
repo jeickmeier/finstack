@@ -300,7 +300,6 @@ impl BaseCorrelationTarget {
     }
 
     fn prepare_quotes(&self, quotes: Vec<CDSTrancheQuote>) -> Result<Vec<CalibrationQuote>> {
-        // Validate params
         if !self.params.detachment_points.is_empty() {
             validate_detachment_points(&self.params.detachment_points)?;
         }
@@ -317,7 +316,6 @@ impl BaseCorrelationTarget {
         for q in quotes {
             let fields = TrancheQuoteFields::extract(&q);
 
-            // Validate quote
             validate_quote_index(fields.index, &self.params.index_id)?;
             ConventionRegistry::try_global()?.require_cds(fields.convention)?;
 
@@ -330,7 +328,6 @@ impl BaseCorrelationTarget {
                 maturity_tol_days,
             )?;
 
-            // Build calibration quote
             let calib_quote =
                 self.build_calibration_quote(&q, &build_ctx, &overrides, time_day_count)?;
             seen_detachments.push(detachment_pct);

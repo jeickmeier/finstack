@@ -877,7 +877,6 @@ pub fn calculate_pool_stats(pool: &AssetPool, as_of: Date) -> PoolStats {
         }
     }
 
-    // Calculate default rate
     let total_balance = pool.total_balance().map(|b| b.amount()).unwrap_or(0.0);
     let defaulted_balance: f64 = pool
         .assets

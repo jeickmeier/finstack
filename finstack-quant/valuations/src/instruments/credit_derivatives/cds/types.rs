@@ -824,7 +824,6 @@ impl CreditDefaultSwap {
             attributes: Attributes::new(),
         };
 
-        // Validate all parameters including recovery rate
         cds.validate()?;
         Ok(cds)
     }

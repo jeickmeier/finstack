@@ -302,10 +302,8 @@ impl GlobalFitOptimizer {
         let (solved_params, stats, eval_counter_val, eval_diagnostics_val, final_n_clamped) =
             best_result;
 
-        // Build final curve
         let final_curve = target.build_curve_final_from_params(&times, &solved_params)?;
 
-        // Build report
         let mut residuals_map = BTreeMap::new();
         let mut resid_values = vec![0.0; n_residuals];
         target.calculate_residuals(&final_curve, &active_quotes, &mut resid_values)?;

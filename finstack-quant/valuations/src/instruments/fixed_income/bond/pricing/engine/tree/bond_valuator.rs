@@ -301,7 +301,6 @@ impl BondValuator {
         let full_schedule = bond.full_cashflow_schedule(market_context)?;
         let mut outstanding_principal_vec = vec![bond.notional.amount(); num_steps];
 
-        // Collect amortization events sorted by date
         let mut amort_events: Vec<(Date, f64)> = full_schedule
             .get_flows()
             .iter()

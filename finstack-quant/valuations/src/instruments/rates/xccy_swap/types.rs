@@ -491,7 +491,6 @@ impl XccySwap {
                 actual: leg.notional.currency(),
             });
         }
-        // Validate notional is finite and positive
         if !leg.notional.amount().is_finite() {
             return Err(finstack_quant_core::Error::Validation(
                 "XccySwap leg notional must be finite".to_string(),

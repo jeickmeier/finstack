@@ -607,7 +607,6 @@ impl crate::instruments::common_impl::traits::Instrument for FxForward {
     ) -> finstack_quant_core::Result<finstack_quant_core::money::Money> {
         use finstack_quant_core::money::fx::FxQuery;
 
-        // Validate instrument parameters upfront
         self.validate()?;
 
         // If maturity has passed or is today, the forward is settled with zero remaining value.
@@ -618,7 +617,6 @@ impl crate::instruments::common_impl::traits::Instrument for FxForward {
             ));
         }
 
-        // Get discount curves
         let domestic_disc = market.get_discount(self.domestic_discount_curve_id.as_str())?;
         let foreign_disc = market.get_discount(self.foreign_discount_curve_id.as_str())?;
 
@@ -626,7 +624,6 @@ impl crate::instruments::common_impl::traits::Instrument for FxForward {
         let df_domestic = domestic_disc.df_between_dates(as_of, self.maturity)?;
         let df_foreign = foreign_disc.df_between_dates(as_of, self.maturity)?;
 
-        // Resolve spot rate
         let spot = if let Some(rate) = self.spot_rate_override {
             rate
         } else if let Some(fx) = market.fx() {

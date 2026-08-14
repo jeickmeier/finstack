@@ -504,7 +504,6 @@ impl EquityOption {
             return Ok(0.0);
         }
 
-        // Collect inputs except vol
         let (spot, r, q, _sigma, _t) = {
             use crate::instruments::equity::equity_option::pricer;
             let (spot, r, q, sigma, t) = pricer::collect_inputs(self, curves, as_of)?;

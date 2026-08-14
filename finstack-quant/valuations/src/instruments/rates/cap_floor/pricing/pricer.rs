@@ -220,7 +220,6 @@ impl Pricer for SimpleCapFloorBlackPricer {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
         })?;
 
-        // Return stamped result
         Ok(ValuationResult::stamped(cap_floor.id(), as_of, pv))
     }
 }

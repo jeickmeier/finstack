@@ -276,7 +276,6 @@ pub fn price_bermudan_lmm(
         let step = exercise_step_indices[ex_idx];
         let t_exercise = time_grid.time(step);
 
-        // Compute exercise value at each path
         let mut exercise_values = Vec::with_capacity(total_paths);
         let mut basis_inputs = Vec::with_capacity(total_paths);
 

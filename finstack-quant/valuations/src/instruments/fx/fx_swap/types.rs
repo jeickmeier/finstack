@@ -337,7 +337,6 @@ impl crate::instruments::common_impl::traits::Instrument for FxSwap {
 
         self.validate()?;
 
-        // Validate date ordering
         if self.near_date > self.far_date {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "FxSwap near_date ({}) must be <= far_date ({})",
@@ -365,7 +364,6 @@ impl crate::instruments::common_impl::traits::Instrument for FxSwap {
         // Build pricing context (handles rate validation and CIP forward calculation)
         let ctx = FxSwapPricingContext::build(self, curves, as_of)?;
 
-        // Calculate total PV using the helper
         let total_pv = ctx.total_pv();
         Ok(finstack_quant_core::money::Money::new(
             total_pv,

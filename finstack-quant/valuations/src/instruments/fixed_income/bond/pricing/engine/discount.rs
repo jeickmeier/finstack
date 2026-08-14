@@ -135,7 +135,6 @@ impl BondEngine {
         }
         let ccy = flows[0].1.currency();
 
-        // Initialize explanation trace if requested
         let mut trace = if explain.enabled {
             Some(ExplanationTrace::new("pricing"))
         } else {
@@ -159,7 +158,6 @@ impl BondEngine {
             let pv_cf = *amt * df;
             pv_values.push(pv_cf.amount());
 
-            // Add trace entry if explanation is enabled
             if let Some(ref mut t) = trace {
                 t.push(
                     TraceEntry::CashflowPV {

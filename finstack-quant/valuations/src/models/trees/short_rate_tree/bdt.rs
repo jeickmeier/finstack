@@ -62,7 +62,6 @@ impl ShortRateTree {
         let mut clamp_engaged = false;
         let mut clamp_engaged_step = 0_usize;
 
-        // Initialize first step with initial short rate
         let r0 = if self.time_steps[1] > 0.0 {
             // Use initial forward rate from discount curve
             -discount_curve.df(self.time_steps[1]).ln() / self.time_steps[1]
@@ -293,7 +292,6 @@ impl ShortRateTree {
             )));
         }
 
-        // Store calibration result for user inspection
         self.calibration_quality = Some(TreeCalibrationResult {
             max_error_bp,
             max_error_step,

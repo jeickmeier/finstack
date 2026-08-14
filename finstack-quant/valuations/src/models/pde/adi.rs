@@ -610,7 +610,6 @@ pub fn fill_boundaries(
     let x_pts = grid.x().points();
     let y_pts = grid.y().points();
 
-    // Copy interior into full grid
     for ii in 0..nx_int {
         for jj in 0..ny_int {
             u_full[(ii + 1) * ny + (jj + 1)] = u_int[ii * ny_int + jj];

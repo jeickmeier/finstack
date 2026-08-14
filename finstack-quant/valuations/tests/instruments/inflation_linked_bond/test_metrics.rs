@@ -328,10 +328,6 @@ fn test_metrics_index_ratio_consistency() {
     );
 }
 
-// Note: Test removed - bonds don't exist after maturity, so testing metrics after maturity
-// doesn't make practical sense. Once a bond has matured, all cashflows have been paid
-// and there are no future cashflows to have sensitivity to.
-
 #[test]
 fn test_price_with_metrics_uk_gilt() {
     // Arrange

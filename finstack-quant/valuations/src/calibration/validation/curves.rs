@@ -407,7 +407,6 @@ impl CurveValidator for HazardCurve {
             }
         }
 
-        // Validate recovery rate
         let recovery = self.recovery_rate();
         if !(0.0..=1.0).contains(&recovery) {
             return Err(Error::Validation(format!(
@@ -529,7 +528,6 @@ impl CurveValidator for BaseCorrelationCurve {
             )));
         }
 
-        // Check monotonicity
         for i in 1..correlations.len() {
             if correlations[i] < correlations[i - 1] - config.tolerance {
                 return Err(Error::Validation(format!(

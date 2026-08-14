@@ -1121,7 +1121,6 @@ pub fn collect_black_scholes_inputs_df(
     curves: &MarketContext,
     as_of: Date,
 ) -> finstack_quant_core::Result<BlackScholesInputsDf> {
-    // Get discount curve
     let disc_curve = curves.get_discount(discount_curve_id.as_str())?;
 
     // Time to expiry for vol surface lookup (using instrument's day count, which should
@@ -1132,7 +1131,6 @@ pub fn collect_black_scholes_inputs_df(
     // This is the source of truth for discounting.
     let df = disc_curve.df_between_dates(as_of, expiry)?;
 
-    // Validate DF is usable
     if !df.is_finite() || df <= 0.0 {
         return Err(finstack_quant_core::Error::Validation(format!(
             "Invalid discount factor ({:.6e}) between {} and {}",

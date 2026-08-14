@@ -488,7 +488,6 @@ impl SequentialBootstrapper {
         // Optimization: reuse buffer to avoid allocation in hot loop
         let reuse_buffer = std::cell::RefCell::new(Vec::with_capacity(knots.len() + 1));
 
-        // Define objective function
         let objective = |value: f64| -> f64 {
             let eval_idx = eval_counter.fetch_add(1, Ordering::Relaxed) + 1;
 
@@ -523,7 +522,6 @@ impl SequentialBootstrapper {
             }
         };
 
-        // Build scan grid
         let scan_points = {
             let points = target.scan_points(quote, initial_guess)?;
             if points.is_empty() {

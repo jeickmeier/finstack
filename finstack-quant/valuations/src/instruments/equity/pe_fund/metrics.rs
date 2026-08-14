@@ -50,7 +50,6 @@ impl MetricCalculator for LpIrrCalculator {
         let pe: &PrivateMarketsFund = context.instrument_as()?;
         let ledger = pe.run_waterfall()?;
 
-        // Get historical LP flows
         let mut flows: Vec<(Date, Money)> = ledger
             .lp_cashflows()
             .into_iter()

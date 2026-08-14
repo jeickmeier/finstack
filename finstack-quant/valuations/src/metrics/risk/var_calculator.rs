@@ -216,7 +216,6 @@ impl VarResult {
 
         let num_scenarios = pnl_distribution.len();
 
-        // Handle empty distribution
         if num_scenarios == 0 {
             return Ok(Self {
                 var: 0.0,
@@ -585,7 +584,6 @@ fn calculate_var_full_revaluation(
 
     let pnls = aggregate_scenario_pnls_par(history, base_market, scenario_pnl)?;
 
-    // Calculate VaR and ES from P&L distribution
     VarResult::from_distribution(pnls, config.confidence_level)
 }
 

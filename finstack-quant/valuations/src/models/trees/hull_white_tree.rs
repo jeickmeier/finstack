@@ -932,7 +932,6 @@ impl HullWhiteTree {
     ) -> f64 {
         let t = self.time_at_step(step);
 
-        // Filter to remaining payments
         let remaining: Vec<_> = payment_times
             .iter()
             .zip(accrual_fractions.iter())
@@ -1065,7 +1064,6 @@ impl HullWhiteTree {
             std::mem::swap(&mut values, &mut scratch);
         }
 
-        // Return value at root node
         Ok(values.first().copied().unwrap_or(0.0))
     }
 

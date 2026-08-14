@@ -982,7 +982,6 @@ impl InflationLinkedBond {
             return Ok(0.0);
         }
 
-        // Find the active period
         for period in &periods {
             let start = period.accrual_start;
             let end = period.accrual_end;
@@ -1247,7 +1246,6 @@ impl InflationLinkedBond {
 
         // Determine a base clean price to center the bump around
         let base_clean = self.quoted_clean.unwrap_or(100.0);
-        // Compute base yield
         let y0 = self.real_yield(base_clean, curves, as_of)?;
         // Bump yield by 1bp in decimal terms
         let bp = 1e-4;

@@ -277,7 +277,6 @@ impl CDSTranche {
         credit_index_id: impl Into<CurveId>,
         side: TrancheSide,
     ) -> finstack_quant_core::Result<Self> {
-        // Validate tranche parameters
         if tranche_params.attach_pct >= tranche_params.detach_pct {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "attach_pct ({}) must be less than detach_pct ({})",

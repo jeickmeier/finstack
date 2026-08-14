@@ -39,7 +39,6 @@ fn collect_quanto_inputs(
     let df_dom = disc_curve.df_between_dates(as_of, inst.expiry)?;
     let r_dom = zero_rate_from_df(df_dom, t, "QuantoOption domestic discount")?;
 
-    // Get foreign rate
     let for_curve = curves.get_discount(inst.foreign_discount_curve_id.as_str())?;
     let df_for = for_curve.df_between_dates(as_of, inst.expiry)?;
     let r_for = zero_rate_from_df(df_for, t, "QuantoOption foreign discount")?;

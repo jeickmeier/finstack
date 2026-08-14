@@ -183,7 +183,6 @@ impl BasisSwap {
     ) -> Result<Self> {
         let id_str = id.into();
 
-        // Validate dates on each leg
         if primary_leg.start >= primary_leg.end {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "BasisSwap '{}' primary leg has start ({}) >= end ({}); \

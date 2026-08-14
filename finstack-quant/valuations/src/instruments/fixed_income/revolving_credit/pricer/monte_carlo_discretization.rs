@@ -181,7 +181,6 @@ impl Discretization<RevolvingCreditProcess> for RevolvingCreditDiscretization {
                 } else if t_total >= times[n - 1] {
                     rates[n - 1]
                 } else {
-                    // find bracket
                     let mut i = 1usize;
                     while i < n && t_total > times[i] {
                         i += 1;
@@ -207,7 +206,6 @@ impl Discretization<RevolvingCreditProcess> for RevolvingCreditDiscretization {
         let credit_shock = [z_corr[2]];
         let _credit_work = [0.0];
 
-        // Get CIR parameters
         let cir_params = &process.params().credit_spread.cir;
 
         // Apply QE scheme directly

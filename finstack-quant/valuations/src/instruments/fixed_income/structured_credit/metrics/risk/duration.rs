@@ -34,14 +34,12 @@ pub struct MacaulayDurationCalculator;
 
 impl MetricCalculator for MacaulayDurationCalculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
-        // Get cashflows
         let flows = context.cashflows.as_ref().ok_or_else(|| {
             finstack_quant_core::Error::from(finstack_quant_core::InputError::NotFound {
                 id: "context.cashflows".to_string(),
             })
         })?;
 
-        // Get discount curve
         let disc_curve_id = context.discount_curve_id.as_ref().ok_or_else(|| {
             finstack_quant_core::Error::from(finstack_quant_core::InputError::NotFound {
                 id: "discount_curve_id".to_string(),
@@ -65,22 +63,17 @@ impl MetricCalculator for MacaulayDurationCalculator {
                 continue;
             }
 
-            // Calculate time in years
             let years =
                 day_count.year_fraction(context.as_of, *date, DayCountContext::default())?;
 
-            // Get discount factor
             let df = disc.df_on_date_curve(*date)?;
 
-            // Calculate present value
             let pv = amount.amount() * df;
 
-            // Accumulate weighted PV
             weighted_pv += pv * years;
             total_pv += pv;
         }
 
-        // Calculate Macaulay duration
         if total_pv > 0.0 {
             Ok(weighted_pv / total_pv)
         } else {
@@ -120,14 +113,12 @@ impl MetricCalculator for ModifiedDurationCalculator {
             return Ok(0.0);
         }
 
-        // Get cashflows
         let flows = context.cashflows.as_ref().ok_or_else(|| {
             finstack_quant_core::Error::from(finstack_quant_core::InputError::NotFound {
                 id: "context.cashflows".to_string(),
             })
         })?;
 
-        // Get discount curve
         let disc_curve_id = context.discount_curve_id.as_ref().ok_or_else(|| {
             finstack_quant_core::Error::from(finstack_quant_core::InputError::NotFound {
                 id: "discount_curve_id".to_string(),

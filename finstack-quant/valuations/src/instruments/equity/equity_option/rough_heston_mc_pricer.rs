@@ -152,7 +152,6 @@ impl crate::pricer::Pricer for EquityOptionRoughHestonMcPricer {
         let s = crate::instruments::equity::equity_option::rough_heston_market::RoughHestonScalars::from_market_strict(market)
             .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
 
-        // Build process
         let hurst_exp = finstack_quant_core::math::fractional::HurstExponent::new(s.hurst)
             .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
         let params = finstack_quant_monte_carlo::process::rough_heston::RoughHestonParams::new(
@@ -194,7 +193,6 @@ impl crate::pricer::Pricer for EquityOptionRoughHestonMcPricer {
         )
         .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
 
-        // Build engine and payoff
         let engine = finstack_quant_monte_carlo::engine::McEngine::builder()
             .num_paths(num_paths)
             .time_grid(time_grid)

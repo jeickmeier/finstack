@@ -193,7 +193,6 @@ impl SABRSmile {
 
         let vols = self.generate_smile(strikes)?;
 
-        // Convert to call prices for validation
         let prices: Vec<f64> = strikes
             .iter()
             .zip(vols.iter())
@@ -319,7 +318,6 @@ impl SABRSmile {
         // Generate initial smile
         let mut vols = self.generate_smile(strikes)?;
 
-        // Convert to call prices for manipulation
         let mut prices: Vec<f64> = strikes
             .iter()
             .zip(vols.iter())

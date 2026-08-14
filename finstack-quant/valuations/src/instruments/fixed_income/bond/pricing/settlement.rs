@@ -104,7 +104,6 @@ impl QuoteDateContext {
     pub(crate) fn new(bond: &Bond, curves: &MarketContext, as_of: Date) -> Result<Self> {
         let quote_date = settlement_date(bond, as_of)?;
 
-        // Compute accrued interest at the quote date
         let schedule = bond.full_cashflow_schedule(curves)?;
         let accrued_at_quote_date = crate::cashflow::accrual::accrued_interest_amount(
             &schedule,

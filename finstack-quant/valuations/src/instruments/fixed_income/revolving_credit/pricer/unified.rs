@@ -469,7 +469,6 @@ impl RevolvingCreditPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> Result<EnhancedMonteCarloResult> {
-        // Extract stochastic spec
         let stoch_spec = match &facility.draw_repay_spec {
             DrawRepaySpec::Stochastic(spec) => spec.as_ref(),
             DrawRepaySpec::Deterministic(_) => {
@@ -479,7 +478,6 @@ impl RevolvingCreditPricer {
             }
         };
 
-        // Get or synthesize MC config
         use super::super::types::{CreditSpreadProcessSpec, McConfig};
         let mc_config_to_use;
         let mc_config = if let Some(ref mc_config) = stoch_spec.mc_config {
@@ -666,11 +664,9 @@ impl RevolvingCreditPricer {
         // Now interpolate survival for each cashflow date
         let mut survival_probs = Vec::with_capacity(cashflow_dates.len());
         for &cf_date in cashflow_dates {
-            // Find the interval containing cf_date
             let t_cf =
                 day_count.year_fraction(commitment_date, cf_date, DayCountContext::default())?;
 
-            // Find the bracketing payment dates
             let hazard_at_cf = if let Some(idx) = time_points.iter().position(|&t| t >= t_cf) {
                 if idx == 0
                     || (time_points[idx] - t_cf).abs() < super::super::INTERPOLATION_TOLERANCE
@@ -723,7 +719,6 @@ impl RevolvingCreditPricer {
             dates.extend(events.iter().map(|e| e.date));
         }
 
-        // Fill in monthly dates from as_of to maturity
         let mut d = as_of.add_months(1);
         while d < facility.maturity {
             dates.insert(d);

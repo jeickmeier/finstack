@@ -79,7 +79,6 @@ impl MetricCalculator for CsGammaCalculator {
             return Ok(0.0);
         }
 
-        // Resolve curve IDs.
         let curve_deps = cds.market_dependencies()?.curves;
         let Some(hazard_id) = curve_deps.credit_curves.first().cloned() else {
             return Ok(0.0);

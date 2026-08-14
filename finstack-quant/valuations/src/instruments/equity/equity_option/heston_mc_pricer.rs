@@ -108,7 +108,6 @@ impl EquityOptionHestonMcPricer {
         let process = HestonProcess::new(heston_params);
         let discretization = QeHeston::new();
 
-        // Build time grid and engine
         let num_steps = ((t * self.steps_per_year).round() as usize).max(10);
         let time_grid = TimeGrid::uniform(t, num_steps)?;
         let maturity_step = time_grid.num_steps();

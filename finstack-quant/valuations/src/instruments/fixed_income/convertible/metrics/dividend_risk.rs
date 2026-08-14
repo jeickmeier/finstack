@@ -34,7 +34,6 @@ impl MetricCalculator for DividendRiskCalculator {
             return Ok(0.0); // No dividend yield available, risk is zero
         };
 
-        // Get current dividend yield
         let current_scalar = context.curves.get_price(&div_yield_id)?;
 
         // Extract numeric baseline for robust bump-width handling (clamped at 0 on the downside).

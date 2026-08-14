@@ -291,7 +291,6 @@ impl BinomialTree {
                 }
                 let p = (((r - q) * dt).exp() - d) / spread;
 
-                // Validate probability
                 if !(0.0..=1.0).contains(&p) {
                     return Err(Error::Validation(format!(
                         "CRR probability p={p:.6} fell outside [0, 1]; \
@@ -463,7 +462,6 @@ impl BinomialTree {
         market_params: &OptionMarketParams,
         exercise_style: ExerciseStyle,
     ) -> Result<BinomialGreeks> {
-        // Price at base case
         let base_price = match exercise_style {
             ExerciseStyle::American => self.price_american(market_params)?,
             ExerciseStyle::European => self.price_european(market_params)?,
@@ -538,7 +536,6 @@ impl BinomialTree {
         down_level: Option<f64>,
         rebate: f64,
     ) -> Result<f64> {
-        // Compute lattice parameters
         let (u, d, p) = self.calculate_parameters(
             market_params.spot,
             market_params.strike,
@@ -574,10 +571,7 @@ impl BinomialTree {
         price_recombining_tree(RecombiningInputs {
             branching: TreeBranching::Binomial,
             steps: self.steps,
-            initial_vars: {
-                // Ensure spot exists (done), nothing else needed
-                initial_vars
-            },
+            initial_vars,
             time_to_maturity: market_params.time_to_expiry,
             market_context: &MarketContext::new(),
             valuator: &valuator,
@@ -739,7 +733,6 @@ impl BinomialTree {
         market_context: &MarketContext,
         valuator: &V,
     ) -> Result<f64> {
-        // Extract required parameters from state variables
         let r = *initial_vars
             .get(state_keys::INTEREST_RATE)
             .ok_or_else(|| Error::internal("binomial tree requires initial interest rate"))?;

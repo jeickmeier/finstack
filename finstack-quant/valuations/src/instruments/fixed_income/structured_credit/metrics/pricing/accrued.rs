@@ -120,14 +120,12 @@ impl AccruedCalculator {
 
 /// Helper to find the payment dates surrounding as_of date.
 fn find_surrounding_dates(flows: &[(Date, Money)], as_of: Date) -> Result<(Date, Date)> {
-    // Find last payment before or on as_of
     let last = flows
         .iter()
         .filter(|(d, _)| *d <= as_of)
         .map(|(d, _)| *d)
         .max();
 
-    // Find next payment after as_of
     let next = flows
         .iter()
         .filter(|(d, _)| *d > as_of)

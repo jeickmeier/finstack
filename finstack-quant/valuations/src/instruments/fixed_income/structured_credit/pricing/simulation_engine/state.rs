@@ -146,7 +146,6 @@ impl<'a> SimulationState<'a> {
         let base_currency = pool.base_currency();
         let pool_balance_cleanup_threshold = embedded_registry()?.pool_balance_cleanup_threshold();
 
-        // Initialize results map for each tranche
         let results: HashMap<String, TrancheCashflows> = tranches
             .tranches
             .iter()
@@ -202,7 +201,6 @@ impl<'a> SimulationState<'a> {
             .map(|t| (t.id.to_string(), t.deferred_interest))
             .collect();
 
-        // Determine if reinvestment is initially active
         let initial_reinvestment_active = pool
             .reinvestment_period
             .as_ref()

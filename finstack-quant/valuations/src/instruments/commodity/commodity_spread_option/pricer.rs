@@ -92,7 +92,6 @@ fn kirk_price(
             inst.id
         )));
     }
-    // Get vols from surfaces
     let surface1 = market.get_surface(inst.leg1_vol_surface_id.as_str())?;
     let sigma1 = surface1.value_clamped(t, f1);
 

@@ -73,7 +73,6 @@ impl MetricCalculator for CprCalculator {
             .as_any()
             .downcast_ref::<StructuredCredit>()
         {
-            // Check overrides first
             if let Some(cpr) = sc.behavior_overrides.cpr_annual {
                 return Ok(cpr);
             }
@@ -129,7 +128,6 @@ impl MetricCalculator for CdrCalculator {
             .as_any()
             .downcast_ref::<StructuredCredit>()
         {
-            // Check overrides first
             if let Some(cdr) = sc.behavior_overrides.cdr_annual {
                 return Ok(cdr);
             }

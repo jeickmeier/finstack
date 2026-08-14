@@ -428,7 +428,6 @@ impl Pricer for BermudanSwaptionLmmPricer {
         market: &MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        // Downcast to BermudanSwaption
         let swaption = instrument
             .as_any()
             .downcast_ref::<BermudanSwaption>()
@@ -436,7 +435,6 @@ impl Pricer for BermudanSwaptionLmmPricer {
                 PricingError::type_mismatch(InstrumentType::BermudanSwaption, instrument.key())
             })?;
 
-        // Get discount curve
         let disc = market
             .get_discount(swaption.get_discount_curve_id().as_str())
             .map_err(|e| {
@@ -457,10 +455,8 @@ impl Pricer for BermudanSwaptionLmmPricer {
             ));
         }
 
-        // Build LMM parameters from market data
         let lmm_params = Self::build_lmm_params(swaption, disc.as_ref(), market, as_of)?;
 
-        // Extract exercise times as year fractions
         let exercise_times = swaption
             .bermudan_schedule
             .exercise_times(as_of, swaption.get_day_count())

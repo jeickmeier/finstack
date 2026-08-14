@@ -19,7 +19,6 @@ mod par_spread;
 mod recovery01;
 mod spread_dv01;
 mod theta;
-// risk_bucketed_dv01 - now using generic implementation
 pub(crate) mod vega;
 
 use crate::metrics::MetricRegistry;

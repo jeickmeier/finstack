@@ -504,7 +504,6 @@ impl CommodityOption {
                     SchwartzSmithParams::new(*kappa, *sigma_x, *mu_y, *sigma_y, *rho_xy)?
                         .with_lambda_x(*lambda_x)?;
 
-                // Get initial spot price
                 let initial_spot = if let Some(spot) = self.spot_price(market)? {
                     spot
                 } else {
@@ -541,7 +540,6 @@ impl CommodityOption {
                 let disc_curve = market.get_discount(self.discount_curve_id.as_str())?;
                 let df = disc_curve.df_between_dates(as_of, self.expiry)?;
 
-                // Build MC engine
                 let seed = mc_params.seed.unwrap_or(42);
                 let time_grid = TimeGrid::uniform(t, mc_params.n_steps)?;
                 let engine_config =

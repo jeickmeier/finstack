@@ -774,7 +774,6 @@ impl TermLoanTreePricer {
             .map(|id| market.get_hazard(id.as_str()))
             .transpose()?;
 
-        // Build valuator once.
         let mut valuator =
             TermLoanValuator::new(loan.clone(), market, as_of, origin, time_to_maturity, steps)?;
 

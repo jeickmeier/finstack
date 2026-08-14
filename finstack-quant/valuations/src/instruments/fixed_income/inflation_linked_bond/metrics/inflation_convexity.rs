@@ -30,19 +30,16 @@ impl MetricCalculator for InflationConvexityCalculator {
         let bond: &InflationLinkedBond = context.instrument_as()?;
         let as_of = context.as_of;
 
-        // Get base value
         let base_pv = context.base_value.amount();
 
         // Bump size: 1bp for numerical convexity
         let bump_bp = INFLATION_BUMP_BP;
 
-        // Create bumped curves (up)
         let bump_spec_up = BumpSpec::inflation_shift_pct(bump_bp * 100.0); // Convert bp to percent
         let curves_up =
             bumped_inflation_market(context.curves.as_ref(), bond, as_of, bump_spec_up)?;
         let pv_up = bond.value(&curves_up, as_of)?.amount();
 
-        // Create bumped curves (down)
         let bump_spec_down = BumpSpec::inflation_shift_pct(-bump_bp * 100.0);
         let curves_down =
             bumped_inflation_market(context.curves.as_ref(), bond, as_of, bump_spec_down)?;

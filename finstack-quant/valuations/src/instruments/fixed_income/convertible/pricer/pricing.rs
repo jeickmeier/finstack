@@ -177,12 +177,10 @@ fn extract_equity_state(
         0.0
     };
 
-    // Resolve volatility
     let vol_candidates = volatility_candidate_ids(bond)?;
     let (volatility, resolved_vol_id) =
         resolve_volatility_with_id(ctx, &vol_candidates, time_to_maturity, spot)?;
 
-    // Resolve dividend yield
     let dividend_yield = resolve_dividend_yield(ctx, bond)?;
 
     let resolved_ids = ResolvedIds {

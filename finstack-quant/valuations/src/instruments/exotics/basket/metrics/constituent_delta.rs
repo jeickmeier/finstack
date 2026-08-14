@@ -53,7 +53,6 @@ impl MetricCalculator for ConstituentDeltaCalculator {
             total_delta += delta;
         }
 
-        // Store as bucketed series
         context.store_bucketed_series(crate::metrics::MetricId::ConstituentDelta, series);
 
         Ok(total_delta)

@@ -94,7 +94,6 @@ impl Grid2D {
         let x_pts = self.x.points();
         let y_pts = self.y.points();
 
-        // Find x-interval
         let ix = find_interval(x_pts, x);
         let jy = find_interval(y_pts, y);
 

@@ -110,7 +110,6 @@ impl SwaptionHullWhitePricer {
             ));
         }
 
-        // Get discount curve
         let disc = market
             .get_discount(swaption.get_discount_curve_id().as_str())
             .map_err(|e| {
@@ -198,7 +197,6 @@ impl SwaptionHullWhitePricer {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
         })?;
 
-        // Build swap schedule for the underlying
         let fixed_leg = &swaption.underlying_fixed_leg;
         let calendar_id = fixed_leg
             .calendar_id
@@ -232,7 +230,6 @@ impl SwaptionHullWhitePricer {
             ));
         }
 
-        // Compute payment times and accrual fractions
         let mut payment_times = Vec::with_capacity(periods.len());
         let mut accrual_fractions = Vec::with_capacity(periods.len());
         for period in periods {
@@ -283,7 +280,6 @@ impl SwaptionHullWhitePricer {
                 if step == exercise_step {
                     let t = tree.time_at_step(step);
 
-                    // Find remaining payments after this time
                     let start_idx = payment_times.partition_point(|&pt| pt <= t);
                     if start_idx >= payment_times.len() {
                         return continuation;

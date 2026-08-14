@@ -21,8 +21,6 @@
 //! - Hull, J. C. (2018). *Options, Futures, and Other Derivatives*. Chapter 7. `docs/REFERENCES.md#hull-options-futures`
 //! - Kahan, W. (1965). "Further Remarks on Reducing Truncation Errors." `docs/REFERENCES.md#kahan-1965`
 
-// Using generic pricer implementation to eliminate boilerplate
-
 use crate::instruments::common_impl::numeric::decimal_to_f64;
 pub(crate) use crate::instruments::common_impl::pricing::swap_legs::robust_relative_df;
 use crate::instruments::common_impl::pricing::swap_legs::LegPeriod;
@@ -143,7 +141,6 @@ impl InterestRateSwap {
                 year_fraction: cf.accrual_factor,
             });
 
-        // Build fixed leg params
         let params = crate::instruments::common_impl::pricing::swap_legs::FixedLegParams {
             rate: decimal_to_f64(self.fixed.rate, "fixed leg rate")?,
             day_count: self.fixed.day_count,

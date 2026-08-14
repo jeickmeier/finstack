@@ -238,7 +238,6 @@ impl SABRModel {
 
         let volatility = factor1 * factor2 * factor3;
 
-        // Validate result
         if volatility <= 0.0 || !volatility.is_finite() {
             return Err(Error::Validation(format!(
                 "SABR produced invalid volatility={:.6} for forward={:.6}, strike={:.6}, T={:.4}. \
@@ -312,7 +311,6 @@ impl SABRModel {
             alpha / f_beta * (1.0 + time_to_expiry * time_correction)
         };
 
-        // Validate result
         if vol <= 0.0 || !vol.is_finite() {
             return Err(Error::Validation(format!(
                 "SABR ATM volatility calculation produced invalid result={:.6} for forward={:.6}, T={:.4}",

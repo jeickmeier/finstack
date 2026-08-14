@@ -188,7 +188,6 @@ impl StochasticPrepayment for RichardRollPrepay {
 
         let base_conditional_cpr = self.base_cpr * refi_mult * season_mult * month_mult * burnout;
 
-        // Apply factor shock
         let z = factors.first().copied().unwrap_or(0.0);
         let shock = (self.factor_loading * z * self.cpr_volatility).exp();
         let shocked_cpr = (base_conditional_cpr * shock).clamp(0.0, 1.0);

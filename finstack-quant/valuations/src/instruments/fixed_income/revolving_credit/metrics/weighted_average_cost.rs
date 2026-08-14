@@ -27,7 +27,6 @@ impl MetricCalculator for ApproxWeightedAverageCostCalculator {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
         let facility: &RevolvingCredit = context.instrument_as()?;
 
-        // Get base interest rate
         let base_rate = match &facility.base_rate_spec {
             crate::instruments::fixed_income::revolving_credit::types::BaseRateSpec::Fixed {
                 rate,
@@ -51,7 +50,6 @@ impl MetricCalculator for ApproxWeightedAverageCostCalculator {
             return Ok(0.0);
         }
 
-        // Calculate total annual cost
         let drawn_amt = drawn_balance_as_of(facility, context.as_of)?.amount();
         let undrawn_amt = commitment_amount - drawn_amt;
 

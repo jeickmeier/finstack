@@ -71,7 +71,6 @@ impl BarrierOptionHestonMcPricer {
             return price_expired_barrier(inst, market).map(|m| (m, 0.0));
         }
 
-        // Get discount curve and factor
         let disc_curve = market.get_discount(inst.discount_curve_id.as_str())?;
         let discount_factor = disc_curve.df_between_dates(as_of, inst.expiry)?;
         let r = if t > 0.0 && discount_factor > 0.0 {
@@ -86,14 +85,12 @@ impl BarrierOptionHestonMcPricer {
             return Ok((Money::new(0.0, inst.notional.currency()), 0.0));
         }
 
-        // Get spot
         let spot_scalar = market.get_price(&inst.spot_id)?;
         let spot = match spot_scalar {
             finstack_quant_core::market_data::scalars::MarketScalar::Unitless(v) => *v,
             finstack_quant_core::market_data::scalars::MarketScalar::Price(m) => m.amount(),
         };
 
-        // Get dividend yield
         let q = crate::instruments::common_impl::helpers::resolve_optional_dividend_yield(
             market,
             inst.div_yield_id.as_ref(),
@@ -103,7 +100,6 @@ impl BarrierOptionHestonMcPricer {
         let vol_surface = market.get_surface(inst.vol_surface_id.as_str())?;
         let sigma = vol_surface.value_clamped(t, inst.strike);
 
-        // Fetch Heston parameters
         let kappa = Self::heston_scalar(market, "HESTON_KAPPA", 2.0);
         let theta = Self::heston_scalar(market, "HESTON_THETA", 0.04);
         let sigma_v = Self::heston_scalar(market, "HESTON_SIGMA_V", 0.3);
@@ -114,7 +110,6 @@ impl BarrierOptionHestonMcPricer {
         let process = HestonProcess::new(heston_params);
         let discretization = QeHeston::new();
 
-        // Build time grid
         let num_steps = ((t * self.steps_per_year).round() as usize).max(10);
         let time_grid = TimeGrid::uniform(t, num_steps)?;
         let maturity_step = time_grid.num_steps();

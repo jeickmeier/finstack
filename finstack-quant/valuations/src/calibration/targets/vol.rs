@@ -130,7 +130,6 @@ impl VolSurfaceTarget {
             }
         };
 
-        // Resolve discount curve
         let disc_id = params
             .discount_curve_id
             .clone()
@@ -229,16 +228,10 @@ impl VolSurfaceTarget {
             }
         }
 
-        // Build grid
-        // Use params.target_expiries and target_strikes
         let mut grid = Vec::new();
 
         for &t in &params.target_expiries {
             let f = forward_fn(t);
-            // Interpolate SABR params for t
-            // For brevity, using nearest valid calibration or linear if possible.
-            // Let's implement simple linear interpolation of params.
-
             let p =
                 Self::interpolate_params(t, &sabr_params_by_expiry, params.expiry_extrapolation)?;
             let model = SABRModel::new(p);
@@ -370,7 +363,6 @@ Set params.expiry_extrapolation='clamp' to allow flat extrapolation.",
             }
         }
 
-        // Find neighbors
         let mut before = None;
         let mut after = None;
 

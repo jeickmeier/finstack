@@ -133,7 +133,6 @@ pub(crate) fn generate_tranche_cashflows(
     // collateral-derived; only `period_index` advances per period below.
     let mut pac_context = build_pac_context(cmo, &collateral, as_of);
 
-    // Create a working copy of the waterfall
     let mut waterfall = cmo.waterfall.clone();
 
     let mut tranche_cfs = Vec::new();
@@ -195,7 +194,6 @@ pub(crate) fn generate_tranche_cashflows(
                 pac_context.as_ref(),
             );
 
-            // Find allocation for reference tranche
             if let Some(alloc) = result.allocations.iter().find(|a| a.tranche_id == *ref_id) {
                 tranche_cfs.push(TrancheCashflow {
                     payment_date: cf.payment_date,

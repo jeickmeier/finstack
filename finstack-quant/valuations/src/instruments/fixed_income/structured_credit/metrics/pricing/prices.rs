@@ -49,7 +49,6 @@ pub struct CleanPriceCalculator;
 
 impl MetricCalculator for CleanPriceCalculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
-        // Get dirty price from computed metrics
         let dirty = context
             .computed
             .get(&MetricId::DirtyPrice)
@@ -60,7 +59,6 @@ impl MetricCalculator for CleanPriceCalculator {
                 })
             })?;
 
-        // Get accrued interest in currency units
         let accrued = context
             .computed
             .get(&MetricId::Accrued)

@@ -47,7 +47,6 @@ impl CliquetOptionMcPricer {
             finstack_quant_core::market_data::scalars::MarketScalar::Price(m) => m.amount(),
         };
 
-        // Get curves
         let disc_curve = curves.get_discount(inst.discount_curve_id.as_str())?;
 
         // Deterministic evaluation of past reset periods (seasoned trade).
@@ -239,7 +238,6 @@ impl CliquetOptionMcPricer {
         let mut grid_times = Vec::with_capacity(num_steps + reset_times.len() + 1);
         grid_times.push(0.0);
 
-        // Add uniform steps
         let dt_grid = t / num_steps as f64;
         for i in 1..=num_steps {
             grid_times.push(i as f64 * dt_grid);

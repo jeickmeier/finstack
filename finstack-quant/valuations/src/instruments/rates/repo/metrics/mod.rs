@@ -25,7 +25,6 @@ mod haircut01;
 mod implied_collateral_return;
 mod repo_interest;
 mod required_collateral;
-// risk_bucketed_dv01, dv01, and theta now using generic implementations
 mod time_to_maturity;
 
 use crate::metrics::MetricRegistry;

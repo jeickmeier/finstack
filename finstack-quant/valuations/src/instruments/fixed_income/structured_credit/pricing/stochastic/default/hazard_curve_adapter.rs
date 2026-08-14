@@ -160,15 +160,12 @@ impl StochasticDefault for HazardCurveDefault {
         // Curve is anchored at valuation: index by time-from-valuation.
         let t_years = self.curve_time_years(seasoning);
 
-        // Get base hazard rate from curve
         let base_hazard = self.hazard_curve.hazard_rate(t_years);
 
-        // Apply factor shock
         let z = factors.first().copied().unwrap_or(0.0);
         let shock_multiplier = self.shocked_hazard_multiplier(z);
         let shocked_hazard = base_hazard * shock_multiplier;
 
-        // Convert to MDR
         Self::hazard_to_mdr(shocked_hazard)
     }
 

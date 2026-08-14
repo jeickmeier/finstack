@@ -767,7 +767,6 @@ impl CDSTranchePricer {
             }
         }
 
-        // Calculate min, max, average
         let (min, max, sum) = if impacts.is_empty() {
             (0.0, 0.0, 0.0)
         } else {

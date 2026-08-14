@@ -137,7 +137,6 @@ impl TridiagOperator {
             source[k] = problem.source(x, t);
         }
 
-        // Apply boundary conditions
         let bc_lower = problem.lower_boundary(t);
         let bc_upper = problem.upper_boundary(t);
 
@@ -443,12 +442,10 @@ impl TridiagOperator {
             return;
         }
 
-        // Add source terms
         for (source_val, rhs_val) in self.source.iter().zip(rhs.iter_mut()) {
             *rhs_val += alpha * source_val;
         }
 
-        // Add boundary corrections
         rhs[0] += alpha * self.bc_lower_rhs;
         if self.n > 1 {
             rhs[self.n - 1] += alpha * self.bc_upper_rhs;

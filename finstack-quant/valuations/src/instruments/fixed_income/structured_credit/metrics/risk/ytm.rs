@@ -102,7 +102,6 @@ impl YtmCalculator {
 
 impl MetricCalculator for YtmCalculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
-        // Get dirty price (target value in percentage)
         let dirty_price = context
             .computed
             .get(&MetricId::DirtyPrice)
@@ -113,7 +112,6 @@ impl MetricCalculator for YtmCalculator {
                 })
             })?;
 
-        // Get cashflows
         let flows = context.cashflows.as_ref().ok_or_else(|| {
             finstack_quant_core::Error::from(finstack_quant_core::InputError::NotFound {
                 id: "context.cashflows".to_string(),

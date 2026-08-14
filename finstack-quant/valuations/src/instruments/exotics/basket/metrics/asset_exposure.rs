@@ -29,7 +29,6 @@ impl MetricCalculator for AssetExposureCalculator {
                 }
                 (ConstituentReference::Instrument(instr_json), target) => {
                     use crate::pricer::InstrumentType;
-                    // Convert InstrumentJson to get InstrumentType
                     let boxed = instr_json.as_ref().clone().into_boxed()?;
                     let it = boxed.key();
                     matches!(

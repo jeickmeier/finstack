@@ -185,7 +185,6 @@ pub fn build_cds_tranche_instrument(
     tracing::debug!(quote_id = %quote.id(), "building CDS tranche instrument");
     let registry = ConventionRegistry::try_global()?;
 
-    // Extract fields
     let (
         id,
         convention_key,
@@ -226,7 +225,6 @@ pub fn build_cds_tranche_instrument(
         conv.business_day_convention,
     )?;
 
-    // Resolve calendar for tenor addition
     let cal = resolve_calendar(&conv.calendar_id)?;
 
     let discount_id = ctx.require_curve_id("discount")?.to_string();
@@ -274,7 +272,6 @@ pub fn build_cds_tranche_instrument(
         (spot, maturity_adj, false)
     };
 
-    // Construct Params
     let tranche_params = CDSTrancheParams {
         index_name: index.clone(),
         series: overrides.series,

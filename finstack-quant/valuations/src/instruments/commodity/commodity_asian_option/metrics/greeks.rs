@@ -42,7 +42,6 @@ impl MetricCalculator for AsianDeltaCalculator {
 
         let bump_pct = crate::metrics::bump_sizes::SPOT; // 1% = 0.01
 
-        // Get approximate forward price for bump_size calculation
         let (fwd_sum, fwd_count) = asian.future_forwards(&context.curves, context.as_of)?;
         if fwd_count == 0 {
             return Ok(0.0); // Fully observed, no forward sensitivity

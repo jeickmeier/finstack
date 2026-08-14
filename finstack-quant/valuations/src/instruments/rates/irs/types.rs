@@ -493,7 +493,6 @@ impl InterestRateSwap {
             }
         }
 
-        // Validate fixed leg date range
         validation::validate_date_range_strict_with(
             self.fixed.start,
             self.fixed.end,
@@ -505,7 +504,6 @@ impl InterestRateSwap {
             },
         )?;
 
-        // Validate floating leg date range
         validation::validate_date_range_strict_with(
             self.float.start,
             self.float.end,
@@ -528,7 +526,6 @@ impl InterestRateSwap {
             )));
         }
 
-        // Validate notional is positive
         validation::validate_money_gt_with(self.notional, NOTIONAL_EPSILON, |amount| {
             format!(
                 "Invalid notional: {} must be positive (> {:.0e}). \

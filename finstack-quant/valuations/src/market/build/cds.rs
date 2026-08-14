@@ -203,7 +203,6 @@ pub fn build_cds_instrument(quote: &CdsQuote, ctx: &BuildCtx) -> Result<Box<dyn 
     // Normalize both quote styles onto a shared running-coupon path before building.
     let spread_bp = quote.quoted_running_spread_bp();
 
-    // Extract the remaining fields.
     let (id, convention_key, entity, pillar, recovery_rate, upfront) = match quote {
         CdsQuote::CdsParSpread {
             id,
@@ -241,7 +240,6 @@ pub fn build_cds_instrument(quote: &CdsQuote, ctx: &BuildCtx) -> Result<Box<dyn 
     // Credit curve ID: usually defaulted to entity name if not mapped
     let credit_id = ctx.require_curve_id("credit")?.to_string();
 
-    // Calculate upfront amount if present
     // Amount = Notional * pct; Date = Spot (Settlement)
     let upfront_payment = upfront.map(|pct| {
         (

@@ -45,7 +45,6 @@ impl MetricCalculator for CollateralPrice01Calculator {
         let repo: &Repo = context.instrument_as()?;
         let as_of = context.as_of;
 
-        // Get current collateral price
         let market_value_id = &repo.collateral.market_value_id;
         let current_scalar = context.curves.get_price(market_value_id)?;
         let current_price = scalar_numeric_value(current_scalar);

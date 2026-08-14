@@ -108,7 +108,6 @@ impl Solver2D {
         let nx_int = self.grid.nx_interior();
         let ny_int = self.grid.ny_interior();
 
-        // Initialize full grid with terminal condition
         let mut u_full = vec![0.0; nx * ny];
         for i in 0..nx {
             for j in 0..ny {
@@ -117,7 +116,6 @@ impl Solver2D {
             }
         }
 
-        // Extract interior
         let mut u_int = vec![0.0; nx_int * ny_int];
         for ii in 0..nx_int {
             for jj in 0..ny_int {
@@ -194,7 +192,6 @@ impl PdeSolution2D {
             return 0.0;
         }
 
-        // Find nearest y-level
         let j = find_nearest(y_pts, y);
 
         // Node nearest x — the x-stencil is centred here.

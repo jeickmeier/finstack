@@ -307,12 +307,10 @@ impl RangeAccrual {
     /// - Quanto fields are consistent (if correlation is set, fx_vol_surface must be set)
     /// - Past fixing fields are consistent
     pub fn validate(&self) -> finstack_quant_core::Result<()> {
-        // Check observation dates
         validation::require_with(!self.observation_dates.is_empty(), || {
             "RangeAccrual requires at least one observation date".to_string()
         })?;
 
-        // Check observation dates are sorted
         validation::validate_sorted_strict(
             &self.observation_dates,
             "RangeAccrual observation_dates",
@@ -329,7 +327,6 @@ impl RangeAccrual {
             )
         })?;
 
-        // Check bound ordering
         validation::require_with(self.lower_bound < self.upper_bound, || {
             format!(
                 "RangeAccrual lower_bound ({}) must be strictly less than upper_bound ({})",
@@ -337,7 +334,6 @@ impl RangeAccrual {
             )
         })?;
 
-        // Check coupon rate
         validation::require_with(self.coupon_rate >= 0.0, || {
             format!(
                 "RangeAccrual coupon_rate ({}) must be non-negative",
@@ -345,7 +341,6 @@ impl RangeAccrual {
             )
         })?;
 
-        // Check past fixing field consistency
         match (self.past_fixings_in_range, self.total_past_observations) {
             (Some(in_range), Some(total)) => {
                 if in_range > total {

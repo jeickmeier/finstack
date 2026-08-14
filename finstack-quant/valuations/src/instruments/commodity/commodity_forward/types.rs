@@ -495,7 +495,6 @@ impl crate::instruments::common_impl::traits::Instrument for CommodityForward {
         // Get contract price K (entry price). If None, treat as at-market (K = F)
         let contract_price = self.contract_price.unwrap_or(forward_price);
 
-        // Get discount factor
         let disc = market.get_discount(self.discount_curve_id.as_str())?;
         let df = disc.df_between_dates(as_of, self.maturity)?;
 

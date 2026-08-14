@@ -21,7 +21,6 @@ impl MetricCalculator for ExpectedLossCalculator {
         let cds: &CreditDefaultSwap = context.instrument_as()?;
         let as_of = context.as_of;
 
-        // Get hazard curve from protection leg
         let hazard = context
             .curves
             .get_hazard(cds.protection.credit_curve_id.as_str())?;

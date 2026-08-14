@@ -316,7 +316,6 @@ impl AsianOptionMcPricer {
         as_of: Date,
     ) -> finstack_quant_core::Result<Money> {
         inst.validate_realized_fixings(as_of)?;
-        // Get time to maturity
         let t = inst
             .day_count
             .year_fraction(as_of, inst.expiry, DayCountContext::default())?;
@@ -352,7 +351,6 @@ impl AsianOptionMcPricer {
             ));
         }
 
-        // Get discount curve
         let disc_curve = curves.get_discount(inst.discount_curve_id.as_str())?;
         let discount_factor = disc_curve.df_between_dates(as_of, inst.expiry)?;
         // Keep drift consistent with date-based discounting: exp(-r * t) == DF(as_of, maturity).
@@ -362,14 +360,12 @@ impl AsianOptionMcPricer {
             0.0
         };
 
-        // Get spot
         let spot_scalar = curves.get_price(&inst.spot_id)?;
         let spot = match spot_scalar {
             finstack_quant_core::market_data::scalars::MarketScalar::Unitless(v) => *v,
             finstack_quant_core::market_data::scalars::MarketScalar::Price(m) => m.amount(),
         };
 
-        // Get dividend yield
         let q = crate::instruments::common_impl::helpers::resolve_optional_dividend_yield(
             curves,
             inst.div_yield_id.as_ref(),
@@ -384,7 +380,6 @@ impl AsianOptionMcPricer {
             inst.strike,
         )?;
 
-        // Create GBM process
         let gbm_params = GbmParams::new(r, q, sigma)?;
         let process = GbmProcess::new(gbm_params);
 
@@ -427,7 +422,6 @@ impl AsianOptionMcPricer {
         let future_fixing_times = fixing_grid.future_times(t);
         let fixing_steps = fixing_grid.fixing_steps;
 
-        // Create payoff
         let averaging = match inst.averaging_method {
             crate::instruments::exotics::asian_option::types::AveragingMethod::Arithmetic => {
                 finstack_quant_monte_carlo::payoff::asian::AveragingMethod::Arithmetic
@@ -446,7 +440,6 @@ impl AsianOptionMcPricer {
             seed::derive_seed(&inst.id, "base")
         };
 
-        // Create config with derived seed
         let mut config = base_cfg;
         config.seed = seed;
 

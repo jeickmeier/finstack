@@ -372,7 +372,6 @@ impl BermudanSwaptionPricer {
             ));
         }
 
-        // Calculate time to maturity
         let ttm = swaption.time_to_maturity(as_of).map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
         })?;
@@ -506,7 +505,6 @@ impl BermudanSwaptionPricer {
             ));
         }
 
-        // Calculate time to maturity
         let ttm = swaption.time_to_maturity(as_of).map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
         })?;
@@ -579,7 +577,6 @@ impl BermudanSwaptionPricer {
                 )
             })?;
 
-        // Create swap schedule for MC pricer
         let swap_start_time = swaption
             .get_day_count()
             .year_fraction(as_of, swaption.get_swap_start(), ctx)
@@ -600,7 +597,6 @@ impl BermudanSwaptionPricer {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
         })?;
 
-        // Determine option type for payoff
         let option_type = match swaption.option_type {
             OptionType::Call => SwaptionType::Payer,
             OptionType::Put => SwaptionType::Receiver,
@@ -609,7 +605,6 @@ impl BermudanSwaptionPricer {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
         })?;
 
-        // Create Bermudan payoff
         let payoff = BermudanSwaptionPayoff::new(
             valid_exercise_times.clone(),
             swap_schedule,
@@ -704,22 +699,17 @@ impl BermudanSwaptionPricer {
             0.03
         };
 
-        // Create Hull-White process
         let hw_process = HullWhite1FProcess::new(hw_params);
 
-        // Create LSMC config
         let mc_paths = self.effective_mc_paths(swaption);
         let lsmc_config = SwaptionLsmcConfig::new(mc_paths, self.config.mc_seed)
             .with_basis_degree(3)
             .with_antithetic(true);
 
-        // Create the shared LSMC pricer
         let lsmc_pricer = SharedSwaptionLsmcPricer::with_config(lsmc_config, hw_process);
 
-        // Create basis functions
         let basis = PolynomialBasis::new(3);
 
-        // Price using the shared LSMC engine with custom grid
         let estimate = lsmc_pricer
             .price_bermudan_with_grid(
                 &payoff,
@@ -737,10 +727,8 @@ impl BermudanSwaptionPricer {
                 )
             })?;
 
-        // Build result with diagnostics
         let mut result = ValuationResult::stamped(swaption.id.as_str(), as_of, estimate.mean);
 
-        // Add LSMC diagnostics to measures
         result.measures.insert(
             crate::metrics::MetricId::custom("mc_stderr"),
             estimate.stderr,

@@ -202,7 +202,6 @@ impl Bond {
         self.instrument_pricing_overrides.validate()?;
         self.metric_pricing_overrides.validate()?;
         self.scenario_pricing_overrides.validate()?;
-        // Validate date ordering
         validation::validate_date_range_strict_with(
             self.issue_date,
             self.maturity,
@@ -214,7 +213,6 @@ impl Bond {
             },
         )?;
 
-        // Validate notional is finite and positive
         validation::validate_money_finite(self.notional, "bond notional")?;
         validation::validate_money_gt_with(self.notional, 0.0, |amount| {
             format!("Bond notional must be positive, got {}", amount)

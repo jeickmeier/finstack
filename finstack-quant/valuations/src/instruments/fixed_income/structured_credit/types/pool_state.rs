@@ -77,7 +77,6 @@ impl PoolState {
             is_amortizing.push(asset.asset_type.is_amortizing());
         }
 
-        // Build unique curve index
         let mut unique_curves = Vec::new();
         let mut curve_map = finstack_quant_core::HashMap::default();
         let mut curve_indices = Vec::with_capacity(n);

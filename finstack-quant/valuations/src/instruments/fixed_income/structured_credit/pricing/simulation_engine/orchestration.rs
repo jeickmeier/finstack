@@ -280,7 +280,6 @@ pub(crate) fn run_simulation_with_source<S: PoolFlowSource + ?Sized>(
     // here rather than pricing a silently-broken structure.
     instrument.validate_custom_waterfall()?;
 
-    // Validate and extract months per period
     let months_per_period = match instrument.frequency.months() {
         Some(m) => m as f64,
         None => {

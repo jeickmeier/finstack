@@ -186,7 +186,6 @@ pub fn price_recombining_tree<V: TreeValuator>(inputs: RecombiningInputs<'_, V>)
 
     match inputs.branching {
         TreeBranching::Binomial => {
-            // Initialize terminal values
             let spot0 = *inputs
                 .initial_vars
                 .get(state_keys::SPOT)

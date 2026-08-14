@@ -706,7 +706,6 @@ impl<'a> EquityWaterfallEngine<'a> {
 
         for event in events {
             if event.kind == FundEventKind::Distribution || event.kind == FundEventKind::Proceeds {
-                // Run waterfall allocation
                 let lp_distributed_so_far: f64 = ledger_rows.iter().map(|r| r.to_lp.amount()).sum();
                 let allocations = self.allocate_distribution(AllocationParams {
                     total_amount: event.amount,
@@ -868,7 +867,6 @@ impl<'a> EquityWaterfallEngine<'a> {
                         }
                     }
 
-                    // Compute contributions up to current date
                     let total_contributions_to_date: f64 = params
                         .all_events
                         .iter()

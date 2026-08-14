@@ -155,7 +155,6 @@ impl Bond {
             }))
             .build()?;
 
-        // Validate all parameters before returning
         bond.validate()?;
         Ok(bond)
     }
@@ -248,7 +247,6 @@ impl Bond {
             }))
             .build()?;
 
-        // Validate all parameters before returning
         bond.validate()?;
         Ok(bond)
     }
@@ -337,7 +335,6 @@ impl Bond {
             .settlement_convention_opt(None)
             .build()?;
 
-        // Validate all parameters before returning
         bond.validate()?;
         Ok(bond)
     }
@@ -474,10 +471,8 @@ impl Bond {
         quoted_clean: Option<f64>,
     ) -> finstack_quant_core::Result<Self> {
         schedule.validate()?;
-        // Extract parameters from the schedule
         let notional = schedule.get_notional().initial;
 
-        // Find issue and maturity from the cashflow dates
         let dates = schedule.dates();
         if dates.len() < 2 {
             return Err(finstack_quant_core::InputError::TooFewPoints.into());
@@ -521,7 +516,6 @@ impl Bond {
             // Fallback to annual if we cannot infer a pattern
             Tenor::annual()
         } else {
-            // Compute all interval lengths between consecutive coupon dates
             let mut interval_counts: HashMap<i64, usize> = HashMap::new();
             for window in coupon_dates.windows(2) {
                 let d0 = window[0];
@@ -543,7 +537,6 @@ impl Bond {
                 *interval_counts.entry(bucket).or_insert(0) += 1;
             }
 
-            // Find the mode (most frequent interval)
             let (mode_days, _mode_count) = interval_counts
                 .iter()
                 .max_by_key(|(_, count)| *count)

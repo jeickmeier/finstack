@@ -56,7 +56,6 @@ impl ShortRateTree {
         // State prices (Arrow-Debreu prices) for the current step
         let mut state_prices = vec![1.0]; // Q[0] = 1.0
 
-        // Build tree forward
         for step in 0..self.config.steps {
             // rates[step] discounts the interval [t_step, t_{step+1}].
             // The next row rates[step + 1] discounts [t_{step+1}, t_{step+2}],

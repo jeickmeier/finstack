@@ -382,14 +382,12 @@ where
             )
         })?;
 
-        // Get current spot for bump size calculation
         let spot_scalar = context.curves.get_price(spot_id)?;
         let current_spot = match spot_scalar {
             finstack_quant_core::market_data::scalars::MarketScalar::Unitless(v) => *v,
             finstack_quant_core::market_data::scalars::MarketScalar::Price(m) => m.amount(),
         };
 
-        // Validate spot is positive and finite
         validate_spot(current_spot, "delta")?;
 
         // Fixed bump size from `FinstackConfig` (user-facing, reproducible).
@@ -467,14 +465,12 @@ where
             )
         })?;
 
-        // Get current spot for bump size calculation
         let spot_scalar = context.curves.get_price(spot_id)?;
         let current_spot = match spot_scalar {
             finstack_quant_core::market_data::scalars::MarketScalar::Unitless(v) => *v,
             finstack_quant_core::market_data::scalars::MarketScalar::Price(m) => m.amount(),
         };
 
-        // Validate spot is positive and finite
         validate_spot(current_spot, "gamma")?;
 
         // Fixed bump size from `FinstackConfig` (user-facing, reproducible).
@@ -758,7 +754,6 @@ where
             finstack_quant_core::market_data::scalars::MarketScalar::Price(m) => m.amount(),
         };
 
-        // Validate spot is positive and finite
         validate_spot(current_spot, "vanna")?;
 
         // Bump sizes with minimum floor for numerical stability

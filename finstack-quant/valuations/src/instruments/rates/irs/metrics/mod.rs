@@ -56,7 +56,6 @@ pub(crate) mod par_rate;
 pub(crate) mod pv_fixed;
 pub(crate) mod pv_float;
 pub(crate) mod schedule_diagnostics;
-// risk_bucketed_dv01, dv01, and theta now using generic implementations
 
 /// Registers all IRS metrics into a provided registry.
 pub(crate) fn register_irs_metrics(registry: &mut crate::metrics::MetricRegistry) {

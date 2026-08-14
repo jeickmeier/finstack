@@ -401,7 +401,6 @@ pub(super) fn calculate_pool_flows_with_rates(
         let prepay_amt = balance_after_sched * period_smm;
         total_prepay = total_prepay.checked_add(Money::new(prepay_amt, base_currency))?;
 
-        // Update balance
         let new_balance = balance_after_sched - prepay_amt;
         state.pool_state.balances[i] = new_balance.max(0.0);
     }

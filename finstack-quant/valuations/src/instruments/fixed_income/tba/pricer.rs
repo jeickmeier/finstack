@@ -97,7 +97,6 @@ pub(crate) fn price_tba(tba: &AgencyTba, market: &MarketContext, as_of: Date) ->
     }
     let assumed_pool = resolve_assumed_pool(tba, as_of)?;
 
-    // Price the assumed pool
     let pool_pv = price_mbs(&assumed_pool, market, as_of)?;
 
     // Before settlement, discount the contractual trade value back to the

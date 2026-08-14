@@ -302,7 +302,6 @@ impl CalibrationReport {
             None => (None, None),
         };
 
-        // Create default results metadata with stamping
         let results_meta = finstack_quant_core::config::results_meta(
             &finstack_quant_core::config::FinstackConfig::default(),
         );
@@ -535,7 +534,6 @@ impl CalibrationReport {
 
         let diag = compute_residual_diagnostics(&residuals);
 
-        // Determine success and convergence reason
         let (success, convergence_reason) = if diag.has_penalty {
             let penalty_abs_min = RESIDUAL_PENALTY_ABS_MIN;
             let penalty_instruments: Vec<&str> = residuals

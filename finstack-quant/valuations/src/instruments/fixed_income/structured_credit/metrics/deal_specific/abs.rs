@@ -15,7 +15,6 @@ impl crate::metrics::MetricCalculator for AbsChargeOffCalculator {
             .downcast_ref::<StructuredCredit>()
             .ok_or(finstack_quant_core::InputError::Invalid)?;
 
-        // Calculate charge-off rate
         let total_balance = abs.pool.total_balance()?;
         if total_balance.amount() > 0.0 {
             Ok(abs.pool.cumulative_defaults.amount() / total_balance.amount() * DECIMAL_TO_PERCENT)

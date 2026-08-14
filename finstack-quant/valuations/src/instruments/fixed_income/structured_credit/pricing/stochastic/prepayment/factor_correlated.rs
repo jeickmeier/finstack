@@ -62,7 +62,6 @@ impl FactorCorrelatedPrepay {
 
     /// Get the base CPR at a given seasoning.
     fn base_cpr_at_seasoning(&self, seasoning: u32) -> f64 {
-        // Check for no-prepayment case (cpr = 0)
         if self.base_spec.cpr < 1e-10 {
             return 0.0;
         }

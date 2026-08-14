@@ -1125,7 +1125,6 @@ pub fn pv_fixed_leg<I>(
 where
     I: Iterator<Item = LegPeriod>,
 {
-    // Validate parameters at entry point
     params.validate()?;
 
     // Use incremental Kahan accumulator to avoid Vec allocation

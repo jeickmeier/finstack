@@ -93,7 +93,6 @@ pub fn generate_three_factor_paths(
     } else {
         0.0
     };
-    // Build utilization parameters
     let (util_params, is_zero_vol) = match &stoch_spec.utilization_process {
         UtilizationProcess::MeanReverting {
             target_rate,
@@ -109,7 +108,6 @@ pub fn generate_three_factor_paths(
         }
     };
 
-    // Build interest rate specification
     let disc_curve = market.get_discount(facility.discount_curve_id.as_str())?;
     let (interest_rate_spec, rate_curve_opt, rate_time_offset): (
         InterestRateSpec,
@@ -184,7 +182,6 @@ pub fn generate_three_factor_paths(
         }
     };
 
-    // Build credit spread parameters
     let credit_spread_params =
         build_credit_spread_params(mc_config, facility, market, simulation_anchor)?;
 
@@ -244,10 +241,8 @@ pub fn generate_three_factor_paths(
     let refined = refine_time_grid(&sim_times);
     let time_grid = TimeGrid::from_times(refined.times.clone())?;
 
-    // Set up discretization scheme
     let disc = RevolvingCreditDiscretization::new(process.correlation())?;
 
-    // Prepare buffers for simulation
     let num_paths = stoch_spec.num_paths;
     let num_steps = time_grid.num_steps();
     let num_factors = process.num_factors();
@@ -716,7 +711,6 @@ fn refine_time_grid(times: &[f64]) -> RefinedGrid {
         let dt = t1 - t0;
 
         if dt > MAX_MC_TIME_STEP {
-            // Insert intermediate points
             let num_steps = (dt / MAX_MC_TIME_STEP).ceil() as usize;
             let step_size = dt / num_steps as f64;
 

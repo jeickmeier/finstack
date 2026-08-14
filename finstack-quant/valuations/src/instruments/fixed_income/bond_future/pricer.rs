@@ -389,7 +389,6 @@ impl BondFuturePricer {
             as_of,
         )?;
 
-        // Calculate price differential
         let price_diff = model_price - future.quoted_price;
 
         let position_sign = future.position.sign();

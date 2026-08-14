@@ -314,7 +314,6 @@ pub(crate) fn generate_cashflows(
         }
     }
 
-    // Build coupon program via unified builder
     let mut builder = CashFlowBuilder::default();
     let _ = builder
         .principal(
@@ -488,7 +487,6 @@ pub(crate) fn generate_cashflows(
         let _ = builder.payment_split_program(&payment_steps);
     }
 
-    // Add upfront/OID fees
     for fee in fees {
         let _ = builder.fee(fee);
     }

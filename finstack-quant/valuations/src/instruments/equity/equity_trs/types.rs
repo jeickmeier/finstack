@@ -558,13 +558,10 @@ impl crate::instruments::common_impl::traits::Instrument for EquityTotalReturnSw
     }
 
     fn base_value(&self, curves: &MarketContext, as_of: Date) -> Result<Money> {
-        // Validate configuration
         self.validate()?;
 
-        // Calculate total return leg PV
         let total_return_pv = self.pv_total_return_leg(curves, as_of)?;
 
-        // Calculate financing leg PV
         let financing_pv = self.pv_financing_leg(curves, as_of)?;
 
         // Net PV depends on side

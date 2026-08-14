@@ -23,7 +23,6 @@ mod par_spread;
 mod pv_premium;
 mod pv_protection;
 mod recovery01;
-// risk_bucketed_dv01 and theta now using generic implementations
 mod risky_annuity;
 mod risky_pv01;
 

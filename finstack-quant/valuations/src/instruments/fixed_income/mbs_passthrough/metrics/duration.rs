@@ -133,7 +133,6 @@ pub(crate) fn duration_convexity(
     let shock_bp = shock_bp.unwrap_or(25.0);
     let shock = shock_bp / 10_000.0; // Convert to decimal
 
-    // Get base price
     let base_price = price_mbs(mbs, market, as_of)?.amount();
 
     if base_price.abs() < 1e-10 {

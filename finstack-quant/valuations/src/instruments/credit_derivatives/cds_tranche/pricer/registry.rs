@@ -89,7 +89,6 @@ impl crate::pricer::Pricer for SimpleCDSTrancheHazardPricer {
                 )
             })?;
 
-        // Return stamped result
         Ok(
             crate::results::ValuationResult::stamped(cds_tranche.id(), as_of, pv).with_details(
                 crate::results::ValuationDetails::CreditDerivative(

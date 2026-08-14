@@ -725,7 +725,6 @@ impl BondFuture {
         settlement_date: Date,
     ) -> finstack_quant_core::Result<Money> {
         let ctd_bond_id = self.resolve_ctd_bond_id()?;
-        // Find the conversion factor for the CTD bond
         let conversion_factor = self
             .deliverable_basket
             .iter()
@@ -738,10 +737,8 @@ impl BondFuture {
             })?
             .conversion_factor;
 
-        // Get the CTD bond's cashflow schedule
         let schedule = ctd_bond.full_cashflow_schedule(market)?;
 
-        // Calculate accrued interest at settlement date
         use crate::cashflow::accrual::accrued_interest_amount;
 
         let accrual_config = ctd_bond.accrual_config();
@@ -817,7 +814,6 @@ impl BondFuture {
         let mut best_ctd: Option<(InstrumentId, f64)> = None;
 
         for deliverable in &self.deliverable_basket {
-            // Find the clean price for this bond
             if let Some((_, clean_price)) = bond_clean_prices
                 .iter()
                 .find(|(id, _)| *id == deliverable.bond_id)
@@ -1040,7 +1036,6 @@ impl BondFuture {
         coupon_income: f64,
         days_to_delivery: i32,
     ) -> finstack_quant_core::Result<f64> {
-        // Find the conversion factor for this bond
         let cf = self
             .deliverable_basket
             .iter()
@@ -1857,7 +1852,6 @@ Provide it at construction time via BondFutureBuilder::ctd_bond(...) or by using
             })?
             .conversion_factor;
 
-        // Calculate and return NPV
         super::pricer::BondFuturePricer::calculate_npv(
             self,
             ctd_bond,

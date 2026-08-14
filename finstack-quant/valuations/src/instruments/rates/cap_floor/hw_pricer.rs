@@ -320,7 +320,6 @@ impl CapFloorHullWhitePricer {
             None
         };
 
-        // Build schedule periods
         let periods = cap_floor.pricing_periods().map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
         })?;

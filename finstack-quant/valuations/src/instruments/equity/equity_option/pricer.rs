@@ -743,7 +743,6 @@ impl crate::pricer::Pricer for SimpleEquityOptionBlackPricer {
             })?;
 
         // Use the provided as_of date for consistency
-        // Compute present value using the engine
         let pv = compute_pv(equity_option, market, as_of).map_err(|e| {
             crate::pricer::PricingError::model_failure_with_context(
                 e.to_string(),
@@ -752,7 +751,6 @@ impl crate::pricer::Pricer for SimpleEquityOptionBlackPricer {
             )
         })?;
 
-        // Return stamped result
         Ok(crate::results::ValuationResult::stamped(
             equity_option.id(),
             as_of,

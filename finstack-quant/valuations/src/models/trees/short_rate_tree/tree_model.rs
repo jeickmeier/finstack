@@ -123,7 +123,6 @@ impl TreeModel for ShortRateTree {
         }
         self.validate_lattice_geometry()?;
 
-        // Ensure initial rate is present
         if !initial_vars.contains_key(state_keys::INTEREST_RATE) {
             if let Some(row) = self.rates.first() {
                 if let Some(&r0) = row.first() {

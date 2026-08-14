@@ -14,7 +14,6 @@ use finstack_quant_core::Error;
 
 impl finstack_quant_cashflows::CashflowScheduleSource for StructuredCredit {
     fn notional(&self) -> Option<Money> {
-        // Return total pool balance as the notional
         self.pool.total_balance().ok()
     }
 

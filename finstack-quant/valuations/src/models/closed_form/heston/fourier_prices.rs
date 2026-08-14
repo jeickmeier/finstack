@@ -229,7 +229,6 @@ pub fn heston_call_price_fourier_with_settings(
     params: &HestonParams,
     settings: &HestonFourierSettings,
 ) -> f64 {
-    // Handle expired options
     if time <= 0.0 {
         return (spot - strike).max(0.0);
     }

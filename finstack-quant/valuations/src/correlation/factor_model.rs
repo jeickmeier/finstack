@@ -720,7 +720,6 @@ impl LatentMultiFactor {
         }
         let vols: Vec<f64> = volatilities.iter().map(|v| v.clamp(0.01, 10.0)).collect();
 
-        // Validate correlation matrix
         if correlations.len() != n * n {
             return Err(Error::InvalidSize {
                 expected: n,
@@ -730,7 +729,6 @@ impl LatentMultiFactor {
 
         validate_correlation_matrix(&correlations, n)?;
 
-        // Compute Cholesky decomposition
         let cholesky = cholesky_decompose(&correlations, n)?;
 
         Ok(Self {

@@ -101,7 +101,6 @@ pub(crate) fn compute_pv(
         ));
     }
 
-    // Get discount curve
     let disc_curve = market.get_discount(inst.discount_curve_id.as_str())?;
     let df = disc_curve.df_between_dates(as_of, inst.expiry)?;
 

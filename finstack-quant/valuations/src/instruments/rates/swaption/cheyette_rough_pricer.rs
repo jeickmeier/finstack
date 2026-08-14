@@ -394,7 +394,6 @@ impl BermudanSwaptionCheyetteRoughPricer {
             return Ok((Money::new(0.0, currency), 0.0));
         }
 
-        // Build Cheyette parameters
         let phi_points = Self::build_phi_points(disc.as_ref(), swap_end_time, as_of_curve_time);
 
         // Get base vol from vol surface (use ATM vol at midpoint expiry)
@@ -569,7 +568,6 @@ impl BermudanSwaptionCheyetteRoughPricer {
             // Track which exercise index we're on
             let mut ex_ptr = 0;
 
-            // Accumulate path-wise discount factor
             let mut cum_df = 1.0;
 
             for (step, fbm_increment) in fbm_increments.iter().copied().enumerate() {
@@ -661,7 +659,6 @@ impl BermudanSwaptionCheyetteRoughPricer {
                 notional,
             };
 
-            // Compute exercise values at each path
             let mut exercise_values: Vec<f64> = Vec::with_capacity(num_paths);
             let mut basis_inputs: Vec<(f64, f64, f64)> = Vec::with_capacity(num_paths);
 

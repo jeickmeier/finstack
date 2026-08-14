@@ -124,7 +124,6 @@ impl MetricCalculator for ImpliedVolCalculator {
             RateOptionType::Cap | RateOptionType::Caplet
         );
 
-        // Set up inputs for Black model
         let base_inputs = CapletFloorletInputs {
             is_cap,
             notional: option.notional.amount(),

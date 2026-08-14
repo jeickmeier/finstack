@@ -77,7 +77,6 @@ impl FxSwapPricingContext {
             }
         }
 
-        // Get discount curves
         let domestic_disc = curves.get_discount(swap.domestic_discount_curve_id.as_str())?;
         let foreign_disc = curves.get_discount(swap.foreign_discount_curve_id.as_str())?;
 
@@ -85,7 +84,6 @@ impl FxSwapPricingContext {
         let include_near = swap.near_date >= as_of;
         let include_far = swap.far_date >= as_of;
 
-        // Calculate discount factors
         let (df_dom_near, df_for_near) = if include_near {
             (
                 domestic_disc.df_between_dates(as_of, swap.near_date)?,

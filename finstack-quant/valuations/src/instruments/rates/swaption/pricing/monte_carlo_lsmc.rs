@@ -648,7 +648,6 @@ impl SwaptionLsmcPricer {
             for (i, path) in paths.iter().enumerate() {
                 let r_t = path[exercise_step];
 
-                // Compute forward swap rate
                 let swap_rate = ForwardSwapRate::compute(
                     params,
                     r_t,

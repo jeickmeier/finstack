@@ -32,7 +32,6 @@ impl MetricCalculator for Dividend01Calculator {
             None => return Ok(0.0),
         };
 
-        // Get current dividend yield
         let Ok(current_scalar) = context.curves.get_price(&div_yield_id) else {
             return Ok(0.0);
         };

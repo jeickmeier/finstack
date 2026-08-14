@@ -349,7 +349,6 @@ impl Tranche {
         coupon: TrancheCoupon,
         maturity: Date,
     ) -> finstack_quant_core::Result<Self> {
-        // Validate attachment/detachment points
         if attachment_point < 0.0 || detachment_point <= attachment_point {
             return Err(finstack_quant_core::InputError::Invalid.into());
         }
@@ -619,7 +618,6 @@ impl TrancheBuilder {
             .original_balance
             .ok_or(finstack_quant_core::InputError::Invalid)?;
 
-        // Validate original_balance is positive
         if original_balance.amount() <= 0.0 {
             return Err(finstack_quant_core::InputError::Invalid.into());
         }
@@ -711,13 +709,11 @@ impl TrancheStructure {
             return Err(finstack_quant_core::InputError::TooFewPoints.into());
         }
 
-        // Validate structure@
         Self::validate_structure(&tranches)?;
 
         // Assign deterministic, distinct payment priorities by structural rank.
         Self::assign_priorities(&mut tranches);
 
-        // Calculate total size
         let total_size = tranches.iter().try_fold(
             Money::new(0.0, tranches[0].original_balance.currency()),
             |acc, t| acc.checked_add(t.original_balance),
@@ -795,7 +791,6 @@ impl TrancheStructure {
         let mut sorted_tranches = tranches.to_vec();
         sorted_tranches.sort_by(|a, b| a.attachment_point.total_cmp(&b.attachment_point));
 
-        // Check for gaps or overlaps
         let mut expected_attachment = 0.0;
         const TOLERANCE: f64 = 1e-6;
 
@@ -844,7 +839,6 @@ impl TrancheStructure {
             }
         }
 
-        // Check currency consistency
         let base_currency = tranches[0].original_balance.currency();
         for tranche in tranches {
             if tranche.original_balance.currency() != base_currency {

@@ -100,7 +100,6 @@ impl AsianOptionHestonMcPricer {
             ));
         }
 
-        // Get discount curve and factor
         let disc_curve = market.get_discount(inst.discount_curve_id.as_str())?;
         let discount_factor = disc_curve.df_between_dates(as_of, inst.expiry)?;
         let r = if t > 0.0 && discount_factor > 0.0 {
@@ -109,20 +108,17 @@ impl AsianOptionHestonMcPricer {
             0.0
         };
 
-        // Get spot
         let spot_scalar = market.get_price(&inst.spot_id)?;
         let spot = match spot_scalar {
             finstack_quant_core::market_data::scalars::MarketScalar::Unitless(v) => *v,
             finstack_quant_core::market_data::scalars::MarketScalar::Price(m) => m.amount(),
         };
 
-        // Get dividend yield
         let q = crate::instruments::common_impl::helpers::resolve_optional_dividend_yield(
             market,
             inst.div_yield_id.as_ref(),
         )?;
 
-        // Fetch Heston parameters
         let kappa = Self::heston_scalar(market, "HESTON_KAPPA")?;
         let theta = Self::heston_scalar(market, "HESTON_THETA")?;
         let sigma_v = Self::heston_scalar(market, "HESTON_SIGMA_V")?;

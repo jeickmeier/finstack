@@ -37,7 +37,6 @@ impl MetricCalculator for WeightRiskCalculator {
                 .clone()
                 .unwrap_or_else(|| constituent.id.clone());
 
-            // Create basket with bumped weight
             let bumped_weight = (constituent.weight + WEIGHT_BUMP).clamp(0.0, 1.0);
             let weight_change = bumped_weight - constituent.weight;
 
@@ -81,7 +80,6 @@ impl MetricCalculator for WeightRiskCalculator {
             total_risk += risk;
         }
 
-        // Store as bucketed series
         context.store_bucketed_series(crate::metrics::MetricId::custom("weight_risk"), series);
 
         Ok(total_risk)

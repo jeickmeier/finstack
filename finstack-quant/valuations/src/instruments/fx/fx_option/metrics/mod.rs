@@ -6,8 +6,6 @@
 
 mod delta_conventions;
 mod implied_vol;
-// delta/gamma/vega/theta/rho/vanna/volga are provided via common adapters
-// dv01 and bucketed_dv01 now using generic implementations
 
 use crate::metrics::MetricRegistry;
 

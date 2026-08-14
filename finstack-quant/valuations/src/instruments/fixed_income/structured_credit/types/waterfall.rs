@@ -952,7 +952,6 @@ impl Waterfall {
         let mut engine = Self::new(base_currency);
         let mut priority = 1;
 
-        // Add fees tier
         if !fee_recipients.is_empty() {
             let fees_tier = WaterfallTier::new("fees", priority, PaymentType::Fee)
                 .allocation_mode(AllocationMode::Sequential);
@@ -963,7 +962,6 @@ impl Waterfall {
             priority += 1;
         }
 
-        // Add interest tier
         let mut sorted_tranches = tranches.tranches.clone();
         sorted_tranches.sort_by_key(|t| t.payment_priority);
 
@@ -1010,7 +1008,6 @@ impl Waterfall {
             priority += 1;
         }
 
-        // Add principal tier
         let mut principal_recipients = Vec::new();
         for tranche in &sorted_tranches {
             if tranche.seniority != super::TrancheSeniority::Equity {

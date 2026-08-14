@@ -149,15 +149,12 @@ impl DiscountCurveTarget {
     ) -> Vec<f64> {
         let mut grid = Vec::with_capacity(num_points + 20);
 
-        // Add boundary points
         Self::add_boundary_points(&mut grid, df_lo, df_hi);
 
-        // Add coarse grid points
         let center = initial_df.clamp(df_lo, df_hi);
         let use_log_spacing = df_lo > DF_MIN_HARD && df_hi / df_lo > 10.0;
         Self::add_coarse_grid_points(&mut grid, df_lo, df_hi, num_points, use_log_spacing);
 
-        // Add fine grid around center
         Self::add_fine_grid_around_center(&mut grid, center, df_lo, df_hi);
 
         // Sort and deduplicate
@@ -1195,7 +1192,6 @@ Ensure quotes map to strictly increasing year fractions.",
                 category: "jacobian".to_string(),
             });
         }
-        // Check columns
         if !jacobian.is_empty() && jacobian[0].len() != params.len() {
             return Err(finstack_quant_core::Error::Calibration {
                 message: format!(

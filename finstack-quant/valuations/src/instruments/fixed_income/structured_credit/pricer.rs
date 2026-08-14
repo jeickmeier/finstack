@@ -103,7 +103,6 @@ impl StructuredCredit {
             PricingOptions::default(),
         )?;
 
-        // Add hedge metrics if swaps are attached
         if !self.hedge_swaps.is_empty() {
             let hedge_npv = self.hedge_npv_unchecked(context, result.as_of)?;
             let total_npv = result.value.checked_add(hedge_npv)?;

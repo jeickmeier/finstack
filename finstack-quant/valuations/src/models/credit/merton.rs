@@ -890,7 +890,6 @@ impl MertonModel {
             })
             .collect();
 
-        // Build knot points: (tenor, hazard_rate)
         let mut knots: Vec<(f64, f64)> = Vec::with_capacity(sorted_tenors.len());
 
         // First point: λ_0 = -ln(S(t_0)) / t_0
@@ -1112,7 +1111,6 @@ impl MertonModel {
                     .collect()
             });
 
-            // Build the base path
             all_paths.push(v0);
             let mut v = v0;
 

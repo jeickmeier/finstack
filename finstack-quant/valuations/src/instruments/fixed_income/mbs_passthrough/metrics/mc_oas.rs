@@ -349,7 +349,6 @@ fn price_on_path(
         let delay_df = (-(current_rate + oas) * extra).exp();
         pv += total_cf * cumulative_df * delay_df;
 
-        // Update balance
         balance = (balance - scheduled_principal - prepayment).max(0.0);
     }
 

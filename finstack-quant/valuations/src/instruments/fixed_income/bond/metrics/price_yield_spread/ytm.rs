@@ -46,7 +46,6 @@ pub(crate) struct YtmCalculator;
 
 impl MetricCalculator for YtmCalculator {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
-        // Extract fields we need from the bond
         let bond: &Bond = context.instrument_as()?;
         let maybe_clean_px = bond
             .instrument_pricing_overrides

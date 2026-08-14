@@ -352,7 +352,6 @@ impl Deposit {
             },
         )?;
 
-        // Validate positive notional
         validation::validate_money_gt_with(self.notional, 0.0, |amount| {
             format!("Deposit notional must be positive, got {}", amount)
         })?;

@@ -275,11 +275,9 @@ impl SABRCalibrator {
             )));
         }
 
-        // Apply shift to all rates
         let shifted_forward = forward + shift;
         let shifted_strikes: Vec<f64> = strikes.iter().map(|&s| s + shift).collect();
 
-        // Validate shifted rates are positive
         if shifted_forward <= 0.0 || shifted_strikes.iter().any(|&s| s <= 0.0) {
             let min_shifted_strike = shifted_strikes
                 .iter()
@@ -302,7 +300,6 @@ impl SABRCalibrator {
             beta,
         )?;
 
-        // Return parameters with shift
         SABRParameters::new_with_shift(
             base_params.alpha,
             beta,
@@ -352,7 +349,6 @@ impl SABRCalibrator {
             let nu = params[1];
             let rho = params[2];
 
-            // Create SABR parameters and model
             if let Ok(sabr_params) = SABRParameters::new(alpha, beta, nu, rho) {
                 let model = SABRModel::new(sabr_params);
 
@@ -391,7 +387,6 @@ impl SABRCalibrator {
         // Calibrate using multi-dimensional solver
         let solution = solver.minimize(objective, &initial, Some(&bounds))?;
 
-        // Extract calibrated parameters
         SABRParameters::new(solution[0], beta, solution[1], solution[2])
     }
 
@@ -418,7 +413,6 @@ impl SABRCalibrator {
         };
         use finstack_quant_core::math::solver_multi::LevenbergMarquardtSolver;
 
-        // Create market data structure
         let market_data = SABRMarketData {
             forward,
             time_to_expiry,
@@ -431,7 +425,6 @@ impl SABRCalibrator {
         // Finite-difference derivatives provider for the LM solver.
         let derivatives_provider = SABRCalibrationDerivatives::new(market_data.clone());
 
-        // Create Levenberg-Marquardt solver
         let solver = LevenbergMarquardtSolver::new()
             .with_tolerance(self.tolerance)
             .with_max_iterations(self.max_iterations);
@@ -442,7 +435,6 @@ impl SABRCalibrator {
             let nu = params[1];
             let rho = params[2];
 
-            // Create SABR parameters and model
             if let Ok(sabr_params) = SABRParameters::new(alpha, beta, nu, rho) {
                 let model = SABRModel::new(sabr_params);
 
@@ -487,7 +479,6 @@ impl SABRCalibrator {
             Some(&bounds),
         )?;
 
-        // Extract calibrated parameters
         let alpha = solution[0];
         let nu = solution[1];
         let rho = solution[2];
@@ -513,11 +504,9 @@ impl SABRCalibrator {
             )));
         }
 
-        // Apply shift to all rates
         let shifted_forward = forward + shift;
         let shifted_strikes: Vec<f64> = strikes.iter().map(|&s| s + shift).collect();
 
-        // Validate shifted rates are positive
         if shifted_forward <= 0.0 || shifted_strikes.iter().any(|&s| s <= 0.0) {
             let min_shifted_strike = shifted_strikes
                 .iter()
@@ -540,7 +529,6 @@ impl SABRCalibrator {
             beta,
         )?;
 
-        // Return parameters with shift
         SABRParameters::new_with_shift(
             base_params.alpha,
             beta,
@@ -657,7 +645,6 @@ impl SABRCalibrator {
             )));
         }
 
-        // Find ATM vol from market data
         let atm_vol = self.find_atm_vol(forward, strikes, market_vols)?;
 
         // Use 2D solver for nu and rho only

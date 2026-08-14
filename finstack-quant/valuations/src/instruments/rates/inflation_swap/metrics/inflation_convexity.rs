@@ -54,7 +54,6 @@ impl MetricCalculator for InflationConvexityCalculator {
         // would turn sub-cent rounding into large convexity noise.
         let base_pv = swap.value_raw(context.curves.as_ref(), as_of)?;
 
-        // Get the inflation index/curve ID
         let inflation_curve_id = &swap.inflation_index_id;
 
         // Create bumped curves (up by 1bp = 0.01%)

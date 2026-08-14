@@ -230,7 +230,6 @@ impl<'a> CashflowEngine<'a> {
     /// This is the core deterministic cashflow generation logic, migrated from
     /// the original `cashflows.rs::generate_deterministic_cashflows_internal`.
     fn build_deterministic_schedule(&self) -> Result<CashFlowSchedule> {
-        // Validate that we have a deterministic spec
         let mut draw_repay_events = match &self.facility.draw_repay_spec {
             DrawRepaySpec::Deterministic(events) => events.clone(),
             DrawRepaySpec::Stochastic(_) => {
@@ -356,7 +355,6 @@ impl<'a> CashflowEngine<'a> {
             let mut weighted_commitment_fee_rate = 0.0;
             let mut weighted_usage_fee_rate = 0.0;
 
-            // Process each sub-period
             for window in timeline.windows(2) {
                 let sub_start = window[0];
                 let sub_end = window[1];
@@ -407,7 +405,6 @@ impl<'a> CashflowEngine<'a> {
                     };
                 }
 
-                // Calculate interest for this sub-period
                 let interest_rate = match &self.facility.base_rate_spec {
                     BaseRateSpec::Fixed { rate } => {
                         let interest = current_balance * (*rate * dt);
@@ -457,7 +454,6 @@ impl<'a> CashflowEngine<'a> {
                 };
                 weighted_interest_rate += interest_rate * dt;
 
-                // Calculate fees for this sub-period
                 let commitment_fee_bp = self.facility.fees.commitment_fee_bp(utilization);
                 if commitment_fee_bp > 0.0 {
                     let commitment_fee = current_undrawn * (commitment_fee_bp * 1e-4 * dt);
@@ -676,7 +672,6 @@ impl<'a> CashflowEngine<'a> {
             let period_end = period.accrual_end;
             let payment_date = period.payment_date;
 
-            // Get path values at this step (step function - use period start)
             let utilization_start = path.utilization_path[i].clamp(0.0, 1.0);
             let utilization_end = path.utilization_path[i + 1].clamp(0.0, 1.0);
             let short_rate = path.short_rate_path[i];
@@ -737,7 +732,6 @@ impl<'a> CashflowEngine<'a> {
             )?;
             let interest = drawn_balance * (interest_rate * dt);
 
-            // Add interest cashflows if non-zero
             if payment_date > self.as_of && !rc.is_effectively_zero_money(interest.amount(), ccy) {
                 flows.push(CashFlow::new(
                     payment_date,

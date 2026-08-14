@@ -318,7 +318,6 @@ where
             "bucketed vega debug"
         );
 
-        // Store as 2D matrix
         let col_labels: Vec<String> = self.strikes.iter().map(|&k| format!("{:.2}", k)).collect();
 
         let _ = context.store_matrix2d(MetricId::BucketedVega, row_labels, col_labels, matrix);

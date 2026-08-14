@@ -180,7 +180,6 @@ pub fn bs_implied_vol(
         if candidate <= lo || candidate >= hi || !candidate.is_finite() {
             break; // Newton step out of bracket; fall through to bisection
         }
-        // Update bracket
         if f_mid > 0.0 {
             hi = mid;
         } else {

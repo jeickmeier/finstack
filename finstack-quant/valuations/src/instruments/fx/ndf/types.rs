@@ -806,7 +806,6 @@ impl Ndf {
             )));
         };
 
-        // Get settlement discount factor
         let settlement_disc = market.get_discount(self.domestic_discount_curve_id.as_str())?;
         let df_settlement = settlement_disc.df_between_dates(as_of, self.maturity)?;
 
@@ -927,11 +926,9 @@ impl crate::instruments::common_impl::traits::Instrument for Ndf {
             return Ok(Money::new(0.0, self.settlement_currency));
         }
 
-        // Get settlement discount curve
         let settlement_disc = market.get_discount(self.domestic_discount_curve_id.as_str())?;
         let df_settlement = settlement_disc.df_between_dates(as_of, self.maturity)?;
 
-        // Determine the forward rate to use
         let effective_forward = if let Some(fixed_rate) = self.fixing_rate {
             // Post-fixing: use observed rate
             fixed_rate
@@ -948,7 +945,6 @@ impl crate::instruments::common_impl::traits::Instrument for Ndf {
         };
         Self::validate_rate("effective_forward", effective_forward)?;
 
-        // Validate notional currency
         if self.notional.currency() != self.base_currency {
             return Err(finstack_quant_core::Error::CurrencyMismatch {
                 expected: self.base_currency,

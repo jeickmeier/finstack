@@ -356,7 +356,6 @@ impl crate::pricer::Pricer for EquityOptionRoughBergomiMcPricer {
         let process =
             finstack_quant_monte_carlo::process::rough_bergomi::RoughBergomiProcess::new(params);
 
-        // Build time grid
         let time_grid = finstack_quant_monte_carlo::time_grid::TimeGrid::uniform(t, self.num_steps)
             .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
 

@@ -23,7 +23,6 @@ mod greeks;
 mod implied_vol;
 mod oas;
 mod parity;
-// risk_bucketed_dv01 and theta now using generic implementations
 
 use crate::metrics::MetricRegistry;
 

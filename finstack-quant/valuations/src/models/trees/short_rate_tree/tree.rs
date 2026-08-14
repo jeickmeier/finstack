@@ -156,11 +156,9 @@ impl ShortRateTree {
     ) -> Result<()> {
         self.calibration_curve_id = curve_id.clone();
 
-        // Build time grid
         let dt = time_to_maturity / self.config.steps as f64;
         self.time_steps = (0..=self.config.steps).map(|i| i as f64 * dt).collect();
 
-        // Initialize data structures
         let mut rates = vec![Vec::new(); self.config.steps + 1];
         self.probs = vec![(0.5, 0.5); self.config.steps]; // Default to equal probabilities
         self.bk_trinomial = None;

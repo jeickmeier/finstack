@@ -18,7 +18,6 @@ mod inflation_convexity;
 mod inflation_leg_pv;
 mod par_rate;
 mod yoy_inflation01;
-// risk_bucketed_dv01, dv01, and theta now using generic implementations
 
 use crate::metrics::MetricRegistry;
 

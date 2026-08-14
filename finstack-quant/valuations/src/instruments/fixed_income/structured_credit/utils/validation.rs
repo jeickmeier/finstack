@@ -158,7 +158,6 @@ fn validate_tiers(tiers: &[WaterfallTier]) -> Vec<ValidationError> {
             });
         }
 
-        // Validate recipient IDs within tier
         let mut seen_recipient_ids = HashSet::default();
         for recipient in &tier.recipients {
             if !seen_recipient_ids.insert(&recipient.id) {

@@ -136,14 +136,12 @@ fn execute_waterfall_core(
     let mut had_diversions = false;
     let mut diversion_reason = None;
 
-    // Build tranche index fresh (cheap operation)
     let mut tranche_index = HashMap::default();
     tranche_index.reserve(tranches.tranches.len());
     for (i, t) in tranches.tranches.iter().enumerate() {
         tranche_index.insert(t.id.as_str(), i);
     }
 
-    // Build allocation context for reuse across tiers
     let allocation_ctx = AllocationContext {
         base_currency: waterfall.base_currency,
         tranches,
@@ -233,7 +231,6 @@ fn execute_waterfall_core(
         diversion_reason = Some("OC or IC test failed".to_string());
     }
 
-    // Create allocation output, using workspace buffers if available
     let mut allocation_output = if let Some(ref mut ws) = workspace {
         // Clear workspace buffers and reuse them
         ws.distributions.clear();
@@ -257,7 +254,6 @@ fn execute_waterfall_core(
             },
         }
     } else {
-        // Allocate fresh buffers
         let estimated_recipients = waterfall
             .tiers
             .iter()
@@ -276,7 +272,6 @@ fn execute_waterfall_core(
     // so regular and diverted tiers cannot retire the same notional twice.
     let mut principal_paid_in_period: HashMap<String, Money> = HashMap::default();
 
-    // Process tiers in priority order
     for tier in &waterfall.tiers {
         let (target_recipients, tier_diverted): (&[Recipient], bool) =
             if tier.divertible && diversion_active {
@@ -370,7 +365,6 @@ fn execute_waterfall_core(
         remaining = remaining.checked_sub(tier_cash)?;
     }
 
-    // Convert internal results to public tuple format
     let coverage_tests_public: Vec<(String, f64, bool)> = coverage_test_results
         .iter()
         .map(|r| (r.test_id.clone(), r.current_ratio, r.is_passing))
@@ -393,7 +387,6 @@ fn execute_waterfall_core(
         })
         .collect();
 
-    // Build the final distribution result
     let distribution = WaterfallDistribution {
         payment_date: context.payment_date,
         total_available: context.available_cash,
@@ -571,7 +564,6 @@ fn allocate_sequential(
             .checked_sub(paid)
             .unwrap_or(Money::new(0.0, base_currency));
 
-        // Update distributions
         use std::collections::hash_map::Entry;
         match output.distributions.entry(recipient.recipient_type.clone()) {
             Entry::Occupied(mut e) => {
@@ -663,7 +655,6 @@ fn allocate_pro_rata(
         return Ok(Money::new(0.0, base_currency));
     }
 
-    // Calculate total requested across all recipients
     let mut total_requested = Money::new(0.0, base_currency);
     let mut recipient_requests = Vec::with_capacity(recipients.len());
 

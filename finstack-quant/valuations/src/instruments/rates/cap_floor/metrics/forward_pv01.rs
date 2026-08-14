@@ -16,7 +16,6 @@ impl MetricCalculator for ForwardPv01Calculator {
         // Base PV from context
         let base = context.base_value.amount();
 
-        // Get the original forward curve
         let original_fwd = context.curves.get_forward(&option.forward_curve_id)?;
 
         // Use shared sensitivity config to keep forward PV01 bump aligned with DV01 settings.

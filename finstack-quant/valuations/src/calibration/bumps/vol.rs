@@ -79,7 +79,6 @@ pub fn bump_vol_surface(
         }
     }
 
-    // Apply bumps
     match request {
         VolBumpRequest::Parallel(shift) => {
             for v in &mut vols {

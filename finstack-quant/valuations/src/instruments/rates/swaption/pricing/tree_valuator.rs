@@ -118,14 +118,12 @@ impl<'a> BermudanSwaptionTreeValuator<'a> {
         }
 
         let tree = model.tree();
-        // Get exercise times and map to tree steps
         let exercise_times = swaption.exercise_times(as_of)?;
         let exercise_steps: HashSet<usize> = exercise_times
             .iter()
             .map(|&t| tree.time_to_step(t))
             .collect();
 
-        // Build swap schedule
         let (_payment_dates, accrual_fractions) = swaption.build_swap_schedule(as_of)?;
         let payment_times = swaption.payment_times(as_of)?;
 
@@ -224,7 +222,6 @@ impl<'a> BermudanSwaptionTreeValuator<'a> {
             self.discount_curve,
         );
 
-        // Compute annuity at this node
         let annuity = self.tree().annuity(
             step,
             node_idx,
@@ -319,7 +316,6 @@ impl<'a> BermudanSwaptionTreeValuator<'a> {
                 exercise_cont_values.insert(step, continuations.clone());
             }
 
-            // Apply exercise decision
             cont_values = continuations
                 .into_iter()
                 .enumerate()

@@ -83,12 +83,10 @@ impl MetricCalculator for Prepayment01Calculator {
         let (prepayment_up, prepayment_down, achieved_bump) =
             bumped_prepayment_specs(&instrument.credit_model.prepayment_spec);
 
-        // Calculate up scenario
         let mut inst_up = instrument.clone();
         inst_up.credit_model.prepayment_spec = prepayment_up;
         let pv_up = context.reprice_instrument_raw(&inst_up, context.curves.as_ref(), as_of)?;
 
-        // Calculate down scenario
         let mut inst_down = instrument;
         inst_down.credit_model.prepayment_spec = prepayment_down;
         let pv_down = context.reprice_instrument_raw(&inst_down, context.curves.as_ref(), as_of)?;

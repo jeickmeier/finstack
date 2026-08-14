@@ -149,7 +149,6 @@ impl Solver1D {
             return Err(PdeSolverError::ZeroTimeSteps);
         }
 
-        // Initialize terminal condition at interior points
         let mut u: Vec<f64> = self.grid.points()[1..self.grid.n() - 1]
             .iter()
             .map(|&x| problem.terminal_condition(x))

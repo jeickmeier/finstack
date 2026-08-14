@@ -267,7 +267,6 @@ impl MetricRegistry {
         )
         .entered();
 
-        // Build dependency graph and compute order for this instrument type
         let instrument_type = context.instrument.key();
         let order = self.resolve_dependencies(metric_ids, instrument_type, context)?;
 
@@ -300,7 +299,6 @@ impl MetricRegistry {
                 continue;
             };
 
-            // Compute metric
             match calc.calculate(context) {
                 Ok(value) => {
                     context.computed.insert(metric_id, value);
@@ -420,7 +418,6 @@ impl MetricRegistry {
         state.temp_mark.insert(id.clone());
         state.path.push(id.clone());
 
-        // Get calculator and process dependencies
         // If metric not found or not applicable, just skip it gracefully
         if let Some(entry) = self.entries.get(&id) {
             if let Some(calc) = entry.get_for(instrument_type) {

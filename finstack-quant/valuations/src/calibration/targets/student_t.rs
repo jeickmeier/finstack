@@ -305,7 +305,6 @@ impl StudentTTarget {
         // Clamp to bounds.
         let calibrated_df = calibrated_df.clamp(df_lo, df_hi);
 
-        // Build report.
         let mut residuals = BTreeMap::new();
         let final_residual = objective(calibrated_df);
         residuals.insert(
@@ -322,7 +321,6 @@ impl StudentTTarget {
         let mut report = report;
         report.update_solver_config(self.config.solver.clone());
 
-        // Store calibrated df in the market context.
         let scalar_key = format!("{}_STUDENT_T_DF", self.params.tranche_instrument_id);
         let new_context = self
             .base_context

@@ -807,7 +807,6 @@ impl RatesCreditTree {
 
         let dt = time_to_maturity / steps as f64;
 
-        // Store recovery rate from hazard curve.
         self.recovery_rate = hazard.recovery_rate();
 
         // Reference (reversion) levels: the t=0 instantaneous rate / hazard

@@ -88,14 +88,12 @@ impl MetricCalculator for ZSpreadCalculator {
         // Convert price points back to currency using original notional.
         let (target_value, _) = quoted_target_value(context)?;
 
-        // Get cashflows
         let flows = context.cashflows.as_ref().ok_or_else(|| {
             finstack_quant_core::Error::from(finstack_quant_core::InputError::NotFound {
                 id: "context.cashflows".to_string(),
             })
         })?;
 
-        // Get discount curve
         let disc_curve_id = context.discount_curve_id.as_ref().ok_or_else(|| {
             finstack_quant_core::Error::from(finstack_quant_core::InputError::NotFound {
                 id: "discount_curve_id".to_string(),
@@ -238,7 +236,6 @@ pub struct Cs01Calculator;
 
 impl MetricCalculator for Cs01Calculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
-        // Get Z-spread (base spread)
         let base_spread = context
             .computed
             .get(&MetricId::ZSpread)
@@ -252,14 +249,12 @@ impl MetricCalculator for Cs01Calculator {
         // Bump spread by 1bp
         let bumped_spread = base_spread + ONE_BASIS_POINT;
 
-        // Get cashflows
         let flows = context.cashflows.as_ref().ok_or_else(|| {
             finstack_quant_core::Error::from(finstack_quant_core::InputError::NotFound {
                 id: "context.cashflows".to_string(),
             })
         })?;
 
-        // Get discount curve
         let disc_curve_id = context.discount_curve_id.as_ref().ok_or_else(|| {
             finstack_quant_core::Error::from(finstack_quant_core::InputError::NotFound {
                 id: "discount_curve_id".to_string(),
@@ -469,7 +464,6 @@ pub fn calculate_tranche_cs01(
 ) -> Result<f64> {
     let day_count = crate::instruments::fixed_income::structured_credit::metrics::METRIC_TIME_BASIS;
 
-    // Calculate base PV
     let mut base_pv = finstack_quant_core::math::summation::NeumaierAccumulator::new();
     let mut bumped_pv = finstack_quant_core::math::summation::NeumaierAccumulator::new();
     let bumped_spread = z_spread + ONE_BASIS_POINT;

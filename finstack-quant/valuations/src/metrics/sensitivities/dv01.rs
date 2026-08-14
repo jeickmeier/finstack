@@ -236,10 +236,8 @@ where
             sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
         let bump_bp = defaults.rate_bump_bp;
 
-        // Collect curves based on configuration
         let curves = self.collect_curves(instrument, context.curves.as_ref())?;
 
-        // Compute DV01 based on mode
         match self.config.mode {
             Dv01ComputationMode::ParallelCombined => {
                 self.compute_parallel_combined(context, &curves, bump_bp)

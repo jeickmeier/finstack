@@ -455,7 +455,6 @@ impl ExerciseProbabilityProfile {
         valuator: &BermudanSwaptionTreeValuator,
         exercise_times: Vec<f64>,
     ) -> Self {
-        // Get actual exercise probabilities from the tree valuator
         let tree_probs = valuator.exercise_probabilities();
 
         let n = exercise_times.len();
@@ -536,7 +535,6 @@ impl MetricCalculator for ExerciseProbabilityCalculator {
         let exercise_times = swaption.exercise_times(context.as_of)?;
         let profile = ExerciseProbabilityProfile::from_valuator(&valuator, exercise_times);
 
-        // Return expected exercise time as the metric value
         Ok(profile.expected_exercise_time)
     }
 }
