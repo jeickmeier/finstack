@@ -160,7 +160,6 @@ impl Deposit {
     /// Returns a 6-month USD deposit with 4.5% quoted rate and standard
     /// T+2 spot settlement with ModifiedFollowing business day convention.
     pub fn example() -> finstack_quant_core::Result<Self> {
-        // SAFETY: All inputs are compile-time validated constants
         Self::builder()
             .id(InstrumentId::new("DEP-USD-6M"))
             .notional(Money::new(100_000.0, Currency::USD))

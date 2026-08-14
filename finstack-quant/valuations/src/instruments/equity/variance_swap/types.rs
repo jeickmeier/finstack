@@ -302,7 +302,6 @@ impl VarianceSwap {
     /// Create a canonical example equity variance swap (SPX, 1Y).
     pub fn example() -> finstack_quant_core::Result<Self> {
         use finstack_quant_core::currency::Currency;
-        // SAFETY: All inputs are compile-time validated constants
         VarianceSwap::builder()
             .id(InstrumentId::new("VARSPX-1Y"))
             .underlying_ticker("SPX".to_string())

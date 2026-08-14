@@ -22,8 +22,6 @@ use js_sys::Float64Array;
 use serde::Deserialize;
 use wasm_bindgen::prelude::*;
 
-// Helpers
-
 /// Parse a day-count string.
 fn parse_day_count(s: &str) -> Result<DayCount, JsValue> {
     s.parse::<DayCount>().map_err(to_js_err)

@@ -274,7 +274,6 @@ impl EquityTotalReturnSwap {
     ///
     /// Returns a 1-year SPX total return swap with quarterly resets.
     pub fn example() -> finstack_quant_core::Result<Self> {
-        // SAFETY: All inputs are compile-time validated constants
         Self::builder()
             .id(InstrumentId::new("TRS-SPX-1Y"))
             .notional(Money::new(5_000_000.0, Currency::USD))

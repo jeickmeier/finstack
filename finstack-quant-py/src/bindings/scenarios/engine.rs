@@ -1,7 +1,7 @@
 //! Python wrappers for scenario engine application.
 
 use crate::bindings::core::market_data::context::PyMarketContext;
-use crate::bindings::extract::{extract_market, extract_model};
+use crate::bindings::extract::{extract_market, extract_model_ref};
 use crate::bindings::pandas_utils::{serde_object_to_single_row_dataframe, serde_to_py};
 use crate::bindings::statements::types::PyFinancialModelSpec;
 use crate::errors::display_to_py;
@@ -277,7 +277,7 @@ fn apply_scenario(
     let spec: finstack_quant_scenarios::ScenarioSpec =
         serde_json::from_str(scenario_json).map_err(display_to_py)?;
     let mut market = extract_market(py, market)?;
-    let mut model = extract_model(model)?;
+    let mut model = extract_model_ref(model)?.into_owned();
     let date = crate::bindings::date_utils::extract_date(as_of)?;
 
     // Release the GIL for scenario application: shifts + re-pricing can run for seconds.

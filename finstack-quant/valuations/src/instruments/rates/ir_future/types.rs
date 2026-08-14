@@ -281,7 +281,6 @@ impl InterestRateFuture {
     /// Create a canonical example 3M Eurodollar-style interest rate future.
     pub fn example() -> finstack_quant_core::Result<Self> {
         use finstack_quant_core::currency::Currency;
-        // SAFETY: All inputs are compile-time validated constants
         InterestRateFuture::builder()
             .id(InstrumentId::new("IRF-ED-3M-MAR25"))
             .notional(Money::new(1_000_000.0, Currency::USD))

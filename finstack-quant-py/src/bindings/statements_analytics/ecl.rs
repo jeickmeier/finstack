@@ -16,8 +16,6 @@ use finstack_quant_statements_analytics::analysis as rust_ecl;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-// Helpers
-
 /// Parse a stage label (case-insensitive: "stage1"/"1", "stage2"/"2", "stage3"/"3").
 fn parse_stage(s: &str) -> PyResult<rust_ecl::Stage> {
     let normalized: String = s
@@ -44,8 +42,6 @@ fn parse_stage(s: &str) -> PyResult<rust_ecl::Stage> {
 fn trigger_reason(trigger: &rust_ecl::StagingTrigger) -> String {
     trigger.to_string()
 }
-
-// PyExposure
 
 /// A single credit exposure at a reporting date.
 ///

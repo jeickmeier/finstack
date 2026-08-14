@@ -217,7 +217,6 @@ impl ForwardRateAgreement {
     ///
     /// Returns a 3x6 FRA (3 months forward, 3 month tenor).
     pub fn example() -> finstack_quant_core::Result<Self> {
-        // SAFETY: All inputs are compile-time validated constants
         Self::builder()
             .id(InstrumentId::new("FRA-3X6-USD"))
             .notional(Money::new(10_000_000.0, Currency::USD))

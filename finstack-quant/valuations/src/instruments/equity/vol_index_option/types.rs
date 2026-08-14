@@ -288,7 +288,6 @@ impl VolatilityIndexOption {
     }
     /// Create a canonical example VIX call option for testing.
     pub fn example() -> finstack_quant_core::Result<Self> {
-        // SAFETY: All inputs are compile-time validated constants
         Self::builder()
             .id(InstrumentId::new("VIX-CALL-20-2025M03"))
             .notional(Money::new(10_000.0, Currency::USD))

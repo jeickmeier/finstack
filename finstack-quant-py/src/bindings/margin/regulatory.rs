@@ -18,8 +18,6 @@ use finstack_quant_margin::NettingSetId;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-// Helpers
-
 fn parse_correlation_scenario(s: &str) -> PyResult<CorrelationScenario> {
     match s {
         "low" => Ok(CorrelationScenario::Low),

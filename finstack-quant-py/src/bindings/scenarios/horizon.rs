@@ -66,25 +66,20 @@ pub(crate) fn compute_horizon_return<'py>(
     use finstack_quant_valuations::instruments::InstrumentEnvelope;
     use std::sync::Arc;
 
-    // Parse instrument
     let boxed = InstrumentEnvelope::from_str(instrument_json).map_err(core_to_py)?;
     let instrument: Arc<dyn finstack_quant_valuations::instruments::Instrument> = Arc::from(boxed);
 
-    // Parse market (owned copy so the compute can run without the GIL).
+    // Owned copy so the compute can run without the GIL.
     let market_ctx = extract_market(py, market)?;
 
-    // Parse date
     let date = crate::bindings::date_utils::extract_date(as_of)?;
 
-    // Parse scenario
     let scenario: finstack_quant_scenarios::ScenarioSpec =
         serde_json::from_str(scenario_json).map_err(display_to_py)?;
 
-    // Parse method via the canonical scenarios-crate parser (shared with WASM).
     let attribution_method = finstack_quant_scenarios::horizon::attribution_method_from_str(method)
         .map_err(|e| crate::errors::value_error(e.to_string()))?;
 
-    // Parse config
     let finstack_config = match config {
         Some(json) => serde_json::from_str(json).map_err(display_to_py)?,
         None => finstack_quant_core::config::FinstackConfig::default(),

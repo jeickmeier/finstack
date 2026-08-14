@@ -155,7 +155,6 @@ impl DateExt for Date {
     }
 
     fn quarter(self) -> u8 {
-        // SAFETY: Month is 1-12 – map to 1-4
         ((self.month() as u8 - 1) / 3) + 1
     }
 

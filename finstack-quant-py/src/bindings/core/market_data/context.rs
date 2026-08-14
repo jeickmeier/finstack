@@ -21,8 +21,6 @@ use super::curves::{
 use super::fx::PyFxMatrix;
 use super::scalars::{extract_exact_f64, PyInflationIndex, PyScalarTimeSeries};
 
-// PyMarketContext
-
 /// Unified market data container for curves, surfaces, and FX.
 ///
 /// Wraps [`MarketContext`] from `finstack-quant-core`. Curves are stored behind

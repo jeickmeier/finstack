@@ -13,8 +13,6 @@ use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe_with_schema;
 use crate::errors::core_to_py;
 
-// Helpers
-
 /// Parse an [`FxConversionPolicy`] from a string.
 fn parse_fx_policy(s: &str) -> PyResult<FxConversionPolicy> {
     s.parse::<FxConversionPolicy>()
@@ -33,8 +31,6 @@ fn extract_fx_policy(value: &Bound<'_, PyAny>) -> PyResult<FxConversionPolicy> {
     }
 }
 
-// PyFxConversionPolicy
-
 /// FX conversion policy enum.
 ///
 /// Wraps [`FxConversionPolicy`] from `finstack-quant-core`.
@@ -51,7 +47,6 @@ pub struct PyFxConversionPolicy {
 }
 
 impl PyFxConversionPolicy {
-    /// Build from inner.
     pub(crate) fn from_inner(inner: FxConversionPolicy) -> Self {
         Self { inner }
     }
@@ -95,8 +90,6 @@ impl PyFxConversionPolicy {
         self.inner.to_string()
     }
 }
-
-// PyFxRateResult
 
 /// Result of an FX rate query.
 ///
@@ -161,8 +154,6 @@ impl PyFxRateResult {
         frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
-
-// PyFxMatrix
 
 /// Foreign-exchange rate matrix for currency conversion.
 ///

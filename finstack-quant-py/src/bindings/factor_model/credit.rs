@@ -57,8 +57,6 @@ fn dimension_label(
     }
 }
 
-// PyCreditFactorModel
-
 /// Calibrated credit factor hierarchy artifact.
 ///
 /// Produced by :class:`CreditCalibrator` or loaded from JSON via
@@ -224,8 +222,6 @@ impl PyCreditFactorModel {
     }
 }
 
-// PyCreditCalibrator
-
 /// Deterministic calibrator that produces a :class:`CreditFactorModel`.
 ///
 /// Configuration and inputs are passed as JSON strings so that Python callers
@@ -300,8 +296,6 @@ impl PyCreditCalibrator {
         "CreditCalibrator(...)".to_owned()
     }
 }
-
-// PyLevelsAtDate
 
 /// Snapshot of all hierarchy-level factor values at a single date.
 ///
@@ -467,8 +461,6 @@ impl PyLevelsAtDate {
         )
     }
 }
-
-// PyPeriodDecomposition
 
 /// Component-wise difference between two :class:`LevelsAtDate` snapshots.
 ///
@@ -806,8 +798,6 @@ fn decompose_period(
     .map_err(display_to_py)?;
     Ok(PyPeriodDecomposition::from_inner(result))
 }
-
-// PyFactorCovarianceForecast
 
 /// Vol-forecast view over a calibrated :class:`CreditFactorModel`.
 ///

@@ -18,8 +18,6 @@ use super::helpers::{
 use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
 use crate::errors::core_to_py;
 
-// PyVolSurface
-
 /// Two-dimensional implied volatility surface on an expiry x strike grid.
 ///
 /// Wraps [`VolSurface`] from `finstack-quant-core`.
@@ -138,8 +136,6 @@ impl PyVolSurface {
         format!("VolSurface(id={:?})", self.inner.id().as_str())
     }
 }
-
-// PyFxDeltaVolSurface
 
 /// Delta-quoted FX volatility surface (ATM, 25-delta RR/BF, optional 10-delta wings).
 ///
@@ -294,8 +290,6 @@ impl PyFxDeltaVolSurface {
         )
     }
 }
-
-// PyVolCube
 
 /// SABR volatility cube on an expiry x tenor grid.
 ///
@@ -536,8 +530,6 @@ impl PyVolCube {
         format!("VolCube(id={:?})", self.inner.id().as_str())
     }
 }
-
-// PyVolatilityIndexCurve
 
 /// Volatility index forward curve (e.g. VIX term structure).
 ///

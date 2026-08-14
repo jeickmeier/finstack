@@ -255,7 +255,6 @@ impl FxForward {
     ///
     /// Returns a 6-month EUR/USD forward with realistic parameters.
     pub fn example() -> finstack_quant_core::Result<Self> {
-        // SAFETY: All inputs are compile-time validated constants
         Self::builder()
             .id(InstrumentId::new("EURUSD-FWD-6M"))
             .base_currency(Currency::EUR)

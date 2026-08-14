@@ -10,8 +10,6 @@ use super::helpers::parse_day_count;
 use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
 use crate::errors::core_to_py;
 
-// PyHazardCurve
-
 /// Credit hazard-rate curve for default probability modeling.
 ///
 /// Wraps [`HazardCurve`] from `finstack-quant-core`.

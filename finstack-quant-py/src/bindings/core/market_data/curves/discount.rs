@@ -10,8 +10,6 @@ use super::helpers::{parse_day_count, parse_extrapolation, parse_interp_style};
 use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
 use crate::errors::core_to_py;
 
-// PyDiscountCurve
-
 /// Discount factor curve for present-value calculations.
 ///
 /// Wraps [`DiscountCurve`] from `finstack-quant-core`. Constructed via the builder

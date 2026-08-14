@@ -10,8 +10,6 @@ use super::helpers::{parse_day_count, parse_interp_style};
 use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
 use crate::errors::core_to_py;
 
-// PyInflationCurve
-
 /// CPI inflation curve for inflation-linked pricing and breakeven analysis.
 ///
 /// Wraps [`InflationCurve`] from `finstack-quant-core`.

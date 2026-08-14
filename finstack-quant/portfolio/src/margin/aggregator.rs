@@ -76,7 +76,6 @@ impl PortfolioMarginAggregator {
     pub fn from_portfolio(portfolio: &Portfolio) -> Self {
         let mut aggregator = Self::new(portfolio.base_currency);
 
-        // Iterate through all positions
         for position in &portfolio.positions {
             aggregator.add_position(position);
         }

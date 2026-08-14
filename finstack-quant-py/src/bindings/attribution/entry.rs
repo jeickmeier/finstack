@@ -37,8 +37,6 @@ fn detach_catch_attribution_panic<T: Send>(
     }
 }
 
-// Ergonomic entry point
-
 /// Run P&L attribution for a single instrument.
 ///
 /// This is the main entry point. It accepts the instrument, two market
@@ -134,22 +132,11 @@ pub(crate) fn attribute_pnl(
         spec.full_cross_attribution = val;
     }
 
-    // GIL is released for the entire attribution computation. The closure body
-    // accesses no Python objects (`spec` is a fully-deserialized Rust value
-    // built from `&str` arguments above), so concurrent Python callers can run
-    // attributions in parallel without serializing on the GIL. Rayon
-    // parallelism inside `spec.execute()` is unaffected.
-    // Errors keep the project taxonomy (quant review M12): missing market
-    // data → KeyError, validation → ValueError, internal/operational →
-    // RuntimeError — so production pipelines catching ValueError for bad
-    // inputs do not silently swallow missing-curve failures.
     let result = detach_catch_attribution_panic(py, "attribute_pnl", || spec.execute())?;
     Ok(PyPnlAttribution {
         inner: result.attribution,
     })
 }
-
-// Raw JSON envelope entry point (power-user / round-trip)
 
 /// Run attribution from a full JSON ``AttributionEnvelope`` and return JSON.
 ///
@@ -200,8 +187,6 @@ pub(crate) fn attribute_return_contribution(
         finstack_quant_attribution::attribute_return_contribution(&spec).map_err(core_to_py)?;
     Ok(PyReturnContributionResult { inner })
 }
-
-// Helpers
 
 /// Validate an attribution specification JSON.
 ///

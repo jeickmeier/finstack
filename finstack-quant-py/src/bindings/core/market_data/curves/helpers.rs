@@ -7,8 +7,6 @@ use finstack_quant_core::market_data::surfaces::{
 use finstack_quant_core::math::interp::{ExtrapolationPolicy, InterpStyle};
 use pyo3::prelude::*;
 
-// Helpers
-
 /// Parse a DayCount from a Python string like `"act_365f"`, `"act_360"`, etc.
 pub(super) fn parse_day_count(s: &str) -> PyResult<DayCount> {
     s.parse::<DayCount>()

@@ -20,8 +20,6 @@ use pyo3::prelude::*;
 
 use super::templates_common::{finalize_json, rebuild_builder};
 
-// Helpers
-
 fn parse_period(s: &str) -> PyResult<PeriodId> {
     s.parse().map_err(display_to_py)
 }

@@ -828,8 +828,6 @@ where
     estimate_to_js(&est)
 }
 
-// Helpers
-
 struct LsmcGbmRun {
     pricer: LsmcPricer,
     process: GbmProcess,

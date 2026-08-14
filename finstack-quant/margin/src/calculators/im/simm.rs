@@ -190,7 +190,6 @@ impl SimmParams {
             return 0.0;
         }
         // After validate_simm_correlations_psd, the field has exactly n*n entries.
-        // Defensive guard: if somehow the invariant is violated, fall back to 0.
         let i = (a - 1) as usize;
         let j = (b - 1) as usize;
         let idx = i * n + j;

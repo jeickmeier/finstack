@@ -15,8 +15,6 @@ use pyo3::types::{PyDict, PyModule};
 use crate::bindings::pandas_utils::{dict_to_dataframe, serde_to_py, table_to_dataframe};
 use crate::errors::{core_to_py, display_to_py, portfolio_to_py};
 
-// PyPortfolio
-
 /// Python wrapper around a built [`finstack_quant_portfolio::Portfolio`].
 ///
 /// Cheap to clone (wraps `Arc<Portfolio>`); construction from a spec pays
@@ -103,8 +101,6 @@ impl PyPortfolio {
         )
     }
 }
-
-// PyPortfolioValuation
 
 /// Python wrapper around a [`finstack_quant_portfolio::valuation::PortfolioValuation`].
 ///
@@ -237,8 +233,6 @@ impl PyPortfolioValuation {
     }
 }
 
-// PyPortfolioResult
-
 /// Python wrapper around a [`finstack_quant_portfolio::results::PortfolioResult`].
 ///
 /// Exposes cheap scalar accessors (``total_value``, ``get_metric``) that
@@ -320,8 +314,6 @@ impl PyPortfolioResult {
         )
     }
 }
-
-// PyPortfolioMetrics
 
 type PyMetricSeriesEntry = (Vec<String>, f64, Py<PyDict>);
 
@@ -499,8 +491,6 @@ impl PyPortfolioMetrics {
         )
     }
 }
-
-// PyPortfolioCashflows
 
 /// Python wrapper around a
 /// [`finstack_quant_portfolio::cashflows::PortfolioCashflows`] ladder.

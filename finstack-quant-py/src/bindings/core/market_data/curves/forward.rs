@@ -11,8 +11,6 @@ use super::helpers::{parse_day_count, parse_extrapolation, parse_interp_style};
 use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
 use crate::errors::core_to_py;
 
-// PyForwardCurve
-
 /// Forward rate curve for a floating-rate index with a fixed tenor.
 ///
 /// Wraps [`ForwardCurve`] from `finstack-quant-core`.

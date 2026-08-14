@@ -19,7 +19,6 @@ impl Bond {
     ///
     /// Returns a 10-year USD Treasury-style bond with realistic parameters.
     pub fn example() -> finstack_quant_core::Result<Self> {
-        // SAFETY: All inputs are compile-time validated constants
         Self::with_convention(
             "US912828XG33",
             Money::new(1_000_000.0, Currency::USD),

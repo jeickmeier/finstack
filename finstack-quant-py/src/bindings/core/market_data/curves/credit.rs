@@ -8,8 +8,6 @@ use pyo3::prelude::*;
 use super::hazard::PyHazardCurve;
 use crate::errors::core_to_py;
 
-// PyBaseCorrelationCurve
-
 /// Base-correlation curve for synthetic credit index tranche pricing.
 #[pyclass(
     name = "BaseCorrelationCurve",
@@ -61,8 +59,6 @@ impl PyBaseCorrelationCurve {
         format!("BaseCorrelationCurve(id={:?})", self.inner.id.as_str())
     }
 }
-
-// PyCreditIndexData
 
 /// Credit index data bundle for synthetic tranche pricing.
 #[pyclass(

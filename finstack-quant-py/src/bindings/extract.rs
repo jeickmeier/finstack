@@ -182,21 +182,6 @@ pub fn extract_results_ref<'py>(obj: &Bound<'py, PyAny>) -> PyResult<ResultAcces
     Ok(ResultAccess::Owned(Box::new(inner)))
 }
 
-// Owned extraction (for callers that need mutable or owned values)
-
-/// Extract a [`FinancialModelSpec`] — always produces an owned value.
-///
-/// Prefer [`extract_model_ref`] when only a reference is needed.
-pub fn extract_model(
-    obj: &Bound<'_, PyAny>,
-) -> PyResult<finstack_quant_statements::FinancialModelSpec> {
-    if let Ok(spec) = obj.cast::<PyFinancialModelSpec>() {
-        return Ok(spec.borrow().inner.clone());
-    }
-    let json: String = obj.extract()?;
-    serde_json::from_str(&json).map_err(to_py)
-}
-
 /// Extract a [`MarketContext`] from a `MarketContext` Python object
 /// (fast path) or a JSON string (fallback).
 ///

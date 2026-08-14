@@ -623,8 +623,6 @@ impl SABRCalibrator {
             }
         }
 
-        // Unreachable given the endpoint guards above, but return a defined
-        // value rather than panicking if invariants are somehow violated.
         Ok(first.1)
     }
 

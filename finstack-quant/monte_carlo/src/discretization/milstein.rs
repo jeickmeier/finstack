@@ -251,9 +251,4 @@ mod tests {
     }
 
     // Compile-time safety: Milstein only accepts ProportionalDiffusion processes.
-    // The following would fail to compile (BrownianProcess does not implement
-    // ProportionalDiffusion):
-    //
-    //   let process = BrownianProcess::new(BrownianParams::new(0.05, 0.2));
-    //   Milstein::new().step(&process, 0.0, 0.01, &mut [100.0], &[1.0], &mut [0.0; 2]);
 }

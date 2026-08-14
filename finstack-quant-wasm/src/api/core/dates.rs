@@ -524,8 +524,6 @@ pub fn available_calendars() -> Vec<String> {
         .collect()
 }
 
-// Helpers
-
 /// Convert epoch days to a `time::Date`.
 fn epoch_to_date(days: i32) -> Result<time::Date, JsValue> {
     finstack_quant_core::dates::date_from_epoch_days(days)

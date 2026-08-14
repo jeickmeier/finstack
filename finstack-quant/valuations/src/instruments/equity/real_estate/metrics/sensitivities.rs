@@ -54,11 +54,10 @@ impl CapRateSensitivity {
             }
             crate::instruments::equity::real_estate::RealEstateValuationMethod::Dcf => {
                 // If terminal proceeds are explicitly set (sale_price), cap-rate sensitivity is 0.
-                if a.sale_price.is_some() || a.terminal_cap_rate.is_none() {
+                if a.sale_price.is_some() {
                     return Ok(a);
                 }
                 let Some(r) = a.terminal_cap_rate else {
-                    // Defensive: treat missing terminal cap rate as "not applicable".
                     return Ok(a);
                 };
                 let bumped = r + bump;

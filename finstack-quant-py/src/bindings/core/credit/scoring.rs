@@ -14,8 +14,6 @@ use pyo3::types::{PyList, PyModule};
 
 use crate::errors::display_to_py;
 
-// Helpers
-
 /// Convert a `ScoringZone` into a lowercase Python string.
 fn zone_to_str(zone: ScoringZone) -> &'static str {
     match zone {

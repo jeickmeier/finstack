@@ -214,7 +214,6 @@ impl VolIndexContractSpecs {
 impl VolatilityIndexFuture {
     /// Create a canonical example VIX future for testing and documentation.
     pub fn example() -> finstack_quant_core::Result<Self> {
-        // SAFETY: All inputs are compile-time validated constants
         Self::builder()
             .id(InstrumentId::new("VIX-FUT-2025M03"))
             .notional(Money::new(100_000.0, Currency::USD))
