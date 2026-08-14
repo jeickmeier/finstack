@@ -212,8 +212,6 @@ impl PyExposure {
     }
 }
 
-// Staging
-
 /// Classify an exposure into an IFRS 9 stage.
 ///
 /// Parameters
@@ -252,8 +250,6 @@ fn classify_stage(
 
     Ok((result.stage.to_string(), reasons))
 }
-
-// ECL computation
 
 /// Compute single-scenario ECL for one exposure.
 ///

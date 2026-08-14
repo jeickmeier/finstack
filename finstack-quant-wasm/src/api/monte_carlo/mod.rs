@@ -309,8 +309,6 @@ pub fn price_heston_put(
     )
 }
 
-// Analytical
-
 /// Black-Scholes call price.
 /// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.

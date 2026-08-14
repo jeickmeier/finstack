@@ -269,8 +269,6 @@ impl PyPathDependentPricer {
     }
 }
 
-// LSMC pricer
-
 /// Longstaff-Schwartz Monte Carlo pricer for American options.
 #[pyclass(name = "LsmcPricer", module = "finstack_quant.monte_carlo", frozen)]
 pub struct PyLsmcPricer {

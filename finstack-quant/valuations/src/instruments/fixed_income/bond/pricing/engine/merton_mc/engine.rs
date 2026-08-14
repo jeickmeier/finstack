@@ -7,8 +7,6 @@ use finstack_quant_core::{InputError, Result};
 use rayon::prelude::*;
 use smallvec::SmallVec;
 
-// Engine
-
 /// Bond parameters for the PIK-aware risk-free leg (no-default scenario).
 struct RiskFreeLeg {
     notional: f64,

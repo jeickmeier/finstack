@@ -13,8 +13,6 @@ use finstack_quant_core::math::interp::interp_knots_flat;
 use finstack_quant_core::{Error, InputError, Result};
 use serde::{Deserialize, Serialize};
 
-// Stage
-
 /// IFRS 9 impairment stage for a credit exposure.
 ///
 /// Under IFRS 9, financial instruments are classified into three stages that
@@ -146,8 +144,6 @@ impl QualitativeFlags {
         flags
     }
 }
-
-// Exposure
 
 /// Sanity bound on `remaining_maturity_years`.
 ///
@@ -353,8 +349,6 @@ pub trait PdTermStructure: Send + Sync {
     }
 }
 
-// RawPdCurve
-
 /// Raw user-supplied PD term structure with linear interpolation.
 ///
 /// Use this when you have a discrete set of cumulative PD observations
@@ -531,7 +525,6 @@ mod tests {
         assert!(RawPdCurve::new("BBB", vec![(0.0, 0.0), (1.0, 0.05), (2.0, 0.03)]).is_err());
         // Out-of-range PD
         assert!(RawPdCurve::new("BBB", vec![(0.0, 0.0), (1.0, 1.5)]).is_err());
-        // Valid
         assert!(RawPdCurve::new("BBB", vec![(0.0, 0.0), (1.0, 0.02), (2.0, 0.04)]).is_ok());
     }
 

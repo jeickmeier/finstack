@@ -574,8 +574,6 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for Volatilit
     }
 }
 
-// Trait Implementations
-
 impl crate::instruments::common_impl::traits::Instrument for VolatilityIndexOption {
     impl_instrument_base!(crate::pricer::InstrumentType::VolatilityIndexOption);
 

@@ -52,8 +52,6 @@
 use crate::error::InputError;
 use crate::Error;
 
-// Removed over-engineered parameter bundling structs - use direct parameters instead
-
 /// Gauss-Hermite quadrature points and weights for numerical integration
 /// over the standard normal distribution.
 ///

@@ -212,7 +212,6 @@ impl ForwardCurve {
     pub fn builder(id: impl Into<CurveId>, tenor_years: f64) -> ForwardCurveBuilder {
         let id: CurveId = id.into();
         let defaults = infer_forward_curve_defaults(id.as_str());
-        // Epoch date - unwrap_or provides defensive fallback for infallible operation
         let base =
             Date::from_calendar_date(1970, time::Month::January, 1).unwrap_or(time::Date::MIN);
         ForwardCurveBuilder {

@@ -216,8 +216,6 @@ pub fn validate_calibration_json(envelope_json: &str) -> Result<String, Envelope
     serialize_pretty_json(&envelope, "CalibrationEnvelope")
 }
 
-// Internal helpers
-
 fn serialize_pretty_json<T: Serialize>(value: &T, target: &str) -> Result<String, EnvelopeError> {
     serde_json::to_string_pretty(value).map_err(|err| EnvelopeError::JsonSerialize {
         target: target.to_string(),

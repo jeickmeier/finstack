@@ -99,8 +99,6 @@ pub(super) const PAR_SPREAD_MAX_ITER: usize = 50;
 /// Tolerance for par spread solver convergence
 pub(super) const PAR_SPREAD_TOLERANCE: f64 = 1e-6;
 
-// Helper Functions
-
 /// Parameters for the CDS Tranche pricing model.
 ///
 /// This configuration controls all aspects of tranche pricing including:

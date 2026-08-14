@@ -17,8 +17,6 @@
 use finstack_quant_core::{Error, InputError, Result};
 use serde::{Deserialize, Serialize};
 
-// Types
-
 /// Recovery model specification.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -61,8 +59,6 @@ pub struct DynamicRecoverySpec {
     /// Recovery model governing the notional-to-recovery mapping.
     model: RecoveryModel,
 }
-
-// Implementation
 
 impl DynamicRecoverySpec {
     // -- Convenience constructors -------------------------------------------

@@ -10,8 +10,6 @@ use finstack_quant_core::Result;
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-// Helper Types
-
 /// A quote reference with its computed time, used for sorting.
 struct SortedQuote {
     time: f64,
@@ -30,8 +28,6 @@ struct NoBracketContext<'a, Q> {
     allow_approximate: bool,
     first_eval_error: Option<String>,
 }
-
-// Helper Functions
 
 /// Sort quotes by time, validating each quote produces a valid time.
 fn sort_quotes_by_time<T: BootstrapTarget>(
@@ -538,7 +534,6 @@ impl SequentialBootstrapper {
         };
         let scan_points = normalize_scan_points(scan_points, initial_guess, time)?;
 
-        // Solve
         let solve = if target.supports_nearest_first_bracketing() {
             bracket_solve_1d_nearest_first_with_diagnostics
         } else {

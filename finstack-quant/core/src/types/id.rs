@@ -277,8 +277,6 @@ impl<T> Id<T> {
     }
 }
 
-// Implement common traits
-
 impl<T> PartialEq for Id<T> {
     fn eq(&self, other: &Self) -> bool {
         self.value == other.value
@@ -395,8 +393,6 @@ impl<T> std::str::FromStr for Id<T> {
         })
     }
 }
-
-// Common ID marker types for finstack domains
 
 /// Marker type for curve identifiers
 #[derive(Debug, Clone, Copy, Default, JsonSchema)]

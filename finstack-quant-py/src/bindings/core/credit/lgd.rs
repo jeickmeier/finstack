@@ -14,8 +14,6 @@ use pyo3::types::{PyDict, PyList, PyModule};
 
 use crate::errors::core_to_py;
 
-// Seniority recovery stats
-
 /// Return historical recovery statistics for a given seniority class.
 ///
 /// Arguments:
@@ -85,8 +83,6 @@ fn beta_recovery_quantile(mean: f64, std: f64, q: f64) -> PyResult<f64> {
     lgd::beta_recovery_quantile(mean, std, q).map_err(core_to_py)
 }
 
-// Workout LGD
-
 /// Compute workout LGD from a collateral waterfall, costs, and a
 /// time-to-resolution discount.
 ///
@@ -125,8 +121,6 @@ fn workout_lgd(
     )
     .map_err(core_to_py)
 }
-
-// Downturn LGD
 
 /// Apply a stressed downturn adjustment to a base LGD.
 ///
@@ -181,8 +175,6 @@ fn downturn_lgd_stressed(
 fn downturn_lgd_regulatory_floor(base_lgd: f64, add_on: f64, floor: f64) -> PyResult<f64> {
     lgd::downturn_lgd_regulatory_floor(base_lgd, add_on, floor).map_err(core_to_py)
 }
-
-// EAD
 
 /// Exposure at default for a fully drawn term loan.
 ///

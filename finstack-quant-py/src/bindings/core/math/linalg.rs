@@ -16,8 +16,6 @@ fn cholesky_err(e: impl std::fmt::Display) -> PyErr {
     CholeskyError::new_err(e.to_string())
 }
 
-// Helpers: nested ↔ flat matrix conversion
-
 /// Flatten a `list[list[float]]` into a row-major `Vec<f64>` and return `(flat, n)`.
 ///
 /// Returns a `PyResult::Err` when the input is not a square matrix.

@@ -338,7 +338,6 @@ pub(crate) fn emit_fixed_coupons_on(
             let cash_amt = coupon_total * cash_pct_f64;
             let pik_amt = coupon_total * pik_pct_f64;
 
-            // Convert rate to f64 for CashFlow storage
             let rate_f64 = decimal_to_f64(spec.rate)?;
 
             // Gate on the cash split percentage (mirroring the floating path)
@@ -1062,8 +1061,7 @@ pub(crate) fn emit_float_coupons_on(
                     )?
                 };
 
-            // Convert f64 values to Decimal with proper error handling for NaN/Infinity.
-            // This prevents silent masking of invalid values as zero.
+            // Reject NaN/Infinity here so they are not silently stored as zero.
             let total_rate_dec = f64_to_decimal(total_rate)?;
             let yf_dec = f64_to_decimal(yf)?;
             let coupon_total_dec = base_out * total_rate_dec * yf_dec;

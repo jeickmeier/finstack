@@ -379,8 +379,6 @@ fn upper_triangular_log(
     Ok(l)
 }
 
-// Kreinin-Sidenius post-processing
-
 /// Apply Kreinin-Sidenius post-processing to produce a valid Q-matrix:
 /// 1. Set any negative off-diagonal entry to zero.
 /// 2. Recompute diagonal as -Σ_{j≠i} q_ij.
@@ -416,8 +414,6 @@ fn kreinin_sidenius(mut q: DMatrix<f64>, scale: &RatingScale) -> (DMatrix<f64>, 
 
     (q, clamped_l1)
 }
-
-// Validation
 
 pub(crate) fn validate_generator(
     m: &DMatrix<f64>,
@@ -487,8 +483,6 @@ pub(crate) fn validate_generator(
 
     Ok(())
 }
-
-// Utilities
 
 /// Infinity norm of (A - B), i.e., max row-sum of absolute differences.
 pub(crate) fn inf_norm_diff(a: &DMatrix<f64>, b: &DMatrix<f64>) -> f64 {

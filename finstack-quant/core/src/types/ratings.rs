@@ -33,8 +33,6 @@ use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
-// CREDIT RATING
-
 /// Unified credit rating scale with notch-level precision (agency-agnostic).
 ///
 /// Each variant represents a specific notch in the rating scale. Ratings
@@ -335,8 +333,6 @@ impl core::fmt::Display for CreditRating {
     }
 }
 
-// RATING LABEL
-
 /// Stable label for referring to ratings (curve names, exports, etc.).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RatingLabel(String);
@@ -502,8 +498,6 @@ fn parse_credit_rating(value: &str) -> Result<CreditRating, crate::Error> {
     Ok(rating)
 }
 
-// RATING FACTOR TABLE
-
 /// Rating factor table for a specific rating agency methodology.
 ///
 /// Rating factors are numerical values that correspond to expected cumulative
@@ -643,8 +637,6 @@ impl RatingFactorTable {
         self.default_factor
     }
 }
-
-// CONVENIENCE FUNCTIONS
 
 /// Lazily initialized Moody's WARF rating factor table
 static MOODYS_WARF_TABLE: OnceLock<crate::Result<RatingFactorTable>> = OnceLock::new();

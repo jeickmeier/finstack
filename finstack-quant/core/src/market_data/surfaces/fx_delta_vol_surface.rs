@@ -40,8 +40,6 @@ use super::{
     VolSurface,
 };
 
-// FxDeltaVolSurface
-
 /// Delta-quoted FX volatility surface.
 ///
 /// Stores market-standard FX vol quotes (ATM DNS, 25-delta risk-reversal,

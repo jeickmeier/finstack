@@ -284,8 +284,6 @@ impl EclConfig {
     }
 }
 
-// Builder
-
 /// Builder for [`EclConfig`].
 ///
 /// Validates configuration on `build()`:
@@ -468,8 +466,6 @@ impl Default for EclConfigBuilder {
         Self::new()
     }
 }
-
-// Result types
 
 /// ECL result for a single time bucket.
 #[derive(Debug, Clone, Serialize, Deserialize)]

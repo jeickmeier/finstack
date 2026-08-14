@@ -43,8 +43,6 @@ use finstack_quant_core::market_data::traits::Discounting;
 use finstack_quant_core::math::piecewise::PiecewiseConstantCurve;
 use finstack_quant_core::{Error, Result};
 
-// Configuration
-
 /// Hull-White 1-factor trinomial tree configuration.
 ///
 /// # Parameter Guidelines
@@ -955,7 +953,6 @@ impl HullWhiteTree {
         // End discount factor
         let p_end = self.bond_price(step, node_idx, swap_end_time, discount_curve);
 
-        // Annuity
         let annuity = self.annuity(
             step,
             node_idx,

@@ -739,7 +739,6 @@ impl XccySwap {
             return Ok(Money::new(0.0, self.reporting_currency));
         }
 
-        // Curves
         let disc = context.get_discount(&leg.discount_curve_id)?;
         let fwd = context.get_forward(&leg.forward_curve_id)?;
         let fixing_series_id = finstack_quant_core::market_data::fixings::fixing_series_id(

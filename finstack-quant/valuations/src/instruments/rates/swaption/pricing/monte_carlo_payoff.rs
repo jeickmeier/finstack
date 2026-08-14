@@ -460,7 +460,6 @@ mod tests {
         payoff.exercised = true;
         payoff.exercise_date = Some(1.0);
 
-        // Reset
         payoff.reset();
 
         assert_eq!(payoff.current_swap_value, 0.0);

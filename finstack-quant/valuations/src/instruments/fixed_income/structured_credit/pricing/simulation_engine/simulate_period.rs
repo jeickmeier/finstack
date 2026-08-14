@@ -1,7 +1,5 @@
 use super::*;
 
-// PERIOD SIMULATION
-
 /// Simulate a single payment period.
 ///
 /// Period execution order matches INTEX/Bloomberg convention:

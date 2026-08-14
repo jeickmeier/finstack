@@ -76,9 +76,6 @@ mod dag;
 mod eval;
 mod eval_functions;
 
-// Public API - simplified surface for end users
 pub use ast::{BinOp, EvaluationResult, Expr, ExprNode, Function, UnaryOp};
 pub use context::SimpleContext;
 pub use eval::{CompiledExpr, EvalOpts};
-
-// Polars Series no longer part of public API surface here

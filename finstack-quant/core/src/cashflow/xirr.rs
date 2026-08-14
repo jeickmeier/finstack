@@ -297,8 +297,6 @@ pub fn xirr_with_daycount_ctx(
     solve_rate_of_return(aggregated, guess)
 }
 
-// Solver logic
-
 /// Solves for the rate of return (r) that sets the Net Present Value (NPV) to zero.
 ///
 /// # Determinism contract

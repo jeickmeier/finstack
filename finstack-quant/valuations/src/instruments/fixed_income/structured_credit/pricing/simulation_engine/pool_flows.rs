@@ -1,7 +1,5 @@
 use super::*;
 
-// CALCULATION HELPERS
-
 /// AssetPool flow results for a single period.
 pub(crate) struct PoolFlows {
     pub(super) interest: Money,

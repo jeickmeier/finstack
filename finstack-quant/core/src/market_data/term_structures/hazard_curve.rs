@@ -240,7 +240,6 @@ impl HazardCurve {
     /// Start building a hazard curve with identifier `id`.
     #[must_use]
     pub fn builder(id: impl Into<CurveId>) -> HazardCurveBuilder {
-        // Epoch date - unwrap_or provides defensive fallback for infallible operation
         let base =
             Date::from_calendar_date(1970, time::Month::January, 1).unwrap_or(time::Date::MIN);
         HazardCurveBuilder {
@@ -984,7 +983,6 @@ impl HazardCurveBuilder {
     /// constructed; callers need not pre-sort them.
     pub fn build(self) -> crate::Result<HazardCurve> {
         // Require explicit base_date to avoid accidentally anchoring to 1970-01-01
-        // unwrap_or provides defensive fallback - comparison still works correctly
         let default_base =
             Date::from_calendar_date(1970, time::Month::January, 1).unwrap_or(time::Date::MIN);
         if self.base == default_base {
@@ -1476,8 +1474,6 @@ mod tests {
         );
     }
 }
-
-// Types
 
 /// Seniority level for credit exposures.
 ///

@@ -71,10 +71,6 @@ pub enum RoundingMode {
     Ceil,
 }
 
-// Default derived above
-
-// Display + FromStr
-
 impl std::fmt::Display for RoundingMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let label = match self {
@@ -134,7 +130,6 @@ pub struct FinstackConfig {
     #[serde(default, skip_serializing_if = "ConfigExtensions::is_empty")]
     pub extensions: ConfigExtensions,
 }
-// Default derived above
 
 /// Versioned, namespaced extension map carried alongside the core config.
 ///

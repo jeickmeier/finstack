@@ -287,8 +287,6 @@ fn fx_delta(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 {
     k_squared.max(0.0).sqrt()
 }
 
-// Helpers
-
 /// GIRR risk weight lookup by tenor label.
 ///
 /// Falls back to `1.1` (the FRTB d457 default at the long end of the

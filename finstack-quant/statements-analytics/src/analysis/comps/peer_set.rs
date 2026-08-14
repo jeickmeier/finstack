@@ -53,7 +53,6 @@ impl PeerFilter {
             }
         }
 
-        // Country
         if !self.countries.is_empty() {
             let country = metrics.attributes.get_meta("country").unwrap_or("");
             if !self.countries.iter().any(|c| c == country) {
@@ -73,7 +72,6 @@ impl PeerFilter {
             }
         }
 
-        // Rating
         if !self.ratings.is_empty() {
             let rating = metrics.attributes.get_meta("rating").unwrap_or("");
             if !self.ratings.iter().any(|r| r == rating) {

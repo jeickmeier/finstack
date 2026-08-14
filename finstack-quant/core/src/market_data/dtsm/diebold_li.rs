@@ -46,8 +46,6 @@ use super::types::{FactorTimeSeries, YieldForecast, YieldPanel};
 /// distort the level/slope/curvature decomposition.
 const DEFAULT_LAMBDA: f64 = 0.7308;
 
-// DieboldLi
-
 /// Diebold-Li (2006) dynamic Nelson-Siegel model.
 ///
 /// See module-level documentation for model details.
@@ -110,8 +108,6 @@ impl TryFrom<RawDieboldLi> for DieboldLi {
     }
 }
 
-// Builder
-
 /// Builder for [`DieboldLi`].
 pub struct DieboldLiBuilder {
     lambda: f64,
@@ -151,8 +147,6 @@ impl DieboldLiBuilder {
         })
     }
 }
-
-// Implementation
 
 impl DieboldLi {
     /// Create a builder with default lambda = 0.7308 (years convention).
@@ -509,8 +503,6 @@ impl DieboldLi {
         ns_loading_matrix(self.lambda, &self.tenors)
     }
 }
-
-// Helpers
 
 /// Build the N x 3 Nelson-Siegel loading matrix for a given lambda and tenor grid.
 ///

@@ -622,7 +622,6 @@ fn compute_swap_rate_and_annuity(
         df[k] = df[k - 1] / (1.0 + accrual_factors[abs_k] * forwards[abs_k]);
     }
 
-    // Annuity
     let mut annuity = 0.0;
     for j in 0..count {
         annuity += accrual_factors[start_idx + j] * df[j + 1];

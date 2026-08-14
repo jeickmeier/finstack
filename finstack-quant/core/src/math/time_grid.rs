@@ -297,13 +297,11 @@ impl TimeGrid {
             if times[i] <= times[i - 1] {
                 return Err(crate::error::InputError::NonMonotonicKnots.into());
             }
-            // Check for duplicate or near-duplicate time points
             if (times[i] - times[i - 1]).abs() < MIN_DT_THRESHOLD {
                 return Err(crate::error::InputError::Invalid.into());
             }
         }
 
-        // Compute time steps
         let dts_capacity = times.len() - 1;
         let mut dts = Vec::new();
         dts.try_reserve_exact(dts_capacity).map_err(|error| {

@@ -1,7 +1,5 @@
 use super::*;
 
-// POOL FLOW SOURCES
-
 /// Source of pool-level prepayment/default/recovery assumptions for each period.
 pub(crate) trait PoolFlowSource {
     /// Calculate pool cashflows for the next legal payment period.

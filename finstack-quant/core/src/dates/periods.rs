@@ -950,8 +950,6 @@ fn annual_bounds(year: i32) -> crate::Result<(Date, Date)> {
     Ok((start, end))
 }
 
-// Fiscal year bounds functions
-
 fn fiscal_daily_bounds(
     fiscal_year: i32,
     ordinal: u16,
@@ -1256,9 +1254,6 @@ fn step_with_calendar<C: PeriodCalendar>(
     Ok(id)
 }
 
-// local helper removed; ordering uses Gregorian bounds directly
-
-// Ordering helpers for PeriodId
 impl PartialOrd for PeriodId {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
@@ -1288,8 +1283,7 @@ impl Ord for PeriodId {
         let self_bounds = greg.bounds(self.year, self.kind, self.index);
         let other_bounds = greg.bounds(other.year, other.kind, other.index);
 
-        // Defensive fallback: bounds should be infallible for valid PeriodId values,
-        // but if a malformed PeriodId slips through, we still need a total ordering.
+        // Malformed PeriodId still needs a total ordering.
         let (Ok((self_start, self_end)), Ok((other_start, other_end))) =
             (self_bounds, other_bounds)
         else {

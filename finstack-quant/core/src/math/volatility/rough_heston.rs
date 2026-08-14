@@ -58,8 +58,6 @@ use crate::math::special_functions::ln_gamma;
 /// Maximum real part of exponents to avoid overflow in `exp()`.
 const EXPONENT_REAL_LIMIT: f64 = 700.0;
 
-// FractionalRiccatiSolver
-
 /// Solves the fractional Riccati ODE via the Adams predictor-corrector method.
 ///
 /// Uses the fractional Adams-Bashforth-Moulton scheme (Diethelm et al. 2004)
@@ -247,8 +245,6 @@ impl FractionalRiccatiSolver {
         integral * inv_gamma
     }
 }
-
-// RoughHestonFourierParams
 
 /// Rough Heston model parameters for Fourier-based European option pricing.
 ///

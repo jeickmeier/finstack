@@ -449,12 +449,6 @@ mod tests {
     }
 }
 
-// ── Drawdown-derived risk ratios ──
-//
-// These functions take a pre-computed drawdown series or summary scalars
-// derived from one, making them natural companions to the drawdown primitives
-// already in this module.
-
 /// Ulcer index: root-mean-square of the drawdown series.
 ///
 /// Measures the depth and duration of drawdowns from a pre-computed

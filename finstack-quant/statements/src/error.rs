@@ -104,7 +104,6 @@ impl From<std::io::Error> for Error {
     }
 }
 
-// Helper function to format circular dependency path
 fn format_path(path: &[String]) -> String {
     path.join(" → ")
 }

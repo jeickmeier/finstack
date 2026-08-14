@@ -67,8 +67,6 @@ impl From<ExecuteError> for finstack_quant_core::Error {
     }
 }
 
-// Helper Types
-
 /// Quote lookup table built once per plan execution.
 struct QuoteIndex<'a> {
     by_id: HashMap<&'a str, MarketQuote>,
@@ -265,8 +263,6 @@ impl ExecutionState {
         self.step_reports.insert(step_id.to_string(), report);
     }
 }
-
-// Helper Functions
 
 /// Merges explanation traces from individual calibration steps into a plan-level trace.
 fn merge_step_traces(
@@ -502,8 +498,6 @@ fn bad_fit_envelope_error(step_id: &str, report: &CalibrationReport) -> Envelope
         worst_quote_residual: report.worst_quote_residual,
     }
 }
-
-// Public API
 
 /// Execute a full [`CalibrationEnvelope`] plan.
 ///

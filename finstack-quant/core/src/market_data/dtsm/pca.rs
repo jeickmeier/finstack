@@ -28,8 +28,6 @@ use serde::{Deserialize, Serialize};
 
 use super::types::YieldPanel;
 
-// YieldPca
-
 /// PCA decomposition of yield curve changes.
 ///
 /// See module-level documentation for details.

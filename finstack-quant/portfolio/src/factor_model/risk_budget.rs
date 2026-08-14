@@ -18,8 +18,6 @@ use super::position_risk::PositionRiskDecomposition;
 /// [`RiskBudget::default`], and both language bindings.
 pub const DEFAULT_UTILIZATION_THRESHOLD: f64 = 1.20;
 
-// Types
-
 /// Target risk allocation for a portfolio.
 ///
 /// A risk budget assigns a target share of total portfolio VaR to each
@@ -97,8 +95,6 @@ pub struct PositionBudgetEntry {
     /// negative for diversifiers.
     pub excess: f64,
 }
-
-// Implementation
 
 impl RiskBudget {
     /// Create a new risk budget from target allocations.

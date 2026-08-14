@@ -16,8 +16,6 @@ use finstack_quant_core::types::Attributes;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-// Trait
-
 /// One factor match decorated with a beta loading.
 ///
 /// For most matchers this collapses to `(factor_id, 1.0)` — one entry per
@@ -117,8 +115,6 @@ fn deepest_match(
         .and_then(|entries| entries.last().map(|entry| entry.factor_id.clone()))
 }
 
-// MappingTableMatcher
-
 /// A single matching rule from dependency and attribute filters to a factor.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -161,8 +157,6 @@ impl FactorMatcher for MappingTableMatcher {
             .map(|rule| one_entry(rule.factor_id.clone())))
     }
 }
-
-// HierarchicalMatcher
 
 /// A node in a hierarchical factor classification tree.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -256,8 +250,6 @@ impl FactorMatcher for HierarchicalMatcher {
             .map(|(_, factor_id)| one_entry(factor_id)))
     }
 }
-
-// CascadeMatcher
 
 /// Ordered matcher chain that returns the first successful factor match.
 ///

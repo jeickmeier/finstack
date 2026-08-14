@@ -279,7 +279,6 @@ impl MarketContext {
 
         let mut ctx = self.clone();
 
-        // Apply FX bumps
         for (base, quote, pct, as_of) in fx_bumps {
             let fx = ctx.fx.as_ref().ok_or_else(|| InputError::NotFound {
                 id: "FX matrix".to_string(),
@@ -288,7 +287,6 @@ impl MarketContext {
             ctx.fx = Some(Arc::new(bumped));
         }
 
-        // Apply vol bucket bumps
         for (vol_surface_id, expiries, strikes, pct) in vol_bumps {
             let surface =
                 ctx.get_surface(vol_surface_id.as_str())
@@ -301,7 +299,6 @@ impl MarketContext {
             ctx = ctx.insert_surface(bumped);
         }
 
-        // Apply base correlation bumps
         for (surface_id, detachments, points) in base_corr_bumps {
             let curve = ctx.get_base_correlation(surface_id.as_str()).map_err(|_| {
                 InputError::NotFound {
@@ -316,7 +313,6 @@ impl MarketContext {
             needs_credit_rebind = true;
         }
 
-        // Apply curve bumps
         let curve_invalidated = if !curve_bumps.is_empty() {
             ctx.apply_curve_bumps(curve_bumps)?
         } else {

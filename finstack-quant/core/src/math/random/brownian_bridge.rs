@@ -77,7 +77,6 @@ impl BrownianBridge {
             return;
         }
 
-        // Add midpoint
         let mid = (left + right) / 2;
         order.push(mid);
 
@@ -95,7 +94,6 @@ impl BrownianBridge {
 
         multipliers.push(variance_factor.sqrt());
 
-        // Recurse on left and right halves
         Self::build_bridge_recursive(left, mid, order, multipliers);
         Self::build_bridge_recursive(mid, right, order, multipliers);
     }
@@ -137,7 +135,6 @@ impl BrownianBridge {
             )));
         }
 
-        // Initialize
         w_out.fill(f64::NAN);
         w_out[0] = 0.0;
         if num_steps == 0 {
@@ -152,7 +149,6 @@ impl BrownianBridge {
         populated.insert(0);
         populated.insert(num_steps);
 
-        // Fill in using bridge construction
         // z[0] is used for terminal, z[1..] for construction_order
         for (i, &idx) in self.construction_order.iter().enumerate() {
             // Find left and right bracketing points (O(log n) lookup)

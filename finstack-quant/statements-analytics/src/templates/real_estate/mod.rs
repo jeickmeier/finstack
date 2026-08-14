@@ -755,7 +755,7 @@ fn add_rent_roll_impl(
         .periods_slice()
         .first()
         .map(|p| p.id.periods_per_year() as usize)
-        .unwrap_or(4); // defensive fallback; periods is non-empty after builder.periods()
+        .unwrap_or(4);
 
     for lease in leases {
         if lease.node_id.trim().is_empty() {

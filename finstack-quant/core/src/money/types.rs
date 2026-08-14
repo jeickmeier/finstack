@@ -133,8 +133,6 @@ pub struct Money {
 }
 
 impl Money {
-    // Constructors & accessors
-
     /// Format the amount with custom decimals and optional currency symbol.
     ///
     /// Uses Bankers rounding (IEEE 754 round-half-to-even). For other rounding
@@ -708,7 +706,6 @@ impl Money {
     }
 }
 
-// Formatting
 impl fmt::Display for Money {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Default formatting uses ISO-4217 minor units and bankers rounding.
@@ -751,7 +748,6 @@ impl Money {
     }
 }
 
-// Scalar arithmetic keeping currency intact
 /// Scale a [`Money`] by an `f64`, preserving currency.
 ///
 /// # Panics
@@ -786,7 +782,6 @@ impl Div<f64> for Money {
     }
 }
 
-// Conversions
 // Generic tuple conversions for common numeric primitives.
 //
 // Integer conversions route through `Decimal::from`, which is exact for the
@@ -814,8 +809,6 @@ impl From<(f64, Currency)> for Money {
         Self::new(value.0, value.1)
     }
 }
-
-// Convenience macro
 
 /// Shorthand for constructing [`Money`] literals.
 /// See unit tests and `examples/` for usage.

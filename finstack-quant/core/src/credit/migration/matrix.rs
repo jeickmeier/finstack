@@ -180,8 +180,6 @@ impl TransitionMatrix {
     }
 }
 
-// Validation helpers
-
 pub(crate) fn validate_transition_matrix(
     m: &DMatrix<f64>,
     scale: &RatingScale,

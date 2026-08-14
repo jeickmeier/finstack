@@ -550,7 +550,6 @@ impl DefaultLpOptimizer {
             }
         }
 
-        // Objective
         let mut objective_expr: Expression = 0.0.into();
         for (var, coef) in w_vars.iter().zip(&rows.coeffs_objective) {
             objective_expr += (*coef) * var.var;

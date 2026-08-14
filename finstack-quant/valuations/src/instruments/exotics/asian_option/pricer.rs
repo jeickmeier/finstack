@@ -335,7 +335,6 @@ impl AsianOptionMcPricer {
                     }
                 }
             } else {
-                // Fallback
                 let spot_scalar = curves.get_price(&inst.spot_id)?;
                 match spot_scalar {
                     finstack_quant_core::market_data::scalars::MarketScalar::Unitless(v) => *v,

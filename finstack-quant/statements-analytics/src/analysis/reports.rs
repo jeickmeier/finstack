@@ -143,7 +143,6 @@ impl TableBuilder {
         self.write_border(&mut output, &widths, "┌", "┬", "┐");
         output.push('\n');
 
-        // Headers
         output.push('│');
         for (i, header) in self.headers.iter().enumerate() {
             let width = widths[i];
@@ -194,7 +193,6 @@ impl TableBuilder {
         // Calculate column widths
         let widths = self.calculate_column_widths();
 
-        // Headers
         output.push('|');
         for (i, header) in self.headers.iter().enumerate() {
             let width = widths[i];
@@ -203,7 +201,6 @@ impl TableBuilder {
         }
         output.push('\n');
 
-        // Separator
         output.push('|');
         for (i, &width) in widths.iter().enumerate() {
             let align = if i < self.alignment.len() {
@@ -241,8 +238,6 @@ impl TableBuilder {
 
         output
     }
-
-    // Internal helpers
 
     fn calculate_column_widths(&self) -> Vec<usize> {
         let mut widths = self.headers.iter().map(|h| h.len()).collect::<Vec<_>>();

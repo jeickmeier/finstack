@@ -289,8 +289,6 @@ impl MarketContext {
     }
 }
 
-// Context Statistics
-
 /// Statistics about the contents of a [`MarketContext`].
 ///
 /// Obtain via [`MarketContext::stats`] to feed dashboards or diagnostics.

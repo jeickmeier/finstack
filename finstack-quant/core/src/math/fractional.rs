@@ -38,8 +38,6 @@ use statrs::function::gamma::ln_gamma;
 
 use crate::{Error, Result};
 
-// HurstExponent
-
 /// Validated Hurst exponent H ∈ (0, 1).
 ///
 /// The Hurst exponent determines the roughness of fractional Brownian motion:
@@ -85,8 +83,6 @@ impl HurstExponent {
     }
 }
 
-// RiemannLiouvilleKernel
-
 /// Riemann–Liouville power-law kernel.
 ///
 /// $$K(t,s) = c_H (t - s)^{H - 1/2}, \quad s < t$$
@@ -128,8 +124,6 @@ impl RiemannLiouvilleKernel {
         self.hurst_exp
     }
 }
-
-// Covariance utilities
 
 /// Covariance of fractional Brownian motion.
 ///
@@ -211,8 +205,6 @@ pub fn fbm_increment_covariance_matrix(times: &[f64], h: f64) -> DMatrix<f64> {
         fbm_increment_covariance(times[i], times[i + 1], times[j], times[j + 1], h)
     })
 }
-
-// Mittag-Leffler function
 
 /// Maximum number of series terms for Mittag-Leffler evaluation.
 const ML_MAX_TERMS: usize = 200;

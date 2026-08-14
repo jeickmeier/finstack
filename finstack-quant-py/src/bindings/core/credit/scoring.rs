@@ -224,8 +224,6 @@ fn ohlson_o_score(
     Ok((r.score, zone_to_str(r.zone).to_string(), r.implied_pd))
 }
 
-// Zmijewski probit
-
 /// Compute the Zmijewski (1984) probit bankruptcy score.
 ///
 /// Y = -4.336 - 4.513 * ROA + 5.679 * DebtRatio + 0.004 * CurrentRatio

@@ -8,7 +8,6 @@ use crate::Result;
 /// Shared default base date for term-structure builders.
 #[inline]
 pub(crate) fn default_curve_base_date() -> Date {
-    // Epoch date - unwrap_or provides defensive fallback for an effectively infallible operation.
     Date::from_calendar_date(1970, time::Month::January, 1).unwrap_or(time::Date::MIN)
 }
 

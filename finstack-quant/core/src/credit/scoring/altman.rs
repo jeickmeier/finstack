@@ -24,8 +24,6 @@ pub enum AltmanPdCalibration {
     Heuristic,
 }
 
-// Input structs
-
 /// Input ratios for the original Altman Z-Score (1968).
 ///
 /// Designed for publicly traded manufacturing firms. Uses market value
@@ -91,8 +89,6 @@ pub struct AltmanZDoublePrimeInput {
     /// X4: Book Value of Equity / Book Value of Total Liabilities.
     pub book_equity_to_total_liabilities: f64,
 }
-
-// Scoring functions
 
 /// Compute the original Altman Z-Score (1968).
 ///
@@ -468,8 +464,6 @@ pub fn altman_em_score(
         model: "Altman EM-Score (1995)",
     })
 }
-
-// Helpers
 
 /// Classify a Z-score into Safe/Grey/Distress zones.
 fn z_score_zone(z: f64, safe_threshold: f64, distress_threshold: f64) -> ScoringZone {

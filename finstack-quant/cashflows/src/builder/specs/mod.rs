@@ -31,7 +31,6 @@ mod prepayment;
 mod recovery;
 mod schedule;
 
-// Re-export all public types to maintain the same API
 pub use amortization::{AmortizationSpec, Notional};
 pub use coupon::{
     CouponType, FixedCouponSpec, FloatingCouponSpec, FloatingRateFallback, FloatingRateSpec,

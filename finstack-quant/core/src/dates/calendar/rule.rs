@@ -54,8 +54,6 @@ use crate::dates::calendar::algo;
 use crate::dates::calendar::business_days::HolidayCalendar;
 use time::{Date, Duration, Month, Weekday};
 
-// Supporting enums
-
 /// Weekend observation convention for fixed-date holidays.
 ///
 /// Defines how holidays are observed when the calendar date falls on a weekend.
@@ -188,8 +186,6 @@ pub enum Direction {
     /// Find the nearest occurrence of the weekday **on or before** the reference date.
     Before,
 }
-
-// Rule enum
 
 /// Holiday rule pattern for calendar date computations.
 ///
@@ -541,7 +537,6 @@ const fn year_in_effective_range(year: i32, from: Option<i32>, to: Option<i32>) 
     true
 }
 
-// Public helper constructors for ergonomics
 impl Rule {
     /// Convenience for `Rule::Fixed { … }` with no observation.
     #[inline]
@@ -732,7 +727,6 @@ fn shift_to_weekday(mut d: Date, weekday: Weekday, dir: Direction) -> Date {
     d
 }
 
-// Reusable span materialization helper
 #[inline]
 fn push_span_range<A: smallvec::Array<Item = Date>>(
     out: &mut smallvec::SmallVec<A>,

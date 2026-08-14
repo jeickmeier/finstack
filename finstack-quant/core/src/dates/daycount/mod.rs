@@ -782,7 +782,6 @@ impl DayCount {
         (end - start).whole_days()
     }
 }
-// Display + FromStr
 
 impl std::fmt::Display for DayCount {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

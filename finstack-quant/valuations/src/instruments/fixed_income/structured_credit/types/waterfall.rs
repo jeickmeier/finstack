@@ -18,8 +18,6 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-// CORE TYPES
-
 /// Recipient of waterfall payments
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, schemars::JsonSchema,
@@ -640,8 +638,6 @@ impl WaterfallTier {
     }
 }
 
-// WATERFALL RESULT
-
 /// Result of waterfall distribution
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -741,8 +737,6 @@ pub struct PaymentRecord {
     /// Diverted
     pub diverted: bool,
 }
-
-// COVERAGE TRIGGERS
 
 /// Simple OC/IC trigger for diversion
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
@@ -880,8 +874,6 @@ impl Default for WaterfallWorkspace {
         Self::new(8, 32, 8)
     }
 }
-
-// WATERFALL ENGINE
 
 /// Main waterfall engine with tier-based distribution
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]

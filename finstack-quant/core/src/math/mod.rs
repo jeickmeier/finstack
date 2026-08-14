@@ -189,6 +189,8 @@ pub mod time_grid;
 pub mod volatility;
 
 // Re-exports for ergonomic access
+pub use compounding::Compounding;
+pub use consecutive::count_consecutive;
 pub use distributions::{
     binomial_pmf_all, binomial_pmf_all_into, binomial_probability, chi_squared_quantile,
     log_factorial,
@@ -209,9 +211,6 @@ pub use linalg::{
 pub use probability::{correlation_bounds, joint_probabilities, CorrelatedBernoulli};
 pub use random::sobol::{SobolRng, MAX_SOBOL_DIMENSION};
 pub use random::{box_muller_transform, Pcg64Rng, RandomNumberGenerator};
-// Raw root finding functions are no longer exported - use trait-based solvers instead
-pub use compounding::Compounding;
-pub use consecutive::count_consecutive;
 pub use solver::{BracketHint, BrentSolver, NewtonSolver, Solver};
 pub use solver_multi::{AnalyticalDerivatives, LevenbergMarquardtSolver};
 pub use special_functions::{

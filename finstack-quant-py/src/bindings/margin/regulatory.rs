@@ -271,7 +271,6 @@ impl PyFrtbSensitivities {
         let mut rows = SensitivityRows::default();
         let sens = &self.inner;
 
-        // GIRR
         for ((currency, tenor), amount) in &sens.girr_delta {
             rows.push(
                 "girr",
@@ -362,7 +361,6 @@ impl PyFrtbSensitivities {
             }
         }
 
-        // Equity
         for ((underlier, bucket), amount) in &sens.equity_delta {
             rows.push(
                 "equity",
@@ -392,7 +390,6 @@ impl PyFrtbSensitivities {
             );
         }
 
-        // Commodity
         for ((name, bucket, tenor), amount) in &sens.commodity_delta {
             rows.push(
                 "commodity",
@@ -422,7 +419,6 @@ impl PyFrtbSensitivities {
             );
         }
 
-        // FX
         for ((ccy1, ccy2), amount) in &sens.fx_delta {
             rows.push("fx", "delta", pair_label(*ccy1, *ccy2), None, None, *amount);
         }

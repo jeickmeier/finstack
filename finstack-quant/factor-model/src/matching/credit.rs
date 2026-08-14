@@ -35,8 +35,6 @@ use finstack_quant_core::types::{Attributes, IssuerId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-// Public constants
-
 /// Reserved key in [`Attributes::meta`] used to thread the issuer identifier
 /// from the position into the matcher.
 ///
@@ -46,8 +44,6 @@ pub const ISSUER_ID_META_KEY: &str = "credit::issuer_id";
 
 /// Canonical factor ID for the generic credit (PC) factor.
 pub const CREDIT_GENERIC_FACTOR_ID: &str = "credit::generic";
-
-// Config
 
 /// Declarative configuration for a calibrated credit-hierarchy matcher.
 ///
@@ -121,8 +117,6 @@ impl CreditHierarchicalConfig {
         ids.into_iter().collect()
     }
 }
-
-// Matcher
 
 /// Calibrated credit-hierarchy matcher.
 ///
@@ -268,8 +262,6 @@ impl FactorMatcher for CreditHierarchicalMatcher {
         Ok(Some(entries))
     }
 }
-
-// Helpers
 
 /// Dotted dimension-name path through the first `level_idx + 1` levels of
 /// the hierarchy spec, e.g. `"Rating.Region"` for level index 1.

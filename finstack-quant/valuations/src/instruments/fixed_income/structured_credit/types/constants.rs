@@ -10,8 +10,6 @@ use crate::instruments::fixed_income::structured_credit::assumptions::{
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
 
-// TIME CONSTANTS
-
 /// Average days per year for structured credit day count calculations (ACT/365.25).
 ///
 /// Re-exported from `finstack_quant_core::dates::AVERAGE_DAYS_PER_YEAR`.
@@ -24,15 +22,12 @@ pub const MONTHS_PER_YEAR: i32 = 12;
 /// Number of quarterly payment periods in one year (4.0).
 pub const QUARTERLY_PERIODS_PER_YEAR: f64 = 4.0;
 
-// VALIDATION CONSTANTS
-
 /// Divisor converting basis points to a decimal rate (10,000.0).
 pub const BASIS_POINTS_DIVISOR: f64 = 10_000.0;
 
 /// Multiplier converting a decimal rate to a percentage (100.0).
 pub const PERCENTAGE_MULTIPLIER: f64 = 100.0;
 
-// MARKET-STANDARD NUMERICAL TOLERANCES
 // These tolerances are calibrated to market conventions for structured credit.
 // Reference: Bloomberg BVAL, Intex, and industry-standard pricing systems.
 
@@ -56,8 +51,6 @@ pub const Z_SPREAD_INITIAL_BRACKET: f64 = 0.05; // ±500 bp
 
 /// Lower bound for prepayment rates expressed as a decimal fraction.
 pub const MIN_PREPAYMENT_RATE: f64 = 0.0;
-
-// REGISTRY-BACKED MARKET ASSUMPTIONS
 
 /// Mortgage prepayment seasonality adjustments by month (Jan=index 0).
 pub fn mortgage_seasonality() -> [f64; 12] {

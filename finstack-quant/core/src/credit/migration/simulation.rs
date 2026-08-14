@@ -32,8 +32,6 @@ use super::{
     error::MigrationError, generator::GeneratorMatrix, matrix::TransitionMatrix, scale::RatingScale,
 };
 
-// RatingPath
-
 /// A simulated rating trajectory: sequence of (time, state_index) pairs.
 ///
 /// The path is piecewise-constant and right-continuous: at any time `t`, the
@@ -125,8 +123,6 @@ impl RatingPath {
         self.horizon
     }
 }
-
-// MigrationSimulator
 
 /// Simulator for generating rating paths from a generator matrix.
 ///
@@ -249,8 +245,6 @@ impl MigrationSimulator {
         self.horizon
     }
 }
-
-// Core Gillespie algorithm
 
 /// Run Gillespie's competing-exponentials scheme and return the terminal state.
 ///

@@ -328,12 +328,9 @@ pub fn heston_call_price_fourier_with_settings(
     let call_price = spot * (-params.q * time).exp() * d1.probability
         - strike * (-params.r * time).exp() * d2.probability;
 
-    // Defensive fallback: if the Fourier integration produced a non-finite result
-    // (extreme parameters, characteristic-function overflow across the integration
-    // range), degrade gracefully to a Black-Scholes price at the deterministic
-    // average vol sqrt(v_bar(T)). This avoids silent zero/NaN prices for
-    // deep-OTM/short-dated edge cases where the per-phi overflow paths dominate
-    // the integrand.
+    // Non-finite Fourier integral (extreme params / CF overflow): price with
+    // Black-Scholes at deterministic avg vol sqrt(v_bar(T)) instead of returning
+    // zero/NaN for deep-OTM or short-dated cases.
     if !call_price.is_finite() {
         return black_scholes_call(
             spot,

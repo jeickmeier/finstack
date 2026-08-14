@@ -216,7 +216,6 @@ pub(in crate::builder) fn emit_fees_on(
             let fee_amt_dec = base_amt * pf.bp * BP_TO_RATE * yf_dec;
             let fee_amt = decimal_to_f64(fee_amt_dec)?;
 
-            // Convert rate from bp to decimal for storage
             let rate_dec = pf.bp * BP_TO_RATE;
             let rate = decimal_to_f64(rate_dec)?;
 

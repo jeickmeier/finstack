@@ -8,7 +8,6 @@ use super::{register_generic, InstrumentType, ModelKey, PricerRegistry};
 
 /// Register pricers for equity instruments.
 pub(crate) fn register_equity_pricers(registry: &mut PricerRegistry) {
-    // Equity
     register_generic!(
         registry,
         InstrumentType::Equity,

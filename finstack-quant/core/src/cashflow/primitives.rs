@@ -214,8 +214,6 @@ pub enum CFKind {
     CollateralSubstitutionOut,
 }
 
-// Display + FromStr
-
 impl std::fmt::Display for CFKind {
     #[allow(unreachable_patterns)] // non_exhaustive future-proofing
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

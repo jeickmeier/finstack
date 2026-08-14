@@ -16,8 +16,6 @@
 use finstack_quant_core::{Error, InputError, Result};
 use serde::{Deserialize, Serialize};
 
-// Types
-
 /// Map from leverage to hazard rate.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -56,8 +54,6 @@ pub struct EndogenousHazardSpec {
     /// Mapping function from leverage to hazard rate.
     leverage_hazard_map: LeverageHazardMap,
 }
-
-// Implementation
 
 impl EndogenousHazardSpec {
     // -- Convenience constructors -------------------------------------------

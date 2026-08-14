@@ -1039,9 +1039,8 @@ impl McEngine {
 
                 if let Some(sink) = captured_sink.as_ref() {
                     if !chunk_paths.is_empty() {
-                        // SAFETY: a poisoned mutex indicates a prior panic in
-                        // another thread — propagate rather than silently
-                        // continue with corrupt state.
+                        // Poisoned mutex means a prior thread panicked — propagate
+                        // rather than continue with corrupt captured paths.
                         #[allow(clippy::expect_used)]
                         sink.lock()
                             .expect("Mutex should not be poisoned")

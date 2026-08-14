@@ -480,12 +480,6 @@ pub fn sample_beta(
     Ok(x / sum)
 }
 
-// Exponential Distribution
-
-// Log-Normal Distribution
-
-// Gamma Distribution (public helper)
-
 /// Sample from Gamma(shape, 1) distribution using Marsaglia-Tsang method.
 ///
 /// Generates random samples from the Gamma distribution with shape parameter α
@@ -594,8 +588,6 @@ fn sample_gamma_with_max_attempts(
         "Gamma rejection sampler exceeded {max_attempts} attempts"
     )))
 }
-
-// Chi-Squared Distribution
 
 /// Quantile function (inverse CDF) of the Chi-Squared distribution.
 ///

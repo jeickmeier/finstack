@@ -161,12 +161,10 @@ impl Notional {
                 Ok(())
             }
             AmortizationSpec::StepRemaining { schedule } => {
-                // Check dates are strictly increasing and currencies match
                 let mut prev_date: Option<Date> = None;
                 let mut prev_amount: Option<f64> = None;
 
                 for (date, remaining) in schedule {
-                    // Currency check
                     if remaining.currency() != currency {
                         return Err(finstack_quant_core::Error::Validation(format!(
                             "StepRemaining currency ({}) must match initial currency ({})",
@@ -175,7 +173,6 @@ impl Notional {
                         )));
                     }
 
-                    // Date ordering check (must be strictly increasing)
                     if let Some(pd) = prev_date {
                         if *date <= pd {
                             return Err(finstack_quant_core::Error::Validation(format!(
@@ -185,7 +182,6 @@ impl Notional {
                         }
                     }
 
-                    // Amount ordering check (must be non-increasing)
                     if let Some(pa) = prev_amount {
                         if remaining.amount() > pa {
                             return Err(finstack_quant_core::Error::Validation(format!(

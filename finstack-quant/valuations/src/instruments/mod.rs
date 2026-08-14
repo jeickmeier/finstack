@@ -188,8 +188,6 @@ pub mod fx;
 /// Interest rate derivatives and money market instruments.
 pub mod rates;
 
-// === Core Instrument Types ===
-// Fixed Income
 pub use fixed_income::{
     AgencyCmo, AgencyMbsPassthrough, AgencyProgram, AgencyTba, Bond, BondFuture, BondFutureBuilder,
     BondFutureSpecs, BondSettlementConvention, CmoTranche, CmoTrancheType, CmoWaterfall,
@@ -197,7 +195,6 @@ pub use fixed_income::{
     PoolType, RevolvingCredit, StructuredCredit, TbaTerm, TermLoan,
 };
 
-// Rates
 pub use rates::{
     BasisSwap, BermudanSwaption, CapFloor, CmsOption, CmsSpreadOption, CmsSpreadOptionType,
     CmsSwap, CollateralSpec, CollateralType, Deposit, ForwardRateAgreement, InflationCapFloor,
@@ -205,10 +202,8 @@ pub use rates::{
     RateOptionType, Repo, RepoType, Swaption, XccySwap, YoYInflationSwap,
 };
 
-// Credit Derivatives
 pub use credit_derivatives::{CDSIndex, CDSOption, CDSTranche, CreditDefaultSwap};
 
-// Equity
 pub use equity::{
     Autocallable, CliquetOption, DiscountedCashFlow, Equity, EquityFutureSpecs, EquityIndexFuture,
     EquityOption, EquityTotalReturnSwap, FinalPayoffType, LeveredRealEstateEquity,
@@ -217,26 +212,22 @@ pub use equity::{
     VolatilityIndexOption,
 };
 
-// FX
 pub use fx::FxVarianceSwap;
 pub use fx::{
     BarrierDirection, DigitalPayoutType, FxDigitalOption, FxTouchOption, PayoutTiming, TouchType,
 };
 pub use fx::{FxBarrierOption, FxForward, FxOption, FxSpot, FxSwap, Ndf, QuantoOption};
 
-// Commodity
 pub use commodity::{
     CommodityAsianOption, CommodityForward, CommodityOption, CommoditySpreadOption, CommoditySwap,
     CommoditySwaption,
 };
 
-// Exotics
 pub use exotics::{
     AsianOption, AveragingMethod, BarrierOption, BarrierType, Basket, CallableRangeAccrual,
     LookbackOption, LookbackType, RangeAccrual, Snowball, SnowballVariant, Tarn,
 };
 
-// === Common Functionality ===
 mod breakeven;
 pub use breakeven::{BreakevenConfig, BreakevenMode, BreakevenTarget};
 pub use common_impl::dependencies::{
@@ -248,7 +239,6 @@ pub use common_impl::traits::{
     OptionGreeksRequest, PricingOptions,
 };
 
-// === Parameter Types ===
 pub use common_impl::parameters::{
     BasisSwapLeg, BondConvention, CommodityUnderlyingParams, ContractSpec, CreditParams,
     EquityUnderlyingParams, ExerciseStyle, FinancingLegSpec, FinancingRateCompounding,
@@ -257,7 +247,6 @@ pub use common_impl::parameters::{
     ScheduleSpec, SettlementType, TotalReturnLegSpec,
 };
 
-// Re-export TRS common types
 pub use common_impl::parameters::trs_common::{TrsScheduleSpec, TrsSide};
 
 /// Pricing overrides module.

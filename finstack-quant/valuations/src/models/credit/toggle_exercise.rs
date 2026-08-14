@@ -31,8 +31,6 @@ use finstack_quant_core::math::random::{Pcg64Rng, RandomNumberGenerator};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-// Types
-
 /// Observable credit state at a point in time.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct CreditState {
@@ -166,8 +164,6 @@ pub struct OptimalToggle {
     /// Forward-looking horizon in years for the nested simulation (e.g. 1.0).
     pub horizon: f64,
 }
-
-// Helpers
 
 /// Extract the relevant state value for the toggle decision.
 ///
@@ -376,8 +372,6 @@ struct NestedEquityMcModel {
     discount_rate: f64,
     horizon: f64,
 }
-
-// Implementation
 
 impl ToggleExerciseModel {
     /// Create a threshold toggle model.

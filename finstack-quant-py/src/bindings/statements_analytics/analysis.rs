@@ -74,8 +74,6 @@ fn dcf_equity_result_dict<'py>(
     Ok(dict)
 }
 
-// Sensitivity analysis
-
 /// Run sensitivity analysis on a financial model.
 ///
 /// Parameters
@@ -139,8 +137,6 @@ fn generate_tornado_entries(
     serde_json::to_string(&entries).map_err(display_to_py)
 }
 
-// Variance analysis
-
 /// Run variance analysis comparing two statement results.
 ///
 /// Parameters
@@ -170,8 +166,6 @@ fn run_variance(
         Ok(PyVarianceReport { inner })
     })
 }
-
-// Scenario set
 
 /// Evaluate all scenarios in a scenario set.
 ///
@@ -328,8 +322,6 @@ fn variance_bridge(
     })
 }
 
-// Backtesting
-
 /// Compute forecast accuracy metrics (MAE, MAPE, RMSE).
 #[pyfunction]
 fn backtest_forecast<'py>(
@@ -347,8 +339,6 @@ fn backtest_forecast<'py>(
     dict.set_item("n", metrics.n)?;
     Ok(dict)
 }
-
-// Goal seek
 
 /// Find the driver value that makes a target node reach a target value.
 ///
@@ -417,8 +407,6 @@ fn goal_seek(
         Ok((result, updated_json))
     })
 }
-
-// DCF Valuation
 
 /// Evaluate DCF valuation on a financial model.
 ///
@@ -932,8 +920,6 @@ fn run_corporate_analysis<'py>(
     Ok(dict)
 }
 
-// Reports
-
 /// Generate a P&L summary report as formatted text.
 ///
 /// Parameters
@@ -1280,8 +1266,6 @@ fn explain_formula_text(
     let explanation = explainer.explain(node_id, &pid).map_err(display_to_py)?;
     Ok(explanation.to_string_detailed())
 }
-
-// Checks
 
 /// Run checks from a suite spec against a model (JSON in/out).
 ///

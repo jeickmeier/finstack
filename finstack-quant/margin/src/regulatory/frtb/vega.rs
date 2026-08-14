@@ -205,8 +205,6 @@ fn fx_vega(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 {
     k_squared.max(0.0).sqrt()
 }
 
-// Helpers
-
 /// Generic bucketed vega aggregation for (name, bucket, tenor) keys.
 fn generic_bucketed_vega(
     sensitivities: &HashMap<(String, u8, String), f64>,

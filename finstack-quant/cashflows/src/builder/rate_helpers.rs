@@ -160,17 +160,14 @@ impl FloatingRateParams {
     pub fn validate(&self) -> Result<()> {
         use finstack_quant_core::InputError;
 
-        // Check spread is finite
         if !self.spread_bp.is_finite() {
             return Err(finstack_quant_core::Error::Input(InputError::Invalid));
         }
 
-        // Check gearing is positive and finite
         if !self.gearing.is_finite() || self.gearing <= 0.0 {
             return Err(finstack_quant_core::Error::Input(InputError::Invalid));
         }
 
-        // Check optional floor/cap values are finite if present
         for v in [
             self.index_floor_bp,
             self.index_cap_bp,
@@ -185,14 +182,12 @@ impl FloatingRateParams {
             }
         }
 
-        // Check index floor <= index cap if both specified
         if let (Some(floor), Some(cap)) = (self.index_floor_bp, self.index_cap_bp) {
             if floor > cap {
                 return Err(finstack_quant_core::Error::Input(InputError::Invalid));
             }
         }
 
-        // Check all-in floor <= all-in cap if both specified
         if let (Some(floor), Some(cap)) = (self.all_in_floor_bp, self.all_in_cap_bp) {
             if floor > cap {
                 return Err(finstack_quant_core::Error::Input(InputError::Invalid));

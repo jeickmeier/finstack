@@ -223,12 +223,10 @@ mod tests {
         // Exact GBM
         let exact = x0 * ((0.05 - 0.02 - 0.5 * 0.3 * 0.3) * dt + 0.3 * dt.sqrt() * z_val).exp();
 
-        // Milstein
         let mut x_milstein = vec![x0];
         let mut work = vec![0.0; 2];
         Milstein::new().step(&process, t, dt, &mut x_milstein, &[z_val], &mut work);
 
-        // Euler
         let mut x_euler = vec![x0];
         EulerMaruyama::new().step(&process, t, dt, &mut x_euler, &[z_val], &mut work);
 

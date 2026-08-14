@@ -34,8 +34,6 @@ use crate::credit::hierarchy::{
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::types::IssuerId;
 
-// Result types
-
 /// Per-level bucket values produced by a single decomposition.
 ///
 /// The `values` map is keyed by the dotted bucket path (e.g. `"IG.EU.FIN"`),
@@ -98,8 +96,6 @@ pub struct PeriodDecomposition {
     pub d_adder: BTreeMap<IssuerId, f64>,
 }
 
-// Errors
-
 /// Failure modes for the decomposition routines.
 #[derive(Debug, Clone, PartialEq, thiserror::Error, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -159,8 +155,6 @@ pub enum DecompositionError {
         value: f64,
     },
 }
-
-// Internal helpers
 
 /// Indexes every issuer beta row by `issuer_id` for O(log n) lookup.
 fn index_issuer_betas(model: &CreditFactorModel) -> BTreeMap<&IssuerId, &IssuerBetaRow> {

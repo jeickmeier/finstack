@@ -33,8 +33,6 @@ use finstack_quant_core::money::Money;
 use crate::primitives::is_cash_settlement_kind;
 use indexmap::IndexMap;
 
-// Generic Flow Iterator
-
 /// Trait for types that have an associated date.
 ///
 /// This allows generic iteration over different flow types (DatedFlow, CashFlow)
@@ -256,8 +254,6 @@ pub fn aggregate_by_period(
     aggregate_by_period_sorted(&sorted, periods)
 }
 
-// Precision-Preserving Aggregation
-
 use finstack_quant_core::market_data::traits::{Discounting, Survival};
 
 /// Currency-checked single-currency aggregation with explicit target currency.
@@ -315,8 +311,6 @@ pub fn aggregate_cashflows_checked(
     Ok(Money::new(acc.total(), target))
 }
 
-// Pre-Period PV Aggregation
-
 /// Shared implementation for PV aggregation across plain and credit-adjusted variants.
 ///
 /// Buckets flows into half-open intervals `[period.start, period.end)` and
@@ -363,7 +357,6 @@ where
             continue;
         }
 
-        // Build result from accumulated per-currency values, reusing the buffer.
         result_buf.clear();
         for (&ccy, acc) in &per_currency {
             result_buf.insert(ccy, Money::try_new(acc.total(), ccy)?);

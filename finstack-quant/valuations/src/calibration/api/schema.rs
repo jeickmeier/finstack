@@ -1356,7 +1356,6 @@ pub enum SabrInterpolationMethod {
     Bilinear,
 }
 
-// Defaults
 fn default_interp_linear() -> InterpStyle {
     InterpStyle::Linear
 }

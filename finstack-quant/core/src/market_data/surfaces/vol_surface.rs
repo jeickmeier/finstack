@@ -330,7 +330,6 @@ impl VolSurface {
         if !expiry.is_finite() || !strike.is_finite() {
             return f64::NAN;
         }
-        // Get bounds safely using first/last with defensive fallbacks
         let (Some(&exp_min), Some(&exp_max)) = (self.expiries.first(), self.expiries.last()) else {
             return f64::NAN;
         };

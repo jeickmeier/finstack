@@ -259,7 +259,6 @@ mod tests {
 
     #[test]
     fn test_exposure_minimum_validation() {
-        // Valid
         assert!(Constraint::exposure_minimum("rating", "IG", 0.5).is_ok());
 
         // Invalid: negative
@@ -287,7 +286,6 @@ mod tests {
 
     #[test]
     fn test_max_turnover_validation() {
-        // Valid
         assert!(Constraint::max_turnover(0.5).is_ok());
         assert!(Constraint::max_turnover(0.0).is_ok());
 

@@ -29,8 +29,6 @@ use finstack_quant_core::{Error, InputError, Result};
 
 use finstack_quant_core::math::random::{poisson_inverse_cdf, RandomNumberGenerator};
 
-// Types
-
 /// Asset dynamics specification for the Merton model.
 ///
 /// Controls the stochastic process assumed for the firm's asset value.
@@ -792,8 +790,6 @@ impl MertonModel {
             },
         )
     }
-
-    // Accessors
 
     /// Current asset value V_0.
     #[inline]

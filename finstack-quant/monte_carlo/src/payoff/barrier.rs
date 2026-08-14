@@ -96,7 +96,6 @@ pub struct BarrierOptionPayoff {
     /// grow at-hit rebates forward to maturity.
     total_time: f64,
 
-    // State
     terminal_spot: f64,
     barrier_hit: bool,
     previous_spot: f64,

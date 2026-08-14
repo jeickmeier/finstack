@@ -728,8 +728,6 @@ pub struct RatesStepConventions {
     pub ois_compounding: Option<crate::instruments::rates::irs::FloatingLegCompounding>,
 }
 
-// End of configuration module
-
 #[cfg(test)]
 mod tests {
     use super::*;

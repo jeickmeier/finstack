@@ -230,10 +230,6 @@ fn project_psd(matrix: &[f64], n: usize) -> Vec<f64> {
         return Vec::new();
     }
 
-    // Defensive: `symmetric_eigen` only fails on shape mismatch; we
-    // already know `matrix.len() == n * n` here, but fall through to a
-    // zero matrix if the invariant is ever broken so callers observe a
-    // degenerate projection instead of a panic.
     let Ok((eigenvalues, eigenvectors)) =
         finstack_quant_core::math::linalg::symmetric_eigen(matrix, n)
     else {

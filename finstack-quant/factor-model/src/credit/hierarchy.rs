@@ -653,8 +653,6 @@ pub struct FactorHistories {
     pub values: BTreeMap<FactorId, Vec<f64>>,
 }
 
-// Diagnostics
-
 /// Record of a single fold-up event during calibration.
 ///
 /// When a bucket lacks sufficient coverage, its issuers are promoted to a

@@ -78,8 +78,6 @@ fn bs_cos_price(
     })
 }
 
-// Variance Gamma
-
 /// Price a European option under the Variance Gamma model using the COS method.
 ///
 /// Parameters

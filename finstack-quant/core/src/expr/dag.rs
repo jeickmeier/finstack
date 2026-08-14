@@ -317,22 +317,18 @@ impl DagBuilder {
         exprs: Vec<Expr>,
         meta: crate::config::ResultsMeta,
     ) -> crate::Result<ExecutionPlan> {
-        // Clear state
         self.expr_cache.clear();
         self.nodes.clear();
         self.next_id = 0;
 
-        // Process each root expression
         let mut root_ids = Vec::new();
         for expr in exprs {
             let id = self.process_expression(expr, 0)?;
             root_ids.push(id);
         }
 
-        // Calculate reference counts
         self.calculate_ref_counts(&root_ids);
 
-        // Build topological order (dependencies first)
         let ordered_nodes = self.topological_sort(&root_ids)?;
 
         Ok(ExecutionPlan {
@@ -358,12 +354,10 @@ impl DagBuilder {
             )));
         }
 
-        // Check if we've already seen this expression
         if let Some(&existing_id) = self.expr_cache.get(&expr) {
             return Ok(existing_id);
         }
 
-        // Generate new ID and process dependencies
         let id = self.next_id;
         self.next_id += 1;
 
@@ -395,15 +389,13 @@ impl DagBuilder {
             }
         };
 
-        // Create DAG node
         let node = DagNode {
             id,
             expr: expr.clone(),
             dependencies,
-            ref_count: 0, // Will be calculated later
+            ref_count: 0,
         };
 
-        // Store node and cache expression
         self.nodes.insert(id, node);
         self.expr_cache.insert(expr, id);
 
@@ -441,7 +433,6 @@ impl DagBuilder {
             count_refs(root_id, &self.nodes, &mut ref_counts, &mut visited, 0);
         }
 
-        // Update nodes with reference counts
         for (id, count) in ref_counts {
             if let Some(node) = self.nodes.get_mut(&id) {
                 node.ref_count = count;

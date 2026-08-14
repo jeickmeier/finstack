@@ -586,7 +586,6 @@ mod tests {
         assert_eq!(schedule.rate(ScheduleAssetClass::InterestRate, 3.0), 0.02); // 2%
         assert_eq!(schedule.rate(ScheduleAssetClass::InterestRate, 10.0), 0.04); // 4%
 
-        // Credit
         assert_eq!(schedule.rate(ScheduleAssetClass::Credit, 1.0), 0.02);
         assert_eq!(schedule.rate(ScheduleAssetClass::Credit, 10.0), 0.10);
 

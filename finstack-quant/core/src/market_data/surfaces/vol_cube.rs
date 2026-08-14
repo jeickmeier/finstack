@@ -49,8 +49,6 @@ use crate::{
 use super::vol_surface::{VolInterpolationMode, VolQuoteType, VolSurface};
 use super::{floor_sabr_vol, warn_sabr_vol_floored};
 
-// Normal-vol floor helpers
-
 /// Relative floor applied when the SABR **normal** expansion yields a
 /// non-finite or non-positive value.
 ///
@@ -88,8 +86,6 @@ fn warn_sabr_vol_normal_floored(context: &str, id: &CurveId, floored: usize) {
     }
 }
 
-// Core struct
-
 /// SABR volatility cube on an expiry x tenor grid.
 ///
 /// Each grid node stores a [`SabrParams`] and a forward rate. Interpolation
@@ -109,8 +105,6 @@ pub struct VolCube {
     forwards: Vec<f64>,
     interpolation_mode: VolInterpolationMode,
 }
-
-// Serde intermediate
 
 /// Raw serializable state of a VolCube.
 #[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
@@ -158,8 +152,6 @@ impl TryFrom<VolCubeWire> for VolCube {
         .with_interpolation_mode(raw.interpolation_mode))
     }
 }
-
-// Construction helpers
 
 /// Validate an axis: non-empty, finite, and strictly increasing if len > 1.
 fn validate_axis(axis: &[f64]) -> crate::Result<()> {
@@ -837,8 +829,6 @@ impl VolCube {
     }
 }
 
-// VolProvider impl
-
 impl crate::market_data::traits::VolProvider for VolCube {
     fn vol(&self, expiry: f64, tenor: f64, strike: f64) -> crate::Result<f64> {
         self.vol(expiry, tenor, strike)
@@ -850,8 +840,6 @@ impl crate::market_data::traits::VolProvider for VolCube {
         self.id()
     }
 }
-
-// Builder
 
 /// Incremental builder for [`VolCube`].
 ///

@@ -153,8 +153,6 @@ pub enum InterpStyle {
     PiecewiseQuadraticForward,
 }
 
-// Display + FromStr for ExtrapolationPolicy
-
 impl std::fmt::Display for ExtrapolationPolicy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let label = match self {
@@ -178,8 +176,6 @@ impl std::str::FromStr for ExtrapolationPolicy {
         }
     }
 }
-
-// Display + FromStr for InterpStyle
 
 impl std::fmt::Display for InterpStyle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

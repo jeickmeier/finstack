@@ -1,7 +1,5 @@
 use super::*;
 
-// PUBLIC API
-
 /// Release the unused spread-account balance to equity at deal end.
 ///
 /// Record a residual principal distribution to a tranche at deal end: appends

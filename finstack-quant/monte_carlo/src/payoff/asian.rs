@@ -57,13 +57,11 @@ pub struct AsianCall {
     /// O(1) lookup set derived from fixing_steps
     fixing_set: HashSet<usize>,
 
-    // State
     sum_spots: f64,     // For arithmetic
     kahan_comp: f64,    // Kahan summation compensation for arithmetic
     product_spots: f64, // For geometric (stored as log-product)
     num_fixings_seen: usize,
 
-    // History
     initial_sum_spots: f64,
     initial_kahan_comp: f64,
     initial_product_spots: f64,
@@ -239,7 +237,6 @@ pub struct AsianPut {
     product_spots: f64,
     num_fixings_seen: usize,
 
-    // History
     initial_sum_spots: f64,
     initial_kahan_comp: f64,
     initial_product_spots: f64,

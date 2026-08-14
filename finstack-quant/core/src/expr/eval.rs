@@ -312,9 +312,7 @@ impl CompiledExpr {
             "evaluating compiled expression"
         );
 
-        // Compute values using the chosen strategy
         let values: Vec<f64> = {
-            // Execute nodes in topological order using arena allocation
             let len = cols.first().map(|c| c.len()).unwrap_or(0);
             let node_count = plan_to_use.nodes.len();
             let arena_elements = len.checked_mul(node_count).ok_or_else(|| {
@@ -368,11 +366,9 @@ impl CompiledExpr {
             let mut cursor = 0;
             let eval_result: crate::Result<Vec<f64>> = (|| {
                 for node in &plan_to_use.nodes {
-                    // Allocate space in arena for this node's result
                     let start = cursor;
                     let end = cursor + len;
 
-                    // Evaluate node directly into arena slice
                     // Split the arena to avoid borrow conflicts
                     let (arena_deps, arena_out) = arena.split_at_mut(start);
                     let out_slice = &mut arena_out[..len];
@@ -382,7 +378,6 @@ impl CompiledExpr {
                     cursor = end;
                 }
 
-                // Extract root result
                 Ok(plan_to_use
                     .roots
                     .first()
@@ -455,7 +450,6 @@ impl CompiledExpr {
                 out.fill(*val);
             }
             ExprNode::Call(func, _args) => {
-                // Get argument results from dependencies (slices from arena)
                 let arg_slices: SmallVec<[&[f64]; 4]> = node
                     .dependencies
                     .iter()

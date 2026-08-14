@@ -767,7 +767,6 @@ mod tests {
         assert_eq!(BondConvention::Corporate.frequency(), Tenor::semi_annual());
         assert_eq!(BondConvention::Jgb.frequency(), Tenor::semi_annual());
 
-        // Annual
         assert_eq!(BondConvention::GermanBund.frequency(), Tenor::annual());
         assert_eq!(BondConvention::FrenchOat.frequency(), Tenor::annual());
     }

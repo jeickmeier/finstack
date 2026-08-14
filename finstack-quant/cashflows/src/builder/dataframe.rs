@@ -20,8 +20,6 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::traits::Survival;
 use finstack_quant_core::money::Money;
 
-// Helper functions for DataFrame construction (extracted for testability)
-
 /// Initialize an optional column vector, reusing existing allocation if available.
 ///
 /// This helper reduces repetitive initialization code for optional columns
@@ -78,7 +76,6 @@ fn compute_notional_columns(
 ) -> (Option<f64>, Option<f64>) {
     use crate::primitives::CFKind;
 
-    // Check if this is an accruing flow that should show notional
     let is_accruing = matches!(
         cf.kind,
         CFKind::Fixed
@@ -456,7 +453,6 @@ impl CashFlowSchedule {
         out.discount_factors.reserve(capacity);
         out.pvs.reserve(capacity);
 
-        // Initialize optional columns using helper to reduce repetition
         init_optional_column(has_facility, capacity, &mut out.undrawn_notionals);
         init_optional_column(has_hazard, capacity, &mut out.survival_probs);
         init_optional_column(has_facility, capacity, &mut out.unfunded_amounts);
@@ -525,7 +521,6 @@ impl CashFlowSchedule {
             while period_cursor < periods.len() && cf.date >= periods[period_cursor].end {
                 period_cursor += 1;
             }
-            // Check if current cashflow falls in the current period
             let period = if period_cursor < periods.len() {
                 let p = &periods[period_cursor];
                 if cf.date >= p.start && cf.date < p.end {

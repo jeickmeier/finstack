@@ -71,7 +71,6 @@ impl MetricCalculator for DeltaCalculator {
             spec: BumpSpec::parallel_bp(bump_bp),
         }])?;
 
-        // Reprice
         let pv_bumped = option.value(&curves_bumped, context.as_of)?.amount();
 
         // Delta = Change in PV

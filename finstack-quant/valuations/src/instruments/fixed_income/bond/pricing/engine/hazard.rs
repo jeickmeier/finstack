@@ -148,7 +148,6 @@ impl HazardBondEngine {
         };
         let recovery = hazard.recovery_rate().clamp(0.0, 1.0);
 
-        // Schedules
         let (flows, schedule) = Self::build_schedules(bond, market, as_of)?;
 
         // Build time grid from as_of + future cashflow dates.

@@ -39,7 +39,6 @@
 //! # }
 //! ```
 
-// Internal modules
 pub(crate) mod compiler;
 mod coupon_api;
 pub mod emission;
@@ -47,7 +46,6 @@ mod orchestrator;
 pub(crate) mod pipeline;
 mod principal;
 
-// Public modules
 pub mod calendar;
 pub(crate) mod credit_rates;
 pub(crate) mod dataframe;
@@ -57,10 +55,8 @@ pub mod rate_helpers;
 pub mod schedule;
 pub mod specs;
 
-// Export the builder as CashFlowBuilder
 pub use orchestrator::{CashFlowBuilder, PrincipalEvent};
 
-// Re-export common types
 pub use dataframe::{PeriodDataFrame, PeriodDataFrameOptions};
 pub use periods::SchedulePeriod;
 pub use rate_helpers::{project_floating_rate, FloatingRateParams};

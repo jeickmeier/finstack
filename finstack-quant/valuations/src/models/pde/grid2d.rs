@@ -168,7 +168,6 @@ mod tests {
         let v = g.interpolate(&values, 1.0, 1.0);
         assert!((v - 2.0).abs() < 1e-12);
 
-        // Midpoint
         let v = g.interpolate(&values, 0.5, 0.5);
         assert!((v - 1.0).abs() < 1e-12);
     }

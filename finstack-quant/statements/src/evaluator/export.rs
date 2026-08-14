@@ -133,13 +133,11 @@ mod tests {
     fn create_test_results() -> StatementResult {
         let mut nodes = IndexMap::new();
 
-        // Revenue
         let mut revenue_periods = IndexMap::new();
         revenue_periods.insert(PeriodId::quarter(2025, 1), 100_000.0);
         revenue_periods.insert(PeriodId::quarter(2025, 2), 110_000.0);
         nodes.insert("revenue".to_string(), revenue_periods);
 
-        // COGS
         let mut cogs_periods = IndexMap::new();
         cogs_periods.insert(PeriodId::quarter(2025, 1), 60_000.0);
         cogs_periods.insert(PeriodId::quarter(2025, 2), 66_000.0);

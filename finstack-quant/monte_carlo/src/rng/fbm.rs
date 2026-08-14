@@ -74,8 +74,6 @@ pub trait FractionalNoiseGenerator: Send + Sync {
     fn hurst(&self) -> f64;
 }
 
-// CholeskyFbm
-
 /// Exact fBM generator via Cholesky decomposition of the increment covariance matrix.
 ///
 /// Precomputes the lower-triangular Cholesky factor L of the n × n covariance
@@ -158,8 +156,6 @@ impl FractionalNoiseGenerator for CholeskyFbm {
         self.hurst_val
     }
 }
-
-// HybridFbm
 
 /// Configuration for the hybrid fBM generator.
 #[derive(Debug, Clone, Default)]
@@ -410,8 +406,6 @@ pub fn create_fbm_generator(
         )?))
     }
 }
-
-// Helpers
 
 /// Validate that a time grid is strictly increasing with at least two finite
 /// non-negative values.

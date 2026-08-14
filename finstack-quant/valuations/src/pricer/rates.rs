@@ -39,7 +39,6 @@ pub(crate) fn register_rates_pricers(registry: &mut PricerRegistry) {
         crate::instruments::InterestRateSwap
     );
 
-    // FRA
     register_generic!(
         registry,
         InstrumentType::Fra,
@@ -53,7 +52,6 @@ pub(crate) fn register_rates_pricers(registry: &mut PricerRegistry) {
         crate::instruments::rates::basis_swap::BasisSwap
     );
 
-    // Deposit
     register_generic!(
         registry,
         InstrumentType::Deposit,
@@ -88,7 +86,6 @@ pub(crate) fn register_rates_pricers(registry: &mut PricerRegistry) {
         crate::instruments::rates::cap_floor::pricing::pricer::SimpleCapFloorBlackPricer::default(),
     );
 
-    // Swaption
     registry.register(
         InstrumentType::Swaption,
         ModelKey::Black76,
@@ -102,7 +99,6 @@ pub(crate) fn register_rates_pricers(registry: &mut PricerRegistry) {
         ),
     );
 
-    // Repo
     register_generic!(
         registry,
         InstrumentType::Repo,

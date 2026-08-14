@@ -36,8 +36,6 @@ pub(crate) fn parse_validated_model(
     Ok(model)
 }
 
-// Validators
-
 /// Validate a `FinancialModelSpec` JSON string.
 ///
 /// Deserializes the input against the model schema, runs semantic validation,
@@ -151,8 +149,6 @@ pub fn validate_pik_toggle_spec_json(json: &str) -> Result<String, JsValue> {
         serde_json::from_str(json).map_err(to_js_err)?;
     serde_json::to_string(&spec).map_err(to_js_err)
 }
-
-// Evaluator
 
 /// Evaluate a `FinancialModelSpec` and return the `StatementResult`.
 ///

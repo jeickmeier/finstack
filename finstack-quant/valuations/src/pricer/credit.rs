@@ -22,7 +22,6 @@ use indexmap::IndexMap;
 
 /// Register pricers for credit instruments.
 pub(crate) fn register_credit_pricers(registry: &mut PricerRegistry) {
-    // CDS
     registry.register(InstrumentType::Cds, ModelKey::HazardRate, CDSHazardPricer);
 
     // CDS Index

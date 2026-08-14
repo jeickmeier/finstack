@@ -73,7 +73,6 @@ pub enum StmtExpr {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BinOp {
-    // Arithmetic
     /// Addition (+)
     Add,
     /// Subtraction (-)
@@ -85,7 +84,6 @@ pub enum BinOp {
     /// Modulo (%)
     Mod,
 
-    // Comparison
     /// Equal (==)
     Eq,
     /// Not equal (!=)
@@ -99,7 +97,6 @@ pub enum BinOp {
     /// Greater than or equal (>=)
     Ge,
 
-    // Logical
     /// Logical AND
     And,
     /// Logical OR

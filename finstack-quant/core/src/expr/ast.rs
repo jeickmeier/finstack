@@ -581,10 +581,6 @@ impl std::fmt::Display for Function {
     }
 }
 
-// WindowSpec removed with time-window API cleanup
-
-// ExecMeta removed in favor of unified config::ResultsMeta
-
 /// Result envelope that includes execution metadata.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct EvaluationResult {

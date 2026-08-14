@@ -5,8 +5,6 @@ use crate::utils::to_js_err;
 use finstack_quant_core::math::{self, linalg, special_functions, stats, summation};
 use wasm_bindgen::prelude::*;
 
-// Linear algebra
-
 /// Cholesky decomposition of a symmetric positive-definite matrix.
 ///
 /// Accepts a square matrix as a nested JS array (`number[][]`, row-major)
@@ -148,8 +146,6 @@ pub fn validate_correlation_matrix_flat(matrix: &[f64], n: usize) -> Result<(), 
     linalg::validate_correlation_matrix(matrix, n).map_err(to_js_err)
 }
 
-// Statistics
-
 /// Arithmetic mean.
 /// @param data - Numeric observations in input order; an empty series yields 0.0.
 /// @returns Arithmetic mean of `data`, or 0.0 when `data` is empty.
@@ -287,8 +283,6 @@ pub fn quantile_array(data: &[f64], q: f64) -> f64 {
     stats::quantile(&mut v, q)
 }
 
-// Special functions
-
 /// Standard normal CDF Φ(x).
 /// @param x - Real-valued point at which to evaluate Φ; any finite or infinite `x` is accepted.
 /// @returns Probability in `(0, 1)` for finite `x`, with the usual ±∞ limits.
@@ -328,8 +322,6 @@ pub fn erf(x: f64) -> f64 {
 pub fn ln_gamma(x: f64) -> f64 {
     special_functions::ln_gamma(x)
 }
-
-// Summation
 
 /// Kahan compensated summation.
 /// @param values - Finite numeric terms in summation or scan order.

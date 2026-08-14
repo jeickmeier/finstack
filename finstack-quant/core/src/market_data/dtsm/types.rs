@@ -33,8 +33,6 @@ fn rows_to_dmatrix(rows: &[Vec<f64>], label: &str) -> crate::Result<DMatrix<f64>
     Ok(matrix)
 }
 
-// YieldPanel
-
 /// A panel of yield observations: rows = dates, columns = tenors.
 ///
 /// This is the canonical input format for all DTSM estimators.
@@ -212,8 +210,6 @@ impl YieldPanel {
     }
 }
 
-// FactorTimeSeries
-
 /// Time series of extracted Nelson-Siegel factors.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FactorTimeSeries {
@@ -227,8 +223,6 @@ pub struct FactorTimeSeries {
     /// Overall cross-sectional R-squared (average across tenors).
     pub r_squared_avg: f64,
 }
-
-// YieldForecast
 
 /// h-step ahead yield curve forecast with confidence bands.
 #[derive(Debug, Clone, Serialize, Deserialize)]

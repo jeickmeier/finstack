@@ -465,8 +465,6 @@ fn build_envelope(
     })
 }
 
-// Helpers
-
 #[derive(Clone, Copy)]
 struct MbsState {
     smm: f64,

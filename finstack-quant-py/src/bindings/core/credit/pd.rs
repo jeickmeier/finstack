@@ -65,8 +65,6 @@ fn central_tendency(annual_default_rates: Vec<f64>) -> PyResult<f64> {
     core_central_tendency(&annual_default_rates).map_err(pd_calibration_to_py)
 }
 
-// Master scale
-
 /// One PD band in a rating master scale.
 #[pyclass(
     module = "finstack_quant.core.credit.pd",

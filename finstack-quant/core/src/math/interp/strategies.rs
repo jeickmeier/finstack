@@ -16,8 +16,6 @@ use super::{
 };
 use std::vec::Vec;
 
-// LinearStrategy
-
 /// Strategy for piecewise linear interpolation on discount factors.
 ///
 /// Simple linear interpolation between knot points. Fast and straightforward
@@ -132,7 +130,6 @@ impl InterpolationStrategy for LinearStrategy {
     }
 }
 
-// Helper for linear slope calculation
 #[inline]
 fn segment_slope(knots: &[f64], values: &[f64], left_index: usize, right_index: usize) -> f64 {
     let x0 = knots[left_index];
@@ -141,8 +138,6 @@ fn segment_slope(knots: &[f64], values: &[f64], left_index: usize, right_index: 
     let y1 = values[right_index];
     (y1 - y0) / (x1 - x0)
 }
-
-// LogLinearStrategy
 
 /// Strategy for log-linear interpolation of discount factors.
 ///
@@ -297,7 +292,6 @@ impl LogLinearStrategy {
     }
 }
 
-// Helper for log-linear slope calculation
 #[inline]
 fn log_segment_slope(
     log_values: &[f64],
@@ -311,8 +305,6 @@ fn log_segment_slope(
     let y1 = log_values[right_index];
     (y1 - y0) / (x1 - x0)
 }
-
-// PiecewiseQuadraticForwardStrategy
 
 /// Strategy for piecewise quadratic forward interpolation (smooth forwards).
 ///
@@ -538,8 +530,6 @@ impl PiecewiseQuadraticForwardStrategy {
         -slope * df
     }
 }
-
-// CubicHermiteStrategy
 
 /// Strategy for monotone cubic Hermite interpolation (PCHIP).
 ///
@@ -773,8 +763,6 @@ fn compute_monotone_slopes(xs: &[f64], ys: &[f64]) -> Box<[f64]> {
 
     ms.into_boxed_slice()
 }
-
-// MonotoneConvexStrategy
 
 /// Default epsilon for near-zero slope detection in MonotoneConvex.
 pub const DEFAULT_MONOTONE_CONVEX_EPSILON: f64 = 1e-14;

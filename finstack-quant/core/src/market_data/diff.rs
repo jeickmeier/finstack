@@ -45,16 +45,12 @@ use crate::Result;
 
 use serde::{Deserialize, Serialize};
 
-// Constants
-
 /// Standard market tenors for curve sampling (in years).
 ///
 /// Based on liquid swap market points: 3M, 6M, 1Y, 2Y, 3Y, 5Y, 7Y, 10Y, 30Y.
 /// These are the conventional points where curves are most actively traded
 /// and quoted.
 pub const STANDARD_TENORS: &[f64] = &[0.25, 0.5, 1.0, 2.0, 3.0, 5.0, 7.0, 10.0, 30.0];
-
-// Tenor Sampling Method
 
 /// Method for selecting tenor points when measuring curve shifts.
 ///
@@ -97,10 +93,6 @@ impl TenorSamplingMethod {
         }
     }
 }
-
-// Curve Shift Measurements
-
-// Curve Shift Measurements
 
 /// Generic internal measurement helper for curve-like objects.
 fn measure_average_shift(
@@ -492,8 +484,6 @@ pub fn measure_inflation_source_shift(
     }
 }
 
-// Surface Shift Measurements
-
 /// Measure volatility surface shift (percentage points).
 ///
 /// Measures the change in implied volatility levels. Can measure at a specific
@@ -587,8 +577,6 @@ pub fn measure_vol_surface_shift(
 
     Ok(total_shift / sample_count as f64)
 }
-
-// FX and Scalar Shift Measurements
 
 /// Measure FX spot rate shift (percentage change).
 ///

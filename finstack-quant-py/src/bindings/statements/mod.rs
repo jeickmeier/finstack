@@ -37,37 +37,29 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let all = PyList::new(
         py,
         [
-            // Capital structure
             "EcfSweepSpec",
             "PikToggleSpec",
             "WaterfallSpec",
-            // Types
             "ForecastMethod",
             "ForecastSpec",
             "NodeType",
             "NodeId",
             "NumericMode",
             "FinancialModelSpec",
-            // Builder
             "ModelBuilder",
             "MixedNodeBuilder",
             "MetricRegistry",
-            // Evaluator
             "StatementResult",
             "Evaluator",
             "MonteCarloConfig",
             "MonteCarloResults",
             "run_monte_carlo",
-            // DSL
             "parse_formula",
             "validate_formula",
-            // Adjustments
             "NormalizationConfig",
             "normalize",
-            // Checks
             "CheckSuiteSpec",
             "CheckReport",
-            // Schema
             "schema",
         ],
     )?;

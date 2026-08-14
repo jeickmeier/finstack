@@ -192,7 +192,6 @@ impl VolSurfaceTarget {
 
             match sabr_calibrator.calibrate_auto_shift(f, &strikes, &vols, t, params.beta) {
                 Ok(p) => {
-                    // Residuals
                     let model = SABRModel::new(p.clone());
                     let mut bucket_residuals: Vec<(String, f64)> =
                         Vec::with_capacity(strikes.len());

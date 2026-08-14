@@ -292,7 +292,6 @@ fn test_bond_floating_value() {
     let maturity = Date::from_calendar_date(2027, Month::January, 1).expect("Valid test date");
     let notional = Money::new(1_000_000.0, Currency::USD);
 
-    // Curves
     let disc = DiscountCurve::builder("USD-OIS")
         .base_date(issue)
         .knots([(0.0, 1.0), (2.0, 0.95)])
@@ -336,7 +335,6 @@ fn test_bond_frn_ex_coupon_accrual_negative_in_window() {
     let maturity = Date::from_calendar_date(2027, Month::January, 1).expect("Valid test date");
     let notional = Money::new(1_000_000.0, Currency::USD);
 
-    // Curves
     let disc = DiscountCurve::builder("USD-OIS")
         .base_date(issue)
         .knots([(0.0, 1.0), (2.0, 0.95)])

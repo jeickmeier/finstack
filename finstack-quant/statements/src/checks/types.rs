@@ -6,8 +6,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::types::NodeId;
 
-// SignConventionPolicy
-
 /// Declared sign convention for a flow / magnitude input to a reconciliation
 /// check.
 ///
@@ -95,8 +93,6 @@ impl SignConventionPolicy {
     }
 }
 
-// Severity
-
 /// Severity level for a check finding, ordered from least to most severe.
 #[derive(
     Debug,
@@ -126,8 +122,6 @@ pub enum Severity {
     Error,
 }
 
-// CheckCategory
-
 /// Category that groups related checks together.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -144,8 +138,6 @@ pub enum CheckCategory {
     DataQuality,
 }
 
-// PeriodScope
-
 /// Scope that determines which periods a check applies to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -157,8 +149,6 @@ pub enum PeriodScope {
     /// Run only on forecast periods.
     ForecastOnly,
 }
-
-// Materiality
 
 /// Materiality context attached to a finding, describing its quantitative
 /// significance.
@@ -173,8 +163,6 @@ pub struct Materiality {
     /// Human-readable label for the reference (e.g. "total_assets").
     pub reference_label: String,
 }
-
-// CheckFinding
 
 /// A single finding produced by a check for a specific period or node.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -197,8 +185,6 @@ pub struct CheckFinding {
     pub nodes: Vec<NodeId>,
 }
 
-// CheckResult
-
 /// Outcome of a single check execution.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct CheckResult {
@@ -213,8 +199,6 @@ pub struct CheckResult {
     /// Individual findings produced by the check.
     pub findings: Vec<CheckFinding>,
 }
-
-// CheckConfig
 
 fn default_check_tolerance() -> f64 {
     0.01
@@ -311,8 +295,6 @@ pub(crate) fn effective_tolerance(
     }
 }
 
-// CheckSummary
-
 /// Aggregate counts for a completed check run.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct CheckSummary {
@@ -329,8 +311,6 @@ pub struct CheckSummary {
     /// Total number of info-severity findings across all checks.
     pub infos: usize,
 }
-
-// CheckReport
 
 /// Full report aggregating all [`CheckResult`]s from a check run.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

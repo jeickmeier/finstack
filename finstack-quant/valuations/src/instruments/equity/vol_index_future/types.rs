@@ -265,8 +265,6 @@ impl VolatilityIndexFuture {
     }
 }
 
-// Trait Implementations
-
 impl crate::instruments::common_impl::traits::Instrument for VolatilityIndexFuture {
     impl_instrument_base!(crate::pricer::InstrumentType::VolatilityIndexFuture);
 

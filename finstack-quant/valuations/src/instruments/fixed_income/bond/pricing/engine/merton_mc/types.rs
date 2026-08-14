@@ -153,8 +153,6 @@ impl PikSchedule {
     }
 }
 
-// Configuration
-
 /// Configuration for Monte Carlo PIK bond pricing.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -332,8 +330,6 @@ impl MertonMcConfig {
         self
     }
 }
-
-// Results
 
 /// Result from Monte Carlo PIK pricing.
 #[derive(Debug, Clone)]

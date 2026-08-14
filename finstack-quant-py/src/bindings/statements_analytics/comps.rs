@@ -38,8 +38,6 @@ fn extract_serde<'py, T: serde::de::DeserializeOwned + Send>(
     crate::bindings::module_utils::py_to_serde(py, obj, label)
 }
 
-// Statistics
-
 /// Percentile rank of ``value`` within ``peer_values`` (0-1 scale).
 ///
 /// Uses the "fraction of values less than or equal" convention. Returns
@@ -129,8 +127,6 @@ fn regression_fair_value<'py>(
         None => Ok(None),
     }
 }
-
-// Multiples
 
 /// Compute a canonical valuation multiple for one company.
 ///

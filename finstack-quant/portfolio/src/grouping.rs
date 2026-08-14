@@ -138,7 +138,6 @@ pub fn aggregate_by_book(
             total = total.checked_add(child_total)?;
         }
 
-        // Memoize
         visiting.remove(book_id);
         memo.insert(book_id.clone(), total);
 

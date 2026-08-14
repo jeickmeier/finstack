@@ -314,8 +314,6 @@ pub(crate) use sensitivities::theta::calculate_theta_date;
 pub(crate) use sensitivities::vega::KeyRateVega;
 pub(crate) use shared::df::{GenericDfEndCalculator, GenericDfStartCalculator};
 
-// Macros
-
 /// Define a trivial metric calculator that delegates to an instrument method or closure.
 #[macro_export]
 macro_rules! define_metric_calculator {

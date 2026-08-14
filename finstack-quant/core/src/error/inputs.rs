@@ -377,7 +377,6 @@ pub enum InputError {
         reason: String,
     },
 
-    // Return Series / Analytics
     /// A row of a return panel violated the analytics input contract.
     ///
     /// Used by `finstack-quant-analytics::Performance` to flag the specific ticker,

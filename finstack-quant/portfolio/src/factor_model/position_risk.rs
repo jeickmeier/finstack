@@ -25,8 +25,6 @@ use crate::types::PositionId;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
-// Enums
-
 /// Method used for position-level VaR/ES decomposition.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -43,8 +41,6 @@ pub enum DecompositionMethod {
     /// Handles non-normality and non-linear positions.
     Historical,
 }
-
-// Configuration
 
 /// Configuration for position-level VaR decomposition.
 #[derive(Debug, Clone)]

@@ -736,8 +736,6 @@ impl FrtbSensitivities {
     }
 }
 
-// Result
-
 /// Complete FRTB SBA capital charge result.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct FrtbSbaResult {

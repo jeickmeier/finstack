@@ -1,7 +1,5 @@
 use super::*;
 
-// SIMULATION STATE
-
 /// De minimis threshold for write-down recording (avoids noise from fp rounding).
 pub(super) const WRITEDOWN_DE_MINIMIS: f64 = 0.01;
 

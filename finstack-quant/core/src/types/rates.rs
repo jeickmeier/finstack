@@ -488,7 +488,6 @@ impl From<Bps> for i32 {
 // accessors instead: [`Bps::as_decimal`], [`Bps::as_percent`], or
 // `f64::from(bp.as_bp())` for the raw bp count.
 
-// Arithmetic operations for Bps
 impl Add for Bps {
     type Output = Self;
 
@@ -750,7 +749,6 @@ impl Neg for Percentage {
     }
 }
 
-// Cross-conversions between types
 /// Converts to whole basis points, **rounding** to the nearest bp — `Bps` is an
 /// integer type, so sub-bp precision (common for credit/swap spreads) is lost.
 /// Keep the [`Rate`] (or use [`Rate::as_decimal`]) when full precision matters.

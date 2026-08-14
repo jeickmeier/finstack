@@ -183,8 +183,6 @@ pub(crate) fn implied_vol(
     Ok(log_sigma.exp().max(1e-6))
 }
 
-// Helpers
-
 /// Resolve the lognormal forward-spread model vol `σ` for the option under
 /// the strict CDS-option volatility contract:
 ///

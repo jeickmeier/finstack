@@ -367,20 +367,16 @@ pub fn compute_horizon_return(
 ) -> Result<JsValue, JsValue> {
     use std::sync::Arc;
 
-    // Parse instrument
     let boxed =
         finstack_quant_valuations::pricer::json::parse_boxed_instrument_json(instrument_json, None)
             .map_err(to_js_err)?;
     let instrument: Arc<dyn finstack_quant_valuations::instruments::Instrument> = Arc::from(boxed);
 
-    // Parse market
     let market: finstack_quant_core::market_data::context::MarketContext =
         serde_json::from_str(market_json).map_err(to_js_err)?;
 
-    // Parse date
     let date = parse_iso_date(as_of)?;
 
-    // Parse scenario
     let scenario: finstack_quant_scenarios::ScenarioSpec =
         serde_json::from_str(scenario_json).map_err(to_js_err)?;
 
@@ -390,7 +386,6 @@ pub fn compute_horizon_return(
         finstack_quant_scenarios::horizon::attribution_method_from_str(method_str)
             .map_err(to_js_err)?;
 
-    // Parse config
     let finstack_config: finstack_quant_core::config::FinstackConfig = match config_json.as_deref()
     {
         Some(json) => serde_json::from_str(json).map_err(to_js_err)?,
