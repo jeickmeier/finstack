@@ -226,7 +226,7 @@ pub fn attribute_pnl_waterfall_with_credit_model(
     market_t1: &MarketContext,
     as_of_t0: Date,
     as_of_t1: Date,
-    _config: &FinstackConfig,
+    config: &FinstackConfig,
     factor_order: Vec<AttributionFactor>,
     strict_validation: bool,
     model_params_t0: Option<&ModelParamsSnapshot>,
@@ -239,7 +239,7 @@ pub fn attribute_pnl_waterfall_with_credit_model(
         market_t1,
         as_of_t0,
         as_of_t1,
-        _config,
+        config,
         factor_order,
         strict_validation,
         model_params_t0,
@@ -289,7 +289,7 @@ fn attribute_pnl_waterfall_impl(
     market_t1: &MarketContext,
     as_of_t0: Date,
     as_of_t1: Date,
-    _config: &FinstackConfig,
+    config: &FinstackConfig,
     factor_order: Vec<AttributionFactor>,
     strict_validation: bool,
     model_params_t0: Option<&ModelParamsSnapshot>,
@@ -363,7 +363,7 @@ fn attribute_pnl_waterfall_impl(
         as_of_t0,
         as_of_t1,
         AttributionMethod::Waterfall(factor_order.clone()),
-        Some(_config),
+        Some(config),
     );
     // Policy-visibility invariant: stamp the execution policy the
     // attribution ran under (workspace rule: results carry the parallel flag).

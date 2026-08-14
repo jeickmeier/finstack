@@ -101,7 +101,7 @@ fn parse_formula_text_returns_non_empty_ast() {
 
 #[wasm_bindgen_test]
 fn validate_formula_accepts_valid() {
-    assert!(validate_formula("a + b").unwrap());
+    validate_formula("a + b").expect("should accept valid formula");
 }
 
 // Capital structure / waterfall validators

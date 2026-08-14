@@ -186,7 +186,7 @@ fn price_instrument_returns_result() {
         &mkt,
         "2024-01-01",
         Some("discounting".to_string()),
-        metrics,
+        Some(metrics),
         None,
         None,
     )
@@ -205,7 +205,7 @@ fn price_instrument_accepts_pricing_options() {
         &mkt,
         "2024-01-01",
         Some("discounting".to_string()),
-        metrics,
+        Some(metrics),
         Some(r#"{"theta_period":"1D"}"#.to_string()),
         None,
     )
@@ -223,7 +223,7 @@ fn registered_term_loan_metrics_cross_wasm_json_boundary() {
         &market_context_json(),
         "2024-01-01",
         Some("discounting".to_string()),
-        metrics,
+        Some(metrics),
         None,
         None,
     )
@@ -251,6 +251,9 @@ fn public_json_routes_validate_instrument_before_malformed_market() {
             market,
             "not-a-date",
             Some("not-a-model".to_string()),
+            None,
+            None,
+            None,
         )
         .unwrap_err(),
         price_instrument(
@@ -258,7 +261,7 @@ fn public_json_routes_validate_instrument_before_malformed_market() {
             market,
             "not-a-date",
             Some("not-a-model".to_string()),
-            metrics,
+            Some(metrics),
             None,
             None,
         )
@@ -343,6 +346,9 @@ fn price_instrument_structured_credit_stochastic_returns_details() {
         &mkt,
         "2024-01-01",
         Some("structured_credit_stochastic".to_string()),
+        None,
+        None,
+        None,
     )
     .expect("price");
     let parsed = valuation_object(result);
@@ -370,6 +376,9 @@ fn price_instrument_structured_credit_waterfall_rules() {
         &mkt,
         "2024-01-01",
         Some("structured_credit_stochastic".to_string()),
+        None,
+        None,
+        None,
     )
     .expect("price");
     let parsed = valuation_object(result);
@@ -442,6 +451,9 @@ fn price_instrument_structured_credit_stochastic_missing_market_data_errors() {
         &empty_market,
         "2024-01-01",
         Some("structured_credit_stochastic".to_string()),
+        None,
+        None,
+        None,
     )
     .expect_err("missing discount curve should error");
     assert!(format!("{err:?}").contains("USD-OIS"));

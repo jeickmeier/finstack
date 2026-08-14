@@ -214,6 +214,9 @@ fn cashflows_json_bridge_builds_accrues_and_prices_custom_bond() {
         &market_context_json(),
         "2024-09-03",
         Some("discounting".to_string()),
+        None,
+        None,
+        None,
     )
     .expect("price custom bond");
     let result_json: String = js_sys::JSON::stringify(&priced)

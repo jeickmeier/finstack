@@ -471,7 +471,7 @@ pub fn attribute_pnl_parallel_with_credit_model(
     market_t1: &MarketContext,
     as_of_t0: Date,
     as_of_t1: Date,
-    _config: &FinstackConfig,
+    config: &FinstackConfig,
     model_params_t0: Option<&ModelParamsSnapshot>,
     credit_factor_model: Option<&CreditFactorModel>,
     credit_factor_detail_options: &CreditFactorDetailOptions,
@@ -484,7 +484,7 @@ pub fn attribute_pnl_parallel_with_credit_model(
         market_t1,
         as_of_t0,
         as_of_t1,
-        _config,
+        config,
         model_params_t0,
         credit_factor_model,
         credit_factor_detail_options,
@@ -534,7 +534,7 @@ fn attribute_pnl_parallel_impl(
     market_t1: &MarketContext,
     as_of_t0: Date,
     as_of_t1: Date,
-    _config: &FinstackConfig,
+    config: &FinstackConfig,
     model_params_t0: Option<&ModelParamsSnapshot>,
     credit_factor_model: Option<&CreditFactorModel>,
     credit_factor_detail_options: &CreditFactorDetailOptions,
@@ -582,7 +582,7 @@ fn attribute_pnl_parallel_impl(
         as_of_t0,
         as_of_t1,
         AttributionMethod::Parallel,
-        Some(_config),
+        Some(config),
     );
     // Policy-visibility invariant: stamp the execution policy the
     // attribution ran under (workspace rule: results carry the parallel flag).

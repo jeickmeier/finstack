@@ -148,6 +148,9 @@ fn bond_typed_to_json_prices_identically_to_handwritten_json() {
         &market,
         "2024-06-30",
         Some("default".to_string()),
+        None,
+        None,
+        None,
     )
     .expect("price typed");
     let via_json = price_instrument(
@@ -158,6 +161,9 @@ fn bond_typed_to_json_prices_identically_to_handwritten_json() {
         &market,
         "2024-06-30",
         Some("default".to_string()),
+        None,
+        None,
+        None,
     )
     .expect("price via json");
     assert_eq!(without_timestamp(&typed), without_timestamp(&via_json));
@@ -175,8 +181,16 @@ fn term_loan_example_round_trips_and_prices() {
     assert_eq!(json, round_tripped);
 
     let market = market_context_json();
-    let priced = price_instrument(&json, &market, "2024-06-30", Some("default".to_string()))
-        .expect("price loan");
+    let priced = price_instrument(
+        &json,
+        &market,
+        "2024-06-30",
+        Some("default".to_string()),
+        None,
+        None,
+        None,
+    )
+    .expect("price loan");
     let result = without_timestamp(&priced);
     assert_eq!(result["instrument_id"], "TERM-LOAN-USD-5Y");
 }
