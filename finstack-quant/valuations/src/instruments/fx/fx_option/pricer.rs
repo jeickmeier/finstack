@@ -21,32 +21,7 @@ pub(crate) fn compute_pv(inst: &FxOption, curves: &MarketContext, as_of: Date) -
     if as_of > inst.expiry {
         return Ok(Money::new(0.0, inst.quote_currency));
     }
-    npv(inst, curves, as_of)
-}
-
-pub(crate) fn compute_greeks(
-    inst: &FxOption,
-    curves: &MarketContext,
-    as_of: Date,
-) -> Result<FxOptionGreeks> {
-    if as_of > inst.expiry {
-        return Ok(FxOptionGreeks::default());
-    }
-    compute_greeks_impl(inst, curves, as_of)
-}
-
-pub(crate) fn implied_vol(
-    inst: &FxOption,
-    curves: &MarketContext,
-    as_of: Date,
-    target_price: f64,
-) -> Result<f64> {
-    implied_vol_impl(inst, curves, as_of, target_price)
-}
-
-fn npv(inst: &FxOption, curves: &MarketContext, as_of: Date) -> Result<Money> {
     validate_exercise_style(inst)?;
-    validate_currency(inst)?;
     let (spot, r_d, r_f, sigma, t) = collect_inputs(inst, curves, as_of)?;
     if spot <= 0.0 || inst.strike < 0.0 || inst.notional.amount() <= 0.0 {
         return Err(finstack_quant_core::Error::Validation(format!(
@@ -84,7 +59,7 @@ fn npv(inst: &FxOption, curves: &MarketContext, as_of: Date) -> Result<Money> {
         ));
     }
 
-    let price = price_gk_core(spot, inst.strike, r_d, r_f, sigma, t, inst.option_type);
+    let price = bs_price(spot, inst.strike, r_d, r_f, sigma, t, inst.option_type);
     Ok(Money::new(
         price * inst.notional.amount(),
         inst.quote_currency,
@@ -142,13 +117,13 @@ fn collect_inputs(
     ))
 }
 
-fn implied_vol_impl(
+pub(crate) fn implied_vol(
     inst: &FxOption,
     curves: &MarketContext,
     as_of: Date,
     target_price: f64,
 ) -> Result<f64> {
-    validate_currency(inst)?;
+    inst.validate()?;
     let (spot, r_d, r_f, t) = collect_inputs_no_vol(inst, curves, as_of)?;
     if t <= 0.0 {
         return Ok(0.0);
@@ -174,12 +149,15 @@ fn implied_vol_impl(
     )
 }
 
-fn compute_greeks_impl(
+pub(crate) fn compute_greeks(
     inst: &FxOption,
     curves: &MarketContext,
     as_of: Date,
 ) -> Result<FxOptionGreeks> {
-    validate_currency(inst)?;
+    if as_of > inst.expiry {
+        return Ok(FxOptionGreeks::default());
+    }
+    inst.validate()?;
     let (spot, r_d, r_f, sigma, t) = collect_inputs(inst, curves, as_of)?;
     if spot <= 0.0 || inst.strike < 0.0 || inst.notional.amount() <= 0.0 {
         return Err(finstack_quant_core::Error::Validation(format!(
@@ -284,11 +262,6 @@ fn validate_exercise_style(inst: &FxOption) -> Result<()> {
     Ok(())
 }
 
-#[inline]
-fn validate_currency(inst: &FxOption) -> Result<()> {
-    inst.validate()
-}
-
 #[derive(Debug, Clone, Copy, Default)]
 #[allow(dead_code)]
 pub(crate) struct FxOptionGreeks {
@@ -311,19 +284,6 @@ pub(crate) struct FxOptionGreeks {
     pub(crate) theta: f64,
     pub(crate) rho_domestic: f64,
     pub(crate) rho_foreign: f64,
-}
-
-#[inline]
-fn price_gk_core(
-    spot: f64,
-    strike: f64,
-    r_d: f64,
-    r_f: f64,
-    sigma: f64,
-    t: f64,
-    option_type: OptionType,
-) -> f64 {
-    bs_price(spot, strike, r_d, r_f, sigma, t, option_type)
 }
 
 #[cfg(test)]

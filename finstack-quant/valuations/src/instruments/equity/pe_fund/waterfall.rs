@@ -232,13 +232,11 @@ impl WaterfallSpec {
             }
         }
 
-        if let Some(clawback) = &self.clawback {
-            if let Some(holdback_pct) = clawback.holdback_pct {
-                if !holdback_pct.is_finite() || !(0.0..=1.0).contains(&holdback_pct) {
-                    return Err(finstack_quant_core::Error::Validation(format!(
-                        "clawback holdback percentage must be in [0, 1], got {holdback_pct}"
-                    )));
-                }
+        if let Some(holdback_pct) = self.clawback.as_ref().and_then(|c| c.holdback_pct) {
+            if !holdback_pct.is_finite() || !(0.0..=1.0).contains(&holdback_pct) {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "clawback holdback percentage must be in [0, 1], got {holdback_pct}"
+                )));
             }
         }
 

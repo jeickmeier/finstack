@@ -143,6 +143,7 @@ pub(crate) fn generate_tranche_cashflows(
     })?;
 
     let is_io = ref_tranche.tranche_type == CmoTrancheType::InterestOnly;
+    let io_tranche = is_io.then(|| ref_tranche.clone());
 
     // Track collateral factor for IO strips
     let original_collateral = collateral.current_face.amount();
@@ -157,28 +158,25 @@ pub(crate) fn generate_tranche_cashflows(
             ctx.period_index = period_idx;
         }
 
-        if is_io {
+        if let Some(io_tranche) = io_tranche.as_ref() {
             // IO gets interest based on collateral factor.
             // Use beginning_balance (not ending_balance) because interest accrues
             // on the balance at the start of the period, before principal payments.
             let factor = cf.beginning_balance / original_collateral;
-            // We validated ref_id exists at function start, so this should always succeed
-            if let Some(io_tranche) = waterfall.get_tranche(ref_id) {
-                // Interest conservation: the IO can never receive more than
-                // the collateral interest delivered this period, so
-                // IO + PO PV stays bounded by collateral PV.
-                let io_payment = allocate_io_cashflow(io_tranche, factor).min(cf.interest);
+            // Interest conservation: the IO can never receive more than
+            // the collateral interest delivered this period, so
+            // IO + PO PV stays bounded by collateral PV.
+            let io_payment = allocate_io_cashflow(io_tranche, factor).min(cf.interest);
 
-                tranche_cfs.push(TrancheCashflow {
-                    payment_date: cf.payment_date,
-                    principal: 0.0,
-                    scheduled_principal: 0.0,
-                    prepayment_principal: 0.0,
-                    interest: io_payment,
-                    total: io_payment,
-                    ending_balance: io_tranche.original_face.amount() * factor,
-                });
-            }
+            tranche_cfs.push(TrancheCashflow {
+                payment_date: cf.payment_date,
+                principal: 0.0,
+                scheduled_principal: 0.0,
+                prepayment_principal: 0.0,
+                interest: io_payment,
+                total: io_payment,
+                ending_balance: io_tranche.original_face.amount() * factor,
+            });
         } else {
             // Regular waterfall execution. For PAC deals `pac_context` is
             // `Some`, so PAC tranches amortize on their collateral-derived

@@ -114,10 +114,4 @@ impl PoolState {
     pub(crate) fn len(&self) -> usize {
         self.balances.len()
     }
-
-    /// Check if the pool is empty.
-    #[allow(dead_code)] // public API accessor
-    pub(crate) fn is_empty(&self) -> bool {
-        self.balances.is_empty()
-    }
 }

@@ -56,9 +56,7 @@ pub(crate) fn compute_pv(
 
     // Dispatch based on exercise style
     let unit_price = match inst.exercise_style {
-        ExerciseStyle::European => {
-            price_bs_unit(spot, inst.strike, r, q, sigma, t, inst.option_type)
-        }
+        ExerciseStyle::European => bs_price(spot, inst.strike, r, q, sigma, t, inst.option_type),
         ExerciseStyle::American => {
             // Use Leisen-Reimer tree for American options
             let steps = inst
@@ -385,20 +383,6 @@ pub(crate) fn escrowed_spot_drho(rate: f64, dividends: &[(f64, f64)]) -> f64 {
         .filter(|(t, _)| *t > 0.0)
         .map(|(t, d)| d * t * (-rate * t).exp())
         .sum()
-}
-
-/// Unit price under Black–Scholes (no contract size scaling).
-#[inline]
-pub(crate) fn price_bs_unit(
-    spot: f64,
-    strike: f64,
-    r: f64,
-    q: f64,
-    sigma: f64,
-    t: f64,
-    option_type: OptionType,
-) -> f64 {
-    bs_price(spot, strike, r, q, sigma, t, option_type)
 }
 
 /// Cash greeks for an equity option (scaled by contract size; vega per 1% vol).

@@ -358,7 +358,28 @@ pub fn bump_hazard_shift(
     hazard: &HazardCurve,
     bump: &BumpRequest,
 ) -> finstack_quant_core::Result<HazardCurve> {
-    bump_hazard_shift_fallback(hazard, bump)
+    match bump {
+        BumpRequest::Parallel(bp) => {
+            // Convert bp to decimal
+            let bump_decimal = bp * 1e-4;
+            let temp_bumped = hazard.with_parallel_bump(bump_decimal)?;
+            temp_bumped
+                .to_builder_with_id(hazard.id().clone())
+                .build()
+                .map_err(|e| finstack_quant_core::Error::Calibration {
+                    message: format!("Failed to rebuild hazard curve after parallel bump: {e}"),
+                    category: "bumps".to_string(),
+                })
+        }
+        BumpRequest::Tenors(targets) => {
+            // Sequential bumping for each target
+            let mut current = hazard.clone();
+            for (t, bp) in targets {
+                current = with_key_rate_hazard_bump(&current, *t, *bp)?;
+            }
+            Ok(current)
+        }
+    }
 }
 
 /// Re-bootstrap a hazard curve with a *new* recovery assumption while holding
@@ -442,35 +463,6 @@ pub fn recalibrate_hazard_with_recovery_and_doc_clause_and_valuation_convention(
         quote_id_prefix: "RECOVERY-RECALIB",
         spread_bump: None,
     })
-}
-
-/// Fallback: bump hazard rates directly (Model Sensitivity / Hazard Delta).
-fn bump_hazard_shift_fallback(
-    hazard: &HazardCurve,
-    bump: &BumpRequest,
-) -> finstack_quant_core::Result<HazardCurve> {
-    match bump {
-        BumpRequest::Parallel(bp) => {
-            // Convert bp to decimal
-            let bump_decimal = bp * 1e-4;
-            let temp_bumped = hazard.with_parallel_bump(bump_decimal)?;
-            temp_bumped
-                .to_builder_with_id(hazard.id().clone())
-                .build()
-                .map_err(|e| finstack_quant_core::Error::Calibration {
-                    message: format!("Failed to rebuild hazard curve after parallel bump: {e}"),
-                    category: "bumps".to_string(),
-                })
-        }
-        BumpRequest::Tenors(targets) => {
-            // Sequential bumping for each target
-            let mut current = hazard.clone();
-            for (t, bp) in targets {
-                current = with_key_rate_hazard_bump(&current, *t, *bp)?;
-            }
-            Ok(current)
-        }
-    }
 }
 
 /// Helper to apply a key-rate bump to a hazard curve at a specific tenor.

@@ -47,7 +47,7 @@ impl MetricCalculator for VegaCalculator {
             context.clone_pricer_dispatch().0,
             Some(ModelKey::HullWhite1F)
         ) {
-            return hull_white_tree_vega_per_pct(option, context);
+            return hull_white_surface_vega_per_pct(option, context);
         }
         let strike = option.strike_f64()?;
         let vol_type = option.vol_type;
@@ -92,10 +92,6 @@ fn caplet_vega(vol_type: CapFloorVolType, strike: f64, vol_shift: f64, c: Caplet
             )
         }
     }
-}
-
-fn hull_white_tree_vega_per_pct(option: &CapFloor, context: &MetricContext) -> Result<f64> {
-    hull_white_surface_vega_per_pct(option, context)
 }
 
 fn hull_white_surface_vega_per_pct(option: &CapFloor, context: &MetricContext) -> Result<f64> {

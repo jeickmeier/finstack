@@ -765,6 +765,7 @@ mod tests {
     use crate::instruments::{
         Attributes, ExerciseStyle, InstrumentPricingOverrides, OptionType, SettlementType,
     };
+    use crate::models::bs_price;
     use finstack_quant_core::{
         currency::Currency,
         dates::{Date, DayCount},
@@ -921,8 +922,7 @@ mod tests {
             .expect("NPV calculation should succeed in test");
         let (spot, r, q, sigma, t) = pricer::collect_inputs(&option, &curves, as_of)
             .expect("Input collection should succeed in test");
-        let expected_unit =
-            pricer::price_bs_unit(spot, option.strike, r, q, sigma, t, option.option_type);
+        let expected_unit = bs_price(spot, option.strike, r, q, sigma, t, option.option_type);
         // Slightly wider tolerance due to MonotoneConvex interpolation (vs Linear)
         approx_eq(
             price.amount(),
@@ -999,7 +999,7 @@ mod tests {
             .expect("should succeed");
         let (spot, r, q, _, t) =
             pricer::collect_inputs(&override_option, &curves, as_of).expect("should succeed");
-        let expected = pricer::price_bs_unit(
+        let expected = bs_price(
             spot,
             override_option.strike,
             r,
@@ -1123,7 +1123,7 @@ mod tests {
 
         // Verify price is within Black-Scholes tolerance
         // Using the inputs directly in the BS formula
-        let bs_price = pricer::price_bs_unit(
+        let expected_bs = bs_price(
             inputs.spot,
             option.strike,
             inputs.r,
@@ -1135,7 +1135,7 @@ mod tests {
 
         // Slightly wider tolerance due to MonotoneConvex interpolation (vs Linear)
         // Same tolerance as other tests in this file
-        approx_eq(pv.amount(), bs_price, 5e-3);
+        approx_eq(pv.amount(), expected_bs, 5e-3);
     }
 
     /// Tests that pricing fails with a clear error when div_yield_id is set but missing from

@@ -8,7 +8,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::norm_cdf;
 use finstack_quant_core::money::Money;
 
-fn resolved_index_forward(
+pub(crate) fn forward_vol(
     option: &VolatilityIndexOption,
     context: &MarketContext,
     as_of: Date,
@@ -55,7 +55,7 @@ pub(crate) fn compute_pv_raw(
         .max(0.0);
 
     if t <= 0.0 {
-        let forward = resolved_index_forward(option, context, as_of)?;
+        let forward = forward_vol(option, context, as_of)?;
         let intrinsic = match option.option_type {
             OptionType::Call => (forward - option.strike).max(0.0),
             OptionType::Put => (option.strike - forward).max(0.0),
@@ -65,7 +65,7 @@ pub(crate) fn compute_pv_raw(
     }
 
     let vol_surface = context.get_surface(&option.vol_of_vol_surface_id)?;
-    let forward = resolved_index_forward(option, context, as_of)?;
+    let forward = forward_vol(option, context, as_of)?;
     let vol_of_vol = vol_surface.value_clamped(t, option.strike);
     let df = disc.df_between_dates(as_of, settlement_date)?;
     // The vol index is √(forward variance), so Black-76 on the index forward is
@@ -121,14 +121,6 @@ pub(crate) fn black_price(option: &VolatilityIndexOption, forward: f64, sigma: f
     }
 }
 
-pub(crate) fn forward_vol(
-    option: &VolatilityIndexOption,
-    context: &MarketContext,
-    as_of: Date,
-) -> finstack_quant_core::Result<f64> {
-    resolved_index_forward(option, context, as_of)
-}
-
 pub(crate) fn delta(
     option: &VolatilityIndexOption,
     context: &MarketContext,
@@ -144,7 +136,7 @@ pub(crate) fn delta(
         .max(0.0);
 
     if t <= 0.0 {
-        let forward = resolved_index_forward(option, context, as_of)?;
+        let forward = forward_vol(option, context, as_of)?;
         // Expiry-edge delta per index point: ±1 when ITM (put ITM → −1),
         // zero otherwise — the t → 0 limit of the Black-76 branch below.
         // Scale by multiplier × num_contracts × df exactly like the t > 0
@@ -174,7 +166,7 @@ pub(crate) fn delta(
     }
 
     let vol_surface = context.get_surface(&option.vol_of_vol_surface_id)?;
-    let forward = resolved_index_forward(option, context, as_of)?;
+    let forward = forward_vol(option, context, as_of)?;
     let sigma = vol_surface.value_clamped(t, option.strike);
     let df = disc.df_between_dates(as_of, option.effective_settlement_date())?;
     let d1 = d1_black76(forward, option.strike, sigma, t);
@@ -202,7 +194,7 @@ pub(crate) fn gamma(
     }
     let vol_surface = context.get_surface(&option.vol_of_vol_surface_id)?;
     let disc = context.get_discount(&option.discount_curve_id)?;
-    let forward = resolved_index_forward(option, context, as_of)?;
+    let forward = forward_vol(option, context, as_of)?;
     let sigma = vol_surface.value_clamped(t, option.strike);
     let df = disc.df_between_dates(as_of, option.effective_settlement_date())?;
     let d1 = d1_black76(forward, option.strike, sigma, t);
@@ -228,7 +220,7 @@ pub(crate) fn vega(
     }
     let vol_surface = context.get_surface(&option.vol_of_vol_surface_id)?;
     let disc = context.get_discount(&option.discount_curve_id)?;
-    let forward = resolved_index_forward(option, context, as_of)?;
+    let forward = forward_vol(option, context, as_of)?;
     let sigma = vol_surface.value_clamped(t, option.strike);
     let df = disc.df_between_dates(as_of, option.effective_settlement_date())?;
     let d1 = d1_black76(forward, option.strike, sigma, t);

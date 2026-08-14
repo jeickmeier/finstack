@@ -619,7 +619,7 @@ impl RealEstateAsset {
 
     /// NOI cash flows on/after `as_of`.
     pub(crate) fn noi_flows(&self, as_of: Date) -> finstack_quant_core::Result<Vec<(Date, f64)>> {
-        pricer::noi_flows(self, as_of)
+        pricer::future_noi_flows(self, as_of)
     }
 
     /// Compute net sale proceeds at the terminal date (undiscounted), if configured.

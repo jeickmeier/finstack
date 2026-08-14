@@ -327,13 +327,6 @@ pub(crate) fn last_noi(
         .ok_or_else(|| CoreError::Validation("NOI schedule is empty".into()))
 }
 
-pub(crate) fn noi_flows(
-    asset: &RealEstateAsset,
-    as_of: Date,
-) -> finstack_quant_core::Result<Vec<(Date, f64)>> {
-    future_noi_flows(asset, as_of)
-}
-
 pub(crate) fn terminal_sale_proceeds(
     asset: &RealEstateAsset,
     as_of: Date,

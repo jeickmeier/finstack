@@ -59,7 +59,6 @@ impl FxBarrierOptionMcPricer {
                 inst.quote_currency,
             ));
         }
-        validate_fx_barrier_currencies(inst)?;
 
         let (fx_spot, t) = collect_fx_barrier_expiry_state(inst, curves, as_of)?;
         if t <= 0.0 {
@@ -208,7 +207,6 @@ pub(crate) fn compute_pv(
     curves: &MarketContext,
     as_of: Date,
 ) -> finstack_quant_core::Result<Money> {
-    inst.validate()?;
     validate_monitoring_state(inst, as_of)?;
     if as_of > inst.expiry {
         return Ok(Money::new(0.0, inst.quote_currency));
@@ -311,42 +309,6 @@ fn seasoned_breached_value_per_unit(
     }
 }
 
-/// Validate currency semantics and numeric bounds for FX barrier option.
-///
-/// # Currency Conventions
-///
-/// For an FX barrier option on `foreign_currency/domestic_currency` (e.g., EUR/USD):
-/// - Strike and barrier are dimensionless exchange rates (f64)
-/// - Notional is in foreign currency (base currency) - the amount of foreign currency
-///   being bought/sold
-fn validate_fx_barrier_currencies(inst: &FxBarrierOption) -> finstack_quant_core::Result<()> {
-    inst.validate()?;
-
-    let strike = inst.strike;
-    if !strike.is_finite() || strike <= 0.0 {
-        return Err(finstack_quant_core::Error::Validation(format!(
-            "FxBarrierOption strike must be finite and > 0, got {}",
-            strike
-        )));
-    }
-    let barrier = inst.barrier;
-    if !barrier.is_finite() || barrier <= 0.0 {
-        return Err(finstack_quant_core::Error::Validation(format!(
-            "FxBarrierOption barrier must be finite and > 0, got {}",
-            barrier
-        )));
-    }
-    let notional = inst.notional.amount();
-    if !notional.is_finite() || notional <= 0.0 {
-        return Err(finstack_quant_core::Error::Validation(format!(
-            "FxBarrierOption notional must be finite and > 0, got {}",
-            notional
-        )));
-    }
-
-    Ok(())
-}
-
 fn resolve_fx_spot(
     inst: &FxBarrierOption,
     curves: &MarketContext,
@@ -374,7 +336,6 @@ fn collect_fx_barrier_expiry_state(
     curves: &MarketContext,
     as_of: Date,
 ) -> finstack_quant_core::Result<(f64, f64)> {
-    validate_fx_barrier_currencies(inst)?;
     let t = inst
         .day_count
         .year_fraction(as_of, inst.expiry, DayCountContext::default())?;
@@ -388,9 +349,6 @@ fn collect_fx_barrier_inputs(
     curves: &MarketContext,
     as_of: Date,
 ) -> finstack_quant_core::Result<(f64, f64, f64, f64, f64)> {
-    // Validate currency semantics first
-    validate_fx_barrier_currencies(inst)?;
-
     let inputs = collect_fx_option_inputs(FxOptionInputRequest {
         market: curves,
         as_of,
@@ -509,10 +467,6 @@ impl Pricer for FxBarrierOptionAnalyticalPricer {
         fx_barrier.validate().map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
         })?;
-        validate_monitoring_state(fx_barrier, as_of).map_err(|e| {
-            PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
-        })?;
-
         validate_monitoring_state(fx_barrier, as_of).map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
         })?;
@@ -705,7 +659,8 @@ mod tests {
         inst.strike = 1.10;
         inst.barrier = 1.10;
 
-        validate_fx_barrier_currencies(&inst).expect("equal strike/barrier should remain valid");
+        inst.validate()
+            .expect("equal strike/barrier should remain valid");
     }
 
     #[test]
@@ -916,26 +871,29 @@ mod tests {
     fn validation_rejects_currency_mismatch_and_invalid_numeric_fields() {
         let mut mismatched = FxBarrierOption::example();
         mismatched.notional = Money::new(1_000_000.0, Currency::USD);
-        let err = validate_fx_barrier_currencies(&mismatched).expect_err("currency mismatch");
+        let err = mismatched.validate().expect_err("currency mismatch");
         assert!(err.to_string().contains("Currency mismatch"));
 
         let mut bad_strike = FxBarrierOption::example();
         bad_strike.strike = 0.0;
-        assert!(validate_fx_barrier_currencies(&bad_strike)
+        assert!(bad_strike
+            .validate()
             .expect_err("bad strike")
             .to_string()
             .contains("strike"));
 
         let mut bad_barrier = FxBarrierOption::example();
         bad_barrier.barrier = f64::NAN;
-        assert!(validate_fx_barrier_currencies(&bad_barrier)
+        assert!(bad_barrier
+            .validate()
             .expect_err("bad barrier")
             .to_string()
             .contains("barrier"));
 
         let mut bad_notional = FxBarrierOption::example();
         bad_notional.notional = Money::new(0.0, Currency::EUR);
-        assert!(validate_fx_barrier_currencies(&bad_notional)
+        assert!(bad_notional
+            .validate()
             .expect_err("bad notional")
             .to_string()
             .contains("notional"));

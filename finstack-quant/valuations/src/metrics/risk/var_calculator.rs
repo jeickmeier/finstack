@@ -244,7 +244,7 @@ impl VarResult {
         // losses are negative. Clamp to zero only when the tail quantile is
         // actually a gain (all-profit distributions).
         let p = 1.0 - confidence_level;
-        let var = tail_quantile(&pnl_distribution, p).min(0.0);
+        let var = type7_quantile(&pnl_distribution, p).min(0.0);
         let expected_shortfall = tail_quantile_mean(&pnl_distribution, p).min(0.0);
 
         // Warn about statistical reliability for small sample sizes
@@ -307,14 +307,6 @@ fn type7_quantile(sorted: &[f64], u: f64) -> f64 {
     sorted[lo] + frac * (sorted[lo + 1] - sorted[lo])
 }
 
-/// Lower-tail quantile of the P&L distribution at tail probability `p`.
-///
-/// Uses the [`type7_quantile`] estimator. `sorted` must be the ascending
-/// (worst-loss-first) P&L distribution; `p = 1 - confidence_level`.
-fn tail_quantile(sorted: &[f64], p: f64) -> f64 {
-    type7_quantile(sorted, p)
-}
-
 /// Mean of the type-7 quantile function over the tail `[0, p]` — the genuine
 /// Expected Shortfall of the empirical distribution at tail probability `p`.
 ///
@@ -323,7 +315,7 @@ fn tail_quantile(sorted: &[f64], p: f64) -> f64 {
 /// exactly by summing the trapezoidal area of each linear piece of `Q` that
 /// the interval `[0, p]` crosses (knots sit at `u = i / (n - 1)`).
 ///
-/// This integrates the SAME quantile function used by [`tail_quantile`], so
+/// This integrates the SAME quantile function used by [`type7_quantile`], so
 /// VaR and ES are mutually consistent: ES is the average of `Q` over `[0, p]`
 /// and VaR is `Q(p)`, the least-extreme point of that interval. Since `Q` is
 /// non-decreasing, the tail average is at least as extreme as its endpoint,

@@ -32,7 +32,6 @@
 //! let valuator = BermudanSwaptionTreeValuator::new(&swaption, &model, discount_curve, as_of).unwrap();
 //! let price = valuator.price().unwrap();
 //! ```
-#[allow(dead_code)] // Public API items may be used by external bindings or tests
 use crate::instruments::common_impl::parameters::OptionType;
 use crate::instruments::rates::swaption::types::BermudanType;
 use crate::instruments::rates::swaption::BermudanSwaption;
