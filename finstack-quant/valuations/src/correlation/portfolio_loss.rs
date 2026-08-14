@@ -324,16 +324,7 @@ pub fn simulate_portfolio_loss(
     exposures: &[CreditExposure],
     config: &PortfolioLossConfig,
 ) -> Result<PortfolioLossResult> {
-    simulate(exposures, config, None, Execution::Parallel)
-}
-
-/// Serial path evaluation used for determinism checks against the parallel
-/// public entry point.
-pub(crate) fn simulate_portfolio_loss_serial(
-    exposures: &[CreditExposure],
-    config: &PortfolioLossConfig,
-) -> Result<PortfolioLossResult> {
-    simulate(exposures, config, None, Execution::Serial)
+    simulate(exposures, config, None)
 }
 
 /// Simulate losses using one shared recovery model instead of exposure LGDs.
@@ -368,39 +359,20 @@ pub fn simulate_portfolio_loss_with_recovery(
     recovery: &RecoverySpec,
 ) -> Result<PortfolioLossResult> {
     let recovery = recovery.build();
-    simulate(
-        exposures,
-        config,
-        Some(recovery.as_ref()),
-        Execution::Parallel,
-    )
-}
-
-#[derive(Clone, Copy)]
-enum Execution {
-    Serial,
-    Parallel,
+    simulate(exposures, config, Some(recovery.as_ref()))
 }
 
 fn simulate(
     exposures: &[CreditExposure],
     config: &PortfolioLossConfig,
     recovery: Option<&dyn RecoveryModel>,
-    execution: Execution,
 ) -> Result<PortfolioLossResult> {
     let validated = ValidatedSimulation::new(exposures, config, recovery.is_some())?;
     let simulate_path =
         |path_index: usize| validated.path_loss(exposures, config.seed, path_index, recovery);
 
     let mut losses = allocate_loss_buffer(config.num_paths)?;
-    match execution {
-        Execution::Serial => {
-            for (path_index, loss) in losses.iter_mut().enumerate() {
-                *loss = simulate_path(path_index)?;
-            }
-        }
-        Execution::Parallel => fill_parallel_losses(&mut losses, simulate_path)?,
-    }
+    fill_parallel_losses(&mut losses, simulate_path)?;
     PortfolioLossResult::from_losses(losses, config.confidence)
 }
 
@@ -710,6 +682,20 @@ where
 mod tests {
     use super::*;
     use crate::correlation::CopulaSpec;
+
+    fn simulate_portfolio_loss_serial(
+        exposures: &[CreditExposure],
+        config: &PortfolioLossConfig,
+    ) -> Result<PortfolioLossResult> {
+        let validated = ValidatedSimulation::new(exposures, config, false)?;
+        let simulate_path =
+            |path_index: usize| validated.path_loss(exposures, config.seed, path_index, None);
+        let mut losses = allocate_loss_buffer(config.num_paths)?;
+        for (path_index, loss) in losses.iter_mut().enumerate() {
+            *loss = simulate_path(path_index)?;
+        }
+        PortfolioLossResult::from_losses(losses, config.confidence)
+    }
 
     #[test]
     fn parallel_and_serial_path_indexed_streams_are_bit_identical() {
