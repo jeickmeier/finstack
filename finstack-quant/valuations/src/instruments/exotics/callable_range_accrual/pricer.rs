@@ -711,7 +711,7 @@ mod tests {
                 .notional(Money::new(1_000_000.0, Currency::USD))
                 .day_count(DayCount::Act365F)
                 .discount_curve_id(CurveId::new("USD-OIS"))
-                .accrual_start_date_opt(Some(date(2025, Month::January, 1)))
+                .accrual_start_date(date(2025, Month::January, 1))
                 .rate_index_id_opt(Some("SOFR".into()))
                 .projection_curve_id_opt(Some(CurveId::new("USD-OIS")))
                 .reference_tenor_opt(Some(finstack_quant_core::dates::Tenor::new(

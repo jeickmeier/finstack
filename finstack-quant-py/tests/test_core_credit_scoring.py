@@ -13,10 +13,7 @@ def test_altman_pd_requires_explicit_versioned_heuristic() -> None:
     assert zone == "safe"
     assert implied_pd is None
 
-    _, _, heuristic_pd = scoring.altman_z_score(
-        *args,
-        scoring.AltmanPdCalibration.HEURISTIC_V1,
-    )
+    _, _, heuristic_pd = scoring.altman_z_score(*args, with_implied_pd=True)
     assert heuristic_pd is not None
     assert 0.0 <= heuristic_pd <= 1.0
 

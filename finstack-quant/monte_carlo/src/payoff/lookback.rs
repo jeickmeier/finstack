@@ -6,10 +6,7 @@
 //! # Unified Implementation
 //!
 //! This module provides a unified [`Lookback`] struct that handles both call and put
-//! lookback options via the [`LookbackDirection`] enum. This eliminates code duplication
-//! while maintaining the same functionality.
-//!
-//! The unified [`Lookback`] struct replaces legacy call/put-specific types.
+//! lookback options via the [`LookbackDirection`] enum.
 
 use crate::traits::PathState;
 use crate::traits::Payoff;

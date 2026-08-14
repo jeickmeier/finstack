@@ -130,8 +130,6 @@ impl CDSTranchePricer {
 
     /// Price a CDS tranche using the Gaussian Copula model.
     ///
-    /// Falls back to zero PV when credit index data is not available as default behavior.
-    ///
     /// # Arguments
     /// * `tranche` - The CDS tranche to price
     /// * `market_ctx` - Market data context containing curves and credit index data

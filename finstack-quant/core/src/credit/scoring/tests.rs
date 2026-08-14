@@ -4,8 +4,8 @@
 mod altman_tests {
     use crate::credit::scoring::{
         altman_z_double_prime, altman_z_prime, altman_z_score, altman_z_score_with_pd,
-        AltmanPdCalibration, AltmanZDoublePrimeInput, AltmanZPrimeInput, AltmanZScoreInput,
-        CreditScoringError, ScoringZone,
+        AltmanZDoublePrimeInput, AltmanZPrimeInput, AltmanZScoreInput, CreditScoringError,
+        ScoringZone,
     };
 
     /// Textbook example: healthy manufacturing firm.
@@ -41,7 +41,7 @@ mod altman_tests {
             sales_to_total_assets: 1.80,
         };
 
-        let result = altman_z_score_with_pd(&input, AltmanPdCalibration::Heuristic).expect("score");
+        let result = altman_z_score_with_pd(&input).expect("score");
         assert!(result.implied_pd.is_some_and(|pd| pd < 0.01));
     }
 
@@ -243,8 +243,7 @@ mod altman_tests {
             market_equity_to_total_liabilities: 5.00,
             sales_to_total_assets: 3.00,
         };
-        let safe_result =
-            altman_z_score_with_pd(&safe_input, AltmanPdCalibration::Heuristic).unwrap();
+        let safe_result = altman_z_score_with_pd(&safe_input).unwrap();
         assert!(safe_result
             .implied_pd
             .is_some_and(|pd| (0.0..=1.0).contains(&pd)));
@@ -257,8 +256,7 @@ mod altman_tests {
             market_equity_to_total_liabilities: 0.01,
             sales_to_total_assets: 0.10,
         };
-        let dist_result =
-            altman_z_score_with_pd(&dist_input, AltmanPdCalibration::Heuristic).unwrap();
+        let dist_result = altman_z_score_with_pd(&dist_input).unwrap();
         assert!(dist_result
             .implied_pd
             .is_some_and(|pd| (0.0..=1.0).contains(&pd)));

@@ -2,6 +2,105 @@
 
 ## Unreleased
 
+### Removed — legacy pathways, waves 1-6 (BREAKING)
+
+Behavioral legacy: opt-in flags that restored pre-audit behavior, `Option`
+fields whose `None` arm selected older semantics, and `serde(default)`s kept
+only so pre-field payloads still parsed. The workspace has no `#[deprecated]`
+attributes and no `serde(alias)`, so none of this was annotation-visible.
+
+**Breaking (Rust)**
+
+- Removed `finstack_quant_core::cashflow::NpvOptions` and `npv_with_options`.
+  `npv` / `npv_with_ctx` always exclude flows dated on or before the valuation
+  date. For an investment/project NPV containing the time-0 outlay, use
+  `npv_amounts`, or value one day before the earliest flow.
+- Removed `CDSTranchePricerConfig::validate_arbitrage_free` and
+  `with_arbitrage_validation`. Base-correlation arbitrage beyond tolerance is
+  now always an error; the silent zero-protection clamp is gone.
+- Removed `CDSTranchePricerConfig::enforce_el_monotonicity` (its `false` branch
+  was unreachable — no setter existed). EL/WD monotonicity is always enforced.
+- Removed the unreachable `CreditPdError::ZeroAnnualDefaultRate` variant.
+- Removed `PortfolioEclResult::from_results`; use `from_results_with_exposures`.
+- Removed the dead best-effort wrapper `TrancheCoupon::current_rate_with_index`;
+  use `try_current_rate_with_index`.
+- Dropped unread parameters from public functions: `split_io_po`,
+  `estimate_payment_window`, `allocate_pac_support`, `calculate_pay_up`,
+  `project_floating_rate`, `try_rate_for_period`,
+  `InterestRateFuture::calculate_convexity_adjusted_rate`.
+- Removed `CreditAttributionInput::delta_spread` (write-only; the period
+  decomposition already encodes it).
+- `monte_carlo::rng::fbm::HybridFbm` → `WindowedConditionalFbm` (the old name
+  disclaimed itself: it is not the Bennedsen-Lunde-Pakkanen scheme).
+- Removed the `BarrierType` and `Position` re-export chains. Import
+  `finstack_quant_core::types::BarrierType` and
+  `finstack_quant_valuations::instruments::Position` directly.
+- `TestContext::interest_claim_caps` is no longer `Option`; callers must supply
+  the spec-derived claim map.
+- Removed the one-variant `AltmanPdCalibration` enum. `altman_*_with_pd` take
+  only the input struct.
+- `arrow` no longer enables the `ipc` feature (no IPC code remains).
+
+**Breaking (JSON / serde)**
+
+- `FxMatrixState.pinned_quotes` is required. A snapshot omitting it previously
+  restored a matrix with no pinned fixings, silently re-deriving those dates
+  from the provider.
+- `SimmSensitivitiesWire.credit_qualifying_delta_bucketed` is required. The
+  default silently selected the scalar credit aggregation.
+- `IssuerBetaRow.level_fit_quality` is required; `FactorVolModel` now denies
+  unknown fields.
+- `LoadPhase::Migrate` removed (never constructed; no migration code existed).
+- `NumericMode::Decimal` removed — never emitted. The enum now has one variant.
+- `XccyConventions.notional_exchange` is required in the conventions registry.
+- `core::wire::non_finite_f64` rejects JSON `null` instead of decoding it as
+  `NaN`. Note the round trip this closes: a JS `Infinity` written by
+  `restore_non_finite_ratios` stringifies to `null`, which previously decoded
+  back as `NaN` — silent corruption. It now fails loudly.
+
+**Breaking (Rust, JSON) — waves 7-8**
+
+- Removed `DiscountedCashFlow.discount_curve_id` and `RealEstateAsset` /
+  `LeveredRealEstateEquity.discount_curve_id`. These instruments discount at
+  their own WACC / cap rate; the field only forced callers to load a curve no
+  computation read. They now declare no market dependency
+  (`no_market_dependencies = true` in the coverage manifest). Because these
+  types deny unknown fields, stored payloads carrying it must drop it.
+- Removed `PoolStats.weighted_avg_life` — it was assigned
+  `weighted_avg_maturity` verbatim. Use
+  `AssetPool::weighted_avg_life_from_cashflows` for a real WAL.
+- `AssetPool.cumulative_scheduled_amortization` is now a required `Money`.
+  `None` was treated as zero, understating the original-balance denominator
+  and overstating `current_loss_percentage`.
+- `RangeAccrual.accrual_start_date` is required. The `None` arm inferred the
+  start by extrapolating one observation interval backwards.
+- Removed `FloatingLegCompounding::CompoundedInArrears.observation_shift`, a
+  duplicate of the `CompoundedWithObservationShift` variant whose combination
+  with `lookback_days` had to be rejected on every pricing path. Use
+  `CompoundedWithObservationShift { shift_days }`. The mirrored
+  `RateCalibrationOisCompounding` field goes with it.
+- `monte_carlo::registry::PythonBindingDefaults` → `ConvenienceDefaults` (and
+  `Python{Engine,Pricer,Lsmc,Greek}Defaults` → `Convenience*Defaults`). The
+  `python_bindings` key in `data/defaults/pricer_defaults.v1.json` is now
+  `convenience`; the struct feeds Rust convenience pricers too, not just
+  Python. Unknown keys are denied, so existing override docs must be renamed.
+
+**Breaking (Python)**
+
+- Removed the pre-rename aliases `FinstackValuationError`, `FinstackFxError`,
+  `FinstackOptimizationError`. Use `ValuationError`, `FxError`,
+  `OptimizationError`. (`FinstackError`, the base class, is unchanged.)
+- `scoring.AltmanPdCalibration` removed; the `pd_calibration` argument on
+  `altman_z_score` / `altman_z_prime` / `altman_z_double_prime` is now
+  `with_implied_pd: bool = False`.
+- `NumericMode.decimal()` removed.
+
+**Breaking (WASM)**
+
+- `Portfolio.validateMaterializationJson` → `Portfolio.validateMaterialization`.
+  It returns a typed report object, so the `Json` wire suffix was wrong; the
+  Python and WASM names now match and the rename-map entry is gone.
+
 ### Changed — result-return standardization (BREAKING)
 
 Public APIs now hand results back the same way in Rust, Python, and WASM. The

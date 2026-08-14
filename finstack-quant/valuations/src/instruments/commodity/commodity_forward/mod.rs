@@ -37,7 +37,6 @@
 
 mod types;
 
-pub use crate::instruments::Position;
 pub use types::CommodityForward;
 pub use types::SettlementType;
 

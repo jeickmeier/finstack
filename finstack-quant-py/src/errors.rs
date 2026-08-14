@@ -17,9 +17,9 @@
 //!     ├── AnalyticsError
 //!     ├── CholeskyError
 //!     ├── PortfolioError
-//!     │   ├── ValuationError      (alias: FinstackValuationError)
-//!     │   ├── FxError             (alias: FinstackFxError)
-//!     │   └── OptimizationError   (alias: FinstackOptimizationError)
+//!     │   ├── ValuationError
+//!     │   ├── FxError
+//!     │   └── OptimizationError
 //!     └── ContractValidationError
 //!         ├── UnsupportedContractVersionError
 //!         ├── MissingContractVersionError
@@ -343,7 +343,6 @@ fn load_phase_name(phase: finstack_quant_core::contract::LoadPhase) -> &'static 
     match phase {
         LoadPhase::Parse => "parse",
         LoadPhase::Version => "version",
-        LoadPhase::Migrate => "migrate",
         LoadPhase::Structure => "structure",
         LoadPhase::Semantic => "semantic",
         LoadPhase::Canonicalize => "canonicalize",

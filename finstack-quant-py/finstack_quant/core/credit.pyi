@@ -1102,21 +1102,6 @@ class scoring:
 
     """
 
-    class AltmanPdCalibration:
-        """
-        Explicit versioned Altman score-to-PD heuristics.
-
-        Examples
-        --------
-        >>> from finstack_quant.core.credit import scoring
-        >>> result = scoring.altman_z_score(0.2, 0.3, 0.15, 1.5, 1.0, scoring.AltmanPdCalibration.HEURISTIC_V1)
-        >>> result[2] is not None
-        True
-
-        """
-
-        HEURISTIC_V1: scoring.AltmanPdCalibration
-
     @staticmethod
     def altman_z_score(
         working_capital_to_total_assets: float,
@@ -1124,7 +1109,7 @@ class scoring:
         ebit_to_total_assets: float,
         market_equity_to_total_liabilities: float,
         sales_to_total_assets: float,
-        pd_calibration: AltmanPdCalibration | None = None,
+        with_implied_pd: bool = False,
     ) -> tuple[float, str, float | None]:
         """
         Original Altman Z-Score (1968) for publicly traded manufacturers.
@@ -1141,16 +1126,15 @@ class scoring:
             Market equity / total liabilities (X4).
         sales_to_total_assets : float
             Sales / total assets (X5).
-        pd_calibration : AltmanPdCalibration | None
-            Explicit score-to-PD mapping. ``HEURISTIC_V1`` is an uncalibrated
-            house heuristic, not an empirical Altman calibration.
+        with_implied_pd : bool, default False
+            When True, populate ``implied_pd`` from the score-to-PD heuristic.
 
         Returns
         -------
         tuple[float, str, float | None]
             ``(score, zone, implied_pd)`` where ``zone`` is one of
             ``"safe"``, ``"grey"``, or ``"distress"``. ``implied_pd`` is
-            ``None`` unless ``pd_calibration`` is supplied.
+            ``None`` unless ``with_implied_pd`` is True.
 
         Raises
         ------
@@ -1177,7 +1161,7 @@ class scoring:
         ebit_to_total_assets: float,
         book_equity_to_total_liabilities: float,
         sales_to_total_assets: float,
-        pd_calibration: AltmanPdCalibration | None = None,
+        with_implied_pd: bool = False,
     ) -> tuple[float, str, float | None]:
         """
         Altman Z'-Score (1983) for private firms.
@@ -1195,9 +1179,8 @@ class scoring:
             original public-company market-equity ratio (X4).
         sales_to_total_assets : float
             Sales divided by total assets, the private-firm turnover ratio (X5).
-        pd_calibration : AltmanPdCalibration or None, default None
-            Optional explicit score-to-PD heuristic. ``None`` returns no
-            implied PD rather than applying an undocumented mapping.
+        with_implied_pd : bool, default False
+            When True, populate ``implied_pd`` from the score-to-PD heuristic.
 
         Returns
         -------
@@ -1231,7 +1214,7 @@ class scoring:
         retained_earnings_to_total_assets: float,
         ebit_to_total_assets: float,
         book_equity_to_total_liabilities: float,
-        pd_calibration: AltmanPdCalibration | None = None,
+        with_implied_pd: bool = False,
     ) -> tuple[float, str, float | None]:
         """
         Altman Z''-Score for non-manufacturing firms (non-EM model, no constant).
@@ -1246,9 +1229,8 @@ class scoring:
             Earnings before interest and tax divided by total assets (X3).
         book_equity_to_total_liabilities : float
             Book value of equity divided by total liabilities (X4).
-        pd_calibration : AltmanPdCalibration or None, default None
-            Optional explicit score-to-PD heuristic; ``None`` leaves the
-            implied-PD component absent.
+        with_implied_pd : bool, default False
+            When True, populate ``implied_pd`` from the score-to-PD heuristic.
 
         Returns ``(score, zone, implied_pd)``; PD is ``None`` unless an
         explicit versioned heuristic is supplied.

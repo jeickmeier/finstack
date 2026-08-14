@@ -443,7 +443,6 @@ impl<'a> CashflowEngine<'a> {
                                 reset_effective,
                                 spec,
                                 fwd.as_ref(),
-                                &self.facility.attributes,
                             )?
                         };
 

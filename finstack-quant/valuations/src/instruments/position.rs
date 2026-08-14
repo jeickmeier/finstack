@@ -78,12 +78,4 @@ mod tests {
         assert_eq!(Position::Long.to_string(), "long");
         assert_eq!(Position::Short.to_string(), "short");
     }
-
-    #[test]
-    fn historical_paths_reexport_the_same_type() {
-        let ir: crate::instruments::rates::ir_future::Position = Position::Long;
-        let commodity: crate::instruments::commodity::commodity_forward::Position = ir;
-        let bond: crate::instruments::fixed_income::bond_future::Position = commodity;
-        assert_eq!(bond, Position::Long);
-    }
 }

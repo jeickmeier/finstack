@@ -8,7 +8,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{CurveId, InstrumentId};
+use finstack_quant_core::types::InstrumentId;
 
 /// Broad property classification for reporting / tagging.
 #[derive(
@@ -163,12 +163,6 @@ pub struct RealEstateAsset {
     pub appraisal_value: Option<Money>,
     /// Day count convention for year fractions.
     pub day_count: DayCount,
-    /// Discount curve identifier, used for risk attribution only.
-    ///
-    /// DCF valuation always discounts at [`discount_rate`](Self::discount_rate)
-    /// regardless of whether this curve is loaded; rate sensitivity
-    /// (`Dv01`/`BucketedDv01`) bumps the risk-free component inside the rate.
-    pub discount_curve_id: CurveId,
     /// Attributes for tagging and scenarios.
     #[builder(default)]
     #[serde(
@@ -287,7 +281,6 @@ struct RealEstateAssetUnchecked {
     /// regardless of whether this curve is loaded ; rate
     /// sensitivity (`Dv01`/`BucketedDv01`) bumps the risk-free component
     /// inside the rate.
-    discount_curve_id: CurveId,
     /// Attributes for tagging and scenarios.
     #[serde(default)]
     instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
@@ -328,7 +321,6 @@ impl TryFrom<RealEstateAssetUnchecked> for RealEstateAsset {
             disposition_costs: value.disposition_costs,
             appraisal_value: value.appraisal_value,
             day_count: value.day_count,
-            discount_curve_id: value.discount_curve_id,
             instrument_pricing_overrides: value.instrument_pricing_overrides,
             metric_pricing_overrides: value.metric_pricing_overrides,
             scenario_pricing_overrides: value.scenario_pricing_overrides,
@@ -576,7 +568,6 @@ impl RealEstateAsset {
             .discount_rate_opt(Some(0.08))
             .terminal_cap_rate_opt(Some(0.055))
             .day_count(DayCount::Act365F)
-            .discount_curve_id(CurveId::new("USD-OIS"))
             .attributes(Attributes::default())
             .build()
     }
@@ -646,8 +637,7 @@ impl Instrument for RealEstateAsset {
     ) -> finstack_quant_core::Result<
         crate::instruments::common_impl::dependencies::MarketDependencies,
     > {
-        let mut deps = crate::instruments::common_impl::dependencies::MarketDependencies::new();
-        deps.add_discount_curve(self.discount_curve_id.clone());
+        let deps = crate::instruments::common_impl::dependencies::MarketDependencies::new();
         Ok(deps)
     }
 
@@ -718,7 +708,6 @@ mod tests {
             .discount_rate_opt(Some(0.10))
             .terminal_cap_rate_opt(Some(0.08))
             .day_count(DayCount::Act365F)
-            .discount_curve_id(CurveId::new("USD-OIS"))
             .attributes(Default::default())
             .build()
             .expect("asset should build");
@@ -751,7 +740,6 @@ mod tests {
             .discount_rate_opt(Some(0.08))
             .terminal_cap_rate_opt(Some(0.055))
             .day_count(DayCount::Act365F)
-            .discount_curve_id(CurveId::new("USD-OIS"))
             .attributes(Default::default())
             .build()
             .expect("base asset builds")

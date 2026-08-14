@@ -8529,7 +8529,7 @@ export declare class Portfolio {
    * @throws ContractValidationError - If validation cannot produce a report.
    * @throws Error - Throws `TypeError` for unsupported input types or a structured `ContractValidationError` when validation cannot produce a report.
    */
-  static validateMaterializationJson(
+  static validateMaterialization(
     bundle: MaterializationBundleInput,
     cache?: InstrumentArtifactCache
   ): MaterializationReport | ValidationReport;

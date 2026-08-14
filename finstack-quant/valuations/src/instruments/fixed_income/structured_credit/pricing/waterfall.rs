@@ -962,15 +962,13 @@ fn is_principal_payment(calculation: &PaymentCalculation) -> bool {
 fn shifted_tranche_rate(
     tranche: &Tranche,
     period_start: Date,
-    payment_date: Date,
     valuation_date: Date,
     market: &MarketContext,
     floating_rate_shift: f64,
 ) -> Result<f64> {
-    let raw =
-        tranche
-            .coupon
-            .try_rate_for_period(period_start, payment_date, valuation_date, market)?;
+    let raw = tranche
+        .coupon
+        .try_rate_for_period(period_start, valuation_date, market)?;
     Ok(match tranche.coupon {
         TrancheCoupon::Floating(_) => (raw + floating_rate_shift).max(0.0),
         _ => raw,
@@ -1162,7 +1160,7 @@ fn evaluate_coverage_tests(
                 current_pool_balance: Some(current_pool_balance),
                 senior_fees,
                 restricted_cash,
-                interest_claim_caps: Some(&claim_caps),
+                interest_claim_caps: &claim_caps,
                 floating_rate_shift,
             };
 
@@ -1194,7 +1192,7 @@ fn evaluate_coverage_tests(
                 current_pool_balance: Some(current_pool_balance),
                 senior_fees,
                 restricted_cash,
-                interest_claim_caps: Some(&claim_caps),
+                interest_claim_caps: &claim_caps,
                 floating_rate_shift,
             };
 
@@ -1306,7 +1304,6 @@ fn calculate_payment_amount(
             let rate = shifted_tranche_rate(
                 tranche,
                 period_start,
-                payment_date,
                 valuation_date,
                 market,
                 floating_rate_shift,
@@ -1347,7 +1344,6 @@ fn calculate_payment_amount(
             let rate = shifted_tranche_rate(
                 tranche,
                 period_start,
-                payment_date,
                 valuation_date,
                 market,
                 floating_rate_shift,

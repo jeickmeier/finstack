@@ -91,10 +91,7 @@ fn test_compounding_lookback_sensitivity() {
             calendar_id: Some("USNY".into()),
             start,
             end: start.add_months(12),
-            compounding: FloatingLegCompounding::CompoundedInArrears {
-                lookback_days: 0,
-                observation_shift: None,
-            },
+            compounding: FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 },
             payment_lag_days: 0,
             end_of_month: false,
             spread_bp: rust_decimal::Decimal::try_from(0.0).expect("valid"),
@@ -111,10 +108,7 @@ fn test_compounding_lookback_sensitivity() {
     // NPV with 2 days lookback
     // Since the curve is increasing, looking back 2 days should use LOWER rates,
     // so the floating leg PV should DECREASE, and NPV (Rec Fixed) should INCREASE.
-    irs.float.compounding = FloatingLegCompounding::CompoundedInArrears {
-        lookback_days: 2,
-        observation_shift: None,
-    };
+    irs.float.compounding = FloatingLegCompounding::CompoundedInArrears { lookback_days: 2 };
     let npv_lookback = irs.value(&ctx, base).unwrap().amount();
 
     assert!(
@@ -172,10 +166,7 @@ fn test_rate_cutoff_uses_business_day_lockout_over_weekend() {
             calendar_id: Some("USNY".into()),
             start,
             end,
-            compounding: FloatingLegCompounding::CompoundedInArrears {
-                lookback_days: 0,
-                observation_shift: None,
-            },
+            compounding: FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 },
             payment_lag_days: 0,
             end_of_month: false,
             spread_bp: rust_decimal::Decimal::ZERO,
@@ -336,10 +327,7 @@ fn test_seasoned_compounded_swap_requires_fixings() {
             calendar_id: Some("USNY".into()),
             start,
             end: start.add_months(1),
-            compounding: FloatingLegCompounding::CompoundedInArrears {
-                lookback_days: 0,
-                observation_shift: None,
-            },
+            compounding: FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 },
             payment_lag_days: 0,
             end_of_month: false,
             spread_bp: rust_decimal::Decimal::try_from(0.0).expect("valid"),
@@ -423,10 +411,7 @@ fn test_seasoned_compounded_swap_with_fixings_prices() {
             calendar_id: Some("USNY".into()),
             start,
             end: start.add_months(1),
-            compounding: FloatingLegCompounding::CompoundedInArrears {
-                lookback_days: 0,
-                observation_shift: None,
-            },
+            compounding: FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 },
             payment_lag_days: 0,
             end_of_month: false,
             spread_bp: rust_decimal::Decimal::try_from(0.0).expect("valid"),
@@ -505,10 +490,7 @@ fn test_compounded_swap_with_spread_near_zero_rates() {
             calendar_id: Some("USNY".into()),
             start,
             end: start.add_months(12),
-            compounding: FloatingLegCompounding::CompoundedInArrears {
-                lookback_days: 0,
-                observation_shift: None,
-            },
+            compounding: FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 },
             payment_lag_days: 0,
             end_of_month: false,
             spread_bp: rust_decimal::Decimal::try_from(50.0).expect("valid"), // 50bp spread
@@ -601,10 +583,7 @@ fn test_compounded_swap_with_spread_negative_rates() {
             calendar_id: Some("USNY".into()),
             start,
             end: start.add_months(12),
-            compounding: FloatingLegCompounding::CompoundedInArrears {
-                lookback_days: 0,
-                observation_shift: None,
-            },
+            compounding: FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 },
             payment_lag_days: 0,
             end_of_month: false,
             spread_bp: rust_decimal::Decimal::try_from(100.0).expect("valid"), // 100bp spread
@@ -706,8 +685,7 @@ fn test_observation_shift_before_curve_base_date() {
             start,
             end: start.add_months(1),
             compounding: FloatingLegCompounding::CompoundedInArrears {
-                lookback_days: 0,
-                observation_shift: None, // No shift needed, as_of is after start
+                lookback_days: 0, // No shift needed, as_of is after start
             },
             payment_lag_days: 0,
             end_of_month: false,

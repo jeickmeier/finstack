@@ -5,12 +5,11 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, PriceCurve};
 use finstack_quant_core::types::{CurveId, InstrumentId};
-use finstack_quant_valuations::instruments::commodity::commodity_forward::{
-    CommodityForward, Position,
-};
+use finstack_quant_valuations::instruments::commodity::commodity_forward::CommodityForward;
 use finstack_quant_valuations::instruments::Attributes;
 use finstack_quant_valuations::instruments::CommodityUnderlyingParams;
 use finstack_quant_valuations::instruments::Instrument;
+use finstack_quant_valuations::instruments::Position;
 use time::Month;
 
 /// Helper to create a test market with discount and price curves.

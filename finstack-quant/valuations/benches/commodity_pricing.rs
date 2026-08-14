@@ -18,9 +18,7 @@ use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_valuations::instruments::commodity::commodity_asian_option::CommodityAsianOption;
-use finstack_quant_valuations::instruments::commodity::commodity_forward::{
-    CommodityForward, Position,
-};
+use finstack_quant_valuations::instruments::commodity::commodity_forward::CommodityForward;
 use finstack_quant_valuations::instruments::commodity::commodity_option::CommodityOption;
 use finstack_quant_valuations::instruments::commodity::commodity_spread_option::CommoditySpreadOption;
 use finstack_quant_valuations::instruments::commodity::commodity_swap::CommoditySwap;
@@ -28,6 +26,7 @@ use finstack_quant_valuations::instruments::commodity::commodity_swaption::Commo
 use finstack_quant_valuations::instruments::exotics::asian_option::AveragingMethod;
 use finstack_quant_valuations::instruments::CommodityUnderlyingParams;
 use finstack_quant_valuations::instruments::Instrument;
+use finstack_quant_valuations::instruments::Position;
 use finstack_quant_valuations::instruments::{
     Attributes, ExerciseStyle, InstrumentPricingOverrides, OptionType, PayReceive, PricingOptions,
     SettlementType,

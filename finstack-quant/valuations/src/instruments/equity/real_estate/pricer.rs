@@ -351,7 +351,7 @@ mod tests {
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
     use finstack_quant_core::market_data::context::MarketContext;
-    use finstack_quant_core::types::{CurveId, InstrumentId};
+    use finstack_quant_core::types::InstrumentId;
     use time::Month;
 
     fn date(year: i32, month: u8, day: u8) -> Result<Date, Box<dyn std::error::Error>> {
@@ -375,7 +375,6 @@ mod tests {
             .discount_rate_opt(Some(0.10))
             .terminal_cap_rate_opt(Some(0.08))
             .day_count(DayCount::Act365F)
-            .discount_curve_id(CurveId::new("USD-OIS"))
             .attributes(Default::default())
             .build()?;
 

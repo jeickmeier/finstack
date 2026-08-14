@@ -82,10 +82,6 @@
           "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
           "description": "Day count convention for year fractions."
         },
-        "discount_curve_id": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-          "description": "Discount curve identifier, used for risk attribution only.\n\nDCF valuation always discounts at [`discount_rate`](Self::discount_rate)\nregardless of whether this curve is loaded ; rate\nsensitivity (`Dv01`/`BucketedDv01`) bumps the risk-free component\ninside the rate."
-        },
         "discount_rate": {
           "default": null,
           "description": "Discount rate for DCF (annualized).",
@@ -119,7 +115,7 @@
         "instrument_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
           "default": {},
-          "description": "Attributes for tagging and scenarios."
+          "description": "Discount curve identifier, used for risk attribution only.\n\nDCF valuation always discounts at [`discount_rate`](Self::discount_rate)\nregardless of whether this curve is loaded ; rate\nsensitivity (`Dv01`/`BucketedDv01`) bumps the risk-free component\ninside the rate.\nAttributes for tagging and scenarios."
         },
         "metric_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
@@ -242,8 +238,7 @@
         "valuation_date",
         "valuation_method",
         "noi_schedule",
-        "day_count",
-        "discount_curve_id"
+        "day_count"
       ],
       "type": "object"
     },
@@ -331,7 +326,6 @@
           "attributes": {},
           "currency": "USD",
           "day_count": "act_365f",
-          "discount_curve_id": "USD-OIS",
           "discount_rate": 0.08,
           "id": "RE-OFFICE-DCF",
           "noi_schedule": [

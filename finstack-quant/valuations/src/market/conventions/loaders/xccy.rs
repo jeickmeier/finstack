@@ -21,7 +21,6 @@ struct XccyConventionRecord {
     business_day_convention: BusinessDayConvention,
     base_calendar_id: String,
     quote_calendar_id: String,
-    #[serde(default)]
     notional_exchange: crate::instruments::rates::xccy_swap::NotionalExchange,
 }
 

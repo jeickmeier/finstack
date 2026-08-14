@@ -5,7 +5,7 @@
 
 use super::types::{BaseRateSpec, RevolvingCredit};
 use crate::instruments::common_impl::traits::Attributes;
-use finstack_quant_core::dates::{BusinessDayConvention, Date, DateExt, HolidayCalendar};
+use finstack_quant_core::dates::{BusinessDayConvention, Date, DateExt};
 use finstack_quant_core::Result;
 
 /// Build the canonical accrual/payment periods for a revolving credit facility.
@@ -42,32 +42,6 @@ pub(super) fn build_payment_periods(
         return Err(finstack_quant_core::InputError::TooFewPoints.into());
     }
     Ok(periods)
-}
-
-/// Resolve the calendar for a facility from its attributes.
-///
-/// Looks for `calendar_id` or `calendar` metadata and strictly resolves it,
-/// defaulting to the canonical weekends-only calendar.
-///
-/// # Arguments
-///
-/// * `attrs` - Facility attributes containing calendar metadata
-///
-/// # Returns
-///
-/// Reference to the resolved `HolidayCalendar`.
-///
-/// # Errors
-///
-/// Returns an error when configured calendar metadata is unknown.
-pub(super) fn resolve_facility_calendar(
-    attrs: &Attributes,
-) -> Result<&'static dyn HolidayCalendar> {
-    let cal_code = attrs
-        .get_meta("calendar_id")
-        .or_else(|| attrs.get_meta("calendar"))
-        .unwrap_or(crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID);
-    crate::cashflow::builder::calendar::resolve_calendar_strict(cal_code)
 }
 
 /// Build payment schedule dates for a revolving credit facility.
@@ -208,13 +182,11 @@ pub(super) fn project_floating_rate_with_curve(
     reset_date: finstack_quant_core::dates::Date,
     spec: &crate::cashflow::builder::FloatingRateSpec,
     fwd: &finstack_quant_core::market_data::term_structures::ForwardCurve,
-    attrs: &Attributes,
 ) -> Result<f64> {
-    let reset_end = compute_reset_period_end(reset_date, spec, attrs)?;
     let params = crate::cashflow::builder::FloatingRateParams::try_from(spec)?;
 
     // Delegate to centralized projection
-    crate::cashflow::builder::project_floating_rate(reset_date, reset_end, fwd, &params)
+    crate::cashflow::builder::project_floating_rate(reset_date, fwd, &params)
 }
 
 /// Apply a draw/repay event to current balance with commitment limit validation.
@@ -264,48 +236,6 @@ pub(super) fn apply_draw_repay_event(
     }
 }
 
-/// Compute the end date of a reset period given start date and frequency.
-///
-/// Applies frequency offset (months or days) and calendar business day adjustment
-/// if configured in facility attributes.
-///
-/// # Arguments
-///
-/// * `reset_date` - Start date of the reset period
-/// * `reset_frequency` - Tenor determining the period length
-/// * `attrs` - Facility attributes (for calendar resolution)
-///
-/// # Returns
-///
-/// End date of the reset period, adjusted for business days if calendar is configured.
-///
-/// # Errors
-///
-/// Returns an error if calendar adjustment fails.
-pub(super) fn compute_reset_period_end(
-    reset_date: Date,
-    spec: &crate::cashflow::builder::FloatingRateSpec,
-    attrs: &Attributes,
-) -> Result<Date> {
-    let reset_frequency = spec.index_tenor.as_ref().unwrap_or(&spec.reset_frequency);
-    // Compute unadjusted end date based on frequency
-    use finstack_quant_core::dates::TenorUnit;
-    let mut reset_end = match reset_frequency.unit() {
-        TenorUnit::Months => reset_date.add_months(reset_frequency.count() as i32),
-        TenorUnit::Years => reset_date.add_months(reset_frequency.count() as i32 * 12),
-        TenorUnit::Weeks => reset_date + time::Duration::weeks(reset_frequency.count() as i64),
-        TenorUnit::Days => reset_date + time::Duration::days(reset_frequency.count() as i64),
-    };
-
-    reset_end = finstack_quant_core::dates::adjust(
-        reset_end,
-        BusinessDayConvention::ModifiedFollowing,
-        resolve_facility_calendar(attrs)?,
-    )?;
-
-    Ok(reset_end)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -313,29 +243,7 @@ mod tests {
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::{DayCount, Tenor};
     use finstack_quant_core::money::Money;
-    use rust_decimal::Decimal;
     use time::Month;
-
-    fn reset_spec(tenor: Tenor) -> crate::cashflow::builder::FloatingRateSpec {
-        crate::cashflow::builder::FloatingRateSpec {
-            index_id: "TEST-INDEX".into(),
-            spread_bp: Decimal::ZERO,
-            gearing: Decimal::ONE,
-            gearing_includes_spread: true,
-            index_floor_bp: None,
-            index_cap_bp: None,
-            all_in_floor_bp: None,
-            all_in_cap_bp: None,
-            overnight_index_constraints: Default::default(),
-            reset_frequency: tenor,
-            index_tenor: None,
-            reset_lag_days: 0,
-            fixing_calendar_id: None,
-            overnight_compounding: None,
-            overnight_basis: None,
-            fallback: Default::default(),
-        }
-    }
 
     fn create_test_facility(
         start: Date,
@@ -371,25 +279,6 @@ mod tests {
             scenario_pricing_overrides: Default::default(),
             attributes: attrs,
         }
-    }
-
-    #[test]
-    fn test_resolve_facility_calendar_defaults_to_weekends_only() {
-        let attrs = Attributes::new();
-        assert!(resolve_facility_calendar(&attrs).is_ok());
-    }
-
-    #[test]
-    fn test_resolve_facility_calendar_with_id() {
-        let attrs = Attributes::new().with_meta("calendar_id", "weekends_only");
-        let cal = resolve_facility_calendar(&attrs);
-        assert!(cal.is_ok());
-    }
-
-    #[test]
-    fn test_resolve_facility_calendar_rejects_unknown_id() {
-        let attrs = Attributes::new().with_meta("calendar_id", "NOT-A-CALENDAR");
-        assert!(resolve_facility_calendar(&attrs).is_err());
     }
 
     #[test]
@@ -546,8 +435,8 @@ mod tests {
             .build()
             .expect("forward curve");
 
-        let rate = project_floating_rate_with_curve(reset, &spec, &forward, &Attributes::new())
-            .expect("projected coupon");
+        let rate =
+            project_floating_rate_with_curve(reset, &spec, &forward).expect("projected coupon");
         assert!((rate - 0.02).abs() < 1e-12, "all-in cap must bind: {rate}");
     }
 
@@ -580,61 +469,6 @@ mod tests {
 
         // Both should have same length (quarterly over 1 year)
         assert_eq!(dates_no_cal.len(), dates_with_cal.len());
-    }
-
-    #[test]
-    fn test_compute_reset_period_end_monthly() {
-        let reset_date =
-            Date::from_calendar_date(2025, Month::January, 15).expect("Valid test date");
-        let spec = reset_spec(finstack_quant_core::dates::Tenor::new(
-            3,
-            finstack_quant_core::dates::TenorUnit::Months,
-        ));
-        let reset_end = compute_reset_period_end(reset_date, &spec, &Attributes::new())
-            .expect("Reset period end calculation should succeed");
-
-        // 3 months from Jan 15 should be Apr 15
-        let expected = Date::from_calendar_date(2025, Month::April, 15).expect("Valid test date");
-        assert_eq!(reset_end, expected);
-    }
-
-    #[test]
-    fn test_compute_reset_period_end_daily() {
-        let reset_date =
-            Date::from_calendar_date(2025, Month::January, 15).expect("Valid test date");
-        let spec = reset_spec(finstack_quant_core::dates::Tenor::new(
-            90,
-            finstack_quant_core::dates::TenorUnit::Days,
-        ));
-        let reset_end = compute_reset_period_end(reset_date, &spec, &Attributes::new())
-            .expect("Reset period end calculation should succeed");
-
-        // 90 days from Jan 15
-        let expected = reset_date + time::Duration::days(90);
-        assert_eq!(reset_end, expected);
-    }
-
-    #[test]
-    fn test_compute_reset_period_end_with_calendar() {
-        let reset_date =
-            Date::from_calendar_date(2025, Month::January, 15).expect("Valid test date");
-        let tenor = finstack_quant_core::dates::Tenor::new(
-            1,
-            finstack_quant_core::dates::TenorUnit::Months,
-        );
-        let spec = reset_spec(tenor);
-        let weekends_attrs = Attributes::new().with_meta("calendar_id", "weekends_only");
-        let usny_attrs = Attributes::new().with_meta("calendar_id", "USNY");
-
-        let end_no_cal = compute_reset_period_end(reset_date, &spec, &weekends_attrs)
-            .expect("Reset period end calculation should succeed");
-
-        let end_with_cal = compute_reset_period_end(reset_date, &spec, &usny_attrs)
-            .expect("Reset period end calculation should succeed");
-
-        // Both should succeed (calendar adjustment may or may not change date)
-        assert!(end_no_cal.year() == 2025);
-        assert!(end_with_cal.year() == 2025);
     }
 
     #[test]

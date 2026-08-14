@@ -409,7 +409,7 @@ def main() -> int:
                     "fromMaterialization cold A (5000/5000)": "cold_a_5000_unique",
                     "fromMaterialization cold B (5000/50)": "cold_b_5000_50",
                     "fromMaterialization warm B (5000/50)": "warm_b_5000_50",
-                    "validateMaterializationJson B (5000/50)": "validation_b_5000_50",
+                    "validateMaterialization B (5000/50)": "validation_b_5000_50",
                 },
             ),
         },

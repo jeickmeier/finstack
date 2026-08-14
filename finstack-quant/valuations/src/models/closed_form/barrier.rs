@@ -142,8 +142,7 @@
 
 use crate::models::volatility::black::d1_d2;
 use finstack_quant_core::math::special_functions::norm_cdf;
-/// Backward-compatible closed-form path for the canonical barrier type.
-pub use finstack_quant_core::types::BarrierType;
+use finstack_quant_core::types::BarrierType;
 
 /// Parameters for barrier option pricing.
 #[derive(Debug, Clone, Copy)]

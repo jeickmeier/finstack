@@ -96,7 +96,7 @@ def _structured_credit_json() -> str:
         "cumulative_defaults": _money("0"),
         "cumulative_recoveries": _money("0"),
         "cumulative_prepayments": _money("0"),
-        "cumulative_scheduled_amortization": None,
+        "cumulative_scheduled_amortization": _money("0"),
         "reinvestment_period": None,
         "collection_account": _money("0"),
         "reserve_account": _money("0"),

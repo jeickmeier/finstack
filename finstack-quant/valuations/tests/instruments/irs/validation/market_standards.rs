@@ -1149,10 +1149,7 @@ fn test_sofr_ois_par_rate_matches_quantlib_identity() {
             fixing_calendar_id: None,
             stub: StubKind::None,
             reset_lag_days: 0,
-            compounding: FloatingLegCompounding::CompoundedInArrears {
-                lookback_days: 0,
-                observation_shift: None,
-            },
+            compounding: FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 },
             payment_lag_days: 0,
             end_of_month: false,
             start,
@@ -1467,10 +1464,7 @@ fn test_ois_identity_with_eom() {
             fixing_calendar_id: None,
             start,
             end,
-            compounding: FloatingLegCompounding::CompoundedInArrears {
-                lookback_days: 0,
-                observation_shift: None,
-            },
+            compounding: FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 },
             payment_lag_days: 0,
             end_of_month: true,
         })

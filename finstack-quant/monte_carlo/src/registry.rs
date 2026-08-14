@@ -1,7 +1,7 @@
 //! Embedded Monte Carlo defaults registry.
 //!
 //! Runtime defaults are versioned JSON data so path counts, seeds, parallel
-//! defaults, and Python convenience defaults can be reviewed and changed
+//! defaults, and convenience-layer defaults can be reviewed and changed
 //! without hunting through constructor bodies.
 
 use std::sync::OnceLock;
@@ -22,8 +22,8 @@ static EMBEDDED_DEFAULTS: OnceLock<Result<MonteCarloDefaults>> = OnceLock::new()
 pub struct MonteCarloDefaults {
     /// Rust API defaults.
     pub rust: RustDefaults,
-    /// Python binding convenience defaults.
-    pub python_bindings: PythonBindingDefaults,
+    /// Convenience-layer defaults shared by hosts and Rust convenience pricers.
+    pub convenience: ConvenienceDefaults,
 }
 
 /// Defaults used by Rust Monte Carlo APIs.
@@ -51,21 +51,21 @@ pub struct RustDefaults {
     pub merton_pik_bond: MertonPikBondDefaults,
 }
 
-/// Defaults used by Python Monte Carlo bindings.
+/// Defaults shared by the host bindings and the Rust convenience pricers.
 #[derive(Debug, Clone)]
-pub struct PythonBindingDefaults {
-    /// Default currency code for Python convenience functions.
+pub struct ConvenienceDefaults {
+    /// Default currency code for convenience entry points.
     pub default_currency: String,
-    /// Python engine constructor defaults.
-    pub engine: PythonEngineDefaults,
-    /// Python European pricer defaults.
-    pub european_pricer: PythonPricerDefaults,
-    /// Python path-dependent pricer defaults.
-    pub path_dependent_pricer: PythonPricerDefaults,
-    /// Python LSMC pricer defaults.
-    pub lsmc: PythonLsmcDefaults,
-    /// Python Greek estimator defaults.
-    pub greeks: PythonGreekDefaults,
+    /// Engine constructor defaults.
+    pub engine: ConvenienceEngineDefaults,
+    /// European pricer defaults.
+    pub european_pricer: ConveniencePricerDefaults,
+    /// Path-dependent pricer defaults.
+    pub path_dependent_pricer: ConveniencePricerDefaults,
+    /// LSMC pricer defaults.
+    pub lsmc: ConvenienceLsmcDefaults,
+    /// Greek estimator defaults.
+    pub greeks: ConvenienceGreekDefaults,
 }
 
 /// Common path-count, seed, and parallel-execution defaults.
@@ -212,10 +212,10 @@ pub struct MertonPikBondDefaults {
     pub time_steps_per_year: usize,
 }
 
-/// Python pricer defaults with default time-grid step count.
+/// Pricer defaults with default time-grid step count.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct PythonPricerDefaults {
+pub struct ConveniencePricerDefaults {
     /// Number of Monte Carlo paths.
     pub num_paths: usize,
     /// Root RNG seed.
@@ -226,10 +226,10 @@ pub struct PythonPricerDefaults {
     pub num_steps: usize,
 }
 
-/// Python engine constructor defaults.
+/// Engine constructor defaults.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct PythonEngineDefaults {
+pub struct ConvenienceEngineDefaults {
     /// Root RNG seed.
     pub seed: u64,
     /// Whether parallel execution is requested by default.
@@ -238,10 +238,10 @@ pub struct PythonEngineDefaults {
     pub antithetic: bool,
 }
 
-/// Python LSMC pricer defaults.
+/// LSMC pricer defaults.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct PythonLsmcDefaults {
+pub struct ConvenienceLsmcDefaults {
     /// Number of Monte Carlo paths.
     pub num_paths: usize,
     /// Root RNG seed.
@@ -256,10 +256,10 @@ pub struct PythonLsmcDefaults {
     pub num_steps: usize,
 }
 
-/// Python finite-difference Greek estimator defaults.
+/// Finite-difference Greek estimator defaults.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct PythonGreekDefaults {
+pub struct ConvenienceGreekDefaults {
     /// Number of Monte Carlo paths.
     pub num_paths: usize,
     /// Root RNG seed.
@@ -284,7 +284,7 @@ struct DefaultsFile {
     schema: Option<String>,
     version: Option<u32>,
     rust: RustDefaultsFile,
-    python_bindings: PythonBindingDefaultsFile,
+    convenience: ConvenienceDefaultsFile,
 }
 
 #[derive(Debug, Deserialize)]
@@ -304,13 +304,13 @@ struct RustDefaultsFile {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct PythonBindingDefaultsFile {
+struct ConvenienceDefaultsFile {
     default_currency: String,
-    engine: PythonEngineDefaults,
-    european_pricer: PythonPricerDefaults,
-    path_dependent_pricer: PythonPricerDefaults,
-    lsmc: PythonLsmcDefaults,
-    greeks: PythonGreekDefaults,
+    engine: ConvenienceEngineDefaults,
+    european_pricer: ConveniencePricerDefaults,
+    path_dependent_pricer: ConveniencePricerDefaults,
+    lsmc: ConvenienceLsmcDefaults,
+    greeks: ConvenienceGreekDefaults,
 }
 
 /// Return the validated, process-wide Monte Carlo defaults embedded in the crate.
@@ -394,13 +394,13 @@ fn defaults_from_file(file: DefaultsFile) -> Result<MonteCarloDefaults> {
             cheyette_rough: file.rust.cheyette_rough,
             merton_pik_bond: file.rust.merton_pik_bond,
         },
-        python_bindings: PythonBindingDefaults {
-            default_currency: file.python_bindings.default_currency,
-            engine: file.python_bindings.engine,
-            european_pricer: file.python_bindings.european_pricer,
-            path_dependent_pricer: file.python_bindings.path_dependent_pricer,
-            lsmc: file.python_bindings.lsmc,
-            greeks: file.python_bindings.greeks,
+        convenience: ConvenienceDefaults {
+            default_currency: file.convenience.default_currency,
+            engine: file.convenience.engine,
+            european_pricer: file.convenience.european_pricer,
+            path_dependent_pricer: file.convenience.path_dependent_pricer,
+            lsmc: file.convenience.lsmc,
+            greeks: file.convenience.greeks,
         },
     })
 }
@@ -443,26 +443,26 @@ fn validate_file(file: &DefaultsFile) -> Result<()> {
         "rust.path_dependent_pricer.min_steps",
         file.rust.path_dependent_pricer.min_steps,
     )?;
-    validate_python_pricer(
-        "python_bindings.european_pricer",
-        &file.python_bindings.european_pricer,
+    validate_convenience_pricer(
+        "convenience.european_pricer",
+        &file.convenience.european_pricer,
     )?;
     validate_nonblank(
-        "python_bindings.default_currency",
-        &file.python_bindings.default_currency,
+        "convenience.default_currency",
+        &file.convenience.default_currency,
     )?;
-    validate_python_engine(&file.python_bindings.engine);
-    validate_python_pricer(
-        "python_bindings.path_dependent_pricer",
-        &file.python_bindings.path_dependent_pricer,
+    validate_python_engine(&file.convenience.engine);
+    validate_convenience_pricer(
+        "convenience.path_dependent_pricer",
+        &file.convenience.path_dependent_pricer,
     )?;
     validate_rate_exotics("rust.rate_exotics", &file.rust.rate_exotics)?;
     validate_swaption_lsmc("rust.swaption_lsmc", &file.rust.swaption_lsmc)?;
     validate_lmm_bermudan("rust.lmm_bermudan", &file.rust.lmm_bermudan)?;
     validate_cheyette_rough("rust.cheyette_rough", &file.rust.cheyette_rough)?;
     validate_merton_pik_bond("rust.merton_pik_bond", &file.rust.merton_pik_bond)?;
-    validate_python_lsmc("python_bindings.lsmc", &file.python_bindings.lsmc)?;
-    validate_python_greeks("python_bindings.greeks", &file.python_bindings.greeks)?;
+    validate_python_lsmc("convenience.lsmc", &file.convenience.lsmc)?;
+    validate_python_greeks("convenience.greeks", &file.convenience.greeks)?;
     Ok(())
 }
 
@@ -479,7 +479,7 @@ fn validate_engine(label: &str, defaults: &EngineDefaults) -> Result<()> {
     validate_chunk_size(&format!("{label}.chunk_size"), defaults.chunk_size)
 }
 
-fn validate_python_pricer(label: &str, defaults: &PythonPricerDefaults) -> Result<()> {
+fn validate_convenience_pricer(label: &str, defaults: &ConveniencePricerDefaults) -> Result<()> {
     validate_positive_usize(&format!("{label}.num_paths"), defaults.num_paths)?;
     validate_positive_usize(&format!("{label}.num_steps"), defaults.num_steps)?;
     let _seed = defaults.seed;
@@ -487,13 +487,13 @@ fn validate_python_pricer(label: &str, defaults: &PythonPricerDefaults) -> Resul
     Ok(())
 }
 
-fn validate_python_engine(defaults: &PythonEngineDefaults) {
+fn validate_python_engine(defaults: &ConvenienceEngineDefaults) {
     let _seed = defaults.seed;
     let _parallel = defaults.use_parallel;
     let _antithetic = defaults.antithetic;
 }
 
-fn validate_python_lsmc(label: &str, defaults: &PythonLsmcDefaults) -> Result<()> {
+fn validate_python_lsmc(label: &str, defaults: &ConvenienceLsmcDefaults) -> Result<()> {
     validate_positive_usize(&format!("{label}.num_paths"), defaults.num_paths)?;
     validate_positive_usize(&format!("{label}.basis_degree"), defaults.basis_degree)?;
     validate_positive_usize(&format!("{label}.num_steps"), defaults.num_steps)?;
@@ -507,7 +507,7 @@ fn validate_python_lsmc(label: &str, defaults: &PythonLsmcDefaults) -> Result<()
     Ok(())
 }
 
-fn validate_python_greeks(label: &str, defaults: &PythonGreekDefaults) -> Result<()> {
+fn validate_python_greeks(label: &str, defaults: &ConvenienceGreekDefaults) -> Result<()> {
     validate_positive_usize(&format!("{label}.num_paths"), defaults.num_paths)?;
     validate_positive_usize(&format!("{label}.num_steps"), defaults.num_steps)?;
     validate_positive_f64(&format!("{label}.bump_size"), defaults.bump_size)?;

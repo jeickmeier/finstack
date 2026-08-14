@@ -144,7 +144,7 @@ impl JsPortfolio {
     /// @param cache - Reusable artifact cache.
     /// @returns A materialization report whose build/index phase counters are zero.
     /// @throws ContractValidationError - If validation cannot produce a report.
-    #[wasm_bindgen(js_name = validateMaterializationJson)]
+    #[wasm_bindgen(js_name = validateMaterialization)]
     pub fn validate_materialization_json(
         bundle: JsValue,
         cache: &JsInstrumentArtifactCache,

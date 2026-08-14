@@ -37,10 +37,7 @@ enum OisCompoundingSpec {
     Tona,
     Fedfunds,
     Saron,
-    CompoundedInArrears {
-        lookback_days: i32,
-        observation_shift: Option<i32>,
-    },
+    CompoundedInArrears { lookback_days: i32 },
 }
 
 impl OisCompoundingSpec {
@@ -52,13 +49,11 @@ impl OisCompoundingSpec {
             Self::Tona => FloatingLegCompounding::tona(),
             Self::Fedfunds => FloatingLegCompounding::fedfunds(),
             Self::Saron => FloatingLegCompounding::saron(),
-            Self::CompoundedInArrears {
-                lookback_days,
-                observation_shift,
-            } => FloatingLegCompounding::CompoundedInArrears {
-                lookback_days: *lookback_days,
-                observation_shift: *observation_shift,
-            },
+            Self::CompoundedInArrears { lookback_days } => {
+                FloatingLegCompounding::CompoundedInArrears {
+                    lookback_days: *lookback_days,
+                }
+            }
         }
     }
 }

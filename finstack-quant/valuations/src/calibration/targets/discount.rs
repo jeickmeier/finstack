@@ -669,13 +669,11 @@ Global solve requires strictly increasing times.",
         use crate::instruments::rates::irs::FloatingLegCompounding;
         match compounding {
             FloatingLegCompounding::Simple => RateCalibrationOisCompounding::Simple,
-            FloatingLegCompounding::CompoundedInArrears {
-                lookback_days,
-                observation_shift,
-            } => RateCalibrationOisCompounding::CompoundedInArrears {
-                lookback_days: *lookback_days,
-                observation_shift: *observation_shift,
-            },
+            FloatingLegCompounding::CompoundedInArrears { lookback_days } => {
+                RateCalibrationOisCompounding::CompoundedInArrears {
+                    lookback_days: *lookback_days,
+                }
+            }
             FloatingLegCompounding::CompoundedWithObservationShift { shift_days } => {
                 RateCalibrationOisCompounding::CompoundedWithObservationShift {
                     shift_days: *shift_days,

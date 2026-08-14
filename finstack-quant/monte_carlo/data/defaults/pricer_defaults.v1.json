@@ -65,7 +65,7 @@
       "time_steps_per_year": 12
     }
   },
-  "python_bindings": {
+  "convenience": {
     "default_currency": "USD",
     "engine": {
       "seed": 42,

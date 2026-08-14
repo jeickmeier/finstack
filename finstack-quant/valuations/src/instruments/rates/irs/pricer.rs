@@ -570,10 +570,8 @@ mod tests {
         // Cleared-OIS presets (sofr/sonia/...) are plain in-arrears with no
         // lookback; use an explicit FRN-style 2-day lookback to exercise the
         // lookback path without a forward curve.
-        swap_lookback.float.compounding = FloatingLegCompounding::CompoundedInArrears {
-            lookback_days: 2,
-            observation_shift: None,
-        };
+        swap_lookback.float.compounding =
+            FloatingLegCompounding::CompoundedInArrears { lookback_days: 2 };
 
         // Both should price without a forward curve present.
         let pv0 = swap_no_lookback.value(&ctx, as_of).expect("pv no lookback");
@@ -1071,8 +1069,7 @@ mod tests {
                     start,
                     end,
                     compounding: FloatingLegCompounding::CompoundedInArrears {
-                        lookback_days: 0,        // No lookback
-                        observation_shift: None, // No observation shift
+                        lookback_days: 0, // No lookback // No observation shift
                     },
                     fixing_calendar_id: None,
                     payment_lag_days: 0, // No payment delay

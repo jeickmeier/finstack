@@ -5,7 +5,6 @@
         "attributes": {},
         "currency": "USD",
         "day_count": "act_365f",
-        "discount_curve_id": "USD-OIS",
         "discount_rate": 0.08,
         "id": "RE-OFFICE-DCF",
         "noi_schedule": [
@@ -37,7 +36,6 @@
       },
       "attributes": {},
       "currency": "USD",
-      "discount_curve_id": "USD-OIS",
       "id": "RE-LEVERED-OFFICE"
     },
     "type": "levered_real_estate_equity"

@@ -33,34 +33,12 @@ use crate::instruments::rates::irs::{FloatingLegCompounding, InterestRateSwap, P
 /// Total backward shift (in business days) applied to overnight observation
 /// dates.
 ///
-/// `CompoundedInArrears.observation_shift` follows ISDA 2021 observation-shift
-/// semantics (backward shift, same direction as `lookback_days` and as
-/// `CompoundedWithObservationShift.shift_days`). Combining a non-zero lookback
-/// with a non-zero observation shift is rejected — the conventions are
-/// mutually exclusive, and the in-module loop and the canonical-schedule
-/// builder must agree on the semantics.
+/// `CompoundedInArrears` applies lookback semantics; ISDA 2021 observation
+/// shift is the separate `CompoundedWithObservationShift` variant.
 #[cfg(test)]
 fn compounded_total_shift_days(compounding: FloatingLegCompounding) -> Result<i32> {
     match compounding {
-        FloatingLegCompounding::CompoundedInArrears {
-            lookback_days,
-            observation_shift,
-        } => {
-            let shift = observation_shift.unwrap_or(0);
-            if lookback_days != 0 && shift != 0 {
-                return Err(finstack_quant_core::Error::Validation(format!(
-                    "Compounded-in-arrears with both a lookback ({lookback_days} days) and an \
-                     observation shift ({shift} days) is not supported: the conventions are \
-                     mutually exclusive. Use a lookback-only or observation-shift-only \
-                     convention.",
-                )));
-            }
-            if shift != 0 {
-                Ok(-shift)
-            } else {
-                Ok(-lookback_days)
-            }
-        }
+        FloatingLegCompounding::CompoundedInArrears { lookback_days } => Ok(-lookback_days),
         FloatingLegCompounding::CompoundedWithObservationShift { shift_days } => Ok(-shift_days),
         FloatingLegCompounding::CompoundedWithRateCutoff { .. }
         | FloatingLegCompounding::Simple => Ok(0),
@@ -72,13 +50,10 @@ fn compounded_total_shift_days(compounding: FloatingLegCompounding) -> Result<i3
 /// (lookback).
 #[cfg(test)]
 fn uses_observation_shift_dcf(compounding: FloatingLegCompounding) -> bool {
-    match compounding {
-        FloatingLegCompounding::CompoundedWithObservationShift { .. } => true,
-        FloatingLegCompounding::CompoundedInArrears {
-            observation_shift, ..
-        } => observation_shift.unwrap_or(0) != 0,
-        _ => false,
-    }
+    matches!(
+        compounding,
+        FloatingLegCompounding::CompoundedWithObservationShift { .. }
+    )
 }
 
 fn is_irregular_fixed_period(
@@ -139,37 +114,13 @@ fn builder_overnight_method(
 
     Ok(match compounding {
         FloatingLegCompounding::Simple => None,
-        FloatingLegCompounding::CompoundedInArrears {
-            lookback_days,
-            observation_shift,
-        } => {
-            if observation_shift.unwrap_or(0) == 0 {
-                if lookback_days == 0 {
-                    Some(OvernightCompoundingMethod::CompoundedInArrears)
-                } else {
-                    Some(OvernightCompoundingMethod::CompoundedWithLookback {
-                        lookback_days: lookback_days as u32,
-                    })
-                }
-            } else if lookback_days == 0 {
-                Some(OvernightCompoundingMethod::CompoundedWithObservationShift {
-                    shift_days: observation_shift.unwrap_or(0) as u32,
-                })
+        FloatingLegCompounding::CompoundedInArrears { lookback_days } => {
+            if lookback_days == 0 {
+                Some(OvernightCompoundingMethod::CompoundedInArrears)
             } else {
-                // The canonical-schedule builder cannot model the hybrid
-                // lookback + observation-shift convention. Silently degrading
-                // to lookback-only would drop the observation shift and
-                // diverge from the in-module compounding loop, which handles
-                // the combined `total_shift` correctly. Reject explicitly
-                // rather than mispricing.
-                return Err(finstack_quant_core::Error::Validation(format!(
-                    "Compounded-in-arrears with both a lookback ({} days) and an \
-                     observation shift ({} days) is not supported on the \
-                     canonical-schedule pricing path. Use a lookback-only or \
-                     observation-shift-only convention.",
-                    lookback_days,
-                    observation_shift.unwrap_or(0),
-                )));
+                Some(OvernightCompoundingMethod::CompoundedWithLookback {
+                    lookback_days: lookback_days as u32,
+                })
             }
         }
         FloatingLegCompounding::CompoundedWithObservationShift { shift_days } => {
@@ -628,10 +579,7 @@ mod tests {
         irs.float.calendar_id = Some("usny".to_string());
         irs.float.forward_curve_id = "USD-SOFR".into();
         irs.float.spread_bp = Decimal::from(100);
-        irs.float.compounding = FloatingLegCompounding::CompoundedInArrears {
-            lookback_days: 0,
-            observation_shift: None,
-        };
+        irs.float.compounding = FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 };
         let market = MarketContext::new()
             .insert(
                 DiscountCurve::builder("USD-OIS")
@@ -674,86 +622,26 @@ mod tests {
         assert!((total_amount - 1_000_000.0 * 0.01 * expected_accrual).abs() < 1.0e-9);
     }
 
-    /// W-14: The canonical-schedule path cannot model the hybrid
-    /// lookback + observation-shift convention. It must error explicitly
-    /// rather than silently degrading to lookback-only (which drops the
-    /// observation shift and diverges from the in-module compounding loop).
-    #[test]
-    fn hybrid_lookback_and_observation_shift_errors() {
-        let hybrid = FloatingLegCompounding::CompoundedInArrears {
-            lookback_days: 2,
-            observation_shift: Some(2),
-        };
-        let result = builder_overnight_method(hybrid);
-        assert!(
-            result.is_err(),
-            "hybrid lookback + observation-shift must be rejected on the \
-             canonical-schedule path, got {result:?}"
-        );
-
-        // Lookback-only and shift-only remain supported.
-        assert!(
-            builder_overnight_method(FloatingLegCompounding::CompoundedInArrears {
-                lookback_days: 2,
-                observation_shift: None,
-            })
-            .is_ok()
-        );
-        assert!(
-            builder_overnight_method(FloatingLegCompounding::CompoundedInArrears {
-                lookback_days: 0,
-                observation_shift: Some(2),
-            })
-            .is_ok()
-        );
-    }
-
     /// The in-module compounding loop must agree with the canonical-schedule
-    /// builder on `observation_shift` semantics: hybrid lookback+shift is an
-    /// error (it must never silently cancel), a pure observation shift is a
-    /// *backward* shift with shifted DCF weights, and a pure lookback shifts
-    /// observations only.
+    /// builder: a lookback shifts observations only, while an observation
+    /// shift moves the day-count-fraction weights with them.
     #[test]
     fn loop_shift_semantics_match_builder() {
-        // Hybrid {lookback: 2, shift: 2} errors instead of cancelling to 0.
-        let hybrid = FloatingLegCompounding::CompoundedInArrears {
-            lookback_days: 2,
-            observation_shift: Some(2),
-        };
-        assert!(
-            compounded_total_shift_days(hybrid).is_err(),
-            "hybrid lookback + observation-shift must be rejected on the loop path"
-        );
-
-        // Pure observation shift: backward shift, DCF follows observations.
-        let shift_only = FloatingLegCompounding::CompoundedInArrears {
-            lookback_days: 0,
-            observation_shift: Some(2),
-        };
-        assert_eq!(
-            compounded_total_shift_days(shift_only.clone()).expect("shift-only is valid"),
-            -2
-        );
-        assert!(uses_observation_shift_dcf(shift_only));
-
-        // Pure lookback: backward shift, DCF anchored to accrual dates.
-        let lookback_only = FloatingLegCompounding::CompoundedInArrears {
-            lookback_days: 5,
-            observation_shift: None,
-        };
+        // Lookback: backward shift, DCF anchored to the accrual dates.
+        let lookback_only = FloatingLegCompounding::CompoundedInArrears { lookback_days: 5 };
         assert_eq!(
             compounded_total_shift_days(lookback_only.clone()).expect("lookback-only is valid"),
             -5
         );
         assert!(!uses_observation_shift_dcf(lookback_only));
 
-        // The dedicated observation-shift variant matches the embedded form.
-        let dedicated = FloatingLegCompounding::CompoundedWithObservationShift { shift_days: 2 };
+        // Observation shift: backward shift, DCF follows the observations.
+        let shift_only = FloatingLegCompounding::CompoundedWithObservationShift { shift_days: 2 };
         assert_eq!(
-            compounded_total_shift_days(dedicated.clone()).expect("dedicated variant is valid"),
+            compounded_total_shift_days(shift_only.clone()).expect("shift-only is valid"),
             -2
         );
-        assert!(uses_observation_shift_dcf(dedicated));
+        assert!(uses_observation_shift_dcf(shift_only));
     }
 
     #[test]

@@ -485,10 +485,9 @@ python_package = "finstack_quant.margin"
 visibility = "pub"
 status = "exists"
 
-# NOTE: `registry` is pub(crate) in Rust and therefore out of contract scope
-# (the contract tracks the crate's public boundary only). The registry's
-# shared defaults struct is named `PythonBindingDefaults` for historical
-# reasons but feeds both host bindings and Rust convenience pricers.
+# NOTE: `registry` is out of contract scope (the contract tracks the crate's
+# public boundary only). Its shared defaults struct is `ConvenienceDefaults`:
+# it feeds both host bindings and the Rust convenience pricers.
 [crates.margin.modules]
 calculators = { python = "finstack_quant.margin", status = "flattened", note = "VmCalculator, VmResult, and ImResult exposed flat on finstack_quant.margin. Rust-only, uncontracted-by-design: the CCP IM engine (ClearingHouseImCalculator, CcpMethodology), ExternalImSource, the ImCalculator trait, and SimmVersion (hosts pass version strings; the Python default derives from Rust SimmVersion::default())." }
 constants   = { python = "finstack_quant.margin", status = "flattened", note = "CONSTANTS exposed flat on finstack_quant.margin" }
@@ -1499,7 +1498,7 @@ metrics      = { python = "finstack_quant.portfolio.metrics",      status = "mis
 optimization = { python = "finstack_quant.portfolio",              status = "flattened", note = "Spec/result types (PortfolioOptimizationSpec, Constraint, Objective, MetricExpr, PerPositionMetric, PositionFilter, WeightingScheme, MissingMetricPolicy, Inequality, OptimizationStatus, TradeSpec, TradeDirection, TradeType, CandidatePosition, TradeUniverse, PortfolioOptimizationResult) and the typed optimize_portfolio entry point are exported flat on finstack_quant.portfolio" }
 performance  = { python = "finstack_quant.portfolio",              status = "flattened", note = "TWRR/MWRR performance helpers are exported flat on finstack_quant.portfolio" }
 liquidity    = { python = "finstack_quant.portfolio",              status = "flattened", note = "Liquidity risk functions (roll_effective_spread, amihud_illiquidity, days_to_liquidate, liquidity_tier, lvar_bangia, almgren_chriss_impact, kyle_lambda) are exported flat on finstack_quant.portfolio; model/profile types (LiquidityProfile, LiquidityConfig, AlmgrenChrissModel, KyleLambdaModel, ImpactEstimate) remain Rust-only" }
-materialization = { python = "finstack_quant.portfolio",           status = "flattened", note = "InstrumentArtifactCache, MaterializationReport, Portfolio.from_materialization, and Portfolio.validate_materialization (typed twin of the WASM Portfolio.validateMaterializationJson; diagnostics returned, not raised) are exported flat on finstack_quant.portfolio; envelope types (PortfolioMaterializationEnvelope, MaterializedPosition, InstrumentArtifact, PortfolioHeader, MaterializerInfo, PORTFOLIO_MATERIALIZATION_CONTRACT) remain Rust-only" }
+materialization = { python = "finstack_quant.portfolio",           status = "flattened", note = "InstrumentArtifactCache, MaterializationReport, Portfolio.from_materialization, and Portfolio.validate_materialization (typed twin of the WASM Portfolio.validateMaterialization; diagnostics returned, not raised) are exported flat on finstack_quant.portfolio; envelope types (PortfolioMaterializationEnvelope, MaterializedPosition, InstrumentArtifact, PortfolioHeader, MaterializerInfo, PORTFOLIO_MATERIALIZATION_CONTRACT) remain Rust-only" }
 portfolio    = { python = "finstack_quant.portfolio.portfolio",    status = "missing", note = "Bindings are currently exported from finstack_quant.portfolio root" }
 position     = { python = "finstack_quant.portfolio.position",     status = "missing", note = "Position/PositionUnit are Rust-only; hosts describe positions through PortfolioSpec JSON, never as typed objects" }
 replay       = { python = "finstack_quant.portfolio",              status = "flattened", note = "replay_portfolio is exported flat on finstack_quant.portfolio; the replay type surface (ReplayTimeline, ReplayConfig, ReplayResult, snapshot/step types) remains Rust-only" }
@@ -1546,9 +1545,6 @@ public = [
     "FiCarinoLinkedResult",
     "FiReconciliationReport",
     "FinstackError",
-    "FinstackFxError",
-    "FinstackOptimizationError",
-    "FinstackValuationError",
     "FxError",
     "OptimizationError",
     "ValuationError",
@@ -1789,9 +1785,6 @@ python_only = [
   "FactorPnlProfile",
   "FactorRiskDecomposition",
   "FinstackError",
-  "FinstackFxError",
-  "FinstackOptimizationError",
-  "FinstackValuationError",
   "FxError",
   "OptimizationError",
   "ValuationError",
@@ -1865,7 +1858,7 @@ wasm_only = [
 Portfolio = [
   "fromSpec",
   "fromMaterialization",
-  "validateMaterializationJson",
+  "validateMaterialization",
   "id",
   "asOf",
   "baseCurrency",
@@ -1875,9 +1868,6 @@ Portfolio = [
 
 [wasm_portfolio_subset.python_js_method_map]
 "Portfolio.from_materialization" = "Portfolio.fromMaterialization"
-# Naming: the Python twin returns typed diagnostics (not raised) without the
-# `Json` wire suffix; the WASM name keeps the historical `*Json` spelling.
-"Portfolio.validate_materialization" = "Portfolio.validateMaterializationJson"
 "Portfolio.base_currency" = "Portfolio.baseCurrency"
 # Naming: Python spells the spec round-trip `to_spec_json` (it returns the
 # canonical PortfolioSpec JSON string); WASM uses the shorter wire-surface

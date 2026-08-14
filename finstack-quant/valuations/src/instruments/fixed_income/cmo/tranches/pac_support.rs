@@ -192,9 +192,6 @@ fn psa_to_smm(psa_speed: f64, month: u32) -> f64 {
 /// * `pac_balance` - Current PAC balance
 /// * `support_balance` - Current support balance
 /// * `pac_scheduled` - PAC scheduled amount for this period
-/// * `actual_psa` - Actual prepayment speed (PSA)
-/// * `collar` - PAC PSA-speed collar retained for diagnostic and
-///   API-stability purposes; allocation uses realized available principal.
 ///
 /// # Returns
 ///
@@ -204,8 +201,6 @@ pub fn allocate_pac_support(
     pac_balance: f64,
     support_balance: f64,
     pac_scheduled: f64,
-    actual_psa: f64,
-    collar: &PacCollar,
 ) -> (f64, f64) {
     if available_principal <= 0.0 {
         return (0.0, 0.0);
@@ -224,9 +219,7 @@ pub fn allocate_pac_support(
 
     // Note: the allocation rule is the same in every collar regime — the
     // PSA-speed effect is already embedded in the size of the collateral
-    // principal stream. The collar parameters are retained for API stability
-    // and diagnostic use (`is_within_collar`).
-    let _ = (actual_psa, collar);
+    // principal stream. Collar diagnostics live in `is_within_collar`.
     (pac_alloc, support_alloc)
 }
 
@@ -354,16 +347,12 @@ mod tests {
 
     #[test]
     fn test_pac_support_allocation_within_collar() {
-        let collar = PacCollar::standard();
-
         // Within collar: PAC gets schedule, support gets excess
         let (pac, support) = allocate_pac_support(
             10_000.0, // available
             50_000.0, // pac balance
             50_000.0, // support balance
             5_000.0,  // pac scheduled
-            2.0,      // actual PSA (within collar)
-            &collar,
         );
 
         assert!((pac - 5_000.0).abs() < 1.0);
@@ -372,11 +361,8 @@ mod tests {
 
     #[test]
     fn test_pac_support_allocation_fast_prepay() {
-        let collar = PacCollar::standard();
-
         // Above collar: PAC gets scheduled first, support absorbs excess
-        let (pac, support) =
-            allocate_pac_support(10_000.0, 50_000.0, 20_000.0, 5_000.0, 4.0, &collar);
+        let (pac, support) = allocate_pac_support(10_000.0, 50_000.0, 20_000.0, 5_000.0);
 
         // PAC should get scheduled amount first
         assert!((pac - 5_000.0).abs() < 1.0);

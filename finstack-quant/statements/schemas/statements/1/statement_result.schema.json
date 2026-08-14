@@ -1762,19 +1762,9 @@
       "type": "object"
     },
     "StatementNumericMode": {
+      "const": "float64",
       "description": "Numeric mode used for evaluation.",
-      "oneOf": [
-        {
-          "const": "float64",
-          "description": "f64 floating-point mode (current default)",
-          "type": "string"
-        },
-        {
-          "const": "decimal",
-          "description": "Reserved fixed-point mode.\n\nThe variant remains in the serde/public API so saved result metadata can\nevolve without renaming the enum. The evaluator currently emits\n[`NumericMode::Float64`] only.",
-          "type": "string"
-        }
-      ]
+      "type": "string"
     }
   },
   "$id": "https://finstack_quant.dev/schemas/statements/1/statement_result.schema.json",

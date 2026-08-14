@@ -816,12 +816,10 @@ mod tests {
     }
 
     #[test]
-    fn non_finite_f64_accepts_legacy_null() {
-        // Payloads written before this adapter encoded non-finite values as
-        // `null`; they must still load rather than hard-failing.
-        let decoded: NonFiniteHolder =
-            serde_json::from_value(json!({"value": null})).expect("null");
-        assert!(decoded.value.is_nan());
+    fn non_finite_f64_rejects_null() {
+        // `null` is not a value this adapter ever emits; accepting it would
+        // silently turn a missing field into NaN.
+        assert!(serde_json::from_value::<NonFiniteHolder>(json!({"value": null})).is_err());
     }
 
     #[test]
@@ -984,25 +982,21 @@ pub mod non_finite_f64 {
 
     /// Deserialize an `f64` that may arrive as a sentinel string.
     ///
-    /// Also accepts JSON `null`, which is what earlier releases emitted for
-    /// non-finite values, mapping it to `NaN` so old payloads still load.
-    ///
     /// # Arguments
     ///
     /// * `deserializer` - Serde deserializer supplying a number or sentinel.
     ///
     /// # Errors
     ///
-    /// Returns an error when the value is neither a number nor a recognized
-    /// sentinel (`"inf"`, `"+inf"`, `"-inf"`, `"infinity"`, `"nan"`).
+    /// Returns an error when the value is `null`, or is neither a number nor a
+    /// recognized sentinel (`"inf"`, `"+inf"`, `"-inf"`, `"infinity"`, `"nan"`).
     pub fn deserialize<'de, D>(deserializer: D) -> Result<f64, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        match Option::<Wire>::deserialize(deserializer)? {
-            None => Ok(f64::NAN),
-            Some(Wire::Number(value)) => Ok(value),
-            Some(Wire::Sentinel(text)) => match text.trim().to_ascii_lowercase().as_str() {
+        match Wire::deserialize(deserializer)? {
+            Wire::Number(value) => Ok(value),
+            Wire::Sentinel(text) => match text.trim().to_ascii_lowercase().as_str() {
                 "inf" | "+inf" | "infinity" | "+infinity" => Ok(f64::INFINITY),
                 "-inf" | "-infinity" => Ok(f64::NEG_INFINITY),
                 "nan" => Ok(f64::NAN),

@@ -235,8 +235,8 @@ fn validate_monitoring_state(
 
 use crate::models::closed_form::barrier::{
     barrier_call_continuous, barrier_put_continuous, barrier_rebate, BarrierParams,
-    BarrierType as AnalyticalBarrierType,
 };
+use finstack_quant_core::types::BarrierType as AnalyticalBarrierType;
 
 fn expired_barrier_value_per_unit(
     inst: &FxBarrierOption,
@@ -567,7 +567,6 @@ impl Pricer for FxBarrierOptionAnalyticalPricer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::instruments::exotics::barrier_option::types::BarrierType;
     use crate::instruments::Instrument;
     use crate::instruments::OptionType;
     use crate::models::closed_form::barrier::{barrier_rebate_continuous, RebateTiming};
@@ -580,6 +579,7 @@ mod tests {
     use finstack_quant_core::math::interp::InterpStyle;
     use finstack_quant_core::money::fx::{FxMatrix, SimpleFxProvider};
     use finstack_quant_core::money::Money;
+    use finstack_quant_core::types::BarrierType;
     use std::sync::Arc;
     use time::Month;
 

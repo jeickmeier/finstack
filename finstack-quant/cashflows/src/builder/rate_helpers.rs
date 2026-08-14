@@ -364,8 +364,6 @@ pub(crate) fn project_fallback_rate(params: &FloatingRateParams) -> f64 {
 ///
 /// * `reset_date` - Rate fixing date used to locate the term-index forward on
 ///   `fwd`.
-/// * `_reset_period_end` - Retained for compatibility; a term index projection
-///   uses the curve tenor and the reset date, not this date
 /// * `fwd` - Resolved forward curve supplying the underlying index rate at the
 ///   reset date.
 /// * `params` - Floating-rate adjustments: spread and gearing plus index and
@@ -415,12 +413,11 @@ pub(crate) fn project_fallback_rate(params: &FloatingRateParams) -> f64 {
 ///     .expect("curve");
 ///
 /// let params = FloatingRateParams::with_spread(200.0); // SOFR + 200 bp
-/// let rate = project_floating_rate(reset, period_end, &fwd, &params)?;
+/// let rate = project_floating_rate(reset, &fwd, &params)?;
 /// # Ok::<(), finstack_quant_core::Error>(())
 /// ```
 pub fn project_floating_rate(
     reset_date: Date,
-    _reset_period_end: Date,
     fwd: &ForwardCurve,
     params: &FloatingRateParams,
 ) -> Result<f64> {
@@ -677,13 +674,12 @@ mod tests {
 
     fn project_floating_rate_from_market(
         reset_date: Date,
-        reset_period_end: Date,
         index_id: &str,
         params: &FloatingRateParams,
         market: &MarketContext,
     ) -> Result<f64> {
         let fwd = market.get_forward(index_id)?;
-        project_floating_rate(reset_date, reset_period_end, fwd.as_ref(), params)
+        project_floating_rate(reset_date, fwd.as_ref(), params)
     }
 
     fn create_test_market(base_date: Date) -> MarketContext {
@@ -699,13 +695,11 @@ mod tests {
     #[test]
     fn test_project_floating_rate_no_floor_no_cap() {
         let reset = Date::from_calendar_date(2025, Month::January, 15).expect("Valid test date");
-        let period_end = Date::from_calendar_date(2025, Month::April, 15).expect("Valid test date");
         let market = create_test_market(reset);
 
         let params = FloatingRateParams::with_spread(200.0); // 200 bp
-        let rate =
-            project_floating_rate_from_market(reset, period_end, "USD-SOFR-3M", &params, &market)
-                .expect("Rate projection should succeed in test");
+        let rate = project_floating_rate_from_market(reset, "USD-SOFR-3M", &params, &market)
+            .expect("Rate projection should succeed in test");
 
         // Should be ~3% index + 2% spread = ~5%
         assert!(rate > 0.04 && rate < 0.06, "Rate should be ~5%: {}", rate);
@@ -714,7 +708,6 @@ mod tests {
     #[test]
     fn test_project_floating_rate_with_floor() {
         let reset = Date::from_calendar_date(2025, Month::January, 15).expect("Valid test date");
-        let period_end = Date::from_calendar_date(2025, Month::April, 15).expect("Valid test date");
 
         // Create market with very low rates (below floor)
         let fwd_curve = ForwardCurve::builder("USD-LIBOR-3M", 0.25)
@@ -730,9 +723,8 @@ mod tests {
             index_floor_bp: Some(100.0),
             ..Default::default()
         }; // 100 bp spread, 1% floor
-        let rate =
-            project_floating_rate_from_market(reset, period_end, "USD-LIBOR-3M", &params, &market)
-                .expect("Rate projection should succeed in test");
+        let rate = project_floating_rate_from_market(reset, "USD-LIBOR-3M", &params, &market)
+            .expect("Rate projection should succeed in test");
 
         // Floor lifts index to 1%, plus 1% spread = 2%
         assert!(
@@ -745,7 +737,6 @@ mod tests {
     #[test]
     fn test_project_floating_rate_with_cap() {
         let reset = Date::from_calendar_date(2025, Month::January, 15).expect("Valid test date");
-        let period_end = Date::from_calendar_date(2025, Month::April, 15).expect("Valid test date");
 
         // Create market with high rates
         let fwd_curve = ForwardCurve::builder("USD-LIBOR-3M", 0.25)
@@ -761,9 +752,8 @@ mod tests {
             all_in_cap_bp: Some(500.0),
             ..Default::default()
         }; // 200 bp spread, 5% cap
-        let rate =
-            project_floating_rate_from_market(reset, period_end, "USD-LIBOR-3M", &params, &market)
-                .expect("Rate projection should succeed in test");
+        let rate = project_floating_rate_from_market(reset, "USD-LIBOR-3M", &params, &market)
+            .expect("Rate projection should succeed in test");
 
         // 8% index + 2% spread = 10%, capped at 5%
         assert!(
@@ -776,7 +766,6 @@ mod tests {
     #[test]
     fn test_floor_applied_before_spread() {
         let reset = Date::from_calendar_date(2025, Month::January, 15).expect("Valid test date");
-        let period_end = Date::from_calendar_date(2025, Month::April, 15).expect("Valid test date");
 
         // Use very low rate (0.01% = 1 bp) which is below the floor
         let fwd_curve = ForwardCurve::builder("TEST-INDEX", 0.25)
@@ -792,9 +781,8 @@ mod tests {
             index_floor_bp: Some(100.0),
             ..Default::default()
         }; // 100 bp spread, 1% floor
-        let rate =
-            project_floating_rate_from_market(reset, period_end, "TEST-INDEX", &params, &market)
-                .expect("Rate projection should succeed in test");
+        let rate = project_floating_rate_from_market(reset, "TEST-INDEX", &params, &market)
+            .expect("Rate projection should succeed in test");
 
         // Floor lifts index from 0.01% to 1%, then add 1% spread = 2%
         assert!(
@@ -807,7 +795,6 @@ mod tests {
     #[test]
     fn test_cap_applied_after_gearing() {
         let reset = Date::from_calendar_date(2025, Month::January, 15).expect("Valid test date");
-        let period_end = Date::from_calendar_date(2025, Month::April, 15).expect("Valid test date");
 
         let fwd_curve = ForwardCurve::builder("TEST-INDEX", 0.25)
             .base_date(reset)
@@ -823,9 +810,8 @@ mod tests {
             all_in_cap_bp: Some(600.0),
             ..Default::default()
         }; // 100 bp spread, 2x gearing, 6% cap
-        let rate =
-            project_floating_rate_from_market(reset, period_end, "TEST-INDEX", &params, &market)
-                .expect("Rate projection should succeed in test");
+        let rate = project_floating_rate_from_market(reset, "TEST-INDEX", &params, &market)
+            .expect("Rate projection should succeed in test");
 
         // (3% index + 1% spread) * 2 = 8%, capped at 6%
         assert!(
@@ -838,7 +824,6 @@ mod tests {
     #[test]
     fn test_gearing_multiplies_all_in_rate() {
         let reset = Date::from_calendar_date(2025, Month::January, 15).expect("Valid test date");
-        let period_end = Date::from_calendar_date(2025, Month::April, 15).expect("Valid test date");
 
         let fwd_curve = ForwardCurve::builder("TEST-INDEX", 0.25)
             .base_date(reset)
@@ -853,9 +838,8 @@ mod tests {
             gearing: 1.5,
             ..Default::default()
         }; // 100 bp spread, 1.5x gearing
-        let rate =
-            project_floating_rate_from_market(reset, period_end, "TEST-INDEX", &params, &market)
-                .expect("Rate projection should succeed in test");
+        let rate = project_floating_rate_from_market(reset, "TEST-INDEX", &params, &market)
+            .expect("Rate projection should succeed in test");
 
         // (2% + 1%) * 1.5 = 4.5%
         assert!(
@@ -868,7 +852,6 @@ mod tests {
     #[test]
     fn test_direct_curve_projection() {
         let reset = Date::from_calendar_date(2025, Month::January, 15).expect("Valid test date");
-        let period_end = Date::from_calendar_date(2025, Month::April, 15).expect("Valid test date");
 
         let fwd_curve = ForwardCurve::builder("TEST-INDEX", 0.25)
             .base_date(reset)
@@ -878,7 +861,7 @@ mod tests {
             .expect("ForwardCurve builder should succeed with valid test data");
 
         let params = FloatingRateParams::with_spread(150.0); // 150 bp
-        let rate = project_floating_rate(reset, period_end, &fwd_curve, &params)
+        let rate = project_floating_rate(reset, &fwd_curve, &params)
             .expect("Rate projection should succeed in test");
 
         // Should project forward rate + spread
@@ -912,7 +895,7 @@ mod tests {
         let reset_fixing = fwd_curve.rate(reset_t);
         let integrated_average = fwd_curve.rate_period(reset_t, period_end_t);
 
-        let projected = project_floating_rate(reset, period_end, &fwd_curve, &params)
+        let projected = project_floating_rate(reset, &fwd_curve, &params)
             .expect("term projection should succeed");
 
         assert!((reset_fixing - integrated_average).abs() > 1e-6);
@@ -1060,7 +1043,6 @@ mod tests {
     #[test]
     fn test_projection_fails_on_invalid_params() {
         let reset = Date::from_calendar_date(2025, Month::January, 15).expect("Valid test date");
-        let period_end = Date::from_calendar_date(2025, Month::April, 15).expect("Valid test date");
 
         let fwd_curve = ForwardCurve::builder("TEST-INDEX", 0.25)
             .base_date(reset)
@@ -1076,7 +1058,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = project_floating_rate(reset, period_end, &fwd_curve, &params);
+        let result = project_floating_rate(reset, &fwd_curve, &params);
         assert!(result.is_err(), "Should fail with contradictory floor/cap");
     }
 

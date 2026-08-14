@@ -16,7 +16,7 @@
 //! - **Wire / spec / validator surfaces** — anything whose purpose is to echo a
 //!   canonical document for re-ingest — return a **JSON string** and their
 //!   names end in `Json` (`Portfolio.toJson`, `parsePortfolioSpecJson`,
-//!   `buildPortfolioFromSpecJson`, `Portfolio.validateMaterializationJson`).
+//!   `buildPortfolioFromSpecJson`, `Portfolio.validateMaterialization`).
 //!
 //! # Stability tiers
 //!

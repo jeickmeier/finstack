@@ -524,10 +524,6 @@ fn test_numeric_mode_serialization() {
     let mode = NumericMode::Float64;
     let json = serde_json::to_string(&mode).unwrap();
     assert_eq!(json, r#""float64""#);
-
-    let mode2 = NumericMode::Decimal;
-    let json2 = serde_json::to_string(&mode2).unwrap();
-    assert_eq!(json2, r#""decimal""#);
 }
 
 // Builder API Tests

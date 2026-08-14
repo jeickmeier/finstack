@@ -15,10 +15,11 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
 use finstack_quant_valuations::instruments::fixed_income::bond_future::{
-    BondFuture, BondFutureSpecs, DeliverableBond, Position,
+    BondFuture, BondFutureSpecs, DeliverableBond,
 };
 use finstack_quant_valuations::instruments::Attributes;
 use finstack_quant_valuations::instruments::Instrument;
+use finstack_quant_valuations::instruments::Position;
 use finstack_quant_valuations::metrics::MetricId;
 use std::hint::black_box;
 use time::Month;

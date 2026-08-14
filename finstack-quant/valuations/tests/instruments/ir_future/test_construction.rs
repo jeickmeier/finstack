@@ -5,8 +5,9 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::DayCount;
 use finstack_quant_core::money::Money;
 use finstack_quant_valuations::instruments::rates::ir_future::{
-    FutureContractSpecs, InterestRateFuture, Position,
+    FutureContractSpecs, InterestRateFuture,
 };
+use finstack_quant_valuations::instruments::Position;
 
 #[test]
 fn test_standard_construction() {

@@ -141,10 +141,9 @@ pub(super) fn tranche_period_interest_due(
     afc_capped: bool,
     rate_shift: f64,
 ) -> Result<f64> {
-    let raw =
-        tranche
-            .coupon
-            .try_rate_for_period(dates.start, dates.payment, dates.valuation, context)?;
+    let raw = tranche
+        .coupon
+        .try_rate_for_period(dates.start, dates.valuation, context)?;
     // SC-M13: shift FLOATING tranche coupons onto the simulated rate path so a
     // floating-rate note's coupon and its discount factors move together. A
     // fixed coupon is contractual and unaffected. Floored at zero so a deeply

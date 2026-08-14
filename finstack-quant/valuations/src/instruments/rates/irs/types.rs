@@ -443,23 +443,12 @@ impl InterestRateSwap {
         }
         if let crate::instruments::rates::irs::FloatingLegCompounding::CompoundedInArrears {
             lookback_days,
-            observation_shift,
         } = self.float.compounding
         {
             if lookback_days < 0 {
                 return Err(finstack_quant_core::Error::Validation(
                     "Invalid RFR lookback: must be non-negative (business days).".into(),
                 ));
-            }
-            if let Some(shift) = observation_shift {
-                // Observation shift can be negative, but must be within a sane bound to avoid
-                // accidental unit mistakes (e.g., passing years as days).
-                if shift.abs() > 31 {
-                    return Err(finstack_quant_core::Error::Validation(
-                        "Invalid observation shift: absolute value too large (expected a small number of business days)."
-                            .into(),
-                    ));
-                }
             }
         }
         if let crate::instruments::rates::irs::FloatingLegCompounding::CompoundedWithObservationShift {

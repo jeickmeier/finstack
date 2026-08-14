@@ -6,15 +6,15 @@ use crate::bindings::core::currency::extract_currency;
 use crate::errors::core_to_py;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_monte_carlo::engine::{McEngine, McEngineConfig};
-use finstack_quant_monte_carlo::registry::{self, PythonBindingDefaults};
+use finstack_quant_monte_carlo::registry::{self, ConvenienceDefaults};
 use pyo3::prelude::*;
 use std::str::FromStr;
 
 /// Resolve the embedded Python-binding defaults, mapping registry errors to
 /// Python exceptions.
-pub(super) fn py_mc_defaults() -> PyResult<&'static PythonBindingDefaults> {
+pub(super) fn py_mc_defaults() -> PyResult<&'static ConvenienceDefaults> {
     registry::embedded_defaults()
-        .map(|defaults| &defaults.python_bindings)
+        .map(|defaults| &defaults.convenience)
         .map_err(core_to_py)
 }
 

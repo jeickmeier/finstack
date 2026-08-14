@@ -112,7 +112,7 @@ pub mod snowball;
 pub mod tarn;
 
 pub use asian_option::{AsianOption, AveragingMethod};
-pub use barrier_option::{BarrierOption, BarrierType};
+pub use barrier_option::BarrierOption;
 pub use basket::Basket;
 pub use callable_range_accrual::CallableRangeAccrual;
 pub use lookback_option::{LookbackOption, LookbackType};

@@ -10,8 +10,7 @@ use finstack_quant_core::Error as CoreError;
 use finstack_quant_monte_carlo::traits::PathState;
 use finstack_quant_monte_carlo::traits::Payoff;
 
-/// Backward-compatible Monte Carlo path for the canonical instrument enum.
-pub use super::types::FinalPayoffType;
+use super::types::FinalPayoffType;
 
 /// Autocallable structured product payoff.
 ///

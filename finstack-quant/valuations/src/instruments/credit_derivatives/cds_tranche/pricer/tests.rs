@@ -1835,18 +1835,15 @@ fn arbitrage_market_context() -> MarketContext {
         .insert_credit_index("CDX.NA.IG.42", index_data)
 }
 
-/// Item 2: base-correlation arbitrage (`EL(0,D) < EL(0,A)`) must surface as
-/// an explicit error when arbitrage validation is enabled (the default),
-/// rather than being silently clamped to zero protection.
+/// Item 2: base-correlation arbitrage (`EL(0,D) < EL(0,A)`) must always
+/// surface as an explicit error, never a silent zero-protection clamp.
 #[test]
-fn base_correlation_arbitrage_surfaces_as_error_when_validation_enabled() {
+fn base_correlation_arbitrage_surfaces_as_error() {
     let market_ctx = arbitrage_market_context();
     let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("Valid test date");
     let tranche = sample_tranche(); // [3%, 7%] equity-ish tranche
 
-    // Default config has validate_arbitrage_free = true.
     let pricer = CDSTranchePricer::new();
-    assert!(pricer.config().validate_arbitrage_free);
 
     let result = pricer.price_tranche(&tranche, &market_ctx, as_of);
     assert!(
@@ -1858,30 +1855,6 @@ fn base_correlation_arbitrage_surfaces_as_error_when_validation_enabled() {
     assert!(
         msg.contains("base-correlation arbitrage"),
         "error must name the base-correlation arbitrage condition, got: {msg}"
-    );
-}
-
-/// Item 2: with arbitrage validation explicitly disabled, the same arbitrage
-/// is clamped (legacy behaviour) so pricing still produces a finite PV — but
-/// the clamp is now a visible `warn`, not a silent `debug`.
-#[test]
-fn base_correlation_arbitrage_clamps_when_validation_disabled() {
-    let market_ctx = arbitrage_market_context();
-    let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("Valid test date");
-    let tranche = sample_tranche();
-
-    let pricer = CDSTranchePricer::with_params(
-        CDSTranchePricerConfig::default().with_arbitrage_validation(false),
-    );
-    assert!(!pricer.config().validate_arbitrage_free);
-
-    let pv = pricer
-        .price_tranche(&tranche, &market_ctx, as_of)
-        .expect("with validation disabled, arbitrage is clamped and pricing succeeds");
-    assert!(
-        pv.amount().is_finite(),
-        "clamped price must be finite, got {}",
-        pv.amount()
     );
 }
 

@@ -3,4 +3,4 @@
 /**
  * Stage of persisted artifact loading that produced a diagnostic.
  */
-export type LoadPhase = "parse" | "version" | "migrate" | "structure" | "semantic" | "canonicalize" | "hash" | "build";
+export type LoadPhase = "parse" | "version" | "structure" | "semantic" | "canonicalize" | "hash" | "build";

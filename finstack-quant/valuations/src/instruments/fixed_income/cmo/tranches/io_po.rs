@@ -96,16 +96,13 @@ impl PoStripCharacteristics {
 ///
 /// # Arguments
 ///
-/// * `_passthrough_coupon` - Underlying MBS pass-through coupon retained for
-///   a uniform tranche-construction interface. It does not change the IO/PO
-///   face-notional split; coupon cashflows are calculated later.
 /// * `face_amount` - Underlying pool face amount assigned in full to both the
 ///   IO interest notional and the PO principal claim.
 ///
 /// # Returns
 ///
 /// (io_notional, po_face) tuple
-pub fn split_io_po(_passthrough_coupon: f64, face_amount: f64) -> (f64, f64) {
+pub fn split_io_po(face_amount: f64) -> (f64, f64) {
     // IO notional is same as face (interest calculated on this)
     // PO face is same as original face (receives all principal)
     (face_amount, face_amount)

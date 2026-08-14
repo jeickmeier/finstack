@@ -575,8 +575,8 @@ tag = "real_estate_asset"
 fixture = "json_examples/real_estate_asset.json"
 lossless = true
 required_keys = ["id"]
-no_market_dependencies = false
-rationale = "The complete persisted real_estate_asset spec implements PartialEq; registry coverage compares the concrete Rust values."
+no_market_dependencies = true
+rationale = "Direct-capitalization / DCF valuation runs off the asset's own cap rate and discount rate; no market curve is read."
 
 [[instrument]]
 tag = "levered_real_estate_equity"
@@ -584,8 +584,8 @@ fixture = "json_examples/levered_real_estate_equity.json"
 lossless = false
 partial_eq_blocker = "LeveredRealEstateEquity.financing: Vec<InstrumentJson>"
 required_keys = ["id"]
-no_market_dependencies = false
-rationale = "LeveredRealEstateEquity.financing: Vec<InstrumentJson> lacks PartialEq because the recursive registry enum has non-equality variants."
+no_market_dependencies = true
+rationale = "LeveredRealEstateEquity.financing: Vec<InstrumentJson> lacks PartialEq. Levered equity is derived from the underlying asset valuation and debt terms, so it loads no market curve."
 
 [[instrument]]
 tag = "discounted_cash_flow"
@@ -593,5 +593,5 @@ fixture = "json_examples/discounted_cash_flow.json"
 lossless = false
 partial_eq_blocker = "DiscountedCashFlow.terminal_value: TerminalValueSpec"
 required_keys = ["id"]
-no_market_dependencies = false
-rationale = "DiscountedCashFlow.terminal_value: TerminalValueSpec lacks PartialEq across perpetuity-growth and exit-multiple variants."
+no_market_dependencies = true
+rationale = "DiscountedCashFlow.terminal_value: TerminalValueSpec lacks PartialEq across perpetuity-growth and exit-multiple variants. DCF also discounts at its own WACC (rate sensitivity bumps the risk-free component inside the WACC), so it loads no market curve."

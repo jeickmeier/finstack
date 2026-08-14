@@ -50,8 +50,6 @@ pub enum RateCalibrationOisCompounding {
     CompoundedInArrears {
         /// Business-day lookback applied to rate observations.
         lookback_days: i32,
-        /// Optional business-day observation shift.
-        observation_shift: Option<i32>,
     },
     /// Daily compounding with an ISDA observation shift.
     CompoundedWithObservationShift {

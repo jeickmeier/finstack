@@ -41,4 +41,4 @@ pub(crate) mod types;
 
 pub(crate) mod heston_mc_pricer;
 
-pub use types::{BarrierOption, BarrierOptionBuilder, BarrierType};
+pub use types::{BarrierOption, BarrierOptionBuilder};

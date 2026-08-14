@@ -108,7 +108,10 @@
           "amount": "0",
           "currency": "USD"
         },
-        "cumulative_scheduled_amortization": null,
+        "cumulative_scheduled_amortization": {
+          "amount": "0",
+          "currency": "USD"
+        },
         "deal_type": "clo",
         "excess_spread_account": {
           "amount": "0",

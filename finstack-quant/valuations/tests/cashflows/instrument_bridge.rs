@@ -16,6 +16,7 @@ use finstack_quant_valuations::instruments::fixed_income::{
 use finstack_quant_valuations::instruments::fx::fx_forward::FxForward;
 use finstack_quant_valuations::instruments::fx::fx_swap::FxSwap;
 use finstack_quant_valuations::instruments::fx::ndf::Ndf;
+use finstack_quant_valuations::instruments::Position;
 fn assert_provider<T: CashflowProvider>(_instrument: &T) {}
 use finstack_quant_valuations::instruments::rates::basis_swap::BasisSwap;
 use finstack_quant_valuations::instruments::rates::cms_swap::CmsSwap;
@@ -80,7 +81,7 @@ fn bond_future_exposes_cashflow_provider_bridge() {
     use finstack_quant_core::money::Money;
     use finstack_quant_core::types::{CurveId, InstrumentId};
     use finstack_quant_valuations::instruments::fixed_income::bond_future::{
-        BondFutureSpecs, DeliverableBond, Position,
+        BondFutureSpecs, DeliverableBond,
     };
     use time::Month;
 

@@ -1858,8 +1858,7 @@
           "description": "Matrix configuration, including pivot and cache capacity."
         },
         "pinned_quotes": {
-          "default": [],
-          "description": "Pinned, date/policy-scoped quotes as `(from, to, on, policy, rate)`.\n\nAdded snapshots previously\ndropped pinned fixings, so a restored matrix silently re-derived\nthose dates from the provider. The field is serde-additive\n(`default`), so older payloads without it still deserialize.",
+          "description": "Pinned, date/policy-scoped quotes as `(from, to, on, policy, rate)`.\n\nRequired: a snapshot that omits it would silently re-derive those\ndates from the provider instead of restoring the pinned fixings.",
           "items": {
             "maxItems": 5,
             "minItems": 5,
@@ -1909,7 +1908,8 @@
       },
       "required": [
         "config",
-        "quotes"
+        "quotes",
+        "pinned_quotes"
       ],
       "type": "object"
     },
@@ -2367,14 +2367,6 @@
                   "description": "Business-day lookback applied to rate observations.",
                   "format": "int32",
                   "type": "integer"
-                },
-                "observation_shift": {
-                  "description": "Optional business-day observation shift.",
-                  "format": "int32",
-                  "type": [
-                    "integer",
-                    "null"
-                  ]
                 }
               },
               "required": [

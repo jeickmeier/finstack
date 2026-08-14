@@ -366,9 +366,7 @@ mod master_scale_tests {
 
     #[test]
     fn map_score_uses_implied_pd() {
-        use crate::credit::scoring::{
-            altman_z_score, altman_z_score_with_pd, AltmanPdCalibration, AltmanZScoreInput,
-        };
+        use crate::credit::scoring::{altman_z_score, altman_z_score_with_pd, AltmanZScoreInput};
 
         let input = AltmanZScoreInput {
             working_capital_to_total_assets: 0.10,
@@ -384,8 +382,7 @@ mod master_scale_tests {
             Err(PdCalibrationError::MissingImpliedPd)
         ));
 
-        let scoring_result =
-            altman_z_score_with_pd(&input, AltmanPdCalibration::Heuristic).unwrap();
+        let scoring_result = altman_z_score_with_pd(&input).unwrap();
         let mapped = scale.map_score(&scoring_result).unwrap();
         assert_eq!(Some(mapped.input_pd), scoring_result.implied_pd);
         // Safe zone has low PD, should not be in the worst grades

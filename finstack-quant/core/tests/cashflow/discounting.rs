@@ -220,10 +220,8 @@ fn npv_100_year_cashflow_is_tiny_but_positive() {
 
 #[test]
 fn npv_cashflow_at_base_date_is_excluded_by_default() {
-    //  npv follows
-    // market-standard pricing semantics — flows on or before the valuation
-    // date are excluded. A flow on the base date therefore prices to zero;
-    // NpvOptions::include_past_flows restores the legacy notional-at-par.
+    // npv follows market-standard pricing semantics — flows on or before the
+    // valuation date are excluded, so a flow on the base date prices to zero.
     let base = d(2025, 1, 1);
     let curve = FlatRateCurve::new("TEST", base, 0.05);
 
@@ -235,18 +233,14 @@ fn npv_cashflow_at_base_date_is_excluded_by_default() {
         "flow on the valuation date must be excluded by default"
     );
 
-    let pv_incl = finstack_quant_core::cashflow::npv_with_options(
-        &curve,
-        base,
-        DayCountContext::default(),
-        finstack_quant_core::cashflow::NpvOptions::default().include_past_flows(true),
-        &flows,
-    )
-    .expect("NPV with include_past_flows should succeed");
+    // Valued one day earlier the same flow is strictly future and prices at
+    // essentially par.
+    let pv_future = npv(&curve, base - time::Duration::days(1), &flows)
+        .expect("NPV one day before the flow should succeed");
     assert!(
-        (pv_incl.amount() - 100_000.0).abs() < financial_tolerance(100_000.0),
-        "PV at t=0 with include_past_flows should equal notional, got {}",
-        pv_incl.amount()
+        (pv_future.amount() - 100_000.0).abs() < financial_tolerance(100_000.0),
+        "PV one day before a par flow should be ~notional, got {}",
+        pv_future.amount()
     );
 }
 

@@ -1,7 +1,7 @@
 import * as wasm from '../pkg/finstack_quant_wasm.js';
 
 const fromMaterializationWithCache = wasm.Portfolio.fromMaterialization.bind(wasm.Portfolio);
-const validateMaterializationWithCache = wasm.Portfolio.validateMaterializationJson.bind(
+const validateMaterializationWithCache = wasm.Portfolio.validateMaterialization.bind(
   wasm.Portfolio
 );
 
@@ -17,7 +17,7 @@ wasm.Portfolio.fromMaterialization = (bundle, cache = undefined) => {
   }
 };
 
-wasm.Portfolio.validateMaterializationJson = (bundle, cache = undefined) => {
+wasm.Portfolio.validateMaterialization = (bundle, cache = undefined) => {
   if (cache !== undefined) {
     return validateMaterializationWithCache(bundle, cache);
   }

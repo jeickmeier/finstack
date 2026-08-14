@@ -137,15 +137,6 @@ pub struct CDSTranchePricerConfig {
     pub copula_spec: CopulaSpec,
     /// Recovery model specification (default: use index recovery rate)
     pub recovery_spec: Option<RecoverySpec>,
-    /// Whether to validate base correlation for arbitrage-free conditions
-    pub validate_arbitrage_free: bool,
-    /// Whether to enforce expected loss monotonicity in the EL curve.
-    ///
-    /// When `true` (default), if a computed EL value is less than the previous
-    /// date's EL (which can occur due to base correlation model inconsistencies),
-    /// it will be clamped to the previous value to ensure monotonicity.
-    /// This prevents small arbitrage in leg PV calculations.
-    pub enforce_el_monotonicity: bool,
 
     // Numerical Integration
     /// Number of quadrature points for numerical integration (5, 7, or 10)
@@ -195,8 +186,6 @@ impl Default for CDSTranchePricerConfig {
             // Model selection
             copula_spec: CopulaSpec::default(),
             recovery_spec: None, // Use index recovery rate by default
-            validate_arbitrage_free: true,
-            enforce_el_monotonicity: true, // Prevent EL from decreasing over time
 
             // Numerical integration
             quadrature_order: DEFAULT_QUADRATURE_ORDER,
@@ -314,12 +303,6 @@ impl CDSTranchePricerConfig {
         self.recovery_spec = Some(RecoverySpec::Constant {
             rate: rate.as_decimal().clamp(0.0, 1.0),
         });
-        self
-    }
-
-    /// Enable or disable arbitrage-free validation of base correlation.
-    pub fn with_arbitrage_validation(mut self, enabled: bool) -> Self {
-        self.validate_arbitrage_free = enabled;
         self
     }
 

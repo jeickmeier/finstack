@@ -3,7 +3,7 @@
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount, PeriodId};
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_core::types::{CurveId, InstrumentId};
+use finstack_quant_core::types::InstrumentId;
 use finstack_quant_statements::builder::ModelBuilder;
 use finstack_quant_statements::evaluator::{
     node_to_dated_schedule, Evaluator, PeriodDateConvention,
@@ -68,7 +68,6 @@ fn e2e_statements_to_real_estate_asset_cashflows_prices() {
         .discount_rate_opt(Some(0.0)) // PV = sum flows
         .terminal_cap_rate_opt(None) // no terminal value
         .day_count(DayCount::Act365F)
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .build()
         .expect("asset build");
 

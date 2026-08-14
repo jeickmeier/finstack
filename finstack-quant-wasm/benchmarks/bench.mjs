@@ -444,9 +444,9 @@ async function main() {
 
     bench(
       'portfolio_materialization',
-      'validateMaterializationJson B (5000/50)',
+      'validateMaterialization B (5000/50)',
       MATERIALIZATION_SAMPLES,
-      (cache) => w.Portfolio.validateMaterializationJson(materializationFixtures.b, cache),
+      (cache) => w.Portfolio.validateMaterialization(materializationFixtures.b, cache),
       () => new w.InstrumentArtifactCache(50),
       (cache) => cache.free()
     );

@@ -56,7 +56,7 @@ their nearest-rank medians or p95s. Each estimate includes a deterministic 95%
 independent nonparametric bootstrap interval (5,000 resamples with a
 case-derived fixed seed); samples are never aligned by index.
 
-`validateMaterializationJson` uses the validation-only Rust path. It performs
+`validateMaterialization` uses the validation-only Rust path. It performs
 strict parse, limits, version, hash, reference, dependency, instrument, and
 position-semantic validation. It also enforces envelope-checkable entity,
 position-to-book assignment, and bidirectional book-hierarchy invariants, but

@@ -563,20 +563,6 @@ impl PyNumericMode {
         }
     }
 
-    /// Reserved fixed-point mode.
-    ///
-    /// The variant exists so persisted result metadata can evolve without
-    /// renaming the enum; the evaluator never stamps it today. Reading it
-    /// back from an older payload is supported, but no evaluation path
-    /// produces it.
-    #[staticmethod]
-    fn decimal() -> Self {
-        // Reserved for future Rust fixed-point statement evaluation.
-        Self {
-            inner: finstack_quant_statements::evaluator::NumericMode::Decimal,
-        }
-    }
-
     /// Return the debug representation, e.g. ``NumericMode(Float64)``.
     fn __repr__(&self) -> String {
         format!("NumericMode({:?})", self.inner)

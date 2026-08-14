@@ -212,6 +212,7 @@ def _structured_credit_spec(iid: str, deal_type: str, idx: int) -> dict:
             "cumulative_defaults": {"amount": "0", "currency": "USD"},
             "cumulative_recoveries": {"amount": "0", "currency": "USD"},
             "cumulative_prepayments": {"amount": "0", "currency": "USD"},
+            "cumulative_scheduled_amortization": {"amount": "0", "currency": "USD"},
             "reinvestment_period": None,
             "collection_account": {"amount": "0", "currency": "USD"},
             "reserve_account": {"amount": "0", "currency": "USD"},

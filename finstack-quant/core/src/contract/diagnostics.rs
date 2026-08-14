@@ -15,8 +15,6 @@ pub enum LoadPhase {
     Parse,
     /// Contract identity and version policy were checked.
     Version,
-    /// A supported older payload was migrated.
-    Migrate,
     /// Document shape and required fields were checked.
     Structure,
     /// Domain invariants and references were checked.

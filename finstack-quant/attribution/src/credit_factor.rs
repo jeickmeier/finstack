@@ -80,10 +80,8 @@ impl Default for CreditFactorDetailOptions {
 /// Per-position input to [`compute_credit_factor_attribution`].
 ///
 /// `cs01` is signed money (typical convention: long credit risk → negative
-/// CS01, since price falls as spread widens). `delta_spread` is the observed
-/// raw `ΔS_i` for the issuer's curve — kept on the struct as a sanity-check
-/// hook, not used by the linear decomposition itself (the period
-/// decomposition already encodes it via `β·ΔF + Δadder`).
+/// CS01, since price falls as spread widens). The issuer's raw `ΔS_i` is not
+/// an input: the period decomposition already encodes it via `β·ΔF + Δadder`.
 #[derive(Debug, Clone)]
 pub struct CreditAttributionInput {
     /// Caller-supplied position identifier (free-form string; not validated).
@@ -92,8 +90,6 @@ pub struct CreditAttributionInput {
     pub issuer_id: IssuerId,
     /// Credit-curve sensitivity in money units.
     pub cs01: Money,
-    /// Observed `ΔS_i` for this issuer (informational only).
-    pub delta_spread: f64,
 }
 
 /// Stable, deterministic identifier for a [`CreditFactorModel`].
@@ -494,19 +490,16 @@ mod tests {
                 position_id: "P1".into(),
                 issuer_id: IssuerId::new("ISSUER-A"),
                 cs01: Money::new(-1500.0, Currency::USD),
-                delta_spread: 5.0,
             },
             CreditAttributionInput {
                 position_id: "P2".into(),
                 issuer_id: IssuerId::new("ISSUER-B"),
                 cs01: Money::new(-2000.0, Currency::USD),
-                delta_spread: 8.0,
             },
             CreditAttributionInput {
                 position_id: "P3".into(),
                 issuer_id: IssuerId::new("ISSUER-C"),
                 cs01: Money::new(-500.0, Currency::USD),
-                delta_spread: 10.0,
             },
         ];
 
@@ -570,13 +563,11 @@ mod tests {
                 position_id: "P1".into(),
                 issuer_id: IssuerId::new("ISSUER-A"),
                 cs01: Money::new(-1500.0, Currency::USD),
-                delta_spread: 5.0,
             },
             CreditAttributionInput {
                 position_id: "P2".into(),
                 issuer_id: IssuerId::new("ISSUER-B"),
                 cs01: Money::new(-2000.0, Currency::EUR),
-                delta_spread: 8.0,
             },
         ];
 
@@ -601,7 +592,6 @@ mod tests {
             position_id: "P1".into(),
             issuer_id: IssuerId::new("ISSUER-UNKNOWN"),
             cs01: Money::new(-1000.0, Currency::USD),
-            delta_spread: 5.0,
         }];
 
         let opts = CreditFactorDetailOptions::default();
@@ -632,7 +622,6 @@ mod tests {
             position_id: "P1".into(),
             issuer_id: IssuerId::new("ISSUER-B"),
             cs01: Money::new(-2000.0, Currency::USD),
-            delta_spread: 8.0,
         }];
 
         let opts = CreditFactorDetailOptions::default();
@@ -657,13 +646,11 @@ mod tests {
                 position_id: "P1".into(),
                 issuer_id: IssuerId::new("ISSUER-A"),
                 cs01: Money::new(-1000.0, Currency::USD),
-                delta_spread: 5.0,
             },
             CreditAttributionInput {
                 position_id: "P2".into(),
                 issuer_id: IssuerId::new("ISSUER-UNKNOWN"),
                 cs01: Money::new(0.0, Currency::USD),
-                delta_spread: 0.0,
             },
         ];
 
@@ -686,7 +673,6 @@ mod tests {
             position_id: "P1".into(),
             issuer_id: IssuerId::new("ISSUER-A"),
             cs01: Money::new(-1000.0, Currency::USD),
-            delta_spread: 5.0,
         }];
 
         let opts = CreditFactorDetailOptions::default();
@@ -709,7 +695,6 @@ mod tests {
             position_id: "P1".into(),
             issuer_id: IssuerId::new("ISSUER-A"),
             cs01: Money::new(-1000.0, Currency::USD),
-            delta_spread: 5.0,
         }];
 
         let opts = CreditFactorDetailOptions {

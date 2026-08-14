@@ -81,9 +81,9 @@ fn build_engine(num_paths: usize, expiry: f64, num_steps: usize) -> PyResult<McE
     Ok(McEngine::new(config))
 }
 
-fn greek_defaults() -> PyResult<&'static registry::PythonGreekDefaults> {
+fn greek_defaults() -> PyResult<&'static registry::ConvenienceGreekDefaults> {
     registry::embedded_defaults()
-        .map(|defaults| &defaults.python_bindings.greeks)
+        .map(|defaults| &defaults.convenience.greeks)
         .map_err(core_to_py)
 }
 

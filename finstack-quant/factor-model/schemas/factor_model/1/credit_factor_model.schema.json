@@ -1460,13 +1460,14 @@
       ]
     },
     "FactorVolModel": {
-      "description": "Volatility model for a single factor.\n\nThe `Sample` variant stores a single variance estimate; `Ewma` additionally\npersists the smoothing parameter used at calibration time.\nThe enum intentionally omits `#[serde(deny_unknown_fields)]` to allow\nadditive extension without breaking readers of older writers.",
+      "description": "Volatility model for a single factor.\n\nThe `Sample` variant stores a single variance estimate; `Ewma` additionally\npersists the smoothing parameter used at calibration time.",
       "oneOf": [
         {
           "additionalProperties": false,
           "description": "Simple sample-variance estimate.",
           "properties": {
             "sample": {
+              "additionalProperties": false,
               "properties": {
                 "variance": {
                   "description": "Annualized variance estimate for this factor.",
@@ -1490,6 +1491,7 @@
           "description": "RiskMetrics exponentially weighted moving-average estimate.\n\nPersists both the smoothing parameter and the calibrated annualized\nvariance. `lambda` is retained as calibration provenance: no consumer\nreads it back today (the martingale forecast in\n`FactorCovarianceForecast` matches on the `Ewma { variance, .. }`\nshape and ignores λ, since horizon scaling doesn't depend on it), but\nkeeping it on the wire preserves the option for a future\nterm-structure-aware forecaster to recompute or extend the estimate\nwithout re-reading the calibration config.\n\n# References\n\n- Longerstaey, J., & Spencer, M. (1996). *RiskMetrics — Technical\n  Document* (4th ed.). J.P. Morgan/Reuters. §5.2. `docs/REFERENCES.md#jpmorgan1996RiskMetrics`",
           "properties": {
             "ewma": {
+              "additionalProperties": false,
               "properties": {
                 "lambda": {
                   "description": "Smoothing parameter λ ∈ (0, 1) used at calibration time.",
@@ -1827,7 +1829,7 @@
           "description": "Unique issuer identifier (e.g. LEI or internal code)."
         },
         "level_fit_quality": {
-          "description": "Per-level regression fit statistics, aligned with `betas.levels`.\n\n`Some` where a per-level OLS fit ran (`IssuerBeta` mode, level not\nfolded, regressor not degenerate); `None` otherwise. Empty for\n`BucketOnly` rows and for artifacts written before this field existed\n(serde default; omitted from the wire when empty so pre-existing\nartifacts remain byte-stable).",
+          "description": "Per-level regression fit statistics, aligned with `betas.levels`.\n\n`Some` where a per-level OLS fit ran (`IssuerBeta` mode, level not\nfolded, regressor not degenerate); `None` otherwise. Empty for\n`BucketOnly` rows.",
           "items": {
             "anyOf": [
               {
@@ -1856,7 +1858,8 @@
         "betas",
         "adder_at_anchor",
         "adder_vol_annualized",
-        "adder_vol_source"
+        "adder_vol_source",
+        "level_fit_quality"
       ],
       "type": "object"
     },
@@ -2374,6 +2377,7 @@
                 },
                 "fit_quality": null,
                 "issuer_id": "ACME",
+                "level_fit_quality": [],
                 "mode": "bucket_only",
                 "tags": {
                   "rating": "ig"
@@ -2389,6 +2393,7 @@
                 },
                 "fit_quality": null,
                 "issuer_id": "BOREAS",
+                "level_fit_quality": [],
                 "mode": "bucket_only",
                 "tags": {
                   "rating": "ig"
@@ -2404,6 +2409,7 @@
                 },
                 "fit_quality": null,
                 "issuer_id": "CYGNUS",
+                "level_fit_quality": [],
                 "mode": "bucket_only",
                 "tags": {
                   "rating": "hy"
@@ -2462,6 +2468,7 @@
           },
           "fit_quality": null,
           "issuer_id": "ACME",
+          "level_fit_quality": [],
           "mode": "bucket_only",
           "tags": {
             "rating": "ig"
@@ -2477,6 +2484,7 @@
           },
           "fit_quality": null,
           "issuer_id": "BOREAS",
+          "level_fit_quality": [],
           "mode": "bucket_only",
           "tags": {
             "rating": "ig"
@@ -2492,6 +2500,7 @@
           },
           "fit_quality": null,
           "issuer_id": "CYGNUS",
+          "level_fit_quality": [],
           "mode": "bucket_only",
           "tags": {
             "rating": "hy"

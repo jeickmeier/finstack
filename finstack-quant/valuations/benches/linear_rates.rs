@@ -17,9 +17,10 @@ use finstack_quant_valuations::instruments::rates::cap_floor::{CapFloor, RateOpt
 use finstack_quant_valuations::instruments::rates::deposit::Deposit;
 use finstack_quant_valuations::instruments::rates::fra::ForwardRateAgreement;
 use finstack_quant_valuations::instruments::rates::ir_future::{
-    FutureContractSpecs, InterestRateFuture, Position,
+    FutureContractSpecs, InterestRateFuture,
 };
 use finstack_quant_valuations::instruments::rates::repo::{CollateralSpec, Repo};
+use finstack_quant_valuations::instruments::Position;
 use finstack_quant_valuations::instruments::PricingOptions;
 use finstack_quant_valuations::instruments::{
     ExerciseStyle, Instrument, PayReceive, SettlementType,

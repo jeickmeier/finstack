@@ -890,9 +890,8 @@ fn pinned_quote_outranks_pair_global_reciprocal() {
 
 #[test]
 fn fx_matrix_state_round_trips_pinned_quotes() {
-    // persistence previously dropped pinned
-    // (date/policy-scoped) quotes. After snapshot + restore, a pinned fixing
-    // must still win over the provider for its (on, policy).
+    // After snapshot + restore, a pinned fixing must still win over the
+    // provider for its (on, policy).
     let matrix = FxMatrix::new(Arc::new(StaticFx { rate: 1.10 }));
     let fixing_date = Date::from_calendar_date(2025, time::Month::March, 14).unwrap();
     matrix
@@ -935,11 +934,14 @@ fn fx_matrix_state_round_trips_pinned_quotes() {
         .rate;
     assert!((provider_rate - 1.10).abs() < 1e-12);
 
-    // Older payloads without the new field still deserialize (serde-additive).
-    let legacy = r#"{"config":{"pivot_currency":"USD","enable_triangulation":true,"cache_capacity":256},"quotes":[]}"#;
-    let legacy_state: finstack_quant_core::money::fx::FxMatrixState =
-        serde_json::from_str(legacy).unwrap();
-    assert!(legacy_state.pinned_quotes.is_empty());
+    // A snapshot that omits `pinned_quotes` is rejected rather than silently
+    // restoring a matrix with no pinned fixings.
+    let without_pinned = r#"{"config":{"pivot_currency":"USD","enable_triangulation":true,"cache_capacity":256},"quotes":[]}"#;
+    assert!(
+        serde_json::from_str::<finstack_quant_core::money::fx::FxMatrixState>(without_pinned)
+            .is_err(),
+        "a state payload missing `pinned_quotes` must fail closed"
+    );
 }
 
 #[test]

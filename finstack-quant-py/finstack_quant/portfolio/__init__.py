@@ -68,11 +68,6 @@ PortfolioError = _portfolio.PortfolioError
 ValuationError = _portfolio.ValuationError
 FxError = _portfolio.FxError
 OptimizationError = _portfolio.OptimizationError
-# Deprecated aliases for the pre-rename names; the same class objects, so
-# `except FinstackFxError` still catches what it always did.
-FinstackValuationError = ValuationError
-FinstackFxError = FxError
-FinstackOptimizationError = OptimizationError
 ContractValidationError = _portfolio.ContractValidationError
 UnsupportedContractVersionError = _portfolio.UnsupportedContractVersionError
 MissingContractVersionError = _portfolio.MissingContractVersionError
@@ -245,9 +240,6 @@ __all__: list[str] = [
     "FiCarinoLinkedResult",
     "FiReconciliationReport",
     "FinstackError",
-    "FinstackFxError",
-    "FinstackOptimizationError",
-    "FinstackValuationError",
     "FxError",
     "GridAttributionResult",
     "GridCarinoLinkedResult",

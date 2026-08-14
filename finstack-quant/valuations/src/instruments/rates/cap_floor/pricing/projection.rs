@@ -436,10 +436,7 @@ mod tests {
             .overnight_coupon
             .as_mut()
             .expect("overnight terms")
-            .compounding = FloatingLegCompounding::CompoundedInArrears {
-            lookback_days: 0,
-            observation_shift: None,
-        };
+            .compounding = FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 };
         let period = caplet.pricing_periods().expect("periods").remove(0);
 
         let resolved = resolve_optioned_caplet_inputs(&caplet, &period, &market, as_of)

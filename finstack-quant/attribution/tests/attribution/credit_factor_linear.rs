@@ -152,19 +152,16 @@ fn positions() -> Vec<CreditAttributionInput> {
             position_id: "P-A".into(),
             issuer_id: IssuerId::new("ISSUER-A"),
             cs01: Money::new(-1500.0, Currency::USD),
-            delta_spread: 5.0,
         },
         CreditAttributionInput {
             position_id: "P-B".into(),
             issuer_id: IssuerId::new("ISSUER-B"),
             cs01: Money::new(-2000.0, Currency::USD),
-            delta_spread: 8.0,
         },
         CreditAttributionInput {
             position_id: "P-C".into(),
             issuer_id: IssuerId::new("ISSUER-C"),
             cs01: Money::new(-500.0, Currency::USD),
-            delta_spread: 10.0,
         },
     ]
 }

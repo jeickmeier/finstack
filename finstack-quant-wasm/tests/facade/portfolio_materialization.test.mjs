@@ -133,8 +133,8 @@ test('materialization timings are available non-fabricated JavaScript numbers', 
   loaded.portfolio.free();
 });
 
-test('validateMaterializationJson returns structured diagnostics', () => {
-  const report = portfolio.Portfolio.validateMaterializationJson(
+test('validateMaterialization returns structured diagnostics', () => {
+  const report = portfolio.Portfolio.validateMaterialization(
     new TextEncoder().encode('{"schema":')
   );
 
@@ -143,12 +143,9 @@ test('validateMaterializationJson returns structured diagnostics', () => {
   assert.equal(report.diagnostics[0].pointer, null);
 });
 
-test('validateMaterializationJson validates without portfolio build phases', () => {
+test('validateMaterialization validates without portfolio build phases', () => {
   const cache = new portfolio.InstrumentArtifactCache(1);
-  const report = portfolio.Portfolio.validateMaterializationJson(
-    JSON.stringify(DEPOSIT_BUNDLE),
-    cache
-  );
+  const report = portfolio.Portfolio.validateMaterialization(JSON.stringify(DEPOSIT_BUNDLE), cache);
 
   assert.equal(report.unique_instruments, 1);
   assert.equal(report.positions, 1);
@@ -158,7 +155,7 @@ test('validateMaterializationJson validates without portfolio build phases', () 
   cache.free();
 });
 
-test('validateMaterializationJson matches portfolio metadata diagnostics', () => {
+test('validateMaterialization matches portfolio metadata diagnostics', () => {
   const book = (id, parentId, positionIds, childBookIds) => ({
     id,
     name: null,
@@ -212,7 +209,7 @@ test('validateMaterializationJson matches portfolio metadata diagnostics', () =>
   for (const [mutate, expectedCode] of cases) {
     const bundle = structuredClone(DEPOSIT_BUNDLE);
     mutate(bundle);
-    const report = portfolio.Portfolio.validateMaterializationJson(JSON.stringify(bundle));
+    const report = portfolio.Portfolio.validateMaterialization(JSON.stringify(bundle));
     assert.ok(
       report.diagnostics.some(({ code }) => code === expectedCode),
       `expected ${expectedCode}; received ${report.diagnostics.map(({ code }) => code).join(', ')}`

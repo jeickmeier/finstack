@@ -288,7 +288,7 @@ impl PyPortfolio {
 
     /// Strictly validate a materialization bundle without building a portfolio.
     ///
-    /// Twin of the WASM ``Portfolio.validateMaterializationJson``: contract
+    /// Twin of the WASM ``Portfolio.validateMaterialization``: contract
     /// diagnostics are *returned* rather than raised, so ingestion-form
     /// callers get structured feedback without exception handling.
     ///

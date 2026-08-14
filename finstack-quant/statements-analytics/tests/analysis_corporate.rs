@@ -602,9 +602,9 @@ fn usd_discount_curve_does_not_mix_discounting_bases() {
         "a USD-DISCOUNT market curve must not alter the WACC discounting basis"
     );
 
-    // The instrument no longer references the conventional curve name by default.
-    let dcf = with_market.dcf_instrument.expect("instrument");
-    assert_ne!(dcf.discount_curve_id.as_str(), "USD-DISCOUNT");
+    // The DCF carries no discount-curve reference at all: it discounts at its
+    // own WACC, so a market curve cannot change the basis.
+    assert!(with_market.dcf_instrument.is_some());
 }
 
 /// NaN terminal-value parameters must error instead of producing NaN values.

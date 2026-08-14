@@ -372,11 +372,10 @@ pub struct PoolStats {
     pub weighted_avg_coupon: f64,
     /// Weighted average spread
     pub weighted_avg_spread: f64,
-    /// Weighted average life (approximation using WAM)
-    /// For accurate WAL, use weighted_avg_life_from_cashflows()
-    pub weighted_avg_life: f64,
-    /// Weighted average maturity (WAM) in years
-    #[serde(default)]
+    /// Weighted average maturity (WAM) in years.
+    ///
+    /// For weighted average life use
+    /// [`AssetPool::weighted_avg_life_from_cashflows`].
     pub weighted_avg_maturity: f64,
     /// Weighted average rating factor
     pub weighted_avg_rating_factor: f64,
@@ -418,9 +417,12 @@ pub struct AssetPool {
     /// Cumulative prepayments (voluntary early repayment)
     pub cumulative_prepayments: Money,
     /// Cumulative scheduled amortization (level-pay principal for amortizing assets).
-    /// `None` means not tracked (legacy data); treated as zero in loss calculations.
-    #[serde(default)]
-    pub cumulative_scheduled_amortization: Option<Money>,
+    ///
+    /// Part of the original-balance denominator in
+    /// [`current_loss_percentage`](super::StructuredCreditPool::current_loss_percentage),
+    /// so it must be stated: omitting it understates the denominator and
+    /// overstates the reported loss rate.
+    pub cumulative_scheduled_amortization: Money,
 
     /// Reinvestment management
     /// Reinvestment period configuration (if applicable)
@@ -551,7 +553,7 @@ impl AssetPool {
             cumulative_defaults: zero_money,
             cumulative_recoveries: zero_money,
             cumulative_prepayments: zero_money,
-            cumulative_scheduled_amortization: None,
+            cumulative_scheduled_amortization: zero_money,
             reinvestment_period: None,
             collection_account: zero_money,
             reserve_account: zero_money,
@@ -895,7 +897,6 @@ pub fn calculate_pool_stats(pool: &AssetPool, as_of: Date) -> PoolStats {
         weighted_avg_coupon: pool.weighted_avg_coupon(),
         weighted_avg_spread: pool.weighted_avg_spread(),
         // Maintain historical behavior: WAL field carries WAM proxy unless cashflows provided externally
-        weighted_avg_life: pool.weighted_avg_maturity(as_of),
         weighted_avg_maturity: pool.weighted_avg_maturity(as_of),
         weighted_avg_rating_factor: 0.0, // Computed separately if needed
         diversity_score: pool.diversity_score(),

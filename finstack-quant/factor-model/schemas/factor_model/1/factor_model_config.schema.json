@@ -1452,7 +1452,7 @@
           "description": "Unique issuer identifier (e.g. LEI or internal code)."
         },
         "level_fit_quality": {
-          "description": "Per-level regression fit statistics, aligned with `betas.levels`.\n\n`Some` where a per-level OLS fit ran (`IssuerBeta` mode, level not\nfolded, regressor not degenerate); `None` otherwise. Empty for\n`BucketOnly` rows and for artifacts written before this field existed\n(serde default; omitted from the wire when empty so pre-existing\nartifacts remain byte-stable).",
+          "description": "Per-level regression fit statistics, aligned with `betas.levels`.\n\n`Some` where a per-level OLS fit ran (`IssuerBeta` mode, level not\nfolded, regressor not degenerate); `None` otherwise. Empty for\n`BucketOnly` rows.",
           "items": {
             "anyOf": [
               {
@@ -1481,7 +1481,8 @@
         "betas",
         "adder_at_anchor",
         "adder_vol_annualized",
-        "adder_vol_source"
+        "adder_vol_source",
+        "level_fit_quality"
       ],
       "type": "object"
     },

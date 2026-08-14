@@ -103,11 +103,6 @@
           "type": "string"
         },
         {
-          "const": "migrate",
-          "description": "A supported older payload was migrated.",
-          "type": "string"
-        },
-        {
           "const": "structure",
           "description": "Document shape and required fields were checked.",
           "type": "string"

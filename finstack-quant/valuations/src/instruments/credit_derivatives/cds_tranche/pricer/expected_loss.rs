@@ -251,12 +251,9 @@ impl CDSTranchePricer {
     /// - A negative gap within `BASE_CORR_ARBITRAGE_TOL` is benign quadrature
     ///   / interpolation noise and is clamped to zero silently.
     /// - A negative gap *beyond* the tolerance is genuine base-correlation
-    ///   arbitrage. With `validate_arbitrage_free = true` (the default) this
-    ///   returns an explicit [`Error::Validation`] naming the strikes and the
-    ///   magnitude, so the caller cannot unknowingly price a senior tranche
-    ///   with zero protection. With `validate_arbitrage_free = false` it is
-    ///   clamped to zero but logged at `warn` level (not the previous silent
-    ///   `debug`), so the degradation is at least visible in logs.
+    ///   arbitrage and returns an explicit [`Error::Validation`] naming the
+    ///   strikes and the magnitude, so the caller cannot unknowingly price a
+    ///   senior tranche with zero protection.
     fn resolve_tranchelet_difference(
         &self,
         el_to_detach: f64,
@@ -272,29 +269,14 @@ impl CDSTranchePricer {
         }
 
         // Genuine base-correlation arbitrage: EL(0,D) < EL(0,A).
-        if self.params.validate_arbitrage_free {
-            return Err(Error::Validation(format!(
-                "base-correlation arbitrage at strikes [{attach_pct:.4}%, {detach_pct:.4}%] \
+        Err(Error::Validation(format!(
+            "base-correlation arbitrage at strikes [{attach_pct:.4}%, {detach_pct:.4}%] \
                  on {date:?}: equity EL(0,{detach_pct:.4}%)={el_to_detach:.8} is below \
                  EL(0,{attach_pct:.4}%)={el_to_attach:.8} (gap {diff:.2e}). The base-correlation \
                  curve is not arbitrage-free at these detachment points; pricing this tranche \
                  would assign it negative protection. Re-fit the base-correlation curve (e.g. \
-                 isotonic / PAVA smoothing) or disable validation via \
-                 `CDSTranchePricerConfig::with_arbitrage_validation(false)` to clamp instead."
-            )));
-        }
-
-        // Validation disabled: clamp but make the degradation visible.
-        tracing::warn!(
-            attach_pct,
-            detach_pct,
-            el_to_detach,
-            el_to_attach,
-            gap = diff,
-            "base-correlation arbitrage on {date:?}: equity EL(0,D) < EL(0,A); \
-             clamping tranchelet protection to zero (arbitrage validation disabled)"
-        );
-        Ok(0.0)
+                 isotonic / PAVA smoothing)."
+        )))
     }
 
     /// Build the expected loss curve for all payment dates.
@@ -326,10 +308,10 @@ impl CDSTranchePricer {
     /// `1 − el_fraction − wd_fraction`, while only the loss side triggers
     /// protection payments.
     ///
-    /// When `enforce_el_monotonicity` is enabled (default), any computed EL
-    /// or WD value that is less than the previous date's will be clamped to
-    /// maintain monotonicity. This prevents small arbitrage opportunities
-    /// that can arise from base correlation model inconsistencies.
+    /// Any computed EL or WD value that is less than the previous date's is
+    /// clamped to maintain monotonicity. This prevents small arbitrage
+    /// opportunities that can arise from base correlation model
+    /// inconsistencies.
     pub(super) fn build_el_wd_curve(
         &self,
         tranche: &CDSTranche,
@@ -349,23 +331,15 @@ impl CDSTranchePricer {
             // This can happen due to base correlation model inconsistencies
             if el_fraction < prev_el - 1e-6 {
                 tracing::debug!(
-                    "EL decreased from {:.6} to {:.6} at {:?} (Δ={:.6}){}",
+                    "EL decreased from {:.6} to {:.6} at {:?} (Δ={:.6}) - enforcing monotonicity",
                     prev_el,
                     el_fraction,
                     date,
                     prev_el - el_fraction,
-                    if self.params.enforce_el_monotonicity {
-                        " - enforcing monotonicity"
-                    } else {
-                        ""
-                    }
                 );
             }
-            // Enforce monotonicity if configured (default: true)
-            if self.params.enforce_el_monotonicity {
-                el_fraction = el_fraction.max(prev_el);
-                wd_fraction = wd_fraction.max(prev_wd);
-            }
+            el_fraction = el_fraction.max(prev_el);
+            wd_fraction = wd_fraction.max(prev_wd);
             // Joint cap after monotonicity repair.
             wd_fraction = wd_fraction.min(1.0 - el_fraction);
 

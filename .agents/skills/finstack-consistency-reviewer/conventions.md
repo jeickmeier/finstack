@@ -192,10 +192,6 @@ Document any places where divergence from the dominant pattern is intentional:
   collapsing it would force an `as_of: Date` parameter onto the public
   `im_profile_from_simm` and cascade into its binding, stub, and tests. The
   other three margin pairs were collapsed.
-- **`validateMaterializationJson` (WASM) returns an object despite its `Json`
-  suffix**: it is pinned by `dts_contract.rs` and by a cache shim in
-  `exports/portfolio.js`, so renaming it is its own decision rather than part
-  of the sweep.
 
 ## Known Remaining Gap: paired conversions still owed
 

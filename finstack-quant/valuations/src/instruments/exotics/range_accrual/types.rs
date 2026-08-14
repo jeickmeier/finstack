@@ -117,15 +117,9 @@ pub struct RangeAccrual {
     /// Day count convention
     pub day_count: finstack_quant_core::dates::DayCount,
     /// Contractual accrual-period start date.
-    ///
-    /// When omitted, the legacy representation infers the start by stepping
-    /// one first-observation interval backward. Single-observation contracts
-    /// must provide this field explicitly.
-    #[builder(optional)]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[serde(with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
-    pub accrual_start_date: Option<Date>,
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    pub accrual_start_date: Date,
     /// Explicit rate index for rate-linked range accruals.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -196,17 +190,7 @@ impl RangeAccrual {
                 "RangeAccrual requires at least one observation date".to_string(),
             )
         })?;
-        let accrual_start = if let Some(start) = self.accrual_start_date {
-            start
-        } else if self.observation_dates.len() >= 2 {
-            let first = self.observation_dates[0];
-            let second = self.observation_dates[1];
-            first - (second - first)
-        } else {
-            return Err(finstack_quant_core::Error::Validation(
-                "RangeAccrual with a single observation requires accrual_start_date".to_string(),
-            ));
-        };
+        let accrual_start = self.accrual_start_date;
         if accrual_start >= accrual_end {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "RangeAccrual accrual_start_date ({accrual_start}) must precede final observation ({accrual_end})"
@@ -246,6 +230,9 @@ impl RangeAccrual {
             .id(InstrumentId::new("RANGE-SPX-1Y"))
             .underlying_ticker("SPX".to_string())
             .observation_dates(observation_dates)
+            .accrual_start_date(
+                Date::from_calendar_date(2023, Month::December, 31).expect("Valid example date"),
+            )
             .lower_bound(0.95) // 95% of initial spot
             .upper_bound(1.05) // 105% of initial spot
             .bounds_type(BoundsType::RelativeToInitialSpot)
@@ -279,6 +266,9 @@ impl RangeAccrual {
             .id(InstrumentId::new("RANGE-SOFR-3M"))
             .underlying_ticker("SOFR".to_string())
             .observation_dates(observation_dates)
+            .accrual_start_date(
+                Date::from_calendar_date(2023, Month::December, 31).expect("Valid example date"),
+            )
             .lower_bound(0.04) // 4% lower bound
             .upper_bound(0.06) // 6% upper bound
             .bounds_type(BoundsType::Absolute)
@@ -501,7 +491,7 @@ mod audit_regression_tests {
     fn accrual_factor_uses_explicit_contractual_period() {
         let mut range = RangeAccrual::example();
         range.day_count = finstack_quant_core::dates::DayCount::Act360;
-        range.accrual_start_date = Some(date!(2024 - 01 - 01));
+        range.accrual_start_date = date!(2024 - 01 - 01);
         range.observation_dates = vec![date!(2024 - 01 - 31), date!(2024 - 04 - 01)];
         range.payment_date = Some(date!(2024 - 04 - 03));
         let factor = range.accrual_year_fraction().expect("accrual factor");

@@ -21,7 +21,7 @@
 //! rather than carrying the sum of two independent grid errors.
 
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::exotics::barrier_option::types::{BarrierOption, BarrierType};
+use crate::instruments::exotics::barrier_option::types::BarrierOption;
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
@@ -29,6 +29,7 @@ use crate::results::ValuationResult;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
+use finstack_quant_core::types::BarrierType;
 
 use crate::models::pde::{BoundaryCondition, Grid1D, PdeProblem1D, Solver1D};
 
@@ -487,13 +488,14 @@ impl Pricer for BarrierOptionPdePricer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::instruments::exotics::barrier_option::types::{BarrierOption, BarrierType};
+    use crate::instruments::exotics::barrier_option::types::BarrierOption;
     use crate::instruments::{Attributes, OptionType};
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::DayCount;
     use finstack_quant_core::market_data::scalars::MarketScalar;
     use finstack_quant_core::market_data::surfaces::VolSurface;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
+    use finstack_quant_core::types::BarrierType;
     use finstack_quant_core::types::InstrumentId;
     use time::Month;
 

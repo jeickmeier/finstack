@@ -127,7 +127,7 @@ mod tests {
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::Date;
     use finstack_quant_core::market_data::context::MarketContext;
-    use finstack_quant_core::types::{CurveId, InstrumentId};
+    use finstack_quant_core::types::InstrumentId;
     use time::Month;
 
     fn build_simple_dcf() -> DiscountedCashFlow {
@@ -144,7 +144,6 @@ mod tests {
             terminal_value: TerminalValueSpec::GordonGrowth { growth_rate: 0.02 },
             net_debt: 0.0,
             valuation_date,
-            discount_curve_id: CurveId::new("USD-OIS"),
             mid_year_convention: false,
             terminal_flow_override: None,
             equity_bridge: None,

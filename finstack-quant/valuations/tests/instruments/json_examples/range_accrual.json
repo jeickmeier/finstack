@@ -1,6 +1,7 @@
 {
   "instrument": {
     "spec": {
+      "accrual_start_date": "2023-12-31",
       "attributes": {},
       "bounds_type": "relative_to_initial_spot",
       "coupon_rate": 0.08,

@@ -160,14 +160,10 @@ fn test_pricer_config_builder_methods_wire_copula_and_numerical_settings() {
         CopulaSpec::MultiFactor { num_factors } if num_factors == 3
     ));
 
-    let config = CDSTranchePricerConfig::default()
-        .with_arbitrage_validation(false)
-        .with_quadrature_order(7);
+    let config = CDSTranchePricerConfig::default().with_quadrature_order(7);
     let pricer = CDSTranchePricer::with_params(config.clone());
-    assert!(!config.validate_arbitrage_free);
     assert_eq!(config.quadrature_order, 7);
     assert_eq!(pricer.config().quadrature_order, 7);
-    assert!(!pricer.config().validate_arbitrage_free);
 }
 
 #[test]

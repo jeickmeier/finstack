@@ -186,7 +186,7 @@ fn price_heston_european(
     num_steps: Option<usize>,
     currency: Option<Currency>,
 ) -> Result<MoneyEstimate> {
-    let defaults = &registry::embedded_defaults()?.python_bindings;
+    let defaults = &registry::embedded_defaults()?.convenience;
     let pricer_defaults = &defaults.european_pricer;
     let num_paths = num_paths.unwrap_or(pricer_defaults.num_paths);
     let seed = seed.unwrap_or(pricer_defaults.seed);
@@ -271,7 +271,7 @@ mod tests {
 
     #[test]
     fn heston_defaults_stamp_registry_currency() {
-        let defaults = &registry::embedded_defaults_or_panic().python_bindings;
+        let defaults = &registry::embedded_defaults_or_panic().convenience;
         let expected = defaults.default_currency.parse().expect("valid currency");
         let estimate = atm_call(7);
         assert_eq!(estimate.mean.currency(), expected);

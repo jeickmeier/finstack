@@ -291,14 +291,9 @@ pub fn validate_sifma_variance(allocated_face: f64, trade_notional: f64) -> bool
 ///
 /// # Arguments
 ///
-/// * `_characteristics` - Specified-pool collateral characteristics intended
-///   for the future pay-up model; currently retained for API compatibility.
 /// * `tba` - Agency TBA contract identified in the explicit not-implemented
 ///   validation error returned by this placeholder.
-pub fn calculate_pay_up(
-    _characteristics: &PoolCharacteristics,
-    tba: &AgencyTba,
-) -> finstack_quant_core::Result<f64> {
+pub fn calculate_pay_up(tba: &AgencyTba) -> finstack_quant_core::Result<f64> {
     Err(finstack_quant_core::Error::Validation(format!(
         "AgencyTba '{}' specified-pool pay-up model is not implemented; refusing to return a zero adjustment",
         tba.id

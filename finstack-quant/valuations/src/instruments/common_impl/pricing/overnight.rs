@@ -137,22 +137,8 @@ fn shifted_observation_days(compounding: &FloatingLegCompounding) -> Result<(i32
         FloatingLegCompounding::Simple => Err(finstack_quant_core::Error::Validation(
             "Overnight coupon projection requires a compounded convention, not Simple".into(),
         )),
-        FloatingLegCompounding::CompoundedInArrears {
-            lookback_days,
-            observation_shift,
-        } => {
-            let observation_shift = observation_shift.unwrap_or(0);
-            if *lookback_days != 0 && observation_shift != 0 {
-                return Err(finstack_quant_core::Error::Validation(format!(
-                    "Overnight coupon cannot combine a {lookback_days}-day lookback with a \
-                     {observation_shift}-day observation shift"
-                )));
-            }
-            if observation_shift != 0 {
-                Ok((observation_shift, true))
-            } else {
-                Ok((*lookback_days, false))
-            }
+        FloatingLegCompounding::CompoundedInArrears { lookback_days } => {
+            Ok((*lookback_days, false))
         }
         FloatingLegCompounding::CompoundedWithObservationShift { shift_days } => {
             Ok((*shift_days, true))
@@ -456,10 +442,7 @@ mod tests {
         let calendar =
             resolve_overnight_fixing_calendar(Some("usny"), Currency::USD, "test coupon")
                 .expect("USNY calendar");
-        let compounding = FloatingLegCompounding::CompoundedInArrears {
-            lookback_days: 0,
-            observation_shift: None,
-        };
+        let compounding = FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 };
         let accrual_start = date!(2025 - 01 - 02);
         let accrual_end = date!(2025 - 04 - 02);
         let expected_accrual_year_fraction = DayCount::Act360
@@ -580,10 +563,7 @@ mod tests {
         let calendar =
             resolve_overnight_fixing_calendar(Some("usny"), Currency::USD, "test coupon")
                 .expect("USNY calendar");
-        let compounding = FloatingLegCompounding::CompoundedInArrears {
-            lookback_days: 0,
-            observation_shift: None,
-        };
+        let compounding = FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 };
         let projection = project_overnight_coupon(OvernightCouponProjectionInput {
             curve: OvernightProjectionCurve::Forward(&forward),
             fixings: Some(&fixings),
@@ -621,10 +601,7 @@ mod tests {
         let calendar =
             resolve_overnight_fixing_calendar(Some("usny"), Currency::USD, "test coupon")
                 .expect("USNY calendar");
-        let compounding = FloatingLegCompounding::CompoundedInArrears {
-            lookback_days: 0,
-            observation_shift: None,
-        };
+        let compounding = FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 };
 
         let result = project_overnight_coupon(OvernightCouponProjectionInput {
             curve: OvernightProjectionCurve::Forward(&forward),
@@ -658,10 +635,7 @@ mod tests {
         let calendar =
             resolve_overnight_fixing_calendar(Some("usny"), Currency::USD, "test coupon")
                 .expect("USNY calendar");
-        let compounding = FloatingLegCompounding::CompoundedInArrears {
-            lookback_days: 0,
-            observation_shift: None,
-        };
+        let compounding = FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 };
 
         let result = project_overnight_coupon(OvernightCouponProjectionInput {
             curve: OvernightProjectionCurve::Forward(&forward),
@@ -719,10 +693,7 @@ mod tests {
         let calendar =
             resolve_overnight_fixing_calendar(Some("usny"), Currency::USD, "test coupon")
                 .expect("calendar");
-        let compounding = FloatingLegCompounding::CompoundedInArrears {
-            lookback_days: 0,
-            observation_shift: None,
-        };
+        let compounding = FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 };
 
         let projection = project_overnight_coupon(OvernightCouponProjectionInput {
             curve: OvernightProjectionCurve::Forward(&forward),
@@ -764,10 +735,7 @@ mod tests {
         let calendar =
             resolve_overnight_fixing_calendar(Some("usny"), Currency::USD, "test coupon")
                 .expect("calendar");
-        let compounding = FloatingLegCompounding::CompoundedInArrears {
-            lookback_days: 0,
-            observation_shift: None,
-        };
+        let compounding = FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 };
 
         let projection = project_overnight_coupon(OvernightCouponProjectionInput {
             curve: OvernightProjectionCurve::Forward(&forward),

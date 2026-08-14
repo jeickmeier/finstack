@@ -51,7 +51,6 @@ fn test_real_estate_dcf_pricing() {
         .discount_rate_opt(Some(0.10))
         .terminal_cap_rate_opt(Some(0.08))
         .day_count(DayCount::Act365F)
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("should build");
@@ -92,7 +91,6 @@ fn test_real_estate_direct_cap_pricing() {
         .noi_schedule(vec![(noi1, 120.0)])
         .cap_rate_opt(Some(0.06))
         .day_count(DayCount::Act365F)
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("should build");
@@ -118,7 +116,6 @@ fn test_real_estate_direct_cap_uses_first_future_noi_when_not_stabilized() {
         .noi_schedule(vec![(noi1, 100.0), (noi2, 200.0)])
         .cap_rate_opt(Some(0.10))
         .day_count(DayCount::Act365F)
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("should build");
@@ -143,7 +140,6 @@ fn test_real_estate_terminal_growth_applies_to_exit_value() {
         .terminal_cap_rate_opt(Some(0.08))
         .terminal_growth_rate_opt(Some(0.02))
         .day_count(DayCount::Act365F)
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("should build");
@@ -177,7 +173,6 @@ fn test_real_estate_dcf_pv_identical_with_and_without_curve() {
         .discount_rate_opt(Some(0.10))
         .terminal_cap_rate_opt(Some(0.08))
         .day_count(DayCount::Act365F)
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("should build");
@@ -223,7 +218,6 @@ fn test_real_estate_value_uses_as_of_for_filtering_flows() {
         .noi_schedule(vec![(noi1, 100.0), (noi2, 100.0)])
         .discount_rate_opt(Some(0.10))
         .day_count(DayCount::Act365F)
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("should build");
@@ -253,7 +247,6 @@ fn test_real_estate_appraisal_override() {
         .discount_rate_opt(Some(0.10))
         .appraisal_value_opt(Some(Money::new(1_500.0, Currency::USD)))
         .day_count(DayCount::Act365F)
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("should build");
@@ -281,7 +274,6 @@ fn test_real_estate_custom_metrics_compute() {
         .discount_rate_opt(Some(0.10))
         .terminal_cap_rate_opt(Some(0.10))
         .day_count(DayCount::Act365F)
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("should build");
@@ -332,7 +324,6 @@ fn test_real_estate_unlevered_metrics_include_acquisition_cost_line_items() {
         .discount_rate_opt(Some(0.0))
         .terminal_cap_rate_opt(Some(0.10))
         .day_count(DayCount::Act365F)
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("should build");
@@ -395,7 +386,6 @@ fn test_real_estate_terminal_only_sale_price_is_allowed() {
         .disposition_cost_pct_opt(Some(disposition_cost_pct))
         .disposition_costs(disposition_costs)
         .day_count(DayCount::Act365F)
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("asset build");
@@ -433,7 +423,6 @@ fn test_real_estate_sensitivities_metrics_compute_and_have_expected_signs() {
         .discount_rate_opt(Some(0.10))
         .terminal_cap_rate_opt(Some(0.08))
         .day_count(DayCount::Act365F)
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("asset build");
@@ -486,7 +475,6 @@ fn test_levered_real_estate_equity_value_is_asset_minus_debt() {
         .discount_rate_opt(Some(0.10))
         .terminal_cap_rate_opt(Some(0.10))
         .day_count(DayCount::Act365F)
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("asset build");
@@ -525,7 +513,6 @@ fn test_levered_real_estate_equity_value_is_asset_minus_debt() {
             InstrumentJson::Bond(bond.clone()),
         ])
         .exit_date_opt(Some(noi2))
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("levered build");
@@ -565,7 +552,6 @@ fn test_levered_real_estate_equity_custom_metrics_compute() {
         .discount_rate_opt(Some(0.10))
         .terminal_cap_rate_opt(Some(0.10))
         .day_count(DayCount::Act365F)
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("asset build");
@@ -599,7 +585,6 @@ fn test_levered_real_estate_equity_custom_metrics_compute() {
         .asset(asset)
         .financing(vec![InstrumentJson::TermLoan(loan)])
         .exit_date_opt(Some(noi2))
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("levered build");
@@ -651,7 +636,6 @@ fn test_levered_real_estate_sensitivities_metrics_compute() {
         .day_count(DayCount::Act365F)
         // Keep the asset curve ID distinct so the asset remains curve-free (discount_rate is used),
         // while the financing instruments can still use USD-OIS from the market.
-        .discount_curve_id(CurveId::new("USD-RE-DISC"))
         .attributes(Attributes::new())
         .build()
         .expect("asset build");
@@ -685,7 +669,6 @@ fn test_levered_real_estate_sensitivities_metrics_compute() {
         .asset(asset)
         .financing(vec![InstrumentJson::TermLoan(loan)])
         .exit_date_opt(Some(noi2))
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("levered build");
@@ -729,7 +712,6 @@ fn build_mid_sale_dcf_asset() -> RealEstateAsset {
         .terminal_cap_rate_opt(Some(0.10))
         .sale_date_opt(Some(noi2))
         .day_count(DayCount::Act365F)
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("asset build")
@@ -815,7 +797,6 @@ fn test_levered_exit_defaults_to_asset_sale_date() {
         .id(InstrumentId::new("RE-EQ-MID-SALE"))
         .currency(Currency::USD)
         .asset(build_mid_sale_dcf_asset())
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("levered build");
@@ -855,7 +836,6 @@ fn test_dscr_min_excludes_balloon_principal_at_maturity() {
         .discount_rate_opt(Some(0.10))
         .terminal_cap_rate_opt(Some(0.10))
         .day_count(DayCount::Act365F)
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("asset build");
@@ -890,7 +870,6 @@ fn test_dscr_min_excludes_balloon_principal_at_maturity() {
         .asset(asset)
         .financing(vec![InstrumentJson::TermLoan(loan)])
         .exit_date_opt(Some(noi2))
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("levered build");
@@ -934,7 +913,6 @@ fn test_real_estate_validate_rejects_bad_cost_inputs() {
         .discount_rate_opt(Some(0.10))
         .terminal_cap_rate_opt(Some(0.10))
         .day_count(DayCount::Act365F)
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("asset build");
@@ -971,7 +949,6 @@ fn test_real_estate_direct_cap_appraisal_without_cap_rate() {
         .noi_schedule(vec![(noi1, 100.0)])
         .appraisal_value_opt(Some(Money::new(1_500.0, Currency::USD)))
         .day_count(DayCount::Act365F)
-        .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(Attributes::new())
         .build()
         .expect("appraisal-only DirectCap should build");

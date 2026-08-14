@@ -822,10 +822,7 @@ fn test_irs_explicit_zero_payment_delay_preserved() {
             fixing_calendar_id: None,
             stub: StubKind::None,
             reset_lag_days: 0,
-            compounding: FloatingLegCompounding::CompoundedInArrears {
-                lookback_days: 0,
-                observation_shift: None,
-            },
+            compounding: FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 },
             payment_lag_days: 0, // Explicit 0 should stay 0
             end_of_month: false,
             start,

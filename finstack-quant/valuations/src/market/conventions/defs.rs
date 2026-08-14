@@ -183,10 +183,8 @@ pub struct XccyConventions {
     /// is `MtmResetting { resetting_side: Leg1 }`: the base-currency leg (leg1) has its
     /// notional re-marked each period to match the constant quote-currency (leg2)
     /// notional in current FX. Pair conventions registered the other way around (USD
-    /// as base) must invert this to `Leg2`. Defaults to `InitialAndFinal` when not
-    /// specified, preserving legacy fixed-notional behaviour for entries that omit
-    /// the field.
-    #[serde(default)]
+    /// as base) must invert this to `Leg2`. Registry entries must state it
+    /// explicitly.
     pub notional_exchange: crate::instruments::rates::xccy_swap::NotionalExchange,
 }
 

@@ -737,16 +737,8 @@
           "description": "Cumulative recoveries on defaulted assets"
         },
         "cumulative_scheduled_amortization": {
-          "anyOf": [
-            {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Cumulative scheduled amortization (level-pay principal for amortizing assets).\n`None` means not tracked (legacy data); treated as zero in loss calculations."
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Cumulative scheduled amortization (level-pay principal for amortizing assets).\n\nPart of the original-balance denominator in\n[`current_loss_percentage`](super::StructuredCreditPool::current_loss_percentage),\nso it must be stated: omitting it understates the denominator and\noverstates the reported loss rate."
         },
         "deal_type": {
           "$ref": "#/$defs/DealType",
@@ -794,6 +786,7 @@
         "cumulative_defaults",
         "cumulative_recoveries",
         "cumulative_prepayments",
+        "cumulative_scheduled_amortization",
         "collection_account",
         "reserve_account",
         "excess_spread_account"
@@ -7520,10 +7513,6 @@
           },
           "type": "array"
         },
-        "discount_curve_id": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-          "description": "Discount curve identifier, used for risk attribution only.\n\nDiscounting always uses [`wacc`](Self::wacc) via `(1 + wacc)^{-t}`\nregardless of whether this curve is loaded (the\nprevious behavior silently switched risky flows to risk-free curve\ndiscounting). Rate sensitivity (`Dv01`/`BucketedDv01`) bumps the\nrisk-free component inside the WACC instead."
-        },
         "equity_bridge": {
           "anyOf": [
             {
@@ -7573,7 +7562,7 @@
         },
         "mid_year_convention": {
           "default": false,
-          "description": "Mid-year discounting convention (default: `false` = end-of-period).\n\nWhen `true`, each flow is discounted at `t` minus half the average\nflow spacing instead of `t` (the classic `t - 0.5` for annual\ngrids; half a period for sub-annual grids), reflecting the\nassumption that cash flows arrive mid-period. This is the standard\nconvention in IB/PE practice (Koller et al.). Exit-multiple\nterminal values are not shifted (point-in-time sale at the horizon).",
+          "description": "Discount curve identifier, used for risk attribution only.\n\nDiscounting always uses [`wacc`](Self::wacc) via `(1 + wacc)^{-t}`\nregardless of whether this curve is loaded (the\nprevious behavior silently switched risky flows to risk-free curve\ndiscounting). Rate sensitivity (`Dv01`/`BucketedDv01`) bumps the\nrisk-free component inside the WACC instead.\nMid-year discounting convention (default: `false` = end-of-period).\n\nWhen `true`, each flow is discounted at `t` minus half the average\nflow spacing instead of `t` (the classic `t - 0.5` for annual\ngrids; half a period for sub-annual grids), reflecting the\nassumption that cash flows arrive mid-period. This is the standard\nconvention in IB/PE practice (Koller et al.). Exit-multiple\nterminal values are not shifted (point-in-time sale at the horizon).",
           "type": "boolean"
         },
         "net_debt": {
@@ -7638,7 +7627,6 @@
         "terminal_value",
         "net_debt",
         "valuation_date",
-        "discount_curve_id",
         "attributes"
       ],
       "type": "object"
@@ -9045,7 +9033,7 @@
       "type": "object"
     },
     "FloatingLegCompounding": {
-      "description": "Method for calculating floating leg coupon payments.\n\nDifferent reference rates require different compounding conventions:\n- **Term rates (SOFR 3M, EURIBOR, historical LIBOR)**: Simple interest\n- **Overnight rates (SOFR, SONIA, €STR, TONA)**: Compounded in arrears\n\n# Market Standards\n\n## Simple (LIBOR-style)\n- **Formula**: `Coupon = Notional × (Forward_Rate + Spread) × DCF`\n- **Use for**: USD LIBOR, EUR EURIBOR, GBP LIBOR (historical)\n- **Standard**: ISDA 2006 Definitions\n\n## Compounded In Arrears (RFR-style)\n- **Formula**: `Coupon = Notional × [∏(1 + r_i × dcf_i) - 1]`\n- **Use for**: USD SOFR, GBP SONIA, EUR €STR, JPY TONA\n- **Standard**: ISDA 2021 Definitions\n- **Lookback**: Typically 2-5 business days before period end\n- **Observation shift**: Optional shift for operational convenience\n\n# Examples\n\n```\nuse finstack_quant_valuations::instruments::rates::irs::FloatingLegCompounding;\n\n// LIBOR-style swap (simple compounding)\nlet simple = FloatingLegCompounding::Simple;\nassert_eq!(simple, FloatingLegCompounding::default());\n\n// SOFR OIS swap: plain compounded in arrears (no lookback)\nlet sofr = FloatingLegCompounding::CompoundedInArrears {\n    lookback_days: 0,\n    observation_shift: None,\n};\nassert_eq!(sofr, FloatingLegCompounding::sofr());\n\n// SONIA FRN-style leg with the BoE 5-day lookback (explicit, not the OIS preset)\nlet sonia_frn = FloatingLegCompounding::CompoundedInArrears {\n    lookback_days: 5,\n    observation_shift: None,\n};\nassert_ne!(sonia_frn, FloatingLegCompounding::sonia());\n```\n\n# References\n\n- **ISDA 2021 Definitions**: Compounded RFR conventions `docs/REFERENCES.md#isda-2021-definitions`\n- **ARRC** (Alternative Reference Rates Committee): SOFR conventions `docs/REFERENCES.md#arrc-sofr-users-guide`\n- **BoE** (Bank of England): SONIA conventions `docs/REFERENCES.md#boe-sonia-key-features`\n- **ECB**: €STR conventions `docs/REFERENCES.md#ecb-estr-methodology`\n\nIn the IRS instrument implementation, the RFR-style variant\n(`CompoundedInArrears`) is also used to classify swaps as OIS for\ndiscount-only float-leg pricing; see `InterestRateSwap::is_single_curve_ois` for details.",
+      "description": "Method for calculating floating leg coupon payments.\n\nDifferent reference rates require different compounding conventions:\n- **Term rates (SOFR 3M, EURIBOR, historical LIBOR)**: Simple interest\n- **Overnight rates (SOFR, SONIA, €STR, TONA)**: Compounded in arrears\n\n# Market Standards\n\n## Simple (LIBOR-style)\n- **Formula**: `Coupon = Notional × (Forward_Rate + Spread) × DCF`\n- **Use for**: USD LIBOR, EUR EURIBOR, GBP LIBOR (historical)\n- **Standard**: ISDA 2006 Definitions\n\n## Compounded In Arrears (RFR-style)\n- **Formula**: `Coupon = Notional × [∏(1 + r_i × dcf_i) - 1]`\n- **Use for**: USD SOFR, GBP SONIA, EUR €STR, JPY TONA\n- **Standard**: ISDA 2021 Definitions\n- **Lookback**: Typically 2-5 business days before period end\n\n# Examples\n\n```\nuse finstack_quant_valuations::instruments::rates::irs::FloatingLegCompounding;\n\n// LIBOR-style swap (simple compounding)\nlet simple = FloatingLegCompounding::Simple;\nassert_eq!(simple, FloatingLegCompounding::default());\n\n// SOFR OIS swap: plain compounded in arrears (no lookback)\nlet sofr = FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 };\nassert_eq!(sofr, FloatingLegCompounding::sofr());\n\n// SONIA FRN-style leg with the BoE 5-day lookback (explicit, not the OIS preset)\nlet sonia_frn = FloatingLegCompounding::CompoundedInArrears { lookback_days: 5 };\nassert_ne!(sonia_frn, FloatingLegCompounding::sonia());\n```\n\n# References\n\n- **ISDA 2021 Definitions**: Compounded RFR conventions `docs/REFERENCES.md#isda-2021-definitions`\n- **ARRC** (Alternative Reference Rates Committee): SOFR conventions `docs/REFERENCES.md#arrc-sofr-users-guide`\n- **BoE** (Bank of England): SONIA conventions `docs/REFERENCES.md#boe-sonia-key-features`\n- **ECB**: €STR conventions `docs/REFERENCES.md#ecb-estr-methodology`\n\nIn the IRS instrument implementation, the RFR-style variant\n(`CompoundedInArrears`) is also used to classify swaps as OIS for\ndiscount-only float-leg pricing; see `InterestRateSwap::is_single_curve_ois` for details.",
       "oneOf": [
         {
           "const": "simple",
@@ -9054,7 +9042,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Compounded in arrears (overnight RFR rates).\n\nCoupon = Notional × [∏(1 + r_i × dcf_i) - 1] where the product\nis taken over daily observations in the accrual period.\n\nUse for:\n- USD SOFR (Secured Overnight Financing Rate)\n- GBP SONIA (Sterling Overnight Index Average)\n- EUR €STR (Euro Short-Term Rate)\n- JPY TONA (Tokyo Overnight Average Rate)\n\n# Fields\n\n- `lookback_days`: Days to shift observation end date before period end (typically 2-5)\n- `observation_shift`: Optional additional shift for operational convenience\n\n# Market Conventions\n\n- **SOFR**: 2-day lookback (ARRC recommended)\n- **SONIA**: 5-day lookback (BoE recommended)\n- **€STR**: 2-day shift (ECB convention)\n- **TONA**: 2-day lag (JSCC convention)",
+          "description": "Compounded in arrears (overnight RFR rates).\n\nCoupon = Notional × [∏(1 + r_i × dcf_i) - 1] where the product\nis taken over daily observations in the accrual period.\n\nUse for:\n- USD SOFR (Secured Overnight Financing Rate)\n- GBP SONIA (Sterling Overnight Index Average)\n- EUR €STR (Euro Short-Term Rate)\n- JPY TONA (Tokyo Overnight Average Rate)\n\n# Fields\n\n- `lookback_days`: Days to shift observation end date before period end (typically 2-5)\n\n# Market Conventions\n\n- **SOFR**: 2-day lookback (ARRC recommended)\n- **SONIA**: 5-day lookback (BoE recommended)\n- **€STR**: 2-day shift (ECB convention)\n- **TONA**: 2-day lag (JSCC convention)",
           "properties": {
             "compounded_in_arrears": {
               "properties": {
@@ -9064,16 +9052,6 @@
                   "maximum": 31,
                   "minimum": 0,
                   "type": "integer"
-                },
-                "observation_shift": {
-                  "description": "Optional ISDA 2021 observation shift (in business days), as an\n**alternative** to a lookback.\n\nWhen set (non-zero), observation dates are shifted *backward* by\nthis many business days and the day-count-fraction weights are\nshifted with them — identical semantics to\n[`FloatingLegCompounding::CompoundedWithObservationShift`].\n\nCombining a non-zero `lookback_days` with a non-zero\n`observation_shift` is **rejected** at pricing time on every\npricing path: the two conventions are mutually exclusive, and the\nprevious behavior (the shift silently cancelling the lookback on\none path while erroring on the other) was a defect.",
-                  "format": "int32",
-                  "maximum": 31,
-                  "minimum": 0,
-                  "type": [
-                    "integer",
-                    "null"
-                  ]
                 }
               },
               "required": [
@@ -12829,10 +12807,6 @@
           "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
           "description": "Currency (must match asset currency; financing PV is validated at valuation time)."
         },
-        "discount_curve_id": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-          "description": "Discount curve identifier for equity PV attribution (typically same as asset curve).\n\nThis is used only for curve dependency reporting; PV is computed as `asset - financing`."
-        },
         "exit_date": {
           "anyOf": [
             {
@@ -12872,7 +12846,6 @@
         "id",
         "currency",
         "asset",
-        "discount_curve_id",
         "attributes"
       ],
       "type": "object"
@@ -15187,15 +15160,8 @@
       "description": "Range accrual instrument.\n\nRange accrual notes pay coupons that accrue only when a reference rate or asset\nstays within a specified range. The accrual is proportional to the number of\nobservation dates where the underlying is within [lower_bound, upper_bound].\n\n# Bounds Interpretation\n\nThe `bounds_type` field controls how `lower_bound` and `upper_bound` are interpreted:\n- `Absolute`: Bounds are absolute price levels (e.g., 4500.0 for SPX at 4700)\n- `RelativeToInitialSpot`: Bounds are multipliers of the initial spot (e.g., 0.95 = 95%)\n\n# Historical Fixings\n\nFor mid-life valuations, use `past_fixings_in_range` to specify how many past\nobservations were in range. The pricer will add this to expected future fixings.\n\n# Rate-Linked Underlyings: Pricing Routing\n\nThe rate-linked fields (`rate_index_id`, `projection_curve_id`,\n`reference_tenor`) describe the contract but are **not priceable by the\nstandalone `RangeAccrual` pricers**, which support equity/FX (GBM)\nunderlyings only and return a validation error when these fields are set.\nPrice rate-linked range accrual notes through\n[`CallableRangeAccrual`](crate::instruments::exotics::callable_range_accrual)\n(with an empty call schedule for a non-callable note), which models the\nreference rate under HW1F and reconstructs the term rate per observation.",
       "properties": {
         "accrual_start_date": {
-          "anyOf": [
-            {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Contractual accrual-period start date.\n\nWhen omitted, the legacy representation infers the start by stepping\none first-observation interval backward. Single-observation contracts\nmust provide this field explicitly."
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Contractual accrual-period start date."
         },
         "attributes": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
@@ -15363,6 +15329,7 @@
         "coupon_rate",
         "notional",
         "day_count",
+        "accrual_start_date",
         "discount_curve_id",
         "spot_id",
         "vol_surface_id",
@@ -15513,10 +15480,6 @@
           "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
           "description": "Day count convention for year fractions."
         },
-        "discount_curve_id": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-          "description": "Discount curve identifier, used for risk attribution only.\n\nDCF valuation always discounts at [`discount_rate`](Self::discount_rate)\nregardless of whether this curve is loaded ; rate\nsensitivity (`Dv01`/`BucketedDv01`) bumps the risk-free component\ninside the rate."
-        },
         "discount_rate": {
           "default": null,
           "description": "Discount rate for DCF (annualized).",
@@ -15550,7 +15513,7 @@
         "instrument_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
           "default": {},
-          "description": "Attributes for tagging and scenarios."
+          "description": "Discount curve identifier, used for risk attribution only.\n\nDCF valuation always discounts at [`discount_rate`](Self::discount_rate)\nregardless of whether this curve is loaded ; rate\nsensitivity (`Dv01`/`BucketedDv01`) bumps the risk-free component\ninside the rate.\nAttributes for tagging and scenarios."
         },
         "metric_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
@@ -15673,8 +15636,7 @@
         "valuation_date",
         "valuation_method",
         "noi_schedule",
-        "day_count",
-        "discount_curve_id"
+        "day_count"
       ],
       "type": "object"
     },
@@ -19636,7 +19598,6 @@
             "attributes": {},
             "currency": "USD",
             "day_count": "act_365f",
-            "discount_curve_id": "USD-OIS",
             "discount_rate": 0.08,
             "id": "RE-OFFICE-DCF",
             "noi_schedule": [
@@ -19668,7 +19629,6 @@
           },
           "attributes": {},
           "currency": "USD",
-          "discount_curve_id": "USD-OIS",
           "id": "RE-LEVERED-OFFICE"
         },
         "type": "levered_real_estate_equity"

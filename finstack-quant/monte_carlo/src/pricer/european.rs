@@ -375,7 +375,7 @@ fn price_engine_gbm(
     let currency = match currency {
         Some(currency) => currency,
         None => {
-            let defaults = &crate::registry::embedded_defaults()?.python_bindings;
+            let defaults = &crate::registry::embedded_defaults()?.convenience;
             super::heston::parse_registry_currency(&defaults.default_currency)?
         }
     };
@@ -486,7 +486,7 @@ mod tests {
         assert!(first.mean.amount() > 0.0);
 
         let expected: Currency = crate::registry::embedded_defaults_or_panic()
-            .python_bindings
+            .convenience
             .default_currency
             .parse()
             .unwrap();

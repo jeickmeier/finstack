@@ -109,7 +109,7 @@ impl BarrierOptionMcPricer {
         )?;
 
         if inst.observed_barrier_breached == Some(true) {
-            use crate::instruments::exotics::barrier_option::types::BarrierType;
+            use finstack_quant_core::types::BarrierType;
             let unit = match inst.barrier_type {
                 BarrierType::UpAndIn | BarrierType::DownAndIn => {
                     crate::models::closed_form::vanilla::bs_price(
@@ -397,7 +397,7 @@ impl Pricer for BarrierOptionAnalyticalPricer {
         }
 
         if barrier_opt.observed_barrier_breached == Some(true) {
-            use crate::instruments::exotics::barrier_option::types::BarrierType;
+            use finstack_quant_core::types::BarrierType;
             let r = -df.ln() / t;
             let unit = match barrier_opt.barrier_type {
                 BarrierType::UpAndIn | BarrierType::DownAndIn => {
@@ -503,17 +503,19 @@ impl Pricer for BarrierOptionAnalyticalPricer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::instruments::exotics::barrier_option::types::{BarrierOption, BarrierType};
+    use crate::instruments::exotics::barrier_option::types::BarrierOption;
     use crate::instruments::{Attributes, OptionType};
     use crate::models::closed_form::barrier::{
         barrier_call_continuous, barrier_put_continuous, barrier_rebate_continuous, down_out_call,
-        BarrierParams, BarrierType as AnalyticalBarrierType,
+        BarrierParams,
     };
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::{DayCount, DayCountContext};
     use finstack_quant_core::market_data::scalars::MarketScalar;
     use finstack_quant_core::market_data::surfaces::VolSurface;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
+    use finstack_quant_core::types::BarrierType;
+    use finstack_quant_core::types::BarrierType as AnalyticalBarrierType;
     use finstack_quant_core::types::InstrumentId;
     use time::Month;
 

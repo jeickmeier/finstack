@@ -130,32 +130,13 @@ impl TrancheCoupon {
     /// Get current rate for a given date (without index lookup)
     ///
     /// For Fixed: returns the fixed rate
-    /// For Floating: returns just the spread component (use current_rate_with_index for full rate)
+    /// For Floating: returns just the spread component (use
+    /// `try_current_rate_with_index` for the full projected rate)
     pub fn current_rate(&self, _date: Date) -> f64 {
         match self {
             TrancheCoupon::Fixed { rate } => *rate,
             TrancheCoupon::Floating(spec) => spec.spread_bp.to_f64().unwrap_or_default() / 10_000.0,
         }
-    }
-
-    /// Compute current rate including index forward where applicable.
-    ///
-    /// For Fixed coupons, returns the fixed rate.
-    /// For Floating coupons, uses centralized projection with floor/cap support.
-    /// Uses proper calendar-based month addition for period end calculation.
-    pub fn current_rate_with_index(
-        &self,
-        date: Date,
-        context: &finstack_quant_core::market_data::context::MarketContext,
-    ) -> f64 {
-        // Best-effort wrapper that preserves historical behavior:
-        // - Missing market data falls back to spread-only
-        // - Projection failures fall back to spread-only
-        //
-        // For correctness-first valuation (no silent fallbacks), prefer
-        // `try_current_rate_with_index` and propagate the error.
-        self.try_current_rate_with_index(date, context)
-            .unwrap_or_else(|_| self.current_rate(date))
     }
 
     /// Compute current rate including index forward where applicable (fallible).
@@ -168,28 +149,19 @@ impl TrancheCoupon {
         date: Date,
         context: &finstack_quant_core::market_data::context::MarketContext,
     ) -> finstack_quant_core::Result<f64> {
-        let (period_end, as_of) = match self {
-            TrancheCoupon::Fixed { .. } => (date, date),
+        let as_of = match self {
+            TrancheCoupon::Fixed { .. } => date,
             TrancheCoupon::Floating(spec) => {
-                let fwd = context.get_forward(spec.index_id.as_str())?;
-                (
-                    crate::instruments::fixed_income::structured_credit::utils::rate_helpers::try_tenor_to_period_end(
-                        date,
-                        fwd.tenor(),
-                        fwd.day_count(),
-                    )?,
-                    fwd.base_date(),
-                )
+                context.get_forward(spec.index_id.as_str())?.base_date()
             }
         };
-        self.try_rate_for_period(date, period_end, as_of, context)
+        self.try_rate_for_period(date, as_of, context)
     }
 
     /// Resolve the contractual coupon for an explicit accrual period.
     pub fn try_rate_for_period(
         &self,
         accrual_start: Date,
-        accrual_end: Date,
         as_of: Date,
         context: &finstack_quant_core::market_data::context::MarketContext,
     ) -> finstack_quant_core::Result<f64> {
@@ -245,7 +217,6 @@ impl TrancheCoupon {
                 }
                 crate::cashflow::builder::project_floating_rate(
                     accrual_start,
-                    accrual_end,
                     fwd.as_ref(),
                     &params,
                 )

@@ -92,10 +92,9 @@ mod gbm_barrier {
     use finstack_quant_core::market_data::surfaces::VolSurface;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
     use finstack_quant_core::money::Money;
+    use finstack_quant_core::types::BarrierType;
     use finstack_quant_core::types::InstrumentId;
-    use finstack_quant_valuations::instruments::exotics::barrier_option::{
-        BarrierOption, BarrierType,
-    };
+    use finstack_quant_valuations::instruments::exotics::barrier_option::BarrierOption;
     use finstack_quant_valuations::instruments::{Attributes, OptionType};
     use finstack_quant_valuations::metrics::MetricId;
     use finstack_quant_valuations::pricer::{

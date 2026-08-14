@@ -13,7 +13,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{CurveId, InstrumentId};
+use finstack_quant_core::types::InstrumentId;
 use finstack_quant_core::Error as CoreError;
 
 /// Spread `WACC − g` below which Gordon Growth is near-singular: the terminal
@@ -250,14 +250,6 @@ pub struct DiscountedCashFlow {
     #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub valuation_date: Date,
-    /// Discount curve identifier, used for risk attribution only.
-    ///
-    /// Discounting always uses [`wacc`](Self::wacc) via `(1 + wacc)^{-t}`
-    /// regardless of whether this curve is loaded (the
-    /// previous behavior silently switched risky flows to risk-free curve
-    /// discounting). Rate sensitivity (`Dv01`/`BucketedDv01`) bumps the
-    /// risk-free component inside the WACC instead.
-    pub discount_curve_id: CurveId,
     /// Mid-year discounting convention (default: `false` = end-of-period).
     ///
     /// When `true`, each flow is discounted at `t` minus half the average
@@ -358,7 +350,6 @@ struct DiscountedCashFlowUnchecked {
     /// previous behavior silently switched risky flows to risk-free curve
     /// discounting). Rate sensitivity (`Dv01`/`BucketedDv01`) bumps the
     /// risk-free component inside the WACC instead.
-    discount_curve_id: CurveId,
     /// Mid-year discounting convention (default: `false` = end-of-period).
     ///
     /// When `true`, each flow is discounted at `t` minus half the average
@@ -421,7 +412,6 @@ impl TryFrom<DiscountedCashFlowUnchecked> for DiscountedCashFlow {
             terminal_value: value.terminal_value,
             net_debt: value.net_debt,
             valuation_date: value.valuation_date,
-            discount_curve_id: value.discount_curve_id,
             mid_year_convention: value.mid_year_convention,
             terminal_flow_override: value.terminal_flow_override,
             equity_bridge: value.equity_bridge,
@@ -690,7 +680,6 @@ impl DiscountedCashFlow {
             .terminal_value(TerminalValueSpec::GordonGrowth { growth_rate: 0.02 })
             .net_debt(15_000_000.0)
             .valuation_date(valuation_date)
-            .discount_curve_id(CurveId::new("USD-OIS"))
             .mid_year_convention(true)
             .shares_outstanding_opt(Some(10_000_000.0))
             .attributes(Attributes::default())
@@ -1032,8 +1021,7 @@ impl Instrument for DiscountedCashFlow {
     }
 
     fn market_dependencies(&self) -> finstack_quant_core::Result<MarketDependencies> {
-        let mut deps = MarketDependencies::new();
-        deps.add_discount_curve(self.discount_curve_id.clone());
+        let deps = MarketDependencies::new();
         Ok(deps)
     }
 
@@ -1110,8 +1098,6 @@ mod tests {
         let cf_date =
             Date::from_calendar_date(2026, Month::January, 1).expect("valid test cashflow date");
 
-        let discount_curve_id = CurveId::new("USD-OIS");
-
         DiscountedCashFlow {
             id: InstrumentId::new("TEST-DCF-GORDON"),
             currency: Currency::USD,
@@ -1120,7 +1106,6 @@ mod tests {
             terminal_value: TerminalValueSpec::GordonGrowth { growth_rate: 0.02 },
             net_debt: 0.0,
             valuation_date,
-            discount_curve_id,
             mid_year_convention: false,
             terminal_flow_override: None,
             equity_bridge: None,
@@ -1471,7 +1456,6 @@ mod tests {
             },
             net_debt: 0.0,
             valuation_date,
-            discount_curve_id: CurveId::new("USD-OIS"),
             mid_year_convention: false,
             terminal_flow_override: None,
             equity_bridge: None,
@@ -1541,7 +1525,6 @@ mod tests {
             terminal_value: TerminalValueSpec::GordonGrowth { growth_rate: 0.03 },
             net_debt: 0.0,
             valuation_date,
-            discount_curve_id: CurveId::new("USD-OIS"),
             mid_year_convention: false,
             terminal_flow_override: None,
             equity_bridge: None,
@@ -1564,24 +1547,21 @@ mod tests {
         );
     }
 
+    /// A DCF discounts at its own WACC, so it declares no discount-curve
+    /// dependency; rate sensitivity bumps the risk-free component of the WACC.
     #[test]
-    fn required_discount_curves_and_has_discount_curve_are_consistent() {
+    fn dcf_declares_no_discount_curve_dependency() {
         let dcf = build_simple_dcf_gordon();
-
-        let required = dcf
-            .market_dependencies()
-            .expect("market_dependencies should succeed")
-            .curves
-            .discount_curves;
-        assert_eq!(required.len(), 1);
-        assert_eq!(required[0], dcf.discount_curve_id);
 
         let deps = dcf
             .market_dependencies()
-            .expect("market_dependencies")
+            .expect("market_dependencies should succeed")
             .curves;
-        assert_eq!(deps.discount_curves.len(), 1);
-        assert_eq!(deps.discount_curves[0], dcf.discount_curve_id);
+        assert!(
+            deps.discount_curves.is_empty(),
+            "DCF must not force callers to load a curve no computation reads, got {:?}",
+            deps.discount_curves
+        );
     }
 
     fn build_flat_discount_curve(id: &CurveId, as_of: Date, rate: f64) -> DiscountCurve {
@@ -1609,7 +1589,7 @@ mod tests {
         let mut dcf = build_simple_dcf_gordon();
         dcf.valuation_date = as_of;
 
-        let market_curve = build_market_with_flat_curve(as_of, &dcf.discount_curve_id, 0.05);
+        let market_curve = build_market_with_flat_curve(as_of, &CurveId::new("USD-OIS"), 0.05);
         let pv_curve = dcf.value(&market_curve, as_of).expect("pv with curve");
         let pv_no_curve = dcf
             .value(&MarketContext::new(), as_of)
@@ -1652,7 +1632,7 @@ mod tests {
         let mut dcf = build_simple_dcf_gordon();
         dcf.valuation_date = as_of;
 
-        let market = build_market_with_flat_curve(as_of, &dcf.discount_curve_id, 0.05);
+        let market = build_market_with_flat_curve(as_of, &CurveId::new("USD-OIS"), 0.05);
         let mut mctx = build_metric_context(dcf, market, as_of);
 
         let mut registry = crate::metrics::standard_registry().clone();
@@ -1675,7 +1655,7 @@ mod tests {
         let mut dcf = build_simple_dcf_gordon();
         dcf.valuation_date = as_of;
 
-        let market = build_market_with_flat_curve(as_of, &dcf.discount_curve_id, 0.05);
+        let market = build_market_with_flat_curve(as_of, &CurveId::new("USD-OIS"), 0.05);
         let mut mctx = build_metric_context(dcf, market, as_of);
 
         let mut registry = crate::metrics::standard_registry().clone();
@@ -1762,7 +1742,7 @@ mod tests {
         let mut dcf = build_simple_dcf_gordon();
         dcf.valuation_date = as_of;
 
-        let market = build_market_with_flat_curve(as_of, &dcf.discount_curve_id, 0.05);
+        let market = build_market_with_flat_curve(as_of, &CurveId::new("USD-OIS"), 0.05);
         let mut mctx = build_metric_context(dcf, market, as_of);
 
         let mut registry = crate::metrics::standard_registry().clone();
@@ -2145,8 +2125,9 @@ mod tests {
     }
 
     #[test]
-    fn serde_old_json_without_new_fields_deserializes() {
-        // Simulate an old-format JSON (no new fields)
+    fn optional_feature_fields_default_when_absent() {
+        // The minimal required field set deserializes through the unchecked
+        // mirror, and every optional feature lands on its documented default.
         let json = r#"{
             "id": "TEST-OLD",
             "currency": "USD",
@@ -2155,11 +2136,11 @@ mod tests {
             "terminal_value": {"type": "gordon_growth", "growth_rate": 0.02},
             "net_debt": 50.0,
             "valuation_date": "2025-01-01",
-            "discount_curve_id": "USD-OIS",
             "attributes": {"tags": [], "meta": {}}
         }"#;
 
-        let dcf: DiscountedCashFlow = serde_json::from_str(json).expect("old JSON should parse");
+        let dcf: DiscountedCashFlow =
+            serde_json::from_str(json).expect("minimal DCF JSON should parse");
         assert_eq!(dcf.id.as_str(), "TEST-OLD");
         assert!(!dcf.mid_year_convention);
         assert!(dcf.equity_bridge.is_none());
@@ -2203,7 +2184,7 @@ mod tests {
         let mut dcf = build_simple_dcf_gordon();
         dcf.valuation_date = as_of;
 
-        let market = build_market_with_flat_curve(as_of, &dcf.discount_curve_id, 0.05);
+        let market = build_market_with_flat_curve(as_of, &CurveId::new("USD-OIS"), 0.05);
 
         // Get equity from value()
         let equity = dcf.value(&market, as_of).expect("value").amount();
@@ -2243,7 +2224,7 @@ mod tests {
         let mut dcf = build_simple_dcf_gordon();
         dcf.valuation_date = as_of;
 
-        let market = build_market_with_flat_curve(as_of, &dcf.discount_curve_id, 0.05);
+        let market = build_market_with_flat_curve(as_of, &CurveId::new("USD-OIS"), 0.05);
         let terminal_value = dcf.calculate_terminal_value().expect("terminal value");
         let expected_pv_terminal = dcf
             .discount_terminal_value(terminal_value)
@@ -2324,7 +2305,6 @@ mod tests {
             .terminal_value(TerminalValueSpec::GordonGrowth { growth_rate: 0.02 })
             .net_debt(50.0)
             .valuation_date(valuation_date)
-            .discount_curve_id(CurveId::new("USD-OIS"))
             .mid_year_convention(true)
             .equity_bridge(EquityBridge {
                 total_debt: 80.0,

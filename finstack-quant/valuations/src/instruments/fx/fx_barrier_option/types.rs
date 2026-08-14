@@ -6,11 +6,11 @@
 
 use crate::impl_instrument_base;
 use crate::instruments::common_impl::traits::Attributes;
-use crate::instruments::exotics::barrier_option::types::BarrierType;
 use crate::instruments::OptionType;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::money::Money;
+use finstack_quant_core::types::BarrierType;
 use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
 
 /// FX barrier option instrument.

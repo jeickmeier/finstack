@@ -2,7 +2,8 @@
 
 use super::utils::*;
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_valuations::instruments::rates::ir_future::{FutureContractSpecs, Position};
+use finstack_quant_valuations::instruments::rates::ir_future::FutureContractSpecs;
+use finstack_quant_valuations::instruments::Position;
 use time::macros::date;
 
 #[test]

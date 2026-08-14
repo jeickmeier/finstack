@@ -423,12 +423,9 @@ fn rate_and_accrual(tranche: &Tranche, context: &TestContext<'_>) -> Result<(f64
     // silently reverting to spread-only.
     let rate = if let Some(market) = context.market {
         if let Some(period_start) = context.period_start {
-            tranche.coupon.try_rate_for_period(
-                period_start,
-                context.as_of,
-                context.as_of,
-                market,
-            )?
+            tranche
+                .coupon
+                .try_rate_for_period(period_start, context.as_of, market)?
         } else {
             tranche
                 .coupon
@@ -448,13 +445,10 @@ fn rate_and_accrual(tranche: &Tranche, context: &TestContext<'_>) -> Result<(f64
     // The waterfall spec defines the CLAIM the test measures coverage of:
     // capped claims accrue at the capped rate (applied after the shift, like
     // the AFC cap), and a tranche with no interest recipient owes nothing.
-    let rate = match context.interest_claim_caps {
-        None => rate,
-        Some(caps) => match caps.get(tranche.id.as_str()) {
-            None => 0.0,
-            Some(None) => rate,
-            Some(Some(cap)) => rate.min(*cap),
-        },
+    let rate = match context.interest_claim_caps.get(tranche.id.as_str()) {
+        None => 0.0,
+        Some(None) => rate,
+        Some(Some(cap)) => rate.min(*cap),
     };
     // Use actual day-count accrual when period_start is available (m3 fix);
     // fall back to periods-per-year approximation as default behavior.
@@ -524,11 +518,9 @@ pub struct TestContext<'a> {
     /// uncapped claim, `Some(cap)` = coupon capped at `cap`, absent key = the
     /// waterfall defines no interest claim for the tranche.
     ///
-    /// When this field is `None` the test falls back to legacy behavior —
-    /// every tranche owes its full uncapped coupon — which is exact for the
-    /// template waterfall. The engine always supplies the spec-derived map so
-    /// IC measures coverage of what the structure actually owes.
-    pub interest_claim_caps: Option<&'a HashMap<&'a str, Option<f64>>>,
+    /// Always supplied from the waterfall spec, so IC measures coverage of
+    /// what the structure actually owes.
+    pub interest_claim_caps: &'a HashMap<&'a str, Option<f64>>,
     /// Simulated floating-coupon shift (SC-M13 OAS rate path); zero outside
     /// OAS runs. Keeps the IC due on the same rate path as collections.
     pub floating_rate_shift: f64,
@@ -611,6 +603,14 @@ fn collateral_balance_with_haircuts(
 }
 
 #[cfg(test)]
+/// The engine always supplies a claim map. Tests that previously relied on the
+/// removed `None` arm ("every tranche owes its full uncapped coupon") state
+/// that explicitly.
+fn uncapped_claims(ids: &[&'static str]) -> HashMap<&'static str, Option<f64>> {
+    ids.iter().map(|id| (*id, None)).collect()
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::instruments::fixed_income::structured_credit::types::{
@@ -661,7 +661,7 @@ mod tests {
             current_pool_balance: None,
             senior_fees: Money::new(0.0, Currency::USD),
             restricted_cash: Money::new(0.0, Currency::USD),
-            interest_claim_caps: None,
+            interest_claim_caps: &uncapped_claims(&["TEST_TRANCHE"]),
             floating_rate_shift: 0.0,
         };
 
@@ -708,7 +708,7 @@ mod tests {
             current_pool_balance: None,
             senior_fees: Money::new(0.0, Currency::USD),
             restricted_cash: Money::new(0.0, Currency::USD),
-            interest_claim_caps: None,
+            interest_claim_caps: &uncapped_claims(&["TEST_TRANCHE"]),
             floating_rate_shift: 0.0,
         };
 
@@ -762,7 +762,7 @@ mod tests {
             current_pool_balance: Some(Money::new(collateral, Currency::USD)),
             senior_fees: Money::new(0.0, Currency::USD),
             restricted_cash: Money::new(0.0, Currency::USD),
-            interest_claim_caps: None,
+            interest_claim_caps: &uncapped_claims(&["SENIOR"]),
             floating_rate_shift: 0.0,
         };
 
@@ -839,7 +839,7 @@ mod tests {
             current_pool_balance: Some(Money::new(collateral, Currency::USD)),
             senior_fees: Money::new(0.0, Currency::USD),
             restricted_cash: Money::new(0.0, Currency::USD),
-            interest_claim_caps: None,
+            interest_claim_caps: &uncapped_claims(&["SENIOR"]),
             floating_rate_shift: 0.0,
         };
 
@@ -1002,7 +1002,7 @@ mod tests {
             current_pool_balance: None,
             senior_fees: Money::new(0.0, Currency::USD),
             restricted_cash: Money::new(0.0, Currency::USD),
-            interest_claim_caps: None,
+            interest_claim_caps: &uncapped_claims(&["TEST_TRANCHE"]),
             floating_rate_shift: 0.0,
         };
 
@@ -1118,7 +1118,7 @@ mod haircut_tests {
                 current_pool_balance: Some(Money::new(400_000.0, Currency::USD)),
                 senior_fees: Money::new(fees, Currency::USD),
                 restricted_cash: Money::new(0.0, Currency::USD),
-                interest_claim_caps: None,
+                interest_claim_caps: &uncapped_claims(&["A"]),
                 floating_rate_shift: 0.0,
             };
             CoverageTest::new_ic(1.20)
@@ -1184,7 +1184,7 @@ mod haircut_tests {
             current_pool_balance: Some(Money::new(400_000.0, Currency::USD)),
             senior_fees: Money::new(0.0, Currency::USD),
             restricted_cash: Money::new(0.0, Currency::USD),
-            interest_claim_caps: None,
+            interest_claim_caps: &uncapped_claims(&["A"]),
             floating_rate_shift: 0.0,
         };
 
@@ -1267,7 +1267,7 @@ mod haircut_tests {
             current_pool_balance: None,
             senior_fees: Money::new(0.0, Currency::USD),
             restricted_cash: Money::new(0.0, Currency::USD),
-            interest_claim_caps: None,
+            interest_claim_caps: &uncapped_claims(&["B"]),
             floating_rate_shift: 0.0,
         };
 
@@ -1368,7 +1368,7 @@ mod haircut_tests {
             current_pool_balance: None,
             senior_fees: Money::new(0.0, Currency::USD),
             restricted_cash: Money::new(0.0, Currency::USD),
-            interest_claim_caps: None,
+            interest_claim_caps: &uncapped_claims(&["A"]),
             floating_rate_shift: 0.0,
         };
 
@@ -1426,7 +1426,7 @@ mod haircut_tests {
             current_pool_balance: Some(current),
             senior_fees: Money::new(0.0, Currency::USD),
             restricted_cash: Money::new(0.0, Currency::USD),
-            interest_claim_caps: None,
+            interest_claim_caps: &uncapped_claims(&["A"]),
             floating_rate_shift: 0.0,
         };
 
@@ -1474,7 +1474,7 @@ mod haircut_tests {
             current_pool_balance: Some(Money::new(400_000.0, Currency::USD)),
             senior_fees: Money::new(0.0, Currency::USD),
             restricted_cash: Money::new(0.0, Currency::USD),
-            interest_claim_caps: None,
+            interest_claim_caps: &uncapped_claims(&["A"]),
             floating_rate_shift: 0.0,
         };
 
@@ -1513,7 +1513,7 @@ mod haircut_tests {
             current_pool_balance: Some(Money::new(400_000.0, Currency::USD)),
             senior_fees: Money::new(0.0, Currency::USD),
             restricted_cash: Money::new(0.0, Currency::USD),
-            interest_claim_caps: None,
+            interest_claim_caps: &uncapped_claims(&["A"]),
             floating_rate_shift: 0.0,
         };
 

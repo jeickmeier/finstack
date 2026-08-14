@@ -603,13 +603,11 @@ fn ois_compounding_from_recipe(
     use crate::instruments::rates::irs::FloatingLegCompounding;
     match compounding {
         RateCalibrationOisCompounding::Simple => FloatingLegCompounding::Simple,
-        RateCalibrationOisCompounding::CompoundedInArrears {
-            lookback_days,
-            observation_shift,
-        } => FloatingLegCompounding::CompoundedInArrears {
-            lookback_days: *lookback_days,
-            observation_shift: *observation_shift,
-        },
+        RateCalibrationOisCompounding::CompoundedInArrears { lookback_days } => {
+            FloatingLegCompounding::CompoundedInArrears {
+                lookback_days: *lookback_days,
+            }
+        }
         RateCalibrationOisCompounding::CompoundedWithObservationShift { shift_days } => {
             FloatingLegCompounding::CompoundedWithObservationShift {
                 shift_days: *shift_days,

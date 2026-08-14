@@ -715,9 +715,7 @@ mod tests {
             ))
             .day_count(DayCount::Act365F)
             .discount_curve_id(CurveId::new("USD-OIS"))
-            .accrual_start_date_opt(Some(
-                Date::from_calendar_date(2025, Month::January, 1).expect("date"),
-            ))
+            .accrual_start_date(Date::from_calendar_date(2025, Month::January, 1).expect("date"))
             .rate_index_id_opt(Some("SOFR".into()))
             .projection_curve_id_opt(Some(CurveId::new("USD-OIS")))
             .reference_tenor_opt(Some(finstack_quant_core::dates::Tenor::new(

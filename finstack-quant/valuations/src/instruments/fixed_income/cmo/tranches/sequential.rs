@@ -71,9 +71,6 @@ pub fn average_life(principal_payments: &[(f64, f64)]) -> f64 {
 ///   expected payment window is estimated.
 /// * `preceding_balance` - Aggregate unpaid balance of tranches ahead of this
 ///   tranche in the sequential principal-payment order.
-/// * `_total_collateral` - Total collateral balance retained for a common
-///   tranche-analysis interface. This simplified timing estimate does not use
-///   it directly because `preceding_balance` already determines the start.
 /// * `monthly_principal_rate` - Expected monthly scheduled-plus-prepayment
 ///   principal amount available to the sequential waterfall.
 ///
@@ -83,7 +80,6 @@ pub fn average_life(principal_payments: &[(f64, f64)]) -> f64 {
 pub fn estimate_payment_window(
     tranche_size: f64,
     preceding_balance: f64,
-    _total_collateral: f64,
     monthly_principal_rate: f64,
 ) -> (u32, u32) {
     if monthly_principal_rate <= 0.0 {
@@ -157,12 +153,12 @@ mod tests {
     #[test]
     fn test_payment_window() {
         // First tranche (no preceding balance)
-        let (start, end) = estimate_payment_window(10_000.0, 0.0, 100_000.0, 500.0);
+        let (start, end) = estimate_payment_window(10_000.0, 0.0, 500.0);
         assert_eq!(start, 0);
         assert_eq!(end, 20); // 10,000 / 500 = 20 months
 
         // Second tranche (behind first)
-        let (start2, end2) = estimate_payment_window(10_000.0, 10_000.0, 100_000.0, 500.0);
+        let (start2, end2) = estimate_payment_window(10_000.0, 10_000.0, 500.0);
         assert_eq!(start2, 20); // After first is paid
         assert_eq!(end2, 40);
     }

@@ -27,8 +27,8 @@ pub use closed_form::{
     fixed_strike_lookback_call, fixed_strike_lookback_put, floating_strike_lookback_call,
     floating_strike_lookback_put, geometric_asian_call, geometric_asian_put,
     heston_call_price_fourier, heston_put_price_fourier, quanto_call, quanto_drift_adjustment,
-    quanto_put, up_in_call, up_out_call, AsianGreeks, AsianPriceResult, BarrierType, BsGreeks,
-    HestonParams, ONE_PERCENT,
+    quanto_put, up_in_call, up_out_call, AsianGreeks, AsianPriceResult, BsGreeks, HestonParams,
+    ONE_PERCENT,
 };
 pub use pde::{
     BlackScholesPde, BoundaryCondition, CraigSneydStepper, Grid1D, Grid2D, HestonPde, PdeProblem1D,

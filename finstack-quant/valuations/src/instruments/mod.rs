@@ -223,8 +223,8 @@ pub use commodity::{
 };
 
 pub use exotics::{
-    AsianOption, AveragingMethod, BarrierOption, BarrierType, Basket, CallableRangeAccrual,
-    LookbackOption, LookbackType, RangeAccrual, Snowball, SnowballVariant, Tarn,
+    AsianOption, AveragingMethod, BarrierOption, Basket, CallableRangeAccrual, LookbackOption,
+    LookbackType, RangeAccrual, Snowball, SnowballVariant, Tarn,
 };
 
 mod breakeven;

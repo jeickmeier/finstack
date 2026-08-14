@@ -3,7 +3,6 @@
     "spec": {
       "attributes": {},
       "currency": "USD",
-      "discount_curve_id": "USD-OIS",
       "flows": [
         [
           "2026-01-01",

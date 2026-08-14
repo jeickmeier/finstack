@@ -6,8 +6,8 @@ use finstack_quant_core::credit::scoring::{
     altman_z_prime as core_altman_z_prime, altman_z_prime_with_pd as core_altman_z_prime_with_pd,
     altman_z_score as core_altman_z_score, altman_z_score_with_pd as core_altman_z_score_with_pd,
     ohlson_o_score as core_ohlson_o_score, zmijewski_score as core_zmijewski_score,
-    AltmanPdCalibration, AltmanZDoublePrimeInput, AltmanZPrimeInput, AltmanZScoreInput,
-    OhlsonOScoreInput, ScoringZone, ZmijewskiInput,
+    AltmanZDoublePrimeInput, AltmanZPrimeInput, AltmanZScoreInput, OhlsonOScoreInput, ScoringZone,
+    ZmijewskiInput,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
@@ -23,40 +23,17 @@ fn zone_to_str(zone: ScoringZone) -> &'static str {
     }
 }
 
-/// Explicit versioned Altman score-to-PD heuristics.
-#[pyclass(
-    name = "AltmanPdCalibration",
-    module = "finstack_quant.core.credit.scoring",
-    frozen,
-    eq,
-    hash,
-    skip_from_py_object
-)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-struct PyAltmanPdCalibration {
-    inner: AltmanPdCalibration,
-}
-
-#[pymethods]
-impl PyAltmanPdCalibration {
-    /// Legacy uncalibrated house heuristic.
-    #[classattr]
-    const HEURISTIC_V1: Self = Self {
-        inner: AltmanPdCalibration::Heuristic,
-    };
-}
-
 /// Compute the original Altman Z-Score (1968) for publicly traded manufacturing firms.
 ///
 /// Z = 1.2 * X1 + 1.4 * X2 + 3.3 * X3 + 0.6 * X4 + 1.0 * X5
 ///
 /// Zone cutoffs: Z > 2.99 Safe, 1.81 <= Z <= 2.99 Grey, Z < 1.81 Distress.
 ///
-/// Returns ``implied_pd=None`` unless an explicit versioned heuristic is supplied.
+/// Returns ``implied_pd=None`` unless ``with_implied_pd=True``.
 #[pyfunction]
 #[pyo3(
-    signature = (working_capital_to_total_assets, retained_earnings_to_total_assets, ebit_to_total_assets, market_equity_to_total_liabilities, sales_to_total_assets, pd_calibration=None),
-    text_signature = "(working_capital_to_total_assets, retained_earnings_to_total_assets, ebit_to_total_assets, market_equity_to_total_liabilities, sales_to_total_assets, pd_calibration=None)"
+    signature = (working_capital_to_total_assets, retained_earnings_to_total_assets, ebit_to_total_assets, market_equity_to_total_liabilities, sales_to_total_assets, with_implied_pd=false),
+    text_signature = "(working_capital_to_total_assets, retained_earnings_to_total_assets, ebit_to_total_assets, market_equity_to_total_liabilities, sales_to_total_assets, with_implied_pd=False)"
 )]
 fn altman_z_score(
     working_capital_to_total_assets: f64,
@@ -64,7 +41,7 @@ fn altman_z_score(
     ebit_to_total_assets: f64,
     market_equity_to_total_liabilities: f64,
     sales_to_total_assets: f64,
-    pd_calibration: Option<&PyAltmanPdCalibration>,
+    with_implied_pd: bool,
 ) -> PyResult<(f64, String, Option<f64>)> {
     let input = AltmanZScoreInput {
         working_capital_to_total_assets,
@@ -73,9 +50,10 @@ fn altman_z_score(
         market_equity_to_total_liabilities,
         sales_to_total_assets,
     };
-    let r = match pd_calibration {
-        Some(calibration) => core_altman_z_score_with_pd(&input, calibration.inner),
-        None => core_altman_z_score(&input),
+    let r = if with_implied_pd {
+        core_altman_z_score_with_pd(&input)
+    } else {
+        core_altman_z_score(&input)
     }
     .map_err(display_to_py)?;
     Ok((r.score, zone_to_str(r.zone).to_string(), r.implied_pd))
@@ -90,8 +68,8 @@ fn altman_z_score(
 /// Returns a tuple ``(score, zone, implied_pd)``.
 #[pyfunction]
 #[pyo3(
-    signature = (working_capital_to_total_assets, retained_earnings_to_total_assets, ebit_to_total_assets, book_equity_to_total_liabilities, sales_to_total_assets, pd_calibration=None),
-    text_signature = "(working_capital_to_total_assets, retained_earnings_to_total_assets, ebit_to_total_assets, book_equity_to_total_liabilities, sales_to_total_assets, pd_calibration=None)"
+    signature = (working_capital_to_total_assets, retained_earnings_to_total_assets, ebit_to_total_assets, book_equity_to_total_liabilities, sales_to_total_assets, with_implied_pd=false),
+    text_signature = "(working_capital_to_total_assets, retained_earnings_to_total_assets, ebit_to_total_assets, book_equity_to_total_liabilities, sales_to_total_assets, with_implied_pd=False)"
 )]
 fn altman_z_prime(
     working_capital_to_total_assets: f64,
@@ -99,7 +77,7 @@ fn altman_z_prime(
     ebit_to_total_assets: f64,
     book_equity_to_total_liabilities: f64,
     sales_to_total_assets: f64,
-    pd_calibration: Option<&PyAltmanPdCalibration>,
+    with_implied_pd: bool,
 ) -> PyResult<(f64, String, Option<f64>)> {
     let input = AltmanZPrimeInput {
         working_capital_to_total_assets,
@@ -108,9 +86,10 @@ fn altman_z_prime(
         book_equity_to_total_liabilities,
         sales_to_total_assets,
     };
-    let r = match pd_calibration {
-        Some(calibration) => core_altman_z_prime_with_pd(&input, calibration.inner),
-        None => core_altman_z_prime(&input),
+    let r = if with_implied_pd {
+        core_altman_z_prime_with_pd(&input)
+    } else {
+        core_altman_z_prime(&input)
     }
     .map_err(display_to_py)?;
     Ok((r.score, zone_to_str(r.zone).to_string(), r.implied_pd))
@@ -127,15 +106,15 @@ fn altman_z_prime(
 /// Returns a tuple ``(score, zone, implied_pd)``.
 #[pyfunction]
 #[pyo3(
-    signature = (working_capital_to_total_assets, retained_earnings_to_total_assets, ebit_to_total_assets, book_equity_to_total_liabilities, pd_calibration=None),
-    text_signature = "(working_capital_to_total_assets, retained_earnings_to_total_assets, ebit_to_total_assets, book_equity_to_total_liabilities, pd_calibration=None)"
+    signature = (working_capital_to_total_assets, retained_earnings_to_total_assets, ebit_to_total_assets, book_equity_to_total_liabilities, with_implied_pd=false),
+    text_signature = "(working_capital_to_total_assets, retained_earnings_to_total_assets, ebit_to_total_assets, book_equity_to_total_liabilities, with_implied_pd=False)"
 )]
 fn altman_z_double_prime(
     working_capital_to_total_assets: f64,
     retained_earnings_to_total_assets: f64,
     ebit_to_total_assets: f64,
     book_equity_to_total_liabilities: f64,
-    pd_calibration: Option<&PyAltmanPdCalibration>,
+    with_implied_pd: bool,
 ) -> PyResult<(f64, String, Option<f64>)> {
     let input = AltmanZDoublePrimeInput {
         working_capital_to_total_assets,
@@ -143,9 +122,10 @@ fn altman_z_double_prime(
         ebit_to_total_assets,
         book_equity_to_total_liabilities,
     };
-    let r = match pd_calibration {
-        Some(calibration) => core_altman_z_double_prime_with_pd(&input, calibration.inner),
-        None => core_altman_z_double_prime(&input),
+    let r = if with_implied_pd {
+        core_altman_z_double_prime_with_pd(&input)
+    } else {
+        core_altman_z_double_prime(&input)
     }
     .map_err(display_to_py)?;
     Ok((r.score, zone_to_str(r.zone).to_string(), r.implied_pd))
@@ -254,7 +234,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         "Academic credit scoring models: Altman Z-Score family, Ohlson O-Score, Zmijewski probit.",
     )?;
 
-    m.add_class::<PyAltmanPdCalibration>()?;
     m.add_function(wrap_pyfunction!(altman_z_score, &m)?)?;
     m.add_function(wrap_pyfunction!(altman_z_prime, &m)?)?;
     m.add_function(wrap_pyfunction!(altman_z_double_prime, &m)?)?;
@@ -265,7 +244,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let all = PyList::new(
         py,
         [
-            "AltmanPdCalibration",
             "altman_em_score",
             "altman_z_double_prime",
             "altman_z_prime",

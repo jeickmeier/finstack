@@ -38,7 +38,6 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId, Rate};
 use time::macros::date;
 
-/// Backward-compatible path for the canonical position type.
 use crate::instruments::Position;
 
 /// Interest Rate Future instrument.
@@ -339,12 +338,9 @@ impl InterestRateFuture {
         if let Some(adjustment) = self.contract_specs.convexity_adjustment {
             return Ok(adjustment);
         }
-        let (fixing_date, period_start, period_end) = self.resolve_dates()?;
+        let (_fixing_date, period_start, period_end) = self.resolve_dates()?;
         let fwd = context.get_forward(&self.forward_curve_id)?;
         let fwd_day_count = fwd.day_count();
-        let t_fixing = fwd_day_count
-            .year_fraction(as_of, fixing_date, DayCountContext::default())?
-            .max(0.0);
         let t_start = fwd_day_count
             .year_fraction(as_of, period_start, DayCountContext::default())?
             .max(0.0);
@@ -356,13 +352,10 @@ impl InterestRateFuture {
             period_start,
             period_end,
         )?;
-        Ok(self.calculate_convexity_adjusted_rate(
-            context,
-            forward_rate,
-            t_fixing,
-            t_start,
-            t_end,
-        )? - forward_rate)
+        Ok(
+            self.calculate_convexity_adjusted_rate(context, forward_rate, t_start, t_end)?
+                - forward_rate,
+        )
     }
 
     /// Calculates the present value of the interest rate future.
@@ -395,7 +388,7 @@ impl InterestRateFuture {
     ) -> finstack_quant_core::Result<f64> {
         self.validate()?;
         use finstack_quant_core::dates::DayCountContext;
-        let (fixing_date, period_start, period_end) = self.resolve_dates()?;
+        let (_fixing_date, period_start, period_end) = self.resolve_dates()?;
         if as_of >= self.expiry {
             return Ok(0.0);
         }
@@ -405,12 +398,9 @@ impl InterestRateFuture {
         let _disc = context.get_discount(&self.discount_curve_id)?;
         let fwd = context.get_forward(&self.forward_curve_id)?;
 
-        // Time to fixing and rate period for forward rate calculation use the forward
+        // The rate period for the forward rate calculation uses the forward
         // curve's day-count basis for consistency with curve construction.
         let fwd_day_count = fwd.day_count();
-        let t_fixing = fwd_day_count
-            .year_fraction(as_of, fixing_date, DayCountContext::default())?
-            .max(0.0);
         let t_start_remaining = fwd_day_count
             .year_fraction(as_of, period_start, DayCountContext::default())?
             .max(0.0);
@@ -431,7 +421,6 @@ impl InterestRateFuture {
             self.calculate_convexity_adjusted_rate(
                 context,
                 forward_rate,
-                t_fixing,
                 t_start_remaining,
                 t_end_remaining,
             )?
@@ -500,8 +489,6 @@ impl InterestRateFuture {
     ///
     /// # Arguments
     /// * `forward_rate` - The unadjusted forward rate from the curve
-    /// * `t_fixing` - Time to fixing date in years (kept for the signature /
-    ///   diagnostics; **not** used as the vol-surface expiry axis — see below)
     /// * `t_start` - Time to period start in years
     /// * `t_end` - Time to period end in years (must be >= t_start)
     ///
@@ -510,9 +497,9 @@ impl InterestRateFuture {
     /// The convexity formula `0.5·σ²·T_start·T_end` is built from the rate
     /// variance accumulated over the underlying interest-rate period, paired
     /// `(T_start, T_end)`. The vol used must be sampled on the **same**
-    /// time axis. Sampling the surface at `t_fixing` is inconsistent: for
+    /// time axis. Sampling the surface at the fixing date is inconsistent: for
     /// SOFR-style backward-looking futures the fixing date sits at the *period
-    /// end* (`t_fixing ≈ T_end`), so the surface lookup and the
+    /// end* (`T_fixing ≈ T_end`), so the surface lookup and the
     /// `(T_start, T_end)` formula disagree by an entire accrual period. The
     /// convexity adjustment accrues until the rate locks in at the period
     /// start, so the consistent expiry-axis value is `T_start`.
@@ -530,7 +517,6 @@ impl InterestRateFuture {
         &self,
         context: &MarketContext,
         forward_rate: f64,
-        _t_fixing: f64,
         t_start: f64,
         t_end: f64,
     ) -> finstack_quant_core::Result<f64> {
@@ -546,9 +532,9 @@ impl InterestRateFuture {
         let vol_estimate = if let Some(vol_id) = &self.vol_surface_id {
             let surface = context.get_surface(vol_id)?;
             // Vol-axis consistency: sample at `T_start` (the time over which the
-            // convexity variance accumulates), NOT at `t_fixing` — the latter
-            // mis-pairs the `(T_start, T_end)` formula for SOFR-style futures
-            // whose fixing date is at the period end.
+            // convexity variance accumulates), NOT at the fixing date — the
+            // latter mis-pairs the `(T_start, T_end)` formula for SOFR-style
+            // futures whose fixing date is at the period end.
             surface.value_checked(t1, forward_rate)?
         } else {
             return Err(finstack_quant_core::Error::Input(

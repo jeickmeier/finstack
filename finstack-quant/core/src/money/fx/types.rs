@@ -179,11 +179,8 @@ pub struct FxMatrixState {
     pub quotes: Vec<(Currency, Currency, f64)>,
     /// Pinned, date/policy-scoped quotes as `(from, to, on, policy, rate)`.
     ///
-    /// Added snapshots previously
-    /// dropped pinned fixings, so a restored matrix silently re-derived
-    /// those dates from the provider. The field is serde-additive
-    /// (`default`), so older payloads without it still deserialize.
-    #[serde(default)]
+    /// Required: a snapshot that omits it would silently re-derive those
+    /// dates from the provider instead of restoring the pinned fixings.
     #[schemars(with = "Vec<(Currency, Currency, String, FxConversionPolicy, f64)>")]
     pub pinned_quotes: Vec<(Currency, Currency, Date, FxConversionPolicy, f64)>,
 }

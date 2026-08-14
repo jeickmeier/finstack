@@ -6,7 +6,7 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Apache Arrow interchange adapters for finstack-quant tabular outputs (TableEnvelope <-> RecordBatch / IPC stream bytes)"
+description = "Apache Arrow export adapter for finstack-quant tabular outputs (TableEnvelope -> RecordBatch)"
 
 [dependencies]
 finstack-quant-core = { path = "../core", version = "0.7.0" }

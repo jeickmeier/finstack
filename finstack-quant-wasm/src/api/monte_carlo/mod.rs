@@ -94,9 +94,9 @@ fn estimate_to_js(est: &MoneyEstimate) -> Result<JsValue, JsValue> {
 
 /// Resolve the embedded binding defaults from the registry.
 fn binding_defaults(
-) -> Result<&'static finstack_quant_monte_carlo::registry::PythonBindingDefaults, JsValue> {
+) -> Result<&'static finstack_quant_monte_carlo::registry::ConvenienceDefaults, JsValue> {
     finstack_quant_monte_carlo::registry::embedded_defaults()
-        .map(|defaults| &defaults.python_bindings)
+        .map(|defaults| &defaults.convenience)
         .map_err(to_js_err)
 }
 

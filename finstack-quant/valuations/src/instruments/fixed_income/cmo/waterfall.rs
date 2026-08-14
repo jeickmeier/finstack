@@ -462,14 +462,8 @@ fn allocate_principal_to_group(
             let support_balance: f64 = other_tranches.iter().map(|t| t.current_face.amount()).sum();
             let pac_scheduled = schedule.scheduled_at(ctx.period_index);
 
-            let (pac_alloc, support_alloc) = allocate_pac_support(
-                remaining,
-                pac_balance,
-                support_balance,
-                pac_scheduled,
-                ctx.actual_psa,
-                &schedule.collar,
-            );
+            let (pac_alloc, support_alloc) =
+                allocate_pac_support(remaining, pac_balance, support_balance, pac_scheduled);
 
             // Distribute PAC allocation pro-rata among PAC tranches
             if pac_balance > 0.0 && pac_alloc > 0.0 {

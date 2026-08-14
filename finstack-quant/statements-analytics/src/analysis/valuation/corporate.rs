@@ -833,11 +833,6 @@ pub(crate) fn evaluate_dcf_from_results_impl(
     // `DcfOptions::discount_curve_id`; otherwise a model-scoped
     // placeholder keeps the instrument id-complete without colliding
     // with any market curve.
-    let discount_curve_id = context
-        .options
-        .discount_curve_id
-        .clone()
-        .unwrap_or_else(|| CurveId::new(format!("{}-DCF-WACC", model.id)));
     let mut builder = DiscountedCashFlow::builder()
         .id(InstrumentId::new(format!("{}-DCF", model.id)))
         .currency(currency)
@@ -846,7 +841,6 @@ pub(crate) fn evaluate_dcf_from_results_impl(
         .terminal_value(terminal_value)
         .net_debt(net_debt)
         .valuation_date(valuation_date)
-        .discount_curve_id(discount_curve_id)
         .mid_year_convention(context.options.mid_year_convention)
         .terminal_flow_override_opt(terminal_flow_override)
         .attributes(Attributes::new());

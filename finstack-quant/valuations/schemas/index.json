@@ -2,7 +2,7 @@
   "artifacts": [
     {
       "$id": "https://finstack_quant.dev/schemas/calibration/1/calibration.schema.json",
-      "bytes": 218230,
+      "bytes": 216791,
       "kind": "input",
       "path": "schemas/calibration/1/calibration.schema.json",
       "summary": "Build a market from quotes: a calibration plan, flat market data, and any pre-built curves or surfaces.",
@@ -58,7 +58,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/common/1/diagnostic.schema.json",
-      "bytes": 4513,
+      "bytes": 4367,
       "kind": "component",
       "path": "schemas/common/1/diagnostic.schema.json",
       "summary": "One structured finding emitted while loading a persisted contract.",
@@ -114,7 +114,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/common/1/validation_report.schema.json",
-      "bytes": 5917,
+      "bytes": 5771,
       "kind": "component",
       "path": "schemas/common/1/validation_report.schema.json",
       "summary": "Bounded structured diagnostics emitted by persisted-contract validation.",
@@ -218,7 +218,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/discounted_cash_flow.schema.json",
-      "bytes": 16419,
+      "bytes": 16200,
       "kind": "input",
       "path": "schemas/instruments/1/equity/discounted_cash_flow.schema.json",
       "summary": "Enterprise DCF valuation with an explicit forecast and terminal value.",
@@ -250,7 +250,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/levered_real_estate_equity.schema.json",
-      "bytes": 830780,
+      "bytes": 828601,
       "kind": "input",
       "path": "schemas/instruments/1/equity/levered_real_estate_equity.schema.json",
       "summary": "Property equity net of its financing stack.",
@@ -266,7 +266,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/real_estate_asset.schema.json",
-      "bytes": 12523,
+      "bytes": 12304,
       "kind": "input",
       "path": "schemas/instruments/1/equity/real_estate_asset.schema.json",
       "summary": "Direct property asset with rent roll and exit assumptions.",
@@ -322,7 +322,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/basket.schema.json",
-      "bytes": 830775,
+      "bytes": 828682,
       "kind": "input",
       "path": "schemas/instruments/1/exotics/basket.schema.json",
       "summary": "Weighted basket of constituents priced as one position.",
@@ -330,7 +330,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/callable_range_accrual.schema.json",
-      "bytes": 16556,
+      "bytes": 16283,
       "kind": "input",
       "path": "schemas/instruments/1/exotics/callable_range_accrual.schema.json",
       "summary": "Range accrual with issuer call rights.",
@@ -346,7 +346,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/range_accrual.schema.json",
-      "bytes": 12079,
+      "bytes": 11852,
       "kind": "input",
       "path": "schemas/instruments/1/exotics/range_accrual.schema.json",
       "summary": "Coupon accruing only on days the index sits inside a range.",
@@ -442,7 +442,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/structured_credit.schema.json",
-      "bytes": 189036,
+      "bytes": 187997,
       "kind": "input",
       "path": "schemas/instruments/1/fixed_income/structured_credit.schema.json",
       "summary": "ABS/CLO/RMBS/CMBS deal: collateral pool, tranches and waterfall.",
@@ -546,7 +546,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json",
-      "bytes": 908569,
+      "bytes": 906424,
       "kind": "input",
       "path": "schemas/instruments/1/instrument.schema.json",
       "summary": "The seventy-branch union of every instrument type. Prefer the per-type schema beside it: this document is too large to hand to a model.",
@@ -562,7 +562,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/bermudan_swaption.schema.json",
-      "bytes": 28648,
+      "bytes": 27487,
       "kind": "input",
       "path": "schemas/instruments/1/rates/bermudan_swaption.schema.json",
       "summary": "Bermudan-exercise swaption valued on a short-rate lattice.",
@@ -570,7 +570,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/cap_floor.schema.json",
-      "bytes": 25904,
+      "bytes": 24743,
       "kind": "input",
       "path": "schemas/instruments/1/rates/cap_floor.schema.json",
       "summary": "Strip of caplets or floorlets on a floating index.",
@@ -642,7 +642,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/interest_rate_swap.schema.json",
-      "bytes": 49115,
+      "bytes": 47954,
       "kind": "input",
       "path": "schemas/instruments/1/rates/interest_rate_swap.schema.json",
       "summary": "Vanilla fixed-versus-floating interest-rate swap.",
@@ -666,7 +666,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/swaption.schema.json",
-      "bytes": 32379,
+      "bytes": 31218,
       "kind": "input",
       "path": "schemas/instruments/1/rates/swaption.schema.json",
       "summary": "European option to enter an interest-rate swap.",

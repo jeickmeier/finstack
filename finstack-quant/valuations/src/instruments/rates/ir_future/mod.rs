@@ -63,7 +63,6 @@
 pub(crate) mod metrics;
 mod types;
 
-pub use crate::instruments::Position;
 pub use types::{FutureContractSpecs, InterestRateFuture};
 
 // Builder provided by FinancialBuilder derive

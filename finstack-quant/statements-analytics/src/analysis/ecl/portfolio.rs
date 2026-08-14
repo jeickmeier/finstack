@@ -44,55 +44,12 @@ pub struct PortfolioEclResult {
     /// the exposure slice passed to
     /// [`PortfolioEclResult::from_results_with_exposures`]. Unmatched
     /// results still contribute their ECL and EAD to the stage totals, but
-    /// carry no segment or migration data. Empty when constructed via
-    /// [`PortfolioEclResult::from_results`].
+    /// carry no segment or migration data.
     #[serde(default)]
     pub unmatched_exposure_ids: Vec<String>,
 }
 
 impl PortfolioEclResult {
-    /// Construct from individual exposure results.
-    ///
-    /// # Arguments
-    ///
-    /// * `results` - Results supplied by the caller for this operation
-    pub fn from_results(results: Vec<ExposureEclResult>) -> Self {
-        let mut total_ecl = 0.0;
-        let mut ecl_by_stage: IndexMap<Stage, f64> = IndexMap::new();
-        let mut count_by_stage: IndexMap<Stage, usize> = IndexMap::new();
-        let mut ead_by_stage: IndexMap<Stage, f64> = IndexMap::new();
-        let ecl_by_segment: IndexMap<String, f64> = IndexMap::new();
-        let migration_matrix: IndexMap<Stage, IndexMap<Stage, usize>> = IndexMap::new();
-
-        // Initialize all stages to ensure consistent ordering
-        for stage in &[Stage::Stage1, Stage::Stage2, Stage::Stage3] {
-            ecl_by_stage.entry(*stage).or_insert(0.0);
-            count_by_stage.entry(*stage).or_insert(0);
-            ead_by_stage.entry(*stage).or_insert(0.0);
-        }
-
-        for result in &results {
-            let stage = result.stage_result.stage;
-            let ecl = result.ecl_result.ecl;
-
-            total_ecl += ecl;
-            *ecl_by_stage.entry(stage).or_insert(0.0) += ecl;
-            *count_by_stage.entry(stage).or_insert(0) += 1;
-            *ead_by_stage.entry(stage).or_insert(0.0) += result.ead;
-        }
-
-        Self {
-            total_ecl,
-            ecl_by_stage,
-            count_by_stage,
-            ead_by_stage,
-            ecl_by_segment,
-            migration_matrix,
-            exposure_results: results,
-            unmatched_exposure_ids: Vec::new(),
-        }
-    }
-
     /// Construct from exposure results with access to the original exposures
     /// for segment and migration data.
     ///
@@ -399,7 +356,7 @@ mod tests {
             make_exposure_result("D", Stage::Stage3, 800.0, 5_000.0),
         ];
 
-        let portfolio = PortfolioEclResult::from_results(results);
+        let portfolio = PortfolioEclResult::from_results_with_exposures(results, &[]);
 
         assert!((portfolio.total_ecl - 1600.0).abs() < 1e-10);
         assert_eq!(portfolio.count_by_stage[&Stage::Stage1], 2);
@@ -417,7 +374,7 @@ mod tests {
             make_exposure_result("B", Stage::Stage2, 500.0, 10_000.0),
         ];
 
-        let portfolio = PortfolioEclResult::from_results(results);
+        let portfolio = PortfolioEclResult::from_results_with_exposures(results, &[]);
 
         // total ECL = 600, total EAD = 20000
         let expected = 600.0 / 20_000.0;
@@ -436,7 +393,7 @@ mod tests {
             make_exposure_result("B", Stage::Stage3, 500.0, 20_000.0),
         ];
 
-        let portfolio = PortfolioEclResult::from_results(results);
+        let portfolio = PortfolioEclResult::from_results_with_exposures(results, &[]);
 
         // Stage 3 EAD = 20000, total EAD = 100000
         assert!(
@@ -448,16 +405,17 @@ mod tests {
 
     #[test]
     fn test_provision_waterfall_new_originations() {
-        let previous = PortfolioEclResult::from_results(vec![make_exposure_result(
-            "A",
-            Stage::Stage1,
-            100.0,
-            10_000.0,
-        )]);
-        let current = PortfolioEclResult::from_results(vec![
-            make_exposure_result("A", Stage::Stage1, 100.0, 10_000.0),
-            make_exposure_result("B", Stage::Stage1, 200.0, 20_000.0),
-        ]);
+        let previous = PortfolioEclResult::from_results_with_exposures(
+            vec![make_exposure_result("A", Stage::Stage1, 100.0, 10_000.0)],
+            &[],
+        );
+        let current = PortfolioEclResult::from_results_with_exposures(
+            vec![
+                make_exposure_result("A", Stage::Stage1, 100.0, 10_000.0),
+                make_exposure_result("B", Stage::Stage1, 200.0, 20_000.0),
+            ],
+            &[],
+        );
 
         let waterfall = compute_waterfall(&previous, &current);
 
@@ -468,16 +426,17 @@ mod tests {
 
     #[test]
     fn test_provision_waterfall_derecognitions() {
-        let previous = PortfolioEclResult::from_results(vec![
-            make_exposure_result("A", Stage::Stage1, 100.0, 10_000.0),
-            make_exposure_result("B", Stage::Stage1, 200.0, 20_000.0),
-        ]);
-        let current = PortfolioEclResult::from_results(vec![make_exposure_result(
-            "A",
-            Stage::Stage1,
-            100.0,
-            10_000.0,
-        )]);
+        let previous = PortfolioEclResult::from_results_with_exposures(
+            vec![
+                make_exposure_result("A", Stage::Stage1, 100.0, 10_000.0),
+                make_exposure_result("B", Stage::Stage1, 200.0, 20_000.0),
+            ],
+            &[],
+        );
+        let current = PortfolioEclResult::from_results_with_exposures(
+            vec![make_exposure_result("A", Stage::Stage1, 100.0, 10_000.0)],
+            &[],
+        );
 
         let waterfall = compute_waterfall(&previous, &current);
 
@@ -509,18 +468,14 @@ mod tests {
 
     #[test]
     fn test_provision_waterfall_stage_transfer() {
-        let previous = PortfolioEclResult::from_results(vec![make_exposure_result(
-            "A",
-            Stage::Stage1,
-            100.0,
-            10_000.0,
-        )]);
-        let current = PortfolioEclResult::from_results(vec![make_exposure_result(
-            "A",
-            Stage::Stage2,
-            400.0,
-            10_000.0,
-        )]);
+        let previous = PortfolioEclResult::from_results_with_exposures(
+            vec![make_exposure_result("A", Stage::Stage1, 100.0, 10_000.0)],
+            &[],
+        );
+        let current = PortfolioEclResult::from_results_with_exposures(
+            vec![make_exposure_result("A", Stage::Stage2, 400.0, 10_000.0)],
+            &[],
+        );
 
         let waterfall = compute_waterfall(&previous, &current);
 

@@ -20,8 +20,8 @@ use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::math::stats::RealizedVarMethod;
 use finstack_quant_core::money::fx::{FxMatrix, SimpleFxProvider};
 use finstack_quant_core::money::Money;
+use finstack_quant_core::types::BarrierType;
 use finstack_quant_core::types::{CurveId, InstrumentId};
-use finstack_quant_valuations::instruments::exotics::BarrierType;
 use finstack_quant_valuations::instruments::fx::fx_barrier_option::FxBarrierOption;
 use finstack_quant_valuations::instruments::fx::fx_digital_option::{
     DigitalPayoutType, FxDigitalOption,

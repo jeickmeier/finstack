@@ -7,8 +7,7 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
 
-/// Backward-compatible instrument path for the canonical barrier type.
-pub use finstack_quant_core::types::BarrierType;
+use finstack_quant_core::types::BarrierType;
 
 /// Default for use_gobet_miri field.
 ///
@@ -373,18 +372,5 @@ mod tests {
         assert!(super::BarrierType::from_str("upandin").is_err());
         assert!(super::BarrierType::from_str("downandout").is_err());
         assert!(super::BarrierType::from_str("invalid").is_err());
-    }
-
-    #[test]
-    fn barrier_type_reexports_preserve_canonical_type_identity() {
-        let core: finstack_quant_core::types::BarrierType =
-            finstack_quant_core::types::BarrierType::UpAndOut;
-        let monte_carlo: finstack_quant_monte_carlo::payoff::barrier::BarrierType = core;
-        let instrument: super::BarrierType = monte_carlo;
-        let closed_form: crate::models::closed_form::BarrierType = instrument;
-        let tree: crate::models::trees::tree_framework::BarrierType = closed_form;
-        let canonical: finstack_quant_core::types::BarrierType = tree;
-
-        assert_eq!(canonical, finstack_quant_core::types::BarrierType::UpAndOut);
     }
 }

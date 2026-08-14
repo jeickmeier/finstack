@@ -439,12 +439,10 @@ pub(crate) fn run_simulation_with_source<S: PoolFlowSource + ?Sized>(
                     // Accrued interest for the stub period on the current
                     // (post-writedown) balance, using the tranche coupon and
                     // its own day-count convention.
-                    let coupon_rate = tranche.coupon.try_rate_for_period(
-                        cleanup_period_start,
-                        pay_date,
-                        as_of,
-                        context,
-                    )?;
+                    let coupon_rate =
+                        tranche
+                            .coupon
+                            .try_rate_for_period(cleanup_period_start, as_of, context)?;
                     let accrual_factor = tranche.day_count.year_fraction(
                         cleanup_period_start,
                         pay_date,

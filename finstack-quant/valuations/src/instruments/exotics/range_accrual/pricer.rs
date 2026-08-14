@@ -593,7 +593,7 @@ mod tests {
     ) {
         let as_of = date(2024, 4, 30);
         let mut inst = RangeAccrual::example();
-        inst.accrual_start_date = Some(date(2023, 12, 31));
+        inst.accrual_start_date = date(2023, 12, 31);
         inst.observation_dates = vec![as_of];
         inst.payment_date = Some(as_of);
         inst.past_fixings_in_range = None;

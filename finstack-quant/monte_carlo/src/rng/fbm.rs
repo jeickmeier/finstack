@@ -10,7 +10,7 @@
 //!   increment covariance matrix. O(n³) one-time setup, O(n²) per path.
 //!   Best for validation and short grids (n ≲ 500).
 //!
-//! - [`HybridFbm`] — windowed conditional-Gaussian recursion. Uses exact
+//! - [`WindowedConditionalFbm`] — windowed conditional-Gaussian recursion. Uses exact
 //!   Cholesky on the first b increments, then generates each later increment
 //!   from its exact conditional distribution given the previous b increments
 //!   (long-range dependence beyond the window is truncated). O(n·b) per path,
@@ -87,7 +87,7 @@ pub trait FractionalNoiseGenerator: Send + Sync {
 /// - Memory: O(n²) for the stored factor
 ///
 /// Use this generator for validation or when the number of time steps is small
-/// (n ≲ 500). For longer grids, consider [`HybridFbm`].
+/// (n ≲ 500). For longer grids, consider [`WindowedConditionalFbm`].
 pub struct CholeskyFbm {
     /// Hurst exponent value.
     hurst_val: f64,
@@ -157,9 +157,9 @@ impl FractionalNoiseGenerator for CholeskyFbm {
     }
 }
 
-/// Configuration for the hybrid fBM generator.
+/// Configuration for the windowed conditional-Gaussian fBM generator.
 #[derive(Debug, Clone, Default)]
-pub struct HybridFbmConfig {
+pub struct WindowedConditionalFbmConfig {
     /// Near-field window size b. When `None`, an automatic default is chosen
     /// based on the grid size: `min(max(10, √n), 50)`.
     pub near_field_size: Option<usize>,
@@ -169,11 +169,10 @@ pub struct HybridFbmConfig {
 ///
 /// Generates each increment beyond the exact start-up window from its
 /// conditional Gaussian distribution given the previous b increments,
-/// truncating long-range dependence beyond the window. (Despite the legacy
-/// name, this is *not* the Bennedsen-Lunde-Pakkanen hybrid scheme — that
-/// scheme generates the Riemann-Liouville Volterra process from driving
-/// Brownian increments and lives in
-/// [`RiemannLiouvilleVolterra`](super::volterra::RiemannLiouvilleVolterra).)
+/// truncating long-range dependence beyond the window. For the
+/// Bennedsen-Lunde-Pakkanen hybrid scheme, which generates the
+/// Riemann-Liouville Volterra process from driving Brownian increments, see
+/// [`RiemannLiouvilleVolterra`](super::volterra::RiemannLiouvilleVolterra).
 ///
 /// # Algorithm
 ///
@@ -196,7 +195,7 @@ pub struct HybridFbmConfig {
 /// - Setup: O(b³ + n·b)
 /// - Per path: O(n·b)
 /// - Memory: O(b² + n·b)
-pub struct HybridFbm {
+pub struct WindowedConditionalFbm {
     /// Hurst exponent value.
     hurst_val: f64,
     /// Number of time steps (n).
@@ -211,8 +210,8 @@ pub struct HybridFbm {
     cond_weights: Vec<(Vec<f64>, f64)>,
 }
 
-impl HybridFbm {
-    /// Create a new hybrid fBM generator.
+impl WindowedConditionalFbm {
+    /// Create a new windowed conditional-Gaussian fBM generator.
     ///
     /// # Arguments
     ///
@@ -224,7 +223,7 @@ impl HybridFbm {
     ///
     /// Returns [`Error::Validation`] if the inputs are invalid or the near-field
     /// Cholesky decomposition fails.
-    pub fn new(times: &[f64], hurst: f64, config: HybridFbmConfig) -> Result<Self> {
+    pub fn new(times: &[f64], hurst: f64, config: WindowedConditionalFbmConfig) -> Result<Self> {
         let h = HurstExponent::new(hurst)?;
         validate_time_grid(times)?;
 
@@ -301,7 +300,7 @@ impl HybridFbm {
                     var_i,
                     explained,
                     raw_cond_var,
-                    "HybridFbm: conditional variance clamped to zero from a significantly negative \
+                    "WindowedConditionalFbm: conditional variance clamped to zero from a significantly negative \
                      value; near-field Cholesky / linear-solve may be ill-conditioned and the \
                      innovation term has been suppressed for this step"
                 );
@@ -322,7 +321,7 @@ impl HybridFbm {
     }
 }
 
-impl FractionalNoiseGenerator for HybridFbm {
+impl FractionalNoiseGenerator for WindowedConditionalFbm {
     fn generate(&self, normals: &[f64], out: &mut [f64]) {
         let n = self.num_steps;
         let b = self.near_field_size;
@@ -377,7 +376,7 @@ pub const FBM_AUTO_CHOLESKY_MAX_STEPS: usize = 199;
 /// Create a fBM generator for the given time grid and Hurst exponent.
 ///
 /// Uses [`CholeskyFbm`] for grids with at most
-/// [`FBM_AUTO_CHOLESKY_MAX_STEPS`] steps and [`HybridFbm`] otherwise. Use the
+/// [`FBM_AUTO_CHOLESKY_MAX_STEPS`] steps and [`WindowedConditionalFbm`] otherwise. Use the
 /// concrete constructors directly when an explicit algorithm is required.
 ///
 /// # Arguments
@@ -399,10 +398,10 @@ pub fn create_fbm_generator(
     if n <= FBM_AUTO_CHOLESKY_MAX_STEPS {
         Ok(Box::new(CholeskyFbm::new(times, hurst)?))
     } else {
-        Ok(Box::new(HybridFbm::new(
+        Ok(Box::new(WindowedConditionalFbm::new(
             times,
             hurst,
-            HybridFbmConfig::default(),
+            WindowedConditionalFbmConfig::default(),
         )?))
     }
 }
@@ -514,21 +513,21 @@ mod tests {
         assert!(CholeskyFbm::new(&[0.0, 0.5, 0.5], 0.3).is_err());
     }
 
-    // -- HybridFbm ---------------------------------------------------------
+    // -- WindowedConditionalFbm ---------------------------------------------------------
 
     #[test]
-    fn hybrid_matches_cholesky_short_path() {
-        // For a short path where near-field covers everything, hybrid should
+    fn windowed_matches_cholesky_short_path() {
+        // For a short path where near-field covers everything, the windowed scheme should
         // produce identical results to Cholesky.
         let n = 8;
         let times = uniform_grid(1.0, n);
         let h = 0.3;
 
         let chol = CholeskyFbm::new(&times, h).unwrap();
-        let hybrid = HybridFbm::new(
+        let windowed = WindowedConditionalFbm::new(
             &times,
             h,
-            HybridFbmConfig {
+            WindowedConditionalFbmConfig {
                 near_field_size: Some(n),
             },
         )
@@ -539,22 +538,23 @@ mod tests {
         let mut out_hyb = vec![0.0; n];
 
         chol.generate(&normals, &mut out_chol);
-        hybrid.generate(&normals, &mut out_hyb);
+        windowed.generate(&normals, &mut out_hyb);
 
         for (i, (&a, &b)) in out_chol.iter().zip(out_hyb.iter()).enumerate() {
             assert!(
                 (a - b).abs() < 1e-10,
-                "step {i}: cholesky={a}, hybrid={b}, diff={}",
+                "step {i}: cholesky={a}, windowed={b}, diff={}",
                 (a - b).abs()
             );
         }
     }
 
     #[test]
-    fn hybrid_output_finite() {
+    fn windowed_output_finite() {
         let n = 50;
         let times = uniform_grid(1.0, n);
-        let gen = HybridFbm::new(&times, 0.1, HybridFbmConfig::default()).unwrap();
+        let gen = WindowedConditionalFbm::new(&times, 0.1, WindowedConditionalFbmConfig::default())
+            .unwrap();
         assert_eq!(gen.num_steps(), n);
 
         let normals: Vec<f64> = (0..n).map(|i| (-1.0_f64).powi(i as i32) * 0.5).collect();
@@ -565,8 +565,8 @@ mod tests {
     }
 
     #[test]
-    fn hybrid_approximate_agreement_with_cholesky() {
-        // For a grid longer than the near-field window, the hybrid scheme
+    fn windowed_approximate_agreement_with_cholesky() {
+        // For a grid longer than the near-field window, the windowed scheme
         // should agree with Cholesky approximately (not exactly, since the
         // far-field is an approximation).
         let n = 30;
@@ -574,10 +574,10 @@ mod tests {
         let h = 0.2;
 
         let chol = CholeskyFbm::new(&times, h).unwrap();
-        let hybrid = HybridFbm::new(
+        let windowed = WindowedConditionalFbm::new(
             &times,
             h,
-            HybridFbmConfig {
+            WindowedConditionalFbmConfig {
                 near_field_size: Some(10),
             },
         )
@@ -588,7 +588,7 @@ mod tests {
         let mut out_hyb = vec![0.0; n];
 
         chol.generate(&normals, &mut out_chol);
-        hybrid.generate(&normals, &mut out_hyb);
+        windowed.generate(&normals, &mut out_hyb);
 
         // First 10 steps should match exactly (both use Cholesky).
         for i in 0..10 {
@@ -606,12 +606,12 @@ mod tests {
             .fold(0.0_f64, f64::max);
         assert!(
             max_diff < 0.5,
-            "hybrid should approximate cholesky, max_diff={max_diff}"
+            "windowed should approximate cholesky, max_diff={max_diff}"
         );
     }
 
     #[test]
-    fn hybrid_covariance_matches_exact_beyond_near_field() {
+    fn windowed_covariance_matches_exact_beyond_near_field() {
         // Reconstruct the linear map L implied by the generator by feeding
         // unit vectors, then compare Cov = L·Lᵀ against the exact fBM
         // increment covariance. The removed far-field construction inflated
@@ -621,10 +621,10 @@ mod tests {
             let n = 60;
             let b = 20;
             let times = uniform_grid(1.0, n);
-            let gen = HybridFbm::new(
+            let gen = WindowedConditionalFbm::new(
                 &times,
                 h,
-                HybridFbmConfig {
+                WindowedConditionalFbmConfig {
                     near_field_size: Some(b),
                 },
             )
@@ -686,7 +686,7 @@ mod tests {
     }
 
     #[test]
-    fn factory_auto_selects_hybrid_for_large_grid() {
+    fn factory_auto_selects_windowed_for_large_grid() {
         let times = uniform_grid(1.0, 300);
         let gen = create_fbm_generator(&times, 0.1).unwrap();
         assert_eq!(gen.num_steps(), 300);
@@ -701,12 +701,12 @@ mod tests {
     }
 
     #[test]
-    fn explicit_hybrid_constructor() {
+    fn explicit_windowed_constructor() {
         let times = uniform_grid(1.0, 100);
-        let gen = HybridFbm::new(
+        let gen = WindowedConditionalFbm::new(
             &times,
             0.15,
-            HybridFbmConfig {
+            WindowedConditionalFbmConfig {
                 near_field_size: Some(15),
             },
         )

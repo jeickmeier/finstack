@@ -40,9 +40,9 @@ pub mod zmijewski;
 
 pub use altman::{
     altman_em_score, altman_z_double_prime, altman_z_double_prime_with_pd, altman_z_prime,
-    altman_z_prime_with_pd, altman_z_score, altman_z_score_with_pd, AltmanPdCalibration,
-    AltmanZDoublePrimeInput, AltmanZPrimeInput, AltmanZScoreInput, EM_SCORE_CONSTANT,
-    EM_SCORE_DISTRESS_THRESHOLD, EM_SCORE_SAFE_THRESHOLD,
+    altman_z_prime_with_pd, altman_z_score, altman_z_score_with_pd, AltmanZDoublePrimeInput,
+    AltmanZPrimeInput, AltmanZScoreInput, EM_SCORE_CONSTANT, EM_SCORE_DISTRESS_THRESHOLD,
+    EM_SCORE_SAFE_THRESHOLD,
 };
 pub use ohlson::{ohlson_o_score, OhlsonOScoreInput};
 pub use types::{CreditScoringError, ScoringResult, ScoringZone};

@@ -344,10 +344,7 @@ pub struct IssuerBetaRow {
     ///
     /// `Some` where a per-level OLS fit ran (`IssuerBeta` mode, level not
     /// folded, regressor not degenerate); `None` otherwise. Empty for
-    /// `BucketOnly` rows and for artifacts written before this field existed
-    /// (serde default; omitted from the wire when empty so pre-existing
-    /// artifacts remain byte-stable).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    /// `BucketOnly` rows.
     pub level_fit_quality: Vec<Option<FitQuality>>,
 }
 
@@ -533,10 +530,8 @@ impl FactorCorrelationMatrix {
 ///
 /// The `Sample` variant stores a single variance estimate; `Ewma` additionally
 /// persists the smoothing parameter used at calibration time.
-/// The enum intentionally omits `#[serde(deny_unknown_fields)]` to allow
-/// additive extension without breaking readers of older writers.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum FactorVolModel {
     /// Simple sample-variance estimate.

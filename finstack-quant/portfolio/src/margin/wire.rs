@@ -86,7 +86,6 @@ struct SimmSensitivitiesWire {
     fx_vega: Vec<CurrencyPairEntry>,
     commodity_delta: Vec<LabelEntry>,
     curvature: Vec<CurvatureEntry>,
-    #[serde(default)]
     credit_qualifying_delta_bucketed: Vec<BucketedCreditEntry>,
 }
 

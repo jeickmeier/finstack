@@ -15,15 +15,6 @@ use serde::{Deserialize, Serialize};
 
 use super::types::{check_finite, CreditScoringError, ScoringResult, ScoringZone};
 
-/// Mapping from an Altman score to a PD-like heuristic.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum AltmanPdCalibration {
-    /// Uncalibrated house heuristic, not an empirical Altman
-    /// bankruptcy-probability calibration.
-    Heuristic,
-}
-
 /// Input ratios for the original Altman Z-Score (1968).
 ///
 /// Designed for publicly traded manufacturing firms. Uses market value
@@ -187,14 +178,12 @@ pub fn altman_z_score(input: &AltmanZScoreInput) -> Result<ScoringResult, Credit
 ///
 /// * `input` - Finite public-company accounting ratios for the original
 ///   five-factor 1968 Altman Z-Score model.
-/// * `calibration` - Explicit score-to-probability-of-default mapping applied
 ///   after the model score and zone are calculated.
 pub fn altman_z_score_with_pd(
     input: &AltmanZScoreInput,
-    calibration: AltmanPdCalibration,
 ) -> Result<ScoringResult, CreditScoringError> {
     let mut result = altman_z_score(input)?;
-    result.implied_pd = Some(calibration.map(result.score, 2.99, 1.81));
+    result.implied_pd = Some(z_score_heuristic(result.score, 2.99, 1.81));
     Ok(result)
 }
 
@@ -273,14 +262,12 @@ pub fn altman_z_prime(input: &AltmanZPrimeInput) -> Result<ScoringResult, Credit
 ///
 /// * `input` - Finite private-company accounting ratios for the five-factor
 ///   Z' model, including book rather than market equity.
-/// * `calibration` - Explicit score-to-probability-of-default mapping applied
 ///   after the model score and zone are calculated.
 pub fn altman_z_prime_with_pd(
     input: &AltmanZPrimeInput,
-    calibration: AltmanPdCalibration,
 ) -> Result<ScoringResult, CreditScoringError> {
     let mut result = altman_z_prime(input)?;
-    result.implied_pd = Some(calibration.map(result.score, 2.90, 1.23));
+    result.implied_pd = Some(z_score_heuristic(result.score, 2.90, 1.23));
     Ok(result)
 }
 
@@ -366,14 +353,12 @@ pub fn altman_z_double_prime(
 ///
 /// * `input` - Finite non-manufacturing-company accounting ratios for the
 ///   four-factor constant-free Z'' model.
-/// * `calibration` - Explicit score-to-probability-of-default mapping applied
 ///   after the model score and zone are calculated.
 pub fn altman_z_double_prime_with_pd(
     input: &AltmanZDoublePrimeInput,
-    calibration: AltmanPdCalibration,
 ) -> Result<ScoringResult, CreditScoringError> {
     let mut result = altman_z_double_prime(input)?;
-    result.implied_pd = Some(calibration.map(result.score, 2.60, 1.10));
+    result.implied_pd = Some(z_score_heuristic(result.score, 2.60, 1.10));
     Ok(result)
 }
 
@@ -415,8 +400,8 @@ pub const EM_SCORE_DISTRESS_THRESHOLD: f64 = 4.35;
 /// | 5.85        | BBB               | 1.75        | CCC-              |
 /// | 5.65        | BBB-              | < 1.75      | D                 |
 ///
-/// `implied_pd` is always `None`: the versioned [`AltmanPdCalibration`]
-/// heuristics are defined on the Z-score cutoffs and are not extended here.
+/// `implied_pd` is always `None`: the score-to-PD heuristic is defined on the
+/// Z-score cutoffs and is not extended here.
 ///
 /// # Errors
 ///
@@ -473,14 +458,6 @@ fn z_score_zone(z: f64, safe_threshold: f64, distress_threshold: f64) -> Scoring
         ScoringZone::Distress
     } else {
         ScoringZone::Grey
-    }
-}
-
-impl AltmanPdCalibration {
-    fn map(self, z: f64, safe_threshold: f64, distress_threshold: f64) -> f64 {
-        match self {
-            Self::Heuristic => z_score_heuristic(z, safe_threshold, distress_threshold),
-        }
     }
 }
 

@@ -794,18 +794,10 @@ impl crate::instruments::common_impl::traits::Instrument for CapFloor {
                         self.id
                     )));
                 }
-                FloatingLegCompounding::CompoundedInArrears {
-                    lookback_days,
-                    observation_shift,
-                } => {
-                    let shift = observation_shift.unwrap_or(0);
-                    if !(0..=31).contains(&lookback_days)
-                        || !(0..=31).contains(&shift)
-                        || (lookback_days != 0 && shift != 0)
-                    {
+                FloatingLegCompounding::CompoundedInArrears { lookback_days } => {
+                    if !(0..=31).contains(&lookback_days) {
                         return Err(finstack_quant_core::Error::Validation(format!(
-                            "CapFloor '{}' has incompatible overnight lookback/observation-shift \
-                             settings",
+                            "CapFloor '{}' overnight lookback must be 0-31 business days",
                             self.id
                         )));
                     }

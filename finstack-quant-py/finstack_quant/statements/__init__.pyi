@@ -1357,7 +1357,7 @@ class NumericMode:
     Examples
     --------
     >>> from finstack_quant.statements import NumericMode
-    >>> NumericMode.decimal() == NumericMode.decimal()
+    >>> NumericMode.float64() == NumericMode.float64()
     True
 
     """
@@ -1380,32 +1380,6 @@ class NumericMode:
         --------
         >>> from finstack_quant.statements import NumericMode
         >>> NumericMode.float64() == NumericMode.float64()
-        True
-        """
-        ...
-
-    @staticmethod
-    def decimal() -> NumericMode:
-        """
-        Reserved decimal-arithmetic mode.
-
-        This variant exists so saved result metadata can evolve, but statement
-        evaluation always runs in ``float64``; selecting it does not change the
-        arithmetic today.
-
-        Returns
-        -------
-        NumericMode
-            Decimal arithmetic mode (reserved).
-
-        Notes
-        -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
-
-        Examples
-        --------
-        >>> from finstack_quant.statements import NumericMode
-        >>> NumericMode.decimal() == NumericMode.decimal()
         True
         """
         ...

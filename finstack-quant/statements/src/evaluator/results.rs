@@ -131,12 +131,6 @@ pub enum NumericMode {
     /// f64 floating-point mode (current default)
     #[default]
     Float64,
-    /// Reserved fixed-point mode.
-    ///
-    /// The variant remains in the serde/public API so saved result metadata can
-    /// evolve without renaming the enum. The evaluator currently emits
-    /// [`NumericMode::Float64`] only.
-    Decimal,
 }
 
 impl Default for StatementResult {

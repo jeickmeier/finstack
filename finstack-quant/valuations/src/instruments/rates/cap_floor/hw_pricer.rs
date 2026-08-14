@@ -1397,10 +1397,7 @@ mod tests {
         )
         .expect("caplet");
         caplet.overnight_coupon = Some(OvernightCouponConvention {
-            compounding: FloatingLegCompounding::CompoundedInArrears {
-                lookback_days: 0,
-                observation_shift: None,
-            },
+            compounding: FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 },
             payment_delay_days: 0,
             fixing_calendar_id: Some("usny".into()),
             payment_calendar_id: Some("usny".into()),

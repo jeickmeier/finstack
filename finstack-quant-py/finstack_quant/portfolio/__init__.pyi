@@ -46,9 +46,6 @@ __all__ = [
     "FiCarinoLinkedResult",
     "FiReconciliationReport",
     "FinstackError",
-    "FinstackFxError",
-    "FinstackOptimizationError",
-    "FinstackValuationError",
     "FxError",
     "GridAttributionResult",
     "GridCarinoLinkedResult",
@@ -241,15 +238,6 @@ class OptimizationError(PortfolioError):
     >>> str(OptimizationError("infeasible"))
     'infeasible'
     """
-
-FinstackValuationError = ValuationError
-"""Deprecated alias for :class:`ValuationError`; the same class object."""
-
-FinstackFxError = FxError
-"""Deprecated alias for :class:`FxError`; the same class object."""
-
-FinstackOptimizationError = OptimizationError
-"""Deprecated alias for :class:`OptimizationError`; the same class object."""
 
 class ContractValidationError(FinstackError):
     """
@@ -679,7 +667,7 @@ class Portfolio:
         """
         Strictly validate a materialization bundle without building a portfolio.
 
-        Twin of the WASM ``Portfolio.validateMaterializationJson``: contract
+        Twin of the WASM ``Portfolio.validateMaterialization``: contract
         diagnostics are *returned* rather than raised, so ingestion-form
         callers get structured feedback without exception handling.
 

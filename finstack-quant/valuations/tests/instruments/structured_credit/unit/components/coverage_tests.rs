@@ -16,6 +16,17 @@ use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
 };
 use time::Month;
 
+/// Every tranche in this file owes its full, uncapped coupon. The engine
+/// always supplies a spec-derived claim map, so the tests state it explicitly.
+static UNCAPPED_CLAIMS: std::sync::LazyLock<
+    finstack_quant_core::HashMap<&'static str, Option<f64>>,
+> = std::sync::LazyLock::new(|| {
+    ["SENIOR", "EQUITY", "EMPTY", "POOL", "TEST_TRANCHE"]
+        .into_iter()
+        .map(|id| (id, None))
+        .collect()
+});
+
 fn test_date() -> Date {
     Date::from_calendar_date(2025, Month::January, 1).unwrap()
 }
@@ -48,7 +59,7 @@ fn context_for_tranche<'a>(
         current_pool_balance: None,
         senior_fees: Money::new(0.0, Currency::USD),
         restricted_cash: Money::new(0.0, Currency::USD),
-        interest_claim_caps: None,
+        interest_claim_caps: &UNCAPPED_CLAIMS,
         floating_rate_shift: 0.0,
     }
 }
@@ -686,7 +697,7 @@ fn ic_measures_coverage_of_the_capped_claim() {
         Money::new(0.0, Currency::USD),
         Money::new(1_000_000.0, Currency::USD),
     );
-    context.interest_claim_caps = Some(&caps);
+    context.interest_claim_caps = &caps;
 
     let result = CoverageTest::new_ic(1.20)
         .calculate(&context)
@@ -718,7 +729,7 @@ fn ic_treats_a_tranche_without_interest_recipient_as_owing_nothing() {
         Money::new(0.0, Currency::USD),
         Money::new(1_000_000.0, Currency::USD),
     );
-    context.interest_claim_caps = Some(&caps);
+    context.interest_claim_caps = &caps;
 
     let result = CoverageTest::new_ic(1.20)
         .calculate(&context)

@@ -15,7 +15,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{CurveId, InstrumentId};
+use finstack_quant_core::types::InstrumentId;
 
 /// Levered real estate equity = unlevered asset + financing.
 ///
@@ -56,10 +56,6 @@ pub struct LeveredRealEstateEquity {
     #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub exit_date: Option<Date>,
-    /// Discount curve identifier for equity PV attribution (typically same as asset curve).
-    ///
-    /// This is used only for curve dependency reporting; PV is computed as `asset - financing`.
-    pub discount_curve_id: CurveId,
     /// Attributes for tagging and scenarios.
     #[builder(default)]
     #[serde(
@@ -122,7 +118,6 @@ impl LeveredRealEstateEquity {
             .id(InstrumentId::new("RE-LEVERED-OFFICE"))
             .currency(Currency::USD)
             .asset(asset)
-            .discount_curve_id(CurveId::new("USD-OIS"))
             .attributes(Attributes::default())
             .build()
     }
@@ -183,7 +178,6 @@ impl Instrument for LeveredRealEstateEquity {
                 )?,
             );
         }
-        deps.add_discount_curve(self.discount_curve_id.clone());
         Ok(deps)
     }
 
@@ -252,7 +246,6 @@ mod tests {
             .sale_price_opt(Some(Money::new(1_100.0, Currency::USD)))
             .discount_rate_opt(Some(0.10))
             .day_count(DayCount::Act365F)
-            .discount_curve_id(CurveId::new("USD-OIS"))
             .attributes(Default::default())
             .build()
             .expect("asset should build");
@@ -261,7 +254,6 @@ mod tests {
             .id(InstrumentId::new("RE-LEVERED"))
             .currency(Currency::USD)
             .asset(asset)
-            .discount_curve_id(CurveId::new("USD-OIS"))
             .attributes(Default::default())
             .build()
             .expect("levered equity should build");

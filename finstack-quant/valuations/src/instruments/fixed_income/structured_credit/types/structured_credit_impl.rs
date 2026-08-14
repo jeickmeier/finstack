@@ -280,11 +280,7 @@ impl StructuredCredit {
     /// Moody's/S&P convention of reporting cumulative losses against original pool balance.
     pub fn current_loss_percentage(&self) -> finstack_quant_core::Result<f64> {
         let current_balance = self.pool.total_balance()?.amount();
-        let scheduled_amort = self
-            .pool
-            .cumulative_scheduled_amortization
-            .map(|m| m.amount())
-            .unwrap_or(0.0);
+        let scheduled_amort = self.pool.cumulative_scheduled_amortization.amount();
         // Reconstruct original balance from all tracked reductions
         let original_balance = current_balance
             + self.pool.cumulative_defaults.amount()

@@ -74,14 +74,6 @@ pub enum PdCalibrationError {
     #[error("scoring result has no implied PD; request an explicit calibration first")]
     MissingImpliedPd,
 
-    /// Central tendency calibration cannot include a zero annual default rate.
-    ///
-    /// No longer returned by [`central_tendency`](crate::credit::pd::central_tendency)
-    /// since it switched to the arithmetic long-run average (zero-default years
-    /// are valid observations); retained for serde stability.
-    #[error("central_tendency requires strictly positive annual default rates, found 0.0")]
-    ZeroAnnualDefaultRate,
-
     /// Cumulative PDs are not monotonically non-decreasing after isotonic regression.
     #[error("cumulative PDs are not non-decreasing after isotonic regression")]
     NonMonotonicCumulativePds,
