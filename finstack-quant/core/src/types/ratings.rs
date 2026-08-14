@@ -676,8 +676,6 @@ pub fn moodys_warf_factor(rating: CreditRating) -> crate::Result<f64> {
     }
 }
 
-// TESTS
-
 #[cfg(test)]
 mod tests {
     use super::*;

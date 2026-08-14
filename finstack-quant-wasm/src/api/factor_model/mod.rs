@@ -29,7 +29,6 @@ fn parse_vol_horizon(
     finstack_quant_portfolio::factor_model::VolHorizon::parse(s).map_err(to_js_err)
 }
 
-// Output finiteness validation
 //
 // `serde_json` silently serializes NaN/Inf as `null`, so risk outputs are
 // checked for finiteness at the boundary and rejected with an error naming
@@ -400,7 +399,6 @@ impl JsFactorCovarianceForecast {
     }
 }
 
-// Tests
 //
 // Native tests call underlying Rust APIs directly — WASM wrapper methods that
 // invoke `js_sys::Error::new` cannot run on non-wasm32 targets.  The WASM

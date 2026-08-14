@@ -421,8 +421,6 @@ impl PyNettingSetId {
     }
 }
 
-// CsaSpec — JSON round-trip wrapper
-
 /// Credit Support Annex specification (ISDA standard).
 #[pyclass(
     name = "CsaSpec",

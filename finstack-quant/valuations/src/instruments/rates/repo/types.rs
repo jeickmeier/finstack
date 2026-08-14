@@ -637,8 +637,6 @@ impl Instrument for Repo {
         Ok(deps)
     }
 
-    // === Pricing Methods ===
-
     fn base_value(&self, context: &MarketContext, as_of: Date) -> Result<Money> {
         // Use the instrument's own pricing method
         self.pv(context, as_of)

@@ -343,8 +343,6 @@ pub fn evaluate_risk_budget_arrays(
     )
 }
 
-// Tests
-
 #[cfg(test)]
 mod tests {
     use super::*;

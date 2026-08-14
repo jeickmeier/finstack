@@ -80,7 +80,6 @@
 //! - GBM dynamics: `docs/REFERENCES.md#black-scholes-1973`
 //! - Online mean/variance: `docs/REFERENCES.md#welford-1962`
 
-// --- Simulation primitives ---
 mod captured_path_stats;
 pub mod discretization;
 pub mod estimate;
@@ -93,7 +92,6 @@ pub mod rng;
 pub mod time_grid;
 pub mod traits;
 
-// --- Pricing infrastructure ---
 pub mod barriers;
 pub mod engine;
 pub mod engine_fractional;
@@ -119,7 +117,6 @@ pub use traits::{
 /// Use this module when you want the crate's common engine, process, payoff, and pricer
 /// types without spelling their full paths.
 pub mod prelude {
-    // --- Core traits and infrastructure ---
     pub use super::estimate::Estimate;
     pub use super::gbm_paths::{simulate_gbm_paths, GbmPathConfig, GbmPathSummary};
     pub use super::online_stats::{required_samples, OnlineCovariance, OnlineStats};
@@ -129,11 +126,9 @@ pub mod prelude {
     pub use super::time_grid::TimeGrid;
     pub use super::traits::{Discretization, PathState, RandomStream, StochasticProcess};
 
-    // --- RNG ---
     pub use super::rng::philox::PhiloxRng;
     pub use super::rng::sobol::SobolRng;
 
-    // --- Processes ---
     pub use super::process::brownian::{BrownianParams, BrownianProcess, MultiBrownianProcess};
     pub use super::process::cir::{CirParams, CirPlusPlusProcess, CirProcess};
     pub use super::process::gbm::{GbmParams, GbmProcess, MultiGbmProcess};
@@ -143,8 +138,6 @@ pub mod prelude {
     pub use super::process::schwartz_smith::{SchwartzSmithParams, SchwartzSmithProcess};
     pub use finstack_quant_core::math::linalg::{apply_correlation, cholesky_decomposition};
 
-    // --- Discretization schemes ---
-    //
     // Route everything through the `discretization` module's own re-exports
     // (see `src/discretization/mod.rs`) so there is one canonical public path
     // per scheme. The prelude is a curated list on top of that.
@@ -154,27 +147,22 @@ pub mod prelude {
         RoughHestonHybrid,
     };
 
-    // --- Engine and configuration ---
     pub use super::engine::{
         McEngine, McEngineBuilder, McEngineConfig, PathCaptureConfig, PathCaptureMode,
     };
     pub use super::engine_fractional::simulate_path_fractional;
 
-    // --- Fractional noise ---
+    pub use super::results::{MoneyEstimate, MonteCarloResult};
     pub use super::rng::fbm::{create_fbm_generator, FractionalNoiseGenerator};
     pub use super::rng::volterra::RiemannLiouvilleVolterra;
-    // --- Pricing results ---
-    pub use super::results::{MoneyEstimate, MonteCarloResult};
     pub use super::traits::Payoff;
 
-    // --- Payoffs ---
     pub use super::payoff::asian::{
         geometric_asian_call_closed_form, AsianCall, AsianPut, AveragingMethod,
     };
     pub use super::payoff::barrier::{BarrierOptionPayoff, BarrierType};
     pub use super::payoff::vanilla::{Digital, EuropeanCall, EuropeanPut, Forward};
 
-    // --- Pricers ---
     pub use super::pricer::basis::{LaguerreBasis, PolynomialBasis};
     pub use super::pricer::european::EuropeanPricer;
     pub use super::pricer::lsmc::{
@@ -182,12 +170,10 @@ pub mod prelude {
     };
     pub use super::pricer::path_dependent::{PathDependentPricer, PathDependentPricerConfig};
 
-    // --- Greeks ---
     pub use super::greeks::finite_diff::{
         finite_diff_delta, finite_diff_delta_crn, finite_diff_gamma, finite_diff_gamma_crn,
     };
 
-    // --- Variance reduction ---
     pub use super::variance_reduction::control_variate::{black_scholes_call, black_scholes_put};
 }
 

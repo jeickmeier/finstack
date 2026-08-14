@@ -66,30 +66,23 @@ pub(crate) mod request;
 pub(crate) mod staging;
 pub(crate) mod types;
 
-// Re-export core types for convenience.
 pub use types::{Exposure, PdTermStructure, QualitativeFlags, RawPdCurve, Stage};
 
-// Re-export staging API.
 pub use staging::{classify_stage, StageResult, StagingConfig, StagingTrigger};
 
-// Re-export ECL engine API.
 pub use engine::{
     compute_ecl_single, compute_ecl_weighted, EclBucket, EclConfig, EclConfigBuilder, EclEngine,
     EclResult, ExposureEclResult, LgdType, MacroScenario, WeightedEclResult,
 };
 
-// Re-export canonical simplified request API.
 pub use request::{EclRequest, EclStageRequest};
 
-// Re-export CECL API.
 pub use cecl::{CeclConfig, CeclEngine, CeclMethodology, CeclResult, ReversionMethod};
 
-// Re-export policy-backed defaults for downstream default construction.
 pub use policy::{
     default_cecl_config, default_cecl_config_from_config, default_ecl_config,
     default_ecl_config_from_config, default_staging_config, default_staging_config_from_config,
     ECL_POLICY_EXTENSION_KEY,
 };
 
-// Re-export portfolio aggregation.
 pub use portfolio::{compute_waterfall, PortfolioEclResult, ProvisionWaterfall};

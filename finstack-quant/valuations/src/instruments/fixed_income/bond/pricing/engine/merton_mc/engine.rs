@@ -56,7 +56,6 @@ impl MertonMcEngine {
         config: &MertonMcConfig,
         discount_rate: f64,
     ) -> Result<MertonMcResult> {
-        // --- Validation ---
         if !matches!(config.merton.dynamics(), AssetDynamics::GeometricBrownian) {
             return Err(InputError::Invalid.into());
         }
@@ -568,8 +567,6 @@ impl MertonMcEngine {
             standard_error,
         })
     }
-
-    // Helper methods
 
     /// Validate PIK split fractions (non-negative, summing to 1) and, for
     /// `Stepped` schedules, that step times are finite and strictly

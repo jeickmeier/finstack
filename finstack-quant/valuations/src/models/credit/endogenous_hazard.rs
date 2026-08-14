@@ -56,8 +56,6 @@ pub struct EndogenousHazardSpec {
 }
 
 impl EndogenousHazardSpec {
-    // -- Convenience constructors -------------------------------------------
-
     /// Validate base parameters common to all parametric models.
     fn validate(base_hazard: f64, base_leverage: f64) -> Result<()> {
         if base_hazard < 0.0 {
@@ -146,8 +144,6 @@ impl EndogenousHazardSpec {
         })
     }
 
-    // -- Core computation ---------------------------------------------------
-
     /// Upper bound applied to every computed hazard rate.
     ///
     /// The exponential map `lambda_0 * exp(beta * (L - L_0))` overflows to
@@ -197,8 +193,6 @@ impl EndogenousHazardSpec {
         let leverage = accreted_notional / asset_value;
         self.hazard_at_leverage(leverage)
     }
-
-    // -- Accessors ----------------------------------------------------------
 
     /// Returns the base (reference) hazard rate.
     pub fn base_hazard_rate(&self) -> f64 {
@@ -274,8 +268,6 @@ fn tabular_interpolate(xs: &[f64], ys: &[f64], x: f64) -> f64 {
     // Fallback (should not be reached for valid sorted input).
     last_y
 }
-
-// Tests
 
 #[cfg(test)]
 mod tests {

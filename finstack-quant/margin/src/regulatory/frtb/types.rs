@@ -7,8 +7,6 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::HashMap;
 use std::collections::BTreeMap;
 
-// Risk class enum
-
 /// FRTB risk classes per BCBS d457.
 ///
 /// These differ from SIMM risk classes: GIRR replaces IR, CSR is split
@@ -61,8 +59,6 @@ impl std::fmt::Display for FrtbRiskClass {
         }
     }
 }
-
-// Correlation scenario
 
 /// FRTB correlation scenario for capital charge aggregation.
 ///
@@ -126,8 +122,6 @@ mod correlation_scenario_tests {
         assert!((CorrelationScenario::Low.scale_correlation(0.8) - 0.6).abs() < 1e-12);
     }
 }
-
-// DRC types
 
 /// DRC sector classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -217,8 +211,6 @@ pub struct DrcPosition {
     pub pnl_adjustment: f64,
 }
 
-// RRAO types
-
 /// A position subject to the Residual Risk Add-On.
 ///
 /// RRAO applies to exotic instruments whose risks are not adequately
@@ -235,8 +227,6 @@ pub struct RraoPosition {
     pub is_exotic: bool,
 }
 
-// Sensitivity inputs
-
 /// FRTB sensitivity inputs organized by risk class.
 ///
 /// Compared to `SimmSensitivities`, this struct adds:
@@ -249,7 +239,6 @@ pub struct FrtbSensitivities {
     /// Base/reporting currency.
     pub base_currency: Currency,
 
-    // -- GIRR --
     /// GIRR delta by (currency, tenor).
     ///
     /// Units: base-currency P&L per **1 percentage-point** (1pp) parallel
@@ -273,7 +262,6 @@ pub struct FrtbSensitivities {
     /// GIRR curvature: (currency) -> (cvr_up, cvr_down).
     pub girr_curvature: HashMap<Currency, (f64, f64)>,
 
-    // -- CSR Non-Securitization --
     /// CSR non-sec delta by (issuer, bucket, tenor).
     pub csr_nonsec_delta: HashMap<(String, u8, String), f64>,
     /// CSR non-sec vega by (issuer, bucket, option_maturity).
@@ -281,7 +269,6 @@ pub struct FrtbSensitivities {
     /// CSR non-sec curvature by (issuer, bucket) -> (cvr_up, cvr_down).
     pub csr_nonsec_curvature: HashMap<(String, u8), (f64, f64)>,
 
-    // -- CSR Securitization CTP --
     /// CSR sec-CTP delta by (tranche, bucket, tenor).
     pub csr_sec_ctp_delta: HashMap<(String, u8, String), f64>,
     /// CSR sec-CTP vega by (tranche, bucket, option_maturity).
@@ -289,7 +276,6 @@ pub struct FrtbSensitivities {
     /// CSR sec-CTP curvature by (tranche, bucket) -> (cvr_up, cvr_down).
     pub csr_sec_ctp_curvature: HashMap<(String, u8), (f64, f64)>,
 
-    // -- CSR Securitization Non-CTP --
     /// CSR sec-non-CTP delta by (tranche, bucket, tenor).
     pub csr_sec_nonctp_delta: HashMap<(String, u8, String), f64>,
     /// CSR sec-non-CTP vega by (tranche, bucket, option_maturity).
@@ -297,7 +283,6 @@ pub struct FrtbSensitivities {
     /// CSR sec-non-CTP curvature by (tranche, bucket) -> (cvr_up, cvr_down).
     pub csr_sec_nonctp_curvature: HashMap<(String, u8), (f64, f64)>,
 
-    // -- Equity --
     /// Equity delta by (underlier, bucket).
     pub equity_delta: HashMap<(String, u8), f64>,
     /// Equity vega by (underlier, bucket, option_maturity).
@@ -305,7 +290,6 @@ pub struct FrtbSensitivities {
     /// Equity curvature by (underlier, bucket) -> (cvr_up, cvr_down).
     pub equity_curvature: HashMap<(String, u8), (f64, f64)>,
 
-    // -- Commodity --
     /// Commodity delta by (commodity_name, bucket, tenor).
     pub commodity_delta: HashMap<(String, u8, String), f64>,
     /// Commodity vega by (commodity_name, bucket, option_maturity).
@@ -313,7 +297,6 @@ pub struct FrtbSensitivities {
     /// Commodity curvature by (commodity_name, bucket) -> (cvr_up, cvr_down).
     pub commodity_curvature: HashMap<(String, u8), (f64, f64)>,
 
-    // -- FX --
     /// FX delta by currency pair.
     pub fx_delta: HashMap<(Currency, Currency), f64>,
     /// FX vega by (currency_pair, option_maturity).
@@ -321,11 +304,9 @@ pub struct FrtbSensitivities {
     /// FX curvature by currency pair -> (cvr_up, cvr_down).
     pub fx_curvature: HashMap<(Currency, Currency), (f64, f64)>,
 
-    // -- DRC --
     /// Default risk positions by (issuer, rating, sector, seniority).
     pub drc_positions: Vec<DrcPosition>,
 
-    // -- RRAO --
     /// Notional amounts for exotic instruments subject to RRAO.
     pub rrao_exotic_notionals: Vec<RraoPosition>,
 }
@@ -631,8 +612,6 @@ impl FrtbSensitivities {
         }
         Ok(())
     }
-
-    // -- Builder-style adders --
 
     /// Add a GIRR delta sensitivity.
     pub fn add_girr_delta(&mut self, ccy: Currency, tenor: &str, delta: f64) {

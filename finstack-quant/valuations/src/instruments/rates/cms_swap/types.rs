@@ -82,7 +82,6 @@ pub struct CmsSwap {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cms_floor: Option<f64>,
 
-    // ── Underlying Swap Conventions ──────────────────────────────────────
     /// IRS convention for the underlying swap (e.g., `UsdSofr`).
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]

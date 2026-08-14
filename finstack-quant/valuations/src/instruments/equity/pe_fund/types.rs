@@ -220,8 +220,6 @@ impl Instrument for PrivateMarketsFund {
         Ok(())
     }
 
-    // === Pricing Methods ===
-
     fn base_value(
         &self,
         curves: &MarketContext,

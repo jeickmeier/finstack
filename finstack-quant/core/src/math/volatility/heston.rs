@@ -1051,8 +1051,6 @@ fn bs_call_fallback(
     }
 }
 
-// Tests
-
 #[cfg(test)]
 mod tests {
     use super::*;

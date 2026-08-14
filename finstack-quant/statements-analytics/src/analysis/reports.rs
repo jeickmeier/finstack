@@ -572,8 +572,6 @@ impl Report for CreditAssessmentReport<'_> {
     }
 }
 
-// Tests
-
 #[cfg(test)]
 mod tests {
     use super::*;

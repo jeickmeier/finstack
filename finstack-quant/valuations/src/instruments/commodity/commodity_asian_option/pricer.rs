@@ -498,8 +498,6 @@ fn price_arithmetic_tw_commodity(
     (price * df * scale).max(0.0)
 }
 
-// ========================= REGISTRY PRICER =========================
-
 /// Commodity Asian option analytical pricer (Turnbull-Wakeman / Kemna-Vorst).
 pub struct CommodityAsianOptionAnalyticalPricer;
 

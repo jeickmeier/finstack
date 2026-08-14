@@ -383,10 +383,6 @@ pub fn build_registry(overlay: Option<&Value>) -> Result<MarginRegistry> {
     })
 }
 
-// -----------------------------------------------------------------------------//
-// Parse helpers
-// -----------------------------------------------------------------------------//
-
 fn parse_schedule_im(value: Option<&Value>) -> Result<HashMap<String, ScheduleImSchedule>> {
     let Some(val) = value else {
         return Err(Error::Validation("schedule_im section missing".to_string()));
@@ -828,9 +824,7 @@ fn parse_simm(value: Option<&Value>) -> Result<HashMap<String, SimmParams>> {
     Ok(map)
 }
 
-// -----------------------------------------------------------------------------//
 // Public helper for overrides via FinstackConfig
-// -----------------------------------------------------------------------------//
 
 /// Extension key used by [`finstack_quant_core::config::FinstackConfig`] for
 /// margin-registry JSON overlays.
@@ -854,9 +848,7 @@ pub fn margin_registry_from_config(cfg: &FinstackConfig) -> Result<MarginRegistr
     build_registry(overlay)
 }
 
-// -----------------------------------------------------------------------------//
 // Conversions and validations
-// -----------------------------------------------------------------------------//
 
 fn parse_schedule_asset_class(value: &str) -> Result<ScheduleAssetClass> {
     value
@@ -1406,9 +1398,7 @@ where
 
 // Generic numeric range validators live in `registry::validation`.
 
-// -----------------------------------------------------------------------------//
 // Convenience helpers for constructing Money amounts from defaults
-// -----------------------------------------------------------------------------//
 
 impl VmDefaults {
     /// Convert raw VM defaults into currency-tagged [`VmParameters`].

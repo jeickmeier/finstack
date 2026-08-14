@@ -98,7 +98,6 @@ pub const MIN_CIR_SPREAD: f64 = 1e-8;
 /// in hazard-to-spread mapping: λ = s / (1 - R).
 pub const MAX_RECOVERY_RATE: f64 = 1.0 - 1e-6;
 
-// Re-export main types
 pub use cashflow_engine::{PathAwareCashflowSchedule, ThreeFactorPathData};
 pub use pricer::unified::EnhancedMonteCarloResult;
 pub use pricer::unified::PathResult;

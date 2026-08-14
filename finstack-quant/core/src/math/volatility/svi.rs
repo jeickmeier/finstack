@@ -546,8 +546,6 @@ pub fn calibrate_svi(
     Ok(params)
 }
 
-// Tests
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -563,8 +563,6 @@ impl CovenantEngine {
         self.get_applicable_specs_internal(test_date)
     }
 
-    // Helper methods
-
     fn get_applicable_specs_internal(&self, test_date: Date) -> Vec<&CovenantSpec> {
         // Check windows first
         for window in &self.windows {

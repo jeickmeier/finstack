@@ -213,7 +213,6 @@ pub(crate) fn interp_linear_clamp(xs: &[f64], ys: &[f64], x: f64) -> f64 {
     ys[idx - 1] + t * (ys[idx] - ys[idx - 1])
 }
 
-// Re-export for ergonomic access (curated list)
 pub use delta_vol_surface::FxDeltaVolSurfaceBuilder;
 pub use fx_delta_vol_surface::FxDeltaVolSurface;
 pub use vol_cube::{VolCube, VolCubeBuilder};

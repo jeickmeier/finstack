@@ -481,8 +481,6 @@ impl PyLatentFactorKind {
     }
 }
 
-// Concrete factor models with extra methods
-
 /// Single-factor model (common market factor).
 #[pyclass(
     name = "LatentSingleFactor",
@@ -807,8 +805,6 @@ impl PyCorrelatedBernoulli {
         )
     }
 }
-
-// Portfolio credit-loss simulation
 
 /// One name in a finite credit portfolio.
 #[pyclass(

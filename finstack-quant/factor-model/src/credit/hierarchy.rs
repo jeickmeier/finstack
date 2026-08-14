@@ -137,8 +137,6 @@ pub struct DateRange {
     pub end: Date,
 }
 
-// Policy types
-
 /// Per-issuer regression behavior override supplied by the user before calibration.
 ///
 /// This is the *input* override; the *resolved* outcome is [`IssuerBetaMode`].
@@ -194,8 +192,6 @@ pub enum IssuerBetaPolicy {
     /// Every issuer treated as `BucketOnly`; no per-issuer regression is run.
     GloballyOff,
 }
-
-// Hierarchy specification
 
 /// A single level in the credit factor hierarchy.
 ///
@@ -253,8 +249,6 @@ impl CreditHierarchySpec {
         Some(parts.join("."))
     }
 }
-
-// Issuer tags and betas
 
 /// Flat key-value taxonomy tags for an issuer.
 ///
@@ -357,8 +351,6 @@ pub struct IssuerBetaRow {
     pub level_fit_quality: Vec<Option<FitQuality>>,
 }
 
-// Anchor state
-
 /// Factor level values for a single hierarchy level at the calibration anchor date.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -384,8 +376,6 @@ pub struct LevelsAtAnchor {
     /// Per-level anchor values in hierarchy spec order.
     pub by_level: Vec<LevelAnchor>,
 }
-
-// Correlation matrix
 
 /// Static factor correlation matrix `ρ` for the covariance decomposition
 /// `Σ(t) = D(t) · ρ · D(t)` where `D(t)` is the diagonal vol matrix.
@@ -539,8 +529,6 @@ impl FactorCorrelationMatrix {
     }
 }
 
-// Vol state
-
 /// Volatility model for a single factor.
 ///
 /// The `Sample` variant stores a single variance estimate; `Ewma` additionally
@@ -632,8 +620,6 @@ pub struct VolState {
     pub idiosyncratic: BTreeMap<IssuerId, IdiosyncraticVolModel>,
 }
 
-// Factor histories
-
 /// Embedded time-series of factor returns.
 ///
 /// Recommended default: embed in the artifact (~100 KB for typical configs).
@@ -707,8 +693,6 @@ pub struct CalibrationDiagnostics {
     pub tag_taxonomy: BTreeMap<String, BTreeSet<String>>,
 }
 
-// Generic factor spec
-
 /// Reference to the generic (PC) time series used as the first factor.
 ///
 /// Values are not stored here; they live in
@@ -721,8 +705,6 @@ pub struct GenericFactorSpec {
     /// Caller's time-series identifier, used to look up the input data.
     pub series_id: String,
 }
-
-// Top-level artifact
 
 /// Fully self-contained credit factor model artifact.
 ///
@@ -987,8 +969,6 @@ impl CreditFactorModel {
         Ok(())
     }
 }
-
-// Tests
 
 #[cfg(test)]
 mod tests {

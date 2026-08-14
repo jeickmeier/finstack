@@ -58,7 +58,6 @@ impl DependencyGraph {
         let mut dependencies = IndexMap::new();
         let mut dependents = IndexMap::new();
 
-        // Initialize empty sets for all nodes
         for node_id in model.nodes.keys() {
             dependencies.insert(node_id.clone(), IndexSet::new());
             dependents.insert(node_id.clone(), IndexSet::new());

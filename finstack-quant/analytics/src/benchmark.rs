@@ -1549,8 +1549,6 @@ mod tests {
     }
 }
 
-// ── Benchmark-relative risk ratios ──
-
 /// Treynor ratio: excess return per unit of systematic risk.
 ///
 /// ```text

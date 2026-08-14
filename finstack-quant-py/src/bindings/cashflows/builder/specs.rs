@@ -140,8 +140,6 @@ impl PyCouponType {
     }
 }
 
-// OvernightCompoundingMethod / constraints / fallback / fee accrual basis
-
 /// Wrapper for [`OvernightCompoundingMethod`].
 #[pyclass(
     name = "OvernightCompoundingMethod",
@@ -478,8 +476,6 @@ impl PyScheduleParams {
         format!("ScheduleParams({:?})", self.inner)
     }
 }
-
-// Coupon specs
 
 /// Wrapper for [`FixedCouponSpec`].
 #[pyclass(
@@ -1067,8 +1063,6 @@ impl PyFeeSpec {
         format!("FeeSpec({:?})", self.inner)
     }
 }
-
-// Credit behavior models
 
 /// Wrapper for [`PrepaymentModelSpec`].
 #[pyclass(

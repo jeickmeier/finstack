@@ -366,8 +366,6 @@ fn value_portfolio_with_execution_at(
     plan.execute().into_valuation(evaluation)
 }
 
-// Selective Repricing
-
 /// Revalue only the positions affected by a set of changed market factor keys.
 ///
 /// This function consults the portfolio's [`crate::dependencies::DependencyIndex`] to determine which

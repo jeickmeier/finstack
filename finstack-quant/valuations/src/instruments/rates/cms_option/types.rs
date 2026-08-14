@@ -48,7 +48,6 @@ pub struct CmsOption {
     /// Day count convention for the option accrual
     pub day_count: DayCount,
 
-    // --- Underlying Swap Conventions ---
     /// IRS convention for the underlying swap (e.g., `UsdSofr`).
     ///
     /// When set, provides default values for `swap_fixed_frequency`, `swap_float_frequency`,

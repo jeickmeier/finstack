@@ -916,7 +916,6 @@ fn ensure_same_currency(lhs: &Money, rhs: &Money) -> Result<(), Error> {
     Ok(())
 }
 
-// Tests (basic – exhaustive suite lives in `tests/` folder)
 #[cfg(test)]
 mod tests {
     use super::*;

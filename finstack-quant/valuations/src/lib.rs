@@ -138,5 +138,4 @@ pub mod instruments;
 /// Risk metric calculators and registries.
 pub mod metrics;
 
-// Re-export unified valuations error type.
 pub use error::{Error, Result};

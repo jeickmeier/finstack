@@ -346,7 +346,6 @@ impl<C: crate::dates::HolidayCalendar + ?Sized> Iterator for BusinessDayIter<'_,
     }
 }
 
-// Tests
 #[cfg(test)]
 mod tests {
     use super::*;

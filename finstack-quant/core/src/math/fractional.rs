@@ -327,8 +327,6 @@ pub fn mittag_leffler(z: Complex64, alpha: f64, beta: f64) -> Result<Complex64> 
     Ok(sum)
 }
 
-// Tests
-
 #[cfg(test)]
 mod tests {
     use super::*;

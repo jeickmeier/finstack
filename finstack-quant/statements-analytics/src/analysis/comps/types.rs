@@ -51,7 +51,6 @@ pub enum PeriodBasis {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Multiple {
-    // ---- Enterprise value multiples ----
     /// EV / EBITDA
     EvEbitda,
     /// EV / Revenue
@@ -61,7 +60,6 @@ pub enum Multiple {
     /// EV / Free Cash Flow (unlevered)
     EvFcf,
 
-    // ---- Equity multiples ----
     /// Price / Earnings
     Pe,
     /// Price / Book Value
@@ -73,7 +71,6 @@ pub enum Multiple {
     /// Dividend Yield (dividend / price, expressed as a ratio)
     DividendYield,
 
-    // ---- Credit multiples ----
     /// Spread per turn of leverage (OAS / (Debt / EBITDA))
     SpreadPerTurn,
     /// Yield / Interest Coverage
@@ -162,7 +159,6 @@ pub struct CompanyMetrics {
     /// Used by `PeerFilter` for inclusion/exclusion decisions.
     pub attributes: Attributes,
 
-    // ---- Pricing / market data ----
     /// Enterprise value.
     pub enterprise_value: Option<f64>,
     /// Equity market capitalization.
@@ -174,7 +170,6 @@ pub struct CompanyMetrics {
     /// Yield to worst / yield to maturity.
     pub yield_pct: Option<f64>,
 
-    // ---- Fundamental metrics ----
     /// EBITDA (period basis determined by the PeerSet context).
     pub ebitda: Option<f64>,
     /// Revenue.
@@ -194,7 +189,6 @@ pub struct CompanyMetrics {
     /// Dividends per share (annualized).
     pub dividends_per_share: Option<f64>,
 
-    // ---- Credit metrics ----
     /// Total debt / EBITDA.
     pub leverage: Option<f64>,
     /// EBITDA / Interest Expense.

@@ -249,12 +249,10 @@ pub fn evaluate_lbo(model: &FinancialModelSpec, config: &LboConfig) -> Result<Lb
         Ok(value)
     };
 
-    // ---- Entry ----
     let entry_metric = node_value(&config.entry_metric_node, &entry_period, "entry valuation")?;
     let entry_enterprise_value = config.entry_multiple * entry_metric;
     let uses_total = entry_enterprise_value + config.transaction_fees;
 
-    // ---- Sources & uses ----
     let mut debt_total = 0.0;
     for tranche in &config.sources {
         validate_finite(
@@ -290,7 +288,6 @@ pub fn evaluate_lbo(model: &FinancialModelSpec, config: &LboConfig) -> Result<Lb
         )));
     }
 
-    // ---- Exit ----
     let exit_metric = node_value(
         &config.exit_metric_node,
         &config.exit_period,
@@ -305,7 +302,6 @@ pub fn evaluate_lbo(model: &FinancialModelSpec, config: &LboConfig) -> Result<Lb
     let exit_equity_proceeds = exit_enterprise_value - exit_net_debt;
     let moic = exit_equity_proceeds / equity_check;
 
-    // ---- Model checks (existing suite, same evaluation) ----
     let checks = match &config.check_mappings {
         Some(mappings) => {
             let suite = lbo_model_checks(mappings.three_statement.clone(), mappings.credit.clone());

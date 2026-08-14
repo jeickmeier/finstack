@@ -382,8 +382,6 @@ impl PyPerformance {
         )
     }
 
-    // -- Mutators --
-
     /// Restrict analytics to a date window.
     fn reset_date_range(&mut self, start: Bound<'_, PyAny>, end: Bound<'_, PyAny>) -> PyResult<()> {
         let s = py_to_date(&start)?;

@@ -174,7 +174,6 @@ pub struct InflationCapFloor {
     #[builder(optional)]
     pub lag_override: Option<InflationLag>,
 
-    // --- YoY convexity / timing adjustment parameters ---
     //
     // A YoY inflation caplet pays `(CPI(Tᵢ)/CPI(Tᵢ₋₁) − 1 − K)⁺`. Under the
     // `Tᵢ`-payment measure `E[CPI(Tᵢ)/CPI(Tᵢ₋₁)] ≠ CPI_fwd(Tᵢ)/CPI_fwd(Tᵢ₋₁)`:

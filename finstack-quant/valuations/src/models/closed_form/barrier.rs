@@ -1127,7 +1127,6 @@ pub fn barrier_put_continuous(params: &BarrierParams, barrier_type: BarrierType)
     }
 }
 
-// ==================== DF-FIRST CONSTRUCTION ====================
 //
 // When the discount factor is known directly (e.g., from date-based curve
 // lookup), callers should build the parameter bag via

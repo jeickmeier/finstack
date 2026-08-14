@@ -11,7 +11,6 @@ mod tests;
 #[cfg(test)]
 mod tests_stepup;
 
-// Re-export for compatibility in tests and external users referencing bond::AmortizationSpec
 pub(crate) use super::cashflow_spec::CashflowSpec;
 pub use crate::cashflow::builder::AmortizationSpec;
 

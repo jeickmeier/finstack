@@ -62,7 +62,6 @@ pub(super) fn apply_override(
     let mut current_value = base_value;
 
     for period_id in forecast_periods {
-        // Check if there's an override for this period
         let period_str = period_id.to_string();
         if let Some(&override_value) = overrides_map.get(&period_str) {
             current_value = override_value;

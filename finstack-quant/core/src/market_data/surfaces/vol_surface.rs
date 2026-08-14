@@ -1244,7 +1244,6 @@ fn validate_axis(axis: &[f64]) -> crate::Result<()> {
     Ok(())
 }
 
-// Tests
 #[cfg(test)]
 mod tests {
     use super::*;

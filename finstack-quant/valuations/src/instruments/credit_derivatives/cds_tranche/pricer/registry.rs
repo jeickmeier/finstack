@@ -34,8 +34,6 @@ impl JumpToDefaultResult {
     }
 }
 
-// ========================= REGISTRY PRICER =========================
-
 /// Registry pricer for CDS Tranche using Gaussian Copula model
 pub(crate) struct SimpleCDSTrancheHazardPricer {
     model_key: crate::pricer::ModelKey,

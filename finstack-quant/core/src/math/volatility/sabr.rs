@@ -571,8 +571,6 @@ fn chi(z: f64, rho: f64) -> crate::Result<f64> {
     Ok((numerator / denominator).ln())
 }
 
-// Tests
-
 #[cfg(test)]
 mod tests {
     use super::*;

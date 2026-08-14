@@ -437,8 +437,6 @@ fn auto_near_field_size(n: usize) -> usize {
     sqrt_n.clamp(10, 50)
 }
 
-// Tests
-
 #[cfg(test)]
 mod tests {
     use super::*;

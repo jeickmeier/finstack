@@ -44,7 +44,6 @@ pub(crate) mod types;
 /// Shared helpers (validation and search).
 pub(crate) mod utils;
 
-// Re-exports for ergonomic access
 pub use generic::Interpolator;
 pub use strategies::{
     CubicHermiteStrategy, LinearStrategy, LogLinearStrategy, MonotoneConvexStrategy,

@@ -404,8 +404,6 @@ impl BondFuturePricer {
     }
 }
 
-// ========================= PRICER TRAIT IMPLEMENTATION =========================
-
 impl crate::pricer::Pricer for BondFuturePricer {
     fn key(&self) -> crate::pricer::PricerKey {
         crate::pricer::PricerKey::new(

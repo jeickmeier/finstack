@@ -110,12 +110,10 @@
 mod inputs;
 mod suggestions;
 
-// Re-export InputError for public API
 pub use inputs::InputError;
 /// Classification of a non-finite floating-point value.
 pub use inputs::NonFiniteKind;
 
-// Re-export suggestion utilities for internal use
 pub(crate) use suggestions::{format_suggestions, fuzzy_suggestions};
 
 use crate::currency::Currency;

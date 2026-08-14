@@ -73,7 +73,6 @@ pub(crate) fn evaluate_forecast(
     // Determine base value (last visible actual or last historical)
     let base_value = determine_base_value(node_spec, period_id, model, context, visibility_cutoff)?;
 
-    // Apply forecast method
     let forecast_results = if let Some(offset) = seed_offset {
         let mut series = match mc_z_cache.as_mut() {
             Some(cache) => match forecast_spec.method {

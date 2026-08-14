@@ -17,7 +17,6 @@ pub(crate) mod metrics;
 pub(crate) mod pricer;
 pub(crate) mod types;
 
-// Re-export commonly used types
 pub use crate::instruments::Position;
 pub use pricer::BondFuturePricer;
 pub use types::{BondFuture, BondFutureBuilder, BondFutureSpecs, DeliverableBond};

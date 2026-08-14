@@ -23,7 +23,6 @@
 
 // Using generic pricer implementation to eliminate boilerplate
 
-// Re-export shared swap leg pricing utilities for internal use
 use crate::instruments::common_impl::numeric::decimal_to_f64;
 pub(crate) use crate::instruments::common_impl::pricing::swap_legs::robust_relative_df;
 use crate::instruments::common_impl::pricing::swap_legs::LegPeriod;

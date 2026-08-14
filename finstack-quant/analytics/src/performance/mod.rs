@@ -848,8 +848,6 @@ impl Performance {
         (0..self.ticker_names.len()).map(f).collect()
     }
 
-    // ── Final accessors ──
-
     /// Full return-aligned date vector (independent of any active window).
     ///
     /// Returns the date grid that pairs with each row of internal returns,

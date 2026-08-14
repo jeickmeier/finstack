@@ -583,8 +583,6 @@ impl PyNumericMode {
     }
 }
 
-// FinancialModelSpec — JSON round-trip
-
 /// Top-level financial model specification.
 #[pyclass(
     name = "FinancialModelSpec",

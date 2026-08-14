@@ -20,5 +20,4 @@ mod types;
 
 pub use types::EquityTotalReturnSwap;
 
-// Re-export common TRS types for convenience.
 pub use crate::instruments::common_impl::parameters::trs_common::{TrsScheduleSpec, TrsSide};

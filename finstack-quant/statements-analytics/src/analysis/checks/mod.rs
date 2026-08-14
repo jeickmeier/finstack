@@ -19,8 +19,6 @@ pub(crate) mod reconciliation;
 pub(crate) mod renderer;
 pub(crate) mod suites;
 
-// Re-export all check structs at the `checks` level.
-
 pub use consistency::{EffectiveTaxRateCheck, GrowthRateConsistency, WorkingCapitalConsistency};
 pub use credit::{
     CoverageFloorCheck, FcfSignCheck, LeverageRangeCheck, LiquidityRunwayCheck, TrendCheck,

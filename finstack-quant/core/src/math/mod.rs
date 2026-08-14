@@ -188,7 +188,6 @@ pub mod summation;
 pub mod time_grid;
 pub mod volatility;
 
-// Re-exports for ergonomic access
 pub use compounding::Compounding;
 pub use consecutive::count_consecutive;
 pub use distributions::{

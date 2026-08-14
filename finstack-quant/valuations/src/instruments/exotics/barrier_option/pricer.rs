@@ -241,8 +241,6 @@ pub(crate) fn compute_pv(
     pricer.price_internal(inst, curves, as_of)
 }
 
-// ========================= EXPIRED BARRIER HELPER =========================
-
 /// Price an expired barrier option using explicit observed barrier state.
 ///
 /// Terminal spot alone is insufficient to determine whether a barrier was
@@ -304,8 +302,6 @@ fn price_expired_barrier(
 
     Ok(Money::new(pv, ccy))
 }
-
-// ========================= ANALYTICAL PRICER =========================
 
 use crate::models::closed_form::barrier::{
     barrier_call_continuous, barrier_put_continuous, barrier_rebate, BarrierParams,

@@ -135,7 +135,6 @@ pub(crate) fn register_exotic_pricers(registry: &mut PricerRegistry) {
         crate::instruments::exotics::tarn::TarnPricer::default(),
     );
 
-    // Snowball / Inverse Floater
     registry.register(
         InstrumentType::Snowball,
         ModelKey::MonteCarloHullWhite1F,

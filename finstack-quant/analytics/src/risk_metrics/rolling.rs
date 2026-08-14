@@ -229,8 +229,6 @@ pub(crate) fn rolling_sortino(
     out
 }
 
-// ── Internal rolling kernels ──
-//
 // Each kernel advances a sliding window over `returns[..n]` and calls
 // `emit` once per completed window.  Both the dated (struct) and undated
 // (NaN-padded Vec) public functions delegate here; they share *identical*

@@ -148,8 +148,6 @@ fn compute_multiple(company_metrics: &Bound<'_, PyDict>, multiple: &str) -> PyRe
     Ok(core_compute_multiple(&metrics, multiple))
 }
 
-// Composite relative-value scoring
-
 /// Convert a ``{metric_name: value}`` dict into a `CompanyMetrics`.
 ///
 /// Known field names (e.g. ``"leverage"``, ``"oas_bp"``, ``"ebitda"``)

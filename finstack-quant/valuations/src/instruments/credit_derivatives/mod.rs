@@ -59,7 +59,6 @@ pub mod cds_option;
 /// CDS tranche module - Synthetic CDO tranches.
 pub mod cds_tranche;
 
-// Re-export primary types
 pub use cds::CreditDefaultSwap;
 pub use cds_index::CDSIndex;
 pub use cds_option::{CDSOption, CDSOptionStrike, CDSOptionStrikeKind};

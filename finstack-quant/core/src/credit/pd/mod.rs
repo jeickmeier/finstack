@@ -29,7 +29,6 @@ pub mod master_scale;
 #[cfg(test)]
 mod tests;
 
-// Re-exports
 pub use calibration::{
     apply_basel_irb_pd_floor, central_tendency, pit_to_ttc, ttc_to_pit, PdCycleParams,
     BASEL_IRB_PD_FLOOR,

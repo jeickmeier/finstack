@@ -21,7 +21,6 @@ pub(crate) mod prepayment;
 pub(crate) mod pricer;
 pub(crate) mod tree;
 
-// Re-export main types (may be used by external bindings or tests)
 pub use correlation::CorrelationStructure;
 pub use default::{PoolGranularity, StochasticDefaultSpec};
 pub use prepayment::StochasticPrepaySpec;

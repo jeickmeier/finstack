@@ -37,8 +37,6 @@ use super::pricing::{
     bachelier_call, bachelier_put, bachelier_vega, black_call, black_put, black_vega,
 };
 
-// ─── Constants ───────────────────────────────────────────────────────────────
-
 /// Maximum Householder/Newton iterations after the bisection phase.
 /// The bisection delivers a starting point within ~0.01% of the root,
 /// so 4 cubic iterations are more than enough for machine precision.
@@ -63,8 +61,6 @@ const VOL_CEIL_BACH: f64 = 10.0;
 /// Number of bisection steps used to narrow the bracket before Householder.
 /// 20 bisection steps refine the bracket by a factor of 2²⁰ ≈ 10⁶.
 const BISECTION_STEPS: usize = 20;
-
-// ─── Public API ──────────────────────────────────────────────────────────────
 
 /// Extract Black-76 (lognormal) implied volatility from an option price.
 ///
@@ -396,8 +392,6 @@ pub fn implied_vol_bachelier(
     verify_convergence_bachelier(sigma, otm_price, forward, strike, t, otm_is_call)
 }
 
-// ─── Internal Helpers ────────────────────────────────────────────────────────
-
 /// Validate that a value is positive and finite.
 #[inline]
 fn validate_positive(value: f64) -> crate::Result<()> {
@@ -581,8 +575,6 @@ mod tests {
 
     /// Base round-trip tolerance on implied volatility (σ_implied vs σ_true).
     const VOL_TOL: f64 = 1e-12;
-
-    // ── Helpers ──────────────────────────────────────────────────────────
 
     /// Compute a dynamic tolerance that accounts for the fundamental
     /// floating-point precision limit of the OTM conversion.

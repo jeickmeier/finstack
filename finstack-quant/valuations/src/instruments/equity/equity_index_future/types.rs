@@ -579,8 +579,6 @@ impl finstack_quant_cashflows::CashflowScheduleSource for EquityIndexFuture {
     }
 }
 
-// Tests
-
 #[cfg(test)]
 mod tests {
     use super::*;

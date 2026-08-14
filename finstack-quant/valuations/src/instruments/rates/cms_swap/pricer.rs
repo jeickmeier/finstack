@@ -1049,7 +1049,7 @@ mod tests {
         );
     }
 
-    // ================= Static replication (Andersen-Piterbarg) =================
+    // Static replication (Andersen-Piterbarg)
 
     /// Receive-CMS swap with a single fixing and a zero-rate fixed funding leg,
     /// so the swap NPV isolates the CMS leg.

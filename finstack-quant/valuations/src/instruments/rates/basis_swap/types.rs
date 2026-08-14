@@ -36,7 +36,6 @@ use crate::instruments::common_impl::pricing::swap_legs::{FloatingLegParams, Leg
 use crate::instruments::common_impl::validation;
 use rust_decimal::Decimal;
 
-// Re-export from common parameters
 pub use crate::instruments::common_impl::parameters::legs::BasisSwapLeg;
 
 /// Basis swap instrument that exchanges two floating rate payments with different tenors.

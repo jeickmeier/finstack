@@ -13,8 +13,6 @@ use pyo3::types::{PyDict, PyList, PyModule};
 
 use crate::errors::core_to_py;
 
-// Diebold-Li: factor extraction
-
 /// Extract time-varying Nelson-Siegel factors (level, slope, curvature) from a
 /// yield panel using the Diebold-Li (2006) parameterization.
 ///
@@ -77,8 +75,6 @@ fn diebold_li_fit_factors<'py>(
     Ok(d)
 }
 
-// Diebold-Li: forecast
-
 /// Extract Diebold-Li factors, fit VAR(1) dynamics, and forecast the yield
 /// curve ``horizon`` steps ahead.
 ///
@@ -136,8 +132,6 @@ fn diebold_li_forecast<'py>(
     d.set_item("confidence_bands", bands)?;
     Ok(d)
 }
-
-// PCA: fit
 
 /// Fit PCA to a matrix of yield changes (first differences of a yield panel).
 ///
@@ -234,8 +228,6 @@ fn yield_pca_fit<'py>(
     Ok(d)
 }
 
-// PCA: scenario
-
 /// Generate a single-component N-sigma PCA scenario shift to the yield curve.
 ///
 /// Returns ``delta_yield = sigma_shock * sqrt(eigenvalue_k) * loading_k``,
@@ -263,8 +255,6 @@ fn yield_pca_scenario(
     YieldPca::scenario_from_yield_changes(yield_changes, component_index, sigma_shock, n_components)
         .map_err(core_to_py)
 }
-
-// Nelson-Siegel: static cross-section
 
 /// Evaluate the static Nelson-Siegel (1987) yield curve for a given decay
 /// parameter, factor triple, and tenor grid.

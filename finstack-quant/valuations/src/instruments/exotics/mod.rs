@@ -111,7 +111,6 @@ pub mod snowball;
 /// TARN (Target Redemption Note) module.
 pub mod tarn;
 
-// Re-export primary types
 pub use asian_option::{AsianOption, AveragingMethod};
 pub use barrier_option::{BarrierOption, BarrierType};
 pub use basket::Basket;

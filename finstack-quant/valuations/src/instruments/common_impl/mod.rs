@@ -43,6 +43,5 @@ pub(crate) mod pricing;
 // Enriched per-flow cashflow export with DF/SP/PV columns.
 pub mod cashflow_export;
 
-// Re-export pricer helper used by instrument pricer modules.
 #[doc(hidden)]
 pub(crate) use pricing::GenericInstrumentPricer;

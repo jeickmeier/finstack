@@ -74,7 +74,6 @@ mod macros;
 mod option_greeks;
 mod pricing_options;
 
-// Re-export all public items to preserve the existing API surface.
 pub use instrument::Instrument;
 pub use option_greeks::{OptionGreekKind, OptionGreeks, OptionGreeksProvider, OptionGreeksRequest};
 pub use pricing_options::PricingOptions;

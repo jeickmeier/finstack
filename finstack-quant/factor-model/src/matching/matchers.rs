@@ -291,8 +291,6 @@ impl FactorMatcher for CascadeMatcher {
     }
 }
 
-// Tests
-
 #[cfg(test)]
 mod tests_mapping_table {
     use super::*;

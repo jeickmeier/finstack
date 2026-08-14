@@ -510,8 +510,6 @@ fn evaluate_dcf<'py>(
     dcf_equity_result_dict(py, &result)
 }
 
-// DCF sensitivity, LBO, and cost of capital
-
 /// Rank the headline DCF assumptions by enterprise-value impact.
 ///
 /// The statement model is evaluated once; each shocked point re-runs only the
@@ -811,8 +809,6 @@ fn wacc(
     .map_err(display_to_py)
 }
 
-// Corporate analysis (orchestrator)
-
 /// Run the full corporate analysis pipeline.
 ///
 /// This uses ``CorporateAnalysisBuilder`` under the hood to evaluate
@@ -1015,8 +1011,6 @@ fn credit_assessment<'py>(
     serde_to_py(py, &assessment)
 }
 
-// Introspection — DependencyTracer (class)
-
 /// Cached dependency tracer that builds the model graph once.
 ///
 /// Construct from a ``FinancialModelSpec`` (or JSON string) and reuse for
@@ -1186,8 +1180,6 @@ fn dependents(model: &Bound<'_, PyAny>, node_id: &str) -> PyResult<Vec<String>> 
     let deps = tracer.dependents(node_id).map_err(display_to_py)?;
     Ok(deps.into_iter().map(String::from).collect())
 }
-
-// Introspection — FormulaExplainer
 
 /// Explain a formula for a specific node and period.
 ///

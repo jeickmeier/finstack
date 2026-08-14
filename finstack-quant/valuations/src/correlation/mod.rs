@@ -49,7 +49,6 @@ pub mod factor_model;
 pub mod portfolio_loss;
 pub mod recovery;
 
-// Re-export commonly used types
 pub use copula::{
     Copula, CopulaSpec, GaussianCopula, MultiFactorCopula, RandomFactorLoadingCopula,
     StudentTCopula,

@@ -31,8 +31,6 @@
 //! - Scenario overrides are deterministic full-period scalar overrides unless a
 //!   lower-level API states otherwise.
 
-// ---- Grouped submodules ----
-
 pub(crate) mod valuation;
 
 pub(crate) mod credit;
@@ -46,14 +44,10 @@ pub(crate) mod ecl;
 
 pub(crate) mod comps;
 
-// ---- Flat submodules ----
-
 pub mod backtesting;
 pub mod goal_seek;
 pub mod introspection;
 pub mod reports;
-
-// ---- Type-level re-exports (unchanged public API) ----
 
 pub use backtesting::{backtest_forecast, ForecastMetrics};
 pub use credit::{
@@ -81,14 +75,10 @@ pub use valuation::{
     ExitMultipleBump, LboCheckMappings, LboConfig, LboResult, LboTranche,
 };
 
-// ---- Check-framework re-exports ----
-
 pub use checks::{
     credit_underwriting_checks, lbo_model_checks, three_statement_checks, CheckReportRenderer,
     CreditMapping, FormulaCheck, ThreeStatementMapping, TrendDirection,
 };
-
-// ---- ECL re-exports ----
 
 pub use ecl::{
     classify_stage, compute_ecl_single, compute_ecl_weighted, compute_waterfall,
@@ -100,8 +90,6 @@ pub use ecl::{
     RawPdCurve, ReversionMethod, Stage, StageResult, StagingConfig, StagingTrigger,
     WeightedEclResult, ECL_POLICY_EXTENSION_KEY,
 };
-
-// ---- Comps re-exports ----
 
 pub use comps::{
     compute_multiple, compute_peer_multiples, peer_stats, percentile_rank, regression_fair_value,

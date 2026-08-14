@@ -400,8 +400,6 @@ where
     Ok(total)
 }
 
-// ===== Generic Calculators =====
-
 use crate::instruments::common_impl::traits::Instrument;
 use crate::metrics::MetricCalculator;
 use std::marker::PhantomData;
@@ -568,8 +566,6 @@ where
         Ok(total)
     }
 }
-
-// ===== Hazard-Rate CS01 Calculators =====
 
 /// Generic parallel CS01 calculator using direct hazard-rate bumps.
 ///
@@ -745,8 +741,6 @@ where
         Ok(total)
     }
 }
-
-// ===== Credit-Convention-Aware CS01 Calculators =====
 
 /// Per-deal CS01 conventions supplied by credit instruments (CDS, CDS Option).
 ///

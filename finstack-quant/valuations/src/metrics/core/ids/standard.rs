@@ -23,11 +23,8 @@ impl MetricId {
         MetricId::EmbeddedOptionValue,
     ];
 
-    // ALL_STANDARD Array
-
     /// All standard (non-custom) metric IDs, ordered by group.
     pub const ALL_STANDARD: &'static [MetricId] = &[
-        // -- Pricing --
         MetricId::DirtyPrice,
         MetricId::CleanPrice,
         MetricId::ConversionFactor,
@@ -55,7 +52,6 @@ impl MetricId {
         MetricId::TimeToMaturity,
         MetricId::FuturesPrice,
         MetricId::Basis,
-        // -- Carry --
         MetricId::Theta,
         MetricId::ThetaCarry,
         MetricId::ThetaRollDown,
@@ -67,7 +63,6 @@ impl MetricId {
         MetricId::ImpliedFinancingRate,
         MetricId::RollSpecialness,
         MetricId::Breakeven,
-        // -- Sensitivity --
         MetricId::Dv01,
         MetricId::BucketedDv01,
         MetricId::DurationDv01,
@@ -87,7 +82,6 @@ impl MetricId {
         MetricId::CollateralHaircut01,
         MetricId::CollateralPrice01,
         MetricId::ConvexityAdjustmentRisk,
-        // -- Greeks --
         MetricId::Delta,
         MetricId::DeltaForward,
         MetricId::DeltaPremiumAdjusted,
@@ -114,7 +108,6 @@ impl MetricId {
         MetricId::CrossGammaCreditVol,
         MetricId::ThetaGamma,
         MetricId::VarianceVega,
-        // -- Credit --
         MetricId::Cs01,
         MetricId::BucketedCs01,
         MetricId::Cs01Hazard,
@@ -132,7 +125,6 @@ impl MetricId {
         MetricId::ExpectedLoss,
         MetricId::DefaultProbability,
         MetricId::Recovery01,
-        // -- Rates --
         MetricId::Annuity,
         MetricId::ParRate,
         MetricId::PvFixed,
@@ -161,7 +153,6 @@ impl MetricId {
         MetricId::FloatingLastPaymentDate,
         MetricId::FixedFirstAccrualFactor,
         MetricId::FloatingFirstAccrualFactor,
-        // -- FX --
         MetricId::SpotRate,
         MetricId::BaseAmount,
         MetricId::QuoteAmount,
@@ -169,7 +160,6 @@ impl MetricId {
         MetricId::Fx01,
         MetricId::FxDelta,
         MetricId::FxVega,
-        // -- Equity --
         MetricId::EquityPricePerShare,
         MetricId::EquityShares,
         MetricId::EquityDividendYield,
@@ -188,7 +178,6 @@ impl MetricId {
         MetricId::VarianceNotional,
         MetricId::VarianceStrikeVol,
         MetricId::VarianceTimeToMaturity,
-        // -- Structured Credit --
         MetricId::WAL,
         MetricId::WAM,
         MetricId::ExpectedMaturity,
@@ -218,7 +207,6 @@ impl MetricId {
         MetricId::RmbsSdaSpeed,
         MetricId::RmbsWaltv,
         MetricId::RmbsWafico,
-        // -- Alternatives --
         MetricId::RealYield,
         MetricId::IndexRatio,
         MetricId::BreakevenInflation,

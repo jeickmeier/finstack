@@ -474,8 +474,6 @@ fn find_segment(arr: &[f64], x: f64) -> usize {
     pos.saturating_sub(1).min(arr.len() - 2)
 }
 
-// Tests
-
 #[cfg(test)]
 mod tests {
     use super::*;

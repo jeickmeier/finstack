@@ -10,8 +10,6 @@ use pyo3::types::{PyList, PyModule};
 use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe_with_schema;
 use crate::errors::{core_to_py, pd_calibration_to_py};
 
-// PiT / TtC conversion
-
 /// Convert a Point-in-Time PD to a Through-the-Cycle PD.
 ///
 /// Uses the Merton-Vasicek single-factor model (Basel II IRB):

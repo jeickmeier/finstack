@@ -64,8 +64,6 @@ pub const CALENDAR_DAYS_PER_YEAR: f64 = 365.0;
 /// should only be used when the model explicitly calls for it.
 pub const AVERAGE_DAYS_PER_YEAR: f64 = 365.25;
 
-// Re-exports – keep list short & focused
-
 pub use time::{Date, Duration, Month, OffsetDateTime, PrimitiveDateTime};
 
 // Build-time bitsets removed the last runtime use of DateBuf; keep only if needed elsewhere.
@@ -82,7 +80,6 @@ pub use daycount::{
     DayCountContext, DayCountContextState, Thirty360Convention,
 };
 
-// Re-export new holiday calendars at the top level for convenience
 pub use calendar::business_days::{
     adjust, BusinessDayConvention, CalendarMetadata, HolidayCalendar,
 };

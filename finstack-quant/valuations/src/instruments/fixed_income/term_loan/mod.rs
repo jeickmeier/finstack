@@ -86,7 +86,6 @@ pub(crate) mod pricing;
 pub mod spec;
 pub(crate) mod types;
 
-// Re-export main type
 pub use overrides::TermLoanOverrides;
 pub use spec::{
     AmortizationSpec, CashSweepEvent, CommitmentFeeBase, CommitmentStepDown, DdtlSpec, DrawEvent,
@@ -95,6 +94,5 @@ pub use spec::{
 };
 pub use types::{RateSpec, TermLoan};
 
-// Re-export pricer for test access.
 pub use pricing::TermLoanDiscountingPricer;
 pub use pricing::TermLoanTreePricer;

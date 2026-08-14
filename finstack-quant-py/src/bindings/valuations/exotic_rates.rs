@@ -98,8 +98,6 @@ fn tarn_coupon_profile<'py>(
     Ok(out)
 }
 
-// Snowball / Inverse Floater
-
 /// Compute the coupon schedule for a snowball note.
 ///
 /// ```text
@@ -162,8 +160,6 @@ fn inverse_floater_coupon_profile(
     .map_err(display_to_py)
 }
 
-// CMS Spread Option (intrinsic)
-
 /// Intrinsic (undiscounted, unhedged) payoff of a CMS spread option.
 ///
 /// ```text
@@ -199,8 +195,6 @@ fn cms_spread_option_intrinsic(
     coupon_profiles::cms_spread_option_intrinsic(long_cms, short_cms, strike, is_call, notional)
         .map_err(display_to_py)
 }
-
-// Callable Range Accrual (accrued coupon)
 
 /// Accrued coupon on a range-accrual leg over a set of observations.
 ///

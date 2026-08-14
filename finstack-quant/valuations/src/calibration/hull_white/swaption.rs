@@ -705,5 +705,3 @@ pub(super) fn hw1f_swaption_price_inner(
         swaption_price
     }
 }
-
-// Tests

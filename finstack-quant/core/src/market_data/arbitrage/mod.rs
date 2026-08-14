@@ -381,8 +381,6 @@ pub fn check_surface_grid(
     check_surface(&surface, &config)
 }
 
-// Tests
-
 #[cfg(test)]
 mod tests {
     use super::*;

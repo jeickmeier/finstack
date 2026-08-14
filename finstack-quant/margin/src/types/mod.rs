@@ -24,7 +24,6 @@ mod serde_validation;
 pub mod simm_types;
 mod thresholds;
 
-// Re-export all types
 pub use call::{MarginCall, MarginCallType};
 pub use collateral::{
     CollateralAssetClass, CollateralEligibility, ConcentrationBreach, EligibleCollateralSchedule,

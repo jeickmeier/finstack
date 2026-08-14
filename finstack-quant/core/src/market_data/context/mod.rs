@@ -58,7 +58,6 @@ pub(crate) use curve_storage::for_each_context_curve;
 pub use curve_storage::CurveStorage;
 pub use stats::ContextStats;
 
-// Re-export bump functionality at the same path as before.
 pub use super::bumps::{BumpMode, BumpSpec, BumpUnits};
 
 use std::sync::Arc;

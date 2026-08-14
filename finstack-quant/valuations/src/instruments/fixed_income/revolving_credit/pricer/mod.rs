@@ -21,7 +21,6 @@ pub mod monte_carlo_process;
 pub mod path_generator;
 pub(crate) mod unified;
 
-// Re-export key types and functions
 pub(crate) use unified::RevolvingCreditPricer;
 
 #[cfg(test)]

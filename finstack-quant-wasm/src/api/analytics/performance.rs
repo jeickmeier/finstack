@@ -214,8 +214,6 @@ impl JsPerformance {
         Ok(JsPerformance { inner })
     }
 
-    // ── Mutators ──
-
     /// Restrict subsequent analytics to `[start, end]`.
     ///
     /// # Errors
@@ -240,8 +238,6 @@ impl JsPerformance {
     pub fn reset_bench_ticker(&mut self, ticker: &str) -> Result<(), JsValue> {
         self.inner.reset_bench_ticker(ticker).map_err(to_js_err)
     }
-
-    // ── Accessors ──
 
     /// Ticker names in column order.
     ///
@@ -305,8 +301,6 @@ impl JsPerformance {
             .map(|&d| date_to_iso(d))
             .collect())
     }
-
-    // ── Scalar metrics ──
 
     /// Compound annual growth rate per asset.
     ///
@@ -692,8 +686,6 @@ impl JsPerformance {
         )
     }
 
-    // ── Vector outputs ──
-
     /// Per-period simple return series per asset, as decimal fractions.
     ///
     /// Canonical accessor for the raw return panel over the active window;
@@ -771,8 +763,6 @@ impl JsPerformance {
         let rf = parse_f64_vec(rf)?;
         Ok(matrix_f64_to_js(&self.inner.excess_returns(&rf, nperiods)))
     }
-
-    // ── Benchmark ──
 
     /// OLS beta versus the benchmark per asset, with standard error and 95% CI.
     ///
@@ -969,8 +959,6 @@ impl JsPerformance {
                 .map_err(to_js_err)?,
         )
     }
-
-    // ── Lookback & aggregation ──
 
     /// Standard lookback-window returns (MTD, QTD, YTD, ...) per asset.
     ///

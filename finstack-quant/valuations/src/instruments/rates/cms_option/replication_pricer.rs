@@ -78,8 +78,6 @@ use finstack_quant_core::math::gauss_legendre_integrate;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
 
-// ========================= CONSTANTS =========================
-
 /// Step size for central-difference approximation of g'(k).
 ///
 /// 1bp gives sub-μ errors for smooth g; smaller values risk cancellation.
@@ -108,8 +106,6 @@ const K_FLOOR: f64 = 1e-4; // 1 basis point
 /// quadrature near k=K to reduce the peaked-integrand error below 0.1%
 /// without increasing global node count.
 const QUAD_ORDER: usize = 16;
-
-// ========================= MATH HELPERS =========================
 
 /// Closed-form par annuity for a fixed-rate swap.
 ///
@@ -144,8 +140,6 @@ fn tenor_to_m(frequency: Tenor) -> f64 {
         TenorUnit::Days => 360.0 / frequency.count() as f64,
     }
 }
-
-// ========================= SHARED OPTIONLET ENGINE =========================
 
 /// Market/contract inputs for one replicated CMS optionlet, independent of
 /// the instrument type. Shared by the [`CmsOption`] replication pricer and the
@@ -312,8 +306,6 @@ pub(crate) fn replicated_cms_optionlet(
         }
     }
 }
-
-// ========================= PRICER STRUCT =========================
 
 /// CMS option static replication pricer.
 ///

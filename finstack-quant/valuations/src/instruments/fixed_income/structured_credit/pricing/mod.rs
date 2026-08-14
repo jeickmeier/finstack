@@ -86,7 +86,6 @@ pub fn generate_tranche_cashflows(
     simulation_engine::take_tranche_cashflows(&mut full_results, tranche_id)
 }
 
-// Re-export stochastic types (accessible via stochastic module if needed)
 pub use stochastic::CorrelationStructure;
 pub use stochastic::StochasticDefaultSpec;
 pub use stochastic::StochasticPrepaySpec;

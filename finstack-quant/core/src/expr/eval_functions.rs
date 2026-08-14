@@ -44,8 +44,6 @@ use super::eval::CompiledExpr;
 use crate::math::{finite_count, finite_max_or_nan, finite_min_or_nan, quantile_linear_or_nan};
 
 impl CompiledExpr {
-    // --- Scalar evaluator helpers ---
-
     #[inline]
     pub(super) fn validate_window(raw: f64) -> Option<usize> {
         if !raw.is_finite() {
@@ -115,8 +113,6 @@ impl CompiledExpr {
             }
         }
     }
-
-    // --- Per-function evaluators ---
 
     pub(super) fn eval_lag(&self, arg_results: &[&[f64]]) -> crate::Result<Vec<f64>> {
         let len = arg_results.first().map(|a| a.len()).unwrap_or(0);
@@ -1096,8 +1092,6 @@ impl CompiledExpr {
         }
         out
     }
-
-    // --- Function dispatch ---
 
     pub(super) fn eval_function_core(
         &self,

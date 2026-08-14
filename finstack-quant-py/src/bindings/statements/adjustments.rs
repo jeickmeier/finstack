@@ -4,8 +4,6 @@ use super::evaluator::PyStatementResult;
 use crate::errors::display_to_py;
 use pyo3::prelude::*;
 
-// NormalizationConfig — JSON wrapper
-
 /// Configuration for normalizing a financial metric.
 #[pyclass(
     name = "NormalizationConfig",

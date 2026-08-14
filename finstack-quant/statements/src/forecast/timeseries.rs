@@ -95,7 +95,6 @@ pub(super) fn timeseries_forecast(
         )));
     }
 
-    // Convert to f64 array
     let hist_data = parse_historical_series(historical, "Time-series forecast")?;
 
     // Get method (default to "linear")
@@ -455,7 +454,6 @@ fn seasonal_forecast_with_decomposition(
         .and_then(|v| v.as_array())
         .ok_or_else(|| Error::forecast("'historical' must be an array"))?;
 
-    // Convert to f64 array
     let hist_data = parse_historical_series(historical, "Seasonal forecast")?;
 
     // Get season length (required parameter - no default per market standards)

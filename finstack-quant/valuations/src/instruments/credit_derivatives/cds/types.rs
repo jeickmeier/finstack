@@ -66,7 +66,6 @@ use crate::impl_instrument_base;
 use crate::instruments::credit_derivatives::cds::pricer::CDSPricer;
 use std::sync::OnceLock;
 
-// Re-export PayReceive from common parameters (works for both IRS and CDS)
 pub use crate::instruments::common_impl::parameters::legs::PayReceive;
 
 /// ISDA CDS conventions
@@ -504,7 +503,6 @@ fn cds_conventions_registry() -> &'static finstack_quant_core::HashMap<String, C
     })
 }
 
-// Re-export from common parameters
 pub use crate::instruments::common_impl::parameters::legs::{PremiumLegSpec, ProtectionLegSpec};
 
 /// Resolve a meta documentation clause (e.g., `IsdaNa`, `IsdaEu`) to its

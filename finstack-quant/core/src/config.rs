@@ -712,8 +712,6 @@ pub fn results_meta_with_timestamp(
     }
 }
 
-// Tests
-
 #[cfg(test)]
 mod tests {
     use super::{ConfigExtensions, RoundingMode, ToleranceConfig};

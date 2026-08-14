@@ -80,14 +80,11 @@ mod compare;
 mod loader;
 mod types;
 
-// Re-export types
 pub use types::{
     CaseMeta, Expectation, GeneratedInfo, GoldenSuite, ReferenceSource, SuiteMeta, Tolerance,
     ValidatedInfo,
 };
 
-// Re-export loaders
 pub use loader::{golden_path, load_suite_from_path, load_suite_from_str};
 
-// Re-export comparison utilities
 pub use compare::{assert_abs, assert_expected_f64, assert_within_tolerance, GoldenAssert};

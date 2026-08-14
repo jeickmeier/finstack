@@ -61,8 +61,6 @@ pub struct DynamicRecoverySpec {
 }
 
 impl DynamicRecoverySpec {
-    // -- Convenience constructors -------------------------------------------
-
     /// Validate base parameters common to all non-constant models.
     fn validate(base_recovery: f64, base_notional: f64) -> Result<()> {
         if !(0.0..=1.0).contains(&base_recovery) {
@@ -186,8 +184,6 @@ impl DynamicRecoverySpec {
         })
     }
 
-    // -- Core computation ---------------------------------------------------
-
     /// Compute recovery rate given current accreted notional.
     ///
     /// All results are clamped to `[0.0, base_recovery]`.
@@ -217,8 +213,6 @@ impl DynamicRecoverySpec {
         raw.clamp(0.0, self.base_recovery)
     }
 
-    // -- Accessors ----------------------------------------------------------
-
     /// Returns the base (reference) recovery rate.
     pub fn base_recovery(&self) -> f64 {
         self.base_recovery
@@ -234,8 +228,6 @@ impl DynamicRecoverySpec {
         &self.model
     }
 }
-
-// Tests
 
 #[cfg(test)]
 mod tests {

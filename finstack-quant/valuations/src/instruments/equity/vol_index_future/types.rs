@@ -370,8 +370,6 @@ impl finstack_quant_cashflows::CashflowScheduleSource for VolatilityIndexFuture 
     }
 }
 
-// Tests
-
 #[cfg(test)]
 mod tests {
     use super::*;

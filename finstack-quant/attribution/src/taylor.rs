@@ -865,8 +865,6 @@ pub(crate) fn attribute_pnl_taylor_prepared(
     )
 }
 
-// ─── Helper functions ──────────────────────────────────────────────────────
-
 // NOTE (audit item #3): the former `measure_forward_curve_shift` /
 // `measure_average_rate_shift` helpers — an unweighted mean of per-tenor shifts
 // — were removed. An unweighted average mis-attributes non-parallel curve

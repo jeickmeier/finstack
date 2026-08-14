@@ -505,8 +505,6 @@ pub trait Instrument: CashflowProvider + Send + Sync {
         Ok(())
     }
 
-    // === Pricing Methods ===
-
     /// Compute the unshocked present-value kernel used by canonical wrappers.
     ///
     /// This low-level extension hook assumes validation and effective-date
@@ -855,8 +853,6 @@ pub trait Instrument: CashflowProvider + Send + Sync {
             other => other.into(),
         })
     }
-
-    // === Market Data Introspection (for Attribution) ===
 
     /// Unified market data dependencies for this instrument.
     ///

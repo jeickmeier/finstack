@@ -130,7 +130,6 @@ pub(crate) mod metrics;
 pub(crate) mod pricer;
 pub(crate) mod types;
 
-// Re-export main types for convenience
 // Builder is generated via derive on `Basket`.
 #[doc(hidden)]
 pub use metrics::{AssetExposureCalculator, ConstituentCountCalculator, ExpenseRatioCalculator};

@@ -121,8 +121,6 @@ impl PyEuropeanPricer {
     }
 }
 
-// Path-dependent pricer
-
 /// Path-dependent Monte Carlo pricer for exotic payoffs (Asian, barrier, etc.).
 #[pyclass(
     name = "PathDependentPricer",

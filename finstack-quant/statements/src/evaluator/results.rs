@@ -199,7 +199,6 @@ impl StatementResult {
     /// # Returns
     /// `Some(f64)` if the node is scalar and has a value for this period, otherwise `None`.
     pub fn get_scalar(&self, node_id: &str, period_id: &PeriodId) -> Option<f64> {
-        // Check if this is a scalar node (not monetary)
         if let Some(NodeValueType::Scalar) = self.node_value_types.get(node_id) {
             self.get(node_id, period_id)
         } else {

@@ -606,7 +606,6 @@ impl TermStructure for VolatilityIndexCurve {
     }
 }
 
-// Tests
 #[cfg(test)]
 mod tests {
     use super::*;

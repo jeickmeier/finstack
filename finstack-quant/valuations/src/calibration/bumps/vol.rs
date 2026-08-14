@@ -121,7 +121,6 @@ fn closest_index(arr: &[f64], target: f64) -> usize {
         .unwrap_or(0)
 }
 
-// Tests
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -137,7 +137,6 @@ pub(crate) mod taylor;
 pub(crate) mod types;
 pub(crate) mod waterfall;
 
-// Re-export core types
 pub use credit_factor::{
     compute_credit_factor_attribution, credit_factor_model_id, CreditAttributionInput,
     CreditFactorDetailOptions,
@@ -152,7 +151,8 @@ pub use types::result::{
     AttributionFactor, AttributionMeta, AttributionMethod, ExecutionPolicy, PnlAttribution,
 };
 
-// Re-export attribution functions
+pub use factors::{MarketRestoreFlags, MarketSnapshot};
+pub use helpers::{compute_pnl, compute_pnl_with_fx};
 pub use long_rows::{
     pnl_attribution_carry_rows, pnl_attribution_credit_factor_rows, pnl_attribution_long_rows,
     LongDetailRow,
@@ -178,9 +178,6 @@ pub use spec::{
 pub use target_currency::translate_to_target_currency;
 pub use taylor::{attribute_pnl_taylor, TaylorAttributionConfig};
 pub use waterfall::{attribute_pnl_waterfall, default_waterfall_order};
-// Market snapshot helpers
-pub use factors::{MarketRestoreFlags, MarketSnapshot};
-pub use helpers::{compute_pnl, compute_pnl_with_fx};
 
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;

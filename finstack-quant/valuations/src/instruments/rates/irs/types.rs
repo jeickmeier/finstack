@@ -24,10 +24,8 @@ use finstack_quant_margin::types::OtcMarginSpec;
 
 use super::compounding::FloatingLegCompounding;
 
-// Re-export common enums from parameters
 pub use crate::instruments::common_impl::parameters::legs::{ParRateMethod, PayReceive};
 
-// Re-export from common parameters
 pub use crate::instruments::common_impl::parameters::legs::FixedLegSpec;
 pub use crate::instruments::common_impl::parameters::legs::FloatLegSpec;
 

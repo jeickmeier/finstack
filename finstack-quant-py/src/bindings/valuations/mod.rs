@@ -196,8 +196,6 @@ impl PyValuationResult {
     }
 }
 
-// InstrumentJson — tagged-union loader
-
 /// Validate a tagged instrument JSON payload and return the canonical envelope.
 ///
 /// Parameters

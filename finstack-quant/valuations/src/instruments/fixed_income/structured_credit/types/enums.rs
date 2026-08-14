@@ -90,7 +90,6 @@ impl core::fmt::Display for TrancheSeniority {
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum AssetType {
-    // ========== LOAN TYPES ==========
     /// First lien corporate loan
     FirstLienLoan {
         /// Industry.
@@ -117,7 +116,6 @@ pub enum AssetType {
         industry: Option<String>,
     },
 
-    // ========== BOND TYPES ==========
     /// High yield bond
     HighYieldBond {
         /// Industry.
@@ -139,7 +137,6 @@ pub enum AssetType {
         industry: Option<String>,
     },
 
-    // ========== MORTGAGE TYPES ==========
     /// Single family residential mortgage
     SingleFamilyMortgage {
         /// Ltv.
@@ -183,7 +180,6 @@ pub enum AssetType {
         ltv: Option<f64>,
     },
 
-    // ========== AUTO LOAN TYPES ==========
     /// New vehicle auto loan
     NewAutoLoan {
         /// Ltv.
@@ -205,7 +201,6 @@ pub enum AssetType {
         ltv: Option<f64>,
     },
 
-    // ========== CREDIT CARD TYPES ==========
     /// Prime credit card receivables
     PrimeCreditCard,
     /// Subprime credit card receivables
@@ -215,7 +210,6 @@ pub enum AssetType {
     /// Commercial credit card receivables
     CommercialCreditCard,
 
-    // ========== STUDENT LOAN TYPES ==========
     /// Federal student loan
     FederalStudentLoan,
     /// Private student loan
@@ -225,7 +219,6 @@ pub enum AssetType {
     /// Consolidation student loan
     ConsolidationStudentLoan,
 
-    // ========== OTHER TYPES ==========
     /// Equipment financing
     Equipment {
         /// Equipment type.

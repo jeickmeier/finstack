@@ -42,7 +42,6 @@ pub(crate) mod risk;
 pub(crate) mod scenario;
 pub(crate) mod summary;
 
-// Re-export all calculators for convenience
 pub use deal_specific::{
     AbsChargeOffCalculator, AbsCreditEnhancementCalculator, CmbsDscrCalculator, RmbsWalCalculator,
 };

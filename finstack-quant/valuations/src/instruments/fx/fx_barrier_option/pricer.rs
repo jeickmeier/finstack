@@ -235,8 +235,6 @@ fn validate_monitoring_state(
     Ok(())
 }
 
-// ========================= ANALYTICAL PRICER =========================
-
 use crate::models::closed_form::barrier::{
     barrier_call_continuous, barrier_put_continuous, barrier_rebate, BarrierParams,
     BarrierType as AnalyticalBarrierType,

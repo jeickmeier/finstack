@@ -499,8 +499,6 @@ impl Instrument for CDSTranche {
         crate::pricer::ModelKey::HazardRate
     }
 
-    // === Pricing Methods ===
-
     fn base_value(
         &self,
         curves: &MarketContext,

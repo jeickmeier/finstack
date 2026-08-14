@@ -643,8 +643,6 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    // ─── Helpers ────────────────────────────────────────────────────────────────
-
     /// Minimal flat discount curve anchored at `base_date`.
     fn flat_discount_curve(
         id: &str,

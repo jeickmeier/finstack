@@ -305,8 +305,6 @@ pub fn correlation(x: &[f64], y: &[f64]) -> f64 {
     oc.correlation()
 }
 
-// ====== Realized Variance Calculations ======
-
 /// Methods for calculating realized variance from price series.
 #[derive(
     Clone,
@@ -751,8 +749,6 @@ pub fn realized_variance_ohlc(
     }
     Ok(result.max(0.0))
 }
-
-// ====== Online (Streaming) Statistics ======
 
 /// Online statistics accumulator using Welford's algorithm.
 ///

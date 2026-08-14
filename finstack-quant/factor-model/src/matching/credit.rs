@@ -357,8 +357,6 @@ fn tags_from_attributes(
     Ok(IssuerTags(map))
 }
 
-// Tests
-
 #[cfg(test)]
 mod tests {
     use super::*;

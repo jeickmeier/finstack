@@ -19,9 +19,7 @@ mod trs;
 pub(crate) mod variance_observations;
 pub mod variance_replication;
 
-// Re-export generic pricer types
 #[doc(hidden)]
 pub use generic::GenericInstrumentPricer;
 
-// Re-export TRS types
 pub use trs::{PeriodReturnInputs, TotalReturnLegParams, TrsEngine, TrsReturnModel};

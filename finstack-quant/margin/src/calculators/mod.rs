@@ -16,7 +16,6 @@ pub mod im;
 mod traits;
 mod vm;
 
-// Re-export main types
 pub use im::{
     CcpMethodology, ClearingHouseImCalculator, ExternalImSource, HaircutImCalculator,
     ScheduleImCalculator, SimmCalculator,

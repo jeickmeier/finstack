@@ -11,5 +11,4 @@ mod types;
 
 pub use types::FIIndexTotalReturnSwap;
 
-// Re-export common TRS types for convenience.
 pub use crate::instruments::common_impl::parameters::trs_common::{TrsScheduleSpec, TrsSide};

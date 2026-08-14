@@ -71,7 +71,6 @@ pub mod commodity_swap;
 /// Commodity swaption module.
 pub mod commodity_swaption;
 
-// Re-export primary types
 pub use commodity_asian_option::CommodityAsianOption;
 pub use commodity_forward::CommodityForward;
 pub use commodity_option::CommodityOption;

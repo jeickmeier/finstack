@@ -47,7 +47,6 @@ mod types;
 pub(crate) mod metrics;
 pub use types::FxSpot;
 
-// Re-export metric calculators for test access.
 #[doc(hidden)]
 pub use metrics::base_amount::BaseAmountCalculator;
 #[doc(hidden)]

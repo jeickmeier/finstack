@@ -590,8 +590,6 @@ impl RoughHestonFourierParams {
     }
 }
 
-// Tests
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -996,8 +994,6 @@ mod tests {
             "Longer maturity should have higher ATM call: short={short_t:.4}, long={long_t:.4}"
         );
     }
-
-    // Implied volatility
 
     #[test]
     fn implied_vol_produces_valid_result() {

@@ -14,8 +14,6 @@ use finstack_quant_core::dates::{Date, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 
-// ========================= ANALYTICAL PRICER =========================
-
 use crate::models::closed_form::quanto::{quanto_call, quanto_put};
 
 /// Helper to collect inputs for quanto option pricing.

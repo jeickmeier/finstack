@@ -6,8 +6,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-// Suite-level types
-
 /// A golden test suite containing metadata and test cases.
 ///
 /// This is the canonical JSON structure for golden fixtures:
@@ -167,8 +165,6 @@ pub struct ValidatedInfo {
     pub notes: Option<String>,
 }
 
-// Case-level types
-
 /// Optional metadata for individual test cases.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CaseMeta {
@@ -188,8 +184,6 @@ pub struct CaseMeta {
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub extra: HashMap<String, serde_json::Value>,
 }
-
-// Comparison types
 
 /// Tolerance specification for numeric comparisons.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

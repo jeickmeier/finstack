@@ -624,8 +624,6 @@ pub struct ExplanationStep {
     pub operation: Option<String>,
 }
 
-// Tests
-
 #[cfg(test)]
 mod tests {
     use super::*;

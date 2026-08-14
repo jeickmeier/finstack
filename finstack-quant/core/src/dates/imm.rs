@@ -663,7 +663,6 @@ pub fn next_sifma_settlement(date: Date) -> Option<Date> {
     None
 }
 
-// Tests
 #[cfg(test)]
 mod tests {
     use super::*;

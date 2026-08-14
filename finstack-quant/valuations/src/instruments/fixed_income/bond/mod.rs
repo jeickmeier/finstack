@@ -114,7 +114,6 @@ pub(crate) mod metrics;
 pub mod pricing;
 mod types;
 
-// Re-export cashflow accrual types for convenience
 pub use crate::cashflow::accrual::AccrualMethod;
 pub use cashflow_spec::{BondBuilderParams, CashflowSpec, FloatingConventionParams};
 pub use json::bond_from_cashflows_json;

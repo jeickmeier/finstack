@@ -172,7 +172,6 @@ pub mod model_params;
 pub mod position;
 pub use position::Position;
 
-// === Category Modules ===
 /// Commodity derivatives.
 pub mod commodity;
 /// Credit derivatives: CDS and related instruments.
@@ -256,7 +255,6 @@ pub use pricing_overrides::{
     MetricPricingOverrides, ModelConfig, ScenarioPricingOverrides,
 };
 
-// === JSON Import/Export ===
 pub mod json_loader;
 
 pub use json_loader::{

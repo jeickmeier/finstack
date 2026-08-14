@@ -104,6 +104,5 @@ pub mod term_structures;
 /// Useful for generic programming and custom curve implementations.
 pub mod traits;
 pub use context::MarketContext;
-// Re-export dividend schedule types for convenience
 pub use dividends::{DividendEvent, DividendKind, DividendSchedule, DividendScheduleBuilder};
 pub use term_structures::DiscountCurve;

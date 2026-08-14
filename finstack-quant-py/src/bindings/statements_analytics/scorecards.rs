@@ -489,8 +489,6 @@ impl Default for PyCreditScorecardExtension {
     }
 }
 
-// Free function: validate_scorecard_config
-
 /// Validate a [`ScorecardConfig`] payload (typed object) without executing.
 #[pyfunction]
 fn validate_scorecard_config(config: &PyScorecardConfig) -> PyResult<()> {

@@ -130,7 +130,6 @@ impl HolidayCalendar for CompositeCalendar<'_> {
     }
 }
 
-// Tests
 #[cfg(test)]
 mod tests {
     use super::*;

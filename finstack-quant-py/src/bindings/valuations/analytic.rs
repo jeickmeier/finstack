@@ -256,8 +256,6 @@ fn black76_implied_vol_wrapper(
     .map_err(display_to_py)
 }
 
-// Closed-form exotics: barrier / asian / lookback / quanto
-
 /// Reiner-Rubinstein continuous-monitoring barrier call price.
 ///
 /// Parameters

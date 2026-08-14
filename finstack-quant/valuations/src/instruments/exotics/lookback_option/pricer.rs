@@ -300,8 +300,6 @@ pub(crate) fn compute_pv(
     pricer.price_internal(inst, curves, as_of)
 }
 
-// ========================= ANALYTICAL PRICER =========================
-
 use crate::models::closed_form::lookback::{
     fixed_strike_lookback_call, fixed_strike_lookback_put, floating_strike_lookback_call,
     floating_strike_lookback_put,

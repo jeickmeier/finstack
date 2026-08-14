@@ -1123,7 +1123,6 @@ fn survival_pillars(knots: &[f64], lambdas: &[f64]) -> (Vec<f64>, Vec<f64>) {
     (interp_knots, interp_sp)
 }
 
-// Tests
 #[cfg(test)]
 mod tests {
     use super::*;

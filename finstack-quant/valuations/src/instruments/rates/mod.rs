@@ -131,7 +131,6 @@ pub mod swaption;
 /// Cross-currency swap module.
 pub mod xccy_swap;
 
-// Re-export primary types
 pub use basis_swap::BasisSwap;
 pub use cap_floor::{CapFloor, RateOptionType};
 pub use cms_option::CmsOption;

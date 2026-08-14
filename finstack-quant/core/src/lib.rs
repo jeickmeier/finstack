@@ -170,7 +170,6 @@ pub use collections::HashMap;
 /// Uses `rustc_hash::FxHashSet` for fast deterministic hashing.
 pub use collections::HashSet;
 
-// Re-export persistence contract APIs for convenient downstream use.
 pub use canonical::{
     canonical_bytes_of_value, content_hash, to_canonical_bytes, CANONICAL_VERSION,
 };
@@ -180,5 +179,4 @@ pub use contract::{
     DEFAULT_MAX_DIAGNOSTICS, DEFAULT_MAX_POSITIONS,
 };
 
-// Re-export main error types for convenience.
 pub use error::{Error, InputError, NonFiniteKind, Result};

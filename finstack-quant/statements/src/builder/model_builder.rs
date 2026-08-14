@@ -835,7 +835,6 @@ impl ModelBuilder<Ready> {
         )
         .entered();
 
-        // Create the model spec
         let mut spec = FinancialModelSpec::new(self.id, self.periods);
         spec.nodes = self.nodes;
         spec.meta = self.meta;

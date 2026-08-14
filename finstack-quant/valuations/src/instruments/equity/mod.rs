@@ -100,7 +100,6 @@ pub mod vol_index_future;
 /// Volatility index option module.
 pub mod vol_index_option;
 
-// Re-export primary types
 pub use autocallable::{Autocallable, FinalPayoffType};
 pub use cliquet_option::CliquetOption;
 pub use dcf_equity::{DiscountedCashFlow, TerminalValueSpec};

@@ -177,7 +177,6 @@ fn build_envelope(
     let instrument_type = instrument.key();
     let instrument_id = instrument.id().to_string();
 
-    // --- Parse remaining inputs ---
     let model_key: ModelKey = model.parse().map_err(|e: String| {
         Error::Validation(format!(
             "unknown model '{model}': {e}. Supported: 'discounting', 'hazard_rate'"
@@ -216,7 +215,6 @@ fn build_envelope(
     )?;
     let as_of_date = canonical_result.as_of;
 
-    // --- Resolve curves ---
     let deps = instrument.market_dependencies()?;
     let curves = &deps.curves;
     let default_discount_curve_id = curves.discount_curves.first().cloned().ok_or_else(|| {
@@ -286,7 +284,6 @@ fn build_envelope(
     let inflation_bond: Option<&InflationLinkedBond> =
         instrument.as_any().downcast_ref::<InflationLinkedBond>();
 
-    // --- Iterate flows ---
     let dc_ctx = DayCountContext::default();
 
     // Survival probability at `as_of` under the hazard curve's own time origin.

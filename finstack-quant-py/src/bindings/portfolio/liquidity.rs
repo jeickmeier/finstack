@@ -13,8 +13,6 @@ use finstack_quant_portfolio::liquidity::{self, KyleLambdaModel};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-// Spread / illiquidity estimators
-
 /// Estimate the effective bid-ask spread via Roll's (1984) serial covariance
 /// estimator.
 ///
@@ -70,8 +68,6 @@ fn roll_effective_spread(py: Python<'_>, returns: Vec<f64>) -> Option<f64> {
 fn amihud_illiquidity(py: Python<'_>, returns: Vec<f64>, volumes: Vec<f64>) -> Option<f64> {
     py.detach(move || liquidity::amihud_illiquidity(&returns, &volumes))
 }
-
-// Position sizing / tiering
 
 /// Trading days required to liquidate a position at the given participation
 /// rate.

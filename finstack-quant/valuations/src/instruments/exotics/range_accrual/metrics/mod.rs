@@ -4,9 +4,6 @@
 //! finite difference methods. Delta and Gamma use generic FD calculators.
 //! Includes bucketed DV01 for detailed interest rate risk analysis.
 
-// mod dv01; // removed - using GenericParallelDv01
-// mod vanna; // removed - using GenericFdVanna
-// mod volga; // removed - using GenericFdVolga
 mod rho;
 
 use crate::metrics::{MetricId, MetricRegistry};
@@ -17,7 +14,6 @@ pub(crate) fn register_range_accrual_metrics(registry: &mut MetricRegistry) {
     use crate::metrics::{GenericFdDelta, GenericFdGamma, GenericFdVanna, GenericFdVolga};
     use crate::pricer::InstrumentType;
 
-    // Use generic FD calculators for Delta, Gamma, Vanna, and Volga
     registry.register_metric(
         MetricId::Delta,
         Arc::new(GenericFdDelta::<crate::instruments::RangeAccrual>::default()),
@@ -41,8 +37,6 @@ pub(crate) fn register_range_accrual_metrics(registry: &mut MetricRegistry) {
         Arc::new(GenericFdVolga::<crate::instruments::RangeAccrual>::default()),
         &[InstrumentType::RangeAccrual],
     );
-
-    // Other metrics use custom implementations
 
     {
         crate::register_metrics! {

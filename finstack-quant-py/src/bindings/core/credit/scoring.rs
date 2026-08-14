@@ -23,8 +23,6 @@ fn zone_to_str(zone: ScoringZone) -> &'static str {
     }
 }
 
-// Altman Z-Score family
-
 /// Explicit versioned Altman score-to-PD heuristics.
 #[pyclass(
     name = "AltmanPdCalibration",
@@ -180,8 +178,6 @@ fn altman_em_score(
     let r = core_altman_em_score(&input).map_err(display_to_py)?;
     Ok((r.score, zone_to_str(r.zone).to_string(), r.implied_pd))
 }
-
-// Ohlson O-Score
 
 /// Compute the Ohlson O-Score (1980) nine-predictor logistic bankruptcy model.
 ///

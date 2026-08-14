@@ -3,10 +3,6 @@
 //! Provides full greek coverage for Asian options using finite difference methods.
 //! Delta and Gamma use generic FD calculators.
 
-// mod dv01; // removed - using GenericParallelDv01
-// mod vanna; // removed - using GenericFdVanna
-// mod volga; // removed - using GenericFdVolga
-
 use crate::metrics::{MetricId, MetricRegistry};
 use std::sync::Arc;
 
@@ -15,7 +11,6 @@ pub(crate) fn register_asian_option_metrics(registry: &mut MetricRegistry) {
     use crate::metrics::{GenericFdDelta, GenericFdGamma, GenericFdVanna, GenericFdVolga};
     use crate::pricer::InstrumentType;
 
-    // Use generic FD calculators for Delta, Gamma, Vanna, and Volga
     registry.register_metric(
         MetricId::Delta,
         Arc::new(GenericFdDelta::<crate::instruments::AsianOption>::default()),
@@ -39,8 +34,6 @@ pub(crate) fn register_asian_option_metrics(registry: &mut MetricRegistry) {
         Arc::new(GenericFdVolga::<crate::instruments::AsianOption>::default()),
         &[InstrumentType::AsianOption],
     );
-
-    // Other metrics use custom implementations
 
     {
         crate::register_metrics! {

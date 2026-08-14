@@ -135,7 +135,6 @@ mod rate_calibration;
 /// Volatility index forward curves (VIX, VXN, VSTOXX).
 mod vol_index_curve;
 
-// Re-export for ergonomic access (curated list)
 pub use base_correlation::{
     ArbitrageCheckResult, ArbitrageViolation, BaseCorrelationCurve, BaseCorrelationCurveBuilder,
     BASE_CORR_DETACHMENT_MATCH_TOLERANCE,

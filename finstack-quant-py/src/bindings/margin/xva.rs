@@ -535,8 +535,6 @@ impl PyXvaResult {
     }
 }
 
-// CsaTerms (XVA)
-
 /// Credit Support Annex terms for XVA collateralization.
 #[pyclass(
     name = "CsaTerms",
@@ -597,8 +595,6 @@ impl PyCsaTerms {
         )
     }
 }
-
-// NettingSet (XVA)
 
 /// XVA netting set: collection of trades under a single ISDA master agreement.
 #[pyclass(
@@ -913,8 +909,6 @@ impl PyMvaResult {
         frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
-
-// MVA functions
 
 /// Build a deterministic IM profile from SIMM sensitivities:
 /// ``IM(t) = SIMM(sensitivities) * decay(t)``.

@@ -318,8 +318,6 @@ impl Instrument for Basket {
         Ok(deps)
     }
 
-    // === Pricing Methods ===
-
     fn base_value(&self, curves: &MarketContext, as_of: Date) -> Result<Money> {
         self.validate()?;
         // Scale NAV-per-unit by explicit basket notional for portfolio PV.

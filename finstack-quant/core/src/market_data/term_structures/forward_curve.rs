@@ -1103,7 +1103,6 @@ impl TermStructure for ForwardCurve {
     }
 }
 
-// Tests
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -71,7 +71,6 @@ pub use specs::{
     RollRule, ScheduleParams, StepUpCouponSpec,
 };
 
-// Re-export credit rate conversions (hazard-style CPR↔SMM helpers)
 pub use credit_rates::{cdr_to_mdr, cpr_to_smm, mdr_to_cdr, smm_to_cpr};
 
 #[doc(hidden)]

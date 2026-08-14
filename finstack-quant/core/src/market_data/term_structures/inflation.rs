@@ -742,7 +742,6 @@ impl InflationCurveBuilder {
 
 // Serialization support
 
-// Tests
 #[cfg(test)]
 mod tests {
     use super::*;

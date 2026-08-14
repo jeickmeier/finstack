@@ -51,19 +51,15 @@ mod kyle;
 mod lvar;
 mod types;
 
-// Re-export core types
 pub use types::{
     classify_tier, days_to_liquidate, LiquidityConfig, LiquidityProfile, LiquidityTier,
     SpreadVolatilityKind, TierAllocation,
 };
 
-// Re-export estimators
 pub use estimators::{amihud_illiquidity, roll_effective_spread};
 
-// Re-export LVaR
 pub use lvar::{lvar_bangia_scalar, LvarBangiaScalar};
 
-// Re-export impact models
 pub use almgren_chriss::AlmgrenChrissModel;
 pub use impact::{ExecutionTrajectory, ImpactEstimate, MarketImpactModel, TradeParams};
 pub use kyle::KyleLambdaModel;

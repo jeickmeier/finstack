@@ -17,7 +17,6 @@ pub mod trs_common;
 pub mod underlying;
 pub mod volatility;
 
-// Re-export commonly used types for convenience
 pub use contract::{ContractSpec, ScheduleSpec};
 pub use conventions::{BondConvention, CommodityConvention, IRSConvention};
 pub use legs::{

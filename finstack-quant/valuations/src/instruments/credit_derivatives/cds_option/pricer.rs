@@ -30,8 +30,6 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
 use rust_decimal::Decimal;
 
-// ---------------------------------------------------------------- NPV
-
 /// Price the CDS option at `as_of` under the Bloomberg CDSO numerical
 /// quadrature model.
 #[tracing::instrument(skip(option, curves), fields(instrument_id = %option.id, as_of = %as_of))]
@@ -47,8 +45,6 @@ pub(crate) fn npv(
     bloomberg_quadrature::npv(option, &cds, curves, sigma, as_of)
 }
 
-// ---------------------------------------------------------------- Par spread
-
 /// Bloomberg CDSO ATM-Forward spread in basis points — the par spread
 /// of the no-knockout forward CDS struck at expiry, on the bootstrapped
 /// hazard curve. This is what the CDSO terminal labels *ATM Fwd*.
@@ -61,8 +57,6 @@ pub(crate) fn forward_spread_bp(
     let cds = synthetic_underlying_cds(option, as_of)?;
     bloomberg_quadrature::forward_par_at_expiry_bp(option, &cds, curves, as_of)
 }
-
-// ---------------------------------------------------------------- Theta
 
 /// Bloomberg CDSO θ: change in option premium for a one-day decrease
 /// in option maturity.
@@ -109,8 +103,6 @@ fn ensure_valuation_not_after_expiry(
     }
     Ok(())
 }
-
-// ---------------------------------------------------------------- Implied volatility
 
 /// Solve for the implied lognormal volatility `σ` that reproduces
 /// `target_price` under the Bloomberg CDSO pricer. Brent root-finding

@@ -17,8 +17,6 @@ use finstack_quant_valuations::pricer::cos::{
 };
 use pyo3::prelude::*;
 
-// Black-Scholes
-
 /// Price a European option under the Black-Scholes model using the COS method.
 ///
 /// Parameters
@@ -144,8 +142,6 @@ fn vg_cos_price(
         .map_err(display_to_py)
     })
 }
-
-// Merton jump-diffusion
 
 /// Price a European option under Merton (1976) jump-diffusion using the COS method.
 ///

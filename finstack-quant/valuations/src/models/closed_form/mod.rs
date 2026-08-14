@@ -146,7 +146,6 @@ pub mod lookback;
 pub mod quanto;
 pub mod vanilla;
 
-// Re-export commonly used functions
 pub use asian::{
     arithmetic_asian_call_tw, arithmetic_asian_put_tw, geometric_asian_call, geometric_asian_put,
     AsianGreeks, AsianPriceResult,

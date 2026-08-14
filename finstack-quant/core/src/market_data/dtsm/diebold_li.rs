@@ -627,8 +627,6 @@ pub fn nelson_siegel_yields(
     Ok((loadings * beta).as_slice().to_vec())
 }
 
-// Tests
-
 #[cfg(test)]
 mod tests {
     use super::*;

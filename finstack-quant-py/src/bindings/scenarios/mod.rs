@@ -45,8 +45,6 @@ fn template_entry<'a>(
         .ok_or_else(|| crate::errors::value_error(format!("Unknown template: '{template_id}'")))
 }
 
-// ScenarioSpec JSON round-trip
-
 /// Parse a scenario specification and re-emit it in canonical form.
 ///
 /// Round-tripping through the Rust type normalizes field order and fills
@@ -215,8 +213,6 @@ fn validate_scenario_spec(json_str: &str) -> PyResult<()> {
     validate_spec(&spec)?;
     Ok(())
 }
-
-// Template registry
 
 /// List the identifiers of every built-in scenario template.
 ///

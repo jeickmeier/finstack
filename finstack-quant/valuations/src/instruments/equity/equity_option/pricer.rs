@@ -677,8 +677,6 @@ fn tree_finite_difference_greeks(
     })
 }
 
-// ========================= REGISTRY PRICER =========================
-
 /// Registry pricer for Equity Option using Black-Scholes model
 pub(crate) struct SimpleEquityOptionBlackPricer {
     model: crate::pricer::ModelKey,
@@ -762,8 +760,6 @@ impl crate::pricer::Pricer for SimpleEquityOptionBlackPricer {
         ))
     }
 }
-
-// ========================= HESTON FOURIER PRICER =========================
 
 use crate::instruments::common_impl::traits::Instrument;
 use crate::models::closed_form::heston::{

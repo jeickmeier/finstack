@@ -613,8 +613,6 @@ mod tests {
     };
     use crate::types::PositionId;
 
-    // ----- Helpers ---------------------------------------------------------
-
     fn rates_factor_id() -> FactorId {
         FactorId::new("Rates")
     }

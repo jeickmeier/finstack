@@ -923,8 +923,6 @@ impl CDSIndexPricer {
     }
 }
 
-// ========================= REGISTRY PRICER =========================
-
 /// Registry pricer for CDS Index using the engine
 pub(crate) struct SimpleCdsIndexHazardPricer {
     model_key: crate::pricer::ModelKey,

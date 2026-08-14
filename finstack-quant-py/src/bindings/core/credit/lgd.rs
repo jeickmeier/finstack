@@ -47,8 +47,6 @@ fn seniority_recovery_stats<'py>(
     Ok(d)
 }
 
-// Beta recovery sampling / quantiles
-
 /// Draw ``n_samples`` recovery rates from a Beta(alpha, beta) distribution
 /// parameterized by (``mean``, ``std``) using a deterministic PCG64 RNG.
 ///

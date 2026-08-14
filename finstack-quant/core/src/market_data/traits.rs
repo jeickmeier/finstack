@@ -455,7 +455,6 @@ pub trait VolProvider: Send + Sync {
     fn vol_id(&self) -> &crate::types::CurveId;
 }
 
-// Tests
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -86,7 +86,6 @@ pub struct CmsSpreadOption {
     /// Day count convention.
     pub day_count: DayCount,
 
-    // --- Underlying Swap Conventions ---
     //
     // The forward swap rate of each CMS leg must be projected on the correct
     // annuity / day-count basis. These fields plumb the actual instrument /

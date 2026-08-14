@@ -275,7 +275,6 @@ pub struct PnlAttribution {
     /// Residual P&L (total - sum of attributed factors).
     pub residual: Money,
 
-    // Detailed breakdowns
     /// Detailed carry decomposition (theta + roll-down).
     pub carry_detail: Option<CarryDetail>,
 

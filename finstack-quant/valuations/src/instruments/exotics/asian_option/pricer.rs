@@ -786,8 +786,6 @@ pub(crate) fn compute_pv(
     pricer.price_internal(inst, curves, as_of)
 }
 
-// ========================= ANALYTICAL PRICERS =========================
-
 use crate::instruments::common_impl::helpers::collect_black_scholes_inputs;
 use crate::models::closed_form::asian::{
     arithmetic_asian_tw_price_times, geometric_asian_price_times,

@@ -351,8 +351,6 @@ pub fn black_scholes_put(
     )
 }
 
-// Path-dependent pricing
-
 #[allow(clippy::too_many_arguments)]
 /// Price an Asian call via Monte Carlo under GBM dynamics.
 ///

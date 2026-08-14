@@ -82,7 +82,6 @@ pub fn aggregate_by_book(
         .map(|(id, val)| (id, &val.value_base))
         .collect();
 
-    // Helper function to recursively compute book total
     fn compute_book_total(
         book_id: &BookId,
         books: &IndexMap<BookId, Book>,

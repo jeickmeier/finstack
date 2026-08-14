@@ -382,8 +382,6 @@ impl FxDeltaVolSurface {
         builder.build()
     }
 
-    // Validation
-
     fn validate(
         expiries: &[f64],
         atm_vols: &[f64],
@@ -456,8 +454,6 @@ impl FxDeltaVolSurface {
         Ok(())
     }
 }
-
-// Tests
 
 #[cfg(test)]
 mod tests {

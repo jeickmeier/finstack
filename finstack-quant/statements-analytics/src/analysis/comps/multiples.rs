@@ -21,13 +21,11 @@ use super::types::{CompanyId, CompanyMetrics, Multiple};
 ///   required metrics.
 pub fn compute_multiple(metrics: &CompanyMetrics, multiple: Multiple) -> Option<f64> {
     match multiple {
-        // ---- EV multiples ----
         Multiple::EvEbitda => div_positive(metrics.enterprise_value?, metrics.ebitda?),
         Multiple::EvRevenue => div_positive(metrics.enterprise_value?, metrics.revenue?),
         Multiple::EvEbit => div_positive(metrics.enterprise_value?, metrics.ebit?),
         Multiple::EvFcf => div_positive(metrics.enterprise_value?, metrics.ufcf?),
 
-        // ---- Equity multiples ----
         Multiple::Pe => div_positive(metrics.market_cap?, metrics.net_income?),
         Multiple::Pb => div_positive(metrics.market_cap?, metrics.book_value?),
         Multiple::Ptbv => div_positive(metrics.market_cap?, metrics.tangible_book_value?),
@@ -41,7 +39,6 @@ pub fn compute_multiple(metrics: &CompanyMetrics, multiple: Multiple) -> Option<
             Some(dps / price)
         }
 
-        // ---- Credit multiples ----
         Multiple::SpreadPerTurn => {
             let spread = metrics.oas_bp?;
             let leverage = metrics.leverage?;
