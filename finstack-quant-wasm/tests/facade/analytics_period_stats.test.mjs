@@ -81,7 +81,6 @@ function mixedStats() {
   return periodStats(MONTH_END_DATES, [0.03, -0.02, 0.04, -0.01, 0.02]);
 }
 
-
 test('periodStats returns a plain object, not an ES2015 Map', () => {
   const stats = allWinningStats();
   assert.equal(typeof stats, 'object');
