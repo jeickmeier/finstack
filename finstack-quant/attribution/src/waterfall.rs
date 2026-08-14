@@ -414,7 +414,6 @@ fn attribute_pnl_waterfall_impl(
         num_repricings: 2, // T₀ and T₁ repricings already performed
     };
 
-    // Apply each factor in sequence
     for factor in factor_order {
         // Intercept CreditCurves with the cascade when a model is supplied.
         if matches!(factor, AttributionFactor::CreditCurves) {
@@ -427,7 +426,6 @@ fn attribute_pnl_waterfall_impl(
 
         let factor_pnl = ctx.apply_factor(&factor)?;
 
-        // Record factor P&L
         match factor {
             AttributionFactor::Carry => {
                 let theta = factor_pnl;

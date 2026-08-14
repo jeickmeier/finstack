@@ -22,8 +22,6 @@ use finstack_quant_core::Result;
 use std::cell::RefCell;
 use std::sync::Arc;
 
-// Helper Types and Functions
-
 /// Extracted fields from a CDS tranche quote for validation.
 struct TrancheQuoteFields<'a> {
     index: &'a str,

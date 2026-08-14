@@ -186,7 +186,6 @@ fn test_clean_dirty_ex_coupon_parity() {
     use finstack_quant_core::money::Money;
 
     let issue = date!(2025 - 01 - 01);
-    // let coup = date!(2025 - 07 - 01);
     let as_of_before = date!(2025 - 06 - 28);
     let as_of_after = date!(2025 - 07 - 02);
 

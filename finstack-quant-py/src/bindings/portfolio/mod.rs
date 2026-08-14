@@ -255,7 +255,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         "TradeSpec",
         "PortfolioOptimizationSpec",
         "PortfolioOptimizationResult",
-        // Schema
         "schema",
     ];
 

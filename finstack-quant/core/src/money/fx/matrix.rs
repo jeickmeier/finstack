@@ -866,8 +866,6 @@ impl FxMatrix {
         Ok(())
     }
 
-    // Private helper methods
-
     /// Attempt to triangulate FX rate via the single configured pivot currency.
     ///
     /// This is intentionally a one-pivot fallback, not a general graph search.

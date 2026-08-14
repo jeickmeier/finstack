@@ -288,7 +288,6 @@ pub fn forecast_covenant_generic<MTS: ModelTimeSeries>(
             ))
         })?;
 
-    // Resolve thresholds and values
     let mut test_dates: Vec<Date> = Vec::with_capacity(periods.len());
     let mut thresholds: Vec<f64> = Vec::with_capacity(periods.len());
     let mut values: Vec<f64> = Vec::with_capacity(periods.len());
@@ -443,7 +442,6 @@ pub fn forecast_covenant_generic<MTS: ModelTimeSeries>(
         }
     }
 
-    // Summary stats
     let min_idx = headroom
         .iter()
         .enumerate()
@@ -523,7 +521,6 @@ pub fn forecast_breaches_generic<MTS: ModelTimeSeries>(
     let mut breaches = Vec::new();
 
     for spec in &engine.specs {
-        // Skip inactive covenants
         if !spec.covenant.is_active {
             continue;
         }
@@ -579,7 +576,6 @@ pub fn forecast_breaches_generic<MTS: ModelTimeSeries>(
         }
     }
 
-    // Sort by date then covenant ID
     breaches.sort_by(|a, b| {
         a.breach_date
             .cmp(&b.breach_date)

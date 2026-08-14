@@ -26,7 +26,6 @@ from finstack_quant.factor_model.credit import (
     decompose_period,
 )
 
-# Helpers
 
 _N_MONTHS = 24
 

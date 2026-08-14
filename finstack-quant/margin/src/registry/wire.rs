@@ -12,8 +12,6 @@ pub(super) struct RegistryEntry<R> {
     pub(super) record: R,
 }
 
-// Schedule IM (BCBS-IOSCO grid)
-
 #[allow(dead_code)] // Fields accessed via serde Deserialize
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -51,8 +49,6 @@ pub(super) struct ScheduleImRate {
     pub(super) bucket: String,
     pub(super) rate: f64,
 }
-
-// Collateral schedules and defaults
 
 #[allow(dead_code)] // Fields accessed via serde Deserialize
 #[derive(Debug, Deserialize)]
@@ -189,8 +185,6 @@ pub(super) struct ClearedSettlementRecord {
     pub(super) settlement_lag: u32,
 }
 
-// CCP methodologies
-
 #[allow(dead_code)] // Fields accessed via serde Deserialize
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -213,8 +207,6 @@ pub(super) struct CcpRecord {
     #[serde(default)]
     pub(super) is_default: bool,
 }
-
-// XVA defaults
 
 #[allow(dead_code)] // Fields accessed via serde Deserialize
 #[derive(Debug, Deserialize)]
@@ -242,8 +234,6 @@ pub(super) struct XvaDeterministicExposureRecord {
     #[serde(default)]
     pub(super) own_recovery_rate: Option<f64>,
 }
-
-// SIMM parameters
 
 #[allow(dead_code)] // Fields accessed via serde Deserialize
 #[derive(Debug, Deserialize)]

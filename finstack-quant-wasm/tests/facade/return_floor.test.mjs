@@ -108,7 +108,6 @@ function bondInstrumentJson(returnFloor = null) {
   });
 }
 
-// Helpers
 
 /**
  * Price a bond and return the structured ValuationResult object.

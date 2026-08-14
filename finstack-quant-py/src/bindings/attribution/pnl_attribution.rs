@@ -69,8 +69,6 @@ impl PyPnlAttribution {
         json_mod.call_method1("loads", (json,))
     }
 
-    // --- Aggregate P&L fields (amount as f64) ---
-
     /// Total P&L amount.
     #[getter]
     fn total_pnl(&self) -> f64 {
@@ -179,8 +177,6 @@ impl PyPnlAttribution {
         self.inner.total_pnl.currency().to_string()
     }
 
-    // --- Metadata ---
-
     /// Instrument identifier.
     #[getter]
     fn instrument_id(&self) -> &str {
@@ -264,8 +260,6 @@ impl PyPnlAttribution {
     fn execution_policy<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         serde_to_py(py, &self.inner.meta.execution_policy)
     }
-
-    // --- Typed detail payloads (serde-shaped dicts) ---
 
     /// Carry decomposition detail as a serde-shaped dict, or ``None`` when not
     /// populated. Keys mirror the Rust ``CarryDetail`` wire schema (``total``,

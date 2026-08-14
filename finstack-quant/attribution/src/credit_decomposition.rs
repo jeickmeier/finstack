@@ -451,7 +451,6 @@ impl AttributionSpec {
         } else {
             0.0
         };
-        // Build the LevelCarry vector.
         let mut levels_out: Vec<LevelCarry> = Vec::with_capacity(num_levels);
         for (k, level_share) in level_share_of_s.iter().enumerate() {
             let dim = &model.hierarchy.levels[k];

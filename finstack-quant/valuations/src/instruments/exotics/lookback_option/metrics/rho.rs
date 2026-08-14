@@ -23,7 +23,6 @@ impl MetricCalculator for RhoCalculator {
         let as_of = context.as_of;
         let base_pv = context.base_value.amount();
 
-        // Check if expired
         let t = option.day_count.year_fraction(
             as_of,
             option.expiry,

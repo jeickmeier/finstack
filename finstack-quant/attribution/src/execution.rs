@@ -21,11 +21,9 @@ impl AttributionSpec {
     /// metrics-based method, unknown configured metric names are rejected
     /// before valuation.
     pub fn execute(&self) -> Result<AttributionResult> {
-        // Reconstruct instrument from JSON
         let instrument = self.instrument.clone().into_boxed()?;
         let instrument_arc: std::sync::Arc<dyn Instrument> = std::sync::Arc::from(instrument);
 
-        // Reconstruct market contexts
         let market_t0 = MarketContext::try_from(self.market_t0.clone())?;
         let market_t1 = MarketContext::try_from(self.market_t1.clone())?;
 
@@ -35,10 +33,8 @@ impl AttributionSpec {
             .ok()
             .map(|m| m.currency());
 
-        // Build config (defaults unless overridden)
         let config = self.build_finstack_config(instrument_currency)?;
 
-        // Determine strict validation
         let strict_validation = self
             .config
             .as_ref()
@@ -57,7 +53,6 @@ impl AttributionSpec {
         // on every spec execution.
         let resolved_credit_model = self.credit_factor_model.as_deref();
 
-        // Execute attribution based on method
         let mut attribution = match &self.method {
             AttributionMethod::Parallel => attribute_pnl_parallel_with_credit_model(
                 &instrument_arc,
@@ -98,7 +93,6 @@ impl AttributionSpec {
             )?,
 
             AttributionMethod::MetricsBased => {
-                // Determine metrics to use
                 let metrics = if let Some(ref cfg) = self.config {
                     if let Some(ref metric_names) = cfg.metrics {
                         let mut parsed = Vec::new();
@@ -160,7 +154,6 @@ impl AttributionSpec {
             }
         };
 
-        // Apply tolerance overrides if provided
         if let Some(ref cfg) = self.config {
             if let Some(tol_abs) = cfg.tolerance_abs {
                 attribution.meta.tolerance_abs = tol_abs;
@@ -309,7 +302,6 @@ impl AttributionSpec {
             attribution.meta.num_repricings += 1;
         }
 
-        // Create results metadata
         let results_meta = finstack_quant_core::config::results_meta(&config);
 
         Ok(AttributionResult {

@@ -31,8 +31,6 @@ use std::any::Any;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-// Helpers
-
 const EUR_KNOTS: [(f64, f64); 3] = [(0.0, 1.0), (1.0, 0.97), (5.0, 0.85)];
 const USD_KNOTS: [(f64, f64); 3] = [(0.0, 1.0), (1.0, 0.98), (5.0, 0.90)];
 const USD_BUMPED_KNOTS: [(f64, f64); 3] = [(0.0, 1.0), (1.0, 0.975), (5.0, 0.88)];

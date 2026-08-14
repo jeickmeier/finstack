@@ -569,14 +569,6 @@ impl Rule {
     }
 }
 
-// Internal helpers reused by applies()
-
-// is_leap_year and add_months provided by shared utils
-
-// Easter Monday is now provided by calendar::algo
-
-// Chinese New Year helpers now provided by calendar::algo
-
 /// Calculate Qing Ming (Tomb-Sweeping Day) based on solar term calculations.
 ///
 /// Qing Ming is one of the 24 solar terms in the traditional Chinese calendar,

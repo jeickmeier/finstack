@@ -273,12 +273,10 @@ impl MetricRegistry {
 
         // Compute metrics in dependency order (consume order to avoid cloning MetricId)
         for metric_id in order.into_iter() {
-            // Skip if already computed
             if context.computed.contains_key(&metric_id) {
                 continue;
             }
 
-            // Check if metric is registered
             let Some(entry) = self.entries.get(&metric_id) else {
                 if metric_ids.contains(&metric_id) {
                     return Err(finstack_quant_core::Error::unknown_metric(
@@ -292,7 +290,6 @@ impl MetricRegistry {
                 continue;
             };
 
-            // Check if calculator exists for this instrument type
             let Some(calc) = entry.get_for(instrument_type) else {
                 if metric_ids.contains(&metric_id) {
                     return Err(finstack_quant_core::Error::metric_not_applicable(

@@ -17,8 +17,6 @@ use finstack_quant_valuations::instruments::fixed_income::bond_future::{
 use finstack_quant_valuations::instruments::Attributes;
 use time::Month;
 
-// Helper Functions
-
 /// Create a test deliverable bond.
 fn create_test_deliverable_bond() -> DeliverableBond {
     DeliverableBond {

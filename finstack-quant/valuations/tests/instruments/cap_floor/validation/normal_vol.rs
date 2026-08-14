@@ -29,8 +29,6 @@ use finstack_quant_valuations::metrics::MetricId;
 use rust_decimal::Decimal;
 use time::macros::date;
 
-// Helpers
-
 fn flat_fwd(rate: f64, base: Date, id: &str) -> ForwardCurve {
     ForwardCurve::builder(id, 0.25)
         .base_date(base)

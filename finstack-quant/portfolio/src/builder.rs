@@ -296,7 +296,6 @@ impl PortfolioBuilder {
         let pos_id = position_id.into();
         let bk_id = book_id.into();
 
-        // Find the position
         let position = self
             .positions
             .iter_mut()
@@ -315,10 +314,8 @@ impl PortfolioBuilder {
             }
         }
 
-        // Update position's book_id
         position.book_id = Some(bk_id.clone());
 
-        // Add position to book
         let book = self.books.get_mut(&bk_id).ok_or_else(|| {
             crate::error::Error::InvalidInput(format!("Book not found: {}", bk_id))
         })?;
@@ -384,7 +381,6 @@ impl PortfolioBuilder {
 
         portfolio.rebuild_index();
 
-        // Validate the portfolio
         portfolio.validate()?;
 
         Ok(portfolio)

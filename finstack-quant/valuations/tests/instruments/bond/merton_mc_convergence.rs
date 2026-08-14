@@ -16,8 +16,6 @@ use finstack_quant_valuations::models::credit::{
     AssetDynamics, BarrierType, DynamicRecoverySpec, EndogenousHazardSpec, MertonModel,
 };
 
-// Helpers
-
 /// Build a standard Merton model for tests: V=200, sigma=0.25, B=100, r=0.04.
 fn base_merton() -> MertonModel {
     MertonModel::new_with_dynamics(

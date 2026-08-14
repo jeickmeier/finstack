@@ -1,5 +1,3 @@
-// finstack-quant/scenarios/src/horizon.rs
-
 //! Horizon total return analysis.
 //!
 //! Composes [`ScenarioSpec`] application with P&L attribution to answer:

@@ -591,8 +591,6 @@ fn test_coverage_trigger_is_cured() {
     assert!(trigger.is_cured(1.30)); // Above cure level
 }
 
-// Helper Functions
-
 fn create_tranche(id: &str, attach: f64, detach: f64, seniority: TrancheSeniority) -> Tranche {
     // Balance proportional to declared thickness (1% = $1M) so structures
     // built from these tranches satisfy the thickness/balance reconciliation.

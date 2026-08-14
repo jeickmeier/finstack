@@ -89,7 +89,6 @@ impl MetricCalculator for VegaCalculator {
         let as_of = context.as_of;
         let base_pv = context.base_value.amount();
 
-        // Check if expired
         let final_date = option.fixing_dates.last().copied().unwrap_or(as_of);
         let t = option.day_count.year_fraction(
             as_of,

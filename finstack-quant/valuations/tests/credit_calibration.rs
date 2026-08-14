@@ -18,8 +18,6 @@ use finstack_quant_factor_model::credit::hierarchy::{
 };
 use time::Month;
 
-// Helpers
-
 fn d(year: i32, month: Month, day: u8) -> Date {
     create_date(year, month, day).expect("valid date")
 }

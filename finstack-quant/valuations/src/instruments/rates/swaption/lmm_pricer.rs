@@ -446,7 +446,6 @@ impl Pricer for BermudanSwaptionLmmPricer {
                 )
             })?;
 
-        // Check if expired
         let ttm = swaption.time_to_maturity(as_of).map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
         })?;

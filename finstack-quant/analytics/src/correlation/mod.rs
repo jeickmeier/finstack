@@ -74,7 +74,6 @@ pub fn validate_correlation_matrix(matrix: &[f64], n: usize) -> Result<()> {
         return Ok(());
     }
 
-    // Diagonal
     for i in 0..n {
         let v = matrix[i * n + i];
         if (v - 1.0).abs() > CORRELATION_TOLERANCE {
@@ -82,7 +81,6 @@ pub fn validate_correlation_matrix(matrix: &[f64], n: usize) -> Result<()> {
         }
     }
 
-    // Symmetry and bounds
     for i in 0..n {
         for j in 0..n {
             let v = matrix[i * n + j];
@@ -98,7 +96,6 @@ pub fn validate_correlation_matrix(matrix: &[f64], n: usize) -> Result<()> {
         }
     }
 
-    // PSD via Cholesky
     if let Err(err) = finstack_quant_core::math::linalg::cholesky_correlation(matrix, n) {
         let row = match err {
             finstack_quant_core::math::linalg::CholeskyError::NotPositiveDefinite {

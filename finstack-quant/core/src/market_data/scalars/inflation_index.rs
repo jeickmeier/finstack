@@ -528,8 +528,6 @@ impl InflationIndex {
         self.lag
     }
 
-    // Private helper methods
-
     fn apply_lag(&self, date: Date) -> Result<Date> {
         match self.lag {
             InflationLag::None => Ok(date),

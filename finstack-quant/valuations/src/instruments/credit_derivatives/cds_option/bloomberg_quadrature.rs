@@ -76,8 +76,6 @@ const INV_SQRT_2_PI: f64 = 0.398_942_280_401_432_7_f64;
 /// Bloomberg CDSO model's intended liquid-credit regime.
 const DISTRESSED_FORWARD_SPREAD_LIMIT: f64 = 0.10;
 
-// Public entry points
-
 /// Price a CDS option under the Bloomberg CDSO numerical-quadrature model.
 pub fn npv(
     option: &CDSOption,
@@ -868,8 +866,6 @@ pub fn quadrature_payoff(
         });
     ctx.scale * ctx.exercise_survival_multiplier() * expected_payoff * ctx.df_to_expiry
 }
-
-// Internal utilities
 
 fn decimal_to_f64(value: Decimal) -> Result<f64> {
     value.to_f64().ok_or_else(|| {

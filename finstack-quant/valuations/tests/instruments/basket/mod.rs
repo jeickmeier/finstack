@@ -8,4 +8,3 @@
 //! - Mathematical accuracy and market standards compliance
 
 mod test_basket_comprehensive;
-// mod tests_comprehensive_basket; // Disabled - FxProvider signature mismatch

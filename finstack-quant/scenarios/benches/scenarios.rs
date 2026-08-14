@@ -31,8 +31,6 @@ use std::hint::black_box;
 use std::sync::Arc;
 use time::macros::date;
 
-// Helper Functions
-
 /// Create a base market context with discount curves, FX, and equity prices
 fn create_base_market() -> MarketContext {
     let base = date!(2025 - 01 - 01);
@@ -218,8 +216,6 @@ fn create_scenarios_for_composition(count: usize) -> Vec<ScenarioSpec> {
 
     scenarios
 }
-
-// Benchmark Functions
 
 fn bench_scenario_composition(c: &mut Criterion) {
     let mut group = c.benchmark_group("scenario_composition");

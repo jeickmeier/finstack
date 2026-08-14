@@ -91,8 +91,6 @@ pub(crate) mod generated;
 pub(crate) mod rule;
 pub(crate) mod types;
 
-// Public re-exports
-
 // `finstack_quant_core::dates::*` is the canonical facade for adjustment, registry, and
 // calendar traits. This namespace keeps the generated calendars and related
 // implementation types available for callers that need them directly.

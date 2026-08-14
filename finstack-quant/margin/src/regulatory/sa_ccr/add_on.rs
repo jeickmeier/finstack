@@ -250,7 +250,6 @@ mod tests {
 
     #[test]
     fn supervisory_duration_non_negative_for_swapped_args() {
-        // Defensive: if caller supplies end < start, clamp to 0.
         let sd = supervisory_duration(5.0, 1.0);
         assert!(sd >= 0.0);
     }

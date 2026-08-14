@@ -35,8 +35,6 @@ pub(super) fn validate_recovery_consistency(cds_recovery: f64, surv: &HazardCurv
     Ok(())
 }
 
-// ----- Time-axis helpers -----
-//
 // These helpers ensure we use the correct day-count conventions:
 // - For discounting: use the discount curve's day-count convention
 // - For survival: use the hazard curve's day-count convention

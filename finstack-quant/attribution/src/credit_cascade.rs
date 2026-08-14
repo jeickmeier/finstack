@@ -250,14 +250,12 @@ pub(crate) fn plan_credit_cascade(
     _as_of_t0: Date,
     _as_of_t1: Date,
 ) -> Result<Option<CreditCascade>> {
-    // Resolve issuer id from instrument attributes.
     let issuer_id_str = match instrument.attributes().get_meta(ISSUER_ID_META_KEY) {
         Some(s) => s.to_string(),
         None => return Ok(None),
     };
     let issuer_id = IssuerId::new(issuer_id_str.as_str());
 
-    // Find issuer in model.
     let Some(issuer_row) = model.issuer_betas.iter().find(|r| r.issuer_id == issuer_id) else {
         tracing::warn!(
             instrument_id = %instrument.id(),

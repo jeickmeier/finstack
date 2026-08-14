@@ -242,10 +242,8 @@ impl McEngine {
         D: Discretization<P>,
         F: Payoff,
     {
-        // Initialize state
         state.copy_from_slice(initial_state);
 
-        // Create initial path state for payoff
         let mut path_state = PathState::new(0, 0.0);
         process.populate_path_state(state, &mut path_state);
         draw_uniform_if_needed(rng, payoff, &mut path_state);
@@ -266,7 +264,6 @@ impl McEngine {
         }
         simulated_path.add_point(initial_point);
 
-        // Simulate path through time steps
         let hook = NoiseHook::Correlation(correlation);
         for step in 0..self.config.time_grid.num_steps() {
             let t = self.config.time_grid.time(step);
@@ -279,10 +276,8 @@ impl McEngine {
             process.populate_path_state(state, &mut path_state);
             draw_uniform_if_needed(rng, payoff, &mut path_state);
 
-            // Process payoff event (payoff may add cashflows to path_state)
             payoff.on_event(&mut path_state);
 
-            // Capture this point with state vector
             let state_vec = SmallVec::from_slice(state);
             let mut point = PathPoint::with_state(step + 1, t + dt, state_vec);
 
@@ -299,14 +294,11 @@ impl McEngine {
             simulated_path.add_point(point);
         }
 
-        // Extract final payoff value
         let payoff_money = payoff.value(currency);
         let payoff_value = payoff_money.amount();
 
-        // Set final discounted value
         simulated_path.set_final_value(payoff_value * discount_factor);
 
-        // Calculate IRR from cashflows (if available)
         let cashflow_amounts = simulated_path.extract_cashflow_amounts();
         if cashflow_amounts.len() >= 2 {
             // Use periodic IRR approximation (assumes roughly equal spacing)

@@ -193,8 +193,6 @@ impl BasketCalculator {
         Ok(Money::new(total - expense_drag, basket.currency))
     }
 
-    // ----- Internal Helper Methods -----
-
     /// Value a single constituent based on the given mode.
     fn value_constituent(
         &self,

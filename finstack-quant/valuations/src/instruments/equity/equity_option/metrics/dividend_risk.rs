@@ -43,7 +43,6 @@ impl MetricCalculator for DividendRiskCalculator {
         let option: &EquityOption = context.instrument_as()?;
         let as_of = context.as_of;
 
-        // Check if expired
         let t = option.day_count.year_fraction(
             as_of,
             option.expiry,
@@ -59,7 +58,6 @@ impl MetricCalculator for DividendRiskCalculator {
             None => return Ok(0.0),
         };
 
-        // Get current scalar to clone its structure
         let current_scalar = context.curves.get_price(&div_yield_id)?;
 
         // Extract numeric baseline for robust bump-width handling (clamped at 0 on the downside).

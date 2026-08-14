@@ -24,7 +24,6 @@ impl MetricCalculator for FxVegaCalculator {
         let option: &QuantoOption = context.instrument_as()?;
         let as_of = context.as_of;
 
-        // Check if expired
         let t = option.day_count.year_fraction(
             as_of,
             option.expiry,

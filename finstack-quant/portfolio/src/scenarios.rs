@@ -171,7 +171,6 @@ fn apply_scenario<'a>(
             .collect::<Vec<Box<dyn Instrument>>>()
     });
 
-    // Build execution context
     let mut ctx = ExecutionContext {
         market: &mut market_copy,
         model: None,
@@ -181,7 +180,6 @@ fn apply_scenario<'a>(
         as_of: portfolio.as_of,
     };
 
-    // Apply scenario
     let engine = ScenarioEngine::default();
     let report = engine
         .apply(scenario, &mut ctx)

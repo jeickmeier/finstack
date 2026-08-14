@@ -19,8 +19,6 @@ use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
 };
 use time::Month;
 
-// Helpers
-
 fn as_of() -> Date {
     Date::from_calendar_date(2025, Month::January, 15).unwrap()
 }

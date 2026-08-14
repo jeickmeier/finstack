@@ -79,7 +79,6 @@ impl MetricCalculator for Cs01Calculator {
         let bond: &ConvertibleBond = context.instrument_as()?;
         let as_of = context.as_of;
 
-        // Check if expired
         if as_of >= bond.maturity {
             return Ok(0.0);
         }

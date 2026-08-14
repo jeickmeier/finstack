@@ -20,8 +20,6 @@ use finstack_quant_valuations::prelude::Instrument;
 use finstack_quant_valuations::pricer::{standard_registry, InstrumentType, ModelKey};
 use time::macros::date;
 
-// Helper Functions
-
 /// Create a realistic market context with a UST discount curve.
 ///
 /// The curve has approximately 20 tenors covering the full maturity spectrum

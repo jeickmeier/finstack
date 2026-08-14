@@ -15,8 +15,6 @@ use serde::{Deserialize, Serialize};
 use super::engine::ExposureEclResult;
 use super::types::Stage;
 
-// Portfolio ECL result
-
 /// Portfolio-level ECL result with stage migration and segment breakdown.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PortfolioEclResult {

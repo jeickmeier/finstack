@@ -35,7 +35,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let all = PyList::new(
         py,
         [
-            // Types & enums
             "ImMethodology",
             "MarginTenor",
             "MarginCallType",
@@ -45,7 +44,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "CsaSpec",
             "EligibleCollateralSchedule",
             "CONSTANTS",
-            // Calculators
             "VmResult",
             "VmCalculator",
             "ImResult",
@@ -53,7 +51,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "SimmCalculator",
             "ScheduleImCalculator",
             "HaircutImCalculator",
-            // XVA
             "FundingConfig",
             "XvaConfig",
             "ExposureDiagnostics",
@@ -67,12 +64,10 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "compute_bilateral_xva",
             "compute_mva",
             "im_profile_from_simm",
-            // Metrics
             "MarginUtilization",
             "ExcessCollateral",
             "MarginFundingCost",
             "Haircut01",
-            // Regulatory (FRTB SBA + SA-CCR)
             "FrtbSensitivities",
             "FrtbSbaEngine",
             "SaCcrTrade",
@@ -80,7 +75,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "SaCcrEngine",
             "frtb_sba_charge",
             "saccr_ead",
-            // Schema
             "schema",
         ],
     )?;

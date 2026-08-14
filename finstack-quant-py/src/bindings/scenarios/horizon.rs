@@ -1,5 +1,3 @@
-// finstack-quant-py/src/bindings/scenarios/horizon.rs
-
 //! Python bindings for horizon total return analysis.
 
 use crate::bindings::attribution::PyPnlAttribution;

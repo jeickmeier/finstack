@@ -393,12 +393,10 @@ pub(super) fn collect_dates(
         dates.extend_from_slice(dates_slice);
     }
 
-    // Collect all fixed fee dates
     for (d, _) in fixed_fees {
         dates.push(*d);
     }
 
-    // Collect amortization dates
     match &notional.amort {
         AmortizationSpec::CustomPrincipal { items } => {
             for (d, _) in items {

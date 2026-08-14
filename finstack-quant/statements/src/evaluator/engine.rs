@@ -231,7 +231,6 @@ impl Evaluator {
 
         let cs_affected_nodes = dependent_closure(&prepared.dag, &cs_seed_nodes);
 
-        // Initialize capital structure state for dynamic evaluation
         let mut cs_state = if let (Some(_market_ctx), Some(_as_of)) = (market_ctx, as_of) {
             Some(crate::capital_structure::CapitalStructureState::new())
         } else {
@@ -266,7 +265,6 @@ impl Evaluator {
             }
         }
 
-        // Evaluate period-by-period
         let mut historical: std::sync::Arc<IndexMap<PeriodId, IndexMap<String, f64>>> =
             std::sync::Arc::new(IndexMap::new());
         let mut historical_cs: std::sync::Arc<
@@ -279,7 +277,6 @@ impl Evaluator {
         let mut cs_cashflows_accum = crate::capital_structure::CapitalStructureCashflows::new();
         let mut has_cs = false;
 
-        // Sequential evaluation for all models
         for period in &model.periods {
             let explicit_values_visible =
                 !period.is_actual || as_of.is_none_or(|as_of_date| period.start <= as_of_date);
@@ -323,7 +320,6 @@ impl Evaluator {
 
             all_warnings.extend(period_warnings);
 
-            // Store in results
             for (node_id, value) in &period_results {
                 results
                     .nodes

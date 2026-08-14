@@ -52,7 +52,6 @@ impl NormalizationEngine {
 
         let mut normalization_results = Vec::new();
 
-        // Get the target node values
         let target_values = results.nodes.get(&config.target_node).ok_or_else(|| {
             Error::eval(format!(
                 "Target node '{}' not found in results",

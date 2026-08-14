@@ -94,31 +94,25 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "classify_stage",
             "compute_ecl",
             "compute_ecl_weighted",
-            // Comparable-company analysis
             "percentile_rank",
             "z_score",
             "peer_stats",
             "regression_fair_value",
             "compute_multiple",
             "score_relative_value",
-            // Scorecard extension
             "ScorecardMetric",
             "ScorecardConfig",
             "ScorecardReport",
             "CreditScorecardExtension",
             "validate_scorecard_config",
-            // Corkscrew extension
             "AccountType",
             "CorkscrewAccount",
             "CorkscrewConfig",
             "CorkscrewReport",
             "CorkscrewExtension",
-            // Vintage template
             "add_vintage_buildup",
-            // Roll-forward template
             "add_roll_forward",
             "add_roll_forward_with_opening",
-            // Real-estate template
             "SimpleLeaseSpec",
             "RentStepSpec",
             "FreeRentWindowSpec",

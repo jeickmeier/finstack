@@ -263,8 +263,6 @@ impl RatingScale {
         }
     }
 
-    // Internal helpers
-
     /// Builds a `RatingScale` from `&[&str]` labels for hardcoded presets.
     fn from_static_labels(labels: &[&str], default_label: Option<&str>) -> Self {
         let labels: Vec<String> = labels.iter().map(|s| (*s).to_owned()).collect();

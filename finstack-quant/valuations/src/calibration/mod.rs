@@ -121,8 +121,6 @@ pub mod bumps;
 /// Shared constants (tolerances, magic numbers).
 pub(crate) mod constants;
 
-// Public Re-exports
-//
 // These types form the supported public API for calibration configuration.
 // They are used by wasm/py bindings and external consumers.
 
