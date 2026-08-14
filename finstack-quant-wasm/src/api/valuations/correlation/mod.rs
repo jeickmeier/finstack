@@ -99,8 +99,6 @@ impl JsCopulaSpec {
     }
 }
 
-// Copula (trait object wrapper)
-
 /// Concrete copula model for portfolio default correlation.
 #[wasm_bindgen(js_name = Copula)]
 pub struct JsCopula {
@@ -261,8 +259,6 @@ impl JsRecoverySpec {
         }
     }
 }
-
-// RecoveryModel (trait object wrapper)
 
 /// Concrete recovery model for credit portfolio pricing.
 #[wasm_bindgen(js_name = RecoveryModel)]

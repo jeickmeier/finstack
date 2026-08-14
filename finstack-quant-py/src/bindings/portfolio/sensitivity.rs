@@ -13,8 +13,6 @@ use pyo3::types::{PyDict, PyList};
 const DEFAULT_PNL_SCENARIO_POINTS: usize =
     finstack_quant_portfolio::sensitivity::DEFAULT_PNL_SCENARIO_POINTS;
 
-// SensitivityMatrix
-
 /// Positions-by-factors sensitivity matrix.
 ///
 /// Each element ``(i, j)`` is the first-order sensitivity of position *i* to
@@ -151,8 +149,6 @@ impl PySensitivityMatrix {
         frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
-
-// FactorPnlProfile
 
 /// P&L profile for one factor across a scenario grid.
 ///
@@ -362,8 +358,6 @@ fn compute_pnl_profiles(
     })
     .map_err(core_to_py)
 }
-
-// RiskDecomposition
 
 /// Portfolio-level decomposition of total risk across factors and positions.
 ///

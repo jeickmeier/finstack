@@ -17,8 +17,6 @@ use super::super::typed_legs::{PyPremiumLegSpec, PyProtectionLegSpec};
 type CdsIndexBuilderInner =
     finstack_quant_valuations::instruments::credit_derivatives::cds_index::CDSIndexBuilder;
 
-// CDSIndex
-
 /// Typed wrapper for the Rust `CDSIndex` instrument.
 #[pyclass(
     module = "finstack_quant.valuations.instruments",

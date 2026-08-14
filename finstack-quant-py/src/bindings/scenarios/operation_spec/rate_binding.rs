@@ -9,8 +9,6 @@ use pyo3::prelude::*;
 
 use super::kinds::PyCompounding;
 
-// RateBindingSpec
-
 /// Configuration linking a statement rate node to a market curve.
 ///
 /// Mirrors [`finstack_quant_scenarios::spec::RateBindingSpec`].

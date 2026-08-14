@@ -25,8 +25,6 @@ use finstack_quant_valuations::models::volatility::sabr::{
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-// SabrParameters
-
 /// SABR model parameters ``(alpha, beta, nu, rho)`` with optional ``shift``.
 ///
 /// Constructed with validation: ``alpha > 0``, ``beta in [0, 1]``,
@@ -132,8 +130,6 @@ impl PySabrParameters {
     }
 }
 
-// SabrModel
-
 /// Hagan-2002 SABR model wrapping a :class:`SabrParameters` instance.
 ///
 /// Sources
@@ -201,8 +197,6 @@ impl PySabrModel {
         )
     }
 }
-
-// SabrSmile
 
 /// Volatility smile generator for a fixed ``(forward, t)`` pair.
 ///
@@ -323,8 +317,6 @@ impl PySabrSmile {
         "SabrSmile".to_string()
     }
 }
-
-// SabrCalibrator
 
 /// SABR calibrator using Levenberg-Marquardt with beta fixed.
 ///

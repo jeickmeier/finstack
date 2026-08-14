@@ -73,8 +73,6 @@ fn execute_error_to_py(py: Python<'_>, err: ExecuteError) -> PyErr {
     }
 }
 
-// CalibrationResult
-
 /// Result of a calibration plan execution.
 ///
 /// Provides access to the calibrated market context, per-step reports,

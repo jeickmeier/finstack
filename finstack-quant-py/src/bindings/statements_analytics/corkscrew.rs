@@ -26,8 +26,6 @@ const VALIDATION_COLUMNS: [ColumnSchema<'static>; 5] = [
     ("is_valid", "bool"),
 ];
 
-// AccountType
-
 /// Account type label: ``"asset"``, ``"liability"``, or ``"equity"``.
 #[pyclass(
     name = "AccountType",
@@ -91,8 +89,6 @@ impl PyAccountType {
         }
     }
 }
-
-// CorkscrewAccount
 
 /// Configuration for a single corkscrew account.
 ///
@@ -199,8 +195,6 @@ impl PyCorkscrewAccount {
     }
 }
 
-// CorkscrewConfig
-
 /// Configuration for corkscrew (roll-forward) validation.
 ///
 /// Parameters
@@ -294,8 +288,6 @@ impl PyCorkscrewConfig {
         )
     }
 }
-
-// CorkscrewReport
 
 /// Report produced by [`PyCorkscrewExtension.execute`].
 #[pyclass(
@@ -445,8 +437,6 @@ impl PyCorkscrewReport {
             .unwrap_or_default()
     }
 }
-
-// CorkscrewExtension
 
 /// Corkscrew extension for balance-sheet roll-forward validation.
 #[pyclass(

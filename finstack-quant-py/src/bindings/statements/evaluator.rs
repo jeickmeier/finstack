@@ -9,8 +9,6 @@ use crate::errors::{display_to_py, statements_to_py};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-// StatementResult
-
 /// Results from evaluating a financial model.
 #[pyclass(
     name = "StatementResult",
@@ -354,8 +352,6 @@ impl PyStatementResult {
         )
     }
 }
-
-// Evaluator
 
 /// Evaluator for financial models.
 #[pyclass(

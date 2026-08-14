@@ -14,8 +14,6 @@ use finstack_quant_margin::xva::mva;
 use crate::bindings::core::market_data::curves::{PyDiscountCurve, PyHazardCurve};
 use crate::bindings::margin::im::{PySimmCalculator, PySimmSensitivities};
 
-// FundingConfig
-
 /// Funding cost/benefit configuration for FVA and MVA calculation.
 #[pyclass(
     name = "FundingConfig",
@@ -119,8 +117,6 @@ impl PyFundingConfig {
     }
 }
 
-// XvaConfig
-
 /// XVA calculation configuration.
 #[pyclass(
     name = "XvaConfig",
@@ -208,8 +204,6 @@ impl PyXvaConfig {
     }
 }
 
-// ExposureDiagnostics
-
 /// Diagnostics from exposure simulation.
 #[pyclass(
     name = "ExposureDiagnostics",
@@ -250,8 +244,6 @@ impl PyExposureDiagnostics {
         )
     }
 }
-
-// ExposureProfile
 
 /// Exposure profile at each time grid point.
 #[pyclass(
@@ -363,8 +355,6 @@ impl PyExposureProfile {
         frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
-
-// XvaResult
 
 /// Result of XVA calculations (CVA, DVA, FVA, MVA, exposure profiles).
 #[pyclass(
@@ -678,8 +668,6 @@ impl PyXvaNettingSet {
     }
 }
 
-// ImDecayProfile
-
 /// Deterministic IM decay profile for MVA (Green 2015, ch. 10).
 #[pyclass(
     name = "ImDecayProfile",
@@ -748,8 +736,6 @@ impl PyImDecayProfile {
         format!("ImDecayProfile({:?})", self.inner)
     }
 }
-
-// ImProfile
 
 /// Expected initial-margin profile E[IM(t)] on a time grid.
 #[pyclass(
@@ -845,8 +831,6 @@ impl PyImProfile {
         frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
-
-// MvaResult
 
 /// Result of an MVA computation.
 #[pyclass(

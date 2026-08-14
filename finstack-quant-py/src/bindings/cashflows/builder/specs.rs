@@ -55,8 +55,6 @@ fn date_money_pairs(items: Vec<(Bound<'_, PyAny>, PyMoney)>) -> PyResult<Vec<(Da
         .collect()
 }
 
-// RollRule
-
 /// Wrapper for [`RollRule`] (`finstack_quant.cashflows.builder.RollRule`).
 #[pyclass(
     name = "RollRule",
@@ -95,8 +93,6 @@ impl PyRollRule {
         format!("RollRule({:?})", self.inner)
     }
 }
-
-// CouponType
 
 /// Wrapper for [`CouponType`] (`finstack_quant.cashflows.builder.CouponType`).
 #[pyclass(
@@ -323,8 +319,6 @@ impl PyFeeAccrualBasis {
         format!("FeeAccrualBasis({:?})", self.inner)
     }
 }
-
-// ScheduleParams
 
 /// Wrapper for [`ScheduleParams`] (`finstack_quant.cashflows.builder.ScheduleParams`).
 #[pyclass(
@@ -768,8 +762,6 @@ impl PyStepUpCouponSpec {
     }
 }
 
-// Amortization / Notional
-
 /// Wrapper for [`AmortizationSpec`].
 #[pyclass(
     name = "AmortizationSpec",
@@ -969,8 +961,6 @@ impl PyNotional {
         )
     }
 }
-
-// Fees
 
 /// Wrapper for [`FeeBase`].
 #[pyclass(

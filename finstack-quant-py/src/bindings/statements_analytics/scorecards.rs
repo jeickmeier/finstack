@@ -27,8 +27,6 @@ const METRIC_SCORE_COLUMNS: [ColumnSchema<'static>; 5] = [
     ("weighted_score", "float64"),
 ];
 
-// ScorecardMetric
-
 /// A single scorecard metric definition.
 ///
 /// Parameters
@@ -140,8 +138,6 @@ impl PyScorecardMetric {
         )
     }
 }
-
-// ScorecardConfig
 
 /// Configuration for credit scorecard analysis.
 ///
@@ -259,8 +255,6 @@ impl PyScorecardConfig {
         )
     }
 }
-
-// ScorecardReport
 
 /// Report produced by [`PyCreditScorecardExtension.execute`].
 #[pyclass(
@@ -431,8 +425,6 @@ impl PyScorecardReport {
             .unwrap_or(serde_json::Value::Null)
     }
 }
-
-// CreditScorecardExtension
 
 /// Credit scorecard extension for rating assignment and stress testing.
 #[pyclass(

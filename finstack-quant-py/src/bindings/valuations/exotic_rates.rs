@@ -26,8 +26,6 @@ use finstack_quant_valuations::instruments::rates::hw1f::coupon_profiles;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-// TARN
-
 /// Simulate a TARN coupon profile along a deterministic floating-rate path.
 ///
 /// For each period, the coupon is ``max(fixed_rate - L_i, coupon_floor)``

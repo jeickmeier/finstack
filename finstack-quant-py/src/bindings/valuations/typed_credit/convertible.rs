@@ -15,8 +15,6 @@ use super::super::instruments::{
 type ConvertibleBondBuilderInner =
     finstack_quant_valuations::instruments::fixed_income::convertible::ConvertibleBondBuilder;
 
-// ConvertibleBond
-
 /// Typed wrapper for the Rust `ConvertibleBond` instrument.
 #[pyclass(
     module = "finstack_quant.valuations.instruments",

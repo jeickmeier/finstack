@@ -272,8 +272,6 @@ pub fn decompose_factor_risk(
     to_js_value(&output)
 }
 
-// Validation helpers
-
 /// Validate that `data` has exactly `n_positions` rows and that every row has
 /// exactly `n_factors` columns.
 ///

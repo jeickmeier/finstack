@@ -18,8 +18,6 @@ use finstack_quant_valuations::correlation::{
     PortfolioLossResult, RecoveryModel, RecoverySpec, TrancheLossStatistics,
 };
 
-// CopulaSpec
-
 /// Copula model specification for configuration and deferred construction.
 ///
 /// Use class methods to create a spec, then call `build()` to get a `Copula`.
@@ -119,8 +117,6 @@ impl PyCopulaSpec {
     }
 }
 
-// Copula (trait object wrapper)
-
 /// Concrete copula model for portfolio default correlation.
 ///
 /// Obtain an instance via ``CopulaSpec.build()``.
@@ -208,8 +204,6 @@ impl PyCopula {
     }
 }
 
-// RecoverySpec
-
 /// Recovery model specification for configuration and deferred construction.
 #[pyclass(
     name = "RecoverySpec",
@@ -294,8 +288,6 @@ impl PyRecoverySpec {
     }
 }
 
-// RecoveryModel (trait object wrapper)
-
 /// Concrete recovery model for credit portfolio pricing.
 ///
 /// Obtain an instance via ``RecoverySpec.build()``.
@@ -361,8 +353,6 @@ impl PyRecoveryModel {
         )
     }
 }
-
-// LatentFactorSpec
 
 /// Factor model specification for configuration and deferred construction.
 #[pyclass(
@@ -430,8 +420,6 @@ impl PyLatentFactorSpec {
         format!("LatentFactorSpec({:?})", self.inner)
     }
 }
-
-// LatentFactorKind (concrete dispatch wrapper)
 
 /// Concrete factor model for correlated behavior.
 ///
@@ -711,8 +699,6 @@ impl PyLatentMultiFactor {
         format!("LatentMultiFactor(n={})", self.inner.num_factors())
     }
 }
-
-// CorrelatedBernoulli
 
 /// Correlated Bernoulli distribution for two binary events.
 ///

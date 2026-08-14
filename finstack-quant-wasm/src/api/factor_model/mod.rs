@@ -205,8 +205,6 @@ impl JsLevelsAtDate {
     }
 }
 
-// PeriodDecomposition  (opaque handle)
-
 /// Component-wise difference between two [`JsLevelsAtDate`] snapshots.
 ///
 /// Produced by [`decompose_period`].

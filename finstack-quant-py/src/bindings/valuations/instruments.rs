@@ -64,8 +64,6 @@ pub(crate) fn json_field<T: serde::de::DeserializeOwned>(json: &str, what: &str)
         .map_err(|err| crate::errors::serde_json_to_py(err, &format!("invalid {what} JSON")))
 }
 
-// Bond
-
 /// Typed wrapper for the Rust `Bond` instrument.
 #[pyclass(
     module = "finstack_quant.valuations.instruments",
@@ -339,8 +337,6 @@ impl PyBond {
         Ok(PyMertonMcResult::from_inner(result))
     }
 }
-
-// TermLoan
 
 /// Typed wrapper for the Rust `TermLoan` instrument.
 ///

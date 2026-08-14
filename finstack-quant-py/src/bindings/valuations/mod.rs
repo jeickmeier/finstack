@@ -30,8 +30,6 @@ use crate::errors::display_to_py;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-// ValuationResult
-
 #[pyclass(
     name = "ValuationResult",
     module = "finstack_quant.valuations",

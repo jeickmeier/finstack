@@ -4,8 +4,6 @@ use crate::bindings::pandas_utils::dict_to_dataframe;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-// MarginUtilization
-
 /// Margin utilization result (ratio of posted to required margin).
 #[pyclass(
     name = "MarginUtilization",
@@ -100,8 +98,6 @@ impl PyMarginUtilization {
         frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
-
-// ExcessCollateral
 
 /// Excess collateral result.
 #[pyclass(
@@ -210,8 +206,6 @@ impl PyExcessCollateral {
         frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
-
-// MarginFundingCost
 
 /// Margin funding cost result.
 #[pyclass(
@@ -324,8 +318,6 @@ impl PyMarginFundingCost {
         frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
-
-// Haircut01
 
 /// Haircut sensitivity: PV change for +1bp haircut change.
 #[pyclass(

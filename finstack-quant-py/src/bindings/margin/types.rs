@@ -4,8 +4,6 @@ use crate::errors::{core_to_py, display_to_py};
 use finstack_quant_margin as fm;
 use pyo3::prelude::*;
 
-// ImMethodology
-
 /// Initial margin calculation methodology.
 #[pyclass(
     name = "ImMethodology",
@@ -80,8 +78,6 @@ impl PyImMethodology {
     }
 }
 
-// MarginTenor
-
 /// Margin call frequency.
 #[pyclass(
     name = "MarginTenor",
@@ -148,8 +144,6 @@ impl PyMarginTenor {
     }
 }
 
-// MarginCallType
-
 /// Type of margin call.
 #[pyclass(
     name = "MarginCallType",
@@ -211,8 +205,6 @@ impl PyMarginCallType {
     }
 }
 
-// ClearingStatus
-
 /// Clearing status for OTC derivatives.
 #[pyclass(
     name = "ClearingStatus",
@@ -267,8 +259,6 @@ impl PyClearingStatus {
         self.inner.to_string()
     }
 }
-
-// CollateralAssetClass
 
 /// Collateral asset class per BCBS-IOSCO standards.
 #[pyclass(
@@ -367,8 +357,6 @@ impl PyCollateralAssetClass {
         self.inner.to_string()
     }
 }
-
-// NettingSetId
 
 /// Identifies a margin netting set.
 #[pyclass(
@@ -526,8 +514,6 @@ impl PyCsaSpec {
         )
     }
 }
-
-// EligibleCollateralSchedule
 
 /// Eligible collateral schedule with haircuts.
 #[pyclass(

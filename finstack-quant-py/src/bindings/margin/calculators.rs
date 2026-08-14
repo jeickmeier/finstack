@@ -9,8 +9,6 @@ use finstack_quant_margin as fm;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-// VmResult
-
 /// Variation margin calculation result.
 #[pyclass(
     name = "VmResult",
@@ -104,8 +102,6 @@ impl PyVmResult {
     }
 }
 
-// VmCalculator
-
 /// Variation margin calculator following ISDA CSA rules.
 #[pyclass(
     name = "VmCalculator",
@@ -156,8 +152,6 @@ impl PyVmCalculator {
         Ok(PyVmResult { inner: result })
     }
 }
-
-// ImResult
 
 /// Initial margin calculation result.
 #[pyclass(

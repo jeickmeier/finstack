@@ -294,8 +294,6 @@ impl PyInterestRateSwapBuilder {
     }
 }
 
-// Swaption
-
 /// Typed wrapper for the Rust `Swaption` instrument.
 #[pyclass(
     module = "finstack_quant.valuations.instruments",
@@ -739,8 +737,6 @@ impl PySwaptionBuilder {
         Ok(PySwaption { inner })
     }
 }
-
-// CapFloor
 
 /// Typed wrapper for the Rust `CapFloor` instrument.
 #[pyclass(

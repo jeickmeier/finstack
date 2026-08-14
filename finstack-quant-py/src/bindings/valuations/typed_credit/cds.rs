@@ -17,8 +17,6 @@ use super::super::typed_legs::{PyPremiumLegSpec, PyProtectionLegSpec};
 type CdsBuilderInner =
     finstack_quant_valuations::instruments::credit_derivatives::cds::CreditDefaultSwapBuilder;
 
-// CreditDefaultSwap
-
 /// Typed wrapper for the Rust `CreditDefaultSwap` instrument.
 #[pyclass(
     module = "finstack_quant.valuations.instruments",

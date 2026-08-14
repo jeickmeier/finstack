@@ -64,8 +64,6 @@ fn asset_class_label(ac: SaCcrAssetClass) -> &'static str {
     }
 }
 
-// FrtbSensitivities wrapper
-
 /// FRTB sensitivity portfolio for the Sensitivity-Based Approach.
 ///
 /// Build up delta/vega/curvature inputs with the ``add_*`` methods, then pass
@@ -541,8 +539,6 @@ impl PyFrtbSbaEngine {
         frtb_result_to_py(py, &result)
     }
 }
-
-// SaCcrTrade wrapper
 
 /// A single derivative trade for SA-CCR EAD computation.
 ///

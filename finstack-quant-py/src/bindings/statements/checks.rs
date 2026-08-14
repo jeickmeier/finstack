@@ -29,8 +29,6 @@ const CHECK_FINDING_COLUMNS: [ColumnSchema<'static>; 11] = [
     ("materiality_reference_label", "str"),
 ];
 
-// CheckSuiteSpec
-
 /// A serializable suite specification describing which checks to run.
 #[pyclass(
     name = "CheckSuiteSpec",
@@ -111,8 +109,6 @@ impl PyCheckSuiteSpec {
         )
     }
 }
-
-// CheckReport
 
 /// Validation check report aggregating results and summary statistics.
 #[pyclass(

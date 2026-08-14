@@ -10,8 +10,6 @@ use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine:
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 
-// PikMode
-
 /// Per-coupon PIK behavior for the Merton Monte Carlo engine.
 #[pyclass(
     name = "PikMode",
@@ -92,8 +90,6 @@ impl PyPikMode {
     }
 }
 
-// PikSchedule
-
 /// Time-varying PIK schedule for the Merton Monte Carlo engine.
 #[pyclass(
     name = "PikSchedule",
@@ -169,8 +165,6 @@ impl PyPikSchedule {
     }
 }
 
-// BarrierCrossing
-
 /// Barrier-crossing detection policy for first-passage default simulation.
 #[pyclass(
     name = "BarrierCrossing",
@@ -220,8 +214,6 @@ impl PyBarrierCrossing {
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 }
-
-// PathStatistics
 
 /// Path-level statistics from a Merton Monte Carlo simulation.
 #[pyclass(
@@ -284,8 +276,6 @@ impl PyPathStatistics {
         )
     }
 }
-
-// MertonMcResult
 
 /// Result from Merton Monte Carlo PIK bond pricing.
 #[pyclass(
@@ -378,8 +368,6 @@ impl PyMertonMcResult {
         )
     }
 }
-
-// MertonMcConfig
 
 /// Configuration for Merton Monte Carlo PIK bond pricing.
 #[pyclass(

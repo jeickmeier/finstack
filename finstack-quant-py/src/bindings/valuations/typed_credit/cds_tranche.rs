@@ -18,8 +18,6 @@ use super::super::instruments::{
 type CdsTrancheBuilderInner =
     finstack_quant_valuations::instruments::credit_derivatives::cds_tranche::CDSTrancheBuilder;
 
-// CDSTranche
-
 /// Typed wrapper for the Rust `CDSTranche` instrument.
 #[pyclass(
     module = "finstack_quant.valuations.instruments",

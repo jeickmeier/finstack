@@ -16,8 +16,6 @@ use super::instruments::{
 type EquityOptionBuilderInner =
     finstack_quant_valuations::instruments::equity::equity_option::EquityOptionBuilder;
 
-// EquityOption
-
 /// Typed wrapper for the Rust `EquityOption` instrument.
 #[pyclass(
     module = "finstack_quant.valuations.instruments",

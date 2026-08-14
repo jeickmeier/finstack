@@ -37,8 +37,6 @@ fn priority_to_str(p: PaymentPriority) -> &'static str {
     }
 }
 
-// EcfSweepSpec
-
 /// Excess Cash Flow (ECF) sweep specification.
 ///
 /// Defines how to compute ECF and what fraction sweeps to debt paydown.
@@ -190,8 +188,6 @@ impl PyEcfSweepSpec {
     }
 }
 
-// PikToggleSpec
-
 /// PIK toggle specification.
 ///
 /// Controls when interest accrues as PIK (added to principal) vs. cash, based
@@ -327,8 +323,6 @@ impl PyPikToggleSpec {
         )
     }
 }
-
-// WaterfallSpec
 
 /// Waterfall specification for dynamic cash flow allocation.
 ///

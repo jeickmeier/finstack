@@ -397,8 +397,6 @@ pub fn count_consecutive_array(values: &[f64]) -> usize {
     math::count_consecutive(values, |x| x > 0.0)
 }
 
-// Internal helpers
-
 fn validate_flat_matrix_len(matrix: &[f64], n: usize) -> Result<(), JsValue> {
     let expected = n
         .checked_mul(n)

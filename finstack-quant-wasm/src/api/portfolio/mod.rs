@@ -66,8 +66,6 @@ use wasm_bindgen::prelude::*;
 pub mod materialization;
 pub mod sensitivity;
 
-// Typed handle: Portfolio
-
 /// Handle to a built [`finstack_quant_portfolio::Portfolio`] that can be reused
 /// across WASM calls without re-parsing and rebuilding from the spec.
 ///

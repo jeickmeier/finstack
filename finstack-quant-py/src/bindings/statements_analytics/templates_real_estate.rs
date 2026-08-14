@@ -24,8 +24,6 @@ fn parse_period(s: &str) -> PyResult<PeriodId> {
     s.parse().map_err(display_to_py)
 }
 
-// SimpleLeaseSpec
-
 /// Lightweight per-lease rent schedule.
 ///
 /// Parameters
@@ -207,8 +205,6 @@ impl PySimpleLeaseSpec {
         crate::bindings::repr_support::repr_from_serde("SimpleLeaseSpec", &self.inner)
     }
 }
-
-// RentStepSpec / FreeRentWindowSpec / RenewalSpec
 
 /// Rent step that resets the base rent starting at ``start`` (inclusive).
 #[pyclass(
@@ -470,8 +466,6 @@ impl PyRenewalSpec {
     }
 }
 
-// LeaseGrowthConvention
-
 /// Compounding convention for lease rent growth.
 #[pyclass(
     name = "LeaseGrowthConvention",
@@ -535,8 +529,6 @@ impl PyLeaseGrowthConvention {
         }
     }
 }
-
-// LeaseSpec
 
 /// Rich lease spec for rent-roll generation.
 #[pyclass(
@@ -753,8 +745,6 @@ impl PyLeaseSpec {
     }
 }
 
-// RentRollOutputNodes
-
 /// Standard aggregated output node ids for a rent roll.
 #[pyclass(
     name = "RentRollOutputNodes",
@@ -868,8 +858,6 @@ impl PyRentRollOutputNodes {
         crate::bindings::repr_support::repr_from_serde("RentRollOutputNodes", &self.inner)
     }
 }
-
-// ManagementFeeBase / ManagementFeeSpec
 
 /// Basis for management fee calculation.
 #[pyclass(
@@ -998,8 +986,6 @@ impl PyManagementFeeSpec {
         crate::bindings::repr_support::repr_from_serde("ManagementFeeSpec", &self.inner)
     }
 }
-
-// PropertyTemplateNodes
 
 /// Standard node ids for the full property operating-statement template.
 #[pyclass(
