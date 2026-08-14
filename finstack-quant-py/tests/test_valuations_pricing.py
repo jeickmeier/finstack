@@ -9,7 +9,6 @@ import pytest
 from finstack_quant.valuations.instruments import (
     instrument_cashflows_json,
     price_instrument,
-    price_instrument,
     validate_instrument_json,
 )
 

@@ -17,7 +17,6 @@ from finstack_quant.valuations.instruments import (
     TermLoan,
     instrument_cashflows_json,
     price_instrument,
-    price_instrument,
 )
 
 
