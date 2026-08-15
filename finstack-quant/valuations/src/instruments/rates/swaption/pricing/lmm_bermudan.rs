@@ -97,7 +97,7 @@ impl Default for LmmBermudanConfig {
             antithetic: defaults.antithetic,
             min_steps_between_exercises: defaults.min_steps_between_exercises,
             oos_lsmc: false,
-            enforce_calibration: false,
+            enforce_calibration: true,
         }
     }
 }

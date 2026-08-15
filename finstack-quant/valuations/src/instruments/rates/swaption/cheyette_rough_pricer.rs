@@ -59,8 +59,8 @@ pub struct CheyetteRoughConfig {
     /// The pricer registry (`finstack_quant_valuations::pricer::exotics`) sets this
     /// on the registered Cheyette rough-vol pricer so callers reaching the
     /// registry receive a clear error rather than a silently-wrong price.
-    /// Direct constructor callers retain the permissive default (`false`) for
-    /// testing and bespoke workflows.
+    /// Defaults to `true`. Testing and bespoke workflows that deliberately
+    /// price off uncalibrated parameters must opt out explicitly.
     ///
     /// The parameters gated by this flag are: `kappa`, `eta`, `H` (Hurst
     /// exponent) and `rho`. These fully determine the rough-vol smile and must
@@ -78,7 +78,7 @@ impl Default for CheyetteRoughConfig {
             num_steps: defaults.num_steps,
             basis_degree: defaults.basis_degree,
             oos_lsmc: false,
-            enforce_calibration: false,
+            enforce_calibration: true,
         }
     }
 }
@@ -1075,25 +1075,32 @@ mod tests {
         );
     }
 
-    /// W22 complement: the pricer with default config (enforce_calibration=false)
-    /// does NOT return an error due to the calibration guard. (It may still
-    /// fail for other reasons, e.g. missing vol surface — that is acceptable.)
+    /// The calibration guard is on by default: pricing off the generic
+    /// starting parameters must fail rather than return a silently-wrong
+    /// price. Opting out is explicit.
     #[test]
-    fn cheyette_rough_pricer_permissive_without_enforce_calibration() {
+    fn cheyette_rough_pricer_enforces_calibration_by_default() {
         let as_of = Date::from_calendar_date(2025, Month::January, 17).expect("date");
         let market = build_cheyette_market(as_of);
         let swaption = build_cheyette_bermudan(as_of);
 
-        // Default config: enforce_calibration = false
-        let pricer = BermudanSwaptionCheyetteRoughPricer::default();
+        let err = BermudanSwaptionCheyetteRoughPricer::default()
+            .price_dyn(&swaption, &market, as_of)
+            .expect_err("uncalibrated parameters must be rejected by default");
+        assert!(
+            err.to_string().contains("uncalibrated model parameters"),
+            "error must name the calibration guard, got: {err}"
+        );
 
-        let result = pricer.price_dyn(&swaption, &market, as_of);
-        // If it errors it must NOT be due to the calibration guard
-        if let Err(ref e) = result {
-            let msg = e.to_string();
+        // Opting out explicitly must not trip the guard.
+        let permissive = BermudanSwaptionCheyetteRoughPricer::with_config(CheyetteRoughConfig {
+            enforce_calibration: false,
+            ..CheyetteRoughConfig::default()
+        });
+        if let Err(e) = permissive.price_dyn(&swaption, &market, as_of) {
             assert!(
-                !msg.contains("uncalibrated model parameters"),
-                "Default pricer must not trigger calibration guard, got: {msg}"
+                !e.to_string().contains("uncalibrated model parameters"),
+                "explicit opt-out must not trigger the calibration guard, got: {e}"
             );
         }
     }

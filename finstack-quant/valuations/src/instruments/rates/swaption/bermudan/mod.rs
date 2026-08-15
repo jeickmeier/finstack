@@ -230,7 +230,7 @@ impl Default for BermudanSwaptionPricerConfig {
             mc_paths: Self::DEFAULT_MC_PATHS,
             mc_seed: Self::DEFAULT_MC_SEED,
             pre_calibrated_model: None,
-            enforce_calibration: false,
+            enforce_calibration: true,
         }
     }
 }

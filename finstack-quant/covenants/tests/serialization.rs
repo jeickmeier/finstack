@@ -145,6 +145,7 @@ fn covenant_roundtrip() {
     let covenant = Covenant::new(
         CovenantType::MaxDebtToEbitda { threshold: 5.0 },
         Tenor::quarterly(),
+        "max_debt_ebitda",
     )
     .with_cure_period(Some(30))
     .with_consequence(CovenantConsequence::RateIncrease { bp_increase: 100.0 })
@@ -165,6 +166,7 @@ fn covenant_spec_roundtrip() {
         Covenant::new(
             CovenantType::MinInterestCoverage { threshold: 1.5 },
             Tenor::quarterly(),
+            "min_interest_coverage",
         ),
         CovenantMetricId::from("interest_coverage"),
     );
@@ -184,6 +186,7 @@ fn covenant_test_spec_roundtrip() {
                 Covenant::new(
                     CovenantType::MaxTotalLeverage { threshold: 5.0 },
                     Tenor::quarterly(),
+                    "max_total_leverage",
                 ),
                 CovenantMetricId::from("total_leverage"),
             ),
@@ -191,6 +194,7 @@ fn covenant_test_spec_roundtrip() {
                 Covenant::new(
                     CovenantType::MinInterestCoverage { threshold: 1.5 },
                     Tenor::quarterly(),
+                    "min_interest_coverage",
                 ),
                 CovenantMetricId::from("interest_coverage"),
             ),
@@ -217,6 +221,7 @@ fn covenant_window_roundtrip() {
                     test: ThresholdTest::Minimum(1.0),
                 },
                 Tenor::quarterly(),
+                "custom",
             ),
             CovenantMetricId::from("liquidity"),
         )],
@@ -256,6 +261,7 @@ fn covenant_engine_roundtrip() {
         Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 5.0 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         )
         .with_consequence(CovenantConsequence::Default),
         CovenantMetricId::from("debt_to_ebitda"),
@@ -268,6 +274,7 @@ fn covenant_engine_roundtrip() {
             Covenant::new(
                 CovenantType::MinInterestCoverage { threshold: 1.25 },
                 Tenor::quarterly(),
+                "min_interest_coverage",
             ),
             CovenantMetricId::from("interest_coverage"),
         )],
@@ -544,6 +551,7 @@ fn complex_covenant_package_roundtrip() {
         Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 5.0 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         )
         .with_cure_period(Some(30))
         .with_consequence(CovenantConsequence::Default)
@@ -556,6 +564,7 @@ fn complex_covenant_package_roundtrip() {
         Covenant::new(
             CovenantType::MinInterestCoverage { threshold: 1.5 },
             Tenor::quarterly(),
+            "min_interest_coverage",
         )
         .with_consequence(CovenantConsequence::RateIncrease { bp_increase: 100.0 })
         .with_consequence(CovenantConsequence::BlockDistributions),
@@ -567,6 +576,7 @@ fn complex_covenant_package_roundtrip() {
         Covenant::new(
             CovenantType::MaxSeniorLeverage { threshold: 3.0 },
             Tenor::quarterly(),
+            "max_senior_leverage",
         )
         .with_springing_condition(SpringingCondition {
             metric_id: CovenantMetricId::from("revolver_utilization"),
@@ -582,6 +592,7 @@ fn complex_covenant_package_roundtrip() {
                 restriction: "No additional secured debt without consent".to_string(),
             },
             Tenor::annual(),
+            "negative",
         )
         .with_scope(CovenantScope::Incurrence),
         CovenantMetricId::from("negative_debt_incurrence"),
@@ -595,6 +606,7 @@ fn complex_covenant_package_roundtrip() {
                 limit: 50_000_000.0,
             },
             Tenor::quarterly(),
+            "basket",
         ),
         CovenantMetricId::from("permitted_investments"),
     ));

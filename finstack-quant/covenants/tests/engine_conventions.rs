@@ -124,6 +124,7 @@ fn duplicate_instance_keys_are_rejected_at_evaluation() {
         Covenant::new(
             CovenantType::MinDscr { threshold: 1.05 },
             Tenor::quarterly(),
+            "min_dscr",
         ),
         CovenantMetricId::from("dscr"),
     ));
@@ -131,6 +132,7 @@ fn duplicate_instance_keys_are_rejected_at_evaluation() {
         Covenant::new(
             CovenantType::MinDscr { threshold: 1.25 },
             Tenor::quarterly(),
+            "min_dscr",
         ),
         CovenantMetricId::from("dscr"),
     ));
@@ -152,6 +154,7 @@ fn negative_ebitda_leverage_breaches_max_ratio_covenant() {
         Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.0 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         ),
         CovenantMetricId::from("debt_to_ebitda"),
     ));
@@ -185,6 +188,7 @@ fn negative_metric_still_passes_custom_maximum() {
                 test: ThresholdTest::Maximum(0.5),
             },
             Tenor::quarterly(),
+            "custom",
         ),
         CovenantMetricId::from("net_exposure"),
     ));
@@ -209,6 +213,7 @@ fn relative_headroom_keeps_sign_for_negative_threshold() {
                 test: ThresholdTest::Maximum(-1.0),
             },
             Tenor::quarterly(),
+            "custom",
         ),
         CovenantMetricId::from("net_position"),
     ));
@@ -244,6 +249,7 @@ fn persistent_breach_is_one_episode_with_one_consequence_application() {
         Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.0 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         )
         .with_cure_period(Some(30))
         .with_consequence(CovenantConsequence::RateIncrease { bp_increase: 200.0 }),
@@ -295,6 +301,7 @@ fn recovery_before_cure_deadline_marks_breach_cured() {
         Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.0 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         )
         .with_cure_period(Some(30))
         .with_consequence(CovenantConsequence::Default),
@@ -336,6 +343,7 @@ fn validation_rejects_negative_cure_duplicate_schedule_and_overlapping_windows()
         Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.0 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         )
         .with_cure_period(Some(-1)),
         CovenantMetricId::from("debt_to_ebitda"),
@@ -354,6 +362,7 @@ fn validation_rejects_negative_cure_duplicate_schedule_and_overlapping_windows()
         Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.0 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         ),
         CovenantMetricId::from("debt_to_ebitda"),
     );
@@ -377,6 +386,7 @@ fn window_fallback_to_base_specs_is_explicit() {
         Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.0 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         ),
         CovenantMetricId::from("debt_to_ebitda"),
     ));
@@ -387,6 +397,7 @@ fn window_fallback_to_base_specs_is_explicit() {
             Covenant::new(
                 CovenantType::MinInterestCoverage { threshold: 2.0 },
                 Tenor::quarterly(),
+                "min_interest_coverage",
             ),
             CovenantMetricId::from("interest_coverage"),
         )],

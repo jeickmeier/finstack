@@ -831,6 +831,7 @@ mod tests {
             crate::engine::Covenant::new(
                 CovenantType::MaxDebtToEbitda { threshold: 5.0 },
                 finstack_quant_core::dates::Tenor::quarterly(),
+                "max_debt_ebitda",
             ),
             "debt_to_ebitda",
         );
@@ -862,6 +863,7 @@ mod tests {
             crate::engine::Covenant::new(
                 CovenantType::MaxDebtToEbitda { threshold: 1.0 },
                 finstack_quant_core::dates::Tenor::quarterly(),
+                "max_debt_ebitda",
             ),
             "debt_to_ebitda",
         );
@@ -891,6 +893,7 @@ mod tests {
             crate::engine::Covenant::new(
                 CovenantType::MaxDebtToEbitda { threshold: 4.0 },
                 finstack_quant_core::dates::Tenor::quarterly(),
+                "max_debt_ebitda",
             ),
             "debt_to_ebitda",
         );
@@ -921,6 +924,7 @@ mod tests {
             crate::engine::Covenant::new(
                 CovenantType::MaxDebtToEbitda { threshold: 4.0 },
                 finstack_quant_core::dates::Tenor::quarterly(),
+                "max_debt_ebitda",
             ),
             "debt_to_ebitda",
         );
@@ -951,6 +955,7 @@ mod tests {
             crate::engine::Covenant::new(
                 CovenantType::MaxDebtToEbitda { threshold: 4.0 },
                 finstack_quant_core::dates::Tenor::quarterly(),
+                "max_debt_ebitda",
             ),
             "debt_to_ebitda",
         );
@@ -996,6 +1001,7 @@ mod tests {
             crate::engine::Covenant::new(
                 CovenantType::MaxDebtToEbitda { threshold: 4.0 },
                 finstack_quant_core::dates::Tenor::quarterly(),
+                "max_debt_ebitda",
             ),
             "debt_to_ebitda",
         ));
@@ -1027,6 +1033,7 @@ mod tests {
             crate::engine::Covenant::new(
                 CovenantType::MaxDebtToEbitda { threshold: 4.0 },
                 finstack_quant_core::dates::Tenor::quarterly(),
+                "max_debt_ebitda",
             ),
             "debt_to_ebitda",
         ));
@@ -1034,6 +1041,7 @@ mod tests {
             crate::engine::Covenant::new(
                 CovenantType::MinInterestCoverage { threshold: 2.0 },
                 finstack_quant_core::dates::Tenor::quarterly(),
+                "min_interest_coverage",
             ),
             "interest_coverage",
         ));
@@ -1089,6 +1097,7 @@ mod tests {
         let covenant = crate::engine::Covenant::new(
             crate::engine::CovenantType::MaxDebtToEbitda { threshold: 3.0 },
             finstack_quant_core::dates::Tenor::quarterly(),
+            "max_debt_ebitda",
         );
         let spec = CovenantSpec {
             covenant,
@@ -1123,6 +1132,7 @@ mod tests {
             crate::engine::Covenant::new(
                 CovenantType::MaxDebtToEbitda { threshold: 1.0 },
                 finstack_quant_core::dates::Tenor::quarterly(),
+                "max_debt_ebitda",
             ),
             "debt_to_ebitda",
         );
@@ -1238,6 +1248,7 @@ mod tests {
             crate::engine::Covenant::new(
                 CovenantType::MaxDebtToEbitda { threshold: 4.0 },
                 finstack_quant_core::dates::Tenor::quarterly(),
+                "max_debt_ebitda",
             ),
             "debt_to_ebitda",
         );

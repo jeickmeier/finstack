@@ -489,6 +489,7 @@ mod tests {
             covenant: Covenant::new(
                 CovenantType::MaxDebtToEbitda { threshold: 4.0 },
                 Tenor::quarterly(),
+                "max_debt_ebitda",
             ),
             metric_id: Some(CovenantMetricId::from("NetDebtEbitda")),
             threshold_schedule: None,
@@ -527,6 +528,7 @@ mod tests {
         let covenant = Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.0 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         );
         let spec = CovenantSpec {
             covenant,

@@ -11,14 +11,16 @@ use finstack_quant_core::dates::Tenor;
 
 fn maintenance(cov_type: CovenantType, frequency: Tenor, metric: &str) -> CovenantSpec {
     CovenantSpec::with_metric(
-        Covenant::new(cov_type, frequency).with_scope(CovenantScope::Maintenance),
+        Covenant::new(cov_type.clone(), frequency, cov_type.covenant_id())
+            .with_scope(CovenantScope::Maintenance),
         metric,
     )
 }
 
 fn incurrence(cov_type: CovenantType, frequency: Tenor, metric: &str) -> CovenantSpec {
     CovenantSpec::with_metric(
-        Covenant::new(cov_type, frequency).with_scope(CovenantScope::Incurrence),
+        Covenant::new(cov_type.clone(), frequency, cov_type.covenant_id())
+            .with_scope(CovenantScope::Incurrence),
         metric,
     )
 }
@@ -180,7 +182,7 @@ pub fn real_estate(min_dscr: f64, min_debt_yield: f64, max_ltv: f64) -> Vec<Cove
             );
             // Two Custom covenants share covenant_id "custom"; label them so
             // their reports/breaches don't collide.
-            s.covenant = s.covenant.with_label("min_debt_yield");
+            s.covenant.label = "min_debt_yield".to_string();
             s
         },
         {
@@ -192,7 +194,7 @@ pub fn real_estate(min_dscr: f64, min_debt_yield: f64, max_ltv: f64) -> Vec<Cove
                 Tenor::quarterly(),
                 "ltv",
             );
-            s.covenant = s.covenant.with_label("max_ltv");
+            s.covenant.label = "max_ltv".to_string();
             s.covenant
                 .consequences
                 .push(CovenantConsequence::CashSweep {
@@ -241,7 +243,7 @@ pub fn project_finance(
                 Tenor::quarterly(),
                 "dscr",
             );
-            s.covenant = s.covenant.with_label("min_dscr_default");
+            s.covenant.label = "min_dscr_default".to_string();
             s.covenant.cure_period_days = Some(60);
             s.covenant.consequences.push(CovenantConsequence::Default);
             s
@@ -254,7 +256,7 @@ pub fn project_finance(
                 Tenor::quarterly(),
                 "dscr",
             );
-            s.covenant = s.covenant.with_label("min_dscr_lockup");
+            s.covenant.label = "min_dscr_lockup".to_string();
             s.covenant
                 .consequences
                 .push(CovenantConsequence::BlockDistributions);

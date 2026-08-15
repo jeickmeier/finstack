@@ -227,8 +227,8 @@ impl CovenantEngine {
         // identity would silently overwrite each other in the report map and
         // make consequence resolution ambiguous (e.g. a distribution-lockup
         // breach resolving to a same-type covenant carrying a Default
-        // consequence). Same-type covenants must be disambiguated via
-        // [`Covenant::with_label`].
+        // consequence). Same-type covenants are disambiguated by their
+        // required [`Covenant::label`].
         {
             let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
             for spec in specs {
@@ -236,7 +236,7 @@ impl CovenantEngine {
                 if !seen.insert(key.clone()) {
                     return Err(finstack_quant_core::Error::Validation(format!(
                         "duplicate covenant instance key '{key}': covenants sharing a type must \
-                         be disambiguated with Covenant::with_label",
+                         carry distinct labels",
                     )));
                 }
             }

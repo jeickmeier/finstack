@@ -41,6 +41,30 @@ attributes and no `serde(alias)`, so none of this was annotation-visible.
   only the input struct.
 - `arrow` no longer enables the `ipc` feature (no IPC code remains).
 
+**Breaking (Rust behavior) — wave 10: silent degradation becomes an error**
+
+- `BermudanSwaptionPricerConfig`, `CheyetteRoughConfig` and `LmmBermudanConfig`
+  default `enforce_calibration` to **true**. Pricing off the generic starting
+  parameters now errors; opting out is explicit.
+- Hull-White swaption calibration **rejects** a malformed per-quote accrual
+  schedule instead of silently substituting the synthetic constant-dt recipe,
+  which calibrated to a different instrument than the caller described. The
+  `schedule_fallback_count` / `schedule_fallback_quotes` report metadata is
+  gone; `schedule_source` is now exactly what the caller supplied.
+- `Swaption::validate` no longer has the undocumented "compatibility date"
+  escape that allowed an expiry up to 5 business days **after** `swap_start`.
+  Expiry must be on or before the swap start. This corrected one golden
+  fixture whose expiry (2027-05-08, a Saturday) postdated its swap start:
+  expiry moved to the swap start 2027-05-05 and its NPV re-pinned
+  2,278,477.91 -> 2,259,795.96 (-0.82%, three fewer days of optionality).
+- `CashFlowSchedule::to_period_dataframe` requires `meta.issue_date`. Inferring
+  the funding anchor from the earliest flow silently anchored accrual to a
+  coupon date rather than to issuance.
+- `Covenant.label` is required and `Covenant::new` takes it. `None` fell back
+  to the discriminant-only `covenant_id`, so two covenants of the same type
+  collided in compliance reports and breach tracking. `Covenant::with_label`
+  is removed.
+
 **Breaking (Rust) — wave 9: `Instrument` trait**
 
 - `Instrument::market_dependencies` is now a **required** method. Its old

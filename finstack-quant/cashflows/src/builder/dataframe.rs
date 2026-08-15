@@ -476,15 +476,18 @@ impl CashFlowSchedule {
         };
         let disc_day_count_ctx = day_count_context;
 
-        // Builder schedules carry an explicit issue date. Directly constructed
-        // schedules remain supported by treating their earliest canonical flow
-        // date as the funding anchor, matching the historical DataFrame API.
-        let funding_anchor = self
-            .meta
-            .issue_date
-            .or_else(|| self.flows.iter().map(|flow| flow.date).min());
-        let Some(funding_anchor) = funding_anchor else {
+        // The funding anchor is the schedule's issue date. Inferring it from
+        // the earliest flow silently anchors accrual to a coupon date rather
+        // than to issuance, so it must be stated.
+        if self.flows.is_empty() {
             return Ok(());
+        }
+        let Some(funding_anchor) = self.meta.issue_date else {
+            return Err(finstack_quant_core::Error::Validation(
+                "cashflow schedule has no issue_date; set it on the schedule metadata to \
+                 anchor accrual and funding columns"
+                    .to_string(),
+            ));
         };
 
         // Curve base, day count, and as-of survival are row-independent.
@@ -663,6 +666,15 @@ impl CashFlowSchedule {
 
 #[cfg(test)]
 mod tests {
+
+    /// Anchor the schedule at its earliest flow. Production requires an
+    /// explicit `issue_date`; these fixtures state the anchor they intend.
+    fn meta_anchored(flows: &[CashFlow]) -> CashFlowMeta {
+        CashFlowMeta {
+            issue_date: flows.iter().map(|f| f.date).min(),
+            ..CashFlowMeta::default()
+        }
+    }
     use super::*;
     use crate::builder::schedule::{
         CashFlowMeta, CashFlowSchedule, PvCreditAdjustment, PvDiscountSource,
@@ -721,10 +733,10 @@ mod tests {
             ),
         ];
         let schedule = CashFlowSchedule {
+            meta: meta_anchored(&flows),
             flows,
             notional: Notional::par(1_000.0, Currency::USD),
             day_count: DayCount::Act365F,
-            meta: CashFlowMeta::default(),
         };
 
         // Market context with flat discount curve (df = 1.0)
@@ -793,10 +805,10 @@ mod tests {
             ),
         ];
         let schedule = CashFlowSchedule {
+            meta: meta_anchored(&flows),
             flows,
             notional: Notional::par(1_000_000.0, Currency::USD),
             day_count: DayCount::Act365F,
-            meta: CashFlowMeta::default(),
         };
 
         let curve = DiscountCurve::builder("USD-OIS")
@@ -868,10 +880,10 @@ mod tests {
             ),
         ];
         let schedule = CashFlowSchedule {
+            meta: meta_anchored(&flows),
             flows,
             notional: Notional::par(initial_amount, Currency::USD),
             day_count: DayCount::Act365F,
-            meta: CashFlowMeta::default(),
         };
 
         // Market context
@@ -936,10 +948,10 @@ mod tests {
             None,
         )];
         let schedule = CashFlowSchedule {
+            meta: meta_anchored(&flows),
             flows,
             notional: Notional::par(1_000.0, Currency::USD),
             day_count: DayCount::Act365F,
-            meta: CashFlowMeta::default(),
         };
 
         let curve = DiscountCurve::builder("USD-OIS")
@@ -985,7 +997,7 @@ mod tests {
             flows: flows.clone(),
             notional: Notional::par(1_000.0, Currency::USD),
             day_count: DayCount::Act365F,
-            meta: CashFlowMeta::default(),
+            meta: meta_anchored(&flows),
         };
 
         let curve = DiscountCurve::builder("USD-OIS")
@@ -1044,10 +1056,10 @@ mod tests {
             ),
         ];
         let schedule = CashFlowSchedule {
+            meta: meta_anchored(&flows),
             flows,
             notional: Notional::par(1_000.0, Currency::USD),
             day_count: DayCount::Act365F,
-            meta: CashFlowMeta::default(),
         };
         let curve = DiscountCurve::builder("USD-OIS")
             .base_date(base)
@@ -1077,18 +1089,19 @@ mod tests {
     #[test]
     fn dataframe_rejects_invalid_period_contract() {
         let base = d(2025, 1, 1);
+        let flows = vec![CashFlow::new(
+            d(2025, 2, 15),
+            None,
+            Money::new(100.0, Currency::USD),
+            CFKind::Fixed,
+            0.25,
+            None,
+        )];
         let schedule = CashFlowSchedule {
-            flows: vec![CashFlow::new(
-                d(2025, 2, 15),
-                None,
-                Money::new(100.0, Currency::USD),
-                CFKind::Fixed,
-                0.25,
-                None,
-            )],
+            meta: meta_anchored(&flows),
+            flows,
             notional: Notional::par(1_000.0, Currency::USD),
             day_count: DayCount::Act365F,
-            meta: CashFlowMeta::default(),
         };
         let curve = DiscountCurve::builder("USD-OIS")
             .base_date(base)
@@ -1153,10 +1166,10 @@ mod tests {
             ),
         ];
         let schedule = CashFlowSchedule {
+            meta: meta_anchored(&flows),
             flows,
             notional: Notional::par(1_000.0, Currency::USD),
             day_count: DayCount::Act365F,
-            meta: CashFlowMeta::default(),
         };
         let disc = DiscountCurve::builder("USD-OIS")
             .base_date(h_base)
@@ -1234,10 +1247,10 @@ mod tests {
             ),
         ];
         let schedule = CashFlowSchedule {
+            meta: meta_anchored(&flows),
             flows,
             notional: Notional::par(1_000.0, Currency::USD),
             day_count: DayCount::Act365F,
-            meta: CashFlowMeta::default(),
         };
         let disc = DiscountCurve::builder("USD-OIS")
             .base_date(base)
@@ -1336,10 +1349,10 @@ mod tests {
             ),
         ];
         let schedule = CashFlowSchedule {
+            meta: meta_anchored(&flows),
             flows,
             notional: Notional::par(initial, Currency::USD),
             day_count: DayCount::Act365F,
-            meta: CashFlowMeta::default(),
         };
 
         let curve = DiscountCurve::builder("USD-OIS")
@@ -1496,10 +1509,10 @@ mod tests {
             projected_index_rate: Some(0.0375),
         })];
         let schedule = CashFlowSchedule {
+            meta: meta_anchored(&flows),
             flows,
             notional: Notional::par(1_000.0, Currency::USD),
             day_count: DayCount::Act365F,
-            meta: CashFlowMeta::default(),
         };
 
         let curve = DiscountCurve::builder("USD-OIS")
@@ -1556,10 +1569,10 @@ mod tests {
             ),
         ];
         let schedule = CashFlowSchedule {
+            meta: meta_anchored(&flows),
             flows,
             notional: Notional::par(1_000.0, Currency::USD),
             day_count: DayCount::Act365F,
-            meta: CashFlowMeta::default(),
         };
 
         let curve = DiscountCurve::builder("USD-OIS")
@@ -1630,10 +1643,10 @@ mod tests {
             Some(0.04),
         )];
         let schedule = CashFlowSchedule {
+            meta: meta_anchored(&flows),
             flows,
             notional: Notional::par(1_000.0, Currency::USD),
             day_count: DayCount::ActActIsma,
-            meta: CashFlowMeta::default(),
         };
 
         let curve = DiscountCurve::builder("USD-OIS")

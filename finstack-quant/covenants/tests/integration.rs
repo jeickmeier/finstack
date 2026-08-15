@@ -101,6 +101,7 @@ fn covenant_engine_add_specs() {
         Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 5.0 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         ),
         CovenantMetricId::from("debt_to_ebitda"),
     ));
@@ -110,6 +111,7 @@ fn covenant_engine_add_specs() {
         Covenant::new(
             CovenantType::MinInterestCoverage { threshold: 1.5 },
             Tenor::quarterly(),
+            "min_interest_coverage",
         ),
         CovenantMetricId::from("interest_coverage"),
     ));
@@ -128,16 +130,16 @@ fn same_type_covenants_with_distinct_labels_do_not_collide() {
         Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.0 },
             Tenor::quarterly(),
-        )
-        .with_label("senior_leverage"),
+            "senior_leverage",
+        ),
         CovenantMetricId::from("debt_to_ebitda"),
     ));
     engine.add_spec(CovenantSpec::with_metric(
         Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.0 },
             Tenor::quarterly(),
-        )
-        .with_label("total_leverage"),
+            "total_leverage",
+        ),
         CovenantMetricId::from("debt_to_ebitda"),
     ));
 
@@ -166,12 +168,14 @@ fn covenant_description_formatting() {
     let leverage = Covenant::new(
         CovenantType::MaxDebtToEbitda { threshold: 4.5 },
         Tenor::quarterly(),
+        "max_debt_ebitda",
     );
     assert_eq!(leverage.description(), "Debt/EBITDA <= 4.50x");
 
     let coverage = Covenant::new(
         CovenantType::MinInterestCoverage { threshold: 2.0 },
         Tenor::quarterly(),
+        "min_interest_coverage",
     );
     assert_eq!(coverage.description(), "Interest Coverage >= 2.00x");
 
@@ -181,6 +185,7 @@ fn covenant_description_formatting() {
             test: ThresholdTest::Minimum(1.2),
         },
         Tenor::quarterly(),
+        "custom",
     );
     assert_eq!(custom.description(), "DSCR >= 1.20");
 }
@@ -250,6 +255,7 @@ fn covenant_with_multiple_consequences() {
     let covenant = Covenant::new(
         CovenantType::MaxDebtToEbitda { threshold: 5.0 },
         Tenor::quarterly(),
+        "max_debt_ebitda",
     )
     .with_consequence(CovenantConsequence::RateIncrease { bp_increase: 100.0 })
     .with_consequence(CovenantConsequence::BlockDistributions)
@@ -266,6 +272,7 @@ fn covenant_scope_maintenance_vs_incurrence() {
     let maintenance = Covenant::new(
         CovenantType::MaxDebtToEbitda { threshold: 5.0 },
         Tenor::quarterly(),
+        "max_debt_ebitda",
     )
     .with_scope(CovenantScope::Maintenance);
 
@@ -274,6 +281,7 @@ fn covenant_scope_maintenance_vs_incurrence() {
     let incurrence = Covenant::new(
         CovenantType::MaxTotalLeverage { threshold: 6.0 },
         Tenor::annual(),
+        "max_total_leverage",
     )
     .with_scope(CovenantScope::Incurrence);
 
@@ -290,6 +298,7 @@ fn basket_covenant_utilization() {
             limit: 50_000_000.0,
         },
         Tenor::quarterly(),
+        "basket",
     );
 
     assert_eq!(

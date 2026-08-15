@@ -381,6 +381,7 @@ fn test_lsmc_vs_tree_sanity() {
     // Price with tree
     let tree_pricer = BermudanSwaptionPricer::tree_with_config(BermudanSwaptionPricerConfig {
         tree_steps: 100,
+        enforce_calibration: false,
         ..Default::default()
     });
     let tree_result = tree_pricer.price_dyn(&swaption, &market, as_of);
@@ -398,6 +399,7 @@ fn test_lsmc_vs_tree_sanity() {
     let lsmc_pricer = BermudanSwaptionPricer::lsmc_with_config(BermudanSwaptionPricerConfig {
         mc_paths: 10_000,
         mc_seed: 42,
+        enforce_calibration: false,
         ..Default::default()
     });
     let lsmc_result = lsmc_pricer.price_dyn(&swaption, &market, as_of);
@@ -506,6 +508,7 @@ fn test_lsmc_determinism() {
     let pricer1 = BermudanSwaptionPricer::lsmc_with_config(BermudanSwaptionPricerConfig {
         mc_paths: 5_000,
         mc_seed: 12345,
+        enforce_calibration: false,
         ..Default::default()
     });
     let result1 = pricer1
@@ -515,6 +518,7 @@ fn test_lsmc_determinism() {
     let pricer2 = BermudanSwaptionPricer::lsmc_with_config(BermudanSwaptionPricerConfig {
         mc_paths: 5_000,
         mc_seed: 12345,
+        enforce_calibration: false,
         ..Default::default()
     });
     let result2 = pricer2
@@ -547,6 +551,7 @@ fn test_lsmc_different_seeds() {
     let pricer1 = BermudanSwaptionPricer::lsmc_with_config(BermudanSwaptionPricerConfig {
         mc_paths: 5_000,
         mc_seed: 111,
+        enforce_calibration: false,
         ..Default::default()
     });
     let result1 = pricer1
@@ -556,6 +561,7 @@ fn test_lsmc_different_seeds() {
     let pricer2 = BermudanSwaptionPricer::lsmc_with_config(BermudanSwaptionPricerConfig {
         mc_paths: 5_000,
         mc_seed: 222,
+        enforce_calibration: false,
         ..Default::default()
     });
     let result2 = pricer2
@@ -651,12 +657,11 @@ fn test_lsmc_refuses_uncalibrated_default_when_require_calibration_set() {
     );
 }
 
-/// Sanity: the permissive (non-require_calibration) path still prices
-/// successfully with the uncalibrated default. This preserves the
-/// existing direct-constructor behaviour for tests and bespoke
-/// workflows.
+/// Sanity: opting out of the calibration guard explicitly still prices
+/// successfully off the uncalibrated parameters, for tests and bespoke
+/// workflows. The guard itself is on by default.
 #[test]
-fn test_permissive_default_still_prices_with_warning() {
+fn test_explicit_opt_out_still_prices_with_warning() {
     let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("valid");
     let swap_start = as_of;
     let swap_end = Date::from_calendar_date(2030, Month::January, 1).expect("valid");
@@ -666,15 +671,16 @@ fn test_permissive_default_still_prices_with_warning() {
 
     let market = build_market_context();
 
-    // No enforce_calibration — should succeed (with a tracing::warn!).
+    // Explicit opt-out — should succeed (with a tracing::warn!).
     let pricer = BermudanSwaptionPricer::lsmc_with_config(BermudanSwaptionPricerConfig {
         mc_paths: 1_000,
         mc_seed: 42,
+        enforce_calibration: false,
         ..Default::default()
     });
     let result = pricer
         .price_dyn(&swaption, &market, as_of)
-        .expect("permissive default should still price");
+        .expect("explicit opt-out should still price");
     assert!(
         result.value.amount().is_finite(),
         "permissive default must produce a finite price"

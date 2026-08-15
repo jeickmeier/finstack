@@ -11,9 +11,7 @@ use crate::instruments::rates::irs::{
 };
 use crate::models::SABRModel;
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::{
-    BusinessDayConvention, Date, DayCount, HolidayCalendar, StubKind, Tenor,
-};
+use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, StubKind, Tenor};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::traits::Discounting;
 use finstack_quant_core::money::Money;
@@ -149,31 +147,6 @@ pub(super) fn vanilla_underlier(
     (fixed, float)
 }
 
-fn business_day_shift(from: Date, to: Date, calendar: &dyn HolidayCalendar) -> Option<i32> {
-    let calendar_days = (to - from).whole_days();
-    if calendar_days.unsigned_abs() > 31 {
-        return None;
-    }
-    let direction = calendar_days.signum();
-    let mut current = from;
-    let mut business_days = 0;
-    while current != to {
-        current += time::Duration::days(direction);
-        if calendar.is_business_day(current) {
-            business_days += direction as i32;
-        }
-    }
-    Some(business_days)
-}
-
-fn fixed_leg_calendar(fixed: &FixedLegSpec) -> Result<&'static dyn HolidayCalendar> {
-    let calendar_id = fixed
-        .calendar_id
-        .as_deref()
-        .unwrap_or(crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID);
-    crate::cashflow::builder::calendar::resolve_calendar_strict(calendar_id)
-}
-
 impl Swaption {
     /// Fixed rate of the underlying swap.
     pub fn get_strike(&self) -> Decimal {
@@ -234,19 +207,11 @@ impl Swaption {
         validation::validate_money_finite(self.notional, "swaption notional")?;
         validation::validate_money_gt(self.notional, 0.0, "swaption notional")?;
 
-        if self.expiry > self.get_swap_start() {
-            let calendar = fixed_leg_calendar(&self.underlying_fixed_leg)?;
-            let is_adjusted_compatibility_date =
-                business_day_shift(self.expiry, self.get_swap_start(), calendar)
-                    .is_some_and(|shift| (-5..0).contains(&shift));
-            if !is_adjusted_compatibility_date {
-                validation::validate_date_range_non_strict(
-                    self.expiry,
-                    self.get_swap_start(),
-                    "swaption expiry vs swap_start",
-                )?;
-            }
-        }
+        validation::validate_date_range_non_strict(
+            self.expiry,
+            self.get_swap_start(),
+            "swaption expiry vs swap_start",
+        )?;
         validation::validate_date_range_strict(
             self.get_swap_start(),
             self.get_swap_end(),

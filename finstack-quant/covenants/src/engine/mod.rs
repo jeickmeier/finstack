@@ -52,6 +52,7 @@ mod tests {
         let covenant = Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         );
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
         let mut engine = CovenantEngine::new();
@@ -69,6 +70,7 @@ mod tests {
         let covenant = Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         );
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
         let mut engine = CovenantEngine::new();
@@ -85,6 +87,7 @@ mod tests {
         let covenant = Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         );
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
         let mut engine = CovenantEngine::new();
@@ -100,6 +103,7 @@ mod tests {
         let covenant = Covenant::new(
             CovenantType::MinInterestCoverage { threshold: 2.0 },
             Tenor::quarterly(),
+            "min_interest_coverage",
         );
         let spec = CovenantSpec::with_metric(covenant, "interest_coverage");
         let mut engine = CovenantEngine::new();
@@ -115,6 +119,7 @@ mod tests {
         let covenant = Covenant::new(
             CovenantType::MinInterestCoverage { threshold: 2.0 },
             Tenor::quarterly(),
+            "min_interest_coverage",
         );
         let spec = CovenantSpec::with_metric(covenant, "interest_coverage");
         let mut engine = CovenantEngine::new();
@@ -130,6 +135,7 @@ mod tests {
         let mut covenant = Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         );
         covenant.is_active = false;
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
@@ -146,6 +152,7 @@ mod tests {
         let covenant = Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         );
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
         let mut engine = CovenantEngine::new();
@@ -168,6 +175,7 @@ mod tests {
         let covenant = Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         );
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
         let mut engine = CovenantEngine::new();
@@ -191,6 +199,7 @@ mod tests {
         let covenant = Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         );
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
         let mut engine = CovenantEngine::new();
@@ -208,6 +217,7 @@ mod tests {
         let covenant = Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         );
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
         let mut engine = CovenantEngine::new();
@@ -225,10 +235,12 @@ mod tests {
         let cov1 = Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         );
         let cov2 = Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 5.0 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         );
         let spec1 = CovenantSpec::with_metric(cov1, "debt_to_ebitda");
         let spec2 = CovenantSpec::with_metric(cov2, "debt_to_ebitda");
@@ -245,13 +257,13 @@ mod tests {
         let cov1 = Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
-        )
-        .with_label("senior");
+            "senior",
+        );
         let cov2 = Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 6.0 },
             Tenor::quarterly(),
-        )
-        .with_label("total");
+            "total",
+        );
         let spec1 = CovenantSpec::with_metric(cov1, "debt_to_ebitda");
         let spec2 = CovenantSpec::with_metric(cov2, "debt_to_ebitda");
         let mut engine = CovenantEngine::new();
@@ -316,6 +328,7 @@ mod tests {
         let covenant = Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         );
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
         let mut engine = CovenantEngine::new();
@@ -335,6 +348,7 @@ mod tests {
         let covenant = Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         )
         .with_cure_period(Some(90));
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
@@ -358,6 +372,7 @@ mod tests {
         let covenant = Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         )
         .with_cure_period(Some(-1));
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
@@ -371,6 +386,7 @@ mod tests {
         let covenant = Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         );
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
         let mut engine = CovenantEngine::new();
@@ -427,16 +443,17 @@ mod tests {
         let cov = Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
-        )
-        .with_label("senior");
+            "senior",
+        );
         assert_eq!(cov.instance_key(), "senior");
     }
 
     #[test]
-    fn instance_key_falls_back_to_covenant_id() {
+    fn instance_key_is_the_declared_label() {
         let cov = Covenant::new(
             CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
+            "max_debt_ebitda",
         );
         assert_eq!(cov.instance_key(), "max_debt_ebitda");
     }

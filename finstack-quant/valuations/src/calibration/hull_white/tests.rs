@@ -1027,11 +1027,8 @@ fn hw1f_zcb_option_caplet_prices_above_old_approximation() {
 /// is stamped in the report metadata instead of silently claiming
 /// real-day-count schedules.
 #[test]
-fn swaption_schedule_fallback_is_stamped() {
+fn swaption_malformed_schedule_is_rejected() {
     let df_fn = flat_df(0.03);
-    // A declining vol term structure identifies an interior mean-reversion
-    // speed; a flat one drives κ to its lower rail, which the at-bound
-    // guard now (correctly) rejects.
     let quotes = vec![
         SwaptionQuote {
             expiry: 1.0,
@@ -1047,55 +1044,23 @@ fn swaption_schedule_fallback_is_stamped() {
         },
     ];
     // First schedule valid (10 semi-annual accruals), second malformed
-    // (wrong length).
+    // (wrong length). Supplying schedules asserts they are the contractual
+    // accruals, so a malformed one is rejected rather than silently swapped
+    // for the synthetic constant-dt recipe.
     let schedules = vec![vec![0.5; 10], vec![0.5; 3]];
-    let (_, report) = calibrate_hull_white_to_swaptions_with_schedules(
+    let err = calibrate_hull_white_to_swaptions_with_schedules(
         &df_fn,
         &quotes,
         SwapFrequency::SemiAnnual,
         &schedules,
         None,
     )
-    .expect("calibration should succeed with fallback");
-    assert_eq!(
-        report.metadata.get("schedule_source").map(String::as_str),
-        Some("mixed"),
-        "one fallback quote must downgrade schedule_source to 'mixed'"
-    );
-    assert_eq!(
-        report
-            .metadata
-            .get("schedule_fallback_count")
-            .map(String::as_str),
-        Some("1")
-    );
+    .expect_err("a malformed per-quote schedule must be rejected");
+    let msg = err.to_string();
     assert!(
-        report
-            .metadata
-            .get("schedule_fallback_quotes")
-            .is_some_and(|q| q.contains("5Yx5Y")),
-        "fallback quote label must be listed: {:?}",
-        report.metadata.get("schedule_fallback_quotes")
+        msg.contains("5Yx5Y") && msg.contains("malformed"),
+        "error must name the offending quote and the cause: {msg}"
     );
-
-    // All-valid schedules keep the real_day_count stamp.
-    let schedules_ok = vec![vec![0.5; 10], vec![0.5; 10]];
-    let (_, report_ok) = calibrate_hull_white_to_swaptions_with_schedules(
-        &df_fn,
-        &quotes,
-        SwapFrequency::SemiAnnual,
-        &schedules_ok,
-        None,
-    )
-    .expect("calibration should succeed");
-    assert_eq!(
-        report_ok
-            .metadata
-            .get("schedule_source")
-            .map(String::as_str),
-        Some("real_day_count")
-    );
-    assert!(!report_ok.metadata.contains_key("schedule_fallback_count"));
 }
 
 /// Fixed-κ guardrail parity: κ outside the LM box-constraint band is

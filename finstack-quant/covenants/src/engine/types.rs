@@ -51,18 +51,20 @@ pub struct Covenant {
     ///
     /// [`CovenantType::covenant_id`] is discriminant-only, so two covenants of
     /// the same type (e.g. a senior and a total leverage test, or two baskets)
-    /// would otherwise collide in compliance reports and breach tracking. Set a
-    /// distinct label here and waivers/breaches will key off it; when `None`,
-    /// the identity falls back to the type's `covenant_id` (legacy behavior).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub label: Option<String>,
+    /// would collide in compliance reports and breach tracking without a
+    /// distinct label. Waivers and breaches key off it.
+    pub label: String,
 }
 
 impl Covenant {
-    /// Create a new covenant with default cure period
+    /// Create a new covenant with default cure period.
+    ///
+    /// `label` is the covenant's identity in reports, breaches and waivers;
+    /// two covenants of the same type must carry different labels.
     pub fn new(
         covenant_type: CovenantType,
         test_frequency: finstack_quant_core::dates::Tenor,
+        label: impl Into<String>,
     ) -> Self {
         Self {
             covenant_type,
@@ -72,7 +74,7 @@ impl Covenant {
             is_active: true,
             scope: CovenantScope::Maintenance,
             springing_condition: None,
-            label: None,
+            label: label.into(),
         }
     }
 
@@ -104,13 +106,6 @@ impl Covenant {
         self
     }
 
-    /// Set an instance label disambiguating covenants that share a type.
-    #[must_use]
-    pub fn with_label(mut self, label: impl Into<String>) -> Self {
-        self.label = Some(label.into());
-        self
-    }
-
     /// Get human-readable description of the covenant
     pub fn description(&self) -> String {
         self.covenant_type.to_string()
@@ -118,14 +113,11 @@ impl Covenant {
 
     /// Stable identity key for reports, breaches, and waivers.
     ///
-    /// Returns the instance [`label`](Self::label) if set, otherwise falls back
-    /// to the type's discriminant-only [`CovenantType::covenant_id`]. Using this
-    /// (rather than `covenant_id` alone) prevents two same-type covenants from
-    /// silently overwriting each other in reports/breach tracking.
+    /// This is the instance [`label`](Self::label). Using it (rather than the
+    /// discriminant-only `covenant_id`) prevents two same-type covenants from
+    /// silently overwriting each other in reports and breach tracking.
     pub fn instance_key(&self) -> String {
-        self.label
-            .clone()
-            .unwrap_or_else(|| self.covenant_type.covenant_id().to_string())
+        self.label.clone()
     }
 
     pub(crate) fn validate(&self) -> finstack_quant_core::Result<()> {

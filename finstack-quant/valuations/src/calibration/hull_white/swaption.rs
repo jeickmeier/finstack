@@ -102,26 +102,23 @@ fn calibrate_hull_white_to_swaptions_core(
     let mut prepared = Vec::with_capacity(n_quotes);
     let mut fwd_swap_rates = Vec::with_capacity(n_quotes);
     let mut vega_floor_hits: Vec<String> = Vec::new();
-    let mut schedule_fallbacks: Vec<String> = Vec::new();
     for (idx, q) in quotes.iter().enumerate() {
         // Validate the per-quote schedule up-front with the same predicate
-        // the pricer uses (`valid_swap_accruals`), so the metadata stamp
-        // reflects what the calibration actually consumed. A malformed
-        // schedule falls back to the synthetic constant-dt recipe — that
-        // fallback is kept, but it is no longer silent: it is warned about
-        // and stamped per quote in the report metadata.
+        // the pricer uses (`valid_swap_accruals`). A caller that supplies
+        // schedules is asserting they are the contractual accruals; a
+        // malformed one is rejected rather than silently swapped for the
+        // synthetic constant-dt recipe, which would calibrate to a different
+        // instrument than the caller described.
         let n_periods = (q.tenor * ppy as f64).round().max(1.0) as usize;
         let accruals_slice =
             schedules.and_then(|s| valid_swap_accruals(Some(s[idx].as_slice()), n_periods));
         if schedules.is_some() && accruals_slice.is_none() {
-            let label = format!("{}Yx{}Y", q.expiry, q.tenor);
-            tracing::warn!(
-                quote = label.as_str(),
-                "HW1F swaption calibration: per-quote accrual schedule is malformed \
-                 (wrong length or non-positive entries); falling back to the synthetic \
-                 constant-dt schedule for this quote"
-            );
-            schedule_fallbacks.push(label);
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "HW1F swaption calibration: per-quote accrual schedule for {}Yx{}Y is \
+                 malformed (expected {n_periods} positive entries); supply contractual \
+                 accruals or omit `schedules` to use the synthetic constant-dt schedule",
+                q.expiry, q.tenor
+            )));
         }
         let (annuity, fwd_rate) = if let Some(accruals) = accruals_slice {
             compute_swap_annuity_and_rate_inner(df, q.expiry, q.tenor, ppy, Some(accruals))
@@ -198,26 +195,9 @@ fn calibrate_hull_white_to_swaptions_core(
         .with_metadata("swap_frequency", frequency.to_string())
         .with_metadata("vega_floor_hits", vega_floor_hits.len().to_string());
     if let Some(schedule_source) = schedule_source {
-        // Stamp the actual per-basket source: if any quote fell back to the
-        // synthetic schedule, the basket is "mixed" and the fallback quotes
-        // are listed so the analyst can see exactly which quotes were not
-        // priced on real day counts.
-        let actual_source = if schedule_fallbacks.is_empty() {
-            schedule_source.to_string()
-        } else if schedule_fallbacks.len() == quotes.len() {
-            "synthetic_constant_dt".to_string()
-        } else {
-            "mixed".to_string()
-        };
-        report = report.with_metadata("schedule_source", actual_source);
-        if !schedule_fallbacks.is_empty() {
-            report = report
-                .with_metadata(
-                    "schedule_fallback_count",
-                    schedule_fallbacks.len().to_string(),
-                )
-                .with_metadata("schedule_fallback_quotes", schedule_fallbacks.join("; "));
-        }
+        // Malformed schedules are rejected, so the stamped source is exactly
+        // what the caller supplied — no per-quote fallback can dilute it.
+        report = report.with_metadata("schedule_source", schedule_source.to_string());
     }
     if !vega_floor_hits.is_empty() {
         report = report.with_metadata("vega_floor_hits_detail", vega_floor_hits.join("; "));
