@@ -331,9 +331,11 @@ mod tests {
 
     #[test]
     fn validate_waterfall_spec_rejects_inverted_priority() {
-        // Sweep after Equity with positive ECF sweep is caught by WaterfallSpec::validate()
+        // Sweep after Equity is caught by WaterfallSpec::validate() once the
+        // required cash node and cash-capping priorities are present.
         let bad = serde_json::json!({
-            "priority_of_payments": ["equity", "sweep"],
+            "priority_of_payments": ["fees", "interest", "amortization", "equity", "sweep"],
+            "available_cash_node": "cash",
             "ecf_sweep": {
                 "ebitda_node": "ebitda",
                 "sweep_percentage": 0.5,
@@ -342,7 +344,14 @@ mod tests {
         let json = bad.to_string();
         let spec: finstack_quant_statements::capital_structure::WaterfallSpec =
             serde_json::from_str(&json).expect("parses");
-        assert!(spec.validate().is_err());
+        let err = spec
+            .validate()
+            .expect_err("equity before sweep should fail");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Equity") && msg.contains("last entry"),
+            "expected non-terminal equity error, got: {msg}"
+        );
     }
 
     #[test]
