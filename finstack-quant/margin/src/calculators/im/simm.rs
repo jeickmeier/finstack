@@ -1401,10 +1401,8 @@ mod tests {
 
     #[test]
     fn embedded_simm_registries_pass_validation() {
-        for version in [SimmVersion::V2_6] {
-            SimmCalculator::new(version)
-                .unwrap_or_else(|e| panic!("SIMM {version:?} should validate: {e}"));
-        }
+        SimmCalculator::new(SimmVersion::V2_6)
+            .expect("embedded SIMM v2.6 registry should validate");
     }
 
     #[test]
