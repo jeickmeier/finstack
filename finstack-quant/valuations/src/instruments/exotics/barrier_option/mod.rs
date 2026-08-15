@@ -30,7 +30,7 @@
 //! # See Also
 //!
 //! - [`BarrierOption`] for instrument struct
-//! - [`BarrierType`] for up/down and in/out classification
+//! - [`finstack_quant_core::types::BarrierType`] for up/down and in/out classification
 //! - [`models::closed_form::barrier`](crate::models::closed_form::barrier) for pricing
 
 pub(crate) mod metrics;
