@@ -578,8 +578,11 @@ fn unresolved_positions_always_included_in_affected() {
     );
 }
 
+/// `market_dependencies` is a required trait method, so an empty set is a
+/// positive declaration ("this instrument reads no market data"), not an
+/// unfilled default. Such a position is resolved and is repriced for no factor.
 #[test]
-fn empty_compatibility_dependencies_are_conservatively_unresolved() {
+fn empty_dependencies_are_resolved_and_never_affected() {
     let position = Position::new(
         "POS_DEFAULT_DEPS",
         "ENTITY_A",
@@ -598,13 +601,18 @@ fn empty_compatibility_dependencies_are_conservatively_unresolved() {
         .unwrap();
 
     let index = portfolio.dependency_index();
-    assert_eq!(index.unresolved(), &[0]);
-    assert_eq!(
-        index.affected_positions(&[MarketFactorKey::curve(
-            "USD-OIS".into(),
-            RatesCurveKind::Discount,
-        )]),
-        vec![0],
+    assert!(
+        index.unresolved().is_empty(),
+        "an explicit empty dependency set is resolved, not unresolved"
+    );
+    assert!(
+        index
+            .affected_positions(&[MarketFactorKey::curve(
+                "USD-OIS".into(),
+                RatesCurveKind::Discount,
+            )])
+            .is_empty(),
+        "a market-independent position must not be repriced for any factor"
     );
 }
 

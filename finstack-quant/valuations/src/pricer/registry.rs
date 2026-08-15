@@ -803,6 +803,15 @@ mod tests {
     );
 
     impl Priceable for InvalidTestInstrument {
+        /// Test mock: reads no market data.
+        fn market_dependencies(
+            &self,
+        ) -> finstack_quant_core::Result<
+            crate::instruments::common_impl::dependencies::MarketDependencies,
+        > {
+            Ok(crate::instruments::common_impl::dependencies::MarketDependencies::new())
+        }
+
         crate::impl_instrument_base!(InstrumentType::Bond);
 
         fn validate_invariants(&self) -> finstack_quant_core::Result<()> {
@@ -849,6 +858,15 @@ mod tests {
     );
 
     impl Priceable for RawLifecycleInstrument {
+        /// Test mock: reads no market data.
+        fn market_dependencies(
+            &self,
+        ) -> finstack_quant_core::Result<
+            crate::instruments::common_impl::dependencies::MarketDependencies,
+        > {
+            Ok(crate::instruments::common_impl::dependencies::MarketDependencies::new())
+        }
+
         crate::impl_instrument_base!(InstrumentType::Bond);
 
         fn resolve_pricing_as_of(

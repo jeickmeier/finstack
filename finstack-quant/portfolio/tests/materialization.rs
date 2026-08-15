@@ -704,6 +704,14 @@ finstack_quant_valuations::impl_empty_cashflow_provider!(
 );
 
 impl Instrument for NonSerializableInstrument {
+    /// Test mock: reads no market data.
+    fn market_dependencies(
+        &self,
+    ) -> finstack_quant_core::Result<finstack_quant_valuations::instruments::MarketDependencies>
+    {
+        Ok(finstack_quant_valuations::instruments::MarketDependencies::new())
+    }
+
     fn id(&self) -> &str {
         &self.id
     }

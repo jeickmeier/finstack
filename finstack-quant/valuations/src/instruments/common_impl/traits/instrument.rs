@@ -652,11 +652,9 @@ pub trait Instrument: CashflowProvider + Send + Sync {
 
     /// Compute the raw base present value and its reporting currency together.
     ///
-    /// The compatibility default invokes [`Instrument::base_value_raw`] to
-    /// preserve existing high-precision overrides, then invokes
-    /// [`Instrument::base_value`] only to discover the reporting currency.
-    /// Built-in instruments with a distinct raw kernel override this method so
-    /// both values are returned by one pricing call.
+    /// One pricing call yields both values. Instruments with a distinct
+    /// high-precision raw kernel override this so the unrounded value is
+    /// returned instead of the `Money`-rounded amount.
     ///
     /// # Arguments
     ///
@@ -670,17 +668,15 @@ pub trait Instrument: CashflowProvider + Send + Sync {
     /// # Errors
     ///
     /// Propagates market-data or pricing errors from
-    /// [`Instrument::base_value_raw`] or [`Instrument::base_value`] in the
-    /// default implementation, or from the instrument's combined raw pricing
-    /// kernel when overridden.
+    /// [`Instrument::base_value`], or from the instrument's combined raw
+    /// pricing kernel when overridden.
     fn base_value_raw_with_currency(
         &self,
         market: &MarketContext,
         as_of: Date,
     ) -> finstack_quant_core::Result<(f64, Currency)> {
-        let raw = self.base_value_raw(market, as_of)?;
-        let currency = self.base_value(market, as_of)?.currency();
-        Ok((raw, currency))
+        let value = self.base_value(market, as_of)?;
+        Ok((value.amount(), value.currency()))
     }
 
     /// Compute the present value as raw f64 (high precision path for risk calculations).
@@ -856,11 +852,10 @@ pub trait Instrument: CashflowProvider + Send + Sync {
 
     /// Unified market data dependencies for this instrument.
     ///
-    /// This is the canonical dependency surface and should be overridden by
-    /// all instruments to declare their market data needs.
-    fn market_dependencies(&self) -> finstack_quant_core::Result<MarketDependencies> {
-        Ok(MarketDependencies::new())
-    }
+    /// This is the canonical dependency surface: every instrument declares its
+    /// market data needs, so an empty set means the instrument genuinely reads
+    /// no market data (see the `no_market_dependencies` coverage-manifest flag).
+    fn market_dependencies(&self) -> finstack_quant_core::Result<MarketDependencies>;
 
     /// FX exposure for this instrument.
     ///

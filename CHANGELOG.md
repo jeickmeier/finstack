@@ -41,6 +41,20 @@ attributes and no `serde(alias)`, so none of this was annotation-visible.
   only the input struct.
 - `arrow` no longer enables the `ipc` feature (no IPC code remains).
 
+**Breaking (Rust) — wave 9: `Instrument` trait**
+
+- `Instrument::market_dependencies` is now a **required** method. Its old
+  default returned an empty set, so emptiness could not be distinguished from
+  "never declared" — the portfolio therefore treated every empty set as
+  *unresolved* and repriced those positions for every factor. All 79 real
+  instruments already declared their dependencies; only test mocks relied on
+  the default. An empty set now means the instrument genuinely reads no market
+  data, and such positions are repriced for no factor.
+- `Instrument::base_value_raw_with_currency`'s default called both
+  `base_value_raw` and `base_value`, pricing the instrument twice. It now
+  prices once. Identical results for the 66 instruments that use the default;
+  the 13 with a distinct high-precision raw kernel already override it.
+
 **Breaking (JSON / serde)**
 
 - `FxMatrixState.pinned_quotes` is required. A snapshot omitting it previously

@@ -990,46 +990,6 @@ mod tests {
         assert_eq!(result.position_pnl[1].1, 0.0);
     }
 
-    #[test]
-    fn factor_stress_reprices_trait_default_empty_dependencies() {
-        let Some((model, _, market)) = build_test_model() else {
-            panic!("model setup");
-        };
-        let as_of = date!(2024 - 01 - 01);
-        let calls = Arc::new(AtomicUsize::new(0));
-        let instrument = DefaultDependencyInstrument(
-            MockInstrument::new("default-deps", "USD-OIS", 100.0)
-                .with_call_counter(Arc::clone(&calls))
-                .with_reported_value_override(42.0),
-        );
-        let position = Position::new(
-            "pos-default-deps",
-            DUMMY_ENTITY_ID,
-            "default-deps",
-            Arc::new(instrument),
-            1.0,
-            PositionUnit::Units,
-        )
-        .expect("position");
-        let portfolio = Portfolio::builder("default-dependency-factor-stress")
-            .base_currency(Currency::USD)
-            .as_of(as_of)
-            .position(position)
-            .build()
-            .expect("portfolio");
-
-        let result = model
-            .factor_stress(&portfolio, &market, as_of, &[(FactorId::new("Rates"), 1.0)])
-            .expect("factor stress");
-
-        assert_eq!(
-            calls.load(Ordering::SeqCst),
-            2,
-            "trait-default empty dependencies must not reuse the base endpoint"
-        );
-        assert!(result.total_pnl.abs() > 1e-12);
-    }
-
     fn build_test_model() -> Option<(FactorModel, Portfolio, MarketContext)> {
         build_test_model_with_unit(2.0, PositionUnit::Units)
     }
@@ -1236,58 +1196,6 @@ mod tests {
     }
 
     #[derive(Clone)]
-    struct DefaultDependencyInstrument(MockInstrument);
-
-    finstack_quant_valuations::impl_empty_cashflow_provider!(
-        DefaultDependencyInstrument,
-        finstack_quant_cashflows::builder::CashflowRepresentation::NoResidual
-    );
-
-    impl Instrument for DefaultDependencyInstrument {
-        fn id(&self) -> &str {
-            self.0.id()
-        }
-
-        fn key(&self) -> InstrumentType {
-            self.0.key()
-        }
-
-        fn as_any(&self) -> &dyn Any {
-            self
-        }
-
-        fn as_any_mut(&mut self) -> &mut dyn Any {
-            self
-        }
-
-        fn attributes(&self) -> &Attributes {
-            self.0.attributes()
-        }
-
-        fn attributes_mut(&mut self) -> &mut Attributes {
-            self.0.attributes_mut()
-        }
-
-        fn clone_box(&self) -> Box<dyn Instrument> {
-            Box::new(self.clone())
-        }
-
-        fn base_value(
-            &self,
-            market: &MarketContext,
-            as_of: finstack_quant_core::dates::Date,
-        ) -> finstack_quant_core::Result<Money> {
-            self.0.base_value(market, as_of)
-        }
-
-        fn base_value_raw(
-            &self,
-            market: &MarketContext,
-            as_of: finstack_quant_core::dates::Date,
-        ) -> finstack_quant_core::Result<f64> {
-            self.0.base_value_raw(market, as_of)
-        }
-    }
 
     struct FixedSensitivityEngine;
 

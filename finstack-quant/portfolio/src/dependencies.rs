@@ -145,16 +145,17 @@ fn finalize_dependency_map(
 /// as a derived, non-serialized cache.  The index maps each [`MarketFactorKey`]
 /// to the position indices whose instruments depend on that key.
 ///
-/// Positions whose `market_dependencies()` returned an error or the trait's
-/// compatibility-default empty set are tracked separately in
-/// [`unresolved`](Self::unresolved) and are conservatively included in every
-/// `affected_positions` query.
+/// Positions whose `market_dependencies()` returned an error are tracked
+/// separately in [`unresolved`](Self::unresolved) and are conservatively
+/// included in every `affected_positions` query. An empty dependency set is
+/// no longer treated as unresolved: `market_dependencies` is a required trait
+/// method, so empty means the instrument genuinely reads no market data.
 #[derive(Debug, Clone, Default)]
 pub struct DependencyIndex {
     inner: HashMap<MarketFactorKey, Vec<usize>>,
-    /// Position indices whose instruments failed to report dependencies or
-    /// returned an empty compatibility-default set. These are always included
-    /// in any affected-position query as a conservative fallback.
+    /// Position indices whose instruments failed to report dependencies.
+    /// These are always included in any affected-position query as a
+    /// conservative fallback.
     unresolved: Vec<usize>,
     /// Number of positions this index was built/extended for. Lets callers
     /// detect a stale index (positions mutated without a matching index
@@ -167,9 +168,8 @@ impl DependencyIndex {
     ///
     /// Iterates all positions, calls `instrument.market_dependencies()`,
     /// flattens each into normalized keys, and records the position index.
-    /// Instruments that return an error or an empty compatibility-default set
-    /// from `market_dependencies()` are tracked as unresolved and
-    /// conservatively included in every query.
+    /// Instruments that return an error from `market_dependencies()` are
+    /// tracked as unresolved and conservatively included in every query.
     ///
     /// # Returns
     ///
@@ -185,10 +185,6 @@ impl DependencyIndex {
             };
 
             let keys = flatten_dependencies(&deps);
-            if keys.is_empty() {
-                unresolved.push(idx);
-                continue;
-            }
             for key in keys {
                 staged.entry(key).or_default().insert(idx);
             }
@@ -227,10 +223,6 @@ impl DependencyIndex {
         };
 
         let keys = flatten_dependencies(&deps);
-        if keys.is_empty() {
-            self.unresolved.push(idx);
-            return;
-        }
 
         // `idx` is the new, strictly-increasing appended index (enforced by the
         // append-only contract asserted above) and `flatten_dependencies` yields

@@ -123,6 +123,15 @@ mod tests {
     );
 
     impl Instrument for DummyInstrument {
+        /// Test mock: reads no market data.
+        fn market_dependencies(
+            &self,
+        ) -> finstack_quant_core::Result<
+            crate::instruments::common_impl::dependencies::MarketDependencies,
+        > {
+            Ok(crate::instruments::common_impl::dependencies::MarketDependencies::new())
+        }
+
         fn id(&self) -> &str {
             "dummy"
         }

@@ -152,14 +152,7 @@ impl FactorRepricingPlan {
                 instrument
                     .market_dependencies()
                     .ok()
-                    .and_then(|dependencies| {
-                        let resolved = flatten_dependencies(&dependencies);
-                        // The Instrument trait's compatibility default is an
-                        // empty dependency set, so emptiness cannot prove that
-                        // a custom/legacy instrument is market-independent.
-                        // Treat it as unresolved and retain full repricing.
-                        (!resolved.is_empty()).then_some(resolved)
-                    })
+                    .map(|dependencies| flatten_dependencies(&dependencies))
             })
             .collect();
 
