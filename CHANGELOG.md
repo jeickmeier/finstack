@@ -41,6 +41,27 @@ attributes and no `serde(alias)`, so none of this was annotation-visible.
   only the input struct.
 - `arrow` no longer enables the `ipc` feature (no IPC code remains).
 
+**Breaking (Rust behavior) — wave 11: numeric defaults**
+
+- **Bug fix**: `LatentFactorSpec::TwoFactor { correlation: 0.0 }` collapsed into
+  the single-factor arm, which shares one factor — implied correlation **+1**,
+  the opposite of the independence being requested. `factor_correlation` now
+  returns `Some(rho)` for any two-factor spec and `None` only for
+  `SingleFactor`; `MultiFactor` errors instead of silently sharing a factor.
+- The callable-bond Hull-White tree no longer supplies an invented 100 bp
+  short-rate vol when none is configured. It reads `model_config.hw1f_sigma`,
+  then `market_quotes.implied_volatility`, and otherwise treats rates as
+  deterministic (sigma = 0) rather than manufacturing a confident option value.
+- CMS instruments (`CmsSwap`, `CmsOption`, `CmsSpreadOption`) derive unset leg
+  conventions from the instrument's **currency** (EUR/GBP/JPY) instead of
+  hard-coded USD constants. A EUR CMS previously took its calendar from the EUR
+  convention but its frequencies and day counts from USD. USD is unchanged: its
+  terminal constants encode the conventional fixed-vs-3M CMS underlying, which
+  is a different swap from `IRSConvention::UsdSofr` and is a separate decision.
+- `MetricId::FxDelta` and `MetricId::Fx01` were numerically identical with two
+  implementations; both ids now share `GenericFx01Calculator` and the bespoke
+  `FxDeltaCalculator` modules in `fx_swap` and `fx_spot` are deleted.
+
 **Breaking (Rust behavior) — wave 10: silent degradation becomes an error**
 
 - `BermudanSwaptionPricerConfig`, `CheyetteRoughConfig` and `LmmBermudanConfig`

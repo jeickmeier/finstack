@@ -82,6 +82,10 @@ fn holder_option_value_at_vol(
     let quote_date = settlement_date(&bumped, context.as_of)?;
     let price_with_options =
         price_from_oas(&bumped, context.curves.as_ref(), quote_date, oas_decimal)?;
+    bumped
+        .instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bumped.call_put = Some(CallPutSchedule::default());
     let price_straight = price_from_oas(&bumped, context.curves.as_ref(), quote_date, oas_decimal)?;
     Ok(price_with_options - price_straight)

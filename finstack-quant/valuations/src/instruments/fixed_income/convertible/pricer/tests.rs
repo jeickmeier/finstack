@@ -478,6 +478,9 @@ fn call_branch_does_not_force_disallowed_conversion() {
     // tree, so `conversion_allowed` is false at every node.
     bond.conversion.policy = ConversionPolicy::UponEvent(ConversionEvent::ChangeOfControl);
     // Callable for the whole life at 102% of par.
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(CallPutSchedule {
         calls: vec![CallPut {
             start_date: issue,
@@ -748,6 +751,10 @@ fn put_at_maturity_floors_terminal_payoff() {
         price_pct_of_par: 105.0, // accreting put above par at maturity
         make_whole: None,
     });
+    puttable_bond
+        .instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     puttable_bond.call_put = Some(schedule);
     let pv_puttable = price_convertible_bond(&puttable_bond, &market, tree_type, as_of)
         .expect("puttable bond prices")

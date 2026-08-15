@@ -13,7 +13,6 @@
 //! Note: Quote amount (PV in quote currency) is available in `ValuationResult.value`.
 
 pub(crate) mod base_amount;
-pub(crate) mod fx_delta;
 pub(crate) mod inverse_rate;
 pub(crate) mod spot_rate;
 
@@ -23,12 +22,13 @@ use crate::metrics::MetricRegistry;
 pub(crate) fn register_fx_spot_metrics(registry: &mut MetricRegistry) {
     use crate::metrics::MetricId;
     use crate::pricer::InstrumentType;
-    use std::sync::Arc;
 
-    // FX Delta (custom metric - FX spot sensitivity per 1%)
+    // FxDelta and Fx01 are the same quantity (PV change per 1% relative spot
+    // move) and share the generic calculator; both ids are kept because
+    // consumers ask for either name.
     registry.register_metric(
         MetricId::FxDelta,
-        Arc::new(fx_delta::FxDeltaCalculator),
+        crate::metrics::sensitivities::fx01::arc_generic_fx01(),
         &[InstrumentType::FxSpot],
     );
     // FX01 now uses the shared `GenericFx01Calculator` (1% relative spot

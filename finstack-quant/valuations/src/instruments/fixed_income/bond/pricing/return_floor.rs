@@ -293,6 +293,10 @@ impl Bond {
         let mut clone = self.clone();
         if let Some(spec) = self.return_floor.as_ref() {
             let merged = lower_return_floor(self, spec, curves, as_of)?;
+            clone
+                .instrument_pricing_overrides
+                .market_quotes
+                .implied_volatility = Some(0.01);
             clone.call_put = Some(merged);
             clone.return_floor = None;
         }

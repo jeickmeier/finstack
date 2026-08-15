@@ -249,20 +249,6 @@ impl FxSwapPricingContext {
         pv_foreign_dom + pv_dom_leg
     }
 
-    /// Calculate total PV with a specific spot rate for conversion.
-    ///
-    /// Used for FX sensitivity calculations where we bump the spot rate.
-    pub(crate) fn total_pv_with_spot(&self, spot: f64, near_rate: f64, far_rate: f64) -> f64 {
-        let pv_foreign_dom = self.pv_foreign_leg_base() * spot;
-        let pv_dom_leg = self.pv_domestic_leg_with_params(
-            near_rate,
-            far_rate,
-            self.df_dom_near,
-            self.df_dom_far,
-        );
-        pv_foreign_dom + pv_dom_leg
-    }
-
     /// Calculate forward points (far_rate - near_rate).
     pub(crate) fn forward_points(&self) -> f64 {
         self.contract_far_rate - self.contract_near_rate

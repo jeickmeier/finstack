@@ -162,7 +162,7 @@ fn price(bond: &Bond, sigma: Option<f64>, hazard_vol: Option<f64>, rho: Option<f
 fn frn_pv_invariant_to_rate_vol_without_correlation() {
     let bond = floating_credit_bond();
 
-    let deterministic = price(&bond, None, None, None);
+    let deterministic = price(&bond, Some(0.0), None, None);
     let stochastic_rates = price(&bond, Some(0.012), None, None);
     assert!(
         (stochastic_rates - deterministic).abs() < 0.05,
@@ -171,7 +171,7 @@ fn frn_pv_invariant_to_rate_vol_without_correlation() {
     );
 
     let both_factors = price(&bond, Some(0.012), Some(0.02), None);
-    let credit_only = price(&bond, None, Some(0.02), None);
+    let credit_only = price(&bond, Some(0.0), Some(0.02), None);
     assert!(
         (both_factors - credit_only).abs() < 0.05,
         "with independent factors the rate vol still must not move an \
@@ -186,7 +186,7 @@ fn frn_pv_invariant_to_rate_vol_without_correlation() {
 #[test]
 fn capped_frn_loses_value_under_rate_vol() {
     let bond = with_all_in_cap(floating_credit_bond(), 650);
-    let flat = price(&bond, None, None, None);
+    let flat = price(&bond, Some(0.0), None, None);
     let vol = price(&bond, Some(0.012), None, None);
     assert!(
         vol < flat - 50.0,
@@ -200,7 +200,7 @@ fn capped_frn_loses_value_under_rate_vol() {
 #[test]
 fn floored_frn_gains_value_under_rate_vol() {
     let bond = with_all_in_floor(floating_credit_bond(), 600);
-    let flat = price(&bond, None, None, None);
+    let flat = price(&bond, Some(0.0), None, None);
     let vol = price(&bond, Some(0.012), None, None);
     assert!(
         vol > flat + 50.0,
@@ -262,7 +262,7 @@ fn mid_period_call_fails_only_with_stochastic_rates() {
     });
 
     // Deterministic rates: today's behavior, prices fine.
-    let deterministic = price(&bond, None, Some(0.02), None);
+    let deterministic = price(&bond, Some(0.0), Some(0.02), None);
     assert!(deterministic.is_finite() && deterministic > 0.0);
 
     // Stochastic rates: explicit validation error naming the misalignment.

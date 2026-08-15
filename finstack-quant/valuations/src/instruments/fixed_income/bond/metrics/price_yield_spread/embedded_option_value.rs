@@ -217,7 +217,13 @@ mod tests {
             )
             .discount_curve_id("USD-OIS".into())
             .credit_curve_id_opt(None)
-            .instrument_pricing_overrides(InstrumentPricingOverrides::default())
+            .instrument_pricing_overrides(InstrumentPricingOverrides {
+                market_quotes: crate::instruments::MarketQuoteOverrides {
+                    implied_volatility: Some(0.01),
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
             .call_put_opt(Some(call_put))
             .custom_cashflows_opt(None)
             .attributes(Default::default())
@@ -260,7 +266,13 @@ mod tests {
             )
             .discount_curve_id("USD-OIS".into())
             .credit_curve_id_opt(None)
-            .instrument_pricing_overrides(InstrumentPricingOverrides::default())
+            .instrument_pricing_overrides(InstrumentPricingOverrides {
+                market_quotes: crate::instruments::MarketQuoteOverrides {
+                    implied_volatility: Some(0.01),
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
             .call_put_opt(Some(call_put))
             .custom_cashflows_opt(None)
             .attributes(Default::default())
@@ -294,7 +306,13 @@ mod tests {
             )
             .discount_curve_id("USD-OIS".into())
             .credit_curve_id_opt(None)
-            .instrument_pricing_overrides(InstrumentPricingOverrides::default())
+            .instrument_pricing_overrides(InstrumentPricingOverrides {
+                market_quotes: crate::instruments::MarketQuoteOverrides {
+                    implied_volatility: Some(0.01),
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
             .call_put_opt(None)
             .custom_cashflows_opt(None)
             .attributes(Default::default())

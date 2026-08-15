@@ -224,6 +224,9 @@ mod tests {
             price_pct_of_par: 100.0,
             make_whole: None,
         });
+        bond.instrument_pricing_overrides
+            .market_quotes
+            .implied_volatility = Some(0.01);
         bond.call_put = Some(schedule);
         bond
     }
@@ -276,6 +279,9 @@ mod tests {
             price_pct_of_par: 100.0,
             make_whole: None,
         });
+        bond.instrument_pricing_overrides
+            .market_quotes
+            .implied_volatility = Some(0.01);
         bond.call_put = Some(schedule);
 
         let shock_bp = 25.0;
@@ -368,6 +374,9 @@ mod tests {
             price_pct_of_par: 100.0,
             make_whole: None,
         });
+        bond.instrument_pricing_overrides
+            .market_quotes
+            .implied_volatility = Some(0.01);
         bond.call_put = Some(schedule);
 
         let shock_bp = 25.0;

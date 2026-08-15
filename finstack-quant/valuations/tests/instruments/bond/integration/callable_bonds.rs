@@ -38,6 +38,9 @@ fn test_callable_bond_basic() {
         price_pct_of_par: 102.0,
         make_whole: None,
     });
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(schedule);
 
     let market = create_curve(as_of);
@@ -67,6 +70,9 @@ fn test_putable_bond_basic() {
         price_pct_of_par: 98.0,
         make_whole: None,
     });
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(schedule);
 
     let market = create_curve(as_of);

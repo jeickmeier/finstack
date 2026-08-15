@@ -136,6 +136,10 @@ fn test_callable_bond_tree_pricing_reasonable() {
             make_whole: None,
         },
     );
+    callable_bond
+        .instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     callable_bond.call_put = Some(call_schedule);
 
     let curve = create_flat_curve(as_of, 0.04, "USD-OIS");
@@ -202,6 +206,10 @@ fn test_tree_convergence_with_steps() {
             make_whole: None,
         },
     );
+    callable_bond
+        .instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     callable_bond.call_put = Some(call_schedule);
 
     let curve = create_flat_curve(as_of, 0.05, "USD-OIS");
@@ -259,6 +267,10 @@ fn test_putable_bond_tree_pricing_reasonable() {
             make_whole: None,
         },
     );
+    putable_bond
+        .instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     putable_bond.call_put = Some(put_schedule);
 
     let curve = create_flat_curve(as_of, 0.07, "USD-OIS");

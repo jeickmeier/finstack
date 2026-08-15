@@ -823,6 +823,13 @@ impl ConvertibleBond {
                 dilution_events: Vec::new(),
             })
             .underlying_equity_id_opt(Some("INDU".to_string()))
+            .instrument_pricing_overrides(crate::instruments::InstrumentPricingOverrides {
+                market_quotes: crate::instruments::MarketQuoteOverrides {
+                    implied_volatility: Some(0.01),
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
             .call_put_opt(Some(CallPutSchedule {
                 calls: vec![CallPut {
                     start_date: date!(2026 - 03 - 15),

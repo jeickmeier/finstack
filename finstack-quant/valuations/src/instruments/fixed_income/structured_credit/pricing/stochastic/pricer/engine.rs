@@ -558,15 +558,27 @@ impl StochasticPricer {
         }
     }
 
-    /// Configured prepay/default factor correlation, when a two-factor spec is
-    /// in force (SC-M23). `None` keeps the single-factor behaviour.
-    fn factor_correlation(&self) -> Option<f64> {
+    /// Configured prepay/default factor correlation (SC-M23).
+    ///
+    /// `Some(rho)` for a two-factor spec, **including `rho == 0`**: zero means
+    /// the prepayment factor is independent of credit, which is a different
+    /// model from sharing one factor. `None` is returned only for
+    /// [`LatentFactorSpec::SingleFactor`], where prepayment and credit are
+    /// driven by the same factor (implied correlation +1).
+    ///
+    /// # Errors
+    ///
+    /// [`LatentFactorSpec::MultiFactor`] is not supported by this lattice.
+    fn factor_correlation(&self) -> finstack_quant_core::Result<Option<f64>> {
         match &self.config.tree_config.factor_spec {
+            LatentFactorSpec::SingleFactor { .. } => Ok(None),
             LatentFactorSpec::TwoFactor { correlation, .. } => {
-                let rho = correlation.clamp(-1.0, 1.0);
-                (rho.abs() > f64::EPSILON).then_some(rho)
+                Ok(Some(correlation.clamp(-1.0, 1.0)))
             }
-            _ => None,
+            other => Err(finstack_quant_core::Error::Validation(format!(
+                "structured-credit stochastic pricer supports SingleFactor and TwoFactor \
+                 latent specs; got {other:?}"
+            ))),
         }
     }
 
@@ -674,7 +686,7 @@ impl StochasticPricer {
         // commutes: negating the raw draws negates `Z_prepay` too, preserving
         // the pairing.
         let prepay_storage;
-        let prepay_factors: &[f64] = match self.factor_correlation() {
+        let prepay_factors: &[f64] = match self.factor_correlation()? {
             Some(rho) => {
                 let mut rng = PhiloxRng::new(self.config.seed ^ PREPAY_FACTOR_SEED_SALT)
                     .substream(path_index);
@@ -691,8 +703,8 @@ impl StochasticPricer {
                     .collect::<Vec<f64>>();
                 &prepay_storage
             }
-            // No configured correlation: prepayment shares the credit factor,
-            // preserving the previous single-factor behaviour exactly.
+            // SingleFactor: prepayment shares the credit factor, i.e. implied
+            // correlation +1.
             None => credit_factors,
         };
         let factors: &[f64] = credit_factors;
@@ -2294,6 +2306,36 @@ mod per_name_copula_tests {
         }
     }
 
+    /// Regression: `TwoFactor { correlation: 0.0 }` means the prepayment factor
+    /// is INDEPENDENT of credit. It previously collapsed into the single-factor
+    /// arm (`|rho| <= f64::EPSILON` returned `None`), which shares one factor —
+    /// implied correlation +1, the exact opposite of what was asked for.
+    #[test]
+    fn zero_correlation_is_independent_not_shared() {
+        let mut two = copula_config(0.06, 0.20, 12, PoolGranularity::PerName, 16);
+        two.tree_config.factor_spec = LatentFactorSpec::two_factor(0.20, 0.25, 0.0);
+        assert_eq!(
+            StochasticPricer::new(two)
+                .factor_correlation()
+                .expect("two-factor spec is supported"),
+            Some(0.0),
+            "rho = 0 must stay a two-factor spec, not collapse to single-factor"
+        );
+
+        let mut single = copula_config(0.06, 0.20, 12, PoolGranularity::PerName, 16);
+        single.tree_config.factor_spec = LatentFactorSpec::SingleFactor {
+            volatility: 0.20,
+            mean_reversion: 0.0,
+        };
+        assert_eq!(
+            StochasticPricer::new(single)
+                .factor_correlation()
+                .expect("single-factor spec is supported"),
+            None,
+            "only SingleFactor shares the credit factor"
+        );
+    }
+
     /// SC-M23 — prepayment and default must be driven by SEPARATE factors
     /// correlated at the configured level.
     ///
@@ -2320,6 +2362,7 @@ mod per_name_copula_tests {
 
         let rho = pricer
             .factor_correlation()
+            .expect("factor spec is supported")
             .expect("a two-factor spec must expose its correlation");
         assert!(
             (rho - RHO).abs() < 1e-12,

@@ -104,6 +104,15 @@ fn test_callable_exercise_coupon_always_paid() {
                 .expect("finite test coupon"),
         )
         .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(
+            finstack_quant_valuations::instruments::InstrumentPricingOverrides {
+                market_quotes: finstack_quant_valuations::instruments::MarketQuoteOverrides {
+                    implied_volatility: Some(0.01),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        )
         .call_put_opt(Some(call_schedule))
         .attributes(Default::default())
         .build()
@@ -171,6 +180,15 @@ fn test_putable_bond_worth_more() {
                 .expect("finite test coupon"),
         )
         .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(
+            finstack_quant_valuations::instruments::InstrumentPricingOverrides {
+                market_quotes: finstack_quant_valuations::instruments::MarketQuoteOverrides {
+                    implied_volatility: Some(0.01),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        )
         .call_put_opt(Some(put_schedule))
         .attributes(Default::default())
         .build()

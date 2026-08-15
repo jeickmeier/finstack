@@ -119,6 +119,9 @@ fn test_day_count_propagation_for_call_put() {
         price_pct_of_par: 101.0,
         make_whole: None,
     });
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(call_put);
 
     let market = create_market_context();
@@ -306,6 +309,9 @@ fn test_call_put_on_same_date() {
         price_pct_of_par: 98.0,
         make_whole: None,
     });
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(call_put);
 
     let market = create_market_context();
@@ -333,6 +339,9 @@ fn test_call_put_at_maturity() {
         price_pct_of_par: 100.0,
         make_whole: None,
     });
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(call_put);
 
     let market = create_market_context();
@@ -364,6 +373,9 @@ fn test_call_put_before_issue() {
         price_pct_of_par: 102.0,
         make_whole: None,
     });
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(call_put);
 
     let market = create_market_context();
@@ -394,6 +406,9 @@ fn test_call_put_after_maturity() {
         price_pct_of_par: 102.0,
         make_whole: None,
     });
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(call_put);
 
     let market = create_market_context();
@@ -574,6 +589,9 @@ fn test_numerical_stability_extreme_parameters() {
 #[test]
 fn test_empty_call_put_schedule() {
     let mut bond = create_standard_convertible();
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(
         finstack_quant_valuations::instruments::fixed_income::bond::CallPutSchedule::default(),
     ); // Empty schedule

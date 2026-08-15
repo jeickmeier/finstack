@@ -235,6 +235,9 @@ fn test_multiple_call_dates() {
         price_pct_of_par: 101.0,
         make_whole: None,
     });
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
 
     bond.call_put = Some(call_put);
 
@@ -278,6 +281,10 @@ fn test_overlapping_call_windows_order_invariant() {
         price_pct_of_par: 101.0,
         make_whole: None,
     });
+    bond_a
+        .instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond_a.call_put = Some(schedule_a);
 
     let mut schedule_b = CallPutSchedule::default();
@@ -294,6 +301,10 @@ fn test_overlapping_call_windows_order_invariant() {
         price_pct_of_par: 105.0,
         make_whole: None,
     });
+    bond_b
+        .instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond_b.call_put = Some(schedule_b);
 
     // Use low spot so conversion is out-of-the-money and call price level matters.
@@ -349,6 +360,9 @@ fn test_multiple_put_dates() {
         price_pct_of_par: 100.0,
         make_whole: None,
     });
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
 
     bond.call_put = Some(call_put);
 
@@ -452,6 +466,9 @@ fn test_call_before_conversion_window() {
         price_pct_of_par: 102.0,
         make_whole: None,
     });
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(call_put);
 
     let market = create_market_context();
@@ -491,6 +508,9 @@ fn test_call_during_conversion_window() {
         price_pct_of_par: 102.0,
         make_whole: None,
     });
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(call_put);
 
     let market = create_market_context();

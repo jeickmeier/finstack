@@ -141,6 +141,9 @@ fn test_ytw_off_cycle_call_uses_dirty_street_redemption() {
     )
     .unwrap();
     bond.settlement_convention = None;
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(CallPutSchedule {
         calls: vec![CallPut {
             start_date: call_date,

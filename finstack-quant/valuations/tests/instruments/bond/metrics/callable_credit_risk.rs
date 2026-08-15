@@ -30,6 +30,9 @@ fn build_callable_credit_bond(as_of: time::Date) -> Bond {
     .expect("callable credit bond should build");
     bond.settlement_convention = None;
     bond.credit_curve_id = Some(CurveId::new("USD-CREDIT"));
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(CallPutSchedule {
         calls: vec![CallPut {
             start_date: date!(2028 - 01 - 01),

@@ -914,6 +914,9 @@ mod tests {
         .expect("bond");
         bond.cashflow_spec = CashflowSpec::fixed(0.06, Tenor::annual(), DayCount::Act365F)
             .expect("finite test coupon");
+        bond.instrument_pricing_overrides
+            .market_quotes
+            .implied_volatility = Some(0.01);
         bond.call_put = Some(CallPutSchedule {
             calls: vec![CallPut {
                 start_date: call_date,
@@ -1008,6 +1011,9 @@ mod tests {
         .expect("bond");
         bond.cashflow_spec = CashflowSpec::fixed(0.06, Tenor::annual(), DayCount::Act365F)
             .expect("finite test coupon");
+        bond.instrument_pricing_overrides
+            .market_quotes
+            .implied_volatility = Some(0.01);
         bond.call_put = Some(CallPutSchedule {
             calls: vec![CallPut {
                 start_date: call_date,
@@ -1103,6 +1109,9 @@ mod tests {
         .expect("bond");
         bond.cashflow_spec = CashflowSpec::fixed(0.06, Tenor::annual(), DayCount::Act365F)
             .expect("finite test coupon");
+        bond.instrument_pricing_overrides
+            .market_quotes
+            .implied_volatility = Some(0.01);
         bond.call_put = Some(CallPutSchedule {
             calls: vec![CallPut {
                 start_date: call_date,

@@ -369,6 +369,10 @@ fn test_oas_metric_uses_bond_tree_pricing_overrides() {
         "USD-OIS",
     )
     .unwrap();
+    base_bond
+        .instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     base_bond.call_put = Some(CallPutSchedule {
         calls: vec![CallPut {
             start_date: date!(2028 - 01 - 01),
@@ -437,6 +441,9 @@ fn test_oas_metric_uses_tree_discount_curve_override() {
     )
     .unwrap();
     bond.settlement_convention = None;
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(CallPutSchedule {
         calls: vec![CallPut {
             start_date: date!(2028 - 04 - 01),
@@ -509,6 +516,9 @@ fn test_embedded_option_value_uses_solved_oas_and_holder_sign() {
     )
     .unwrap();
     bond.settlement_convention = None;
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(CallPutSchedule {
         calls: vec![CallPut {
             start_date: date!(2028 - 01 - 01),
@@ -541,6 +551,10 @@ fn test_embedded_option_value_uses_solved_oas_and_holder_sign() {
     let actual = result.measures["embedded_option_value"];
 
     let mut straight_bond = bond.clone();
+    straight_bond
+        .instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     straight_bond.call_put = Some(CallPutSchedule::default());
     let expected = price_from_oas(&bond, &market, as_of, oas).expect("callable OAS price")
         - price_from_oas(&straight_bond, &market, as_of, oas).expect("straight OAS price");
@@ -576,6 +590,9 @@ fn test_embedded_option_value_uses_settlement_date_oas_pricing_basis() {
         ex_coupon_days: 0,
         ex_coupon_calendar_id: None,
     });
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(CallPutSchedule {
         calls: vec![CallPut {
             start_date: date!(2028 - 01 - 02),
@@ -616,6 +633,10 @@ fn test_embedded_option_value_uses_settlement_date_oas_pricing_basis() {
     let actual = result.measures["embedded_option_value"];
 
     let mut straight_bond = bond.clone();
+    straight_bond
+        .instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     straight_bond.call_put = Some(CallPutSchedule::default());
     let expected = price_from_oas(&bond, &market, quote_date, quoted_oas)
         .expect("callable quote-date OAS price")
@@ -642,6 +663,9 @@ fn test_callable_bond_vega_is_registered_and_bumps_implied_volatility() {
         "USD-OIS",
     )
     .unwrap();
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(CallPutSchedule {
         calls: vec![CallPut {
             start_date: date!(2028 - 01 - 01),
@@ -696,6 +720,9 @@ fn test_callable_bond_oas_and_vega_use_explicit_bdt_tree_path() {
         "USD-OIS",
     )
     .unwrap();
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(CallPutSchedule {
         calls: vec![CallPut {
             start_date: date!(2028 - 01 - 01),
@@ -776,6 +803,9 @@ fn test_callable_bond_vega_is_invariant_to_vol_bump_size() {
         "USD-OIS",
     )
     .unwrap();
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(CallPutSchedule {
         calls: vec![CallPut {
             start_date: date!(2028 - 01 - 01),
@@ -837,6 +867,9 @@ fn test_callable_bdt_oas_recovers_settlement_date_clean_price() {
         ex_coupon_days: 0,
         ex_coupon_calendar_id: None,
     });
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(CallPutSchedule {
         calls: vec![CallPut {
             start_date: date!(2028 - 01 - 02),
@@ -910,6 +943,9 @@ fn test_callable_bond_value_uses_same_bdt_tree_dispatch_as_oas_pricer() {
         "USD-OIS",
     )
     .unwrap();
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(CallPutSchedule {
         calls: vec![CallPut {
             start_date: date!(2028 - 01 - 01),

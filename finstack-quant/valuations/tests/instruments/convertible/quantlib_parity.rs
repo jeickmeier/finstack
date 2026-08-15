@@ -519,6 +519,10 @@ fn quantlib_parity_callable_convertible() {
         price_pct_of_par: 102.0, // Callable at 102% of par
         make_whole: None,
     });
+    callable_bond
+        .instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     callable_bond.call_put = Some(schedule);
 
     let market = create_convertible_market(base, 150.0, 0.25, 0.02, 0.03);
@@ -571,6 +575,10 @@ fn quantlib_parity_puttable_convertible() {
         price_pct_of_par: 98.0, // Puttable at 98% of par
         make_whole: None,
     });
+    puttable_bond
+        .instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     puttable_bond.call_put = Some(schedule);
 
     // Use OTM scenario where put is valuable

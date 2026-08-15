@@ -307,6 +307,8 @@ fn legacy_vol_channel_is_rejected_on_the_credit_path() {
 
     let mut bond = callable_credit_bond();
     bond.instrument_pricing_overrides.model_config.hw1f_sigma = None;
+    // The legacy channel, deliberately populated: it must be rejected on this
+    // path rather than quietly standing in for hw1f_sigma.
     bond.instrument_pricing_overrides
         .market_quotes
         .implied_volatility = Some(0.01);

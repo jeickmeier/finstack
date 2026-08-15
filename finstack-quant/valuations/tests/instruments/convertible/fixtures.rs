@@ -344,6 +344,9 @@ pub fn create_callable_convertible(call_date: Date, call_price_pct: f64) -> Conv
         price_pct_of_par: call_price_pct,
         make_whole: None,
     });
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
 
     bond.call_put = Some(call_put);
     bond
@@ -360,6 +363,9 @@ pub fn create_puttable_convertible(put_date: Date, put_price_pct: f64) -> Conver
         price_pct_of_par: put_price_pct,
         make_whole: None,
     });
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
 
     bond.call_put = Some(call_put);
     bond
@@ -387,6 +393,9 @@ pub fn create_callable_puttable_convertible(
         price_pct_of_par: put_price_pct,
         make_whole: None,
     });
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
 
     bond.call_put = Some(call_put);
     bond

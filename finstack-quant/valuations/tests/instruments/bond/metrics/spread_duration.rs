@@ -192,6 +192,9 @@ fn callable_bond_spread_duration_uses_quote_reproducing_workout_path() {
         settlement_days: 3,
         ..Default::default()
     });
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(CallPutSchedule {
         calls: vec![CallPut {
             start_date: call_date,

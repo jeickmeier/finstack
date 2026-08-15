@@ -44,6 +44,9 @@ fn callable_bond(as_of: Date) -> Bond {
         price_pct_of_par: 102.0,
         make_whole: None,
     });
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(schedule);
     bond
 }

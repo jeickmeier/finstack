@@ -61,6 +61,9 @@ fn create_callable_bond() -> Bond {
         price_pct_of_par: 102.0,
         make_whole: None,
     });
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(call_put);
     bond
 }
@@ -77,6 +80,9 @@ fn create_make_whole_callable_bond() -> Bond {
             spread_bp: 25.0,
         }),
     });
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(call_put);
     bond
 }
@@ -196,6 +202,10 @@ fn test_windowed_call_lowers_pv_vs_endpoint_only_exercise() {
         price_pct_of_par: 100.0,
         make_whole: None,
     });
+    single
+        .instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     single.call_put = Some(call_put);
 
     let mut windowed = create_test_bond();
@@ -206,6 +216,10 @@ fn test_windowed_call_lowers_pv_vs_endpoint_only_exercise() {
         price_pct_of_par: 100.0,
         make_whole: None,
     });
+    windowed
+        .instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     windowed.call_put = Some(call_put);
 
     let pv_single = pricer
@@ -258,6 +272,9 @@ fn test_bond_valuator_street_call_redemption_includes_accrued_interest() {
         price_pct_of_par: 100.0,
         make_whole: None,
     });
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(call_put);
 
     let market_context = create_test_market_context();

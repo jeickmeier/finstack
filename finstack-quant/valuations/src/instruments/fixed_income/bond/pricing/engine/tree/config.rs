@@ -280,7 +280,9 @@ pub fn bond_tree_config(bond: &Bond) -> finstack_quant_core::Result<TreePricerCo
         .instrument_pricing_overrides
         .market_quotes
         .implied_volatility;
-    let volatility = implied_volatility.unwrap_or(0.01);
+    // Optionality-bearing models below require an explicit vol; a bullet bond on
+    // Ho-Lee has no optionality, so the stamped value is inert.
+    let volatility = implied_volatility.unwrap_or(0.0);
 
     let uses_black_lognormal = matches!(
         bond.instrument_pricing_overrides.model_config.vol_model,
@@ -310,6 +312,17 @@ pub fn bond_tree_config(bond: &Bond) -> finstack_quant_core::Result<TreePricerCo
                 sigma,
             }
         } else {
+            // `hw1f_sigma` is the calibrated-parameter channel for this lattice
+            // and takes precedence; `implied_volatility` is the quote channel.
+            // Absent both, rates are deterministic (sigma = 0) rather than the
+            // invented 100 bp this used to supply, which produced a confident
+            // option value out of nothing.
+            let sigma = bond
+                .instrument_pricing_overrides
+                .model_config
+                .hw1f_sigma
+                .or(implied_volatility)
+                .unwrap_or(0.0);
             let mean_reversion = bond
                 .instrument_pricing_overrides
                 .model_config
@@ -317,7 +330,7 @@ pub fn bond_tree_config(bond: &Bond) -> finstack_quant_core::Result<TreePricerCo
                 .unwrap_or(0.03);
             TreeModelChoice::HullWhite {
                 kappa: mean_reversion,
-                sigma: volatility,
+                sigma,
             }
         }
     } else {

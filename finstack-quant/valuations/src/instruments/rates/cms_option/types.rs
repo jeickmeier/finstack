@@ -186,10 +186,33 @@ impl CmsOption {
         self
     }
 
+    /// Market convention implied by the instrument's currency, used when
+    /// neither an explicit leg field nor `swap_convention` is supplied.
+    ///
+    /// These accessors previously fell back to hard-coded USD constants
+    /// (semi-annual 30/360 fixed, quarterly Act/360 float) regardless of
+    /// currency, so a EUR, GBP or JPY CMS instrument was projected on USD
+    /// conventions while its calendar came from the correct currency.
+    ///
+    /// USD is deliberately absent: the terminal constants below encode the
+    /// conventional USD CMS underlying (fixed vs 3M), which is not the same
+    /// swap as [`IRSConvention::UsdSofr`] (annual/annual OIS). Changing the
+    /// USD underlying is a separate quant decision, not a legacy removal.
+    fn currency_swap_convention(&self) -> Option<IRSConvention> {
+        use finstack_quant_core::currency::Currency;
+        match self.notional.currency() {
+            Currency::EUR => Some(IRSConvention::EurEstr),
+            Currency::GBP => Some(IRSConvention::GbpSonia),
+            Currency::JPY => Some(IRSConvention::JpyTonar),
+            _ => None,
+        }
+    }
+
     /// Resolved fixed leg frequency (explicit field > convention > default semi-annual).
     pub fn resolved_swap_fixed_frequency(&self) -> Tenor {
         self.swap_fixed_frequency
             .or_else(|| self.swap_convention.map(|c| c.fixed_frequency()))
+            .or_else(|| self.currency_swap_convention().map(|c| c.fixed_frequency()))
             .unwrap_or_else(Tenor::semi_annual)
     }
 
@@ -197,6 +220,7 @@ impl CmsOption {
     pub fn resolved_swap_float_frequency(&self) -> Tenor {
         self.swap_float_frequency
             .or_else(|| self.swap_convention.map(|c| c.float_frequency()))
+            .or_else(|| self.currency_swap_convention().map(|c| c.float_frequency()))
             .unwrap_or_else(Tenor::quarterly)
     }
 
@@ -204,6 +228,7 @@ impl CmsOption {
     pub fn resolved_swap_day_count(&self) -> DayCount {
         self.swap_day_count
             .or_else(|| self.swap_convention.map(|c| c.fixed_day_count()))
+            .or_else(|| self.currency_swap_convention().map(|c| c.fixed_day_count()))
             .unwrap_or(DayCount::Thirty360)
     }
 
@@ -211,6 +236,7 @@ impl CmsOption {
     pub fn resolved_swap_float_day_count(&self) -> DayCount {
         self.swap_float_day_count
             .or_else(|| self.swap_convention.map(|c| c.float_day_count()))
+            .or_else(|| self.currency_swap_convention().map(|c| c.float_day_count()))
             .unwrap_or(DayCount::Act360)
     }
 

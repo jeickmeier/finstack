@@ -211,6 +211,9 @@ fn callable_risk_bond(as_of: finstack_quant_core::dates::Date) -> Bond {
         "USD-OIS",
     )
     .unwrap();
+    bond.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     bond.call_put = Some(CallPutSchedule {
         calls: vec![CallPut {
             start_date: date!(2028 - 01 - 01),
@@ -357,6 +360,10 @@ fn test_callable_no_quote_default_basis_dv01_is_yield_basis() {
         "USD-OIS",
     )
     .unwrap();
+    callable
+        .instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.01);
     callable.call_put = Some(CallPutSchedule {
         calls: vec![CallPut {
             start_date: date!(2028 - 01 - 01),

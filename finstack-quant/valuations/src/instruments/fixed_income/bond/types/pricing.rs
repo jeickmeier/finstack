@@ -371,6 +371,9 @@ mod tests {
     #[test]
     fn validation_rejects_non_finite_call_and_make_whole_quotes() {
         let mut bond = ex_coupon_bond();
+        bond.instrument_pricing_overrides
+            .market_quotes
+            .implied_volatility = Some(0.01);
         bond.call_put = Some(CallPutSchedule {
             calls: vec![CallPut {
                 start_date: date!(2027 - 01 - 01),
