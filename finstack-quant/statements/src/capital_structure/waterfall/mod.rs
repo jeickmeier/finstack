@@ -97,9 +97,10 @@ pub struct WaterfallPeriodResult {
     pub warnings: Vec<EvalWarning>,
     /// Post-waterfall residual cash distributed to equity.
     ///
-    /// Only `Some` when `available_cash_node` is configured: it is the cash
-    /// remaining after fees, interest, and principal allocations, so
+    /// The cash remaining after fees, interest, and principal allocations, so
     /// `fees + cash interest + principal + equity == available cash`.
+    /// `None` only when the period had no contractual flows at all, in which
+    /// case no waterfall ran and there is no currency to denominate it in.
     pub equity_distribution: Option<Money>,
 }
 
@@ -352,7 +353,8 @@ pub fn execute_waterfall(
     } else {
         Money::new(0.0, cash_currency)
     };
-    let available_cash = if let Some(available_cash_node) = &waterfall_spec.available_cash_node {
+    let available_cash = {
+        let available_cash_node = &waterfall_spec.available_cash_node;
         let cash = eval_value_or_formula(context, available_cash_node, &mut warnings)?;
         // A negative pool (operating shortfall) is floored to zero for
         // allocation, but the shortfall itself must stay visible: without
@@ -374,13 +376,7 @@ pub fn execute_waterfall(
                  The operating shortfall is surfaced as a warning."
             );
         }
-        Some(money_from_expr(
-            cash.max(0.0),
-            cash_currency,
-            available_cash_node,
-        )?)
-    } else {
-        None
+        money_from_expr(cash.max(0.0), cash_currency, available_cash_node)?
     };
 
     // --- Step 3: Build staged per-instrument state ---
@@ -578,24 +574,6 @@ pub fn execute_waterfall(
         }
     }
 
-    // Sweep cash beyond total debt capacity: with an available-cash pool the
-    // excess falls through to the equity residual in Step 5, but in legacy
-    // mode (`available_cash_node: None`) there is no equity bucket and the
-    // cash would silently vanish from the model. Surface it.
-    if residual > MONEY_TOLERANCE && available_cash.is_none() {
-        warnings.push(EvalWarning::CapitalStructure {
-            period: *_period_id,
-            warning: CapitalStructureWarning::SweepExcessUnallocated { amount: residual },
-        });
-        tracing::warn!(
-            excess = residual,
-            period = _period_id.to_string(),
-            "ECF sweep exceeds total remaining debt capacity and no available_cash_node is \
-             configured; the excess has no destination (no equity residual in legacy mode) \
-             and is reported as a warning."
-        );
-    }
-
     // Second pass: apply computed shares
     for (idx, s) in staged.iter_mut().enumerate() {
         let currency = s.breakdown.interest_expense_cash.currency();
@@ -632,8 +610,9 @@ pub fn execute_waterfall(
     // upstream (not currently supported by this engine) and distinguish them
     // via separate `target_instrument_id`s.
     let mut shortfalls: IndexMap<String, Money> = IndexMap::new();
-    let mut equity_distribution: Option<Money> = None;
-    if let Some(mut remaining_cash) = available_cash {
+    let equity_distribution: Option<Money>;
+    {
+        let mut remaining_cash = available_cash;
         // Snapshot planned interest and fees so unpaid amounts can be carried
         // forward instead of silently evaporating when cash runs out.
         let planned_interest: Vec<f64> = staged
@@ -943,7 +922,18 @@ mod tests {
     use finstack_quant_core::money::Money;
     use indexmap::IndexMap;
 
+    /// Cash pool used by fixtures that predate the required
+    /// `available_cash_node`. Large enough that every scheduled flow is funded,
+    /// so those tests keep asserting the same numbers — the difference is that
+    /// the funding is now stated rather than assumed.
+    const AMPLE_CASH: f64 = 1e12;
+
     fn build_context(period: PeriodId, values: &[(&str, f64)]) -> EvaluationContext {
+        let mut values = values.to_vec();
+        if !values.iter().any(|(name, _)| *name == "cash") {
+            values.push(("cash", AMPLE_CASH));
+        }
+        let values = values.as_slice();
         let mut node_to_column = IndexMap::new();
         for (idx, (name, _)) in values.iter().enumerate() {
             node_to_column.insert(crate::types::NodeId::new(*name), idx);
@@ -990,7 +980,7 @@ mod tests {
                 PaymentPriority::Sweep,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: None,
+            available_cash_node: "cash".into(),
             ecf_sweep: Some(EcfSweepSpec {
                 ebitda_node: "ebitda".into(),
                 taxes_node: Some("taxes".into()),
@@ -1063,7 +1053,7 @@ mod tests {
                 PaymentPriority::Amortization,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: Some("cash".into()),
+            available_cash_node: "cash".into(),
             ecf_sweep: None,
             pik_toggle: None,
         };
@@ -1086,78 +1076,6 @@ mod tests {
                 }
             )),
             "the negative cash pool must be surfaced: {:?}",
-            result.warnings
-        );
-    }
-
-    /// In legacy mode (`available_cash_node: None`) sweep cash beyond total
-    /// debt capacity has nowhere to go — there is no equity residual — so the
-    /// unallocated excess must be surfaced rather than silently dropped.
-    #[test]
-    fn legacy_sweep_excess_beyond_debt_capacity_is_surfaced() {
-        let period = PeriodId::quarter(2025, 1);
-        let context = build_context(period, &[("ebitda", 1_000_000.0)]);
-
-        let mut contractual_flows: IndexMap<String, CashflowBreakdown> = IndexMap::new();
-        let breakdown = CashflowBreakdown::with_currency(Currency::USD);
-        contractual_flows.insert("TL-1".to_string(), breakdown);
-
-        // Only 100k of debt: a 500k sweep leaves 400k with no destination.
-        let mut state = CapitalStructureState::new();
-        state
-            .opening_balances
-            .insert("TL-1".to_string(), Money::new(100_000.0, Currency::USD));
-
-        let waterfall = WaterfallSpec {
-            priority_of_payments: vec![
-                PaymentPriority::Fees,
-                PaymentPriority::Interest,
-                PaymentPriority::Amortization,
-                PaymentPriority::Sweep,
-                PaymentPriority::Equity,
-            ],
-            available_cash_node: None,
-            ecf_sweep: Some(EcfSweepSpec {
-                ebitda_node: "ebitda".into(),
-                taxes_node: None,
-                capex_node: None,
-                working_capital_node: None,
-                cash_interest_node: None,
-                sweep_percentage: 0.5,
-                target_instrument_id: None,
-            }),
-            pik_toggle: None,
-        };
-
-        let result = execute_waterfall(
-            &period,
-            &context,
-            &waterfall,
-            &mut state,
-            &contractual_flows,
-        )
-        .expect("waterfall should execute");
-
-        // The debt is fully repaid...
-        assert_eq!(
-            result
-                .flows
-                .get("TL-1")
-                .expect("instrument exists")
-                .principal_payment
-                .amount(),
-            100_000.0
-        );
-        // ...and the 400k of over-swept cash is surfaced, not dropped.
-        assert!(
-            result.warnings.iter().any(|w| matches!(
-                w,
-                EvalWarning::CapitalStructure {
-                    warning: CapitalStructureWarning::SweepExcessUnallocated { .. },
-                    ..
-                }
-            )),
-            "unallocated sweep excess must be surfaced: {:?}",
             result.warnings
         );
     }
@@ -1189,7 +1107,7 @@ mod tests {
                 PaymentPriority::Amortization,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: Some("cash".into()),
+            available_cash_node: "cash".into(),
             ecf_sweep: None,
             pik_toggle: None,
         };
@@ -1249,7 +1167,7 @@ mod tests {
                 PaymentPriority::Amortization,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: Some("cash / 0".into()),
+            available_cash_node: "cash / 0".into(),
             ecf_sweep: None,
             pik_toggle: None,
         };
@@ -1294,7 +1212,7 @@ mod tests {
                 PaymentPriority::Amortization,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: Some("cash".into()),
+            available_cash_node: "cash".into(),
             ecf_sweep: None,
             pik_toggle: None,
         };
@@ -1344,7 +1262,7 @@ mod tests {
             // Guarded: the division by zero is swallowed by `coalesce`, so the
             // node evaluates to a perfectly finite 500 and the finiteness check
             // cannot catch it. Only the warning reveals the broken arithmetic.
-            available_cash_node: Some("coalesce(cash / 0, cash)".into()),
+            available_cash_node: "coalesce(cash / 0, cash)".into(),
             ecf_sweep: None,
             pik_toggle: None,
         };
@@ -1401,7 +1319,7 @@ mod tests {
                 PaymentPriority::Amortization,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: Some("cash".into()),
+            available_cash_node: "cash".into(),
             ecf_sweep: None,
             pik_toggle: Some(PikToggleSpec {
                 liquidity_metric: "cash".into(),
@@ -1443,8 +1361,13 @@ mod tests {
             .insert("TL-1".to_string(), Money::new(10_000.0, Currency::USD));
 
         let waterfall = WaterfallSpec {
-            priority_of_payments: vec![PaymentPriority::Interest, PaymentPriority::Equity],
-            available_cash_node: None,
+            priority_of_payments: vec![
+                PaymentPriority::Fees,
+                PaymentPriority::Amortization,
+                PaymentPriority::Interest,
+                PaymentPriority::Equity,
+            ],
+            available_cash_node: "cash".into(),
             ecf_sweep: None,
             pik_toggle: Some(PikToggleSpec {
                 liquidity_metric: "liquidity / 0".into(),
@@ -1485,12 +1408,13 @@ mod tests {
 
         let waterfall = WaterfallSpec {
             priority_of_payments: vec![
+                PaymentPriority::Amortization,
                 PaymentPriority::Fees,
                 PaymentPriority::Interest,
                 PaymentPriority::Sweep,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: None,
+            available_cash_node: "cash".into(),
             ecf_sweep: Some(EcfSweepSpec {
                 ebitda_node: "ebitda".into(),
                 taxes_node: None,
@@ -1544,7 +1468,7 @@ mod tests {
                 PaymentPriority::Sweep,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: None,
+            available_cash_node: "cash".into(),
             ecf_sweep: None,
             pik_toggle: Some(PikToggleSpec {
                 liquidity_metric: "liquidity".into(),
@@ -1602,7 +1526,7 @@ mod tests {
                 PaymentPriority::Sweep,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: None,
+            available_cash_node: "cash".into(),
             ecf_sweep: None,
             pik_toggle: Some(PikToggleSpec {
                 liquidity_metric: "liquidity".into(),
@@ -1721,7 +1645,7 @@ mod tests {
                 PaymentPriority::Sweep,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: None,
+            available_cash_node: "cash".into(),
             ecf_sweep: Some(EcfSweepSpec {
                 ebitda_node: "ebitda".into(),
                 taxes_node: Some("taxes".into()),
@@ -1774,11 +1698,13 @@ mod tests {
 
         let sweep_first = WaterfallSpec {
             priority_of_payments: vec![
+                PaymentPriority::Fees,
+                PaymentPriority::Amortization,
                 PaymentPriority::Sweep,
                 PaymentPriority::Interest,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: None,
+            available_cash_node: "cash".into(),
             ecf_sweep: Some(EcfSweepSpec {
                 ebitda_node: "ebitda".into(),
                 taxes_node: None,
@@ -1797,11 +1723,13 @@ mod tests {
         };
         let interest_first = WaterfallSpec {
             priority_of_payments: vec![
+                PaymentPriority::Fees,
+                PaymentPriority::Amortization,
                 PaymentPriority::Interest,
                 PaymentPriority::Sweep,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: None,
+            available_cash_node: "cash".into(),
             ecf_sweep: sweep_first.ecf_sweep.clone(),
             pik_toggle: sweep_first.pik_toggle.clone(),
         };
@@ -1854,7 +1782,7 @@ mod tests {
                 PaymentPriority::Sweep,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: Some("cash_available".into()),
+            available_cash_node: "cash_available".into(),
             ecf_sweep: None,
             pik_toggle: None,
         };
@@ -1903,7 +1831,7 @@ mod tests {
                 PaymentPriority::Amortization,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: Some("cash_available".into()),
+            available_cash_node: "cash_available".into(),
             ecf_sweep: None,
             pik_toggle: None,
         };
@@ -1956,7 +1884,16 @@ mod tests {
             .period_new_funding
             .insert("REVOLVER".to_string(), Money::new(100_000.0, Currency::USD));
 
-        let waterfall = WaterfallSpec::default();
+        let waterfall = WaterfallSpec {
+            priority_of_payments: vec![
+                PaymentPriority::Fees,
+                PaymentPriority::Interest,
+                PaymentPriority::Amortization,
+            ],
+            available_cash_node: "cash".into(),
+            ecf_sweep: None,
+            pik_toggle: None,
+        };
 
         let results = execute_waterfall(
             &period,
@@ -1995,11 +1932,13 @@ mod tests {
 
         let waterfall = WaterfallSpec {
             priority_of_payments: vec![
+                PaymentPriority::Fees,
+                PaymentPriority::Interest,
                 PaymentPriority::Sweep,
                 PaymentPriority::Amortization,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: None,
+            available_cash_node: "cash".into(),
             ecf_sweep: Some(EcfSweepSpec {
                 ebitda_node: "ebitda".into(),
                 taxes_node: None,
@@ -2055,7 +1994,7 @@ mod tests {
                 PaymentPriority::Sweep,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: None,
+            available_cash_node: "cash".into(),
             ecf_sweep: Some(EcfSweepSpec {
                 ebitda_node: "ebitda".into(),
                 taxes_node: Some("taxes".into()),
@@ -2107,7 +2046,7 @@ mod tests {
                 PaymentPriority::Sweep,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: None,
+            available_cash_node: "cash".into(),
             ecf_sweep: Some(EcfSweepSpec {
                 ebitda_node: "ebitda".into(),
                 taxes_node: Some("taxes".into()),
@@ -2151,8 +2090,13 @@ mod tests {
             .insert("TL-1".to_string(), Money::new(200.0, Currency::USD));
 
         let waterfall = WaterfallSpec {
-            priority_of_payments: vec![PaymentPriority::Amortization, PaymentPriority::Equity],
-            available_cash_node: None,
+            priority_of_payments: vec![
+                PaymentPriority::Fees,
+                PaymentPriority::Interest,
+                PaymentPriority::Amortization,
+                PaymentPriority::Equity,
+            ],
+            available_cash_node: "cash".into(),
             ecf_sweep: None,
             pik_toggle: None,
         };
@@ -2204,7 +2148,7 @@ mod tests {
                 PaymentPriority::Sweep,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: Some("cash_available".into()),
+            available_cash_node: "cash_available".into(),
             ecf_sweep: None,
             pik_toggle: None,
         };
@@ -2303,7 +2247,7 @@ mod tests {
                 PaymentPriority::Sweep,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: Some("cash_available".into()),
+            available_cash_node: "cash_available".into(),
             ecf_sweep: None,
             pik_toggle: None,
         };
@@ -2395,7 +2339,7 @@ mod tests {
                 PaymentPriority::Sweep,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: Some("cash_available".into()),
+            available_cash_node: "cash_available".into(),
             ecf_sweep: None,
             pik_toggle: None,
         };
@@ -2453,7 +2397,7 @@ mod tests {
                 PaymentPriority::Amortization,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: Some("cash_available".into()),
+            available_cash_node: "cash_available".into(),
             ecf_sweep: None,
             pik_toggle: Some(PikToggleSpec {
                 liquidity_metric: "liquidity".into(),
@@ -2519,11 +2463,13 @@ mod tests {
 
         let waterfall = WaterfallSpec {
             priority_of_payments: vec![
+                PaymentPriority::Fees,
+                PaymentPriority::Interest,
                 PaymentPriority::Amortization,
                 PaymentPriority::Sweep,
                 PaymentPriority::Equity,
             ],
-            available_cash_node: None,
+            available_cash_node: "cash".into(),
             ecf_sweep: Some(EcfSweepSpec {
                 ebitda_node: "ebitda".into(),
                 taxes_node: None,

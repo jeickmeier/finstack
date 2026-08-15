@@ -313,8 +313,17 @@ mod tests {
     }
 
     #[test]
-    fn validate_waterfall_spec_accepts_default() {
-        let spec = finstack_quant_statements::capital_structure::WaterfallSpec::default();
+    fn validate_waterfall_spec_accepts_minimal_spec() {
+        let spec = finstack_quant_statements::capital_structure::WaterfallSpec {
+            priority_of_payments: vec![
+                finstack_quant_statements::capital_structure::PaymentPriority::Fees,
+                finstack_quant_statements::capital_structure::PaymentPriority::Interest,
+                finstack_quant_statements::capital_structure::PaymentPriority::Amortization,
+            ],
+            available_cash_node: "cash".into(),
+            ecf_sweep: None,
+            pik_toggle: None,
+        };
         let json = serde_json::to_string(&spec).expect("serialize");
         let out = validate_waterfall_spec_json(&json).expect("should accept default spec");
         assert!(out.contains("priority_of_payments"));

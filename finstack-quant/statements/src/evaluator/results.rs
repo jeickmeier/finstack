@@ -423,11 +423,6 @@ pub enum CapitalStructureWarning {
         /// Negative amount that was floored, in the waterfall currency.
         amount: f64,
     },
-    /// Sweep cash exceeded debt capacity while no equity residual was configured.
-    SweepExcessUnallocated {
-        /// Unallocated excess amount in the waterfall currency.
-        amount: f64,
-    },
     /// Available cash was insufficient to pay a cash-interest claim.
     InterestShortfall {
         /// Instrument carrying the unpaid claim forward.

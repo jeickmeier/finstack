@@ -41,6 +41,24 @@ attributes and no `serde(alias)`, so none of this was annotation-visible.
   only the input struct.
 - `arrow` no longer enables the `ipc` feature (no IPC code remains).
 
+**Breaking (Rust, JSON, Python) — wave 12: the waterfall can now report insolvency**
+
+- `WaterfallSpec.available_cash_node` is **required** and `impl Default for
+  WaterfallSpec` is removed. With `None` the engine skipped its entire Step-5
+  block: every scheduled fee, coupon and amortization was reported paid in full
+  regardless of whether the model generated the cash — uses exceeded sources,
+  cash was created from nothing, and no shortfall could ever be raised. The
+  cash cap now always applies.
+- The "every cash-consuming category must appear in `priority_of_payments`"
+  rule is unconditional (it was gated on `available_cash_node` being set).
+  Specs must list `Fees`, `Interest` and `Amortization`.
+- Removed `CapitalStructureWarning::SweepExcessUnallocated`. It described only
+  the no-equity-bucket case, which cannot arise once the cash cap is always on;
+  sweep excess beyond debt capacity now falls to the equity residual.
+- `default_priority_of_payments()` is public so hosts cannot drift from the
+  canonical stack (fees, interest, amortization, sweep, equity).
+- Python `WaterfallSpec(...)` requires `available_cash_node`.
+
 **Breaking (Rust behavior) — wave 11: numeric defaults**
 
 - **Bug fix**: `LatentFactorSpec::TwoFactor { correlation: 0.0 }` collapsed into

@@ -93,4 +93,6 @@ pub use integration::{aggregate_instrument_cashflows, build_instrument_from_spec
 pub use period_flows::calculate_period_flows;
 pub use state::CapitalStructureState;
 pub use waterfall::{execute_waterfall, WaterfallPeriodResult};
-pub use waterfall_spec::{EcfSweepSpec, PaymentPriority, PikToggleSpec, WaterfallSpec};
+pub use waterfall_spec::{
+    default_priority_of_payments, EcfSweepSpec, PaymentPriority, PikToggleSpec, WaterfallSpec,
+};

@@ -100,12 +100,16 @@ class TestWaterfallSpec:
 
     def test_validate_accepts_standard_priority(self) -> None:
         ecf = statements.EcfSweepSpec(ebitda_node="ebitda", sweep_percentage=0.5)
-        ws = statements.WaterfallSpec(ecf_sweep=ecf)
+        ws = statements.WaterfallSpec(ecf_sweep=ecf, available_cash_node="cash")
         ws.validate()  # should not raise
 
     def test_validate_rejects_sweep_after_equity(self) -> None:
         ecf = statements.EcfSweepSpec(ebitda_node="ebitda", sweep_percentage=0.5)
-        ws = statements.WaterfallSpec(priority_of_payments=["equity", "sweep"], ecf_sweep=ecf)
+        ws = statements.WaterfallSpec(
+            priority_of_payments=["fees", "interest", "amortization", "equity", "sweep"],
+            ecf_sweep=ecf,
+            available_cash_node="cash",
+        )
         # A sweep after equity means equity is not last, which the
         # "Equity must be the last entry" rule rejects.
         with pytest.raises(ValueError, match=r"Equity.*must be the last entry"):
@@ -182,7 +186,7 @@ class TestModelBuilderCapitalStructure:
 
     def test_waterfall_attaches_to_model(self) -> None:
         ecf = statements.EcfSweepSpec(ebitda_node="ebitda", sweep_percentage=0.5, target_instrument_id="TL-A")
-        ws = statements.WaterfallSpec(ecf_sweep=ecf)
+        ws = statements.WaterfallSpec(ecf_sweep=ecf, available_cash_node="cash")
         b = statements.ModelBuilder("deal")
         b.add_debt("TL-A", _debt_envelope_json("TL-A"))
         b.waterfall(ws)

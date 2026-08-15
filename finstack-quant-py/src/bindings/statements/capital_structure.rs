@@ -371,14 +371,20 @@ impl PyWaterfallSpec {
         ecf_sweep: Option<&PyEcfSweepSpec>,
         pik_toggle: Option<&PyPikToggleSpec>,
     ) -> PyResult<Self> {
-        let mut inner = WaterfallSpec::default();
+        let mut inner = WaterfallSpec {
+            priority_of_payments:
+                finstack_quant_statements::capital_structure::default_priority_of_payments(),
+            available_cash_node: available_cash_node.clone().unwrap_or_default(),
+            ecf_sweep: None,
+            pik_toggle: None,
+        };
         if let Some(priority) = priority_of_payments {
             inner.priority_of_payments = priority
                 .into_iter()
                 .map(|s| parse_priority(&s))
                 .collect::<PyResult<Vec<_>>>()?;
         }
-        inner.available_cash_node = available_cash_node;
+        inner.available_cash_node = available_cash_node.unwrap_or_default();
         inner.ecf_sweep = ecf_sweep.map(|p| p.inner.clone());
         inner.pik_toggle = pik_toggle.map(|p| p.inner.clone());
         Ok(Self { inner })
@@ -441,14 +447,14 @@ impl PyWaterfallSpec {
     ///
     /// Returns
     /// -------
-    /// str | None
+    /// str
     ///     A node id or expression evaluating to a monetary amount per
-    ///     period. ``None`` keeps the fully-funded behaviour, in which
-    ///     scheduled cashflows are paid in full without being capped against
-    ///     available cash.
+    ///     period. Required: without it the waterfall would report scheduled
+    ///     cashflows as paid in full without capping them against available
+    ///     cash.
     #[getter]
-    fn available_cash_node(&self) -> Option<&str> {
-        self.inner.available_cash_node.as_deref()
+    fn available_cash_node(&self) -> &str {
+        self.inner.available_cash_node.as_str()
     }
 
     /// Whether an excess-cash-flow sweep is configured.

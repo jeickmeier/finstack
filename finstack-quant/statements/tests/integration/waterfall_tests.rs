@@ -21,6 +21,19 @@ fn test_ecf_sweep_basic() {
         .periods("2025Q1..2025Q2", None)
         .expect("valid periods")
         .value(
+            "cash",
+            &[
+                (
+                    PeriodId::quarter(2025, 1),
+                    AmountOrScalar::scalar(1_000_000_000.0),
+                ),
+                (
+                    PeriodId::quarter(2025, 2),
+                    AmountOrScalar::scalar(1_000_000_000.0),
+                ),
+            ],
+        )
+        .value(
             "ebitda",
             &[
                 (
@@ -78,7 +91,15 @@ fn test_ecf_sweep_basic() {
                 sweep_percentage: 0.5,      // 50% sweep
                 target_instrument_id: None, // Apply to all
             }),
-            ..WaterfallSpec::default()
+            priority_of_payments: vec![
+                finstack_quant_statements::capital_structure::PaymentPriority::Fees,
+                finstack_quant_statements::capital_structure::PaymentPriority::Interest,
+                finstack_quant_statements::capital_structure::PaymentPriority::Amortization,
+                finstack_quant_statements::capital_structure::PaymentPriority::MandatoryPrepayment,
+                finstack_quant_statements::capital_structure::PaymentPriority::Equity,
+            ],
+            available_cash_node: "cash".into(),
+            pik_toggle: None,
         })
         .build()
         .expect("model should build");
@@ -121,8 +142,8 @@ mod period_flow_waterfall_integration {
     use finstack_quant_core::market_data::context::MarketContext;
     use finstack_quant_core::money::Money;
     use finstack_quant_statements::capital_structure::{
-        calculate_period_flows, execute_waterfall, CapitalStructureState, PaymentPriority,
-        PikToggleSpec, WaterfallSpec,
+        calculate_period_flows, execute_waterfall, CapitalStructureState, PikToggleSpec,
+        WaterfallSpec,
     };
     use finstack_quant_statements::evaluator::EvaluationContext;
     use finstack_quant_statements::types::NodeId;
@@ -165,7 +186,16 @@ mod period_flow_waterfall_integration {
         }
     }
 
+    /// Cash pool for fixtures that predate the required `available_cash_node`:
+    /// ample, so the scheduled flows are funded exactly as before.
+    const AMPLE_CASH: f64 = 1e12;
+
     fn context_with(period: PeriodId, values: &[(&str, f64)]) -> EvaluationContext {
+        let mut values = values.to_vec();
+        if !values.iter().any(|(name, _)| *name == "cash") {
+            values.push(("cash", AMPLE_CASH));
+        }
+        let values = values.as_slice();
         let mut node_to_column = IndexMap::new();
         for (idx, (name, _)) in values.iter().enumerate() {
             node_to_column.insert(NodeId::new(*name), idx);
@@ -227,13 +257,13 @@ mod period_flow_waterfall_integration {
 
         let waterfall = WaterfallSpec {
             priority_of_payments: vec![
-                PaymentPriority::Fees,
-                PaymentPriority::Interest,
-                PaymentPriority::Amortization,
-                PaymentPriority::Sweep,
-                PaymentPriority::Equity,
+                finstack_quant_statements::capital_structure::PaymentPriority::Fees,
+                finstack_quant_statements::capital_structure::PaymentPriority::Interest,
+                finstack_quant_statements::capital_structure::PaymentPriority::Amortization,
+                finstack_quant_statements::capital_structure::PaymentPriority::Sweep,
+                finstack_quant_statements::capital_structure::PaymentPriority::Equity,
             ],
-            available_cash_node: None,
+            available_cash_node: "cash".into(),
             ecf_sweep: None,
             pik_toggle: Some(PikToggleSpec {
                 liquidity_metric: "liquidity".into(),
@@ -376,8 +406,16 @@ mod period_flow_waterfall_integration {
         contractual.insert("TL-1".to_string(), breakdown);
 
         let waterfall = WaterfallSpec {
-            available_cash_node: Some("cash_available".into()),
-            ..WaterfallSpec::default()
+            available_cash_node: "cash_available".into(),
+            priority_of_payments: vec![
+                finstack_quant_statements::capital_structure::PaymentPriority::Fees,
+                finstack_quant_statements::capital_structure::PaymentPriority::Interest,
+                finstack_quant_statements::capital_structure::PaymentPriority::Amortization,
+                finstack_quant_statements::capital_structure::PaymentPriority::MandatoryPrepayment,
+                finstack_quant_statements::capital_structure::PaymentPriority::Equity,
+            ],
+            ecf_sweep: None,
+            pik_toggle: None,
         };
 
         let available = 100_000.0;

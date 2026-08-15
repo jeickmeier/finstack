@@ -33,11 +33,13 @@ pub struct WaterfallSpec {
     #[serde(default = "default_priority_of_payments")]
     pub priority_of_payments: Vec<PaymentPriority>,
 
-    /// Optional formula or node reference for cash available to allocate in the waterfall.
+    /// Formula or node reference for cash available to allocate in the waterfall.
     ///
-    /// When omitted, the runtime preserves the legacy fully-funded scheduled cashflow behavior.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub available_cash_node: Option<String>,
+    /// Required. Without a cash pool the waterfall reports every scheduled fee,
+    /// coupon and amortization as paid in full regardless of whether the model
+    /// generated the cash — uses exceed sources and no shortfall can ever be
+    /// raised, so the structure cannot report insolvency.
+    pub available_cash_node: String,
 
     /// Excess Cash Flow (ECF) sweep specification
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -48,7 +50,8 @@ pub struct WaterfallSpec {
     pub pik_toggle: Option<PikToggleSpec>,
 }
 
-fn default_priority_of_payments() -> Vec<PaymentPriority> {
+/// Canonical payment stack: fees, interest, amortization, sweep, equity.
+pub fn default_priority_of_payments() -> Vec<PaymentPriority> {
     vec![
         PaymentPriority::Fees,
         PaymentPriority::Interest,
@@ -56,17 +59,6 @@ fn default_priority_of_payments() -> Vec<PaymentPriority> {
         PaymentPriority::Sweep,
         PaymentPriority::Equity,
     ]
-}
-
-impl Default for WaterfallSpec {
-    fn default() -> Self {
-        Self {
-            priority_of_payments: default_priority_of_payments(),
-            available_cash_node: None,
-            ecf_sweep: None,
-            pik_toggle: None,
-        }
-    }
 }
 
 impl WaterfallSpec {
@@ -107,27 +99,31 @@ impl WaterfallSpec {
             }
         }
 
-        // When available-cash capping is active, every cash-consuming category
-        // must appear in the stack. A category omitted from
-        // `priority_of_payments` is never capped against available cash, so its
-        // full planned amount would still be reported as paid while the residual
-        // flows to equity — creating cash out of nothing (uses > sources).
-        if self.available_cash_node.is_some() {
-            for required in [
-                PaymentPriority::Fees,
-                PaymentPriority::Interest,
-                PaymentPriority::Amortization,
-            ] {
-                if !self.priority_of_payments.contains(&required) {
-                    return Err(Error::build(format!(
-                        "WaterfallSpec: `available_cash_node` is set, so `{required:?}` must \
-                         appear in `priority_of_payments`; otherwise its planned cash would be \
-                         paid in full without consuming available cash, breaking cash \
-                         conservation. List it explicitly (it caps to zero when there is no \
-                         such flow)."
-                    )));
-                }
+        // Every cash-consuming category must appear in the stack. A category
+        // omitted from `priority_of_payments` is never capped against available
+        // cash, so its full planned amount would still be reported as paid
+        // while the residual flows to equity — creating cash out of nothing
+        // (uses > sources).
+        for required in [
+            PaymentPriority::Fees,
+            PaymentPriority::Interest,
+            PaymentPriority::Amortization,
+        ] {
+            if !self.priority_of_payments.contains(&required) {
+                return Err(Error::build(format!(
+                    "WaterfallSpec: `{required:?}` must appear in `priority_of_payments`; \
+                     otherwise its planned cash would be paid in full without consuming \
+                     available cash, breaking cash conservation. List it explicitly (it \
+                     caps to zero when there is no such flow)."
+                )));
             }
+        }
+
+        if self.available_cash_node.trim().is_empty() {
+            return Err(Error::build(
+                "WaterfallSpec: `available_cash_node` must name a value or formula node \
+                 supplying the period's available cash.",
+            ));
         }
 
         // Equity, if present, must rank last: the engine distributes the
@@ -305,6 +301,24 @@ pub struct PikToggleSpec {
 
 #[cfg(test)]
 mod tests {
+
+    /// Minimal valid spec for tests: a priority stack and a cash node.
+    fn spec_with(priority: Vec<PaymentPriority>) -> WaterfallSpec {
+        WaterfallSpec {
+            priority_of_payments: priority,
+            available_cash_node: "cash".into(),
+            ecf_sweep: None,
+            pik_toggle: None,
+        }
+    }
+
+    /// Minimal valid spec carrying an ECF sweep.
+    fn spec_with_sweep(priority: Vec<PaymentPriority>, sweep: EcfSweepSpec) -> WaterfallSpec {
+        WaterfallSpec {
+            ecf_sweep: Some(sweep),
+            ..spec_with(priority)
+        }
+    }
     use super::*;
 
     fn sweep_spec(percentage: f64) -> EcfSweepSpec {
@@ -321,14 +335,11 @@ mod tests {
 
     #[test]
     fn validate_rejects_duplicate_priorities() {
-        let spec = WaterfallSpec {
-            priority_of_payments: vec![
-                PaymentPriority::Fees,
-                PaymentPriority::Interest,
-                PaymentPriority::Fees,
-            ],
-            ..WaterfallSpec::default()
-        };
+        let spec = spec_with(vec![
+            PaymentPriority::Fees,
+            PaymentPriority::Interest,
+            PaymentPriority::Fees,
+        ]);
         let err = spec.validate().expect_err("duplicates must be rejected");
         assert!(err.to_string().contains("duplicate"));
     }
@@ -336,10 +347,7 @@ mod tests {
     #[test]
     fn validate_rejects_sweep_percentage_outside_unit_interval() {
         for pct in [-0.1, 1.5] {
-            let spec = WaterfallSpec {
-                ecf_sweep: Some(sweep_spec(pct)),
-                ..WaterfallSpec::default()
-            };
+            let spec = spec_with_sweep(default_priority_of_payments(), sweep_spec(pct));
             let err = spec
                 .validate()
                 .expect_err("out-of-range sweep_percentage must be rejected");
@@ -349,16 +357,15 @@ mod tests {
 
     #[test]
     fn validate_requires_prepayment_priority_for_positive_sweep() {
-        let spec = WaterfallSpec {
-            priority_of_payments: vec![
+        let spec = spec_with_sweep(
+            vec![
                 PaymentPriority::Fees,
                 PaymentPriority::Interest,
                 PaymentPriority::Amortization,
                 PaymentPriority::Equity,
             ],
-            ecf_sweep: Some(sweep_spec(0.5)),
-            ..WaterfallSpec::default()
-        };
+            sweep_spec(0.5),
+        );
         let err = spec
             .validate()
             .expect_err("positive sweep without a prepayment priority must be rejected");
@@ -369,12 +376,13 @@ mod tests {
     fn validate_rejects_prepayment_after_equity() {
         let spec = WaterfallSpec {
             priority_of_payments: vec![
+                PaymentPriority::Amortization,
                 PaymentPriority::Fees,
                 PaymentPriority::Interest,
                 PaymentPriority::Equity,
                 PaymentPriority::MandatoryPrepayment,
             ],
-            ..WaterfallSpec::default()
+            ..spec_with(default_priority_of_payments())
         };
         // A prepayment after Equity means Equity is not last, which the
         // "Equity must be the last entry" rule rejects.
@@ -393,7 +401,7 @@ mod tests {
                 target_instrument_ids: None,
                 min_periods_in_pik: 0,
             }),
-            ..WaterfallSpec::default()
+            ..spec_with(default_priority_of_payments())
         };
         let err = spec
             .validate()
@@ -405,7 +413,7 @@ mod tests {
     fn validate_accepts_default_spec_with_sweep() {
         let spec = WaterfallSpec {
             ecf_sweep: Some(sweep_spec(0.5)),
-            ..WaterfallSpec::default()
+            ..spec_with(default_priority_of_payments())
         };
         assert!(spec.validate().is_ok());
     }

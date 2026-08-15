@@ -300,25 +300,6 @@
           "type": "object"
         },
         {
-          "description": "Sweep cash exceeded debt capacity while no equity residual was configured.",
-          "properties": {
-            "amount": {
-              "description": "Unallocated excess amount in the waterfall currency.",
-              "format": "double",
-              "type": "number"
-            },
-            "kind": {
-              "const": "sweep_excess_unallocated",
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "amount"
-          ],
-          "type": "object"
-        },
-        {
           "description": "Available cash was insufficient to pay a cash-interest claim.",
           "properties": {
             "amount": {
