@@ -530,6 +530,15 @@ impl SimmSensitivities {
     /// * `qualifying` - `true` for qualifying credit, `false` for non-qualifying credit
     /// * `tenor` - Tenor bucket such as `"5Y"`
     /// * `delta` - Signed CS01-style currency amount, typically currency per 1bp move
+    ///
+    /// # Sector bucketing
+    ///
+    /// Qualifying deltas land in the flat `credit_qualifying_delta` map, which
+    /// the calculator aggregates on a single scalar risk weight rather than the
+    /// ISDA §3.B per-sector buckets. This is the only path instruments can use
+    /// today: they carry no `SimmCreditSector`. Populating
+    /// `credit_qualifying_delta_bucketed` requires an issuer -> sector
+    /// classifier that does not exist yet.
     pub fn add_credit_delta(
         &mut self,
         name: impl Into<String>,

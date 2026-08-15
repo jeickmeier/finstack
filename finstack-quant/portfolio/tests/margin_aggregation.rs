@@ -177,10 +177,17 @@ fn run_margin(
     let result = aggregator
         .calculate(&portfolio, &MarketContext::new(), as_of)
         .expect("margin run should succeed");
+    // MO-16 is expected here: this fixture's netting set carries no CSA, so
+    // its VM is the unadjusted gross MTM. That is recorded rather than passed
+    // off as a netted call amount. Every other degradation is a real failure.
+    let unexpected: Vec<_> = result
+        .degraded_positions
+        .iter()
+        .filter(|(_, message)| !message.starts_with("MO-16:"))
+        .collect();
     assert!(
-        result.degraded_positions.is_empty(),
-        "no positions should degrade: {:?}",
-        result.degraded_positions
+        unexpected.is_empty(),
+        "no positions should degrade: {unexpected:?}"
     );
     result
 }

@@ -75,8 +75,6 @@ use tracing::debug;
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum SimmVersion {
-    /// SIMM v2.5 (2022)
-    V2_5,
     /// SIMM v2.6 (2023)
     #[default]
     V2_6,
@@ -87,7 +85,6 @@ impl SimmVersion {
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::V2_5 => "v2_5",
             Self::V2_6 => "v2_6",
         }
     }
@@ -96,7 +93,6 @@ impl SimmVersion {
 impl std::fmt::Display for SimmVersion {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SimmVersion::V2_5 => write!(f, "SIMM v2.5"),
             SimmVersion::V2_6 => write!(f, "SIMM v2.6"),
         }
     }
@@ -107,10 +103,11 @@ impl std::str::FromStr for SimmVersion {
 
     fn from_str(raw: &str) -> std::result::Result<Self, Self::Err> {
         match raw {
-            "v2_5" => Ok(Self::V2_5),
             "v2_6" => Ok(Self::V2_6),
             _ => Err(format!(
-                "unknown SIMM version '{raw}' (expected 'v2_5' or 'v2_6')"
+                "unknown SIMM version '{raw}' (expected 'v2_6'). Versions are \
+                 selectable only when their ISDA-published parameter tables are \
+                 shipped in the margin registry."
             )),
         }
     }
@@ -1089,7 +1086,22 @@ impl SimmCalculator {
             }
         }
 
-        // Credit Delta (Qualifying) -- use bucketed path when available
+        // Credit Delta (Qualifying).
+        //
+        // The bucketed branch is the ISDA SIMM §3.B two-level aggregation and
+        // is the correct one. The scalar `else` branch below is NOT removable
+        // legacy despite looking like it: nothing in the workspace populates
+        // `credit_qualifying_delta_bucketed`. Every instrument reports credit
+        // risk through `SimmSensitivities::add_credit_delta`, which writes the
+        // flat `credit_qualifying_delta` map because instruments carry no
+        // `SimmCreditSector` — there is no issuer -> sector classifier in
+        // `valuations`. Deleting the scalar branch therefore drops CQ margin to
+        // zero for every CDS and CDSIndex rather than improving accuracy.
+        //
+        // Removing it is feature work, in this order:
+        //   1. add an issuer -> SimmCreditSector classifier in valuations,
+        //   2. have `Marginable::simm_sensitivities` emit bucketed entries,
+        //   3. then delete this branch and `add_credit_delta`'s qualifying arm.
         if !sensitivities.credit_qualifying_delta_bucketed.is_empty() {
             let credit_margin = self
                 .calculate_credit_delta_bucketed(&sensitivities.credit_qualifying_delta_bucketed);
@@ -1378,18 +1390,18 @@ mod tests {
     fn simm_version_display() {
         assert_eq!(SimmVersion::V2_6.to_string(), "SIMM v2.6");
         assert_eq!(SimmVersion::V2_6.as_str(), "v2_6");
-        assert_eq!(
-            "v2_5".parse::<SimmVersion>().expect("canonical version"),
-            SimmVersion::V2_5
+        assert!(
+            "v2_5".parse::<SimmVersion>().is_err(),
+            "v2.5 tables are not shipped, so the version is not selectable"
         );
-        for noncanonical in ["SIMM 2.5", "2_5", "v2.5", " V2_5"] {
+        for noncanonical in ["SIMM 2.6", "2_6", "v2.6", " V2_6"] {
             assert!(noncanonical.parse::<SimmVersion>().is_err());
         }
     }
 
     #[test]
     fn embedded_simm_registries_pass_validation() {
-        for version in [SimmVersion::V2_5, SimmVersion::V2_6] {
+        for version in [SimmVersion::V2_6] {
             SimmCalculator::new(version)
                 .unwrap_or_else(|e| panic!("SIMM {version:?} should validate: {e}"));
         }

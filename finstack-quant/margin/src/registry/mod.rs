@@ -743,40 +743,27 @@ fn parse_simm(value: Option<&Value>) -> Result<HashMap<String, SimmParams>> {
         let concentration_thresholds =
             parse_concentration_thresholds(&record.concentration_thresholds)?;
 
-        let require_cq_tables = version == SimmVersion::V2_6;
-        let cq_bucket_weights =
-            parse_cq_bucket_weights(&record.cq_bucket_weights, require_cq_tables)?
-                .unwrap_or_else(|| default_cq_bucket_weights(&cq_delta_weights));
-        let cq_intra_bucket_correlation =
-            record
-                .cq_intra_bucket_correlation
-                .unwrap_or(if version == SimmVersion::V2_6 {
-                    0.46
-                } else {
-                    0.42
-                });
+        // Credit-qualifying bucket tables are ISDA-published per SIMM version.
+        // They are required: the previous fallbacks fabricated them (broad
+        // weights via `unwrap_or(85.0)`, a flat 0.27 across every sector pair,
+        // per-bucket thresholds collapsed to the aggregate), producing
+        // confident margin numbers that match no ISDA calibration.
+        let cq_bucket_weights = parse_cq_bucket_weights(&record.cq_bucket_weights, true)?
+            .ok_or_else(|| missing_cq_table(version, "cq_bucket_weights"))?;
+        let cq_intra_bucket_correlation = record
+            .cq_intra_bucket_correlation
+            .ok_or_else(|| missing_cq_table(version, "cq_intra_bucket_correlation"))?;
         if !(-1.0..=1.0).contains(&cq_intra_bucket_correlation) {
             return Err(Error::Validation(
                 "simm.cq_intra_bucket_correlation must be in [-1,1]".to_string(),
             ));
         }
-        let cq_inter_bucket_correlations = parse_cq_inter_bucket_correlations(
-            &record.cq_inter_bucket_correlations,
-            require_cq_tables,
-        )?
-        .unwrap_or_else(default_cq_inter_bucket_correlations);
-        let cq_concentration_thresholds = parse_cq_concentration_thresholds(
-            &record.cq_concentration_thresholds,
-            require_cq_tables,
-        )?
-        .unwrap_or_else(|| {
-            default_cq_concentration_thresholds(
-                concentration_thresholds
-                    .get(&SimmRiskClass::CreditQualifying)
-                    .copied()
-                    .unwrap_or(9_500_000.0),
-            )
-        });
+        let cq_inter_bucket_correlations =
+            parse_cq_inter_bucket_correlations(&record.cq_inter_bucket_correlations, true)?
+                .ok_or_else(|| missing_cq_table(version, "cq_inter_bucket_correlations"))?;
+        let cq_concentration_thresholds =
+            parse_cq_concentration_thresholds(&record.cq_concentration_thresholds, true)?
+                .ok_or_else(|| missing_cq_table(version, "cq_concentration_thresholds"))?;
         let commodity_inter_bucket_correlations = record.commodity_inter_bucket_correlations;
         if commodity_inter_bucket_correlations.is_empty() {
             return Err(Error::Validation(format!(
@@ -1082,68 +1069,14 @@ fn to_timing(record: &wire::MarginCallTimingRecord) -> MarginCallTiming {
     }
 }
 
-/// Build legacy per-sector bucket weights from the existing broad `cq_delta_weights` map.
-///
-/// Used only for non-v2.6 parameter sets or overlays that pre-date the explicit
-/// CQ bucket tables. SIMM v2.6 requires registry-backed tables and does not use
-/// this fallback.
-fn default_cq_bucket_weights(
-    cq_delta_weights: &HashMap<String, f64>,
-) -> HashMap<SimmCreditSector, f64> {
-    let sov = cq_delta_weights.get("sovereigns").copied().unwrap_or(85.0);
-    let fin = cq_delta_weights.get("financials").copied().unwrap_or(85.0);
-    let corp = cq_delta_weights.get("corporates").copied().unwrap_or(73.0);
-
-    [
-        (SimmCreditSector::Sovereign, sov),
-        (SimmCreditSector::Financial, fin),
-        (SimmCreditSector::BasicMaterials, corp),
-        (SimmCreditSector::ConsumerGoods, corp),
-        (SimmCreditSector::TechnologyMedia, corp),
-        (SimmCreditSector::HealthCare, corp),
-        (SimmCreditSector::HighYieldSovereign, sov),
-        (SimmCreditSector::HighYieldFinancial, fin),
-        (SimmCreditSector::HighYieldBasicMaterials, corp),
-        (SimmCreditSector::HighYieldConsumerGoods, corp),
-        (SimmCreditSector::HighYieldTechnologyMedia, corp),
-        (SimmCreditSector::HighYieldHealthCare, corp),
-        (SimmCreditSector::Residual, 500.0),
-    ]
-    .into_iter()
-    .collect()
-}
-
-/// Build legacy inter-bucket correlations for credit qualifying sectors.
-///
-/// Uses a simplified single correlation value of 0.27 across all sector pairs.
-/// SIMM v2.6 requires explicit registry tables and does not use this fallback.
-fn default_cq_inter_bucket_correlations() -> HashMap<(SimmCreditSector, SimmCreditSector), f64> {
-    let mut map = HashMap::default();
-    let sectors = simm_cq_validation_sectors();
-    for (i, &a) in sectors.iter().enumerate() {
-        for &b in sectors.iter().skip(i + 1) {
-            let rho = if a == SimmCreditSector::Residual || b == SimmCreditSector::Residual {
-                0.0
-            } else {
-                0.27
-            };
-            let key = ordered_credit_sector_pair(a, b);
-            map.insert(key, rho);
-        }
-    }
-    map
-}
-
-/// Build default per-bucket concentration thresholds for credit qualifying.
-///
-/// Uses the aggregate CQ concentration threshold for each bucket as a legacy
-/// fallback. SIMM v2.6 requires explicit registry tables and does not use this
-/// fallback.
-fn default_cq_concentration_thresholds(aggregate_threshold: f64) -> HashMap<SimmCreditSector, f64> {
-    simm_cq_validation_sectors()
-        .into_iter()
-        .map(|sector| (sector, aggregate_threshold))
-        .collect()
+/// Error for a SIMM version whose ISDA credit-qualifying tables are absent.
+fn missing_cq_table(version: SimmVersion, field: &str) -> Error {
+    Error::Validation(format!(
+        "SIMM {version}: `simm.{field}` is missing from the registry. The \
+         credit-qualifying bucket tables are ISDA-published per version and are \
+         not derivable from the broad risk weights; supply them for this version \
+         or use a version whose tables are shipped."
+    ))
 }
 
 fn simm_cq_validation_sectors() -> [SimmCreditSector; 13] {

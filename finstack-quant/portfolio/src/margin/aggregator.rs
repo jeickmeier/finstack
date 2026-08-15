@@ -318,8 +318,24 @@ impl PortfolioMarginAggregator {
             }
         }
 
-        // VM is the net CSA call amount after threshold/MTA terms when a
-        // netting-set CSA is available; otherwise preserve the legacy raw MTM.
+        // VM is the net CSA call amount after threshold/MTA terms. A netting
+        // set with no `margin_spec` has no CSA to apply, so the gross MTM is
+        // reported unchanged — that is a degradation, not a result, and it is
+        // recorded rather than passed off silently. Repo netting sets reach
+        // this path: they carry a `RepoMarginSpec` that the aggregator does
+        // not yet consume, so their haircut terms are not reflected in VM.
+        if netting_set.margin_spec.is_none() && !netting_set.is_cleared() {
+            for pos_id in &netting_set.positions {
+                degraded_positions.push((
+                    pos_id.clone(),
+                    format!(
+                        "MO-16: netting set '{}' has no margin_spec; variation margin is the \
+                         gross MTM with no threshold, MTA or haircut applied",
+                        netting_set.id
+                    ),
+                ));
+            }
+        }
         let vm = self.apply_vm_terms(
             netting_set,
             Money::new(total_mtm, self.base_currency),
@@ -426,6 +442,9 @@ impl PortfolioMarginAggregator {
         gross_vm: Money,
         as_of: Date,
     ) -> Result<Money> {
+        // No CSA on this netting set: nothing to net against. The caller
+        // records the degradation so the unadjusted figure is not mistaken
+        // for a CSA-netted call amount.
         let Some(spec) = &netting_set.margin_spec else {
             return Ok(gross_vm);
         };

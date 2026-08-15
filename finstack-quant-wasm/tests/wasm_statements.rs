@@ -107,8 +107,14 @@ fn validate_formula_accepts_valid() {
 // Capital structure / waterfall validators
 
 #[wasm_bindgen_test]
-fn validate_waterfall_spec_roundtrips_default() {
-    let spec = finstack_quant_statements::capital_structure::WaterfallSpec::default();
+fn validate_waterfall_spec_roundtrips_minimal_spec() {
+    let spec = finstack_quant_statements::capital_structure::WaterfallSpec {
+        priority_of_payments:
+            finstack_quant_statements::capital_structure::default_priority_of_payments(),
+        available_cash_node: "cash".into(),
+        ecf_sweep: None,
+        pik_toggle: None,
+    };
     let json = serde_json::to_string(&spec).unwrap();
     let out = validate_waterfall_spec_json(&json).unwrap();
     assert!(out.contains("priority_of_payments"));

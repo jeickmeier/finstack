@@ -41,6 +41,35 @@ attributes and no `serde(alias)`, so none of this was annotation-visible.
   only the input struct.
 - `arrow` no longer enables the `ipc` feature (no IPC code remains).
 
+**Breaking (Rust, JSON) — waves 13-14: margin**
+
+- A netting set with no `margin_spec` now records an `MO-16` degradation
+  instead of silently reporting gross MTM as variation margin. Repo netting
+  sets reach this path: they carry a `RepoMarginSpec` the aggregator does not
+  consume, so their haircut terms are absent from VM. The number is unchanged;
+  what changed is that it is no longer presented as a CSA-netted call amount.
+- ISDA credit-qualifying bucket tables are **required** in the SIMM registry.
+  The removed fallbacks fabricated them: broad weights via `unwrap_or(85.0)`,
+  a flat `0.27` inter-bucket correlation across every sector pair, per-bucket
+  concentration thresholds collapsed to the aggregate, and a `0.46`/`0.42`
+  intra-bucket default. None correspond to any ISDA calibration.
+- Removed `SimmVersion::V2_5` and its registry entry. It shipped **no** CQ
+  tables, so it ran entirely on those fabricated constants. Versions are
+  selectable only when their ISDA-published tables are present. `"v2_5"` no
+  longer parses.
+
+**Not removed — SIMM credit-qualifying scalar path (waves 15-16)**
+
+The scalar aggregation in `SimmCalculator` looks like legacy next to the
+bucketed ISDA §3.B path, but it is the only reachable one: nothing populates
+`credit_qualifying_delta_bucketed`. Instruments report credit risk through
+`SimmSensitivities::add_credit_delta`, which writes the flat map because they
+carry no `SimmCreditSector` — there is no issuer to sector classifier in
+`valuations`. Deleting the scalar branch would drop credit-qualifying margin to
+zero for every CDS and CDSIndex. Removing it is feature work: add the
+classifier, emit bucketed entries from `Marginable::simm_sensitivities`, then
+delete the branch. Documented in-code at both sites.
+
 **Breaking (Rust, JSON, Python) — wave 12: the waterfall can now report insolvency**
 
 - `WaterfallSpec.available_cash_node` is **required** and `impl Default for
