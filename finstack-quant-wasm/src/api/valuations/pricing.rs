@@ -225,9 +225,16 @@ pub fn bond_from_cashflows_json(
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 /// @param model - Optional pricing-model identifier; omit for the instrument-native model.
-/// @param metrics - Optional array of canonical metric identifiers to calculate with the instrument price.
-/// @param pricing_options - Optional JSON pricing overrides accepted by the canonical instrument validator.
-/// @param market_history - Optional serialized historical market snapshots required by historical pricing models.
+/// @param metrics - Optional canonical metric IDs such as `"ytm"`, `"dv01"`,
+/// `"hvar"`, or `"expected_shortfall"`. Omit, `null`, or `undefined` for a
+/// valuation-only result.
+/// @param pricing_options - Optional JSON metric-pricing overrides merged into
+/// the envelope before validation. Omit, `null`, or `undefined` to use the
+/// envelope as-is.
+/// @param market_history - Optional serialized market-history JSON required by
+/// historical risk metrics such as historical VaR.
+/// @returns Plain JavaScript `ValuationResult` (`instrument_id`, `as_of`,
+/// `value`, `measures`, `meta`, …).
 ///
 /// # Errors
 ///
@@ -368,12 +375,19 @@ pub fn list_models_grouped() -> Result<JsValue, JsValue> {
 /// Avoids the per-call market-parse overhead of `priceInstrument`. Returns the
 /// same plain JavaScript ValuationResult object.
 /// @param instrument_json - Canonical instrument envelope JSON in the Finstack v1 schema.
-/// @param market - Market context or JSON payload supplying curves, quotes, and FX data.
+/// @param market - Pre-parsed `Market` handle supplying curves, quotes, and FX data for this call.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 /// @param model - Pricing-model identifier; use `"default"` for the instrument-native model when supported.
-/// @param metrics - Optional array of canonical metric identifiers to calculate with the instrument price.
-/// @param pricing_options - Optional JSON pricing overrides accepted by the canonical instrument validator.
-/// @param market_history - Optional serialized historical market snapshots required by historical pricing models.
+/// @param metrics - Optional canonical metric IDs such as `"ytm"`, `"dv01"`,
+/// `"hvar"`, or `"expected_shortfall"`. Omit, `null`, or `undefined` for a
+/// valuation-only result.
+/// @param pricing_options - Optional JSON metric-pricing overrides merged into
+/// the envelope before validation. Omit, `null`, or `undefined` to use the
+/// envelope as-is.
+/// @param market_history - Optional serialized market-history JSON required by
+/// historical risk metrics such as historical VaR.
+/// @returns Plain JavaScript `ValuationResult` (`instrument_id`, `as_of`,
+/// `value`, `measures`, `meta`, …).
 ///
 /// # Errors
 ///

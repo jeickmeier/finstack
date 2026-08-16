@@ -1,11 +1,8 @@
 //! Python bindings for `finstack_quant_cashflows::builder::schedule`.
 
-use finstack_quant_cashflows::aggregation::DateContext;
 use finstack_quant_cashflows::builder::schedule::merge_cashflow_schedules;
-use finstack_quant_cashflows::builder::{CashFlowMeta, CashFlowSchedule, PvDiscountSource};
-use finstack_quant_core::dates::{DayCount, DayCountContext};
+use finstack_quant_cashflows::builder::{CashFlowMeta, CashFlowSchedule};
 use finstack_quant_core::types::CurveId;
-use indexmap::IndexMap;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
@@ -240,20 +237,19 @@ impl PyCashFlowSchedule {
             periods.iter().map(|p| p.inner.clone()).collect();
         let market = crate::bindings::extract::extract_market(py, market)?;
         let base = py_to_date(base)?;
-        let day_count = day_count.map_or(DayCount::Act365F, |d| d.inner);
+        let day_count = day_count.map(|d| d.inner);
         let disc_id = CurveId::from(disc_curve_id);
         let hazard_id = hazard_curve_id.map(CurveId::from);
         let schedule = self.inner.clone();
         let result = py
             .detach(move || {
-                self_pv(
+                schedule.pv_by_period_with_market(
                     &periods,
                     &market,
                     &disc_id,
                     hazard_id.as_ref(),
                     base,
                     day_count,
-                    &schedule,
                 )
             })
             .map_err(core_to_py)?;
@@ -333,33 +329,6 @@ impl PyCashFlowSchedule {
         let frame = self.to_dataframe(py).ok()?;
         frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
-}
-
-/// GIL-free core of `pv_by_period` (kept out of the pymethod for clarity).
-#[allow(clippy::too_many_arguments)]
-fn self_pv(
-    periods: &[finstack_quant_core::dates::Period],
-    market: &finstack_quant_core::market_data::context::MarketContext,
-    disc_id: &CurveId,
-    hazard_id: Option<&CurveId>,
-    base: finstack_quant_core::dates::Date,
-    day_count: DayCount,
-    schedule: &CashFlowSchedule,
-) -> finstack_quant_core::Result<
-    IndexMap<
-        finstack_quant_core::dates::PeriodId,
-        IndexMap<finstack_quant_core::currency::Currency, finstack_quant_core::money::Money>,
-    >,
-> {
-    schedule.pv_by_period(
-        periods,
-        PvDiscountSource::Market {
-            market,
-            disc_curve_id: disc_id,
-            hazard_curve_id: hazard_id,
-        },
-        DateContext::new(base, day_count, DayCountContext::default()),
-    )
 }
 
 /// Merge multiple schedules into one deterministic composite schedule.

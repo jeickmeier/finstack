@@ -117,6 +117,68 @@ fn py_aggregate_cashflows_checked(
         .map_err(core_to_py)
 }
 
+/// Group dated cashflows into a calendar-year coupon / principal / PV ladder.
+///
+/// Parameters
+/// ----------
+/// dates : list[datetime.date]
+///     Payment dates; the Gregorian year of each date is the bucket.
+/// kinds : list[str]
+///     Cashflow kind labels (``"fixed"``, ``"notional"``, ``"coupon"``,
+///     ``"principal"``, …). ASCII case is ignored. Unknown labels are treated
+///     as coupon (non-principal).
+/// amounts : list[float]
+///     Signed cashflow amounts, one per date, in native currency units.
+/// pvs : list[float]
+///     Present values, one per date, in the same units as ``amounts``.
+///
+/// Returns
+/// -------
+/// list[tuple[int, float, float, float]]
+///     One ``(year, coupon, principal, pv)`` row per calendar year, sorted
+///     by year.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If the four lists have different lengths.
+///
+/// Examples
+/// --------
+/// >>> import datetime
+/// >>> from finstack_quant.cashflows.aggregation import calendar_year_ladder
+/// >>> calendar_year_ladder(
+/// ...     [datetime.date(2027, 3, 15), datetime.date(2034, 3, 15)],
+/// ...     ["coupon", "principal"],
+/// ...     [100.0, 1000.0],
+/// ...     [90.0, 700.0],
+/// ... )
+/// [(2027, 100.0, 0.0, 90.0), (2034, 0.0, 1000.0, 700.0)]
+#[pyfunction(name = "calendar_year_ladder")]
+#[pyo3(text_signature = "(dates, kinds, amounts, pvs)")]
+fn py_calendar_year_ladder(
+    py: Python<'_>,
+    dates: Vec<Bound<'_, PyAny>>,
+    kinds: Vec<String>,
+    amounts: Vec<f64>,
+    pvs: Vec<f64>,
+) -> PyResult<Vec<(i32, f64, f64, f64)>> {
+    let dates: Vec<finstack_quant_core::dates::Date> =
+        dates.iter().map(py_to_date).collect::<PyResult<_>>()?;
+    py.detach(move || {
+        let kind_refs: Vec<&str> = kinds.iter().map(String::as_str).collect();
+        finstack_quant_cashflows::aggregation::calendar_year_ladder(
+            &dates, &kind_refs, &amounts, &pvs,
+        )
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| (row.year, row.coupon, row.principal, row.pv))
+                .collect()
+        })
+    })
+    .map_err(core_to_py)
+}
+
 /// Register the `finstack_quant.cashflows.aggregation` submodule.
 pub(crate) fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let module = PyModule::new(py, "aggregation")?;
@@ -126,8 +188,16 @@ pub(crate) fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult
     )?;
     module.add_function(wrap_pyfunction!(py_aggregate_by_period, &module)?)?;
     module.add_function(wrap_pyfunction!(py_aggregate_cashflows_checked, &module)?)?;
+    module.add_function(wrap_pyfunction!(py_calendar_year_ladder, &module)?)?;
 
-    let all = PyList::new(py, ["aggregate_by_period", "aggregate_cashflows_checked"])?;
+    let all = PyList::new(
+        py,
+        [
+            "aggregate_by_period",
+            "aggregate_cashflows_checked",
+            "calendar_year_ladder",
+        ],
+    )?;
     module.setattr("__all__", all)?;
 
     crate::bindings::module_utils::register_submodule(

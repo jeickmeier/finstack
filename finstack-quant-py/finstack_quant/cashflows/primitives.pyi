@@ -144,6 +144,25 @@ class CFKind:
         """
         ...
 
+    def is_principal_like(self) -> bool:
+        """
+        Return whether this kind changes principal balance.
+
+        Covers ``NOTIONAL``, ``PIK``, ``AMORTIZATION``, ``PRE_PAYMENT``,
+        revolving draws/repayments, and ``DEFAULTED_NOTIONAL``. Interest,
+        fees, recovery, and margin kinds return ``False``.
+
+        Returns
+        -------
+        bool
+            ``True`` for principal-balance kinds, ``False`` otherwise.
+
+        Notes
+        -----
+        This method does not raise; it returns ``True`` or ``False``.
+        """
+        ...
+
 class CashFlow:
     """
     A single dated cash-flow (payment or reset).

@@ -11,7 +11,6 @@ use crate::greeks::finite_diff::{
     finite_diff_delta, finite_diff_delta_crn, finite_diff_gamma, finite_diff_gamma_crn,
 };
 use crate::payoff::vanilla::{EuropeanCall, EuropeanPut};
-use crate::pricer::heston::parse_registry_currency;
 use crate::process::gbm::GbmProcess;
 use crate::registry;
 use crate::rng::philox::PhiloxRng;
@@ -19,6 +18,7 @@ use crate::time_grid::TimeGrid;
 use finstack_quant_core::cashflow::flat_discount_factor;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
+use std::str::FromStr;
 
 /// Inputs for the GBM European finite-difference Greek convenience functions.
 #[derive(Debug, Clone)]
@@ -111,6 +111,14 @@ pub fn finite_diff_gamma_crn_gbm(spec: GbmEuropeanFdSpec) -> Result<(f64, f64)> 
     run_gbm_fd(spec, FdKind::GammaCrn)
 }
 
+fn parse_registry_currency(code: &str) -> Result<Currency> {
+    Currency::from_str(code).map_err(|err| {
+        finstack_quant_core::Error::Validation(format!(
+            "invalid registry default currency '{code}': {err}"
+        ))
+    })
+}
+
 fn parse_option_type(name: &str) -> Result<bool> {
     match name {
         "call" => Ok(true),
@@ -134,7 +142,9 @@ fn run_gbm_fd(spec: GbmEuropeanFdSpec, kind: FdKind) -> Result<(f64, f64)> {
     let is_call = parse_option_type(option_type)?;
     let currency = match spec.currency {
         Some(currency) => currency,
-        None => parse_registry_currency(&registry::embedded_defaults()?.convenience.default_currency)?,
+        None => {
+            parse_registry_currency(&registry::embedded_defaults()?.convenience.default_currency)?
+        }
     };
 
     #[cfg(target_arch = "wasm32")]

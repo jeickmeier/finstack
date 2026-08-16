@@ -139,6 +139,14 @@ function checkDocumentedNode(node, label, options = {}) {
     ['input consumed by this', 'generic @param boilerplate'],
     ['Construction and factory entry points', 'generic constructor-interface boilerplate'],
     ['WebAssembly values.', 'generic constructor-interface boilerplate'],
+    [
+      'Pricing options that select calculation behavior',
+      'generic pricingOptions @param boilerplate',
+    ],
+    [
+      'Chronological market snapshots used to project or backtest',
+      'generic marketHistory @param boilerplate',
+    ],
   ];
   for (const [phrase, message] of genericPhrases) {
     if (joined.includes(phrase)) {

@@ -37,3 +37,17 @@ export declare class ReportHandle {
   /** Serialize this report to JSON. */
   toJson(): string;
 }
+
+/**
+ * Scale a decimal interest rate across a tenor.
+ * @example
+ * ```typescript
+ * const scaled = scaleRate(0.05, 2);
+ * console.log(scaled);
+ * ```
+ * @param rate - Stale rate description.
+ * @param tenor - Stale tenor description.
+ * @returns Stale scaled result.
+ * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+ */
+export function scaleRate(rate: number, tenor: number): number;

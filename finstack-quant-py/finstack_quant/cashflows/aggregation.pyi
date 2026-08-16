@@ -1,11 +1,11 @@
 """
 Currency-preserving aggregation of dated cashflows into periods and totals.
 
-Typed bindings for ``finstack_quant_cashflows::aggregation``. Both functions
-operate on ``[(date, Money), ...]`` dated flows: :func:`aggregate_by_period`
-groups flows into reporting periods while preserving currency separation,
-and :func:`aggregate_cashflows_checked` sums flows into a single currency,
-rejecting any flow whose currency does not match the target.
+Typed bindings for ``finstack_quant_cashflows::aggregation``.
+:func:`aggregate_by_period` groups dated flows into reporting periods while
+preserving currency separation; :func:`aggregate_cashflows_checked` sums flows
+into a single currency, rejecting mismatches; and :func:`calendar_year_ladder`
+rolls coupon / principal / PV totals by calendar year.
 
 Examples
 --------
@@ -30,6 +30,7 @@ from finstack_quant.core.money import Money
 __all__ = [
     "aggregate_by_period",
     "aggregate_cashflows_checked",
+    "calendar_year_ladder",
 ]
 
 def aggregate_by_period(
@@ -105,5 +106,52 @@ def aggregate_cashflows_checked(
     >>> flows = [(datetime.date(2025, 1, 15), Money(50_000.0, "USD"))]
     >>> aggregate_cashflows_checked(flows, "USD").amount
     50000.0
+    """
+    ...
+
+def calendar_year_ladder(
+    dates: list[datetime.date],
+    kinds: list[str],
+    amounts: list[float],
+    pvs: list[float],
+) -> list[tuple[int, float, float, float]]:
+    """
+    Group dated cashflows into a calendar-year coupon / principal / PV ladder.
+
+    Parameters
+    ----------
+    dates : list[datetime.date]
+        Payment dates; the Gregorian year of each date is the bucket.
+    kinds : list[str]
+        Cashflow kind labels (``"fixed"``, ``"notional"``, ``"coupon"``,
+        ``"principal"``, …). ASCII case is ignored. Unknown labels are treated
+        as coupon (non-principal).
+    amounts : list[float]
+        Signed cashflow amounts, one per date, in native currency units.
+    pvs : list[float]
+        Present values, one per date, in the same units as ``amounts``.
+
+    Returns
+    -------
+    list[tuple[int, float, float, float]]
+        One ``(year, coupon, principal, pv)`` row per calendar year, sorted
+        by year.
+
+    Raises
+    ------
+    ValueError
+        If the four lists have different lengths.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.cashflows.aggregation import calendar_year_ladder
+    >>> calendar_year_ladder(
+    ...     [datetime.date(2027, 3, 15), datetime.date(2034, 3, 15)],
+    ...     ["coupon", "principal"],
+    ...     [100.0, 1000.0],
+    ...     [90.0, 700.0],
+    ... )
+    [(2027, 100.0, 0.0, 90.0), (2034, 0.0, 1000.0, 700.0)]
     """
     ...

@@ -91,7 +91,8 @@ fn finite_diff_delta(
         option_type,
         currency,
     )?;
-    py.detach(|| finite_diff_delta_gbm(spec)).map_err(core_to_py)
+    py.detach(|| finite_diff_delta_gbm(spec))
+        .map_err(core_to_py)
 }
 
 /// Finite-difference delta with paired common-random-number stderr.
@@ -190,7 +191,8 @@ fn finite_diff_gamma(
         option_type,
         currency,
     )?;
-    py.detach(|| finite_diff_gamma_gbm(spec)).map_err(core_to_py)
+    py.detach(|| finite_diff_gamma_gbm(spec))
+        .map_err(core_to_py)
 }
 
 /// Finite-difference gamma with paired common-random-number stderr.

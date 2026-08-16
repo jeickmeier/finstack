@@ -1293,14 +1293,7 @@ impl LsmcPricer {
         let process = GbmProcess::with_params(rate, dividend_yield, volatility)?;
         let basis = lsmc_basis(basis, basis_degree, strike)?;
         self.price(
-            &process,
-            spot,
-            expiry,
-            num_steps,
-            exercise,
-            &basis,
-            currency,
-            rate,
+            &process, spot, expiry, num_steps, exercise, &basis, currency, rate,
         )
     }
 

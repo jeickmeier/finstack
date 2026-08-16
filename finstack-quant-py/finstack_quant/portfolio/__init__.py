@@ -108,6 +108,7 @@ aggregate_metrics = _portfolio.aggregate_metrics
 aggregate_metrics_json = _portfolio.aggregate_metrics_json
 value_portfolio = _portfolio.value_portfolio
 aggregate_full_cashflows = _portfolio.aggregate_full_cashflows
+net_in_currency_by_date = _portfolio.net_in_currency_by_date
 apply_scenario_and_revalue = _portfolio.apply_scenario_and_revalue
 scenario_pnl = _portfolio.scenario_pnl
 scenario_pnl_batch = _portfolio.scenario_pnl_batch
@@ -342,6 +343,7 @@ __all__: list[str] = [
     "liquidity_tier",
     "lvar_bangia",
     "mwr_xirr",
+    "net_in_currency_by_date",
     "optimize_portfolio",
     "parametric_es_decomposition",
     "parametric_var_decomposition",

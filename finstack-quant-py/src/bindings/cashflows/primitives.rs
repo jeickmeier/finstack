@@ -116,6 +116,11 @@ impl PyCFKind {
         self.inner.is_interest_like()
     }
 
+    /// Whether this kind changes principal balance (notional, PIK, amortization, …).
+    fn is_principal_like(&self) -> bool {
+        self.inner.is_principal_like()
+    }
+
     /// Hash consistent with equality on the underlying kind.
     fn __hash__(&self) -> u64 {
         use std::hash::{Hash, Hasher};

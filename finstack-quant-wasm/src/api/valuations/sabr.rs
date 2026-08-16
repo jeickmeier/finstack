@@ -4,6 +4,8 @@
 //! JS/TS. Naming follows the Python binding convention (PascalCase with
 //! lower-cased acronym, e.g. `SabrParameters` rather than the Rust-native
 //! `SABRParameters`).
+//!
+//! Hagan SABR (2002): see docs/REFERENCES.md#hagan-2002-sabr.
 
 use crate::utils::{to_js_err, to_js_value};
 use finstack_quant_valuations::models::volatility::sabr::{
@@ -12,6 +14,8 @@ use finstack_quant_valuations::models::volatility::sabr::{
 use wasm_bindgen::prelude::*;
 
 /// SABR model parameters `(alpha, beta, nu, rho)` with optional `shift`.
+///
+/// Hagan SABR (2002): see docs/REFERENCES.md#hagan-2002-sabr.
 #[wasm_bindgen(js_name = SabrParameters)]
 pub struct JsSabrParameters {
     #[wasm_bindgen(skip)]
@@ -109,6 +113,8 @@ impl JsSabrParameters {
 }
 
 /// Hagan-2002 SABR volatility model.
+///
+/// Hagan SABR (2002): see docs/REFERENCES.md#hagan-2002-sabr.
 #[wasm_bindgen(js_name = SabrModel)]
 pub struct JsSabrModel {
     inner: SABRModel,
@@ -158,6 +164,8 @@ impl JsSabrModel {
 }
 
 /// Volatility smile generator for a fixed `(forward, t)` pair.
+///
+/// Hagan SABR (2002): see docs/REFERENCES.md#hagan-2002-sabr.
 #[wasm_bindgen(js_name = SabrSmile)]
 pub struct JsSabrSmile {
     inner: SABRSmile,
@@ -286,6 +294,8 @@ impl JsSabrSmile {
 }
 
 /// SABR calibrator (Levenberg-Marquardt with beta fixed).
+///
+/// Hagan SABR (2002): see docs/REFERENCES.md#hagan-2002-sabr.
 #[wasm_bindgen(js_name = SabrCalibrator)]
 pub struct JsSabrCalibrator {
     inner: SABRCalibrator,

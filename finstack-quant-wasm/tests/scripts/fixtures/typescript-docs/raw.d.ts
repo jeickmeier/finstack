@@ -51,3 +51,15 @@ export class ReportHandle {
    */
   toJson(): string;
 }
+
+/**
+ * Scale a decimal interest rate across a tenor.
+ *
+ * @param rate - Annualized rate as a decimal
+ * (e.g. `0.05` for 5%).
+ * @param tenor - Time horizon in years on an ACT/365 basis.
+ * @returns Rate times tenor, as a decimal year-fraction product.
+ * @throws If `rate` or `tenor` is non-finite
+ * or `tenor` is negative.
+ */
+export function scaleRate(rate: number, tenor: number): number;

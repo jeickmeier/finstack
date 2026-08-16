@@ -29,6 +29,7 @@ use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::pricer::InstrumentType;
 use indexmap::IndexMap;
 use std::collections::HashSet;
+use std::str::FromStr;
 
 /// Add a number of whole years to a date, clamping to the end of the month
 /// when the calendar day does not exist in the target year (e.g.
@@ -253,6 +254,116 @@ impl PortfolioCashflows {
         }
 
         Ok(by_date_base)
+    }
+
+    /// Net same-currency cashflow amounts across kinds for each payment date.
+    ///
+    /// Dates with no flows in `currency` are omitted. Non-finite amounts are
+    /// skipped. Totals use Neumaier compensated summation.
+    ///
+    /// # Arguments
+    ///
+    /// * `currency` - ISO currency whose kind buckets are summed at each date.
+    #[must_use]
+    pub fn net_in_currency_by_date(&self, currency: Currency) -> Vec<(Date, f64)> {
+        net_amounts_by_date(&self.by_date, currency)
+    }
+}
+
+/// Net same-currency cashflow amounts across kinds for each payment date.
+///
+/// # Arguments
+///
+/// * `by_date` - Classified totals keyed by payment date, currency, and kind.
+/// * `currency` - ISO currency whose kind buckets are summed at each date.
+#[must_use]
+pub fn net_amounts_by_date(
+    by_date: &IndexMap<Date, IndexMap<Currency, IndexMap<CFKind, Money>>>,
+    currency: Currency,
+) -> Vec<(Date, f64)> {
+    let mut out = Vec::new();
+    for (date, per_currency) in by_date {
+        let Some(per_kind) = per_currency.get(&currency) else {
+            continue;
+        };
+        let mut acc = finstack_quant_core::math::summation::NeumaierAccumulator::new();
+        let mut saw_finite = false;
+        for money in per_kind.values() {
+            let amount = money.amount();
+            if amount.is_finite() {
+                acc.add(amount);
+                saw_finite = true;
+            }
+        }
+        if saw_finite {
+            out.push((*date, acc.total()));
+        }
+    }
+    out
+}
+
+/// Net same-currency cashflow amounts from a classified `by_date` JSON object.
+///
+/// Accepts either a full [`PortfolioCashflows`] payload or a bare `by_date`
+/// map. Kind keys are opaque strings (reporting fixtures may use mixed-case
+/// labels such as `"Notional"`). Amounts may be JSON numbers or decimal
+/// strings.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidInput`] when `cashflows_json` is not JSON, when
+/// `currency` is not a known ISO code, or when the `by_date` value is not an
+/// object.
+///
+/// # Arguments
+///
+/// * `cashflows_json` - Full cashflow-ladder JSON or a `{date: {ccy: {kind: money}}}`
+///   object (optionally wrapped as `{"by_date": ...}`).
+/// * `currency` - ISO-4217 code selecting which per-date currency bucket to net.
+pub fn net_in_currency_by_date_json(
+    cashflows_json: &str,
+    currency: &str,
+) -> Result<Vec<(String, f64)>> {
+    let currency = Currency::from_str(currency).map_err(|e| Error::InvalidInput(e.to_string()))?;
+    let value: serde_json::Value = serde_json::from_str(cashflows_json)
+        .map_err(|e| Error::InvalidInput(format!("invalid cashflow JSON: {e}")))?;
+    let by_date = value.get("by_date").unwrap_or(&value);
+    let Some(by_date_obj) = by_date.as_object() else {
+        return Err(Error::InvalidInput(
+            "cashflow JSON must contain a by_date object".to_string(),
+        ));
+    };
+
+    let currency_code = currency.to_string();
+    let mut out = Vec::new();
+    for (date, per_currency) in by_date_obj {
+        let Some(ccy_map) = per_currency.get(&currency_code).and_then(|v| v.as_object()) else {
+            continue;
+        };
+        let mut acc = finstack_quant_core::math::summation::NeumaierAccumulator::new();
+        let mut saw_finite = false;
+        for kind_money in ccy_map.values() {
+            if let Some(amount) = json_money_amount(kind_money) {
+                if amount.is_finite() {
+                    acc.add(amount);
+                    saw_finite = true;
+                }
+            }
+        }
+        if saw_finite {
+            out.push((date.clone(), acc.total()));
+        }
+    }
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    Ok(out)
+}
+
+fn json_money_amount(value: &serde_json::Value) -> Option<f64> {
+    let amount = value.get("amount")?;
+    match amount {
+        serde_json::Value::Number(n) => n.as_f64(),
+        serde_json::Value::String(s) => s.parse().ok(),
+        _ => None,
     }
 }
 
@@ -956,5 +1067,24 @@ mod tests {
             .expect("august bucket should exist");
         assert_eq!(august[&CFKind::Fixed], Money::new(50.0, Currency::USD));
         assert_eq!(august[&CFKind::Fee], Money::new(-6.0, Currency::USD));
+    }
+
+    #[test]
+    fn net_in_currency_by_date_json_sums_kinds_and_sorts_dates() {
+        let json = r#"{
+            "by_date": {
+                "2025-04-15": {"USD": {"fixed": {"amount": "1011250", "currency": "USD"}}},
+                "2025-01-15": {"USD": {"Notional": {"amount": "-3000000", "currency": "USD"}}},
+                "2025-07-15": {"EUR": {"fixed": {"amount": "1", "currency": "EUR"}}}
+            }
+        }"#;
+        let rows = net_in_currency_by_date_json(json, "USD").expect("net ladder");
+        assert_eq!(
+            rows,
+            vec![
+                ("2025-01-15".to_string(), -3_000_000.0),
+                ("2025-04-15".to_string(), 1_011_250.0),
+            ]
+        );
     }
 }

@@ -346,6 +346,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "cms_spread_option_intrinsic",
             "callable_range_accrual_accrued",
             "bs_price",
+            "vanilla_expiry_payoff",
             "bs_greeks",
             "bs_implied_vol",
             "black76_implied_vol",

@@ -192,19 +192,15 @@ macro_rules! fx_class {
             /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
             /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
             /// @param model - Optional pricing-model identifier; omit to use the instrument's default model.
-            ///
-            /// # Errors
-            ///
-            /// Throws a JavaScript exception if the instrument or market JSON,
-            /// `asOf`, or `model` is invalid; required market data is missing; the
-            /// selected pricer fails; or the valuation cannot be serialized.
-            /// Price the instrument against a market JSON snapshot.
-            /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
-            /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
-            /// @param model - Optional pricing-model identifier; omit to use the instrument's default model.
-            /// @param metrics - Optional array of canonical metric identifiers to calculate with the instrument price.
-            /// @param pricing_options - Optional JSON pricing overrides accepted by the canonical instrument validator.
-            /// @param market_history - Optional serialized historical market snapshots required by historical pricing models.
+            /// @param metrics - Optional canonical metric IDs such as `"delta"`,
+            /// `"vega"`, `"hvar"`, or `"expected_shortfall"`. Omit, `null`, or
+            /// `undefined` for a valuation-only result.
+            /// @param pricing_options - Optional JSON metric-pricing overrides
+            /// merged into the envelope before validation. Omit, `null`, or
+            /// `undefined` to use the envelope as-is.
+            /// @param market_history - Optional serialized market-history JSON
+            /// required by historical risk metrics such as historical VaR.
+            /// @returns Canonical JSON `ValuationResult` for the selected model.
             ///
             /// # Errors
             ///

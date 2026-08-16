@@ -295,6 +295,46 @@ impl CFKind {
             CFKind::Fixed | CFKind::FloatReset | CFKind::InflationCoupon | CFKind::Stub
         )
     }
+
+    /// Returns `true` for principal-balance cashflow kinds.
+    ///
+    /// Covers notional exchanges, PIK capitalization, scheduled amortization,
+    /// prepayments, revolving draws/repayments, and defaulted notional.
+    /// Interest, fees, recovery, and margin flows return `false`.
+    #[must_use]
+    pub fn is_principal_like(self) -> bool {
+        matches!(
+            self,
+            CFKind::Notional
+                | CFKind::Pik
+                | CFKind::Amortization
+                | CFKind::PrePayment
+                | CFKind::RevolvingDraw
+                | CFKind::RevolvingRepayment
+                | CFKind::DefaultedNotional
+        )
+    }
+
+    /// Parse a cashflow-kind label, accepting canonical `Display` names plus
+    /// the reporting aliases `coupon` → [`CFKind::Fixed`] and `principal` →
+    /// [`CFKind::Notional`]. Matching is ASCII case-insensitive.
+    ///
+    /// # Arguments
+    ///
+    /// * `s` - Kind label such as `"fixed"`, `"Notional"`, `"coupon"`, or
+    ///   `"principal"`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `s` is not a known kind label or alias.
+    pub fn parse_label(s: &str) -> std::result::Result<Self, String> {
+        let normalized = s.trim().to_ascii_lowercase();
+        match normalized.as_str() {
+            "coupon" => Ok(Self::Fixed),
+            "principal" => Ok(Self::Notional),
+            other => other.parse(),
+        }
+    }
 }
 
 /// Contractual accrual metadata attached to one cashflow.
@@ -657,6 +697,50 @@ mod tests {
                 "{kind:?} should not be interest-like"
             );
         }
+    }
+
+    #[test]
+    fn cfkind_is_principal_like_classifies_balance_changing_flows() {
+        for kind in [
+            CFKind::Notional,
+            CFKind::Pik,
+            CFKind::Amortization,
+            CFKind::PrePayment,
+            CFKind::RevolvingDraw,
+            CFKind::RevolvingRepayment,
+            CFKind::DefaultedNotional,
+        ] {
+            assert!(
+                kind.is_principal_like(),
+                "{kind:?} should be principal-like"
+            );
+        }
+
+        for kind in [
+            CFKind::Fixed,
+            CFKind::Fee,
+            CFKind::Recovery,
+            CFKind::MarginInterest,
+        ] {
+            assert!(
+                !kind.is_principal_like(),
+                "{kind:?} should not be principal-like"
+            );
+        }
+    }
+
+    #[test]
+    fn cfkind_parse_label_accepts_aliases_and_mixed_case() {
+        assert_eq!(CFKind::parse_label("coupon").expect("alias"), CFKind::Fixed);
+        assert_eq!(
+            CFKind::parse_label("principal").expect("alias"),
+            CFKind::Notional
+        );
+        assert_eq!(
+            CFKind::parse_label("Notional").expect("mixed case"),
+            CFKind::Notional
+        );
+        assert!(CFKind::parse_label("not-a-kind").is_err());
     }
 
     #[test]

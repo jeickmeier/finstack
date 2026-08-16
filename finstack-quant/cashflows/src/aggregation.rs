@@ -487,6 +487,121 @@ impl<'a> DateContext<'a> {
     }
 }
 
+impl DateContext<'static> {
+    /// Date context using [`DayCountContext::default`].
+    ///
+    /// # Arguments
+    ///
+    /// * `base` - Valuation or anchor date used for year-fraction calculations.
+    /// * `day_count` - Day-count convention used to map dates into year fractions.
+    #[must_use]
+    pub fn with_default_context(base: Date, day_count: DayCount) -> Self {
+        Self::new(base, day_count, DayCountContext::default())
+    }
+}
+
+/// Calendar-year coupon / principal / PV totals for one reporting year.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CalendarYearLadderRow {
+    /// Calendar year of the grouped cashflows (Gregorian, as on `Date::year`).
+    pub year: i32,
+    /// Sum of non-principal amounts in that year, in the flow's native units.
+    pub coupon: f64,
+    /// Sum of [`CFKind::is_principal_like`] amounts in that year.
+    pub principal: f64,
+    /// Sum of present values in that year, in the same units as `coupon`.
+    pub pv: f64,
+}
+
+/// Group dated cashflows into a calendar-year coupon / principal / PV ladder.
+///
+/// Kind labels use [`CFKind::parse_label`]: unknown labels are treated as
+/// coupon (non-principal), matching the previous reporting heuristic that only
+/// principal-like kinds are split out.
+///
+/// # Errors
+///
+/// Returns [`finstack_quant_core::Error::Validation`] when the four slices
+/// have different lengths.
+///
+/// # Arguments
+///
+/// * `dates` - Payment dates; the Gregorian year of each date is the bucket.
+/// * `kind_labels` - Cashflow kind labels (`"fixed"`, `"notional"`, `"coupon"`,
+///   `"principal"`, …). ASCII case is ignored.
+/// * `amounts` - Signed cashflow amounts, one per date, in native currency units.
+/// * `pvs` - Present values, one per date, in the same units as `amounts`.
+///
+/// # Examples
+///
+/// ```
+/// use finstack_quant_cashflows::aggregation::calendar_year_ladder;
+/// use finstack_quant_core::dates::Date;
+/// use time::Month;
+///
+/// let dates = [
+///     Date::from_calendar_date(2027, Month::March, 15).expect("valid"),
+///     Date::from_calendar_date(2034, Month::March, 15).expect("valid"),
+/// ];
+/// let rows = calendar_year_ladder(&dates, &["coupon", "principal"], &[100.0, 1000.0], &[90.0, 700.0])
+///     .expect("ladder");
+/// assert_eq!(rows.first().map(|row| row.year), Some(2027));
+/// assert!((rows.last().expect("row").principal - 1000.0).abs() < 1e-12);
+/// ```
+pub fn calendar_year_ladder(
+    dates: &[Date],
+    kind_labels: &[&str],
+    amounts: &[f64],
+    pvs: &[f64],
+) -> finstack_quant_core::Result<Vec<CalendarYearLadderRow>> {
+    if dates.len() != kind_labels.len() || dates.len() != amounts.len() || dates.len() != pvs.len()
+    {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "calendar_year_ladder requires equal lengths, got dates={}, kinds={}, amounts={}, pvs={}",
+            dates.len(),
+            kind_labels.len(),
+            amounts.len(),
+            pvs.len()
+        )));
+    }
+
+    let mut by_year: std::collections::BTreeMap<i32, [NeumaierAccumulator; 3]> =
+        std::collections::BTreeMap::new();
+    for (((date, kind_label), amount), pv) in dates
+        .iter()
+        .zip(kind_labels.iter())
+        .zip(amounts.iter())
+        .zip(pvs.iter())
+    {
+        let is_principal = CFKind::parse_label(kind_label)
+            .map(CFKind::is_principal_like)
+            .unwrap_or(false);
+        let slot = by_year.entry(date.year()).or_insert_with(|| {
+            [
+                NeumaierAccumulator::new(),
+                NeumaierAccumulator::new(),
+                NeumaierAccumulator::new(),
+            ]
+        });
+        if is_principal {
+            slot[1].add(*amount);
+        } else {
+            slot[0].add(*amount);
+        }
+        slot[2].add(*pv);
+    }
+
+    Ok(by_year
+        .into_iter()
+        .map(|(year, [coupon, principal, pv])| CalendarYearLadderRow {
+            year,
+            coupon: coupon.total(),
+            principal: principal.total(),
+            pv: pv.total(),
+        })
+        .collect())
+}
+
 /// Credit-adjusted PV of a single cashflow under [`RecoveryTiming::AtPaymentDate`].
 ///
 /// # Recovery timing
@@ -1858,5 +1973,40 @@ mod credit_pv_tests {
             expected,
             pv
         );
+    }
+}
+
+#[cfg(test)]
+mod calendar_year_ladder_tests {
+    use super::*;
+    use finstack_quant_core::dates::Date;
+    use time::Month;
+
+    fn d(y: i32, m: u8, day: u8) -> Date {
+        Date::from_calendar_date(y, Month::try_from(m).expect("valid month"), day)
+            .expect("valid date")
+    }
+
+    #[test]
+    fn calendar_year_ladder_splits_coupon_and_principal_by_year() {
+        let dates = [d(2027, 3, 15), d(2027, 9, 15), d(2034, 3, 15)];
+        let kinds = ["coupon", "fixed", "Notional"];
+        let amounts = [212_500.0, 212_500.0, 10_000_000.0];
+        let pvs = [208_000.0, 206_000.0, 7_100_000.0];
+        let rows = calendar_year_ladder(&dates, &kinds, &amounts, &pvs).expect("ladder");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].year, 2027);
+        assert!((rows[0].coupon - 425_000.0).abs() < 1e-9);
+        assert!((rows[0].principal).abs() < 1e-12);
+        assert_eq!(rows[1].year, 2034);
+        assert!((rows[1].principal - 10_000_000.0).abs() < 1e-9);
+        assert!((rows[1].pv - 7_100_000.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn calendar_year_ladder_rejects_length_mismatch() {
+        let err = calendar_year_ladder(&[d(2027, 1, 1)], &["fixed"], &[1.0], &[])
+            .expect_err("length mismatch");
+        assert!(err.to_string().contains("equal lengths"));
     }
 }

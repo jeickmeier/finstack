@@ -7,7 +7,9 @@
 //! Start with [`pathwise`] for smooth payoffs, use [`lrm`] for discontinuous
 //! payoffs such as digitals or barriers (mind the per-estimator payoff
 //! contracts documented on each function), and use [`finite_diff`] when you
-//! need a general bump-and-reprice fallback.
+//! need a general bump-and-reprice fallback. Host bindings for GBM European
+//! finite-difference delta/gamma must call [`gbm_european`] rather than
+//! assembling the engine themselves.
 
 pub mod finite_diff;
 pub mod gbm_european;

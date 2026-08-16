@@ -127,6 +127,55 @@ fn aggregate_full_cashflows(
     Ok(PyPortfolioCashflows::from_inner(cashflows))
 }
 
+/// Net same-currency cashflow amounts across kinds for each payment date.
+///
+/// Parameters
+/// ----------
+/// cashflows_json : str
+///     Full cashflow-ladder JSON or a ``{date: {ccy: {kind: money}}}`` object
+///     (optionally wrapped as ``{"by_date": ...}``). Kind keys are opaque
+///     strings; amounts may be JSON numbers or decimal strings.
+/// currency : str
+///     ISO-4217 code selecting which per-date currency bucket to net.
+///
+/// Returns
+/// -------
+/// list[tuple[str, float]]
+///     ``(ISO date, net amount)`` pairs sorted by date. Dates with no flows
+///     in ``currency`` are omitted.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If ``cashflows_json`` is not JSON, ``currency`` is unknown, or
+///     ``by_date`` is not an object.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.portfolio import net_in_currency_by_date
+/// >>> net_in_currency_by_date(
+/// ...     '{"by_date":{"2025-01-15":{"USD":{"notional":{"amount":"-100","currency":"USD"}}}}}',
+/// ...     "USD",
+/// ... )
+/// [('2025-01-15', -100.0)]
+#[pyfunction]
+#[pyo3(text_signature = "(cashflows_json, currency)")]
+fn net_in_currency_by_date(
+    py: Python<'_>,
+    cashflows_json: &str,
+    currency: &str,
+) -> PyResult<Vec<(String, f64)>> {
+    let cashflows_json = cashflows_json.to_owned();
+    let currency = currency.to_owned();
+    py.detach(move || {
+        finstack_quant_portfolio::cashflows::net_in_currency_by_date_json(
+            &cashflows_json,
+            &currency,
+        )
+    })
+    .map_err(portfolio_to_py)
+}
+
 /// Apply a scenario to a portfolio and revalue it.
 ///
 /// Parameters
@@ -328,6 +377,7 @@ fn scenario_pnl_batch_json(
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(value_portfolio, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(aggregate_full_cashflows, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(net_in_currency_by_date, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(apply_scenario_and_revalue, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(scenario_pnl, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(scenario_pnl_batch, m)?)?;

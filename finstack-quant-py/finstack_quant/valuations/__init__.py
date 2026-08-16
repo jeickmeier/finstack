@@ -42,6 +42,7 @@ bs_cos_price = _valuations.bs_cos_price
 vg_cos_price = _valuations.vg_cos_price
 merton_jump_cos_price = _valuations.merton_jump_cos_price
 bs_price = _valuations.bs_price
+vanilla_expiry_payoff = _valuations.vanilla_expiry_payoff
 bs_greeks = _valuations.bs_greeks
 bs_implied_vol = _valuations.bs_implied_vol
 black76_implied_vol = _valuations.black76_implied_vol
@@ -154,5 +155,6 @@ __all__: list[str] = [
     "snowball_coupon_profile",
     "tarn_coupon_profile",
     "validate_calibration_json",
+    "vanilla_expiry_payoff",
     "vg_cos_price",
 ]

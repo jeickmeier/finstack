@@ -358,7 +358,7 @@ public = ["AccrualConfig", "AccrualIndex", "AccrualMethod", "ExCouponRule", "acc
 
 [crates.cashflows.module_symbols.aggregation]
 python_package = "finstack_quant.cashflows.aggregation"
-public = ["aggregate_by_period", "aggregate_cashflows_checked"]
+public = ["aggregate_by_period", "aggregate_cashflows_checked", "calendar_year_ladder"]
 
 [crates.cashflows.module_symbols.schema]
 python_package = "finstack_quant.cashflows.schema"
@@ -762,6 +762,7 @@ public = [
     "snowball_coupon_profile",
     "tarn_coupon_profile",
     "validate_calibration_json",
+    "vanilla_expiry_payoff",
     "vg_cos_price",
 ]
 
@@ -1647,6 +1648,7 @@ public = [
     "liquidity_tier",
     "lvar_bangia",
     "mwr_xirr",
+    "net_in_currency_by_date",
     "optimize_portfolio",
     "parametric_es_decomposition",
     "parametric_var_decomposition",
@@ -1740,6 +1742,7 @@ python_only = [
   # ordered batch envelope without exposing executor state.
   "scenario_pnl_batch",
   "scenario_pnl_batch_json",
+  "net_in_currency_by_date",
   # Python-only `_json` wire twins of the typed entry points. WASM's
   # unsuffixed exports already return structured objects, so the contract
   # does not require *Json twins on the facade.
@@ -2485,6 +2488,7 @@ root_exports = [
     "tarnCouponProfile",
     "validateCalibrationJson",
     "validateValuationResultJson",
+    "vanillaExpiryPayoff",
     "vgCosPrice",
 ]
 
@@ -2507,6 +2511,7 @@ wasm_only = [
 # Omitted entries follow default camelCase from snake_case.
 [wasm_valuations_subset.python_js_map]
 bs_price = "bsPrice"
+vanilla_expiry_payoff = "vanillaExpiryPayoff"
 bs_greeks = "bsGreeks"
 bs_implied_vol = "bsImpliedVol"
 black76_implied_vol = "black76ImpliedVol"

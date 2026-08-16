@@ -148,6 +148,7 @@ __all__ = [
     "liquidity_tier",
     "lvar_bangia",
     "mwr_xirr",
+    "net_in_currency_by_date",
     "optimize_portfolio",
     "parametric_es_decomposition",
     "parametric_var_decomposition",
@@ -2614,6 +2615,44 @@ def aggregate_full_cashflows(portfolio: Portfolio | str, market: MarketContext |
     >>> cashflows = aggregate_full_cashflows(Portfolio.from_spec(spec), MarketContext())
     >>> (cashflows.num_positions(), cashflows.num_issues())
     (0, 0)
+    """
+    ...
+
+def net_in_currency_by_date(cashflows_json: str, currency: str) -> list[tuple[str, float]]:
+    """
+    Net same-currency cashflow amounts across kinds for each payment date.
+
+    Parameters
+    ----------
+    cashflows_json : str
+        Full cashflow-ladder JSON or a ``{date: {ccy: {kind: money}}}`` object
+        (optionally wrapped as ``{"by_date": ...}``). Kind keys are opaque
+        strings; amounts may be JSON numbers or decimal strings.
+    currency : str
+        ISO-4217 code selecting which per-date currency bucket to net.
+
+    Returns
+    -------
+    list[tuple[str, float]]
+        ``(ISO date, net amount)`` pairs sorted by date. Dates with no flows
+        in ``currency`` are omitted.
+
+    Raises
+    ------
+    ValueError
+        If ``cashflows_json`` is not JSON, ``currency`` is unknown, or
+        ``by_date`` is not an object.
+    PortfolioError
+        If cashflow JSON cannot be interpreted as a classified ladder.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import net_in_currency_by_date
+    >>> net_in_currency_by_date(
+    ...     '{"by_date":{"2025-01-15":{"USD":{"notional":{"amount":"-100","currency":"USD"}}}}}',
+    ...     "USD",
+    ... )
+    [('2025-01-15', -100.0)]
     """
     ...
 

@@ -138,6 +138,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         "aggregate_metrics_json",
         "value_portfolio",
         "aggregate_full_cashflows",
+        "net_in_currency_by_date",
         "apply_scenario_and_revalue",
         "scenario_pnl",
         "scenario_pnl_batch",

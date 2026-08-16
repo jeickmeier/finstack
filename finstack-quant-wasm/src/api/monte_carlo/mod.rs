@@ -501,8 +501,21 @@ pub fn price_american_put(
     basis_degree: Option<usize>,
 ) -> Result<JsValue, JsValue> {
     price_lsmc_gbm(
-        true, spot, strike, rate, div_yield, vol, expiry, num_paths, seed, num_steps, currency,
-        use_parallel, basis, basis_degree, None,
+        true,
+        spot,
+        strike,
+        rate,
+        div_yield,
+        vol,
+        expiry,
+        num_paths,
+        seed,
+        num_steps,
+        currency,
+        use_parallel,
+        basis,
+        basis_degree,
+        None,
     )
 }
 
@@ -547,8 +560,21 @@ pub fn price_american_call(
     basis_degree: Option<usize>,
 ) -> Result<JsValue, JsValue> {
     price_lsmc_gbm(
-        false, spot, strike, rate, div_yield, vol, expiry, num_paths, seed, num_steps, currency,
-        use_parallel, basis, basis_degree, None,
+        false,
+        spot,
+        strike,
+        rate,
+        div_yield,
+        vol,
+        expiry,
+        num_paths,
+        seed,
+        num_steps,
+        currency,
+        use_parallel,
+        basis,
+        basis_degree,
+        None,
     )
 }
 
@@ -696,13 +722,9 @@ fn price_lsmc_gbm(
     let degree = basis_degree.unwrap_or(defaults.basis_degree);
     let basis_name = basis.as_deref().unwrap_or(defaults.basis.as_str());
     let basis = BasisKind::parse(basis_name).map_err(to_js_err)?;
-    let pricer = LsmcPricer::gbm_american(
-        num_paths,
-        num_steps,
-        seed,
-        use_parallel.unwrap_or(false),
-    )
-    .map_err(to_js_err)?;
+    let pricer =
+        LsmcPricer::gbm_american(num_paths, num_steps, seed, use_parallel.unwrap_or(false))
+            .map_err(to_js_err)?;
     let est = match (is_put, pricing_seed) {
         (true, None) => pricer.price_gbm_american_put(
             spot, strike, rate, div_yield, vol, expiry, num_steps, currency, basis, degree,

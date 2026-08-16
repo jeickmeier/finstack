@@ -10,8 +10,8 @@ use wasm_bindgen::prelude::*;
 
 /// Opaque handle wrapping a parsed [`MarketContext`].
 ///
-/// Construct once from JSON, then pass to `priceInstrumentWithMarket`,
-/// `priceInstrumentWithMarket`, etc.  Eliminates the per-call
+/// Construct once from JSON, then pass to `priceInstrumentWithMarket` and
+/// other `*WithMarket` pricing entry points. Eliminates the per-call
 /// market-parse overhead in bulk-pricing and Greeks-sweep loops.
 ///
 /// @example
@@ -30,9 +30,10 @@ pub struct JsMarket {
 impl JsMarket {
     /// Parse a MarketContext from its JSON representation.
     ///
-    /// @param json - MarketContext JSON string.
+    /// @param json - Canonical MarketContext JSON, the same payload accepted by
+    /// pricing `marketJson` arguments.
     /// @returns A `Market` handle that can be reused across pricing calls.
-    /// @throws If the JSON is invalid.
+    /// @throws If the JSON is malformed or does not match the MarketContext schema.
     #[wasm_bindgen(constructor)]
     pub fn new(json: &str) -> Result<JsMarket, JsValue> {
         let inner: MarketContext = serde_json::from_str(json).map_err(to_js_err)?;

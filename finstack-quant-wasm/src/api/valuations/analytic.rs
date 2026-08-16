@@ -7,6 +7,10 @@
 //! `t` is time to expiry in years. Greeks scale matches the Rust crate:
 //! `vega` and both rho values are per 1% move, `theta` is per-day under the
 //! `thetaDays` day-count (ACT/365 by default).
+//!
+//! Named-model sources: `docs/REFERENCES.md#black-scholes-1973`,
+//! `docs/REFERENCES.md#merton-1973`, `docs/REFERENCES.md#garman-kohlhagen-1983`,
+//! `docs/REFERENCES.md#black-1976`.
 
 use crate::utils::to_js_err;
 use finstack_quant_valuations::constants::DEFAULT_THETA_DAYS_PER_YEAR;
@@ -16,11 +20,15 @@ use finstack_quant_valuations::models::closed_form::implied_vol::{
 use finstack_quant_valuations::models::closed_form::{
     asian_option_price_str, barrier_call_str, bs_greeks_checked as bs_greeks_core,
     bs_price_checked, lookback_option_price_str, option_type_from_bool,
-    quanto_option_price_checked,
+    quanto_option_price_checked, vanilla_expiry_payoff as vanilla_expiry_payoff_core,
 };
 use wasm_bindgen::prelude::*;
 
 /// Per-unit Black-Scholes / Garman-Kohlhagen price of a European option.
+///
+/// Black-Scholes (1973): see docs/REFERENCES.md#black-scholes-1973.
+/// Merton (1973): see docs/REFERENCES.md#merton-1973.
+/// Garman-Kohlhagen (1983): see docs/REFERENCES.md#garman-kohlhagen-1983.
 ///
 /// @param spot - Spot price of the underlying.
 /// @param strike - Strike of the option.
@@ -65,7 +73,34 @@ pub fn bs_price(
         .map_err(to_js_err)
 }
 
+/// Vanilla option payoff at expiry: `max(±(spot - strike), 0)`.
+///
+/// @param spot - Underlying level at expiry, in the same price units as `strike`.
+/// @param strike - Exercise price; must be finite and strictly positive.
+/// @param isCall - `true` for a call (`max(spot - strike, 0)`), `false` for a
+/// put (`max(strike - spot, 0)`).
+/// @returns Undiscounted expiry payoff in the same units as `spot` and `strike`.
+///
+/// @example
+/// ```javascript
+/// import init, { valuations } from "finstack-quant-wasm";
+/// await init();
+/// const payoff = valuations.vanillaExpiryPayoff(110, 100, true);
+/// // payoff === 10
+/// ```
+///
+/// @throws If `spot` is non-finite or `strike` is non-finite or not strictly
+/// positive.
+#[wasm_bindgen(js_name = vanillaExpiryPayoff)]
+pub fn vanilla_expiry_payoff(spot: f64, strike: f64, is_call: bool) -> Result<f64, JsValue> {
+    vanilla_expiry_payoff_core(spot, strike, option_type_from_bool(is_call)).map_err(to_js_err)
+}
+
 /// Black-Scholes / Garman-Kohlhagen Greeks as a `{delta, gamma, vega, theta, rho, rho_q}` object.
+///
+/// Black-Scholes (1973): see docs/REFERENCES.md#black-scholes-1973.
+/// Merton (1973): see docs/REFERENCES.md#merton-1973.
+/// Garman-Kohlhagen (1983): see docs/REFERENCES.md#garman-kohlhagen-1983.
 ///
 /// @param spot - Spot price of the underlying.
 /// @param strike - Strike of the option.
@@ -129,6 +164,10 @@ pub fn bs_greeks(
 
 /// Solve for Black-Scholes / Garman-Kohlhagen implied volatility.
 ///
+/// Black-Scholes (1973): see docs/REFERENCES.md#black-scholes-1973.
+/// Merton (1973): see docs/REFERENCES.md#merton-1973.
+/// Garman-Kohlhagen (1983): see docs/REFERENCES.md#garman-kohlhagen-1983.
+///
 /// @param spot - Spot price of the underlying.
 /// @param strike - Strike of the option.
 /// @param r - Risk-free rate, **decimal** continuously compounded.
@@ -160,6 +199,8 @@ pub fn bs_implied_vol(
 }
 
 /// Solve for Black-76 (forward-based) implied volatility.
+///
+/// Black (1976): see docs/REFERENCES.md#black-1976.
 /// @param forward - Forward price or rate in the same quote convention as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param df - Discount factor from valuation to expiry, expressed as a positive decimal.
@@ -196,6 +237,7 @@ pub fn black76_implied_vol(
 /// Reiner-Rubinstein continuous-monitoring barrier call price.
 ///
 /// `direction` is `"up"` or `"down"`, `knock` is `"in"` or `"out"`.
+/// Reiner-Rubinstein (1991): see docs/REFERENCES.md#reiner-rubinstein-1991.
 /// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param barrier - Continuously monitored barrier level in the same price units as spot.
@@ -227,6 +269,9 @@ pub fn barrier_call(
 }
 
 /// Arithmetic (Turnbull-Wakeman) or geometric (Kemna-Vorst) Asian option.
+///
+/// Kemna-Vorst (1990): see docs/REFERENCES.md#kemna-vorst-1990.
+/// Turnbull-Wakeman (1991): see docs/REFERENCES.md#turnbull-wakeman-1991.
 /// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param r - Continuously compounded risk-free rate, expressed as a decimal.
@@ -275,6 +320,7 @@ pub fn asian_option_price(
 ///
 /// `strike_type` is `"fixed"` (default) or `"floating"`. For `"floating"`,
 /// `strike` is ignored and `extremum` is the observed min/max to date.
+/// Conze-Viswanathan (1991): see docs/REFERENCES.md#conze-viswanathan-1991.
 /// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param r - Continuously compounded risk-free rate, expressed as a decimal.
@@ -320,6 +366,9 @@ pub fn lookback_option_price(
 }
 
 /// Quanto option (FX-adjusted cross-currency) price in domestic currency.
+///
+/// Garman-Kohlhagen (1983): see docs/REFERENCES.md#garman-kohlhagen-1983.
+/// Brigo-Mercurio (2006): see docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models.
 ///
 /// @throws If the inputs produce a non-finite price.
 /// @param spot - Current spot price or exchange rate in the same units as the strike.
@@ -369,6 +418,12 @@ mod tests {
     fn bs_price_call_atm_is_positive() {
         let p = bs_price(100.0, 100.0, 0.05, 0.02, 0.2, 1.0, true).expect("finite price");
         assert!(p > 0.0);
+    }
+
+    #[test]
+    fn vanilla_expiry_payoff_call_itm() {
+        let payoff = vanilla_expiry_payoff(110.0, 100.0, true).expect("finite payoff");
+        assert!((payoff - 10.0).abs() < 1e-12);
     }
 
     #[test]

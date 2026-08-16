@@ -33,6 +33,7 @@ export const valuations = {
   },
   Market: wasm.Market,
   bsPrice: wasm.bsPrice,
+  vanillaExpiryPayoff: wasm.vanillaExpiryPayoff,
   bsGreeks: wasm.bsGreeks,
   bsImpliedVol: wasm.bsImpliedVol,
   black76ImpliedVol: wasm.black76ImpliedVol,

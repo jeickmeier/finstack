@@ -170,6 +170,16 @@ pub fn option_type_from_bool(is_call: bool) -> OptionType {
 ///
 /// Returns an error if `spot` is non-finite or `strike` is non-finite or not
 /// strictly positive.
+///
+/// # Examples
+///
+/// ```
+/// use finstack_quant_valuations::instruments::OptionType;
+/// use finstack_quant_valuations::models::vanilla_expiry_payoff;
+///
+/// let payoff = vanilla_expiry_payoff(110.0, 100.0, OptionType::Call).expect("valid strike");
+/// assert!((payoff - 10.0).abs() < 1e-12);
+/// ```
 pub fn vanilla_expiry_payoff(spot: f64, strike: f64, option_type: OptionType) -> Result<f64> {
     if !spot.is_finite() {
         return Err(Error::Validation(format!(

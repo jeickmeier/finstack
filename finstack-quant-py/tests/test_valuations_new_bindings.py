@@ -29,6 +29,7 @@ from finstack_quant.valuations import (
     bs_greeks,
     bs_implied_vol,
     bs_price,
+    vanilla_expiry_payoff,
     instrument_cashflows,
     inverse_floater_coupon_profile,
     lookback_option_price,
@@ -52,6 +53,14 @@ def _instrument_json(instrument: dict[str, object]) -> str:
 
 def test_bs_price_call_atm_is_positive() -> None:
     assert bs_price(100.0, 100.0, 0.05, 0.02, 0.2, 1.0, True) > 0.0
+
+
+def test_vanilla_expiry_payoff_matches_intrinsic() -> None:
+    assert vanilla_expiry_payoff(110.0, 100.0, True) == 10.0
+    assert vanilla_expiry_payoff(90.0, 100.0, False) == 10.0
+    assert vanilla_expiry_payoff(90.0, 100.0, True) == 0.0
+    with pytest.raises(ValueError):
+        vanilla_expiry_payoff(100.0, 0.0, True)
 
 
 def test_bs_greeks_has_expected_keys() -> None:

@@ -206,22 +206,34 @@ function tagsFromRustdoc(documentationText, parameterNames) {
     }
     const parameter = stripped.match(/^@param\s+([A-Za-z_][A-Za-z0-9_]*)\s*-\s*(.+)$/);
     if (parameter) {
+      flushSection();
       const name = parameterMap.get(camelCase(parameter[1]));
       if (name) tags.push(`@param ${name} - ${parameter[2]}`);
       continue;
     }
     const argument = stripped.match(/^\*\s*`([A-Za-z_][A-Za-z0-9_]*)`\s*-\s*(.+)$/);
     if (argument) {
+      flushSection();
       const name = parameterMap.get(camelCase(argument[1]));
       if (name) tags.push(`@param ${name} - ${argument[2]}`);
       continue;
     }
     const jsdoc = stripped.match(/^@(returns|throws|example)\b\s*(.*)$/);
     if (jsdoc) {
+      flushSection();
       tags.push(`@${jsdoc[1]}${jsdoc[2] ? ` ${jsdoc[2]}` : ''}`);
       continue;
     }
-    if (section) sectionText.push(stripped.replace(/^[-*]\s*/, ''));
+    if (section) {
+      sectionText.push(stripped.replace(/^[-*]\s*/, ''));
+      continue;
+    }
+    if (stripped && tags.length) {
+      const last = tags[tags.length - 1];
+      if (last.startsWith('@param') || last.startsWith('@returns') || last.startsWith('@throws')) {
+        tags[tags.length - 1] = `${last} ${stripped}`;
+      }
+    }
   }
   flushSection();
   return tags;

@@ -96,6 +96,7 @@ __all__ = [
     "cms_spread_option_intrinsic",
     "callable_range_accrual_accrued",
     "bs_price",
+    "vanilla_expiry_payoff",
     "bs_greeks",
     "bs_implied_vol",
     "black76_implied_vol",
@@ -1078,6 +1079,39 @@ def bs_price(
     - Merton (1973): see docs/REFERENCES.md#merton-1973
     - Garman-Kohlhagen (1983): see docs/REFERENCES.md#garman-kohlhagen-1983
 
+    """
+    ...
+
+def vanilla_expiry_payoff(spot: float, strike: float, is_call: bool) -> float:
+    """
+    Vanilla option payoff at expiry: ``max(±(spot - strike), 0)``.
+
+    Parameters
+    ----------
+    spot : float
+        Underlying level at expiry, in the same price units as ``strike``.
+    strike : float
+        Exercise price; must be finite and strictly positive.
+    is_call : bool
+        ``True`` for a call (``max(spot - strike, 0)``), ``False`` for a put
+        (``max(strike - spot, 0)``).
+
+    Returns
+    -------
+    float
+        Undiscounted expiry payoff in the same units as ``spot`` and ``strike``.
+
+    Raises
+    ------
+    ValueError
+        If ``spot`` is non-finite or ``strike`` is non-finite or not strictly
+        positive.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations import vanilla_expiry_payoff
+    >>> vanilla_expiry_payoff(110.0, 100.0, True)
+    10.0
     """
     ...
 

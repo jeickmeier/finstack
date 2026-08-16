@@ -20,7 +20,8 @@ use finstack_quant_valuations::models::closed_form::implied_vol::{
 };
 use finstack_quant_valuations::models::closed_form::{
     asian_option_price_str, barrier_call_str, bs_greeks_checked, bs_price_checked,
-    lookback_option_price_str, option_type_from_bool, quanto_option_price_checked, BsGreeks,
+    lookback_option_price_str, option_type_from_bool, quanto_option_price_checked,
+    vanilla_expiry_payoff, BsGreeks,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -74,6 +75,40 @@ fn bs_price_wrapper(
 ) -> PyResult<f64> {
     bs_price_checked(spot, strike, r, q, sigma, t, option_type_from_bool(is_call))
         .map_err(display_to_py)
+}
+
+/// Vanilla option payoff at expiry: ``max(±(spot - strike), 0)``.
+///
+/// Parameters
+/// ----------
+/// spot : float
+///     Underlying level at expiry, in the same price units as ``strike``.
+/// strike : float
+///     Exercise price; must be finite and strictly positive.
+/// is_call : bool
+///     ``True`` for a call (``max(spot - strike, 0)``), ``False`` for a put
+///     (``max(strike - spot, 0)``).
+///
+/// Returns
+/// -------
+/// float
+///     Undiscounted expiry payoff in the same units as ``spot`` and ``strike``.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If ``spot`` is non-finite or ``strike`` is non-finite or not strictly
+///     positive.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.valuations import vanilla_expiry_payoff
+/// >>> vanilla_expiry_payoff(110.0, 100.0, True)
+/// 10.0
+#[pyfunction(name = "vanilla_expiry_payoff")]
+#[pyo3(signature = (spot, strike, is_call))]
+fn vanilla_expiry_payoff_wrapper(spot: f64, strike: f64, is_call: bool) -> PyResult<f64> {
+    vanilla_expiry_payoff(spot, strike, option_type_from_bool(is_call)).map_err(display_to_py)
 }
 
 // bs_greeks
@@ -481,6 +516,7 @@ fn quanto_option_wrapper(
 /// Register the analytic option primitives on the valuations submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bs_price_wrapper, m)?)?;
+    m.add_function(wrap_pyfunction!(vanilla_expiry_payoff_wrapper, m)?)?;
     m.add_function(wrap_pyfunction!(bs_greeks_wrapper, m)?)?;
     m.add_function(wrap_pyfunction!(bs_implied_vol_wrapper, m)?)?;
     m.add_function(wrap_pyfunction!(black76_implied_vol_wrapper, m)?)?;

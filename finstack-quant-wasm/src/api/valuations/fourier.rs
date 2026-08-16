@@ -6,6 +6,8 @@
 //!
 //! All rates are continuously compounded decimals; `sigma` is annualized vol;
 //! `maturity` is time to expiry in years.
+//!
+//! Fang-Oosterlee (2008): see docs/REFERENCES.md#fang-oosterlee-2008.
 
 use crate::utils::to_js_err;
 use finstack_quant_valuations::pricer::cos::{
@@ -16,6 +18,9 @@ use finstack_quant_valuations::pricer::cos::{
 use wasm_bindgen::prelude::*;
 
 /// Price a European option under the Black-Scholes model using the COS method.
+///
+/// Fang-Oosterlee (2008): see docs/REFERENCES.md#fang-oosterlee-2008.
+/// Black-Scholes (1973): see docs/REFERENCES.md#black-scholes-1973.
 /// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
@@ -56,6 +61,9 @@ pub fn bs_cos_price(
 }
 
 /// Price a European option under the Variance Gamma model using the COS method.
+///
+/// Fang-Oosterlee (2008): see docs/REFERENCES.md#fang-oosterlee-2008.
+/// Madan-Carr-Chang (1998): see docs/REFERENCES.md#madan-carr-chang-1998.
 /// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
@@ -102,6 +110,9 @@ pub fn vg_cos_price(
 }
 
 /// Price a European option under Merton (1976) jump-diffusion using the COS method.
+///
+/// Fang-Oosterlee (2008): see docs/REFERENCES.md#fang-oosterlee-2008.
+/// Merton jump-diffusion (1976): see docs/REFERENCES.md#merton-1976-jump.
 /// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.

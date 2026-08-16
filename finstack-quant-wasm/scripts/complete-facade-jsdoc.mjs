@@ -250,9 +250,18 @@ const parameterDescriptions = new Map([
   ['bf10d', '10-delta butterflies aligned with the supplied expiries.'],
   ['fromLevels', 'Earlier hierarchy-level snapshot used as the start of the period comparison.'],
   ['toLevels', 'Later hierarchy-level snapshot used as the end of the period comparison.'],
-  ['metrics', 'Optional exact risk-metric ids to compute; omit for the standard set.'],
-  ['pricingOptions', 'Pricing options that select calculation behavior and output detail.'],
-  ['marketHistory', 'Chronological market snapshots used to project or backtest the result.'],
+  [
+    'metrics',
+    "Optional metric identifiers to compute with this call; omit, null, or empty follows that callable's documented default.",
+  ],
+  [
+    'pricingOptions',
+    'Optional JSON metric-pricing overrides merged into the instrument envelope before validation.',
+  ],
+  [
+    'marketHistory',
+    'Optional serialized market-history JSON required by historical risk metrics such as historical VaR.',
+  ],
   ['spec', 'Specification object or JSON used to construct this value.'],
   ['json', 'Canonical JSON string for this value.'],
   ['jsonStr', 'Canonical JSON string to validate and re-serialize.'],

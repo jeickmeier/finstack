@@ -36,12 +36,8 @@ impl Default for JsInstrumentArtifactCache {
 impl JsInstrumentArtifactCache {
     /// Create an empty cache with an explicit entry capacity.
     ///
-    /// # Arguments
-    ///
-    /// * `capacity` - Maximum retained artifacts. Omit to use the native
-    ///   default of 4,096.
-    ///
-    /// @param capacity - Maximum retained artifacts; defaults to 4,096.
+    /// @param capacity - Maximum retained artifacts. Omit, `null`, or
+    /// `undefined` to use the native default of 4,096.
     /// @returns A reusable cache with a 64 MiB encoded-source byte bound.
     #[wasm_bindgen(constructor)]
     pub fn new(capacity: Option<usize>) -> JsInstrumentArtifactCache {
@@ -79,24 +75,14 @@ impl JsPortfolio {
     /// object contains `{ portfolio, report }`, where `portfolio` is a reusable
     /// WASM handle and `report` is plain structured JavaScript data.
     ///
-    /// # Arguments
-    ///
-    /// * `bundle` - Complete UTF-8 materialization JSON as a JavaScript string
-    ///   or `Uint8Array`.
-    /// * `cache` - Optional reusable decoded-artifact cache created outside any
-    ///   timed validation region.
-    ///
-    /// # Errors
-    ///
-    /// Throws `TypeError` for unsupported input types. Contract failures throw
-    /// `ContractValidationError` with typed `kind` and structured `report`
-    /// properties.
-    ///
-    /// @param bundle - Complete UTF-8 materialization JSON string or byte array.
-    /// @param cache - Optional reusable artifact cache.
+    /// @param bundle - Complete UTF-8 materialization JSON string or `Uint8Array`.
+    /// @param cache - Optional reusable decoded-artifact cache created outside
+    /// any timed validation region.
     /// @returns An object containing the reusable portfolio and load report.
-    /// @throws ContractValidationError - If the persisted contract is malformed,
-    /// invalid, unsupported, or exceeds a resource limit.
+    /// @throws Error - Throws `TypeError` for unsupported input types. Contract
+    /// failures throw `ContractValidationError` with typed `kind` and structured
+    /// `report` properties if the persisted contract is malformed, invalid,
+    /// unsupported, or exceeds a resource limit.
     #[wasm_bindgen(js_name = fromMaterialization)]
     pub fn from_materialization(
         bundle: JsValue,
@@ -130,20 +116,12 @@ impl JsPortfolio {
     /// than thrown. Unsupported input types, resource-limit failures, and
     /// non-contract native failures still throw.
     ///
-    /// # Arguments
-    ///
-    /// * `bundle` - Complete UTF-8 materialization JSON as a JavaScript string
-    ///   or `Uint8Array`.
-    ///
-    /// # Errors
-    ///
-    /// Throws `TypeError` for unsupported input types or a structured
-    /// `ContractValidationError` when validation cannot produce a report.
-    ///
-    /// @param bundle - Complete UTF-8 materialization JSON string or byte array.
-    /// @param cache - Reusable artifact cache.
-    /// @returns A materialization report whose build/index phase counters are zero.
-    /// @throws ContractValidationError - If validation cannot produce a report.
+    /// @param bundle - Complete UTF-8 materialization JSON string or `Uint8Array`.
+    /// @param cache - Reusable decoded-artifact cache used while validating.
+    /// @returns A materialization report whose build/index phase counters are zero,
+    /// or a `ValidationReport` when the contract is invalid but still reportable.
+    /// @throws Error - Throws `TypeError` for unsupported input types or a
+    /// structured `ContractValidationError` when validation cannot produce a report.
     #[wasm_bindgen(js_name = validateMaterialization)]
     pub fn validate_materialization_json(
         bundle: JsValue,

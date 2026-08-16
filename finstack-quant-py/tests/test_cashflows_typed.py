@@ -23,6 +23,8 @@ class TestPrimitives:
         assert CFKind.PIK != CFKind.FIXED
         assert CFKind.FIXED.is_interest_like()
         assert not CFKind.FEE.is_interest_like()
+        assert CFKind.NOTIONAL.is_principal_like()
+        assert not CFKind.FIXED.is_principal_like()
         with pytest.raises(ValueError, match="unknown cashflow kind"):
             CFKind.parse("amort")
         with pytest.raises(ValueError, match="unknown cashflow kind"):
@@ -929,6 +931,18 @@ class TestAggregation:
         assert out["2025Q3"]["EUR"].amount == pytest.approx(25.0)
         # Periods with no flows are omitted.
         assert "2025Q2" not in out
+
+    def test_calendar_year_ladder(self) -> None:
+        from finstack_quant.cashflows.aggregation import calendar_year_ladder
+
+        rows = calendar_year_ladder(
+            [dt.date(2027, 3, 15), dt.date(2027, 9, 15), dt.date(2034, 3, 15)],
+            ["coupon", "fixed", "Notional"],
+            [100.0, 50.0, 1000.0],
+            [90.0, 40.0, 700.0],
+        )
+        assert rows[0] == (2027, 150.0, 0.0, 130.0)
+        assert rows[1] == (2034, 0.0, 1000.0, 700.0)
 
     def test_aggregate_by_period_keyword_args(self) -> None:
         """Regression test: aggregate_by_period accepts keyword arguments.

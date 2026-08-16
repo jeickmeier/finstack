@@ -59,13 +59,12 @@ pub fn validate_csa_json(json: &str) -> Result<String, JsValue> {
 /// Returns a JSON object with delivery_amount, return_amount, net_exposure,
 /// and requires_call fields.
 ///
-/// # Arguments
-///
-/// * `csa_json` - CSA specification as JSON string
-/// * `exposure` - Current mark-to-market exposure amount
-/// * `posted_collateral` - Currently posted collateral amount
-/// * `currency` - ISO currency code (e.g. "USD")
-/// * `as_of` - ISO-8601 VM calculation date (e.g. `"2026-01-02"`)
+/// @param csa_json - CSA specification JSON governing thresholds, minimum transfer, and timing.
+/// @param exposure - Current mark-to-market exposure in the supplied currency units.
+/// @param posted_collateral - Collateral already posted in the supplied currency units.
+/// @param currency - ISO-4217 currency code shared by exposure and collateral amounts.
+/// @param as_of - ISO-8601 VM calculation date.
+/// @returns Variation-margin call amount, currency, and CSA metadata as a plain object.
 ///
 /// # Errors
 ///
@@ -73,11 +72,6 @@ pub fn validate_csa_json(json: &str) -> Result<String, JsValue> {
 /// non-finite exposure or collateral amounts, an invalid calendar date, a
 /// currency mismatch with the CSA, invalid VM parameters, calendar lookup or
 /// settlement-date adjustment failures, or failure to serialize the result.
-/// @param csa_json - CSA specification JSON governing thresholds, minimum transfer, and timing.
-/// @param exposure - Current mark-to-market exposure in the supplied currency units.
-/// @param posted_collateral - Collateral already posted in the supplied currency units.
-/// @param currency - ISO-4217 currency code shared by exposure and collateral amounts.
-/// @param as_of - ISO-8601 VM calculation date.
 #[wasm_bindgen(js_name = calculateVm)]
 pub fn calculate_vm(
     csa_json: &str,

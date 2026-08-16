@@ -1177,6 +1177,46 @@ impl CashFlowSchedule {
             }
         }
     }
+
+    /// Periodized PVs from a market context, using [`DateContext::with_default_context`].
+    ///
+    /// When `day_count` is omitted, discount times use Act/365F.
+    ///
+    /// # Arguments
+    ///
+    /// * `periods` - Reporting periods that define the output buckets.
+    /// * `market` - Market context containing the discount (and optional hazard) curves.
+    /// * `disc_curve_id` - Discount curve identifier resolved against `market`.
+    /// * `hazard_curve_id` - Optional hazard curve identifier for credit-adjusted PV.
+    /// * `base` - Valuation date used as the day-count origin for discount times.
+    /// * `day_count` - Day-count for discount times; `None` selects Act/365F.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if curve lookup fails, day-count conversion fails, or
+    /// credit-adjusted inputs are internally inconsistent.
+    pub fn pv_by_period_with_market(
+        &self,
+        periods: &[Period],
+        market: &MarketContext,
+        disc_curve_id: &CurveId,
+        hazard_curve_id: Option<&CurveId>,
+        base: Date,
+        day_count: Option<DayCount>,
+    ) -> finstack_quant_core::Result<IndexMap<PeriodId, IndexMap<Currency, Money>>> {
+        self.pv_by_period(
+            periods,
+            PvDiscountSource::Market {
+                market,
+                disc_curve_id,
+                hazard_curve_id,
+            },
+            crate::aggregation::DateContext::with_default_context(
+                base,
+                day_count.unwrap_or(DayCount::Act365F),
+            ),
+        )
+    }
 }
 
 pub(crate) struct CreditCurveHandles {

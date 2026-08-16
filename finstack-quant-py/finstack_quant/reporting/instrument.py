@@ -22,6 +22,9 @@ import math
 import re
 from typing import Any
 
+from finstack_quant.cashflows.aggregation import calendar_year_ladder
+from finstack_quant.valuations import vanilla_expiry_payoff
+
 from . import charts, format as fmt, tables
 from .document import KPI, Section, TearSheet, _resolve_sections
 from .theme import INSTITUTIONAL, Theme
@@ -250,9 +253,6 @@ def _definition_terms(definition: dict[str, Any]) -> list[list[tuple[str, str]]]
     return cols
 
 
-_PRINCIPAL_KINDS = {"principal", "notional"}
-
-
 def _is_nan(x: Any) -> bool:
     return isinstance(x, float) and math.isnan(x)
 
@@ -266,20 +266,20 @@ def _cashflow_blocks(
     year (values scaled to millions). Schedule rows: per-flow dicts for the scroll table.
     """
     df = cashflows[1] if isinstance(cashflows, tuple) else cashflows
-    by_year: dict[int, list[float]] = {}
     schedule: list[dict[str, Any]] = []
+    dates = []
+    kinds = []
+    amounts = []
+    pvs = []
     for _, r in df.iterrows():
         d = r["date"]
-        year = d.year if hasattr(d, "year") else int(str(d)[:4])
         kind = str(r.get("kind", ""))
         amt = float(r.get("amount") or 0.0)
         pv = float(r.get("pv") or 0.0)
-        slot = by_year.setdefault(year, [0.0, 0.0, 0.0])  # coupon, principal, pv
-        if kind in _PRINCIPAL_KINDS:
-            slot[1] += amt
-        else:
-            slot[0] += amt
-        slot[2] += pv
+        dates.append(d)
+        kinds.append(kind)
+        amounts.append(amt)
+        pvs.append(pv)
         rate = r.get("rate")
         schedule.append({
             "Date": fmt.fmt_date(d),
@@ -289,7 +289,8 @@ def _cashflow_blocks(
             "DF": fmt.ratio(float(r["discount_factor"]), dp=4) if "discount_factor" in r else "—",
             "PV": fmt.money(pv, dp=0),
         })
-    ladder = [(str(y), by_year[y][0] / 1e6, by_year[y][1] / 1e6, by_year[y][2] / 1e6) for y in sorted(by_year)]
+    rows = calendar_year_ladder(dates, kinds, amounts, pvs)
+    ladder = [(str(year), coupon / 1e6, principal / 1e6, pv / 1e6) for year, coupon, principal, pv in rows]
     return ladder, schedule
 
 
@@ -437,7 +438,10 @@ def _payoff_section(
         return None
     is_call = str(spec.get("option_type", "Call")).lower().startswith("c")
     spots = [strike * (0.6 + 0.04 * i) for i in range(21)]  # 0.6K .. 1.4K
-    payoff = [max(s - strike, 0.0) if is_call else max(strike - s, 0.0) for s in spots]
+    try:
+        payoff = [vanilla_expiry_payoff(s, strike, is_call) for s in spots]
+    except ValueError:
+        return None
     return Section(
         "Payoff at Expiry",
         charts.line_chart(

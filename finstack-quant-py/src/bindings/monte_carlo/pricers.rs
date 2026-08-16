@@ -255,13 +255,9 @@ impl PyLsmcPricer {
     ) -> PyResult<(LsmcPricer, usize, Currency)> {
         let currency = resolve_currency(currency)?;
         let num_steps = num_steps.unwrap_or(py_mc_defaults()?.lsmc.num_steps);
-        let pricer = LsmcPricer::gbm_american(
-            self.num_paths,
-            num_steps,
-            self.seed,
-            self.use_parallel,
-        )
-        .map_err(core_to_py)?;
+        let pricer =
+            LsmcPricer::gbm_american(self.num_paths, num_steps, self.seed, self.use_parallel)
+                .map_err(core_to_py)?;
         Ok((pricer, num_steps, currency))
     }
 }

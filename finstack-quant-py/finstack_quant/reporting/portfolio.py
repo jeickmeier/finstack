@@ -20,7 +20,8 @@ import json
 import math
 from typing import Any
 
-from finstack_quant.portfolio import PortfolioMetrics
+from finstack_quant.core.dates import Tenor
+from finstack_quant.portfolio import PortfolioMetrics, net_in_currency_by_date
 
 from . import charts, format as fmt, tables
 from .document import KPI, Section, TearSheet, _resolve_sections
@@ -53,19 +54,10 @@ def _abs_key(x: float) -> float:
 
 
 def _tenor_years(tenor: str) -> float:
-    t = tenor.strip().lower()
     try:
-        if t.endswith("m"):
-            return float(t[:-1]) / 12.0
-        if t.endswith("w"):
-            return float(t[:-1]) / 52.0
-        if t.endswith("d"):
-            return float(t[:-1]) / 365.0
-        if t.endswith("y"):
-            return float(t[:-1])
+        return Tenor.parse(tenor).to_years_simple()
     except ValueError:
-        pass
-    return 1e9  # unknown tenors sort last
+        return 1e9  # unknown tenors sort last
 
 
 def _section_holdings(val: dict[str, Any]) -> Section | None:
@@ -161,19 +153,13 @@ def _section_cashflows(cashflows: dict[str, Any] | None, base_currency: str, the
     by_date = (cashflows or {}).get("by_date") or {}
     if not by_date:
         return None
-    dates = sorted(by_date.keys())
-    values = []
-    for d in dates:
-        ccy_map = by_date[d].get(base_currency) or {}
-        total = 0.0
-        for kind_money in ccy_map.values():
-            amt, _ = _money(kind_money)
-            if not math.isnan(amt):
-                total += amt
-        values.append(total)
+    pairs = net_in_currency_by_date(json.dumps({"by_date": by_date}), base_currency)
+    if not pairs:
+        return None
+    dates, values = zip(*pairs, strict=True)
     return Section(
         "Cashflow Ladder",
-        charts.bar_chart(dates, values, theme=theme),
+        charts.bar_chart(list(dates), list(values), theme=theme),
         subtitle=f"Net base-currency ({base_currency}) cashflow by date.",
     )
 
