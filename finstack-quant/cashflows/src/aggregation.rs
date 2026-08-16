@@ -500,37 +500,41 @@ impl DateContext<'static> {
     }
 }
 
-/// Calendar-year coupon / principal / PV totals for one reporting year.
+/// Calendar-year non-principal / principal / PV totals for one reporting year.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CalendarYearLadderRow {
     /// Calendar year of the grouped cashflows (Gregorian, as on `Date::year`).
     pub year: i32,
-    /// Sum of non-principal amounts in that year, in the flow's native units.
-    pub coupon: f64,
+    /// Sum of amounts that are not [`CFKind::is_principal_like`] in that year,
+    /// in the flow's native units (interest, fees, recovery, and unknown-kind
+    /// flows are not mixed in: unknown labels are rejected).
+    pub non_principal: f64,
     /// Sum of [`CFKind::is_principal_like`] amounts in that year.
     pub principal: f64,
-    /// Sum of present values in that year, in the same units as `coupon`.
+    /// Sum of present values in that year, in the same units as `non_principal`.
     pub pv: f64,
 }
 
-/// Group dated cashflows into a calendar-year coupon / principal / PV ladder.
+/// Group dated cashflows into a calendar-year non-principal / principal / PV ladder.
 ///
-/// Kind labels use [`CFKind::parse_label`]: unknown labels are treated as
-/// coupon (non-principal), matching the previous reporting heuristic that only
-/// principal-like kinds are split out.
+/// Kind labels use [`CFKind::parse_label`]. Unknown labels are rejected rather
+/// than silently treated as interest. The `non_principal` column is every
+/// classified kind that is not [`CFKind::is_principal_like`] (interest, fees,
+/// recovery, accrued-on-default, …).
 ///
 /// # Errors
 ///
 /// Returns [`finstack_quant_core::Error::Validation`] when the four slices
-/// have different lengths.
+/// have different lengths, a kind label is unknown, or an amount or PV is
+/// non-finite.
 ///
 /// # Arguments
 ///
 /// * `dates` - Payment dates; the Gregorian year of each date is the bucket.
 /// * `kind_labels` - Cashflow kind labels (`"fixed"`, `"notional"`, `"coupon"`,
-///   `"principal"`, …). ASCII case is ignored.
-/// * `amounts` - Signed cashflow amounts, one per date, in native currency units.
-/// * `pvs` - Present values, one per date, in the same units as `amounts`.
+///   `"principal"`, …). ASCII case is ignored; unknown labels error.
+/// * `amounts` - Signed finite cashflow amounts, one per date, in native currency units.
+/// * `pvs` - Finite present values, one per date, in the same units as `amounts`.
 ///
 /// # Examples
 ///
@@ -573,9 +577,21 @@ pub fn calendar_year_ladder(
         .zip(amounts.iter())
         .zip(pvs.iter())
     {
-        let is_principal = CFKind::parse_label(kind_label)
-            .map(CFKind::is_principal_like)
-            .unwrap_or(false);
+        if !amount.is_finite() {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "calendar_year_ladder amount must be finite, got {amount}"
+            )));
+        }
+        if !pv.is_finite() {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "calendar_year_ladder pv must be finite, got {pv}"
+            )));
+        }
+        let kind = CFKind::parse_label(kind_label).map_err(|err| {
+            finstack_quant_core::Error::Validation(format!(
+                "calendar_year_ladder unknown cashflow kind '{kind_label}': {err}"
+            ))
+        })?;
         let slot = by_year.entry(date.year()).or_insert_with(|| {
             [
                 NeumaierAccumulator::new(),
@@ -583,7 +599,7 @@ pub fn calendar_year_ladder(
                 NeumaierAccumulator::new(),
             ]
         });
-        if is_principal {
+        if kind.is_principal_like() {
             slot[1].add(*amount);
         } else {
             slot[0].add(*amount);
@@ -593,9 +609,9 @@ pub fn calendar_year_ladder(
 
     Ok(by_year
         .into_iter()
-        .map(|(year, [coupon, principal, pv])| CalendarYearLadderRow {
+        .map(|(year, [non_principal, principal, pv])| CalendarYearLadderRow {
             year,
-            coupon: coupon.total(),
+            non_principal: non_principal.total(),
             principal: principal.total(),
             pv: pv.total(),
         })
@@ -1996,7 +2012,7 @@ mod calendar_year_ladder_tests {
         let rows = calendar_year_ladder(&dates, &kinds, &amounts, &pvs).expect("ladder");
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0].year, 2027);
-        assert!((rows[0].coupon - 425_000.0).abs() < 1e-9);
+        assert!((rows[0].non_principal - 425_000.0).abs() < 1e-9);
         assert!((rows[0].principal).abs() < 1e-12);
         assert_eq!(rows[1].year, 2034);
         assert!((rows[1].principal - 10_000_000.0).abs() < 1e-9);
@@ -2008,5 +2024,25 @@ mod calendar_year_ladder_tests {
         let err = calendar_year_ladder(&[d(2027, 1, 1)], &["fixed"], &[1.0], &[])
             .expect_err("length mismatch");
         assert!(err.to_string().contains("equal lengths"));
+    }
+
+    #[test]
+    fn calendar_year_ladder_rejects_unknown_kind() {
+        let err = calendar_year_ladder(&[d(2027, 1, 1)], &["redemption"], &[1.0], &[0.9])
+            .expect_err("unknown kind");
+        assert!(
+            err.to_string().contains("unknown cashflow kind"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn calendar_year_ladder_rejects_non_finite_amount_or_pv() {
+        let amount_err = calendar_year_ladder(&[d(2027, 1, 1)], &["fixed"], &[f64::NAN], &[1.0])
+            .expect_err("nan amount");
+        assert!(amount_err.to_string().contains("amount must be finite"));
+        let pv_err = calendar_year_ladder(&[d(2027, 1, 1)], &["fixed"], &[1.0], &[f64::INFINITY])
+            .expect_err("inf pv");
+        assert!(pv_err.to_string().contains("pv must be finite"));
     }
 }

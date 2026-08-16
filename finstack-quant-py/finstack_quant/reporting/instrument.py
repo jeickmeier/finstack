@@ -290,7 +290,10 @@ def _cashflow_blocks(
             "PV": fmt.money(pv, dp=0),
         })
     rows = calendar_year_ladder(dates, kinds, amounts, pvs)
-    ladder = [(str(year), coupon / 1e6, principal / 1e6, pv / 1e6) for year, coupon, principal, pv in rows]
+    ladder = [
+        (str(year), non_principal / 1e6, principal / 1e6, pv / 1e6)
+        for year, non_principal, principal, pv in rows
+    ]
     return ladder, schedule
 
 

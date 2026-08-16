@@ -76,6 +76,7 @@ pub fn bs_price(
 /// Vanilla option payoff at expiry: `max(±(spot - strike), 0)`.
 ///
 /// @param spot - Underlying level at expiry, in the same price units as `strike`.
+///   Must be finite and non-negative; zero spot is allowed.
 /// @param strike - Exercise price; must be finite and strictly positive.
 /// @param isCall - `true` for a call (`max(spot - strike, 0)`), `false` for a
 /// put (`max(strike - spot, 0)`).
@@ -89,8 +90,8 @@ pub fn bs_price(
 /// // payoff === 10
 /// ```
 ///
-/// @throws If `spot` is non-finite or `strike` is non-finite or not strictly
-/// positive.
+/// @throws If `spot` is non-finite or negative, or `strike` is non-finite or
+/// not strictly positive.
 #[wasm_bindgen(js_name = vanillaExpiryPayoff)]
 pub fn vanilla_expiry_payoff(spot: f64, strike: f64, is_call: bool) -> Result<f64, JsValue> {
     vanilla_expiry_payoff_core(spot, strike, option_type_from_bool(is_call)).map_err(to_js_err)
@@ -424,6 +425,13 @@ mod tests {
     fn vanilla_expiry_payoff_call_itm() {
         let payoff = vanilla_expiry_payoff(110.0, 100.0, true).expect("finite payoff");
         assert!((payoff - 10.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn vanilla_expiry_payoff_rejects_negative_spot() {
+        assert!(vanilla_expiry_payoff(-1.0, 100.0, true).is_err());
+        let put = vanilla_expiry_payoff(0.0, 100.0, false).expect("zero spot put");
+        assert!((put - 100.0).abs() < 1e-12);
     }
 
     #[test]

@@ -138,6 +138,8 @@ pub struct LsmcRuntimeDefaults {
     pub seed: u64,
     /// Whether parallel execution is requested by default.
     pub use_parallel: bool,
+    /// Whether antithetic variance reduction is enabled by default.
+    pub antithetic: bool,
 }
 
 /// Shared rate-exotic Monte Carlo defaults.
@@ -254,6 +256,8 @@ pub struct ConvenienceLsmcDefaults {
     pub basis_degree: usize,
     /// Default number of time steps for American option methods.
     pub num_steps: usize,
+    /// Whether antithetic variance reduction is enabled by default.
+    pub antithetic: bool,
 }
 
 /// Finite-difference Greek estimator defaults.
@@ -266,10 +270,10 @@ pub struct ConvenienceGreekDefaults {
     pub seed: u64,
     /// Default number of time steps.
     pub num_steps: usize,
-    /// Relative bump size.
+    /// Relative spot bump used as an MC finite-difference shock (e.g. `0.01`
+    /// for a 1% of spot bump). This is a Monte Carlo differentiation step, not
+    /// a closed-form local Greek step and not a desk reporting shock.
     pub bump_size: f64,
-    /// Default option type label.
-    pub option_type: String,
     /// Whether parallel execution is requested by default.
     pub use_parallel: bool,
     /// Parallel chunk size.
@@ -504,6 +508,7 @@ fn validate_python_lsmc(label: &str, defaults: &ConvenienceLsmcDefaults) -> Resu
     }
     let _seed = defaults.seed;
     let _parallel = defaults.use_parallel;
+    let _antithetic = defaults.antithetic;
     Ok(())
 }
 
@@ -512,7 +517,6 @@ fn validate_python_greeks(label: &str, defaults: &ConvenienceGreekDefaults) -> R
     validate_positive_usize(&format!("{label}.num_steps"), defaults.num_steps)?;
     validate_positive_f64(&format!("{label}.bump_size"), defaults.bump_size)?;
     validate_chunk_size(&format!("{label}.chunk_size"), defaults.chunk_size)?;
-    validate_nonblank(&format!("{label}.option_type"), &defaults.option_type)?;
     let _seed = defaults.seed;
     let _parallel = defaults.use_parallel;
     let _antithetic = defaults.antithetic;

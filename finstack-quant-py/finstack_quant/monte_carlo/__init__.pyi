@@ -1721,7 +1721,11 @@ class PathDependentPricer:
 
 class LsmcPricer:
     """
-    Longstaff–Schwartz Monte Carlo pricer for American options under GBM.
+    Longstaff–Schwartz Monte Carlo pricer for Bermudan options under GBM.
+
+    Exercise is decided on the discrete grid ``1..=num_steps``, not as a
+    continuous American. Immediate exercise at valuation (``t = 0``) floors
+    the reported price at intrinsic.
 
     Examples
     --------
@@ -1737,6 +1741,7 @@ class LsmcPricer:
         use_parallel: bool | None = None,
         basis: str | None = None,
         basis_degree: int | None = None,
+        antithetic: bool | None = None,
     ) -> None:
         """
         Create a Longstaff–Schwartz Monte Carlo pricer for early exercise.
@@ -1757,6 +1762,9 @@ class LsmcPricer:
             Polynomial/Laguerre degree. Defaults to the registry default.
             Must be positive; for ``"laguerre"`` it must additionally be
             in ``[1, 4]``.
+        antithetic : bool, optional
+            Pair each path with its sign-flipped counterpart (``Z`` and
+            ``-Z``). Defaults to the registry default (``True``).
 
         Raises
         ------
@@ -1821,6 +1829,22 @@ class LsmcPricer:
         ...
 
     @property
+    def antithetic(self) -> bool:
+        """
+        Whether each path is paired with its sign-flipped counterpart.
+
+        Returns
+        -------
+        bool
+            Antithetic flag as passed to ``__init__`` or the registry default.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
     def basis(self) -> str:
         """
         Regression basis family name.
@@ -1865,7 +1889,11 @@ class LsmcPricer:
         currency: str | None = None,
     ) -> MoneyEstimate:
         """
-        Price an American put via LSMC.
+        Price a Bermudan put via LSMC on the grid ``1..=num_steps``.
+
+        Immediate exercise at valuation floors the reported price at
+        ``max(strike - spot, 0)``. If that floor binds, stderr and the 95%
+        CI collapse to the intrinsic value.
 
         Parameters
         ----------
@@ -1900,7 +1928,7 @@ class LsmcPricer:
         Raises
         ------
         ValueError
-            If ``strike`` is non-positive, or is no greater than ``1e-14``
+            If ``strike`` is non-finite or non-positive, or is no greater than ``1e-14``
             with the normalized-polynomial basis; ``rate`` or ``div_yield``
             is non-finite; ``vol`` is negative or non-finite; ``expiry`` is
             non-finite or not strictly positive;
@@ -1924,7 +1952,11 @@ class LsmcPricer:
         currency: str | None = None,
     ) -> MoneyEstimate:
         """
-        Price an American call via LSMC.
+        Price a Bermudan call via LSMC on the grid ``1..=num_steps``.
+
+        Immediate exercise at valuation floors the reported price at
+        ``max(spot - strike, 0)``. If that floor binds, stderr and the 95%
+        CI collapse to the intrinsic value.
 
         Parameters
         ----------
@@ -1959,7 +1991,7 @@ class LsmcPricer:
         Raises
         ------
         ValueError
-            If ``strike`` is non-positive, or is no greater than ``1e-14``
+            If ``strike`` is non-finite or non-positive, or is no greater than ``1e-14``
             with the normalized-polynomial basis; ``rate`` or ``div_yield``
             is non-finite; ``vol`` is negative or non-finite; ``expiry`` is
             non-finite or not strictly positive;
@@ -2343,20 +2375,19 @@ def finite_diff_delta(
     div_yield: float,
     vol: float,
     expiry: float,
+    option_type: str,
     num_paths: int | None = None,
     seed: int | None = None,
     num_steps: int | None = None,
     bump_size: float | None = None,
-    option_type: str | None = None,
     currency: str | None = None,
 ) -> tuple[float, float]:
     """
     Finite-difference delta for a European option (independence-bound stderr).
 
-    Reports a conservative upper bound on the standard error that treats
-    the bumped and base runs as if they were statistically independent.
-    For hedge-ratio sizing prefer :func:`finite_diff_delta_crn`, which returns the
-    tighter paired CRN stderr.
+    Both this function and :func:`finite_diff_delta_crn` reuse common random
+    numbers. This function reports a conservative independence-bound stderr;
+    :func:`finite_diff_delta_crn` reports the tighter paired CRN stderr.
 
     Parameters
     ----------
@@ -2373,6 +2404,8 @@ def finite_diff_delta(
         Volatility (decimal).
     expiry : float
         Maturity in years.
+    option_type : str
+        ``"call"`` or ``"put"``. Required; there is no default option type.
     num_paths : int, optional
         Paths per evaluation (default ``10_000``).
     seed : int, optional
@@ -2380,11 +2413,10 @@ def finite_diff_delta(
     num_steps : int, optional
         Time-grid steps (default ``50``).
     bump_size : float, optional
-        Finite positive relative bump fraction of spot (default ``0.01``).
-        The absolute bump is ``max(abs(spot) * bump_size, 1e-8)`` and must
-        leave a symmetric central stencil above the spot floor.
-    option_type : str, optional
-        ``"call"`` or ``"put"``.
+        Relative Monte Carlo spot shock (default ``0.01`` = 1% of spot), not
+        a closed-form local Greek step. The absolute bump is
+        ``max(abs(spot) * bump_size, 1e-8)`` and must leave a symmetric
+        central stencil above the spot floor.
     currency : str, optional
         ISO currency code. Defaults to USD.
 
@@ -2396,16 +2428,16 @@ def finite_diff_delta(
     Raises
     ------
     ValueError
-        If ``spot`` or ``bump_size`` is non-finite or non-positive, the
-        symmetric down-bump falls below ``1e-12``, or another pricing input is
-        invalid.
+        If ``option_type`` is not ``"call"`` or ``"put"``, ``spot`` or
+        ``bump_size`` is non-finite or non-positive, the symmetric down-bump
+        falls below ``1e-12``, or another pricing input is invalid.
 
     Examples
     --------
     >>> from finstack_quant.monte_carlo import finite_diff_delta
-    >>> delta, stderr = finite_diff_delta(100, 100, 0.05, 0.0, 0.2, 1.0, num_paths=200, seed=7, num_steps=10)
-    >>> (round(delta, 6), round(stderr, 6))
-    (0.648721, 0.761258)
+    >>> delta, stderr = finite_diff_delta(100, 100, 0.05, 0.0, 0.2, 1.0, "call", num_paths=200, seed=7, num_steps=10)
+    >>> 0 < delta < 1 and stderr >= 0
+    True
     """
     ...
 
@@ -2416,20 +2448,19 @@ def finite_diff_delta_crn(
     div_yield: float,
     vol: float,
     expiry: float,
+    option_type: str,
     num_paths: int | None = None,
     seed: int | None = None,
     num_steps: int | None = None,
     bump_size: float | None = None,
-    option_type: str | None = None,
     currency: str | None = None,
 ) -> tuple[float, float]:
     """
     Finite-difference delta with paired common-random-number stderr.
 
-    Computes per-path paired differences and reports their true standard
-    error, which exploits CRN cancellation and is typically 1–2 orders of
-    magnitude tighter than the independence bound returned by
-    :func:`finite_diff_delta`. Always runs serially.
+    Same CRN-priced central difference as :func:`finite_diff_delta`; only the
+    reported stderr estimator differs (paired pathwise differences instead of
+    the independence bound). Always runs serially.
 
     Parameters
     ----------
@@ -2446,6 +2477,8 @@ def finite_diff_delta_crn(
         Volatility (decimal).
     expiry : float
         Maturity in years.
+    option_type : str
+        ``"call"`` or ``"put"``. Required; there is no default option type.
     num_paths : int, optional
         Paths per evaluation (default ``10_000``).
     seed : int, optional
@@ -2453,11 +2486,10 @@ def finite_diff_delta_crn(
     num_steps : int, optional
         Time-grid steps (default ``50``).
     bump_size : float, optional
-        Finite positive relative bump fraction of spot (default ``0.01``).
-        The absolute bump is ``max(abs(spot) * bump_size, 1e-8)`` and must
-        leave a symmetric central stencil above the spot floor.
-    option_type : str, optional
-        ``"call"`` or ``"put"``.
+        Relative Monte Carlo spot shock (default ``0.01`` = 1% of spot), not
+        a closed-form local Greek step. The absolute bump is
+        ``max(abs(spot) * bump_size, 1e-8)`` and must leave a symmetric
+        central stencil above the spot floor.
     currency : str, optional
         ISO currency code. Defaults to USD.
 
@@ -2469,16 +2501,16 @@ def finite_diff_delta_crn(
     Raises
     ------
     ValueError
-        If ``spot`` or ``bump_size`` is non-finite or non-positive, the
-        symmetric down-bump falls below ``1e-12``, or another pricing input is
-        invalid.
+        If ``option_type`` is not ``"call"`` or ``"put"``, ``spot`` or
+        ``bump_size`` is non-finite or non-positive, the symmetric down-bump
+        falls below ``1e-12``, or another pricing input is invalid.
 
     Examples
     --------
     >>> from finstack_quant.monte_carlo import finite_diff_delta_crn
-    >>> delta, stderr = finite_diff_delta_crn(100, 100, 0.05, 0.0, 0.2, 1.0, num_paths=200, seed=7, num_steps=10)
-    >>> (round(delta, 6), round(stderr, 6))
-    (0.648721, 0.040829)
+    >>> delta, stderr = finite_diff_delta_crn(100, 100, 0.05, 0.0, 0.2, 1.0, "call", num_paths=200, seed=7, num_steps=10)
+    >>> 0 < delta < 1 and stderr >= 0
+    True
     """
     ...
 
@@ -2489,11 +2521,11 @@ def finite_diff_gamma(
     div_yield: float,
     vol: float,
     expiry: float,
+    option_type: str,
     num_paths: int | None = None,
     seed: int | None = None,
     num_steps: int | None = None,
     bump_size: float | None = None,
-    option_type: str | None = None,
     currency: str | None = None,
 ) -> tuple[float, float]:
     """
@@ -2516,6 +2548,8 @@ def finite_diff_gamma(
         Volatility (decimal).
     expiry : float
         Maturity in years.
+    option_type : str
+        ``"call"`` or ``"put"``. Required; there is no default option type.
     num_paths : int, optional
         Paths per evaluation (default ``10_000``).
     seed : int, optional
@@ -2523,11 +2557,10 @@ def finite_diff_gamma(
     num_steps : int, optional
         Time-grid steps (default ``50``).
     bump_size : float, optional
-        Finite positive relative bump fraction of spot (default ``0.01``).
-        The absolute bump is ``max(abs(spot) * bump_size, 1e-8)`` and must
-        leave a symmetric central stencil above the spot floor.
-    option_type : str, optional
-        ``"call"`` or ``"put"``.
+        Relative Monte Carlo spot shock (default ``0.01`` = 1% of spot), not
+        a closed-form local Greek step. The absolute bump is
+        ``max(abs(spot) * bump_size, 1e-8)`` and must leave a symmetric
+        central stencil above the spot floor.
     currency : str, optional
         ISO currency code. Defaults to USD.
 
@@ -2539,16 +2572,16 @@ def finite_diff_gamma(
     Raises
     ------
     ValueError
-        If ``spot`` or ``bump_size`` is non-finite or non-positive, the
-        symmetric down-bump falls below ``1e-12``, or another pricing input is
-        invalid.
+        If ``option_type`` is not ``"call"`` or ``"put"``, ``spot`` or
+        ``bump_size`` is non-finite or non-positive, the symmetric down-bump
+        falls below ``1e-12``, or another pricing input is invalid.
 
     Examples
     --------
     >>> from finstack_quant.monte_carlo import finite_diff_gamma
-    >>> gamma, stderr = finite_diff_gamma(100, 100, 0.05, 0.0, 0.2, 1.0, num_paths=200, seed=7, num_steps=10)
-    >>> (round(gamma, 6), round(stderr, 6))
-    (0.019496, 2.636619)
+    >>> gamma, stderr = finite_diff_gamma(100, 100, 0.05, 0.0, 0.2, 1.0, "call", num_paths=200, seed=7, num_steps=10)
+    >>> gamma > 0 and stderr >= 0
+    True
     """
     ...
 
@@ -2559,11 +2592,11 @@ def finite_diff_gamma_crn(
     div_yield: float,
     vol: float,
     expiry: float,
+    option_type: str,
     num_paths: int | None = None,
     seed: int | None = None,
     num_steps: int | None = None,
     bump_size: float | None = None,
-    option_type: str | None = None,
     currency: str | None = None,
 ) -> tuple[float, float]:
     """
@@ -2588,6 +2621,8 @@ def finite_diff_gamma_crn(
         Volatility (decimal).
     expiry : float
         Maturity in years.
+    option_type : str
+        ``"call"`` or ``"put"``. Required; there is no default option type.
     num_paths : int, optional
         Paths per evaluation (default ``10_000``).
     seed : int, optional
@@ -2595,11 +2630,10 @@ def finite_diff_gamma_crn(
     num_steps : int, optional
         Time-grid steps (default ``50``).
     bump_size : float, optional
-        Finite positive relative bump fraction of spot (default ``0.01``).
-        The absolute bump is ``max(abs(spot) * bump_size, 1e-8)`` and must
-        leave a symmetric central stencil above the spot floor.
-    option_type : str, optional
-        ``"call"`` or ``"put"``.
+        Relative Monte Carlo spot shock (default ``0.01`` = 1% of spot), not
+        a closed-form local Greek step. The absolute bump is
+        ``max(abs(spot) * bump_size, 1e-8)`` and must leave a symmetric
+        central stencil above the spot floor.
     currency : str, optional
         ISO currency code. Defaults to USD.
 
@@ -2611,15 +2645,15 @@ def finite_diff_gamma_crn(
     Raises
     ------
     ValueError
-        If ``spot`` or ``bump_size`` is non-finite or non-positive, the
-        symmetric down-bump falls below ``1e-12``, or another pricing input is
-        invalid.
+        If ``option_type`` is not ``"call"`` or ``"put"``, ``spot`` or
+        ``bump_size`` is non-finite or non-positive, the symmetric down-bump
+        falls below ``1e-12``, or another pricing input is invalid.
 
     Examples
     --------
     >>> from finstack_quant.monte_carlo import finite_diff_gamma_crn
-    >>> gamma, stderr = finite_diff_gamma_crn(100, 100, 0.05, 0.0, 0.2, 1.0, num_paths=200, seed=7, num_steps=10)
-    >>> (round(gamma, 6), round(stderr, 6))
-    (0.019496, 0.008964)
+    >>> gamma, stderr = finite_diff_gamma_crn(100, 100, 0.05, 0.0, 0.2, 1.0, "call", num_paths=200, seed=7, num_steps=10)
+    >>> gamma > 0 and stderr >= 0
+    True
     """
     ...

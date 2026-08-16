@@ -25,6 +25,16 @@
 //! [`LsmcPricer::price_unbiased`] for that two-pass workflow, or complement
 //! this estimator with an Andersen-Broadie dual upper bound to bracket the true
 //! value.
+//!
+//! # Exercise grid
+//!
+//! Early exercise is evaluated on the discrete simulation steps listed in
+//! [`LsmcConfig::exercise_dates`] (the GBM convenience constructors use every
+//! step `1..=num_steps`). That is a **Bermudan** option on the time grid, not a
+//! continuous American. Immediate exercise at valuation (`t = 0`) is applied
+//! as a floor on the reported price so the estimate cannot print below
+//! intrinsic; if that floor binds, the stderr and 95% CI collapse to the
+//! intrinsic value.
 
 use super::super::results::MoneyEstimate;
 use super::lsq::{regression_coefficients_with_basis, regression_with_basis};
@@ -35,7 +45,7 @@ use crate::pricer::basis::{build_lsmc_basis, BasisFunctions, BasisKind, LsmcBasi
 use crate::process::gbm::GbmProcess;
 use crate::rng::philox::PhiloxRng;
 use crate::time_grid::TimeGrid;
-use crate::traits::{Discretization, RandomStream};
+use crate::traits::Discretization;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
 
@@ -122,7 +132,7 @@ pub struct AmericanPut {
 }
 
 impl AmericanPut {
-    /// Create a validated American put with a positive strike.
+    /// Create a validated American put with a finite, strictly positive strike.
     ///
     /// The payoff is `max(strike - spot, 0)` in the same scalar unit as the
     /// simulated spot. This constructor does not attach currency, discounting,
@@ -131,12 +141,11 @@ impl AmericanPut {
     ///
     /// # Errors
     ///
-    /// Returns an error if `strike <= 0`. NaN is not separately rejected by
-    /// this comparison and can therefore propagate through payoff evaluation.
+    /// Returns an error if `strike` is non-finite or `strike <= 0`.
     pub fn new(strike: f64) -> finstack_quant_core::Result<Self> {
-        if strike <= 0.0 {
+        if !strike.is_finite() || strike <= 0.0 {
             return Err(finstack_quant_core::Error::Validation(
-                "strike must be positive".to_string(),
+                "strike must be finite and positive".to_string(),
             ));
         }
         Ok(Self { strike })
@@ -157,7 +166,7 @@ pub struct AmericanCall {
 }
 
 impl AmericanCall {
-    /// Create a validated American call with a positive strike.
+    /// Create a validated American call with a finite, strictly positive strike.
     ///
     /// The payoff is `max(spot - strike, 0)` in the same scalar unit as the
     /// simulated spot. Currency, discounting, and exercise-date conventions
@@ -165,12 +174,11 @@ impl AmericanCall {
     ///
     /// # Errors
     ///
-    /// Returns an error if `strike <= 0`. NaN is not separately rejected by
-    /// this comparison and can therefore propagate through payoff evaluation.
+    /// Returns an error if `strike` is non-finite or `strike <= 0`.
     pub fn new(strike: f64) -> finstack_quant_core::Result<Self> {
-        if strike <= 0.0 {
+        if !strike.is_finite() || strike <= 0.0 {
             return Err(finstack_quant_core::Error::Validation(
-                "strike must be positive".to_string(),
+                "strike must be finite and positive".to_string(),
             ));
         }
         Ok(Self { strike })
@@ -194,6 +202,8 @@ pub struct LsmcConfig {
     pub exercise_dates: Vec<usize>,
     /// Use parallel execution
     pub use_parallel: bool,
+    /// Pair each path with its antithetic counterpart (`Z` and `-Z`)
+    pub antithetic: bool,
 }
 
 impl LsmcConfig {
@@ -210,13 +220,18 @@ impl LsmcConfig {
     /// (American boundary condition) whether or not it is listed — a
     /// Bermudan whose last exercise right ends strictly before maturity is
     /// not representable; set `num_steps` to the last exercise step instead.
+    /// Immediate exercise at valuation (`t = 0`) is applied as a floor on the
+    /// reported price, so the estimate cannot print below intrinsic.
+    ///
+    /// Antithetic pairing (`Z` and `-Z` from the same draws) is taken from the
+    /// registry default unless overridden with [`Self::with_antithetic`].
     ///
     /// # Errors
     ///
     /// Returns an error if `num_paths` is zero, no exercise date is supplied,
     /// any date is zero, or any date exceeds `num_steps`. Duplicate dates are
     /// accepted but removed after sorting, and the registry supplies the
-    /// default seed and parallel-execution setting.
+    /// default seed, parallel-execution, and antithetic settings.
     pub fn new(
         num_paths: usize,
         exercise_dates: Vec<usize>,
@@ -254,6 +269,7 @@ impl LsmcConfig {
             seed: defaults.seed,
             exercise_dates,
             use_parallel: defaults.use_parallel,
+            antithetic: defaults.antithetic,
         })
     }
 
@@ -297,6 +313,70 @@ impl LsmcConfig {
         self.use_parallel = enabled;
         self
     }
+
+    /// Enable or disable antithetic path pairing (`Z` and `-Z`).
+    ///
+    /// When enabled, each configured path is paired with its sign-flipped
+    /// counterpart from the same Gaussian draws. The price estimator averages
+    /// each pair, so [`Estimate::num_paths`] stays `num_paths` while
+    /// [`Estimate::num_simulated_paths`] is `2 * num_paths`.
+    #[must_use]
+    pub fn with_antithetic(mut self, enabled: bool) -> Self {
+        self.antithetic = enabled;
+        self
+    }
+}
+
+fn fill_gbm_row(
+    disc: &ExactGbm,
+    process: &GbmProcess,
+    initial_spot: f64,
+    time_grid: &TimeGrid,
+    num_steps: usize,
+    path_rng: &mut PhiloxRng,
+    row: &mut [f64],
+) {
+    let mut state = [initial_spot];
+    let mut z = [0.0];
+    let mut work: [f64; 0] = [];
+    row[0] = initial_spot;
+    for step in 0..num_steps {
+        let t = time_grid.time(step);
+        let dt = time_grid.dt(step);
+        path_rng.fill_std_normals(&mut z);
+        disc.step(process, t, dt, &mut state, &z, &mut work);
+        row[step + 1] = state[0];
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn fill_gbm_antithetic_pair(
+    disc: &ExactGbm,
+    process: &GbmProcess,
+    initial_spot: f64,
+    time_grid: &TimeGrid,
+    num_steps: usize,
+    path_rng: &mut PhiloxRng,
+    primary: &mut [f64],
+    anti: &mut [f64],
+) {
+    let mut state_p = [initial_spot];
+    let mut state_a = [initial_spot];
+    let mut z = [0.0];
+    let mut z_anti = [0.0];
+    let mut work: [f64; 0] = [];
+    primary[0] = initial_spot;
+    anti[0] = initial_spot;
+    for step in 0..num_steps {
+        let t = time_grid.time(step);
+        let dt = time_grid.dt(step);
+        path_rng.fill_std_normals(&mut z);
+        z_anti[0] = -z[0];
+        disc.step(process, t, dt, &mut state_p, &z, &mut work);
+        disc.step(process, t, dt, &mut state_a, &z_anti, &mut work);
+        primary[step + 1] = state_p[0];
+        anti[step + 1] = state_a[0];
+    }
 }
 
 /// LSMC pricer for American/Bermudan options.
@@ -316,14 +396,16 @@ impl LsmcPricer {
     /// Convenience constructor for GBM American host bindings.
     ///
     /// Uses [`LsmcConfig::every_step`] so exercise occurs at each simulated
-    /// step `1..=num_steps`.
+    /// step `1..=num_steps` (Bermudan on the grid). Immediate exercise at
+    /// `t = 0` is applied as a floor on the reported price.
     ///
     /// # Arguments
     ///
-    /// * `num_paths` - Simulated paths; must be positive.
+    /// * `num_paths` - Independent path estimators; must be positive.
     /// * `num_steps` - Time-grid steps; also the last exercise date.
     /// * `seed` - Root RNG seed for path generation.
     /// * `use_parallel` - Whether path generation uses the rayon pool.
+    /// * `antithetic` - Pair each path with its sign-flipped counterpart.
     ///
     /// # Errors
     ///
@@ -333,15 +415,22 @@ impl LsmcPricer {
         num_steps: usize,
         seed: u64,
         use_parallel: bool,
+        antithetic: bool,
     ) -> Result<Self> {
         Ok(Self::new(
             LsmcConfig::every_step(num_paths, num_steps)?
                 .with_seed(seed)
-                .with_parallel(use_parallel),
+                .with_parallel(use_parallel)
+                .with_antithetic(antithetic),
         ))
     }
 
-    /// Price an American-style option.
+    /// Price a Bermudan-style option on the configured exercise grid.
+    ///
+    /// Early exercise is decided on `exercise_dates` (typically `1..=num_steps`).
+    /// After averaging path present values, the reported price is floored at
+    /// `exercise_value(initial_spot)`. If that intrinsic binds, stderr and the
+    /// 95% CI collapse to the intrinsic value.
     ///
     /// # Arguments
     ///
@@ -356,7 +445,7 @@ impl LsmcPricer {
     ///
     /// # Returns
     ///
-    /// Statistical estimate of American option value
+    /// Statistical estimate of the Bermudan value with the `t = 0` intrinsic floor.
     #[allow(clippy::too_many_arguments)]
     pub fn price<E, B>(
         &self,
@@ -373,10 +462,8 @@ impl LsmcPricer {
         E: ImmediateExercise,
         B: BasisFunctions + ?Sized,
     {
-        // Step 1: Generate all paths
         let paths = self.generate_paths(process, initial_spot, time_to_maturity, num_steps)?;
 
-        // Step 2: Backward induction with regression
         let values = self.backward_induction(
             &paths,
             exercise,
@@ -386,21 +473,7 @@ impl LsmcPricer {
             num_steps,
         )?;
 
-        // Step 3: Compute statistics
-        let mut stats = OnlineStats::new();
-        for &value in &values {
-            stats.update(value);
-        }
-
-        let estimate = Estimate::new(
-            stats.mean(),
-            stats.stderr(),
-            stats.confidence_interval(0.05),
-            values.len(),
-        )
-        .with_std_dev(stats.std_dev());
-
-        Ok(MoneyEstimate::from_estimate(estimate, currency))
+        Ok(self.summarize_present_values(&values, initial_spot, exercise, currency))
     }
 
     /// Generate Monte Carlo paths (serial or parallel depending on config).
@@ -459,27 +532,40 @@ impl LsmcPricer {
         let disc = ExactGbm::new();
         let rng = PhiloxRng::new(seed);
         let stride = num_steps + 1;
-        let mut data = vec![0.0; self.config.num_paths * stride];
+        let antithetic = self.config.antithetic;
+        let n_rows = if antithetic {
+            2 * self.config.num_paths
+        } else {
+            self.config.num_paths
+        };
+        let mut data = vec![0.0; n_rows * stride];
 
         for path_id in 0..self.config.num_paths {
             let mut path_rng = rng.substream(path_id as u64);
-            // Scalar GBM: single state component, no discretization workspace.
-            // Stack arrays avoid a per-path heap allocation for state/z.
-            let mut state = [initial_spot];
-            let mut z = [0.0];
-            let mut work: [f64; 0] = [];
-
-            let base = path_id * stride;
-            data[base] = initial_spot;
-
-            for step in 0..num_steps {
-                let t = time_grid.time(step);
-                let dt = time_grid.dt(step);
-
-                path_rng.fill_std_normals(&mut z);
-                disc.step(process, t, dt, &mut state, &z, &mut work);
-
-                data[base + step + 1] = state[0];
+            if antithetic {
+                let base = 2 * path_id * stride;
+                let (primary, rest) = data[base..base + 2 * stride].split_at_mut(stride);
+                fill_gbm_antithetic_pair(
+                    &disc,
+                    process,
+                    initial_spot,
+                    time_grid,
+                    num_steps,
+                    &mut path_rng,
+                    primary,
+                    rest,
+                );
+            } else {
+                let row = &mut data[path_id * stride..(path_id + 1) * stride];
+                fill_gbm_row(
+                    &disc,
+                    process,
+                    initial_spot,
+                    time_grid,
+                    num_steps,
+                    &mut path_rng,
+                    row,
+                );
             }
         }
 
@@ -500,32 +586,90 @@ impl LsmcPricer {
         let rng = PhiloxRng::new(seed);
         let disc = ExactGbm::new();
         let stride = num_steps + 1;
-        let mut data = vec![0.0; self.config.num_paths * stride];
+        let antithetic = self.config.antithetic;
+        let n_rows = if antithetic {
+            2 * self.config.num_paths
+        } else {
+            self.config.num_paths
+        };
+        let mut data = vec![0.0; n_rows * stride];
+        let chunk = if antithetic { 2 * stride } else { stride };
 
-        // Each path fills its own contiguous row; `substream(path_id)` keeps the
-        // result independent of thread count (workspace determinism invariant).
-        data.par_chunks_mut(stride)
+        // Each path fills its own contiguous row (or antithetic pair of rows);
+        // `substream(path_id)` keeps the result independent of thread count.
+        data.par_chunks_mut(chunk)
             .enumerate()
-            .for_each(|(path_id, row)| {
+            .for_each(|(path_id, rows)| {
                 let mut path_rng = rng.substream(path_id as u64);
-                let mut state = [initial_spot];
-                let mut z = [0.0];
-                let mut work: [f64; 0] = [];
-
-                row[0] = initial_spot;
-
-                for step in 0..num_steps {
-                    let t = time_grid.time(step);
-                    let dt = time_grid.dt(step);
-
-                    path_rng.fill_std_normals(&mut z);
-                    disc.step(process, t, dt, &mut state, &z, &mut work);
-
-                    row[step + 1] = state[0];
+                if antithetic {
+                    let (primary, anti) = rows.split_at_mut(stride);
+                    fill_gbm_antithetic_pair(
+                        &disc,
+                        process,
+                        initial_spot,
+                        time_grid,
+                        num_steps,
+                        &mut path_rng,
+                        primary,
+                        anti,
+                    );
+                } else {
+                    fill_gbm_row(
+                        &disc,
+                        process,
+                        initial_spot,
+                        time_grid,
+                        num_steps,
+                        &mut path_rng,
+                        rows,
+                    );
                 }
             });
 
         Ok(PathMatrix { data, stride })
+    }
+
+    /// Average antithetic pairs if enabled, then floor the mean at `t = 0` intrinsic.
+    fn summarize_present_values<E: ImmediateExercise>(
+        &self,
+        path_pvs: &[f64],
+        initial_spot: f64,
+        exercise: &E,
+        currency: Currency,
+    ) -> MoneyEstimate {
+        let mut stats = OnlineStats::new();
+        if self.config.antithetic {
+            for pair in path_pvs.chunks_exact(2) {
+                stats.update(0.5 * (pair[0] + pair[1]));
+            }
+        } else {
+            for &value in path_pvs {
+                stats.update(value);
+            }
+        }
+
+        let intrinsic = exercise.exercise_value(initial_spot);
+        let (mean, stderr, ci_95, std_dev) = if stats.mean() < intrinsic {
+            (intrinsic, 0.0, (intrinsic, intrinsic), 0.0)
+        } else {
+            (
+                stats.mean(),
+                stats.stderr(),
+                stats.confidence_interval(0.05),
+                stats.std_dev(),
+            )
+        };
+
+        let num_simulated_paths = if self.config.antithetic {
+            2 * self.config.num_paths
+        } else {
+            self.config.num_paths
+        };
+        let estimate = Estimate::new(mean, stderr, ci_95, self.config.num_paths)
+            .with_num_simulated_paths(num_simulated_paths)
+            .with_std_dev(std_dev);
+
+        MoneyEstimate::from_estimate(estimate, currency)
     }
 
     /// Perform backward induction with regression.
@@ -643,11 +787,10 @@ impl LsmcPricer {
                         }
                     }
                     Err(err) => {
-                        tracing::warn!(
-                            exercise_step,
-                            itm_paths = regression_x.len(),
-                            "LSMC regression failed, preserving continuation cashflows: {err}"
-                        );
+                        return Err(finstack_quant_core::Error::Validation(format!(
+                            "LSMC regression failed at step {exercise_step} with {} ITM paths: {err}",
+                            regression_x.len()
+                        )));
                     }
                 }
             } else {
@@ -796,19 +939,7 @@ impl LsmcPricer {
             },
         );
 
-        let mut stats = OnlineStats::new();
-        for &v in &values {
-            stats.update(v);
-        }
-        let estimate = Estimate::new(
-            stats.mean(),
-            stats.stderr(),
-            stats.confidence_interval(0.05),
-            values.len(),
-        )
-        .with_std_dev(stats.std_dev());
-
-        Ok(MoneyEstimate::from_estimate(estimate, currency))
+        Ok(self.summarize_present_values(&values, initial_spot, exercise, currency))
     }
 
     /// Convenience: run the full two-pass workflow with disjoint seeds.
@@ -890,8 +1021,8 @@ impl LsmcPricer {
     /// Mirrors [`Self::backward_induction`] but stores raw coefficients at each
     /// interior exercise date instead of producing present values, so the policy
     /// can be replayed against an independent path set. Insufficient ITM paths
-    /// or singular regressions skip the date (no exercise) just like the
-    /// in-sample variant.
+    /// or singular regressions return an error. Insufficient ITM paths skip
+    /// the date (no exercise) just like the in-sample variant.
     fn fit_policy_from_paths<E, B>(
         &self,
         paths: &PathMatrix,
@@ -968,11 +1099,10 @@ impl LsmcPricer {
                         coefficients_by_date.push((exercise_step, coeffs));
                     }
                     Err(err) => {
-                        tracing::warn!(
-                            exercise_step,
-                            itm_paths = regression_x.len(),
-                            "LSMC fit_exercise_policy regression failed: {err}"
-                        );
+                        return Err(finstack_quant_core::Error::Validation(format!(
+                            "LSMC regression failed at step {exercise_step} with {} ITM paths: {err}",
+                            regression_x.len()
+                        )));
                     }
                 }
             } else {
@@ -1401,6 +1531,22 @@ mod tests {
     }
 
     #[test]
+    fn american_put_and_call_reject_non_finite_strike() {
+        for strike in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, 0.0, -1.0] {
+            let put_err = AmericanPut::new(strike).expect_err("put strike");
+            assert!(
+                put_err.to_string().contains("finite and positive"),
+                "unexpected put error for {strike}: {put_err}"
+            );
+            let call_err = AmericanCall::new(strike).expect_err("call strike");
+            assert!(
+                call_err.to_string().contains("finite and positive"),
+                "unexpected call error for {strike}: {call_err}"
+            );
+        }
+    }
+
+    #[test]
     fn test_lsmc_basic() {
         // Basic test of LSMC infrastructure
         let exercise_dates = vec![50, 100];
@@ -1652,7 +1798,7 @@ mod tests {
 
     #[test]
     fn price_gbm_american_put_atm_is_positive() {
-        let pricer = LsmcPricer::gbm_american(1_000, 8, 42, false)
+        let pricer = LsmcPricer::gbm_american(1_000, 8, 42, false, true)
             .expect("GBM American pricer should construct");
         let estimate = pricer
             .price_gbm_american_put(
@@ -1669,5 +1815,118 @@ mod tests {
             )
             .expect("American put pricing should succeed");
         assert!(estimate.mean.amount() > 0.0);
+    }
+
+    #[test]
+    fn lsmc_deep_itm_put_respects_intrinsic_floor() {
+        let pricer = LsmcPricer::gbm_american(4_000, 8, 7, false, true)
+            .expect("GBM American pricer should construct");
+        let estimate = pricer
+            .price_gbm_american_put(
+                50.0,
+                100.0,
+                0.05,
+                0.0,
+                0.2,
+                1.0,
+                8,
+                Currency::USD,
+                BasisKind::Laguerre,
+                3,
+            )
+            .expect("deep ITM put should price");
+        let intrinsic = 50.0;
+        assert!(
+            estimate.mean.amount() + 1e-12 >= intrinsic,
+            "price {} below intrinsic {intrinsic}",
+            estimate.mean.amount()
+        );
+        if estimate.mean.amount() == intrinsic {
+            assert_eq!(estimate.stderr, 0.0);
+            assert_eq!(estimate.ci_95.0.amount(), intrinsic);
+            assert_eq!(estimate.ci_95.1.amount(), intrinsic);
+        }
+    }
+
+    #[test]
+    fn lsmc_american_put_is_at_least_european() {
+        let spot = 100.0;
+        let strike = 100.0;
+        let rate = 0.05;
+        let dividend_yield = 0.0;
+        let vol = 0.2;
+        let expiry = 1.0;
+        let european = finstack_quant_core::math::volatility::black_scholes_spot_put(
+            spot,
+            strike,
+            rate,
+            dividend_yield,
+            vol,
+            expiry,
+        );
+        let pricer = LsmcPricer::gbm_american(8_000, 8, 11, false, true)
+            .expect("GBM American pricer should construct");
+        let estimate = pricer
+            .price_gbm_american_put(
+                spot,
+                strike,
+                rate,
+                dividend_yield,
+                vol,
+                expiry,
+                8,
+                Currency::USD,
+                BasisKind::Laguerre,
+                3,
+            )
+            .expect("ATM American put should price");
+        let price = estimate.mean.amount();
+        let tol = (4.0 * estimate.stderr).max(0.05);
+        assert!(
+            price + tol >= european,
+            "American put {price} below European {european} (stderr={}, tol={tol})",
+            estimate.stderr
+        );
+    }
+
+    #[test]
+    fn lsmc_american_call_matches_european_when_q_is_zero() {
+        let spot = 100.0;
+        let strike = 100.0;
+        let rate = 0.05;
+        let dividend_yield = 0.0;
+        let vol = 0.2;
+        let expiry = 1.0;
+        let european = finstack_quant_core::math::volatility::black_scholes_spot_call(
+            spot,
+            strike,
+            rate,
+            dividend_yield,
+            vol,
+            expiry,
+        );
+        let pricer = LsmcPricer::gbm_american(8_000, 8, 13, false, true)
+            .expect("GBM American pricer should construct");
+        let estimate = pricer
+            .price_gbm_american_call(
+                spot,
+                strike,
+                rate,
+                dividend_yield,
+                vol,
+                expiry,
+                8,
+                Currency::USD,
+                BasisKind::Laguerre,
+                3,
+            )
+            .expect("ATM American call should price");
+        let price = estimate.mean.amount();
+        let tol = (4.0 * estimate.stderr).max(0.15);
+        assert!(
+            (price - european).abs() < tol,
+            "q=0 American call {price} vs European {european} (stderr={}, tol={tol})",
+            estimate.stderr
+        );
     }
 }

@@ -29,12 +29,12 @@ from finstack_quant.valuations import (
     bs_greeks,
     bs_implied_vol,
     bs_price,
-    vanilla_expiry_payoff,
     instrument_cashflows,
     inverse_floater_coupon_profile,
     lookback_option_price,
     quanto_option_price,
     snowball_coupon_profile,
+    vanilla_expiry_payoff,
 )
 from finstack_quant.valuations.correlation import nearest_correlation
 from finstack_quant.valuations.instruments import (
@@ -61,6 +61,9 @@ def test_vanilla_expiry_payoff_matches_intrinsic() -> None:
     assert vanilla_expiry_payoff(90.0, 100.0, True) == 0.0
     with pytest.raises(ValueError):
         vanilla_expiry_payoff(100.0, 0.0, True)
+    with pytest.raises(ValueError):
+        vanilla_expiry_payoff(-1.0, 100.0, True)
+    assert vanilla_expiry_payoff(0.0, 100.0, False) == 100.0
 
 
 def test_bs_greeks_has_expected_keys() -> None:

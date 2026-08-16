@@ -1090,6 +1090,7 @@ def vanilla_expiry_payoff(spot: float, strike: float, is_call: bool) -> float:
     ----------
     spot : float
         Underlying level at expiry, in the same price units as ``strike``.
+        Must be finite and non-negative; zero spot is allowed.
     strike : float
         Exercise price; must be finite and strictly positive.
     is_call : bool
@@ -1104,8 +1105,8 @@ def vanilla_expiry_payoff(spot: float, strike: float, is_call: bool) -> float:
     Raises
     ------
     ValueError
-        If ``spot`` is non-finite or ``strike`` is non-finite or not strictly
-        positive.
+        If ``spot`` is non-finite or negative, or ``strike`` is non-finite or
+        not strictly positive.
 
     Examples
     --------

@@ -31,7 +31,8 @@
     },
     "lsmc": {
       "seed": 42,
-      "use_parallel": false
+      "use_parallel": false,
+      "antithetic": true
     },
     "rate_exotics": {
       "num_paths": 20000,
@@ -90,17 +91,17 @@
       "use_parallel": false,
       "basis": "laguerre",
       "basis_degree": 3,
-      "num_steps": 50
+      "num_steps": 50,
+      "antithetic": true
     },
     "greeks": {
       "num_paths": 10000,
       "seed": 42,
       "num_steps": 50,
       "bump_size": 0.01,
-      "option_type": "call",
       "use_parallel": false,
       "chunk_size": 1000,
-      "antithetic": false
+      "antithetic": true
     }
   }
 }

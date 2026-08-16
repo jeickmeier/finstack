@@ -456,7 +456,11 @@ fn price_asian(
 }
 
 #[allow(clippy::too_many_arguments)]
-/// Price an American put via LSMC under GBM dynamics.
+/// Price a Bermudan put via LSMC under GBM dynamics.
+///
+/// Exercise is decided on the discrete grid `1..=num_steps`, not as a
+/// continuous American. Immediate exercise at valuation (`t = 0`) floors
+/// the reported price at intrinsic.
 ///
 /// Optional knobs:
 /// - `use_parallel` (default `false`): run path generation on the rayon pool.
@@ -723,7 +727,13 @@ fn price_lsmc_gbm(
     let basis_name = basis.as_deref().unwrap_or(defaults.basis.as_str());
     let basis = BasisKind::parse(basis_name).map_err(to_js_err)?;
     let pricer =
-        LsmcPricer::gbm_american(num_paths, num_steps, seed, use_parallel.unwrap_or(false))
+        LsmcPricer::gbm_american(
+            num_paths,
+            num_steps,
+            seed,
+            use_parallel.unwrap_or(false),
+            defaults.antithetic,
+        )
             .map_err(to_js_err)?;
     let est = match (is_put, pricing_seed) {
         (true, None) => pricer.price_gbm_american_put(

@@ -249,4 +249,5 @@ def test_finite_difference_greeks_map_invalid_stencils_to_value_error(
             num_paths=8,
             num_steps=1,
             bump_size=bump_size,
+            option_type="call",
         )

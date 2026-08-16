@@ -162,14 +162,16 @@ pub fn option_type_from_bool(is_call: bool) -> OptionType {
 /// # Arguments
 ///
 /// * `spot` - Underlying level at expiry, in the same price units as `strike`.
+///   Must be finite and non-negative (Black–Scholes / lognormal domain;
+///   zero is allowed as an absorbing barrier).
 /// * `strike` - Exercise price; must be finite and strictly positive.
 /// * `option_type` - Call pays `max(spot - strike, 0)`; put pays
 ///   `max(strike - spot, 0)`.
 ///
 /// # Errors
 ///
-/// Returns an error if `spot` is non-finite or `strike` is non-finite or not
-/// strictly positive.
+/// Returns an error if `spot` is non-finite or negative, or `strike` is
+/// non-finite or not strictly positive.
 ///
 /// # Examples
 ///
@@ -181,9 +183,9 @@ pub fn option_type_from_bool(is_call: bool) -> OptionType {
 /// assert!((payoff - 10.0).abs() < 1e-12);
 /// ```
 pub fn vanilla_expiry_payoff(spot: f64, strike: f64, option_type: OptionType) -> Result<f64> {
-    if !spot.is_finite() {
+    if !spot.is_finite() || spot < 0.0 {
         return Err(Error::Validation(format!(
-            "vanilla expiry payoff spot must be finite, got {spot}"
+            "vanilla expiry payoff spot must be finite and non-negative, got {spot}"
         )));
     }
     if !strike.is_finite() || strike <= 0.0 {
@@ -714,6 +716,8 @@ mod tests {
         assert!((put - 10.0).abs() < 1e-12);
         assert!((vanilla_expiry_payoff(90.0, 100.0, OptionType::Call).expect("otm")).abs() < 1e-12);
         assert!(vanilla_expiry_payoff(100.0, 0.0, OptionType::Call).is_err());
+        assert!(vanilla_expiry_payoff(-1.0, 100.0, OptionType::Call).is_err());
+        assert!((vanilla_expiry_payoff(0.0, 100.0, OptionType::Put).expect("zero spot") - 100.0).abs() < 1e-12);
     }
 
     #[test]

@@ -19,11 +19,11 @@ fn spec_from_args(
     div_yield: f64,
     vol: f64,
     expiry: f64,
+    option_type: &str,
     num_paths: Option<usize>,
     seed: Option<u64>,
     num_steps: Option<usize>,
     bump_size: Option<f64>,
-    option_type: Option<&str>,
     currency: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<GbmEuropeanFdSpec> {
     Ok(GbmEuropeanFdSpec {
@@ -37,30 +37,32 @@ fn spec_from_args(
         seed,
         num_steps,
         bump_size,
-        option_type: option_type.map(str::to_owned),
+        option_type: option_type.to_owned(),
         currency: Some(resolve_currency(currency)?),
     })
 }
 
 /// Finite-difference delta for a vanilla European option under GBM.
 ///
-/// Reports the conservative independence-bound stderr. Use [`finite_diff_delta_crn`]
-/// for paired common-random-number stderr.
+/// Both this function and [`finite_diff_delta_crn`] reuse common random
+/// numbers. This function reports a conservative independence-bound stderr.
 ///
-/// `spot` and the relative `bump_size` must be finite and positive. The
-/// absolute bump is `max(abs(spot) * bump_size, 1e-8)`, and the symmetric
-/// down-bumped state must remain at least `1e-12`.
+/// `option_type` must be `"call"` or `"put"`. `spot` and the relative
+/// `bump_size` must be finite and positive. The absolute bump is
+/// `max(abs(spot) * bump_size, 1e-8)`, and the symmetric down-bumped state
+/// must remain at least `1e-12`. `bump_size` is a relative MC shock
+/// (registry default `0.01` = 1% of spot), not a closed-form local step.
 ///
 /// Returns `(delta, stderr)`.
 ///
-/// Raises `ValueError` when the inputs cannot form that symmetric central
-/// stencil or another pricing input is invalid.
+/// Raises `ValueError` when `option_type` is unknown, the inputs cannot form
+/// that symmetric central stencil, or another pricing input is invalid.
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 #[pyo3(signature = (
-    spot, strike, rate, div_yield, vol, expiry,
+    spot, strike, rate, div_yield, vol, expiry, option_type,
     num_paths=None, seed=None, num_steps=None,
-    bump_size=None, option_type=None, currency=None,
+    bump_size=None, currency=None,
 ))]
 fn finite_diff_delta(
     py: Python<'_>,
@@ -70,11 +72,11 @@ fn finite_diff_delta(
     div_yield: f64,
     vol: f64,
     expiry: f64,
+    option_type: &str,
     num_paths: Option<usize>,
     seed: Option<u64>,
     num_steps: Option<usize>,
     bump_size: Option<f64>,
-    option_type: Option<&str>,
     currency: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<(f64, f64)> {
     let spec = spec_from_args(
@@ -84,11 +86,11 @@ fn finite_diff_delta(
         div_yield,
         vol,
         expiry,
+        option_type,
         num_paths,
         seed,
         num_steps,
         bump_size,
-        option_type,
         currency,
     )?;
     py.detach(|| finite_diff_delta_gbm(spec))
@@ -97,20 +99,24 @@ fn finite_diff_delta(
 
 /// Finite-difference delta with paired common-random-number stderr.
 ///
-/// `spot` and the relative `bump_size` must be finite and positive. The
-/// absolute bump is `max(abs(spot) * bump_size, 1e-8)`, and the symmetric
-/// down-bumped state must remain at least `1e-12`.
+/// Same CRN-priced central difference as [`finite_diff_delta`]; only the
+/// reported stderr estimator differs.
+///
+/// `option_type` must be `"call"` or `"put"`. `spot` and the relative
+/// `bump_size` must be finite and positive. The absolute bump is
+/// `max(abs(spot) * bump_size, 1e-8)`, and the symmetric down-bumped state
+/// must remain at least `1e-12`.
 ///
 /// Returns `(delta, stderr)`.
 ///
-/// Raises `ValueError` when the inputs cannot form that symmetric central
-/// stencil or another pricing input is invalid.
+/// Raises `ValueError` when `option_type` is unknown, the inputs cannot form
+/// that symmetric central stencil, or another pricing input is invalid.
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 #[pyo3(signature = (
-    spot, strike, rate, div_yield, vol, expiry,
+    spot, strike, rate, div_yield, vol, expiry, option_type,
     num_paths=None, seed=None, num_steps=None,
-    bump_size=None, option_type=None, currency=None,
+    bump_size=None, currency=None,
 ))]
 fn finite_diff_delta_crn(
     py: Python<'_>,
@@ -120,11 +126,11 @@ fn finite_diff_delta_crn(
     div_yield: f64,
     vol: f64,
     expiry: f64,
+    option_type: &str,
     num_paths: Option<usize>,
     seed: Option<u64>,
     num_steps: Option<usize>,
     bump_size: Option<f64>,
-    option_type: Option<&str>,
     currency: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<(f64, f64)> {
     let spec = spec_from_args(
@@ -134,11 +140,11 @@ fn finite_diff_delta_crn(
         div_yield,
         vol,
         expiry,
+        option_type,
         num_paths,
         seed,
         num_steps,
         bump_size,
-        option_type,
         currency,
     )?;
     py.detach(|| finite_diff_delta_crn_gbm(spec))
@@ -147,20 +153,24 @@ fn finite_diff_delta_crn(
 
 /// Finite-difference gamma (independence-bound stderr).
 ///
-/// `spot` and the relative `bump_size` must be finite and positive. The
-/// absolute bump is `max(abs(spot) * bump_size, 1e-8)`, and the symmetric
-/// down-bumped state must remain at least `1e-12`.
+/// Both this function and [`finite_diff_gamma_crn`] reuse common random
+/// numbers. This function reports a conservative independence-bound stderr.
+///
+/// `option_type` must be `"call"` or `"put"`. `spot` and the relative
+/// `bump_size` must be finite and positive. The absolute bump is
+/// `max(abs(spot) * bump_size, 1e-8)`, and the symmetric down-bumped state
+/// must remain at least `1e-12`.
 ///
 /// Returns `(gamma, stderr)`.
 ///
-/// Raises `ValueError` when the inputs cannot form that symmetric central
-/// stencil or another pricing input is invalid.
+/// Raises `ValueError` when `option_type` is unknown, the inputs cannot form
+/// that symmetric central stencil, or another pricing input is invalid.
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 #[pyo3(signature = (
-    spot, strike, rate, div_yield, vol, expiry,
+    spot, strike, rate, div_yield, vol, expiry, option_type,
     num_paths=None, seed=None, num_steps=None,
-    bump_size=None, option_type=None, currency=None,
+    bump_size=None, currency=None,
 ))]
 fn finite_diff_gamma(
     py: Python<'_>,
@@ -170,11 +180,11 @@ fn finite_diff_gamma(
     div_yield: f64,
     vol: f64,
     expiry: f64,
+    option_type: &str,
     num_paths: Option<usize>,
     seed: Option<u64>,
     num_steps: Option<usize>,
     bump_size: Option<f64>,
-    option_type: Option<&str>,
     currency: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<(f64, f64)> {
     let spec = spec_from_args(
@@ -184,11 +194,11 @@ fn finite_diff_gamma(
         div_yield,
         vol,
         expiry,
+        option_type,
         num_paths,
         seed,
         num_steps,
         bump_size,
-        option_type,
         currency,
     )?;
     py.detach(|| finite_diff_gamma_gbm(spec))
@@ -197,20 +207,24 @@ fn finite_diff_gamma(
 
 /// Finite-difference gamma with paired common-random-number stderr.
 ///
-/// `spot` and the relative `bump_size` must be finite and positive. The
-/// absolute bump is `max(abs(spot) * bump_size, 1e-8)`, and the symmetric
-/// down-bumped state must remain at least `1e-12`.
+/// Same CRN-priced second difference as [`finite_diff_gamma`]; only the
+/// reported stderr estimator differs.
+///
+/// `option_type` must be `"call"` or `"put"`. `spot` and the relative
+/// `bump_size` must be finite and positive. The absolute bump is
+/// `max(abs(spot) * bump_size, 1e-8)`, and the symmetric down-bumped state
+/// must remain at least `1e-12`.
 ///
 /// Returns `(gamma, stderr)`.
 ///
-/// Raises `ValueError` when the inputs cannot form that symmetric central
-/// stencil or another pricing input is invalid.
+/// Raises `ValueError` when `option_type` is unknown, the inputs cannot form
+/// that symmetric central stencil, or another pricing input is invalid.
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 #[pyo3(signature = (
-    spot, strike, rate, div_yield, vol, expiry,
+    spot, strike, rate, div_yield, vol, expiry, option_type,
     num_paths=None, seed=None, num_steps=None,
-    bump_size=None, option_type=None, currency=None,
+    bump_size=None, currency=None,
 ))]
 fn finite_diff_gamma_crn(
     py: Python<'_>,
@@ -220,11 +234,11 @@ fn finite_diff_gamma_crn(
     div_yield: f64,
     vol: f64,
     expiry: f64,
+    option_type: &str,
     num_paths: Option<usize>,
     seed: Option<u64>,
     num_steps: Option<usize>,
     bump_size: Option<f64>,
-    option_type: Option<&str>,
     currency: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<(f64, f64)> {
     let spec = spec_from_args(
@@ -234,11 +248,11 @@ fn finite_diff_gamma_crn(
         div_yield,
         vol,
         expiry,
+        option_type,
         num_paths,
         seed,
         num_steps,
         bump_size,
-        option_type,
         currency,
     )?;
     py.detach(|| finite_diff_gamma_crn_gbm(spec))

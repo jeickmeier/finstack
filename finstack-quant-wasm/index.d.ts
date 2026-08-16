@@ -4492,7 +4492,11 @@ export interface MonteCarloNamespace {
     currency?: string
   ): MonteCarloEstimateJson;
   /**
-   * Price an American put via LSMC under GBM dynamics.
+   * Price a Bermudan put via LSMC under GBM dynamics.
+   *
+   * Exercise is decided on the discrete grid `1..=num_steps`, not as a
+   * continuous American. Immediate exercise at valuation (`t = 0`) floors
+   * the reported price at intrinsic.
    *
    * Optional knobs:
    * - `use_parallel` (default `false`): run path generation on the rayon pool.
@@ -4514,7 +4518,7 @@ export interface MonteCarloNamespace {
    * @param useParallel - Whether simulation paths are evaluated in parallel when supported.
    * @param basis - Regression basis family used by the American-option exercise estimator.
    * @param basisDegree - Maximum polynomial degree used by the American-option exercise basis.
-   * @throws Error - Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is unknown; `strike <= 0`; the GBM parameters, path count, step count, expiry, basis name, or basis degree fail validation; path generation fails; or the result cannot be serialized.
+   * @throws Error - Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is unknown; `strike` is non-finite or `strike <= 0`; the GBM parameters, path count, step count, expiry, basis name, or basis degree fail validation; path generation fails; or the result cannot be serialized.
    */
   priceAmericanPut(
     spot: number,
@@ -6841,11 +6845,11 @@ export interface ValuationsNamespace {
    * // payoff === 10
    * ```
    *
-   * @param spot - Underlying level at expiry, in the same price units as `strike`.
+   * @param spot - Underlying level at expiry, in the same price units as `strike`. Must be finite and non-negative; zero spot is allowed.
    * @param strike - Exercise price; must be finite and strictly positive.
    * @param isCall - `true` for a call (`max(spot - strike, 0)`), `false` for a put (`max(strike - spot, 0)`).
    * @returns Undiscounted expiry payoff in the same units as `spot` and `strike`.
-   * @throws If `spot` is non-finite or `strike` is non-finite or not strictly positive.
+   * @throws If `spot` is non-finite or negative, or `strike` is non-finite or not strictly positive.
    */
   vanillaExpiryPayoff(
     spot: number,

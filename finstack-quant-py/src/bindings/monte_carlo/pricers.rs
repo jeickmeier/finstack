@@ -243,6 +243,7 @@ pub struct PyLsmcPricer {
     num_paths: usize,
     seed: u64,
     use_parallel: bool,
+    antithetic: bool,
     basis: BasisKind,
     basis_degree: usize,
 }
@@ -255,8 +256,13 @@ impl PyLsmcPricer {
     ) -> PyResult<(LsmcPricer, usize, Currency)> {
         let currency = resolve_currency(currency)?;
         let num_steps = num_steps.unwrap_or(py_mc_defaults()?.lsmc.num_steps);
-        let pricer =
-            LsmcPricer::gbm_american(self.num_paths, num_steps, self.seed, self.use_parallel)
+        let pricer = LsmcPricer::gbm_american(
+            self.num_paths,
+            num_steps,
+            self.seed,
+            self.use_parallel,
+            self.antithetic,
+        )
                 .map_err(core_to_py)?;
         Ok((pricer, num_steps, currency))
     }
@@ -271,6 +277,7 @@ impl PyLsmcPricer {
         use_parallel=None,
         basis=None,
         basis_degree=None,
+        antithetic=None,
     ))]
     fn new(
         num_paths: Option<usize>,
@@ -278,6 +285,7 @@ impl PyLsmcPricer {
         use_parallel: Option<bool>,
         basis: Option<&str>,
         basis_degree: Option<usize>,
+        antithetic: Option<bool>,
     ) -> PyResult<Self> {
         let defaults = &py_mc_defaults()?.lsmc;
         let basis = BasisKind::parse(basis.unwrap_or(defaults.basis.as_str()))
@@ -287,6 +295,7 @@ impl PyLsmcPricer {
             num_paths: num_paths.unwrap_or(defaults.num_paths),
             seed: seed.unwrap_or(defaults.seed),
             use_parallel: use_parallel.unwrap_or(defaults.use_parallel),
+            antithetic: antithetic.unwrap_or(defaults.antithetic),
             basis,
             basis_degree,
         })
@@ -306,6 +315,11 @@ impl PyLsmcPricer {
     #[getter]
     fn use_parallel(&self) -> bool {
         self.use_parallel
+    }
+    /// Whether each path is paired with its sign-flipped counterpart.
+    #[getter]
+    fn antithetic(&self) -> bool {
+        self.antithetic
     }
     #[getter]
     fn basis(&self) -> &'static str {
@@ -479,10 +493,11 @@ impl PyLsmcPricer {
 
     fn __repr__(&self) -> String {
         format!(
-            "LsmcPricer(paths={}, seed={}, use_parallel={}, basis={}, basis_degree={})",
+            "LsmcPricer(paths={}, seed={}, use_parallel={}, antithetic={}, basis={}, basis_degree={})",
             self.num_paths,
             self.seed,
             self.use_parallel,
+            self.antithetic,
             self.basis.as_str(),
             self.basis_degree,
         )

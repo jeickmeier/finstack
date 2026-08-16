@@ -117,7 +117,7 @@ fn py_aggregate_cashflows_checked(
         .map_err(core_to_py)
 }
 
-/// Group dated cashflows into a calendar-year coupon / principal / PV ladder.
+/// Group dated cashflows into a calendar-year non-principal / principal / PV ladder.
 ///
 /// Parameters
 /// ----------
@@ -125,23 +125,24 @@ fn py_aggregate_cashflows_checked(
 ///     Payment dates; the Gregorian year of each date is the bucket.
 /// kinds : list[str]
 ///     Cashflow kind labels (``"fixed"``, ``"notional"``, ``"coupon"``,
-///     ``"principal"``, …). ASCII case is ignored. Unknown labels are treated
-///     as coupon (non-principal).
+///     ``"principal"``, …). ASCII case is ignored. Unknown labels raise
+///     ``ValueError``.
 /// amounts : list[float]
-///     Signed cashflow amounts, one per date, in native currency units.
+///     Signed finite cashflow amounts, one per date, in native currency units.
 /// pvs : list[float]
-///     Present values, one per date, in the same units as ``amounts``.
+///     Finite present values, one per date, in the same units as ``amounts``.
 ///
 /// Returns
 /// -------
 /// list[tuple[int, float, float, float]]
-///     One ``(year, coupon, principal, pv)`` row per calendar year, sorted
-///     by year.
+///     One ``(year, non_principal, principal, pv)`` row per calendar year,
+///     sorted by year.
 ///
 /// Raises
 /// ------
 /// ValueError
-///     If the four lists have different lengths.
+///     If the four lists have different lengths, a kind label is unknown, or
+///     an amount or PV is non-finite.
 ///
 /// Examples
 /// --------
@@ -172,7 +173,7 @@ fn py_calendar_year_ladder(
         )
         .map(|rows| {
             rows.into_iter()
-                .map(|row| (row.year, row.coupon, row.principal, row.pv))
+                .map(|row| (row.year, row.non_principal, row.principal, row.pv))
                 .collect()
         })
     })
