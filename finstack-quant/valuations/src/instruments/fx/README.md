@@ -45,9 +45,10 @@ FxOptionBuilder}`, `fx_forward::FxForwardBuilder`,
 `fx_variance_swap::FxVarianceSwapBuilder`, `ndf::{NdfQuoteConvention,
 NdfFixingSource}`, and `fx_barrier_option::monte_carlo`.
 
-`fx_option`, `fx_swap` and `fx_variance_swap` re-export shared parameter types
-(`FxUnderlyingParams`, `PayReceive`) that already exist at `instruments::*` —
-these are aliases of the same types, not FX-specific variants.
+Three leaves re-export a shared parameter type under their own path:
+`fx_option::FxUnderlyingParams` and `fx_swap::FxUnderlyingParams`, and
+`fx_variance_swap::PayReceive`. All three name the same types that already exist
+at `instruments::*` — aliases, not FX-specific variants.
 
 Inside a leaf, `metrics/`, `pricer.rs` and `types.rs` are `pub(crate)` or
 private; supported items surface through each leaf's `pub use`. Two exceptions:

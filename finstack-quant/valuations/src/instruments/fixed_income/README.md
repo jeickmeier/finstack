@@ -77,10 +77,12 @@ Inside a leaf, `metrics/`, `pricer.rs`/`pricing/` and `types.rs`/`types/` are
   `data/assumptions/structured_credit_assumptions.v1.json`; TBA pool assumptions
   in `data/assumptions/tba_assumptions.v1.json`. Both are embedded with
   `include_str!` and deserialized with `deny_unknown_fields`.
-- **Balances.** Amortizing products report beginning and ending balance on each
-  flow so `cashflow_export` can reconcile; CMO tranche pool state is
-  deliberately exported as `null` because the waterfall engine has no stable
-  per-tranche balance hook yet.
+- **Balances.** `cashflow_export`'s `beginning_balance` / `ending_balance`
+  columns exist on every row but are filled by concrete-type downcast, and today
+  only `AgencyMbsPassthrough` fills them — an amortizing `Bond` or `TermLoan`
+  leaves them `null`. CMO tranche pool state is deliberately `null` too, because
+  the waterfall engine has no stable per-tranche balance hook yet. Do not read
+  `null` here as missing data.
 - **Determinism.** Monte Carlo paths (revolving credit, Merton bonds, stochastic
   structured credit, MBS OAS) take an explicit seed and must reproduce
   bit-identically across runs and thread counts.

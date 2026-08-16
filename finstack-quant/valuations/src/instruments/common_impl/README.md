@@ -144,7 +144,7 @@ Optional hooks with defaults worth knowing about:
 | `seed_metric_context()` | no-op | Cashflow generation is expensive and the metrics pipeline would redo it |
 | `metrics_equivalent()` / `has_custom_metrics_equivalent()` | `clone_box()` / `false` | Spread and yield metrics need a normalized cashflow basis (PIK → cash) |
 | `as_marginable()` | `None` | The type implements `finstack_quant_margin::Marginable` (impls live in `../marginable.rs`) |
-| `model_params_snapshot()` / `with_model_params()` | `None` / clone-or-error | Attribution must revalue the instrument with isolated model parameters |
+| `model_params_snapshot()` / `with_model_params()` | `ModelParamsSnapshot::None` (the variant, not `Option::None`) / clone-or-error | Attribution must revalue the instrument with isolated model parameters |
 | `scenario_spread_shock_supported()` | `false` | The pricer consumes `scenario_spread_shock_bp` exactly, with no silent no-op |
 | `fx_exposure()`, `expiry()`, `effective_start_date()`, `dividend_schedule_id()`, `funding_curve_id()`, `to_instrument_json()` | `None` | The instrument has the corresponding concept |
 
