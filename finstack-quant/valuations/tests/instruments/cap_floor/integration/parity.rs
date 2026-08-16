@@ -8,7 +8,9 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::surfaces::VolSurface;
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, ForwardCurve};
 use finstack_quant_core::money::Money;
-use finstack_quant_valuations::instruments::rates::cap_floor::{CapFloor, RateOptionType};
+use finstack_quant_valuations::instruments::rates::cap_floor::{
+    CapFloor, CapFloorVolType, RateOptionType,
+};
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::instruments::{ExerciseStyle, SettlementType};
 use rust_decimal::Decimal;
@@ -67,7 +69,7 @@ fn create_cap(as_of: Date, end: Date, strike: f64) -> CapFloor {
         discount_curve_id: "USD_OIS".into(),
         forward_curve_id: "USD_LIBOR_3M".into(),
         vol_surface_id: "USD_CAP_VOL".into(),
-        vol_type: Default::default(),
+        vol_type: CapFloorVolType::Lognormal,
         vol_shift: 0.0,
         overnight_coupon: None,
         spread: Decimal::ZERO,
@@ -96,7 +98,7 @@ fn create_floor(as_of: Date, end: Date, strike: f64) -> CapFloor {
         discount_curve_id: "USD_OIS".into(),
         forward_curve_id: "USD_LIBOR_3M".into(),
         vol_surface_id: "USD_CAP_VOL".into(),
-        vol_type: Default::default(),
+        vol_type: CapFloorVolType::Lognormal,
         vol_shift: 0.0,
         overnight_coupon: None,
         spread: Decimal::ZERO,
@@ -265,7 +267,7 @@ fn test_caplet_floorlet_parity() {
         discount_curve_id: "USD_OIS".into(),
         forward_curve_id: "USD_LIBOR_3M".into(),
         vol_surface_id: "USD_CAP_VOL".into(),
-        vol_type: Default::default(),
+        vol_type: CapFloorVolType::Lognormal,
         vol_shift: 0.0,
         overnight_coupon: None,
         spread: Decimal::ZERO,
@@ -292,7 +294,7 @@ fn test_caplet_floorlet_parity() {
         discount_curve_id: "USD_OIS".into(),
         forward_curve_id: "USD_LIBOR_3M".into(),
         vol_surface_id: "USD_CAP_VOL".into(),
-        vol_type: Default::default(),
+        vol_type: CapFloorVolType::Lognormal,
         vol_shift: 0.0,
         overnight_coupon: None,
         spread: Decimal::ZERO,

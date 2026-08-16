@@ -419,8 +419,29 @@ impl<'a> CashflowEngine<'a> {
                             reset_effective,
                             &self.facility.attributes,
                         )?;
+                        let overnight = super::utils::resolved_overnight_compounding(spec)?;
 
-                        let coupon_rate = if fixing_date < self.as_of {
+                        let coupon_rate = if overnight.is_some() {
+                            let fwd = fwd_curve.as_ref().ok_or_else(|| {
+                                finstack_quant_core::Error::Validation(
+                                    "forward curve required for floating rate".into(),
+                                )
+                            })?;
+                            super::utils::project_revolver_floating_rate(
+                                super::utils::RevolverFloatingProjection {
+                                    accrual_start: sub_start,
+                                    accrual_end: sub_end,
+                                    as_of: self.as_of,
+                                    spec,
+                                    fwd: fwd.as_ref(),
+                                    day_count: self.day_count,
+                                    coupon_frequency: self.facility.frequency,
+                                    currency: ccy,
+                                    attributes: &self.facility.attributes,
+                                    fixings: self.fixing_series,
+                                },
+                            )?
+                        } else if fixing_date < self.as_of {
                             let fixing_rate =
                                 finstack_quant_core::market_data::fixings::require_fixing_value_exact(
                                     self.fixing_series,
@@ -433,7 +454,6 @@ impl<'a> CashflowEngine<'a> {
                                 &params,
                             )
                         } else {
-                            // Future reset: project from forward curve
                             let fwd = fwd_curve.as_ref().ok_or_else(|| {
                                 finstack_quant_core::Error::Validation(
                                     "forward curve required for floating rate".into(),
@@ -641,6 +661,16 @@ impl<'a> CashflowEngine<'a> {
         let mut flows = Vec::new();
         let rc = RoundingContext::default();
         let ccy = self.facility.commitment_amount.currency();
+        let overnight_fwd = match &self.facility.base_rate_spec {
+            BaseRateSpec::Floating(spec)
+                if super::utils::resolved_overnight_compounding(spec)?.is_some() =>
+            {
+                self.market
+                    .map(|market| market.get_forward(spec.index_id.as_str()))
+                    .transpose()?
+            }
+            _ => None,
+        };
 
         // Add initial draw at commitment_date (from lender perspective: negative cashflow)
         if self.facility.commitment_date > self.as_of
@@ -705,22 +735,43 @@ impl<'a> CashflowEngine<'a> {
                         reset_effective,
                         &self.facility.attributes,
                     )?;
-                    let base_rate = if fixing_date < self.as_of {
-                        finstack_quant_core::market_data::fixings::require_fixing_value_exact(
-                            self.fixing_series,
-                            spec.index_id.as_ref(),
-                            fixing_date,
-                            self.as_of,
-                        )?
+                    let overnight = super::utils::resolved_overnight_compounding(spec)?;
+                    if let (Some(_), Some(fwd)) = (overnight.as_ref(), overnight_fwd.as_ref()) {
+                        (
+                            super::utils::project_revolver_floating_rate(
+                                super::utils::RevolverFloatingProjection {
+                                    accrual_start: period_start,
+                                    accrual_end: period_end,
+                                    as_of: self.as_of,
+                                    spec,
+                                    fwd: fwd.as_ref(),
+                                    day_count: self.day_count,
+                                    coupon_frequency: self.facility.frequency,
+                                    currency: ccy,
+                                    attributes: &self.facility.attributes,
+                                    fixings: self.fixing_series,
+                                },
+                            )?,
+                            Some(fixing_date),
+                        )
                     } else {
-                        short_rate
-                    };
-                    (
-                        crate::cashflow::builder::rate_helpers::calculate_floating_rate(
-                            base_rate, &params,
-                        ),
-                        Some(fixing_date),
-                    )
+                        let base_rate = if fixing_date < self.as_of {
+                            finstack_quant_core::market_data::fixings::require_fixing_value_exact(
+                                self.fixing_series,
+                                spec.index_id.as_ref(),
+                                fixing_date,
+                                self.as_of,
+                            )?
+                        } else {
+                            short_rate
+                        };
+                        (
+                            crate::cashflow::builder::rate_helpers::calculate_floating_rate(
+                                base_rate, &params,
+                            ),
+                            Some(fixing_date),
+                        )
+                    }
                 }
             };
 

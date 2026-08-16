@@ -41,8 +41,8 @@ fn test_bond_convention_from_str() {
         BondConvention::GermanBund
     );
     assert_eq!(
-        BondConvention::from_str("corporate").unwrap(),
-        BondConvention::Corporate
+        BondConvention::from_str("us_corporate").unwrap(),
+        BondConvention::UsCorporate
     );
     assert!(BondConvention::from_str("UST").is_err());
 }

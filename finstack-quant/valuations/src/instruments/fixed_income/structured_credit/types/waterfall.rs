@@ -933,18 +933,28 @@ impl Waterfall {
 
     /// Create a standard sequential waterfall for a given tranche structure.
     ///
-    /// This creates a typical CLO/ABS waterfall with:
+    /// Shared skeleton:
     /// 1. Fees tier (sequential)
-    /// 2. Interest tier (sequential, by priority)
-    /// 3. Principal tier (sequential, by priority, divertible)
-    /// 4. Equity tier (residual)
+    /// 2. Interest (sequential, by priority)
+    /// 3. Principal (sequential, by priority)
+    /// 4. Equity residual (divertible so an OC/IC cure can turbo excess)
+    ///
+    /// CLO/CBO deals split interest at the senior/subordinated boundary and
+    /// mark the subordinated half divertible so an OC/IC cure can trap junior
+    /// coupon (INTEX/Bloomberg CLO). ABS, RMBS, CMBS, auto, and card deals
+    /// keep a single non-divertible interest tier: coupons are paid in
+    /// priority order even when a coverage test fails; only residual cash
+    /// is available to turbo.
     ///
     /// # Arguments
     ///
+    /// * `deal_type` - Deal family that selects CLO-style junior-interest
+    ///   diversion versus passthrough coupons
     /// * `base_currency` - Base currency supplied by the caller for this operation
     /// * `tranches` - Tranches supplied by the caller for this operation
     /// * `fee_recipients` - Fee recipients supplied by the caller for this operation
     pub fn standard_sequential(
+        deal_type: super::DealType,
         base_currency: Currency,
         tranches: &super::TrancheStructure,
         fee_recipients: Vec<Recipient>,
@@ -965,47 +975,71 @@ impl Waterfall {
         let mut sorted_tranches = tranches.tranches.clone();
         sorted_tranches.sort_by_key(|t| t.payment_priority);
 
-        // Split debt interest at the senior/subordinated boundary and mark the
-        // subordinated half divertible so an OC cure can trap junior coupon
-        // (INTEX/Bloomberg). Sequential allocation makes the split an identity
-        // when no test is failing. Senior-only deals (no mezz) still have no
-        // subordinated interest to divert.
-        let mut senior_interest_recipients = Vec::new();
-        let mut subordinated_interest_recipients = Vec::new();
-        for tranche in &sorted_tranches {
-            if tranche.seniority == super::TrancheSeniority::Equity {
-                continue;
-            }
-            let recipient = Recipient::tranche_interest(
-                format!("{}_interest", tranche.id.as_str()),
-                tranche.id.as_str(),
-            );
-            if tranche.seniority == super::TrancheSeniority::Senior {
-                senior_interest_recipients.push(recipient);
-            } else {
-                subordinated_interest_recipients.push(recipient);
-            }
-        }
+        let trap_junior_interest = matches!(deal_type, super::DealType::Clo | super::DealType::Cbo);
 
-        if !senior_interest_recipients.is_empty() {
-            let tier = WaterfallTier::new("senior_interest", priority, PaymentType::Interest)
-                .allocation_mode(AllocationMode::Sequential);
-            let tier = senior_interest_recipients
-                .into_iter()
-                .fold(tier, |tier, recipient| tier.add_recipient(recipient));
-            engine.tiers.push(tier);
-            priority += 1;
-        }
+        if trap_junior_interest {
+            // Split debt interest at the senior/subordinated boundary and mark
+            // the subordinated half divertible so an OC cure can trap junior
+            // coupon (INTEX/Bloomberg CLO). Sequential allocation makes the
+            // split an identity when no test is failing.
+            let mut senior_interest_recipients = Vec::new();
+            let mut subordinated_interest_recipients = Vec::new();
+            for tranche in &sorted_tranches {
+                if tranche.seniority == super::TrancheSeniority::Equity {
+                    continue;
+                }
+                let recipient = Recipient::tranche_interest(
+                    format!("{}_interest", tranche.id.as_str()),
+                    tranche.id.as_str(),
+                );
+                if tranche.seniority == super::TrancheSeniority::Senior {
+                    senior_interest_recipients.push(recipient);
+                } else {
+                    subordinated_interest_recipients.push(recipient);
+                }
+            }
 
-        if !subordinated_interest_recipients.is_empty() {
-            let tier = WaterfallTier::new("subordinated_interest", priority, PaymentType::Interest)
-                .allocation_mode(AllocationMode::Sequential)
-                .divertible(true);
-            let tier = subordinated_interest_recipients
-                .into_iter()
-                .fold(tier, |tier, recipient| tier.add_recipient(recipient));
-            engine.tiers.push(tier);
-            priority += 1;
+            if !senior_interest_recipients.is_empty() {
+                let tier = WaterfallTier::new("senior_interest", priority, PaymentType::Interest)
+                    .allocation_mode(AllocationMode::Sequential);
+                let tier = senior_interest_recipients
+                    .into_iter()
+                    .fold(tier, |tier, recipient| tier.add_recipient(recipient));
+                engine.tiers.push(tier);
+                priority += 1;
+            }
+
+            if !subordinated_interest_recipients.is_empty() {
+                let tier =
+                    WaterfallTier::new("subordinated_interest", priority, PaymentType::Interest)
+                        .allocation_mode(AllocationMode::Sequential)
+                        .divertible(true);
+                let tier = subordinated_interest_recipients
+                    .into_iter()
+                    .fold(tier, |tier, recipient| tier.add_recipient(recipient));
+                engine.tiers.push(tier);
+                priority += 1;
+            }
+        } else {
+            let interest_recipients: Vec<Recipient> = sorted_tranches
+                .iter()
+                .filter(|tranche| tranche.seniority != super::TrancheSeniority::Equity)
+                .map(|tranche| {
+                    Recipient::tranche_interest(
+                        format!("{}_interest", tranche.id.as_str()),
+                        tranche.id.as_str(),
+                    )
+                })
+                .collect();
+            if !interest_recipients.is_empty() {
+                let tier = WaterfallTier::new("interest", priority, PaymentType::Interest)
+                    .allocation_mode(AllocationMode::Sequential);
+                let tier = interest_recipients
+                    .into_iter()
+                    .fold(tier, |tier, recipient| tier.add_recipient(recipient));
+                engine.tiers.push(tier);
+                priority += 1;
+            }
         }
 
         let mut principal_recipients = Vec::new();

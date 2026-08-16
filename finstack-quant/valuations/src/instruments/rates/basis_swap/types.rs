@@ -74,6 +74,7 @@ pub use crate::instruments::common_impl::parameters::legs::BasisSwapLeg;
 ///     spread_bp: rust_decimal::Decimal::from(5),
 ///     payment_lag_days: 0,
 ///     reset_lag_days: 0,
+///     compounding: Default::default(),
 /// };
 ///
 /// let reference_leg = BasisSwapLeg {
@@ -89,6 +90,7 @@ pub use crate::instruments::common_impl::parameters::legs::BasisSwapLeg;
 ///     spread_bp: rust_decimal::Decimal::ZERO,
 ///     payment_lag_days: 0,
 ///     reset_lag_days: 0,
+///     compounding: Default::default(),
 /// };
 ///
 /// let swap = BasisSwap::new(
@@ -268,6 +270,14 @@ impl BasisSwap {
         Self::validate_leg_lags(self.id.as_str(), "reference", &self.reference_leg)?;
         self.resolve_leg_calendar("primary", &self.primary_leg)?;
         self.resolve_leg_calendar("reference", &self.reference_leg)?;
+        crate::instruments::common_impl::pricing::overnight_conventions::reject_simple_overnight(
+            self.primary_leg.forward_curve_id.as_str(),
+            &self.primary_leg.compounding,
+        )?;
+        crate::instruments::common_impl::pricing::overnight_conventions::reject_simple_overnight(
+            self.reference_leg.forward_curve_id.as_str(),
+            &self.reference_leg.compounding,
+        )?;
         Ok(())
     }
 
@@ -354,6 +364,7 @@ impl BasisSwap {
             spread_bp: Decimal::from(5),
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         };
 
         let reference_leg = BasisSwapLeg {
@@ -369,6 +380,7 @@ impl BasisSwap {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         };
 
         Self::new(
@@ -451,8 +463,27 @@ impl BasisSwap {
         }
 
         let disc = context.get_discount(&leg.discount_curve_id)?;
-        let fwd = context.get_forward(&leg.forward_curve_id)?;
         let currency = self.notional.currency();
+        if !matches!(
+            leg.compounding,
+            crate::instruments::rates::irs::FloatingLegCompounding::Simple
+        ) {
+            let schedule = self.floating_leg_schedule(leg, context, valuation_date)?;
+            let mut acc = finstack_quant_core::math::NeumaierAccumulator::new();
+            for flow in schedule.get_flows() {
+                if flow.date <= valuation_date {
+                    continue;
+                }
+                let df = crate::instruments::common_impl::pricing::swap_legs::robust_relative_df(
+                    disc.as_ref(),
+                    valuation_date,
+                    flow.date,
+                )?;
+                acc.add(flow.amount.amount() * df);
+            }
+            return Ok(Money::new(acc.total(), currency));
+        }
+        let fwd = context.get_forward(&leg.forward_curve_id)?;
 
         let periods = crate::cashflow::builder::periods::build_periods(
             crate::cashflow::builder::periods::BuildPeriodsParams {
@@ -583,7 +614,14 @@ impl BasisSwap {
         &self,
         leg: &BasisSwapLeg,
         market: &MarketContext,
+        as_of: Date,
     ) -> Result<CashFlowSchedule> {
+        if !matches!(
+            leg.compounding,
+            crate::instruments::rates::irs::FloatingLegCompounding::Simple
+        ) {
+            return self.overnight_leg_schedule(leg, market, as_of);
+        }
         let mut builder = CashFlowSchedule::builder();
         let _ = builder
             .principal(self.notional, leg.start, leg.end)
@@ -622,6 +660,106 @@ impl BasisSwap {
         let mut schedule = builder.build(Some(market))?;
         schedule.retain_flows(|cf| cf.kind == crate::cashflow::primitives::CFKind::FloatReset);
         Ok(schedule)
+    }
+
+    fn overnight_leg_schedule(
+        &self,
+        leg: &BasisSwapLeg,
+        market: &MarketContext,
+        as_of: Date,
+    ) -> Result<CashFlowSchedule> {
+        use crate::instruments::common_impl::pricing::overnight::{
+            adjust_overnight_accrual_boundaries, project_overnight_coupon,
+            OvernightCouponProjectionInput, OvernightProjectionCurve,
+        };
+        use finstack_quant_core::cashflow::{CFKind, CashFlow};
+
+        let calendar_id = self.resolve_leg_calendar("cashflow", leg)?;
+        let calendar =
+            crate::instruments::common_impl::pricing::overnight::resolve_overnight_fixing_calendar(
+                Some(calendar_id),
+                self.notional.currency(),
+                "BasisSwap",
+            )?;
+        let periods = crate::cashflow::builder::periods::build_periods(
+            crate::cashflow::builder::periods::BuildPeriodsParams {
+                start: leg.start,
+                end: leg.end,
+                frequency: leg.frequency,
+                stub: leg.stub,
+                business_day_convention: leg.business_day_convention,
+                calendar_id,
+                end_of_month: false,
+                day_count: leg.day_count,
+                payment_lag_days: leg.payment_lag_days,
+                reset_lag_days: Some(leg.reset_lag_days),
+                adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
+            },
+        )?;
+        let fwd = market.get_forward(&leg.forward_curve_id)?;
+        let fixings = finstack_quant_core::market_data::fixings::get_fixing_series(
+            market,
+            leg.forward_curve_id.as_str(),
+        )
+        .ok();
+        let spread_bp = decimal_to_f64(leg.spread_bp, "BasisSwap overnight spread_bp")?;
+        let mut flows = Vec::with_capacity(periods.len());
+        for period in periods {
+            if period.payment_date < as_of {
+                continue;
+            }
+            let (accrual_start, accrual_end) = adjust_overnight_accrual_boundaries(
+                period.accrual_start,
+                period.accrual_end,
+                leg.business_day_convention,
+                calendar,
+            )?;
+            if accrual_end <= accrual_start {
+                continue;
+            }
+            let projection = project_overnight_coupon(OvernightCouponProjectionInput {
+                curve: OvernightProjectionCurve::Forward(fwd.as_ref()),
+                fixings,
+                fixing_id: leg.forward_curve_id.as_str(),
+                as_of,
+                accrual_start,
+                accrual_end,
+                day_count: leg.day_count,
+                coupon_frequency: Some(leg.frequency),
+                compounding: &leg.compounding,
+                fixing_calendar: calendar,
+                compounded_spread: 0.0,
+            })?;
+            let interest = self.notional.amount() * (projection.compound_factor - 1.0);
+            let spread_contrib = self.notional.amount()
+                * spread_bp
+                * crate::constants::ONE_BASIS_POINT
+                * projection.accrual_year_fraction;
+            let coupon_amount = interest + spread_contrib;
+            let all_in_rate = if projection.accrual_year_fraction.abs() > f64::EPSILON {
+                (projection.compound_factor - 1.0) / projection.accrual_year_fraction
+                    + spread_bp * crate::constants::ONE_BASIS_POINT
+            } else {
+                spread_bp * crate::constants::ONE_BASIS_POINT
+            };
+            flows.push(CashFlow::new(
+                period.payment_date,
+                period.reset_date,
+                Money::new(coupon_amount, self.notional.currency()),
+                CFKind::FloatReset,
+                projection.accrual_year_fraction,
+                Some(all_in_rate),
+            ));
+        }
+        Ok(crate::cashflow::traits::schedule_from_classified_flows(
+            flows,
+            leg.day_count,
+            crate::cashflow::traits::ScheduleBuildOpts {
+                notional_hint: Some(self.notional),
+                ..Default::default()
+            },
+        ))
     }
 }
 
@@ -689,9 +827,9 @@ impl finstack_quant_cashflows::CashflowScheduleSource for BasisSwap {
         market: &MarketContext,
         _as_of: Date,
     ) -> finstack_quant_core::Result<CashFlowSchedule> {
-        let primary = self.floating_leg_schedule(&self.primary_leg, market)?;
+        let primary = self.floating_leg_schedule(&self.primary_leg, market, _as_of)?;
         let reference = self
-            .floating_leg_schedule(&self.reference_leg, market)?
+            .floating_leg_schedule(&self.reference_leg, market, _as_of)?
             .scale_amounts(-1.0)?;
         Ok(merge_cashflow_schedules(
             [primary, reference],
@@ -765,6 +903,7 @@ mod tests {
             spread_bp: Decimal::from(5), // 5bp
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         };
 
         let reference_leg = BasisSwapLeg {
@@ -780,6 +919,7 @@ mod tests {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         };
 
         let swap = BasisSwap::new(
@@ -845,6 +985,7 @@ mod tests {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         };
         let reference_leg = BasisSwapLeg {
             forward_curve_id: CurveId::new("6M-SOFR"),
@@ -859,6 +1000,7 @@ mod tests {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         };
 
         let swap = BasisSwap::new(
@@ -919,6 +1061,7 @@ mod tests {
             spread_bp: Decimal::from(10),
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         };
         let primary_leg_with_lag = BasisSwapLeg {
             payment_lag_days: 10,
@@ -938,6 +1081,7 @@ mod tests {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         };
 
         let swap_no_lag = BasisSwap::new(
@@ -986,6 +1130,7 @@ mod tests {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         };
 
         // Test start == end (equal dates)
@@ -1036,7 +1181,7 @@ mod tests {
     #[test]
     fn test_basis_swap_rejects_same_curve_by_default() {
         let leg = BasisSwapLeg {
-            forward_curve_id: CurveId::new("SOFR"),
+            forward_curve_id: CurveId::new("USD-SOFR-3M"),
             discount_curve_id: CurveId::new("OIS"),
             start: date(2024, 1, 3),
             end: date(2025, 1, 3),
@@ -1048,6 +1193,7 @@ mod tests {
             spread_bp: Decimal::from(5),
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         };
 
         let err = BasisSwap::new(
@@ -1076,7 +1222,7 @@ mod tests {
             .knots(vec![(0.0, 1.0), (1.0, 0.98)])
             .build()
             .expect("should succeed");
-        let forward = ForwardCurve::builder("SOFR", 0.25)
+        let forward = ForwardCurve::builder("USD-SOFR-3M", 0.25)
             .base_date(base_date)
             .knots(vec![(0.0, 0.03), (1.0, 0.03)])
             .build()
@@ -1085,7 +1231,7 @@ mod tests {
         let context = MarketContext::new().insert(discount_curve).insert(forward);
 
         let leg = BasisSwapLeg {
-            forward_curve_id: CurveId::new("SOFR"),
+            forward_curve_id: CurveId::new("USD-SOFR-3M"),
             discount_curve_id: CurveId::new("OIS"),
             start: date(2024, 1, 3),
             end: date(2025, 1, 3),
@@ -1097,6 +1243,7 @@ mod tests {
             spread_bp: Decimal::from(10), // 10bp spread
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         };
 
         // Use the explicit same-curve constructor
@@ -1170,6 +1317,7 @@ mod tests {
             spread_bp: Decimal::ZERO, // Start at zero spread
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         };
 
         let reference_leg = BasisSwapLeg {
@@ -1185,6 +1333,7 @@ mod tests {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         };
 
         let swap = BasisSwap::new(
@@ -1253,6 +1402,7 @@ mod tests {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         };
         let reference_leg = BasisSwapLeg {
             forward_curve_id: CurveId::new("6M-SOFR"),
@@ -1370,6 +1520,7 @@ mod tests {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         };
         let reference_leg = BasisSwapLeg {
             forward_curve_id: CurveId::new("6M-SOFR"),
@@ -1392,5 +1543,159 @@ mod tests {
         assert!(!flows.is_empty(), "basis swap should emit coupon cashflows");
         assert!(flows.iter().any(|(_, money)| money.amount() > 0.0));
         assert!(flows.iter().any(|(_, money)| money.amount() < 0.0));
+    }
+
+    #[test]
+    fn overnight_rfr_leg_matches_shared_compounding_engine() {
+        use crate::instruments::common_impl::pricing::overnight::{
+            project_overnight_coupon, OvernightCouponProjectionInput, OvernightProjectionCurve,
+        };
+        use crate::instruments::rates::irs::FloatingLegCompounding;
+        use finstack_quant_core::dates::calendar_by_id;
+
+        let start = date(2025, 1, 2);
+        let end = date(2026, 1, 2);
+        let disc = DiscountCurve::builder("USD-OIS")
+            .base_date(start)
+            .knots(vec![(0.0, 1.0), (1.0, 0.96)])
+            .build()
+            .expect("discount");
+        let ois = ForwardCurve::builder("USD-SOFR-OIS", 1.0 / 365.0)
+            .base_date(start)
+            .knots(vec![(0.0, 0.04), (1.0, 0.04)])
+            .build()
+            .expect("ois forward");
+        let term = ForwardCurve::builder("USD-SOFR-3M", 0.25)
+            .base_date(start)
+            .knots(vec![(0.0, 0.041), (1.0, 0.041)])
+            .build()
+            .expect("term forward");
+        let market = MarketContext::new()
+            .insert(disc)
+            .insert(ois.clone())
+            .insert(term);
+
+        let primary = BasisSwapLeg {
+            forward_curve_id: CurveId::new("USD-SOFR-OIS"),
+            discount_curve_id: CurveId::new("USD-OIS"),
+            start,
+            end,
+            frequency: Tenor::quarterly(),
+            day_count: DayCount::Act360,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
+            calendar_id: Some("usny".to_string()),
+            stub: StubKind::ShortFront,
+            spread_bp: Decimal::ZERO,
+            payment_lag_days: 0,
+            reset_lag_days: 0,
+            compounding: FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 },
+        };
+        let reference = BasisSwapLeg {
+            forward_curve_id: CurveId::new("USD-SOFR-3M"),
+            compounding: FloatingLegCompounding::Simple,
+            ..primary.clone()
+        };
+        let swap = BasisSwap::new(
+            "SOFR-OIS-3M",
+            Money::new(10_000_000.0, Currency::USD),
+            primary,
+            reference,
+        )
+        .expect("overnight vs term basis");
+
+        let schedule = swap
+            .floating_leg_schedule(&swap.primary_leg, &market, start)
+            .expect("overnight schedule");
+        let first = schedule
+            .get_flows()
+            .iter()
+            .find(|cf| cf.kind == crate::cashflow::primitives::CFKind::FloatReset)
+            .expect("overnight coupon");
+        let calendar = calendar_by_id("usny").expect("usny");
+        let periods = crate::cashflow::builder::periods::build_periods(
+            crate::cashflow::builder::periods::BuildPeriodsParams {
+                start,
+                end,
+                frequency: Tenor::quarterly(),
+                stub: StubKind::ShortFront,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
+                calendar_id: "usny",
+                end_of_month: false,
+                day_count: DayCount::Act360,
+                payment_lag_days: 0,
+                reset_lag_days: Some(0),
+                adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
+            },
+        )
+        .expect("periods");
+        let first_period = periods.first().expect("first period");
+        let (accrual_start, accrual_end) =
+            crate::instruments::common_impl::pricing::overnight::adjust_overnight_accrual_boundaries(
+                first_period.accrual_start,
+                first_period.accrual_end,
+                BusinessDayConvention::ModifiedFollowing,
+                calendar,
+            )
+            .expect("accrual window");
+        let expected = project_overnight_coupon(OvernightCouponProjectionInput {
+            curve: OvernightProjectionCurve::Forward(&ois),
+            fixings: None,
+            fixing_id: "USD-SOFR-OIS",
+            as_of: start,
+            accrual_start,
+            accrual_end,
+            day_count: DayCount::Act360,
+            coupon_frequency: Some(Tenor::quarterly()),
+            compounding: &FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 },
+            fixing_calendar: calendar,
+            compounded_spread: 0.0,
+        })
+        .expect("shared engine");
+        let expected_amount = 10_000_000.0 * (expected.compound_factor - 1.0);
+        assert!(
+            (first.amount.amount() - expected_amount).abs() < 1e-6,
+            "basis overnight coupon {} != shared engine {expected_amount}",
+            first.amount.amount()
+        );
+    }
+
+    #[test]
+    fn validate_rejects_simple_compounding_on_overnight_index() {
+        let start = date(2025, 1, 2);
+        let end = date(2026, 1, 2);
+        let overnight = BasisSwapLeg {
+            forward_curve_id: CurveId::new("USD-SOFR-OIS"),
+            discount_curve_id: CurveId::new("USD-OIS"),
+            start,
+            end,
+            frequency: Tenor::quarterly(),
+            day_count: DayCount::Act360,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
+            calendar_id: Some("usny".to_string()),
+            stub: StubKind::ShortFront,
+            spread_bp: Decimal::ZERO,
+            payment_lag_days: 0,
+            reset_lag_days: 0,
+            compounding: crate::instruments::rates::irs::FloatingLegCompounding::Simple,
+        };
+        let term = BasisSwapLeg {
+            forward_curve_id: CurveId::new("USD-SOFR-3M"),
+            ..overnight.clone()
+        };
+        let swap = BasisSwap::new(
+            "OIS-SIMPLE",
+            Money::new(1_000_000.0, Currency::USD),
+            overnight,
+            term,
+        )
+        .expect("construction");
+        let err = swap
+            .validate()
+            .expect_err("Simple on USD-SOFR-OIS must fail");
+        assert!(
+            format!("{err}").contains("Overnight RFR"),
+            "expected overnight/Simple rejection, got {err}"
+        );
     }
 }

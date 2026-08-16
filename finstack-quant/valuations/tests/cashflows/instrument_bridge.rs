@@ -144,6 +144,7 @@ fn basis_swap_exposes_cashflow_provider_bridge() {
         spread_bp: Decimal::ZERO,
         payment_lag_days: 0,
         reset_lag_days: 0,
+        compounding: Default::default(),
     };
     let reference_leg = finstack_quant_valuations::instruments::rates::basis_swap::BasisSwapLeg {
         forward_curve_id: CurveId::new("6M-SOFR"),
@@ -188,6 +189,7 @@ fn xccy_swap_exposes_cashflow_provider_bridge() {
         calendar_id: None,
         reset_lag_days: None,
         allow_calendar_fallback: true,
+        compounding: Default::default(),
     };
     let leg2 = finstack_quant_valuations::instruments::rates::xccy_swap::XccySwapLeg {
         currency: Currency::EUR,
@@ -206,6 +208,7 @@ fn xccy_swap_exposes_cashflow_provider_bridge() {
         calendar_id: None,
         reset_lag_days: None,
         allow_calendar_fallback: true,
+        compounding: Default::default(),
     };
     let swap = XccySwap::new("XCCY-BRIDGE", leg1, leg2, Currency::USD);
 

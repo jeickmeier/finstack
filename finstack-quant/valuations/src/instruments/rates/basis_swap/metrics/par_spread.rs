@@ -155,6 +155,7 @@ impl MetricCalculator for ParSpreadCalculator {
             payment_lag_days: swap.primary_leg.payment_lag_days,
             reset_lag_days: swap.primary_leg.reset_lag_days,
             spread_bp: rust_decimal::Decimal::ZERO,
+            compounding: swap.primary_leg.compounding.clone(),
         };
         let pv_primary_no_spread = swap
             .pv_float_leg(&primary_leg_no_spread, curves.as_ref(), as_of)?

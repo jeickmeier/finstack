@@ -46,7 +46,7 @@ impl PyCDSTranche {
     /// Create a fluent builder (mirrors Rust ``CDSTranche::builder()``).
     ///
     /// The builder pre-seeds ``accumulated_loss(0.0)`` and
-    /// ``standard_imm_dates(True)`` (the Rust fields have no defaults), which
+    /// ``standard_imm_dates(True)``, matching ``CDSTranche::new``.
     /// :meth:`CDSTrancheBuilder.accumulated_loss` and
     /// :meth:`CDSTrancheBuilder.standard_imm_dates` can override.
     ///

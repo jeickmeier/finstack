@@ -2068,7 +2068,8 @@ class ModelBuilder:
         convention:
             Regional preset as the canonical snake_case identifier:
             ``"us_treasury"``, ``"us_agency"``, ``"german_bund"``,
-            ``"uk_gilt"``, ``"french_oat"``, ``"jgb"``, or ``"corporate"``.
+            ``"uk_gilt"``, ``"french_oat"``, ``"jgb"``, ``"us_corporate"``,
+            or ``"eur_corporate"``.
         discount_curve_id:
             Curve ID for discounting (e.g. ``"EUR-OIS"``).
 

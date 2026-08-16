@@ -2603,6 +2603,9 @@ class CapFloor:
         Notes
         -----
         This factory does not raise; it returns a new instance with the documented defaults.
+        Unset ``vol_type`` defaults to ``"auto"`` (Black when forward and
+        strike are positive, otherwise Bachelier). Tests that need Black
+        must call :meth:`CapFloorBuilder.vol_type` with ``"lognormal"``.
 
         Examples
         --------
@@ -3929,8 +3932,8 @@ class CDSTranche:
         Create a fluent builder (mirrors Rust ``CDSTranche::builder()``).
 
         The builder pre-seeds ``accumulated_loss(0.0)`` and
-        ``standard_imm_dates(True)`` (the Rust fields have no defaults),
-        which :meth:`CDSTrancheBuilder.accumulated_loss` and
+        ``standard_imm_dates(True)``, matching ``CDSTranche::new``.
+        :meth:`CDSTrancheBuilder.accumulated_loss` and
         :meth:`CDSTrancheBuilder.standard_imm_dates` can override.
 
         Returns

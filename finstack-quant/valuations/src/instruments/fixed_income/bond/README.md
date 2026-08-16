@@ -229,8 +229,9 @@ Public types: `MertonMcConfig`, `MertonMcResult`, `MertonMcCalibrationSpec`,
 
 ## Pricing conventions
 
-- **PV anchor**: PV is always discounted from `as_of`, never from the
-  settlement date. Settlement affects how *quotes* are interpreted.
+- **PV anchor**: `Instrument::value` is the dirty NPV at `as_of`, not the
+  quoted dirty price at settlement. Settlement affects how *quotes* are
+  interpreted.
 - **Quote date**: market-derived metrics (YTM, YTW, Z-spread, DM, OAS,
   duration, convexity) are computed from `quote_date = as_of + settlement_days`,
   with accrued measured at that date, because market quotes are settlement
@@ -258,7 +259,8 @@ applies `BondConvention`:
 |------------|-----------|-----------|------------|-----------|
 | `UsTreasury` | ACT/ACT ICMA | Semi-annual | T+1 | — |
 | `UsAgency` | 30/360 | Semi-annual | T+1 | — |
-| `Corporate` | 30/360 | Semi-annual | T+2 | — |
+| `UsCorporate` | 30/360 | Semi-annual | T+1 | — |
+| `EurCorporate` | ACT/ACT ICMA | Annual | T+2 | — |
 | `UkGilt` | ACT/ACT ICMA | Semi-annual | T+1 | 7 days |
 | `GermanBund` | ACT/ACT ICMA | Annual | T+2 | — |
 | `FrenchOat` | ACT/ACT ICMA | Annual | T+2 | — |

@@ -166,6 +166,7 @@ fn basis_swap(id: &str, end: Date) -> BasisSwap {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
         BasisSwapLeg {
             forward_curve_id: CurveId::new("USD-SOFR-1M"),
@@ -180,6 +181,7 @@ fn basis_swap(id: &str, end: Date) -> BasisSwap {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
     )
     .unwrap()

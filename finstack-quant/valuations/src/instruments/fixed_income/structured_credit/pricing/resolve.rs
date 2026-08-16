@@ -203,6 +203,10 @@ fn tranche_id_of(recipient: &Recipient, scope: TrancheRecipientScope) -> Option<
 /// where `senior_prorata_share` is the senior's pro-rata share by current
 /// balance. With `u = 1` (no scheduled principal, e.g. a bullet pool) this
 /// reduces to the pure schedule share; with `u = 0` it is fully pro-rata.
+/// Applying `w_senior` to the combined principal is algebraically the same as
+/// paying scheduled and unscheduled in two buckets when the junior remainder
+/// is pro-rata by current balance. Prospectus forms that allocate juniors
+/// other than pro-rata need a custom waterfall.
 pub(crate) fn apply_shifting_interest<'w, S: std::hash::BuildHasher>(
     base: &'w Waterfall,
     rules: Option<&WaterfallRules>,

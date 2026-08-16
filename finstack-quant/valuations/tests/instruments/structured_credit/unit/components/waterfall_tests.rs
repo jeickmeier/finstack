@@ -279,3 +279,75 @@ fn test_waterfall_engine_add_tier() {
     assert_eq!(engine.tiers.len(), 1);
     assert_eq!(engine.tiers[0].id, "test");
 }
+
+#[test]
+fn abs_template_does_not_trap_junior_coupon() {
+    use finstack_quant_core::dates::Date;
+    use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
+        DealType, Tranche, TrancheCoupon, TrancheSeniority, TrancheStructure,
+    };
+    use time::Month;
+
+    let maturity = Date::from_calendar_date(2030, Month::January, 1).expect("date");
+    let senior = Tranche::new(
+        "A",
+        0.0,
+        70.0,
+        TrancheSeniority::Senior,
+        Money::new(70_000.0, Currency::USD),
+        TrancheCoupon::Fixed { rate: 0.04 },
+        maturity,
+    )
+    .expect("senior");
+    let mezz = Tranche::new(
+        "B",
+        70.0,
+        90.0,
+        TrancheSeniority::Mezzanine,
+        Money::new(20_000.0, Currency::USD),
+        TrancheCoupon::Fixed { rate: 0.06 },
+        maturity,
+    )
+    .expect("mezz");
+    let equity = Tranche::new(
+        "EQ",
+        90.0,
+        100.0,
+        TrancheSeniority::Equity,
+        Money::new(10_000.0, Currency::USD),
+        TrancheCoupon::Fixed { rate: 0.0 },
+        maturity,
+    )
+    .expect("equity");
+    let structure = TrancheStructure::new(vec![senior, mezz, equity]).expect("structure");
+
+    let clo = Waterfall::standard_sequential(DealType::Clo, Currency::USD, &structure, Vec::new());
+    let abs = Waterfall::standard_sequential(DealType::Abs, Currency::USD, &structure, Vec::new());
+
+    let clo_sub = clo
+        .tiers
+        .iter()
+        .find(|tier| tier.id == "subordinated_interest")
+        .expect("CLO template splits junior interest");
+    assert!(
+        clo_sub.divertible,
+        "CLO junior coupon must be divertible on an OC/IC fail"
+    );
+
+    let abs_interest = abs
+        .tiers
+        .iter()
+        .find(|tier| tier.payment_type == PaymentType::Interest)
+        .expect("ABS template has one interest tier");
+    assert_eq!(abs_interest.id, "interest");
+    assert!(
+        !abs_interest.divertible,
+        "ABS/RMBS/CMBS coupons stay payable when a coverage test fails"
+    );
+    assert!(
+        abs.tiers
+            .iter()
+            .all(|tier| tier.id != "subordinated_interest"),
+        "ABS must not use the CLO junior-interest trap"
+    );
+}

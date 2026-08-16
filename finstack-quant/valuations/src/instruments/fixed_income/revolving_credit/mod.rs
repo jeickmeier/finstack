@@ -44,14 +44,14 @@
 //! - **DV01**: Interest rate sensitivity
 //! - **CS01**: Credit spread sensitivity
 //!
-//! # Convention Limitations
+//! # Rate conventions
 //!
-//! The current implementation uses **term-style** forward rate projection for
-//! floating-rate facilities. It does **not** apply overnight compounding
-//! (SOFR in-arrears), fixing lags, or payment lags from `FloatingRateSpec`.
-//! If your facility requires these (e.g., daily-compounded SOFR with a 2-day
-//! lookback), extend `utils::build_reset_dates` and
-//! `utils::project_floating_rate_with_curve`.
+//! `BaseRateSpec::Fixed` uses the contractual rate. Floating facilities choose
+//! term vs overnight from the index and `FloatingRateSpec`:
+//! - term indices such as `USD-SOFR-3M` project a single forward
+//! - registered overnight RFR indices such as `USD-SOFR-OIS`, or an explicit
+//!   `overnight_compounding` method, compound daily fixings in arrears
+//! - reset lag is applied when building the reset grid
 //!
 //! # Numerical Constants
 //!

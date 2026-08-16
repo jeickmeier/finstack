@@ -32,11 +32,10 @@ impl Bond {
 
     /// Create a standard fixed-rate bond (most common use case).
     ///
-    /// Creates a bond with semi-annual frequency, 30/360 day count, and T+2
-    /// settlement. Uses simplified schedule conventions (Following BDC,
-    /// weekends-only calendar). For production-grade market conventions
-    /// including proper holiday calendars and Modified Following BDC, use
-    /// `::with_convention(BondConvention::Corporate, ...)` instead.
+    /// Delegates to [`Self::with_convention`] with
+    /// [`BondConvention::UsCorporate`]: 30/360, semi-annual, T+1, Modified
+    /// Following, `usny`. For EUR corporates use
+    /// `BondConvention::EurCorporate` (ACT/ACT ICMA, annual, T+2, TARGET2).
     ///
     /// # Arguments
     ///
@@ -57,12 +56,19 @@ impl Bond {
     ///
     /// # Regional Bond Conventions
     ///
-    /// ## US Corporate (use `BondConvention::Corporate` for full conventions)
+    /// ## US Corporate (use `BondConvention::UsCorporate`)
     /// - **Day Count:** 30/360 (US Bond Basis)
     /// - **Tenor:** Semi-annual
+    /// - **Settlement:** T+1 (SIFMA May 2024)
+    /// - **BDC:** Modified Following
+    /// - **Calendar:** USNY
+    ///
+    /// ## EUR Corporate (use `BondConvention::EurCorporate`)
+    /// - **Day Count:** ACT/ACT ICMA
+    /// - **Tenor:** Annual
     /// - **Settlement:** T+2
     /// - **BDC:** Modified Following
-    /// - **Calendar:** US (NYSE holidays)
+    /// - **Calendar:** TARGET2
     ///
     /// ## US Treasury (use `BondConvention::UsTreasury`)
     /// - **Day Count:** ACT/ACT ICMA
@@ -134,29 +140,15 @@ impl Bond {
         maturity: Date,
         discount_curve_id: impl Into<CurveId>,
     ) -> finstack_quant_core::Result<Self> {
-        let coupon_rate = coupon_rate.into();
-        let bond = Self::builder()
-            .id(id.into())
-            .notional(notional)
-            .issue_date(issue)
-            .maturity(maturity)
-            .cashflow_spec(CashflowSpec::fixed_rate(
-                coupon_rate,
-                finstack_quant_core::dates::Tenor::semi_annual(),
-                DayCount::Thirty360,
-            )?)
-            .discount_curve_id(discount_curve_id.into())
-            .credit_curve_id_opt(None)
-            .instrument_pricing_overrides(InstrumentPricingOverrides::default())
-            .attributes(Attributes::new())
-            .settlement_convention_opt(Some(BondSettlementConvention {
-                settlement_days: 2,
-                ..Default::default()
-            }))
-            .build()?;
-
-        bond.validate()?;
-        Ok(bond)
+        Self::with_convention(
+            id,
+            notional,
+            coupon_rate,
+            issue,
+            maturity,
+            crate::instruments::common_impl::parameters::BondConvention::UsCorporate,
+            discount_curve_id,
+        )
     }
 
     /// Create a bond with standard market conventions.
@@ -254,7 +246,9 @@ impl Bond {
     /// Create a floating-rate bond (FRN).
     ///
     /// Creates a bond with floating-rate coupons linked to a forward index
-    /// (e.g., SOFR, EURIBOR) plus a margin.
+    /// (e.g., SOFR, EURIBOR) plus a margin. Settlement defaults to T+1 for
+    /// USD notionals and T+2 otherwise. Use
+    /// [`Self::floating_with_convention`] for full calendar and BDC.
     ///
     /// # Arguments
     ///
@@ -316,6 +310,11 @@ impl Bond {
         day_count: DayCount,
         discount_curve_id: impl Into<CurveId>,
     ) -> finstack_quant_core::Result<Self> {
+        let settlement_days = if notional.currency() == Currency::USD {
+            1
+        } else {
+            2
+        };
         let margin_bp = margin_bp.into();
         let bond = Self::builder()
             .id(id.into())
@@ -332,7 +331,99 @@ impl Bond {
             .credit_curve_id_opt(None)
             .instrument_pricing_overrides(InstrumentPricingOverrides::default())
             .attributes(Attributes::new())
-            .settlement_convention_opt(None)
+            .settlement_convention_opt(Some(BondSettlementConvention {
+                settlement_days,
+                ..Default::default()
+            }))
+            .build()?;
+
+        bond.validate()?;
+        Ok(bond)
+    }
+
+    /// Create a floating-rate bond using a regional settlement and calendar template.
+    ///
+    /// Coupon frequency, day count, and index remain caller-supplied. The
+    /// convention supplies settlement lag, business-day convention, and calendar.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Unique identifier for the bond
+    /// * `notional` - Principal amount of the bond
+    /// * `index_id` - Forward curve identifier (e.g., `USD-SOFR-3M`)
+    /// * `margin_bp` - Spread over the index in typed basis points
+    /// * `issue` - Issue date of the bond
+    /// * `maturity` - Maturity date of the bond
+    /// * `frequency` - Payment frequency
+    /// * `day_count` - Accrual day-count for floating coupons
+    /// * `convention` - Regional template for settlement, BDC, and calendar
+    /// * `discount_curve_id` - Discount curve identifier for pricing
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the builder fails validation.
+    ///
+    /// # Example
+    /// ```
+    /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
+    /// use finstack_quant_valuations::instruments::BondConvention;
+    /// use finstack_quant_core::dates::{DayCount, Tenor};
+    /// use finstack_quant_core::money::Money;
+    /// use finstack_quant_core::currency::Currency;
+    /// use time::macros::date;
+    ///
+    /// let frn = Bond::floating_with_convention(
+    ///     "FRN-US",
+    ///     Money::new(1_000_000.0, Currency::USD),
+    ///     "USD-SOFR-3M",
+    ///     finstack_quant_core::types::Bps::new(125),
+    ///     date!(2025-01-15),
+    ///     date!(2030-01-15),
+    ///     Tenor::quarterly(),
+    ///     DayCount::Act360,
+    ///     BondConvention::UsCorporate,
+    ///     "USD-OIS",
+    /// );
+    /// # let _ = frn;
+    /// ```
+    #[allow(clippy::too_many_arguments)]
+    pub fn floating_with_convention(
+        id: impl Into<InstrumentId>,
+        notional: Money,
+        index_id: impl Into<CurveId>,
+        margin_bp: impl Into<Bps>,
+        issue: Date,
+        maturity: Date,
+        frequency: finstack_quant_core::dates::Tenor,
+        day_count: DayCount,
+        convention: crate::instruments::common_impl::parameters::BondConvention,
+        discount_curve_id: impl Into<CurveId>,
+    ) -> finstack_quant_core::Result<Self> {
+        let margin_bp = margin_bp.into();
+        let mut cashflow_spec =
+            CashflowSpec::floating_bp(index_id.into(), margin_bp, frequency, day_count);
+        if let CashflowSpec::Floating(spec) = &mut cashflow_spec {
+            spec.schedule.business_day_convention = convention.business_day_convention();
+            spec.schedule.calendar_id = convention
+                .calendar_id()
+                .unwrap_or(crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID)
+                .to_string();
+        }
+        let bond = Self::builder()
+            .id(id.into())
+            .notional(notional)
+            .issue_date(issue)
+            .maturity(maturity)
+            .cashflow_spec(cashflow_spec)
+            .discount_curve_id(discount_curve_id.into())
+            .credit_curve_id_opt(None)
+            .instrument_pricing_overrides(InstrumentPricingOverrides::default())
+            .attributes(Attributes::new())
+            .settlement_convention_opt(Some(BondSettlementConvention {
+                settlement_days: convention.settlement_days(),
+                ex_coupon_days: convention.ex_coupon_days().unwrap_or(0),
+                ex_coupon_calendar_id: convention.calendar_id().map(|id| id.to_string()),
+            }))
             .build()?;
 
         bond.validate()?;

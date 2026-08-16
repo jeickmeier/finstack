@@ -263,6 +263,10 @@ impl CDSTranche {
     }
     /// Create a new CDS tranche using parameter structs.
     ///
+    /// Coupon dates default to standard IMM (20th of Mar/Jun/Sep/Dec).
+    /// Pass `standard_imm_dates: false` after construction for a non-IMM
+    /// schedule. [`Self::standard`] is the named IMM constructor.
+    ///
     /// # Panics
     ///
     /// Returns an error if tranche parameters are invalid:
@@ -326,7 +330,7 @@ impl CDSTranche {
             side,
             effective_date: None,
             accumulated_loss: tranche_params.accumulated_loss,
-            standard_imm_dates: false,
+            standard_imm_dates: true,
             upfront: None,
             instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides::default(),
             metric_pricing_overrides: Default::default(),

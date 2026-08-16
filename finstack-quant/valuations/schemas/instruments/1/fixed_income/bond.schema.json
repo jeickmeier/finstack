@@ -146,7 +146,7 @@
     },
     "Bond": {
       "additionalProperties": false,
-      "description": "Bond instrument with fixed, floating, or amortizing cashflows.\n\nCashflow sign convention (holder view):\n- All contractual cashflows **received by a long holder** (coupons,\n  amortization, final redemption) are represented as **positive** amounts.\n- Cash outflows for the holder (e.g., purchase price, funding, short\n  positions) are represented as **negative** amounts and are handled at\n  trade level rather than in the bond's contractual schedule.\n\nSupports call/put schedules, quoted prices for yield-to-maturity calculations,\nand custom cashflow schedule overrides. Uses a clean `CashflowSpec` that wraps\nthe canonical builder coupon specs for maximum flexibility and parity.",
+      "description": "Bond instrument with fixed, floating, or amortizing cashflows.\n\nCashflow sign convention (holder view):\n- All contractual cashflows **received by a long holder** (coupons,\n  amortization, final redemption) are represented as **positive** amounts.\n- Cash outflows for the holder (e.g., purchase price, funding, short\n  positions) are represented as **negative** amounts and are handled at\n  trade level rather than in the bond's contractual schedule.\n\nSupports call/put schedules, quoted prices for yield-to-maturity calculations,\nand custom cashflow schedule overrides. Uses a clean `CashflowSpec` that wraps\nthe canonical builder coupon specs for maximum flexibility and parity.\n\n[`crate::instruments::Instrument::value`] is the **dirty NPV at `as_of`**,\nnot the market dirty quote at settlement. Quoted YTM, z-spread, and DM\nremain settlement-anchored.",
       "properties": {
         "accrual_method": {
           "$ref": "#/$defs/AccrualMethod",

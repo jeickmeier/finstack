@@ -170,7 +170,8 @@ conventions from a rate index instead of spelling out both legs, use
 `IrsLegConventions::from_rate_index(index_id)` out of the global
 `ConventionRegistry`.
 
-`validate()` checks currency and schedule consistency and warns (does not fail)
+`validate()` checks currency and schedule consistency, rejects `Simple`
+compounding on a registered overnight-RFR index, and warns (does not fail)
 when the two legs have mismatched date ranges, since that can be intentional in
 bespoke structures.
 

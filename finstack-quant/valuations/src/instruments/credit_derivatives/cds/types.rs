@@ -602,6 +602,9 @@ pub struct CreditDefaultSwap {
     )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Valuation presentation convention.
+    ///
+    /// Defaults to Bloomberg CDSW clean. Set `IsdaDirty` only when
+    /// reproducing academic ISDA Standard Model literature.
     #[serde(default)]
     #[builder(default)]
     pub valuation_convention: CdsValuationConvention,

@@ -12,6 +12,7 @@
       "primary_leg": {
         "business_day_convention": "modified_following",
         "calendar_id": "weekends_only",
+        "compounding": "simple",
         "day_count": "act_360",
         "discount_curve_id": "USD-OIS",
         "end": "2029-01-03",
@@ -29,6 +30,7 @@
       "reference_leg": {
         "business_day_convention": "modified_following",
         "calendar_id": "weekends_only",
+        "compounding": "simple",
         "day_count": "act_360",
         "discount_curve_id": "USD-OIS",
         "end": "2029-01-03",

@@ -117,6 +117,7 @@ fn make_xccy(base: Date, maturity: Date, exchange: NotionalExchange) -> XccySwap
         calendar_id: None,
         reset_lag_days: None,
         allow_calendar_fallback: true,
+        compounding: Default::default(),
     };
 
     let leg_eur = XccySwapLeg {
@@ -136,6 +137,7 @@ fn make_xccy(base: Date, maturity: Date, exchange: NotionalExchange) -> XccySwap
         calendar_id: None,
         reset_lag_days: None,
         allow_calendar_fallback: true,
+        compounding: Default::default(),
     };
 
     XccySwap::new("XCCY-BENCH", leg_usd, leg_eur, Currency::USD).with_notional_exchange(exchange)

@@ -208,7 +208,7 @@ fn test_eom_february_maturity_ytm() {
         0.04,
         issue,
         maturity,
-        BondConvention::Corporate,
+        BondConvention::UsCorporate,
         "USD-OIS",
     )
     .expect("February EOM YTM test bond should build");

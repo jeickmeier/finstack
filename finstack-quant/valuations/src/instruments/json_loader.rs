@@ -1299,6 +1299,7 @@ mod tests {
             spread_bp: Decimal::from(5),
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         };
 
         let reference_leg = BasisSwapLeg {
@@ -1314,6 +1315,7 @@ mod tests {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         };
 
         let swap = BasisSwap::new(
@@ -1426,6 +1428,7 @@ mod tests {
             spread_bp: Decimal::from(5),
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         };
         let reference_leg = BasisSwapLeg {
             forward_curve_id: CurveId::new("USD-SOFR-1M"),
@@ -1440,6 +1443,7 @@ mod tests {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         };
         let swap = BasisSwap::new(
             "BASIS-DEFAULTS",

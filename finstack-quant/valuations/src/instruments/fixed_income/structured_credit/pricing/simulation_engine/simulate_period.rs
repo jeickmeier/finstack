@@ -901,8 +901,9 @@ pub(super) fn simulate_period(
         //
         // Standard CLO/ABS indenture: shortfalls are tracked as deferred interest
         // and paid from future interest collections, NOT capitalized into balance.
-        // PIK accretion (capitalizing shortfall) is an explicit structural feature
-        // that must be opted into per tranche.
+        // Non-PIK deferred balances do not compound (no interest-on-interest);
+        // only an explicit `pik_enabled` tranche accretes the shortfall so it
+        // earns the note rate thereafter.
         if let Some(current) = state.tranche_balances.get_mut(tranche_id_str) {
             let after_principal = current.checked_sub(principal_payment).unwrap_or(*current);
             // The waterfall nets in-period principal against the period-start

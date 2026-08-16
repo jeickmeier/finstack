@@ -109,8 +109,13 @@ Notes that bite:
   `calendar_id` drives the payment schedule and business-day adjustment. Only
   `index_id`, `spread_bp`, `gearing`, `index_floor_bp`, `all_in_cap_bp` and
   `reset_lag_days` are read from the rate spec.
-- `settlement_days` defaults to **2** (T+2), not the LSTA par-trade convention;
-  set `settlement_days: 7` when you need the LSTA anchor.
+- `settlement_days` defaults to **2** as a pricing-date anchor, not the LSTA
+  par-trade convention (T+7, with delayed compensation beyond T+7). Set
+  `settlement_days: 7` when marking to the LSTA par target:
+
+  ```json
+  { "settlement_days": 7 }
+  ```
 
 ## Pricing
 

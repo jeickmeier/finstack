@@ -306,7 +306,9 @@ impl FxSpot {
             }
         } else {
             // Compute T+N from as_of date
-            let lag_days = self.settlement_lag_days.unwrap_or(2);
+            let lag_days =
+                self.settlement_lag_days
+                    .unwrap_or(if self.is_t1_pair() { 1 } else { 2 });
 
             if use_joint_calendar {
                 // CLS-consistent spot roll: a US holiday on an intermediate day
@@ -520,8 +522,8 @@ impl FxSpot {
     /// - **USD/CAD**: North American same-day zone (T+1)
     /// - **USD/TRY**: Turkish Lira settles T+1 per Istanbul market convention
     ///
-    /// Note: This is informational only and does not affect settlement calculation.
-    /// Use `new_t1` or `with_settlement_lag_days(1)` to set T+1 settlement.
+    /// When `settlement_lag_days` is unset, [`Self::effective_settlement_date`]
+    /// uses this list to choose T+1 versus T+2.
     pub fn is_t1_pair(&self) -> bool {
         // USD/CAD and USD/TRY are the most common T+1 pairs
         let pair = (self.base_currency, self.quote_currency);
@@ -834,6 +836,16 @@ mod tests {
             result.is_err(),
             "FX spot builder must reject identical base and quote currencies"
         );
+    }
+
+    #[test]
+    fn test_fx_spot_new_defaults_t1_pairs_to_one_day() {
+        let spot = FxSpot::new(InstrumentId::new("USDCAD"), Currency::USD, Currency::CAD);
+        let as_of = date(2025, Month::January, 15); // Wednesday
+        let settle = spot
+            .effective_settlement_date(as_of)
+            .expect("should compute");
+        assert_eq!(settle, date(2025, Month::January, 16)); // Thursday (T+1)
     }
 
     #[test]

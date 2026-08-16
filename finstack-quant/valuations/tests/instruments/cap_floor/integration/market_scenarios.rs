@@ -8,7 +8,9 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::surfaces::VolSurface;
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, ForwardCurve};
 use finstack_quant_core::money::Money;
-use finstack_quant_valuations::instruments::rates::cap_floor::{CapFloor, RateOptionType};
+use finstack_quant_valuations::instruments::rates::cap_floor::{
+    CapFloor, CapFloorVolType, RateOptionType,
+};
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::instruments::{ExerciseStyle, SettlementType};
 use finstack_quant_valuations::metrics::MetricId;
@@ -86,7 +88,7 @@ fn test_realistic_usd_cap_pricing() {
         discount_curve_id: "USD_OIS".into(),
         forward_curve_id: "USD_SOFR_3M".into(),
         vol_surface_id: "USD_CAP_VOL".into(),
-        vol_type: Default::default(),
+        vol_type: CapFloorVolType::Lognormal,
         vol_shift: 0.0,
         overnight_coupon: None,
         spread: Decimal::ZERO,
@@ -138,7 +140,7 @@ fn test_realistic_otm_floor_pricing() {
         discount_curve_id: "USD_OIS".into(),
         forward_curve_id: "USD_SOFR_3M".into(),
         vol_surface_id: "USD_CAP_VOL".into(),
-        vol_type: Default::default(),
+        vol_type: CapFloorVolType::Lognormal,
         vol_shift: 0.0,
         overnight_coupon: None,
         spread: Decimal::ZERO,
@@ -187,7 +189,7 @@ fn test_all_greeks_with_realistic_market() {
         discount_curve_id: "USD_OIS".into(),
         forward_curve_id: "USD_SOFR_3M".into(),
         vol_surface_id: "USD_CAP_VOL".into(),
-        vol_type: Default::default(),
+        vol_type: CapFloorVolType::Lognormal,
         vol_shift: 0.0,
         overnight_coupon: None,
         spread: Decimal::ZERO,
@@ -259,7 +261,7 @@ fn test_semi_annual_vs_quarterly_frequency() {
         discount_curve_id: "USD_OIS".into(),
         forward_curve_id: "USD_SOFR_3M".into(),
         vol_surface_id: "USD_CAP_VOL".into(),
-        vol_type: Default::default(),
+        vol_type: CapFloorVolType::Lognormal,
         vol_shift: 0.0,
         overnight_coupon: None,
         spread: Decimal::ZERO,
@@ -286,7 +288,7 @@ fn test_semi_annual_vs_quarterly_frequency() {
         discount_curve_id: "USD_OIS".into(),
         forward_curve_id: "USD_SOFR_3M".into(),
         vol_surface_id: "USD_CAP_VOL".into(),
-        vol_type: Default::default(),
+        vol_type: CapFloorVolType::Lognormal,
         vol_shift: 0.0,
         overnight_coupon: None,
         spread: Decimal::ZERO,

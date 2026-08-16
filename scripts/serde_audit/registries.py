@@ -351,6 +351,12 @@ def _runtime_exception(
 # Runtime Result names are individually reviewed because their suffix alone cannot
 # distinguish persisted DTOs from in-memory solver or algorithm state.
 RUNTIME_RESULT_EXCEPTIONS = (
+    *_runtime_exception(
+        "monte_carlo",
+        "src/greeks/gbm_european.rs",
+        ("GbmEuropeanFdSpec",),
+        "runtime-spec",
+    ),
     *_runtime_exception("core", "src/math/linalg.rs", ("LedoitWolfResult",)),
     *_runtime_exception("margin", "src/calculators/traits.rs", ("ImResult",)),
     *_runtime_exception("margin", "src/calculators/vm.rs", ("VmResult",)),

@@ -66,6 +66,7 @@ fn par_spread_zeros_npv() {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
         BasisSwapLeg {
             forward_curve_id: CurveId::new("USD-SOFR-1M"),
@@ -80,6 +81,7 @@ fn par_spread_zeros_npv() {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
     )
     .expect("valid basis swap");
@@ -112,6 +114,7 @@ fn par_spread_zeros_npv() {
             spread_bp: Decimal::try_from(par_spread_bp).expect("valid literal"),
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
         BasisSwapLeg {
             forward_curve_id: CurveId::new("USD-SOFR-1M"),
@@ -126,6 +129,7 @@ fn par_spread_zeros_npv() {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
     )
     .expect("valid basis swap");
@@ -162,6 +166,7 @@ fn par_spread_formula_validation() {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
         BasisSwapLeg {
             forward_curve_id: CurveId::new("USD-SOFR-1M"),
@@ -176,6 +181,7 @@ fn par_spread_formula_validation() {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
     )
     .expect("valid basis swap");
@@ -235,6 +241,7 @@ fn par_spread_with_existing_spread() {
             spread_bp: Decimal::from(10), // 10bp existing spread
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
         BasisSwapLeg {
             forward_curve_id: CurveId::new("USD-SOFR-1M"),
@@ -249,6 +256,7 @@ fn par_spread_with_existing_spread() {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
     )
     .expect("valid basis swap");
@@ -308,6 +316,7 @@ fn par_spread_inverted_curves() {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
         BasisSwapLeg {
             forward_curve_id: CurveId::new("USD-SOFR-1M"),
@@ -322,6 +331,7 @@ fn par_spread_inverted_curves() {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
     )
     .expect("valid basis swap");
@@ -363,6 +373,7 @@ fn par_spread_long_maturity() {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
         BasisSwapLeg {
             forward_curve_id: CurveId::new("USD-SOFR-1M"),
@@ -377,6 +388,7 @@ fn par_spread_long_maturity() {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
     )
     .expect("valid basis swap");
@@ -421,6 +433,7 @@ fn par_spread_sign_convention() {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
         BasisSwapLeg {
             forward_curve_id: CurveId::new("USD-SOFR-1M"),
@@ -435,6 +448,7 @@ fn par_spread_sign_convention() {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
     )
     .expect("valid basis swap");
@@ -497,6 +511,7 @@ fn incremental_par_spread_sign_convention() {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
         BasisSwapLeg {
             forward_curve_id: CurveId::new("USD-SOFR-1M"),
@@ -511,6 +526,7 @@ fn incremental_par_spread_sign_convention() {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
     )
     .expect("valid basis swap");
@@ -544,6 +560,7 @@ fn incremental_par_spread_sign_convention() {
             spread_bp: Decimal::try_from(below_par_spread).expect("valid literal"),
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
         BasisSwapLeg {
             forward_curve_id: CurveId::new("USD-SOFR-1M"),
@@ -558,6 +575,7 @@ fn incremental_par_spread_sign_convention() {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
     )
     .expect("valid basis swap");
@@ -603,6 +621,7 @@ fn incremental_par_spread_sign_convention() {
             spread_bp: Decimal::try_from(above_par_spread).expect("valid literal"),
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
         BasisSwapLeg {
             forward_curve_id: CurveId::new("USD-SOFR-1M"),
@@ -617,6 +636,7 @@ fn incremental_par_spread_sign_convention() {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
     )
     .expect("valid basis swap");
@@ -660,6 +680,7 @@ fn incremental_par_spread_sign_convention() {
             spread_bp: Decimal::try_from(par_spread_bp).expect("valid literal"),
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
         BasisSwapLeg {
             forward_curve_id: CurveId::new("USD-SOFR-1M"),
@@ -674,6 +695,7 @@ fn incremental_par_spread_sign_convention() {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
     )
     .expect("valid basis swap");
@@ -718,6 +740,7 @@ fn zero_notional_par_spread_returns_error() {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
         BasisSwapLeg {
             forward_curve_id: CurveId::new("USD-SOFR-1M"),
@@ -732,6 +755,7 @@ fn zero_notional_par_spread_returns_error() {
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
             reset_lag_days: 0,
+            compounding: Default::default(),
         },
     )
     .unwrap();

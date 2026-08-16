@@ -75,6 +75,7 @@ fn make_leg(forward_curve: &str, start: Date, end: Date, spread_bp: Decimal) -> 
         spread_bp,
         payment_lag_days: 0,
         reset_lag_days: 0,
+        compounding: Default::default(),
     }
 }
 

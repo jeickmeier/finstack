@@ -128,6 +128,8 @@ from it. It currently lists 70 instrument types.
   [term_loan](fixed_income/term_loan/README.md),
   [irs](rates/irs/README.md),
   [cds_option](credit_derivatives/cds_option/README.md),
+  [cds_tranche](credit_derivatives/cds_tranche/README.md),
+  [bond_future](fixed_income/bond_future/README.md),
   [equity_index_future](equity/equity_index_future/README.md),
   [real_estate](equity/real_estate/README.md),
   [range_accrual](exotics/range_accrual/README.md)

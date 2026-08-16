@@ -229,7 +229,7 @@ impl<State> ModelBuilder<State> {
     ///
     /// This overload applies regional day count, coupon frequency, and calendar
     /// conventions automatically. The default `add_bond` uses US corporate bond
-    /// conventions (30/360, semi-annual).
+    /// conventions (30/360, semi-annual, T+1).
     ///
     /// # Arguments
     /// * `id` - Unique instrument identifier

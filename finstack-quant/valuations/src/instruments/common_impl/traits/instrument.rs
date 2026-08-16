@@ -622,11 +622,13 @@ pub trait Instrument: CashflowProvider + Send + Sync {
     /// # Arguments
     ///
     /// * `market` - Market data context
-    /// * `as_of` - Valuation date
+    /// * `as_of` - Valuation date used as the discounting anchor
     ///
     /// # Returns
     ///
-    /// Present value with scenario price shock applied (if any).
+    /// Dirty NPV of remaining cashflows discounted to `as_of` (not a quoted
+    /// dirty price at the instrument's settlement date). Bond quote metrics
+    /// such as YTM, z-spread, and discount margin stay settlement-anchored.
     fn value(&self, market: &MarketContext, as_of: Date) -> finstack_quant_core::Result<Money> {
         let lifecycle =
             crate::instruments::common_impl::helpers::ValidatedPricingLifecycle::new(self)?;

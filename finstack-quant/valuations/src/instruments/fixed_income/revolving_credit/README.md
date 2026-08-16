@@ -237,13 +237,14 @@ let mean_pv = enhanced.mc_result.estimate.mean;
 let per_path = &enhanced.path_results;
 ```
 
-### Convention limitation
+### Rate conventions
 
-Floating-rate projection is **term-style**: forward rate over the accrual
-period plus margin, with optional floors and caps. Overnight compounding
-(SOFR in arrears), fixing lookback and payment lags from `FloatingRateSpec` are
-**not** applied. Facilities that need daily-compounded SOFR must extend
-`utils::build_reset_dates` and `utils::project_floating_rate_with_curve`.
+`BaseRateSpec::Fixed` uses the contractual rate. Floating facilities project
+term forwards for term indices (`USD-SOFR-3M`, EURIBOR) and compound daily
+overnight fixings when the index is a registered overnight RFR (`USD-SOFR-OIS`)
+or `FloatingRateSpec.overnight_compounding` is set. Reset lag is applied on the
+reset grid. Gearing, spread, and floors/caps apply after the index rate in both
+cases.
 
 ## Metrics
 

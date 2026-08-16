@@ -389,7 +389,9 @@ impl BondFutureSpecs {
 /// - **CTD resolution**: Explicit `ctd_bond_id`, then embedded `ctd_bond.id`,
 ///   then the sole basket member. A larger basket requires an explicit or embedded CTD.
 /// - **CTD analysis**: The `determine_ctd*` helpers return ranked candidates but
-///   do not mutate the selected CTD; pricing never ranks the basket automatically.
+///   do not mutate the selected CTD. [`crate::instruments::Instrument::value`]
+///   marks the caller-supplied CTD only; refresh it daily with
+///   [`Self::determine_ctd_by_implied_repo`] when the basket can switch.
 /// - **Invoice price**: `(Futures Price × Conversion Factor) + Accrued Interest`.
 ///
 /// # Examples

@@ -307,8 +307,9 @@ pub struct StructuredCredit {
     ///
     /// Each entry names a tranche and the OC and/or IC level that must be
     /// maintained for it. When a test fails, the cure amount is diverted from
-    /// the divertible (subordinated-interest / residual) tier to redeem senior
-    /// notes. Empty (the default) means no coverage tests run.
+    /// the divertible tiers to redeem senior notes. CLO/CBO templates may
+    /// trap junior coupon; ABS/RMBS/CMBS turbo residual only. Empty (the
+    /// default) means no coverage tests run.
     ///
     /// # Examples
     ///

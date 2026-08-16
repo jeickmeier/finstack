@@ -165,7 +165,7 @@ fn parity_add_bond_and_add_bond_with_convention_same_id() {
                 Rate::from_decimal(0.05),
                 issue,
                 maturity,
-                BondConvention::Corporate,
+                BondConvention::UsCorporate,
                 "USD-OIS",
             )
             .expect("valid bond with convention")

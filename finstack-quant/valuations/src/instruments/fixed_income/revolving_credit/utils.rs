@@ -4,8 +4,17 @@
 //! cashflow generation and pricing implementations.
 
 use super::types::{BaseRateSpec, RevolvingCredit};
+use crate::instruments::common_impl::pricing::overnight::{
+    adjust_overnight_accrual_boundaries, project_overnight_coupon, OvernightCouponProjectionInput,
+    OvernightProjectionCurve,
+};
+use crate::instruments::common_impl::pricing::overnight_conventions;
 use crate::instruments::common_impl::traits::Attributes;
-use finstack_quant_core::dates::{BusinessDayConvention, Date, DateExt};
+use crate::instruments::rates::irs::FloatingLegCompounding;
+use finstack_quant_core::currency::Currency;
+use finstack_quant_core::dates::{BusinessDayConvention, Date, DateExt, DayCount, Tenor};
+use finstack_quant_core::market_data::scalars::ScalarTimeSeries;
+use finstack_quant_core::market_data::term_structures::ForwardCurve;
 use finstack_quant_core::Result;
 
 /// Build the canonical accrual/payment periods for a revolving credit facility.
@@ -172,21 +181,116 @@ pub(super) fn floating_fixing_date(
     reset_effective_date.add_business_days(-spec.reset_lag_days, calendar)
 }
 
+/// Inputs for one revolver floating coupon, term or overnight.
+pub(super) struct RevolverFloatingProjection<'a> {
+    /// Accrual start of the (sub)period being projected.
+    pub accrual_start: Date,
+    /// Accrual end of the (sub)period being projected.
+    pub accrual_end: Date,
+    /// Valuation date separating realized fixings from projected observations.
+    pub as_of: Date,
+    /// Floating-rate specification on the facility.
+    pub spec: &'a crate::cashflow::builder::FloatingRateSpec,
+    /// Forward curve for the index.
+    pub fwd: &'a ForwardCurve,
+    /// Facility accrual day count (used when `overnight_basis` is unset).
+    pub day_count: DayCount,
+    /// Payment frequency used by context-sensitive overnight day counts.
+    pub coupon_frequency: Tenor,
+    /// Facility currency, used to pick a default overnight calendar.
+    pub currency: Currency,
+    /// Facility attributes (calendar metadata).
+    pub attributes: &'a Attributes,
+    /// Optional historical overnight/term fixings.
+    pub fixings: Option<&'a ScalarTimeSeries>,
+}
+
+/// Resolve overnight compounding for a revolver floating spec.
+///
+/// Explicit `overnight_compounding` wins. Otherwise a registered overnight RFR
+/// index (for example `USD-SOFR-OIS`) selects compounded-in-arrears. Term
+/// indices such as `USD-SOFR-3M` stay on the simple term path.
+pub(super) fn resolved_overnight_compounding(
+    spec: &crate::cashflow::builder::FloatingRateSpec,
+) -> Result<Option<FloatingLegCompounding>> {
+    overnight_conventions::resolved_overnight_compounding(
+        spec.index_id.as_str(),
+        spec.overnight_compounding.as_ref(),
+    )
+}
+
 /// Project floating rate for revolving credit facility using resolved curve.
 ///
-/// Optimized version that takes a resolved curve to avoid repeated lookups.
-///
-/// Projection uses the reset-effective date. The separate contractual fixing
-/// observation date is derived with [`floating_fixing_date`].
+/// Term indices project a single forward from the reset-effective date.
+/// Overnight RFR indices (or an explicit overnight method) compound daily
+/// fixings over `[accrual_start, accrual_end]` via the shared overnight engine.
+/// Gearing, spread, and floors/caps are applied afterwards in both cases.
 pub(super) fn project_floating_rate_with_curve(
-    reset_date: finstack_quant_core::dates::Date,
+    reset_date: Date,
     spec: &crate::cashflow::builder::FloatingRateSpec,
-    fwd: &finstack_quant_core::market_data::term_structures::ForwardCurve,
+    fwd: &ForwardCurve,
 ) -> Result<f64> {
     let params = crate::cashflow::builder::FloatingRateParams::try_from(spec)?;
-
-    // Delegate to centralized projection
     crate::cashflow::builder::project_floating_rate(reset_date, fwd, &params)
+}
+
+/// Project a revolver floating coupon, choosing term vs overnight from the spec.
+///
+/// # Arguments
+///
+/// * `input` - Accrual window, market curves, and the facility floating spec.
+///
+/// # Errors
+///
+/// Returns a validation or market-data error when overnight calendars, fixings,
+/// or curve lookups fail.
+pub(super) fn project_revolver_floating_rate(input: RevolverFloatingProjection<'_>) -> Result<f64> {
+    let params = crate::cashflow::builder::FloatingRateParams::try_from(input.spec)?;
+    let Some(compounding) = resolved_overnight_compounding(input.spec)? else {
+        return crate::cashflow::builder::project_floating_rate(
+            input.accrual_start,
+            input.fwd,
+            &params,
+        );
+    };
+
+    let calendar_id = input
+        .spec
+        .fixing_calendar_id
+        .as_deref()
+        .or_else(|| input.attributes.get_meta("calendar_id"))
+        .or_else(|| input.attributes.get_meta("calendar"));
+    let calendar =
+        crate::instruments::common_impl::pricing::overnight::resolve_overnight_fixing_calendar(
+            calendar_id,
+            input.currency,
+            "RevolvingCredit",
+        )?;
+    let day_count = input.spec.overnight_basis.unwrap_or(input.day_count);
+    let (accrual_start, accrual_end) = adjust_overnight_accrual_boundaries(
+        input.accrual_start,
+        input.accrual_end,
+        BusinessDayConvention::ModifiedFollowing,
+        calendar,
+    )?;
+    if accrual_end <= accrual_start {
+        return Ok(crate::cashflow::builder::rate_helpers::calculate_floating_rate(0.0, &params));
+    }
+
+    let projection = project_overnight_coupon(OvernightCouponProjectionInput {
+        curve: OvernightProjectionCurve::Forward(input.fwd),
+        fixings: input.fixings,
+        fixing_id: input.spec.index_id.as_str(),
+        as_of: input.as_of,
+        accrual_start,
+        accrual_end,
+        day_count,
+        coupon_frequency: Some(input.coupon_frequency),
+        compounding: &compounding,
+        fixing_calendar: calendar,
+        compounded_spread: 0.0,
+    })?;
+    Ok(crate::cashflow::builder::rate_helpers::calculate_floating_rate(projection.rate, &params))
 }
 
 /// Apply a draw/repay event to current balance with commitment limit validation.
@@ -438,6 +542,80 @@ mod tests {
         let rate =
             project_floating_rate_with_curve(reset, &spec, &forward).expect("projected coupon");
         assert!((rate - 0.02).abs() < 1e-12, "all-in cap must bind: {rate}");
+    }
+
+    #[test]
+    fn overnight_index_uses_shared_compounding_engine() {
+        use crate::instruments::common_impl::pricing::overnight::{
+            project_overnight_coupon, OvernightCouponProjectionInput, OvernightProjectionCurve,
+        };
+        use finstack_quant_core::dates::calendar_by_id;
+        use finstack_quant_core::market_data::term_structures::ForwardCurve;
+        use rust_decimal::Decimal;
+
+        let start = Date::from_calendar_date(2025, Month::January, 2).expect("date");
+        let end = Date::from_calendar_date(2025, Month::April, 2).expect("date");
+        let spec = crate::cashflow::builder::FloatingRateSpec {
+            index_id: "USD-SOFR-OIS".into(),
+            spread_bp: Decimal::ZERO,
+            gearing: Decimal::ONE,
+            gearing_includes_spread: true,
+            index_floor_bp: None,
+            index_cap_bp: None,
+            all_in_floor_bp: None,
+            all_in_cap_bp: None,
+            overnight_index_constraints: Default::default(),
+            reset_frequency: Tenor::quarterly(),
+            index_tenor: None,
+            reset_lag_days: 0,
+            fixing_calendar_id: Some("usny".into()),
+            overnight_compounding: None,
+            overnight_basis: None,
+            fallback: Default::default(),
+        };
+        let forward = ForwardCurve::builder("USD-SOFR-OIS", 0.25)
+            .base_date(start)
+            .knots(vec![(0.0, 0.04), (1.0, 0.04)])
+            .build()
+            .expect("forward curve");
+        let attrs = Attributes::new();
+        let revolver_rate = project_revolver_floating_rate(RevolverFloatingProjection {
+            accrual_start: start,
+            accrual_end: end,
+            as_of: start,
+            spec: &spec,
+            fwd: &forward,
+            day_count: DayCount::Act360,
+            coupon_frequency: Tenor::quarterly(),
+            currency: Currency::USD,
+            attributes: &attrs,
+            fixings: None,
+        })
+        .expect("overnight revolver coupon");
+
+        let compounding = resolved_overnight_compounding(&spec)
+            .expect("resolve")
+            .expect("overnight");
+        let calendar = calendar_by_id("usny").expect("usny");
+        let expected = project_overnight_coupon(OvernightCouponProjectionInput {
+            curve: OvernightProjectionCurve::Forward(&forward),
+            fixings: None,
+            fixing_id: "USD-SOFR-OIS",
+            as_of: start,
+            accrual_start: start,
+            accrual_end: end,
+            day_count: DayCount::Act360,
+            coupon_frequency: Some(Tenor::quarterly()),
+            compounding: &compounding,
+            fixing_calendar: calendar,
+            compounded_spread: 0.0,
+        })
+        .expect("shared overnight coupon");
+        assert!(
+            (revolver_rate - expected.rate).abs() < 1e-12,
+            "revolver overnight rate {revolver_rate} != shared engine {}",
+            expected.rate
+        );
     }
 
     #[test]

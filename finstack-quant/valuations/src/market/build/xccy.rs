@@ -53,6 +53,16 @@ pub fn build_xccy_instrument(quote: &XccyQuote, ctx: &BuildCtx) -> Result<Box<dy
                 .curve_id("foreign_forward")
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| conv.base_index_id.to_string());
+            let foreign_compounding =
+                crate::instruments::common_impl::pricing::overnight_conventions::compounding_from_index_id(
+                    &foreign_forward,
+                )?
+                .unwrap_or_default();
+            let domestic_compounding =
+                crate::instruments::common_impl::pricing::overnight_conventions::compounding_from_index_id(
+                    &domestic_forward,
+                )?
+                .unwrap_or_default();
 
             let fx_spot = spot_fx.ok_or_else(|| {
                 finstack_quant_core::Error::Validation(
@@ -118,6 +128,7 @@ pub fn build_xccy_instrument(quote: &XccyQuote, ctx: &BuildCtx) -> Result<Box<dy
                 calendar_id: Some(conv.base_calendar_id.clone()),
                 reset_lag_days: Some(base_index.default_reset_lag_days),
                 allow_calendar_fallback: false,
+                compounding: foreign_compounding,
             };
 
             let leg2 = XccySwapLeg {
@@ -137,6 +148,7 @@ pub fn build_xccy_instrument(quote: &XccyQuote, ctx: &BuildCtx) -> Result<Box<dy
                 calendar_id: Some(conv.quote_calendar_id.clone()),
                 reset_lag_days: Some(quote_index.default_reset_lag_days),
                 allow_calendar_fallback: false,
+                compounding: domestic_compounding,
             };
 
             let swap = XccySwap::new(id.as_str(), leg1, leg2, conv.quote_currency)

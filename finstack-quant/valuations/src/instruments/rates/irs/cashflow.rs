@@ -110,30 +110,9 @@ fn adjust_accrual_dates(irs: &InterestRateSwap) -> bool {
 fn builder_overnight_method(
     compounding: FloatingLegCompounding,
 ) -> Result<Option<crate::cashflow::builder::OvernightCompoundingMethod>> {
-    use crate::cashflow::builder::OvernightCompoundingMethod;
-
-    Ok(match compounding {
-        FloatingLegCompounding::Simple => None,
-        FloatingLegCompounding::CompoundedInArrears { lookback_days } => {
-            if lookback_days == 0 {
-                Some(OvernightCompoundingMethod::CompoundedInArrears)
-            } else {
-                Some(OvernightCompoundingMethod::CompoundedWithLookback {
-                    lookback_days: lookback_days as u32,
-                })
-            }
-        }
-        FloatingLegCompounding::CompoundedWithObservationShift { shift_days } => {
-            Some(OvernightCompoundingMethod::CompoundedWithObservationShift {
-                shift_days: shift_days as u32,
-            })
-        }
-        FloatingLegCompounding::CompoundedWithRateCutoff { cutoff_days } => {
-            Some(OvernightCompoundingMethod::CompoundedWithLockout {
-                lockout_days: cutoff_days as u32,
-            })
-        }
-    })
+    crate::instruments::common_impl::pricing::overnight_conventions::builder_overnight_method(
+        compounding,
+    )
 }
 
 fn resolve_compounded_fixing_calendar(

@@ -286,7 +286,8 @@ impl CoverageTest {
         let (tranche_rate, accrual_factor) = rate_and_accrual(tranche, context)?;
 
         let interest_due = Money::new(
-            tranche_bal.amount() * tranche_rate * accrual_factor,
+            tranche_bal.amount() * tranche_rate * accrual_factor
+                + carried_deferred(context, tranche.id.as_str()),
             tranche_bal.currency(),
         );
 
@@ -333,7 +334,10 @@ impl CoverageTest {
                     .and_then(|b| b.get(t.id.as_str()))
                     .copied()
                     .unwrap_or(t.current_balance);
-                let interest = Money::new(t_bal.amount() * rate * accrual, t_bal.currency());
+                let interest = Money::new(
+                    t_bal.amount() * rate * accrual + carried_deferred(context, t.id.as_str()),
+                    t_bal.currency(),
+                );
                 acc.checked_add(interest)
             },
         )?;
@@ -415,6 +419,20 @@ impl CoverageTest {
             cure_amount,
         })
     }
+}
+
+fn carried_deferred(context: &TestContext<'_>, tranche_id: &str) -> f64 {
+    // Match the waterfall interest claim: current coupon plus unpaid arrears.
+    // A tranche with no interest recipient (absent claim-cap key) owes nothing,
+    // including prior deferrals that the structure cannot pay.
+    if !context.interest_claim_caps.contains_key(tranche_id) {
+        return 0.0;
+    }
+    context
+        .deferred_interest
+        .and_then(|deferred| deferred.get(tranche_id))
+        .map(|amount| amount.amount().max(0.0))
+        .unwrap_or(0.0)
 }
 
 fn rate_and_accrual(tranche: &Tranche, context: &TestContext<'_>) -> Result<(f64, f64)> {
@@ -524,6 +542,12 @@ pub struct TestContext<'a> {
     /// Simulated floating-coupon shift (SC-M13 OAS rate path); zero outside
     /// OAS runs. Keeps the IC due on the same rate path as collections.
     pub floating_rate_shift: f64,
+    /// Outstanding non-PIK deferred interest by tranche id.
+    ///
+    /// The waterfall interest claim is current coupon plus these arrears.
+    /// IC uses the same denominator so a carried shortfall cannot make the
+    /// test look healthier than the cash the structure actually owes.
+    pub deferred_interest: Option<&'a HashMap<String, Money>>,
 }
 
 /// Result of a coverage test calculation.
@@ -663,6 +687,7 @@ mod tests {
             restricted_cash: Money::new(0.0, Currency::USD),
             interest_claim_caps: &uncapped_claims(&["TEST_TRANCHE"]),
             floating_rate_shift: 0.0,
+            deferred_interest: None,
         };
 
         let result = test
@@ -710,6 +735,7 @@ mod tests {
             restricted_cash: Money::new(0.0, Currency::USD),
             interest_claim_caps: &uncapped_claims(&["TEST_TRANCHE"]),
             floating_rate_shift: 0.0,
+            deferred_interest: None,
         };
 
         let result = test
@@ -718,6 +744,65 @@ mod tests {
 
         assert!((result.current_ratio - 1.2).abs() < 0.01);
         assert!(result.is_passing);
+    }
+
+    /// IC must cover the same claim the waterfall pays: current coupon plus
+    /// unpaid non-PIK arrears. Omitting deferred from the denominator makes a
+    /// deal with carried shortfalls look healthier than the cash it owes.
+    #[test]
+    fn ic_denominator_includes_deferred_arrears() {
+        let pool = AssetPool::new("TEST", DealType::Clo, Currency::USD);
+        let test = CoverageTest::new_ic(1.20);
+        let tranche = Tranche::new(
+            "TEST_TRANCHE",
+            0.0,
+            100.0,
+            TrancheSeniority::Senior,
+            Money::new(100_000.0, Currency::USD),
+            TrancheCoupon::Fixed { rate: 0.05 },
+            Date::from_calendar_date(2030, Month::January, 1).expect("Valid date"),
+        )
+        .expect("Valid tranche");
+        let tranches = TrancheStructure::new(vec![tranche]).expect("Valid tranche structure");
+        let mut deferred = HashMap::default();
+        deferred.insert(
+            "TEST_TRANCHE".to_string(),
+            Money::new(1_250.0, Currency::USD),
+        );
+        let context = TestContext {
+            pool: &pool,
+            tranches: &tranches,
+            tranche_id: "TEST_TRANCHE",
+            as_of: Date::from_calendar_date(2025, Month::January, 1).expect("Valid date"),
+            period_start: None,
+            cash_balance: Money::new(0.0, Currency::USD),
+            interest_collections: Money::new(1_500.0, Currency::USD),
+            haircuts: None,
+            par_value_threshold: None,
+            market: None,
+            tranche_balances: None,
+            payable_principal_tranche_ids: None,
+            asset_balances: None,
+            current_pool_balance: None,
+            senior_fees: Money::new(0.0, Currency::USD),
+            restricted_cash: Money::new(0.0, Currency::USD),
+            interest_claim_caps: &uncapped_claims(&["TEST_TRANCHE"]),
+            floating_rate_shift: 0.0,
+            deferred_interest: Some(&deferred),
+        };
+
+        let result = test
+            .calculate(&context)
+            .expect("calculation should succeed");
+        // Coupon ≈ 100k × 5% / 4 = 1,250; plus 1,250 deferred => 2,500 due.
+        // Collections 1,500 / 2,500 = 0.60, which fails a 1.20 test.
+        // Without deferred the ratio would be 1.20 and the test would pass.
+        assert!(
+            (result.current_ratio - 0.60).abs() < 0.02,
+            "IC must include deferred arrears; got {}",
+            result.current_ratio
+        );
+        assert!(!result.is_passing);
     }
 
     /// W-22: the OC cure amount must account for the cash term leaving the
@@ -764,6 +849,7 @@ mod tests {
             restricted_cash: Money::new(0.0, Currency::USD),
             interest_claim_caps: &uncapped_claims(&["SENIOR"]),
             floating_rate_shift: 0.0,
+            deferred_interest: None,
         };
 
         let result = test
@@ -841,6 +927,7 @@ mod tests {
             restricted_cash: Money::new(0.0, Currency::USD),
             interest_claim_caps: &uncapped_claims(&["SENIOR"]),
             floating_rate_shift: 0.0,
+            deferred_interest: None,
         };
 
         let result = test
@@ -1004,6 +1091,7 @@ mod tests {
             restricted_cash: Money::new(0.0, Currency::USD),
             interest_claim_caps: &uncapped_claims(&["TEST_TRANCHE"]),
             floating_rate_shift: 0.0,
+            deferred_interest: None,
         };
 
         let result = test
@@ -1120,6 +1208,7 @@ mod haircut_tests {
                 restricted_cash: Money::new(0.0, Currency::USD),
                 interest_claim_caps: &uncapped_claims(&["A"]),
                 floating_rate_shift: 0.0,
+                deferred_interest: None,
             };
             CoverageTest::new_ic(1.20)
                 .calculate(&ctx)
@@ -1186,6 +1275,7 @@ mod haircut_tests {
             restricted_cash: Money::new(0.0, Currency::USD),
             interest_claim_caps: &uncapped_claims(&["A"]),
             floating_rate_shift: 0.0,
+            deferred_interest: None,
         };
 
         let result = CoverageTest::new_ic(1.20).calculate(&ctx).expect("ic test");
@@ -1269,6 +1359,7 @@ mod haircut_tests {
             restricted_cash: Money::new(0.0, Currency::USD),
             interest_claim_caps: &uncapped_claims(&["B"]),
             floating_rate_shift: 0.0,
+            deferred_interest: None,
         };
 
         let result = CoverageTest::new_ic(required_ratio)
@@ -1370,6 +1461,7 @@ mod haircut_tests {
             restricted_cash: Money::new(0.0, Currency::USD),
             interest_claim_caps: &uncapped_claims(&["A"]),
             floating_rate_shift: 0.0,
+            deferred_interest: None,
         };
 
         let result = CoverageTest::new_ic(required_ratio)
@@ -1428,6 +1520,7 @@ mod haircut_tests {
             restricted_cash: Money::new(0.0, Currency::USD),
             interest_claim_caps: &uncapped_claims(&["A"]),
             floating_rate_shift: 0.0,
+            deferred_interest: None,
         };
 
         let result = CoverageTest::new_oc(1.0).calculate(&ctx).expect("oc test");
@@ -1476,6 +1569,7 @@ mod haircut_tests {
             restricted_cash: Money::new(0.0, Currency::USD),
             interest_claim_caps: &uncapped_claims(&["A"]),
             floating_rate_shift: 0.0,
+            deferred_interest: None,
         };
 
         let result = CoverageTest::new_oc(1.0).calculate(&ctx).expect("OC test");
@@ -1515,6 +1609,7 @@ mod haircut_tests {
             restricted_cash: Money::new(0.0, Currency::USD),
             interest_claim_caps: &uncapped_claims(&["A"]),
             floating_rate_shift: 0.0,
+            deferred_interest: None,
         };
 
         let result = CoverageTest::new_oc(1.0).calculate(&ctx).expect("oc test");

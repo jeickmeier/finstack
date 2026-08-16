@@ -332,7 +332,7 @@
     },
     "Bond": {
       "additionalProperties": false,
-      "description": "Bond instrument with fixed, floating, or amortizing cashflows.\n\nCashflow sign convention (holder view):\n- All contractual cashflows **received by a long holder** (coupons,\n  amortization, final redemption) are represented as **positive** amounts.\n- Cash outflows for the holder (e.g., purchase price, funding, short\n  positions) are represented as **negative** amounts and are handled at\n  trade level rather than in the bond's contractual schedule.\n\nSupports call/put schedules, quoted prices for yield-to-maturity calculations,\nand custom cashflow schedule overrides. Uses a clean `CashflowSpec` that wraps\nthe canonical builder coupon specs for maximum flexibility and parity.",
+      "description": "Bond instrument with fixed, floating, or amortizing cashflows.\n\nCashflow sign convention (holder view):\n- All contractual cashflows **received by a long holder** (coupons,\n  amortization, final redemption) are represented as **positive** amounts.\n- Cash outflows for the holder (e.g., purchase price, funding, short\n  positions) are represented as **negative** amounts and are handled at\n  trade level rather than in the bond's contractual schedule.\n\nSupports call/put schedules, quoted prices for yield-to-maturity calculations,\nand custom cashflow schedule overrides. Uses a clean `CashflowSpec` that wraps\nthe canonical builder coupon specs for maximum flexibility and parity.\n\n[`crate::instruments::Instrument::value`] is the **dirty NPV at `as_of`**,\nnot the market dirty quote at settlement. Quoted YTM, z-spread, and DM\nremain settlement-anchored.",
       "properties": {
         "accrual_method": {
           "$ref": "#/$defs/AccrualMethod",
@@ -790,6 +790,11 @@
           "const": "modified_preceding",
           "description": "Preceding, unless that crosses into previous month, then following.\n\n**ISDA**: Section 4.12(e) - \"Modified Preceding Business Day Convention\"\n**FpML**: \"MODPRECEDING\"",
           "type": "string"
+        },
+        {
+          "const": "nearest",
+          "description": "Adjust to the closer business day. A tie (equal calendar-day distance)\nrolls Following, matching FpML `NEAREST` and QuantLib `Nearest`.\n\n**FpML**: \"NEAREST\"",
+          "type": "string"
         }
       ]
     },
@@ -1112,8 +1117,8 @@
         },
         "vol_type": {
           "$ref": "#/$defs/CapFloorVolType",
-          "default": "lognormal",
-          "description": "Volatility type convention (lognormal/Black or normal/Bachelier).\n\n**Critical**: This must match the convention of your vol surface data.\nUsing lognormal vol with a normal surface (or vice versa) will produce\nincorrect prices.\n\n- `Lognormal` (default): Standard Black model, requires positive rates/strikes\n- `Normal`: Bachelier model, handles negative rates"
+          "default": "auto",
+          "description": "Volatility type convention (lognormal/Black or normal/Bachelier).\n\n**Critical**: This must match the convention of your vol surface data.\nUsing lognormal vol with a normal surface (or vice versa) will produce\nincorrect prices.\n\n- `Auto` (default): Black when forward and strike are positive, else Normal\n- `Lognormal`: Standard Black model, requires positive rates/strikes\n- `Normal`: Bachelier model, handles negative rates"
         }
       },
       "required": [

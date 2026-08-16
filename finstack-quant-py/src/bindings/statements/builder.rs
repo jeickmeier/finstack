@@ -657,7 +657,8 @@ impl PyModelBuilder {
     /// convention : str
     ///     Regional convention preset, as the canonical snake_case
     ///     identifier: ``"us_treasury"``, ``"us_agency"``, ``"german_bund"``,
-    ///     ``"uk_gilt"``, ``"french_oat"``, ``"jgb"``, or ``"corporate"``.
+    ///     ``"uk_gilt"``, ``"french_oat"``, ``"jgb"``, ``"us_corporate"``,
+    ///     or ``"eur_corporate"``.
     /// discount_curve_id : str
     ///     Discount curve identifier used for pricing.
     #[pyo3(
@@ -682,7 +683,8 @@ impl PyModelBuilder {
                 |e| {
                     crate::errors::value_error(format!(
                         "invalid bond convention {convention:?}: {e}; expected one of \
-                         us_treasury, us_agency, german_bund, uk_gilt, french_oat, jgb, corporate"
+                         us_treasury, us_agency, german_bund, uk_gilt, french_oat, jgb, \
+                         us_corporate, eur_corporate"
                     ))
                 },
             )?;

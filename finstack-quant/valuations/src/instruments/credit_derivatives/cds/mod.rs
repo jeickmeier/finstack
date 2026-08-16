@@ -4,6 +4,10 @@
 //! the ISDA CDS Standard Model v1.8.2 (October 2009). This is the industry-standard
 //! methodology used by major dealers and clearing houses.
 //!
+//! Reported NPV defaults to Bloomberg CDSW clean
+//! (`CdsValuationConvention::BloombergCdswClean`). `IsdaDirty` is opt-in
+//! for academic ISDA Standard Model reproduction and is not the production quote.
+//!
 //! # CDS Structure
 //!
 //! A CDS is a bilateral contract providing credit protection:

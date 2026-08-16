@@ -1820,7 +1820,7 @@
     },
     "BasisSwap": {
       "additionalProperties": false,
-      "description": "Basis swap instrument that exchanges two floating rate payments with different tenors.\n\nA basis swap allows parties to exchange floating rate payments based on different\nreference rates (e.g., 3M SOFR vs 6M SOFR) plus an optional spread on one leg.\nThe primary leg typically receives the spread, while the reference leg pays flat.\n\nEach leg owns its own dates, discount curve, calendar, and stub conventions,\nfollowing the IRS leg-centric pattern.\n\n# Cross-Currency (XCCY) Basis Swaps\n\n**Important**: This implementation supports **single-currency** basis swaps only.\nFor cross-currency basis swaps, use `XccySwap` instead.\n\n# Examples\n```rust\nuse finstack_quant_core::{dates::*, money::Money, currency::Currency, types::CurveId};\nuse finstack_quant_valuations::instruments::rates::basis_swap::{BasisSwap, BasisSwapLeg};\nuse time::Month;\n\nlet start = Date::from_calendar_date(2024, Month::January, 3).expect(\"valid date\");\nlet end = Date::from_calendar_date(2025, Month::January, 3).expect(\"valid date\");\n\nlet primary_leg = BasisSwapLeg {\n    forward_curve_id: CurveId::new(\"3M-SOFR\"),\n    discount_curve_id: CurveId::new(\"OIS\"),\n    start,\n    end,\n    frequency: Tenor::quarterly(),\n    day_count: DayCount::Act360,\n    business_day_convention: BusinessDayConvention::ModifiedFollowing,\n    calendar_id: None,\n    stub: StubKind::ShortFront,\n    spread_bp: rust_decimal::Decimal::from(5),\n    payment_lag_days: 0,\n    reset_lag_days: 0,\n};\n\nlet reference_leg = BasisSwapLeg {\n    forward_curve_id: CurveId::new(\"6M-SOFR\"),\n    discount_curve_id: CurveId::new(\"OIS\"),\n    start,\n    end,\n    frequency: Tenor::semi_annual(),\n    day_count: DayCount::Act360,\n    business_day_convention: BusinessDayConvention::ModifiedFollowing,\n    calendar_id: None,\n    stub: StubKind::ShortFront,\n    spread_bp: rust_decimal::Decimal::ZERO,\n    payment_lag_days: 0,\n    reset_lag_days: 0,\n};\n\nlet swap = BasisSwap::new(\n    \"BASIS_SWAP_001\",\n    Money::new(1_000_000.0, Currency::USD),\n    primary_leg,\n    reference_leg,\n);\n```",
+      "description": "Basis swap instrument that exchanges two floating rate payments with different tenors.\n\nA basis swap allows parties to exchange floating rate payments based on different\nreference rates (e.g., 3M SOFR vs 6M SOFR) plus an optional spread on one leg.\nThe primary leg typically receives the spread, while the reference leg pays flat.\n\nEach leg owns its own dates, discount curve, calendar, and stub conventions,\nfollowing the IRS leg-centric pattern.\n\n# Cross-Currency (XCCY) Basis Swaps\n\n**Important**: This implementation supports **single-currency** basis swaps only.\nFor cross-currency basis swaps, use `XccySwap` instead.\n\n# Examples\n```rust\nuse finstack_quant_core::{dates::*, money::Money, currency::Currency, types::CurveId};\nuse finstack_quant_valuations::instruments::rates::basis_swap::{BasisSwap, BasisSwapLeg};\nuse time::Month;\n\nlet start = Date::from_calendar_date(2024, Month::January, 3).expect(\"valid date\");\nlet end = Date::from_calendar_date(2025, Month::January, 3).expect(\"valid date\");\n\nlet primary_leg = BasisSwapLeg {\n    forward_curve_id: CurveId::new(\"3M-SOFR\"),\n    discount_curve_id: CurveId::new(\"OIS\"),\n    start,\n    end,\n    frequency: Tenor::quarterly(),\n    day_count: DayCount::Act360,\n    business_day_convention: BusinessDayConvention::ModifiedFollowing,\n    calendar_id: None,\n    stub: StubKind::ShortFront,\n    spread_bp: rust_decimal::Decimal::from(5),\n    payment_lag_days: 0,\n    reset_lag_days: 0,\n    compounding: Default::default(),\n};\n\nlet reference_leg = BasisSwapLeg {\n    forward_curve_id: CurveId::new(\"6M-SOFR\"),\n    discount_curve_id: CurveId::new(\"OIS\"),\n    start,\n    end,\n    frequency: Tenor::semi_annual(),\n    day_count: DayCount::Act360,\n    business_day_convention: BusinessDayConvention::ModifiedFollowing,\n    calendar_id: None,\n    stub: StubKind::ShortFront,\n    spread_bp: rust_decimal::Decimal::ZERO,\n    payment_lag_days: 0,\n    reset_lag_days: 0,\n    compounding: Default::default(),\n};\n\nlet swap = BasisSwap::new(\n    \"BASIS_SWAP_001\",\n    Money::new(1_000_000.0, Currency::USD),\n    primary_leg,\n    reference_leg,\n);\n```",
       "properties": {
         "allow_calendar_fallback": {
           "default": false,
@@ -1889,6 +1889,11 @@
             "string",
             "null"
           ]
+        },
+        "compounding": {
+          "$ref": "#/$defs/FloatingLegCompounding",
+          "default": "simple",
+          "description": "Overnight vs term compounding for this floating leg.\n\nDefaults to [`FloatingLegCompounding::Simple`] so tenor-basis swaps\n(3s1s, EURIBOR 6s3s) keep term projection. Set a compounded variant\nfor an overnight RFR leg such as SOFR OIS or €STR."
         },
         "day_count": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
@@ -2261,7 +2266,7 @@
     },
     "Bond": {
       "additionalProperties": false,
-      "description": "Bond instrument with fixed, floating, or amortizing cashflows.\n\nCashflow sign convention (holder view):\n- All contractual cashflows **received by a long holder** (coupons,\n  amortization, final redemption) are represented as **positive** amounts.\n- Cash outflows for the holder (e.g., purchase price, funding, short\n  positions) are represented as **negative** amounts and are handled at\n  trade level rather than in the bond's contractual schedule.\n\nSupports call/put schedules, quoted prices for yield-to-maturity calculations,\nand custom cashflow schedule overrides. Uses a clean `CashflowSpec` that wraps\nthe canonical builder coupon specs for maximum flexibility and parity.",
+      "description": "Bond instrument with fixed, floating, or amortizing cashflows.\n\nCashflow sign convention (holder view):\n- All contractual cashflows **received by a long holder** (coupons,\n  amortization, final redemption) are represented as **positive** amounts.\n- Cash outflows for the holder (e.g., purchase price, funding, short\n  positions) are represented as **negative** amounts and are handled at\n  trade level rather than in the bond's contractual schedule.\n\nSupports call/put schedules, quoted prices for yield-to-maturity calculations,\nand custom cashflow schedule overrides. Uses a clean `CashflowSpec` that wraps\nthe canonical builder coupon specs for maximum flexibility and parity.\n\n[`crate::instruments::Instrument::value`] is the **dirty NPV at `as_of`**,\nnot the market dirty quote at settlement. Quoted YTM, z-spread, and DM\nremain settlement-anchored.",
       "properties": {
         "accrual_method": {
           "$ref": "#/$defs/AccrualMethod",
@@ -2409,7 +2414,7 @@
     },
     "BondFuture": {
       "additionalProperties": false,
-      "description": "Bond future instrument.\n\nA standardized contract with a basket of eligible deliverables. The short\nchooses the bond to deliver, commonly the cheapest-to-deliver (CTD) bond.\n\n# Contract Mechanics\n\n- **Conversion factors**: Supplied per deliverable, preferably from the exchange.\n- **CTD resolution**: Explicit `ctd_bond_id`, then embedded `ctd_bond.id`,\n  then the sole basket member. A larger basket requires an explicit or embedded CTD.\n- **CTD analysis**: The `determine_ctd*` helpers return ranked candidates but\n  do not mutate the selected CTD; pricing never ranks the basket automatically.\n- **Invoice price**: `(Futures Price × Conversion Factor) + Accrued Interest`.\n\n# Examples\n\n```rust\nuse finstack_quant_core::currency::Currency;\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::types::{CurveId, InstrumentId};\nuse finstack_quant_valuations::instruments::fixed_income::bond_future::{\n    BondFuture, BondFutureSpecs, DeliverableBond,\n};\nuse finstack_quant_valuations::instruments::{Attributes, Position};\nuse time::macros::date;\n\n# fn main() -> finstack_quant_core::Result<()> {\nlet future = BondFuture::builder()\n    .id(InstrumentId::new(\"TYH5\"))\n    .notional(Money::new(1_000_000.0, Currency::USD))\n    .expiry(date!(2025 - 03 - 20))\n    .delivery_start(date!(2025 - 03 - 21))\n    .delivery_end(date!(2025 - 03 - 31))\n    .quoted_price(125.50)\n    .position(Position::Long)\n    .contract_specs(BondFutureSpecs::ust_10y())\n    .deliverable_basket(vec![DeliverableBond {\n        bond_id: InstrumentId::new(\"US912828XG33\"),\n        conversion_factor: 0.8234,\n    }])\n    .discount_curve_id(CurveId::new(\"USD-TREASURY\"))\n    .attributes(Attributes::new())\n    .build_validated()?;\nassert_eq!(future.deliverable_basket.len(), 1);\n# Ok(())\n# }\n```",
+      "description": "Bond future instrument.\n\nA standardized contract with a basket of eligible deliverables. The short\nchooses the bond to deliver, commonly the cheapest-to-deliver (CTD) bond.\n\n# Contract Mechanics\n\n- **Conversion factors**: Supplied per deliverable, preferably from the exchange.\n- **CTD resolution**: Explicit `ctd_bond_id`, then embedded `ctd_bond.id`,\n  then the sole basket member. A larger basket requires an explicit or embedded CTD.\n- **CTD analysis**: The `determine_ctd*` helpers return ranked candidates but\n  do not mutate the selected CTD. [`crate::instruments::Instrument::value`]\n  marks the caller-supplied CTD only; refresh it daily with\n  [`Self::determine_ctd_by_implied_repo`] when the basket can switch.\n- **Invoice price**: `(Futures Price × Conversion Factor) + Accrued Interest`.\n\n# Examples\n\n```rust\nuse finstack_quant_core::currency::Currency;\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::types::{CurveId, InstrumentId};\nuse finstack_quant_valuations::instruments::fixed_income::bond_future::{\n    BondFuture, BondFutureSpecs, DeliverableBond,\n};\nuse finstack_quant_valuations::instruments::{Attributes, Position};\nuse time::macros::date;\n\n# fn main() -> finstack_quant_core::Result<()> {\nlet future = BondFuture::builder()\n    .id(InstrumentId::new(\"TYH5\"))\n    .notional(Money::new(1_000_000.0, Currency::USD))\n    .expiry(date!(2025 - 03 - 20))\n    .delivery_start(date!(2025 - 03 - 21))\n    .delivery_end(date!(2025 - 03 - 31))\n    .quoted_price(125.50)\n    .position(Position::Long)\n    .contract_specs(BondFutureSpecs::ust_10y())\n    .deliverable_basket(vec![DeliverableBond {\n        bond_id: InstrumentId::new(\"US912828XG33\"),\n        conversion_factor: 0.8234,\n    }])\n    .discount_curve_id(CurveId::new(\"USD-TREASURY\"))\n    .attributes(Attributes::new())\n    .build_validated()?;\nassert_eq!(future.deliverable_basket.len(), 1);\n# Ok(())\n# }\n```",
       "properties": {
         "attributes": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
@@ -3460,8 +3465,8 @@
         },
         "vol_type": {
           "$ref": "#/$defs/CapFloorVolType",
-          "default": "lognormal",
-          "description": "Volatility type convention (lognormal/Black or normal/Bachelier).\n\n**Critical**: This must match the convention of your vol surface data.\nUsing lognormal vol with a normal surface (or vice versa) will produce\nincorrect prices.\n\n- `Lognormal` (default): Standard Black model, requires positive rates/strikes\n- `Normal`: Bachelier model, handles negative rates"
+          "default": "auto",
+          "description": "Volatility type convention (lognormal/Black or normal/Bachelier).\n\n**Critical**: This must match the convention of your vol surface data.\nUsing lognormal vol with a normal surface (or vice versa) will produce\nincorrect prices.\n\n- `Auto` (default): Black when forward and strike are positive, else Normal\n- `Lognormal`: Standard Black model, requires positive rates/strikes\n- `Normal`: Bachelier model, handles negative rates"
         }
       },
       "required": [
@@ -6587,7 +6592,7 @@
         "valuation_convention": {
           "$ref": "#/$defs/CdsValuationConvention",
           "default": "bloomberg_cdsw_clean",
-          "description": "Valuation presentation convention."
+          "description": "Valuation presentation convention.\n\nDefaults to Bloomberg CDSW clean. Set `IsdaDirty` only when\nreproducing academic ISDA Standard Model literature."
         }
       },
       "required": [
@@ -17321,7 +17326,7 @@
           "description": "Optional correlation structure for stochastic modeling."
         },
         "coverage_triggers": {
-          "description": "Overcollateralization / interest-coverage triggers evaluated each period.\n\nEach entry names a tranche and the OC and/or IC level that must be\nmaintained for it. When a test fails, the cure amount is diverted from\nthe divertible (subordinated-interest / residual) tier to redeem senior\nnotes. Empty (the default) means no coverage tests run.\n\n# Examples\n\n```\nuse finstack_quant_valuations::instruments::fixed_income::structured_credit::waterfall::CoverageTrigger;\n\n// Class A must maintain 120% OC and 115% IC.\nlet trigger = CoverageTrigger {\n    tranche_id: \"CLASS_A\".to_string(),\n    oc_trigger: Some(1.20),\n    ic_trigger: Some(1.15),\n};\nassert_eq!(trigger.oc_trigger, Some(1.20));\n```\n\nUse the fully-qualified waterfall type here: the public re-export\n`structured_credit::CoverageTrigger` is a different per-tranche\nbreach-state record that shares the name.",
+          "description": "Overcollateralization / interest-coverage triggers evaluated each period.\n\nEach entry names a tranche and the OC and/or IC level that must be\nmaintained for it. When a test fails, the cure amount is diverted from\nthe divertible tiers to redeem senior notes. CLO/CBO templates may\ntrap junior coupon; ABS/RMBS/CMBS turbo residual only. Empty (the\ndefault) means no coverage tests run.\n\n# Examples\n\n```\nuse finstack_quant_valuations::instruments::fixed_income::structured_credit::waterfall::CoverageTrigger;\n\n// Class A must maintain 120% OC and 115% IC.\nlet trigger = CoverageTrigger {\n    tranche_id: \"CLASS_A\".to_string(),\n    oc_trigger: Some(1.20),\n    ic_trigger: Some(1.15),\n};\nassert_eq!(trigger.oc_trigger, Some(1.20));\n```\n\nUse the fully-qualified waterfall type here: the public re-export\n`structured_credit::CoverageTrigger` is a different per-tranche\nbreach-state record that shares the name.",
           "items": {
             "$ref": "#/$defs/WaterfallCoverageTrigger"
           },
@@ -19390,6 +19395,11 @@
             "string",
             "null"
           ]
+        },
+        "compounding": {
+          "$ref": "#/$defs/FloatingLegCompounding",
+          "default": "simple",
+          "description": "Overnight vs term compounding for this floating leg.\n\nDefaults to Simple (term EURIBOR / term SOFR). Set a compounded\nvariant when the forward curve is an overnight RFR such as €STR or\nSOFR OIS."
         },
         "currency": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",

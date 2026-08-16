@@ -23,10 +23,10 @@
 //!   period ([`rate_between_on_dates`]), correct for a term-rate-financed TRS
 //!   (e.g. 3M Term SOFR) where the period length matches the index tenor.
 //! - `OvernightCompounded` — **daily-compounds** the overnight forward via
-//!   `swap_legs::compounded_forward_projection`, `(∏(1+rᵢ·dᵢ)−1)/τ`, correct
-//!   for an overnight-indexed (OIS / RFR) financing leg (SOFR/SONIA/€STR). The
-//!   simple average would drop the daily-compounding convexity (~12–15 bp of
-//!   rate at current levels).
+//!   [`crate::instruments::common_impl::pricing::overnight::project_overnight_coupon`]
+//!   with `CompoundedInArrears { lookback_days: 0 }` (cleared-OIS style).
+//!   The simple average would drop the daily-compounding convexity (~12–15 bp
+//!   of rate at current levels).
 //!
 //! [`TrsEngine::financing_annuity`] projects no rate (it sums discounted year
 //! fractions only) and is therefore independent of the compounding choice.
@@ -35,7 +35,7 @@ use crate::instruments::common_impl::parameters::legs::{
     FinancingLegSpec, FinancingRateCompounding,
 };
 use crate::instruments::common_impl::parameters::trs_common::TrsScheduleSpec;
-use finstack_quant_core::dates::{Date, DayCountContext};
+use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::scalars::ScalarTimeSeries;
 use finstack_quant_core::market_data::term_structures::ForwardCurve;
@@ -43,9 +43,15 @@ use finstack_quant_core::math::NeumaierAccumulator;
 use finstack_quant_core::money::Money;
 use rust_decimal::prelude::ToPrimitive;
 
+use crate::instruments::common_impl::pricing::overnight::{
+    adjust_overnight_accrual_boundaries, project_overnight_coupon, OvernightCouponProjectionInput,
+    OvernightProjectionCurve,
+};
 use crate::instruments::common_impl::pricing::time::{
     rate_between_on_dates, relative_df_discount_curve,
 };
+use crate::instruments::rates::irs::FloatingLegCompounding;
+use finstack_quant_core::currency::Currency;
 
 /// Project one financing-leg accrual period's floating rate, excluding spread.
 ///
@@ -68,9 +74,10 @@ fn financing_period_rate(
     fixings: Option<&ScalarTimeSeries>,
     period_start: Date,
     period_end: Date,
-    period_year_fraction: f64,
+    _period_year_fraction: f64,
     as_of: Date,
     calendar_id: &str,
+    currency: Currency,
 ) -> finstack_quant_core::Result<f64> {
     match financing.compounding {
         FinancingRateCompounding::TermRate => {
@@ -86,48 +93,46 @@ fn financing_period_rate(
             }
         }
         FinancingRateCompounding::OvernightCompounded => {
-            // The daily-compounding observation grid needs either a registered
-            // holiday calendar or `None` (weekday-only stepping). The
-            // weekends-only sentinel and an empty id both mean weekday-only,
-            // which the compounded helpers express as `None`.
-            let obs_calendar = match calendar_id {
-                "" => None,
-                id if id == crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID => None,
-                id => Some(id),
-            };
-
-            if period_start <= as_of {
-                // In-progress (or fully-accrued-but-unpaid) period: splice realized
-                // daily fixings with projected forwards.  A missing fixing is a hard
-                // error — consistent with `pv_floating_leg` / `swap_legs`.
-                super::swap_legs::compounded_spliced_projection(
-                    fwd,
-                    fixings,
-                    fwd.id().as_str(),
-                    period_start,
-                    period_end,
-                    as_of,
-                    period_year_fraction,
-                    0, // no observation lookback modelled for the TRS funding leg
-                    obs_calendar,
-                    None,
-                    None,
-                    false, // TRS funding leg always compounds geometrically
-                )
-            } else {
-                // Fully-future period: project entirely from the forward curve.
-                super::swap_legs::compounded_forward_projection(
-                    fwd,
-                    period_start,
-                    period_end,
-                    period_year_fraction,
-                    0, // no observation lookback modelled for the TRS funding leg
-                    obs_calendar,
-                    None,
-                    None,
-                    false, // TRS funding leg always compounds geometrically
-                )
+            let calendar: &dyn finstack_quant_core::dates::HolidayCalendar =
+                if calendar_id.is_empty() {
+                    super::overnight::resolve_overnight_fixing_calendar(
+                        None,
+                        currency,
+                        "TRS financing",
+                    )?
+                } else if calendar_id == crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID {
+                    &finstack_quant_core::dates::WEEKENDS_ONLY
+                } else {
+                    super::overnight::resolve_overnight_fixing_calendar(
+                        Some(calendar_id),
+                        currency,
+                        "TRS financing",
+                    )?
+                };
+            let compounding = FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 };
+            let (accrual_start, accrual_end) = adjust_overnight_accrual_boundaries(
+                period_start,
+                period_end,
+                BusinessDayConvention::ModifiedFollowing,
+                calendar,
+            )?;
+            if accrual_end <= accrual_start {
+                return Ok(0.0);
             }
+            Ok(project_overnight_coupon(OvernightCouponProjectionInput {
+                curve: OvernightProjectionCurve::Forward(fwd),
+                fixings,
+                fixing_id: financing.forward_curve_id.as_str(),
+                as_of,
+                accrual_start,
+                accrual_end,
+                day_count: financing.day_count,
+                coupon_frequency: None,
+                compounding: &compounding,
+                fixing_calendar: calendar,
+                compounded_spread: 0.0,
+            })?
+            .rate)
         }
     }
 }
@@ -388,6 +393,7 @@ impl TrsEngine {
                 yf,
                 as_of,
                 schedule.params.calendar_id.as_str(),
+                currency,
             )?;
             let total_rate = fwd_rate + spread_decimal;
             let payment = notional.amount() * total_rate * yf;
@@ -533,6 +539,7 @@ impl TrsEngine {
                 yf,
                 as_of,
                 schedule.params.calendar_id.as_str(),
+                notional.currency(),
             )?;
             let payment = notional.amount() * fwd_rate * yf;
 
@@ -1041,6 +1048,7 @@ mod tests {
             year_fraction,
             as_of,
             crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID,
+            Currency::USD,
         )
         .expect_err("started term period without fixing must fail");
         assert!(missing.to_string().contains("FIXING:USD-TERM-3M"));
@@ -1057,6 +1065,7 @@ mod tests {
             year_fraction,
             as_of,
             crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID,
+            Currency::USD,
         )
         .expect("exact reset fixing");
         assert!((observed - 0.041).abs() < 1e-14);
@@ -1070,6 +1079,7 @@ mod tests {
             year_fraction,
             as_of,
             crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID,
+            Currency::USD,
         )
         .expect("future term period projects");
         assert!(future.is_finite());
@@ -1142,6 +1152,67 @@ mod tests {
         assert!(
             (0.1..50.0).contains(&gap_bp),
             "OIS-vs-term convexity gap {gap_bp} bp is outside the expected range"
+        );
+    }
+
+    #[test]
+    fn overnight_compounded_matches_shared_overnight_engine() {
+        use crate::instruments::common_impl::pricing::overnight::{
+            project_overnight_coupon, OvernightCouponProjectionInput, OvernightProjectionCurve,
+        };
+        use crate::instruments::rates::irs::FloatingLegCompounding;
+        use finstack_quant_core::dates::calendar_by_id;
+
+        let start = date(2025, 1, 2);
+        let end = date(2025, 4, 2);
+        let fwd = ForwardCurve::builder("USD-SOFR-OIS", 1.0 / 365.0)
+            .base_date(start)
+            .day_count(DayCount::Act360)
+            .knots([(0.0, 0.04), (1.0, 0.04)])
+            .build()
+            .expect("forward");
+        let financing = FinancingLegSpec {
+            discount_curve_id: CurveId::new("USD-OIS"),
+            forward_curve_id: CurveId::new("USD-SOFR-OIS"),
+            spread_bp: Decimal::ZERO,
+            day_count: DayCount::Act360,
+            compounding: FinancingRateCompounding::OvernightCompounded,
+        };
+        let yf = DayCount::Act360
+            .year_fraction(start, end, DayCountContext::default())
+            .expect("yf");
+        let actual = financing_period_rate(
+            &financing,
+            &fwd,
+            None,
+            start,
+            end,
+            yf,
+            start,
+            "usny",
+            Currency::USD,
+        )
+        .expect("trs overnight");
+        let calendar = calendar_by_id("usny").expect("usny");
+        let compounding = FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 };
+        let expected = project_overnight_coupon(OvernightCouponProjectionInput {
+            curve: OvernightProjectionCurve::Forward(&fwd),
+            fixings: None,
+            fixing_id: "USD-SOFR-OIS",
+            as_of: start,
+            accrual_start: start,
+            accrual_end: end,
+            day_count: DayCount::Act360,
+            coupon_frequency: None,
+            compounding: &compounding,
+            fixing_calendar: calendar,
+            compounded_spread: 0.0,
+        })
+        .expect("shared engine");
+        assert!(
+            (actual - expected.rate).abs() < 1e-12,
+            "TRS overnight {actual} != shared engine {}",
+            expected.rate
         );
     }
 }

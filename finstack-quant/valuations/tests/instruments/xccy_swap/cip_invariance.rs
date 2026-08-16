@@ -103,6 +103,7 @@ fn build_swap(notional_exchange: NotionalExchange, spread_bp: Decimal) -> XccySw
         calendar_id: None,
         reset_lag_days: None,
         allow_calendar_fallback: true,
+        compounding: Default::default(),
     };
     let usd_leg = XccySwapLeg {
         currency: Currency::USD,
@@ -121,6 +122,7 @@ fn build_swap(notional_exchange: NotionalExchange, spread_bp: Decimal) -> XccySw
         calendar_id: None,
         reset_lag_days: None,
         allow_calendar_fallback: true,
+        compounding: Default::default(),
     };
 
     XccySwap::new("MTM-TEST", eur_leg, usd_leg, Currency::USD)

@@ -65,6 +65,18 @@
 //! # }
 //! ```
 //!
+//! LSTA par-trade marks use T+7:
+//!
+//! ```
+//! # use finstack_quant_valuations::instruments::fixed_income::term_loan::TermLoan;
+//! # fn example() -> finstack_quant_core::Result<()> {
+//! let mut loan = TermLoan::example()?;
+//! loan.settlement_days = 7;
+//! # let _ = loan;
+//! # Ok(())
+//! # }
+//! ```
+//!
 //! # See Also
 //!
 //! - [`super::types::TermLoan`] for the runtime instrument type

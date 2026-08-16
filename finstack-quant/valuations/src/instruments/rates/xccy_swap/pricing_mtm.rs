@@ -21,7 +21,6 @@
 use crate::cashflow::builder::periods::{build_periods, BuildPeriodsParams};
 use crate::instruments::common_impl::numeric::decimal_to_f64;
 use crate::instruments::common_impl::pricing::swap_legs::robust_relative_df;
-use crate::instruments::common_impl::pricing::time::rate_between_on_dates;
 use crate::instruments::rates::xccy_swap::types::{ResettingSide, XccySwap};
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::math::summation::NeumaierAccumulator;
@@ -229,17 +228,13 @@ pub(crate) fn pv_mtm_reset(
         if period.payment_date <= as_of {
             continue;
         }
-        let fixing_date = period.reset_date.unwrap_or(period.accrual_start);
-        let rate = if fixing_date < as_of {
-            finstack_quant_core::market_data::fixings::require_fixing_value_exact(
-                fixings_c,
-                constant_leg.forward_curve_id.as_str(),
-                fixing_date,
-                as_of,
-            )?
-        } else {
-            rate_between_on_dates(fwd_c.as_ref(), period.accrual_start, period.accrual_end)?
-        };
+        let rate = super::XccySwap::projected_leg_period_rate(
+            constant_leg,
+            fwd_c.as_ref(),
+            fixings_c,
+            period,
+            as_of,
+        )?;
         let df = robust_relative_df(disc_c.as_ref(), as_of, period.payment_date)?;
         let df = require_positive_df(df, &swap.id, "constant-leg", period.payment_date)?;
         let coupon = constant_leg.side.coupon_sign()
@@ -306,17 +301,13 @@ pub(crate) fn pv_mtm_reset(
 
         // Resetting-leg floating coupon on N_j^R (notional captured at this period's start,
         //    NOT n_r_prev which is the prior period's notional). Includes the basis spread.
-        let fixing_date_r = period.reset_date.unwrap_or(period.accrual_start);
-        let rate_r = if fixing_date_r < as_of {
-            finstack_quant_core::market_data::fixings::require_fixing_value_exact(
-                fixings_r,
-                resetting_leg.forward_curve_id.as_str(),
-                fixing_date_r,
-                as_of,
-            )?
-        } else {
-            rate_between_on_dates(fwd_r.as_ref(), period.accrual_start, period.accrual_end)?
-        };
+        let rate_r = super::XccySwap::projected_leg_period_rate(
+            resetting_leg,
+            fwd_r.as_ref(),
+            fixings_r,
+            period,
+            as_of,
+        )?;
         let spread_decimal =
             decimal_to_f64(resetting_leg.spread_bp, "XccySwap resetting leg spread_bp")? / 10_000.0;
         let coupon_r = resetting_leg.side.coupon_sign()
@@ -495,17 +486,13 @@ pub(crate) fn mtm_cashflow_schedule(
         if period.payment_date < as_of {
             continue;
         }
-        let fixing_date = period.reset_date.unwrap_or(period.accrual_start);
-        let rate = if fixing_date < as_of {
-            finstack_quant_core::market_data::fixings::require_fixing_value_exact(
-                fixings_c,
-                constant_leg.forward_curve_id.as_str(),
-                fixing_date,
-                as_of,
-            )?
-        } else {
-            rate_between_on_dates(fwd_c.as_ref(), period.accrual_start, period.accrual_end)?
-        };
+        let rate = super::XccySwap::projected_leg_period_rate(
+            constant_leg,
+            fwd_c.as_ref(),
+            fixings_c,
+            period,
+            as_of,
+        )?;
         let all_in = rate + spread_c;
         flows.push(CashFlow::new(
             period.payment_date,
@@ -552,23 +539,13 @@ pub(crate) fn mtm_cashflow_schedule(
 
         // Coupon at payment date on the period-start notional N_j^R.
         if period.payment_date >= as_of {
-            let fixing_date_r = period.reset_date.unwrap_or(period.accrual_start);
-            let rate_r = if fixing_date_r < as_of {
-                finstack_quant_core::market_data::fixings::require_fixing_value_exact(
-                    fixings_r,
-                    resetting_leg.forward_curve_id.as_str(),
-                    fixing_date_r,
-                    as_of,
-                )?
-            } else {
-                crate::instruments::common_impl::pricing::time::rate_between_on_dates(
-                    fwd_r.as_ref(),
-                    // Project over the accrual interval (index tenor), not from the
-                    // observation date — see the coupon-pricing note above.
-                    period.accrual_start,
-                    period.accrual_end,
-                )?
-            };
+            let rate_r = super::XccySwap::projected_leg_period_rate(
+                resetting_leg,
+                fwd_r.as_ref(),
+                fixings_r,
+                period,
+                as_of,
+            )?;
             let coupon_amount = resetting_leg.side.coupon_sign()
                 * n_r_j
                 * (rate_r + spread_decimal)

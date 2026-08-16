@@ -22,6 +22,9 @@
 //!
 //! # ISDA Conventions
 //!
+//! Single-name CDS valuation defaults to Bloomberg CDSW clean
+//! (`CdsValuationConvention::BloombergCdswClean`). ISDA dirty is opt-in.
+//!
 //! Post-Big Bang (2009) standardization:
 //! - Standard coupons: 100bp or 500bp running spread
 //! - IMM maturities: 20th of Mar/Jun/Sep/Dec

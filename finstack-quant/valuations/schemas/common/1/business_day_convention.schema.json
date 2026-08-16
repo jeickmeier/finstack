@@ -31,6 +31,11 @@
       "const": "modified_preceding",
       "description": "Preceding, unless that crosses into previous month, then following.\n\n**ISDA**: Section 4.12(e) - \"Modified Preceding Business Day Convention\"\n**FpML**: \"MODPRECEDING\"",
       "type": "string"
+    },
+    {
+      "const": "nearest",
+      "description": "Adjust to the closer business day. A tie (equal calendar-day distance)\nrolls Following, matching FpML `NEAREST` and QuantLib `Nearest`.\n\n**FpML**: \"NEAREST\"",
+      "type": "string"
     }
   ],
   "title": "Business Day Convention"

@@ -16,9 +16,10 @@ use rust_decimal::Decimal;
 
 use crate::impl_instrument_base;
 use crate::instruments::common_impl::numeric::decimal_to_f64;
+use crate::instruments::common_impl::pricing::overnight_conventions;
 use crate::instruments::common_impl::traits::Attributes;
 use crate::instruments::common_impl::validation;
-use crate::market::conventions::{ConventionRegistry, RateIndexConventions, RateIndexKind};
+use crate::market::conventions::ConventionRegistry;
 use finstack_quant_core::types::IndexId;
 use finstack_quant_margin::types::OtcMarginSpec;
 
@@ -238,7 +239,7 @@ impl InterestRateSwap {
         let idx = IndexId::new(index_id);
         let rate_conv = registry.require_rate_index(&idx)?;
 
-        let compounding = floating_compounding_from_conventions(rate_conv)?;
+        let compounding = overnight_conventions::compounding_from_conventions(rate_conv)?;
 
         let swap = Self::builder()
             .id(id)
@@ -280,29 +281,6 @@ impl InterestRateSwap {
 
         swap.validate()?;
         Ok(swap)
-    }
-}
-
-fn floating_compounding_from_conventions(
-    rate_conv: &RateIndexConventions,
-) -> finstack_quant_core::Result<FloatingLegCompounding> {
-    match rate_conv.kind {
-        RateIndexKind::Term => Ok(FloatingLegCompounding::Simple),
-        RateIndexKind::OvernightRfr => {
-            let compounding = rate_conv.ois_compounding.clone().ok_or_else(|| {
-                finstack_quant_core::Error::Validation(
-                    "Overnight RFR index conventions must specify `ois_compounding`".to_string(),
-                )
-            })?;
-
-            if matches!(compounding, FloatingLegCompounding::Simple) {
-                return Err(finstack_quant_core::Error::Validation(
-                    "OIS swap requires compounded-in-arrears floating compounding".to_string(),
-                ));
-            }
-
-            Ok(compounding)
-        }
     }
 }
 
@@ -441,9 +419,12 @@ impl InterestRateSwap {
                     .into(),
             ));
         }
-        if let crate::instruments::rates::irs::FloatingLegCompounding::CompoundedInArrears {
-            lookback_days,
-        } = self.float.compounding
+        overnight_conventions::reject_simple_overnight(
+            self.float.forward_curve_id.as_str(),
+            &self.float.compounding,
+        )?;
+        if let FloatingLegCompounding::CompoundedInArrears { lookback_days } =
+            self.float.compounding
         {
             if lookback_days < 0 {
                 return Err(finstack_quant_core::Error::Validation(
@@ -451,9 +432,8 @@ impl InterestRateSwap {
                 ));
             }
         }
-        if let crate::instruments::rates::irs::FloatingLegCompounding::CompoundedWithObservationShift {
-            shift_days,
-        } = self.float.compounding
+        if let FloatingLegCompounding::CompoundedWithObservationShift { shift_days } =
+            self.float.compounding
         {
             if shift_days < 0 {
                 return Err(finstack_quant_core::Error::Validation(
@@ -466,9 +446,8 @@ impl InterestRateSwap {
                 ));
             }
         }
-        if let crate::instruments::rates::irs::FloatingLegCompounding::CompoundedWithRateCutoff {
-            cutoff_days,
-        } = self.float.compounding
+        if let FloatingLegCompounding::CompoundedWithRateCutoff { cutoff_days } =
+            self.float.compounding
         {
             if cutoff_days < 0 {
                 return Err(finstack_quant_core::Error::Validation(
@@ -800,6 +779,20 @@ mod tests {
         assert!(
             !matches!(swap.float.compounding, FloatingLegCompounding::Simple),
             "overnight RFR swaps must not silently default to simple compounding"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_simple_compounding_on_overnight_index() {
+        let mut swap = InterestRateSwap::example_standard().expect("example swap");
+        swap.float.forward_curve_id = CurveId::new("USD-SOFR-OIS");
+        swap.float.compounding = FloatingLegCompounding::Simple;
+        let err = swap
+            .validate()
+            .expect_err("hand-built OIS with Simple must fail");
+        assert!(
+            format!("{err}").contains("Overnight RFR"),
+            "expected overnight/Simple rejection, got {err}"
         );
     }
 }

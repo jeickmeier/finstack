@@ -2538,6 +2538,7 @@ fn seasoned_first_period_default_timing_starts_at_valuation_date() {
     let effective_date = Date::from_calendar_date(2024, Month::December, 20).expect("date");
     let mut tranche = sample_tranche();
     tranche.effective_date = Some(effective_date);
+    tranche.standard_imm_dates = false;
     tranche.running_coupon_bp = 0.0;
 
     let pricer = CDSTranchePricer::new();

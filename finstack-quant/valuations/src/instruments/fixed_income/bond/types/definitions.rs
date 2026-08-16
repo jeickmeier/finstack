@@ -38,6 +38,10 @@ pub struct BondSettlementConvention {
 /// Supports call/put schedules, quoted prices for yield-to-maturity calculations,
 /// and custom cashflow schedule overrides. Uses a clean `CashflowSpec` that wraps
 /// the canonical builder coupon specs for maximum flexibility and parity.
+///
+/// [`crate::instruments::Instrument::value`] is the **dirty NPV at `as_of`**,
+/// not the market dirty quote at settlement. Quoted YTM, z-spread, and DM
+/// remain settlement-anchored.
 #[derive(
     Clone,
     Debug,

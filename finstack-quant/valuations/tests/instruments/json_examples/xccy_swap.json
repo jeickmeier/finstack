@@ -6,6 +6,7 @@
       "leg1": {
         "allow_calendar_fallback": true,
         "business_day_convention": "modified_following",
+        "compounding": "simple",
         "currency": "USD",
         "day_count": "act_360",
         "discount_curve_id": "USD-OIS",
@@ -28,6 +29,7 @@
       "leg2": {
         "allow_calendar_fallback": true,
         "business_day_convention": "modified_following",
+        "compounding": "simple",
         "currency": "EUR",
         "day_count": "act_360",
         "discount_curve_id": "EUR-OIS",

@@ -118,8 +118,8 @@
         },
         "vol_type": {
           "$ref": "#/$defs/CapFloorVolType",
-          "default": "lognormal",
-          "description": "Volatility type convention (lognormal/Black or normal/Bachelier).\n\n**Critical**: This must match the convention of your vol surface data.\nUsing lognormal vol with a normal surface (or vice versa) will produce\nincorrect prices.\n\n- `Lognormal` (default): Standard Black model, requires positive rates/strikes\n- `Normal`: Bachelier model, handles negative rates"
+          "default": "auto",
+          "description": "Volatility type convention (lognormal/Black or normal/Bachelier).\n\n**Critical**: This must match the convention of your vol surface data.\nUsing lognormal vol with a normal surface (or vice versa) will produce\nincorrect prices.\n\n- `Auto` (default): Black when forward and strike are positive, else Normal\n- `Lognormal`: Standard Black model, requires positive rates/strikes\n- `Normal`: Bachelier model, handles negative rates"
         }
       },
       "required": [
@@ -457,7 +457,7 @@
           "stub": "short_front",
           "vol_shift": 0.0,
           "vol_surface_id": "USD-CAPFLOOR-VOL",
-          "vol_type": "lognormal"
+          "vol_type": "auto"
         },
         "type": "cap_floor"
       },

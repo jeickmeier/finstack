@@ -349,6 +349,13 @@ pub struct BasisSwapLeg {
     /// fixing typically precedes the accrual period.
     #[serde(default)]
     pub reset_lag_days: i32,
+    /// Overnight vs term compounding for this floating leg.
+    ///
+    /// Defaults to [`FloatingLegCompounding::Simple`] so tenor-basis swaps
+    /// (3s1s, EURIBOR 6s3s) keep term projection. Set a compounded variant
+    /// for an overnight RFR leg such as SOFR OIS or €STR.
+    #[serde(default)]
+    pub compounding: crate::instruments::rates::irs::FloatingLegCompounding,
 }
 
 /// Specification for CDS premium legs
@@ -506,20 +513,39 @@ pub struct FinancingLegSpec {
 impl FinancingLegSpec {
     /// Create a new financing leg specification.
     ///
-    /// The compounding convention defaults to [`FinancingRateCompounding::TermRate`];
-    /// use [`FinancingLegSpec::with_compounding`] to select OIS compounding.
+    /// The compounding convention defaults to [`FinancingRateCompounding::TermRate`]
+    /// for term indices and unknown ids. A registered overnight RFR forward id
+    /// (for example `USD-SOFR-OIS`) is upgraded to
+    /// [`FinancingRateCompounding::OvernightCompounded`]. Use
+    /// [`FinancingLegSpec::with_compounding`] to override.
+    ///
+    /// # Arguments
+    ///
+    /// * `discount_curve_id` - Discount curve used to PV financing coupons.
+    /// * `forward_curve_id` - Term or overnight financing index / forward curve.
+    /// * `spread_bp` - Contractual financing spread in basis points.
+    /// * `day_count` - Accrual day-count for the financing coupon.
     pub fn new(
         discount_curve_id: impl Into<String>,
         forward_curve_id: impl Into<String>,
         spread_bp: Decimal,
         day_count: DayCount,
     ) -> Self {
+        let forward_curve_id = CurveId::new(forward_curve_id);
+        let compounding = match crate::instruments::common_impl::pricing::overnight_conventions::compounding_from_index_id(
+            forward_curve_id.as_str(),
+        ) {
+            Ok(Some(crate::instruments::rates::irs::FloatingLegCompounding::Simple))
+            | Ok(None)
+            | Err(_) => FinancingRateCompounding::TermRate,
+            Ok(Some(_)) => FinancingRateCompounding::OvernightCompounded,
+        };
         Self {
             discount_curve_id: CurveId::new(discount_curve_id),
-            forward_curve_id: CurveId::new(forward_curve_id),
+            forward_curve_id,
             spread_bp,
             day_count,
-            compounding: FinancingRateCompounding::TermRate,
+            compounding,
         }
     }
 
@@ -548,6 +574,12 @@ impl FinancingLegSpec {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "{context} requires a non-empty financing forward_curve_id"
             )));
+        }
+        if matches!(self.compounding, FinancingRateCompounding::TermRate) {
+            crate::instruments::common_impl::pricing::overnight_conventions::reject_simple_overnight(
+                self.forward_curve_id.as_str(),
+                &crate::instruments::rates::irs::FloatingLegCompounding::Simple,
+            )?;
         }
         Ok(())
     }
@@ -646,5 +678,34 @@ mod tests {
 
         assert!(float_leg(end, start).validate().is_err());
         assert!(float_leg(start, end).validate().is_ok());
+    }
+
+    #[test]
+    fn financing_new_upgrades_overnight_index() {
+        let ois = FinancingLegSpec::new("USD-OIS", "USD-SOFR-OIS", Decimal::ZERO, DayCount::Act360);
+        assert_eq!(
+            ois.compounding,
+            FinancingRateCompounding::OvernightCompounded
+        );
+        let term = FinancingLegSpec::new("USD-OIS", "USD-SOFR-3M", Decimal::ZERO, DayCount::Act360);
+        assert_eq!(term.compounding, FinancingRateCompounding::TermRate);
+    }
+
+    #[test]
+    fn financing_validate_rejects_term_rate_on_overnight_index() {
+        let spec = FinancingLegSpec {
+            discount_curve_id: CurveId::new("USD-OIS"),
+            forward_curve_id: CurveId::new("USD-SOFR-OIS"),
+            spread_bp: Decimal::ZERO,
+            day_count: DayCount::Act360,
+            compounding: FinancingRateCompounding::TermRate,
+        };
+        let err = spec
+            .validate("TRS")
+            .expect_err("TermRate on USD-SOFR-OIS must fail");
+        assert!(
+            format!("{err}").contains("Overnight RFR"),
+            "expected overnight/TermRate rejection, got {err}"
+        );
     }
 }

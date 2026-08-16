@@ -19,7 +19,8 @@ use serde::{Deserialize, Serialize};
 /// |------------|-----------|-----------|------------|--------|
 /// | US Treasury | ACT/ACT ICMA | Semi-annual | T+1 | Treasury Direct |
 /// | US Agency | 30/360 | Semi-annual | T+1 | SIFMA |
-/// | US Corporate | 30/360 | Semi-annual | T+2 | SIFMA |
+/// | US Corporate | 30/360 | Semi-annual | T+1 | SIFMA (May 2024) |
+/// | EUR Corporate | ACT/ACT ICMA | Annual | T+2 | ICMA / TARGET2 |
 /// | German Bund | ACT/ACT ICMA | Annual | T+2 | Eurex |
 /// | UK Gilt | ACT/ACT ICMA | Semi-annual | T+1 | DMO |
 /// | French OAT | ACT/ACT ICMA | Annual | T+2 | AFT |
@@ -44,8 +45,10 @@ pub enum BondConvention {
     /// transactions settle T+2 (BOJ). This variant uses T+2 as the safer
     /// default for international participants.
     Jgb,
-    /// Standard US corporate: Semi-annual, 30/360, T+2 settlement
-    Corporate,
+    /// US corporate cash: Semi-annual, 30/360, T+1 settlement (SIFMA May 2024).
+    UsCorporate,
+    /// EUR corporate: Annual, ACT/ACT ICMA, T+2 settlement, TARGET2.
+    EurCorporate,
 }
 
 impl BondConvention {
@@ -61,8 +64,9 @@ impl BondConvention {
             BondConvention::UsTreasury
             | BondConvention::GermanBund
             | BondConvention::UkGilt
-            | BondConvention::FrenchOat => DayCount::ActActIsma,
-            BondConvention::UsAgency | BondConvention::Corporate => DayCount::Thirty360,
+            | BondConvention::FrenchOat
+            | BondConvention::EurCorporate => DayCount::ActActIsma,
+            BondConvention::UsAgency | BondConvention::UsCorporate => DayCount::Thirty360,
             BondConvention::Jgb => DayCount::Act365F,
         }
     }
@@ -71,16 +75,18 @@ impl BondConvention {
     ///
     /// # Market Standards
     ///
-    /// - **Semi-annual**: US Treasury, US Agency, UK Gilt, Corporate, JGB
-    /// - **Annual**: German Bund, French OAT
+    /// - **Semi-annual**: US Treasury, US Agency, UK Gilt, US Corporate, JGB
+    /// - **Annual**: German Bund, French OAT, EUR Corporate
     pub fn frequency(&self) -> Tenor {
         match self {
             BondConvention::UsTreasury
             | BondConvention::UsAgency
             | BondConvention::UkGilt
-            | BondConvention::Corporate
+            | BondConvention::UsCorporate
             | BondConvention::Jgb => Tenor::semi_annual(),
-            BondConvention::GermanBund | BondConvention::FrenchOat => Tenor::annual(),
+            BondConvention::GermanBund
+            | BondConvention::FrenchOat
+            | BondConvention::EurCorporate => Tenor::annual(),
         }
     }
 
@@ -99,9 +105,9 @@ impl BondConvention {
             | BondConvention::FrenchOat
             | BondConvention::Jgb => BusinessDayConvention::Following,
             // Corporate and Agency use Modified Following
-            BondConvention::UsAgency | BondConvention::Corporate => {
-                BusinessDayConvention::ModifiedFollowing
-            }
+            BondConvention::UsAgency
+            | BondConvention::UsCorporate
+            | BondConvention::EurCorporate => BusinessDayConvention::ModifiedFollowing,
         }
     }
 
@@ -120,15 +126,19 @@ impl BondConvention {
     /// |--------|------------|--------|
     /// | US Treasury | T+1 | Treasury Direct |
     /// | US Agency | T+1 | SIFMA |
-    /// | US Corporate | T+2 | SIFMA |
+    /// | US Corporate | T+1 | SIFMA (May 2024) |
+    /// | EUR Corporate | T+2 | ICMA / TARGET2 |
     /// | German Bund | T+2 | Eurex |
     /// | UK Gilt | T+1 | DMO |
     /// | French OAT | T+2 | AFT |
     /// | JGB | T+2 | JSCC (cross-border; domestic is T+1 since May 2018) |
     pub fn settlement_days(&self) -> u32 {
         match self {
-            BondConvention::UsTreasury | BondConvention::UsAgency | BondConvention::UkGilt => 1,
-            BondConvention::Corporate
+            BondConvention::UsTreasury
+            | BondConvention::UsAgency
+            | BondConvention::UkGilt
+            | BondConvention::UsCorporate => 1,
+            BondConvention::EurCorporate
             | BondConvention::GermanBund
             | BondConvention::FrenchOat
             | BondConvention::Jgb => 2,
@@ -154,7 +164,8 @@ impl BondConvention {
     pub fn default_disc_curve(&self) -> &'static str {
         match self {
             BondConvention::UsTreasury => "USD-TREASURY",
-            BondConvention::UsAgency | BondConvention::Corporate => "USD-OIS",
+            BondConvention::UsAgency | BondConvention::UsCorporate => "USD-OIS",
+            BondConvention::EurCorporate => "EUR-OIS",
             BondConvention::GermanBund | BondConvention::FrenchOat => "EUR-BUND",
             BondConvention::UkGilt => "GBP-GILT",
             BondConvention::Jgb => "JPY-JGB",
@@ -170,8 +181,10 @@ impl BondConvention {
             // early closes and holidays specific to the US fixed-income market.
             BondConvention::UsTreasury | BondConvention::UsAgency => Some("sifma"),
             // Corporate bonds use the standard NYC business-day calendar.
-            BondConvention::Corporate => Some("usny"),
-            BondConvention::GermanBund | BondConvention::FrenchOat => Some("target2"),
+            BondConvention::UsCorporate => Some("usny"),
+            BondConvention::EurCorporate
+            | BondConvention::GermanBund
+            | BondConvention::FrenchOat => Some("target2"),
             BondConvention::UkGilt => Some("gblo"),
             BondConvention::Jgb => Some("jpto"),
         }
@@ -187,7 +200,8 @@ impl std::fmt::Display for BondConvention {
             BondConvention::UkGilt => write!(f, "uk_gilt"),
             BondConvention::FrenchOat => write!(f, "french_oat"),
             BondConvention::Jgb => write!(f, "jgb"),
-            BondConvention::Corporate => write!(f, "corporate"),
+            BondConvention::UsCorporate => write!(f, "us_corporate"),
+            BondConvention::EurCorporate => write!(f, "eur_corporate"),
         }
     }
 }
@@ -203,7 +217,8 @@ impl std::str::FromStr for BondConvention {
             "uk_gilt" => Ok(BondConvention::UkGilt),
             "french_oat" => Ok(BondConvention::FrenchOat),
             "jgb" => Ok(BondConvention::Jgb),
-            "corporate" => Ok(BondConvention::Corporate),
+            "us_corporate" => Ok(BondConvention::UsCorporate),
+            "eur_corporate" => Ok(BondConvention::EurCorporate),
             _ => Err(format!("Unknown bond convention: {s}")),
         }
     }
@@ -752,7 +767,11 @@ mod tests {
 
         // 30/360 for US agency and corporate
         assert_eq!(BondConvention::UsAgency.day_count(), DayCount::Thirty360);
-        assert_eq!(BondConvention::Corporate.day_count(), DayCount::Thirty360);
+        assert_eq!(BondConvention::UsCorporate.day_count(), DayCount::Thirty360);
+        assert_eq!(
+            BondConvention::EurCorporate.day_count(),
+            DayCount::ActActIsma
+        );
 
         // ACT/365F for JGB
         assert_eq!(BondConvention::Jgb.day_count(), DayCount::Act365F);
@@ -764,7 +783,11 @@ mod tests {
         assert_eq!(BondConvention::UsTreasury.frequency(), Tenor::semi_annual());
         assert_eq!(BondConvention::UsAgency.frequency(), Tenor::semi_annual());
         assert_eq!(BondConvention::UkGilt.frequency(), Tenor::semi_annual());
-        assert_eq!(BondConvention::Corporate.frequency(), Tenor::semi_annual());
+        assert_eq!(
+            BondConvention::UsCorporate.frequency(),
+            Tenor::semi_annual()
+        );
+        assert_eq!(BondConvention::EurCorporate.frequency(), Tenor::annual());
         assert_eq!(BondConvention::Jgb.frequency(), Tenor::semi_annual());
 
         assert_eq!(BondConvention::GermanBund.frequency(), Tenor::annual());
@@ -779,7 +802,8 @@ mod tests {
         assert_eq!(BondConvention::UkGilt.settlement_days(), 1);
 
         // T+2 markets
-        assert_eq!(BondConvention::Corporate.settlement_days(), 2);
+        assert_eq!(BondConvention::UsCorporate.settlement_days(), 1);
+        assert_eq!(BondConvention::EurCorporate.settlement_days(), 2);
         assert_eq!(BondConvention::GermanBund.settlement_days(), 2);
         assert_eq!(BondConvention::FrenchOat.settlement_days(), 2);
 
@@ -795,7 +819,8 @@ mod tests {
         // Others have no ex-coupon convention
         assert_eq!(BondConvention::UsTreasury.ex_coupon_days(), None);
         assert_eq!(BondConvention::UsAgency.ex_coupon_days(), None);
-        assert_eq!(BondConvention::Corporate.ex_coupon_days(), None);
+        assert_eq!(BondConvention::UsCorporate.ex_coupon_days(), None);
+        assert_eq!(BondConvention::EurCorporate.ex_coupon_days(), None);
         assert_eq!(BondConvention::GermanBund.ex_coupon_days(), None);
         assert_eq!(BondConvention::FrenchOat.ex_coupon_days(), None);
         assert_eq!(BondConvention::Jgb.ex_coupon_days(), None);
@@ -805,7 +830,8 @@ mod tests {
     fn bond_convention_calendar_ids() {
         assert_eq!(BondConvention::UsTreasury.calendar_id(), Some("sifma"));
         assert_eq!(BondConvention::UsAgency.calendar_id(), Some("sifma"));
-        assert_eq!(BondConvention::Corporate.calendar_id(), Some("usny"));
+        assert_eq!(BondConvention::UsCorporate.calendar_id(), Some("usny"));
+        assert_eq!(BondConvention::EurCorporate.calendar_id(), Some("target2"));
         assert_eq!(BondConvention::GermanBund.calendar_id(), Some("target2"));
         assert_eq!(BondConvention::FrenchOat.calendar_id(), Some("target2"));
         assert_eq!(BondConvention::UkGilt.calendar_id(), Some("gblo"));
@@ -827,6 +853,15 @@ mod tests {
             "jgb".parse::<BondConvention>().unwrap(),
             BondConvention::Jgb
         );
+        assert_eq!(
+            "us_corporate".parse::<BondConvention>().unwrap(),
+            BondConvention::UsCorporate
+        );
+        assert_eq!(
+            "eur_corporate".parse::<BondConvention>().unwrap(),
+            BondConvention::EurCorporate
+        );
+        assert!("corporate".parse::<BondConvention>().is_err());
 
         for retired in ["ust", "agency", "fnma", "japanese", "bund", "gilt"] {
             assert!(retired.parse::<BondConvention>().is_err());
@@ -841,7 +876,8 @@ mod tests {
         assert_eq!(format!("{}", BondConvention::GermanBund), "german_bund");
         assert_eq!(format!("{}", BondConvention::UkGilt), "uk_gilt");
         assert_eq!(format!("{}", BondConvention::FrenchOat), "french_oat");
-        assert_eq!(format!("{}", BondConvention::Corporate), "corporate");
+        assert_eq!(format!("{}", BondConvention::UsCorporate), "us_corporate");
+        assert_eq!(format!("{}", BondConvention::EurCorporate), "eur_corporate");
     }
 
     // Commodity Convention Tests

@@ -866,6 +866,10 @@ impl RevolvingCredit {
                     })?;
                 }
                 let _ = crate::cashflow::builder::FloatingRateParams::try_from(spec)?;
+                let _ = crate::instruments::common_impl::pricing::overnight_conventions::resolved_overnight_compounding(
+                    spec.index_id.as_str(),
+                    spec.overnight_compounding.as_ref(),
+                )?;
             }
         }
 

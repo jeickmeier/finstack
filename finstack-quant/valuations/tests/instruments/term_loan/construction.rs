@@ -228,3 +228,31 @@ fn test_pik_coupon_type() {
     let loan = loan.unwrap();
     assert!(matches!(loan.coupon_type, CouponType::Pik));
 }
+
+#[test]
+fn lsta_par_trade_sets_settlement_days_to_seven() {
+    let loan = TermLoan::builder()
+        .id("TL-LSTA-T7".into())
+        .currency(Currency::USD)
+        .notional_limit(Money::new(10_000_000.0, Currency::USD))
+        .issue_date(date!(2025 - 01 - 01))
+        .maturity(date!(2030 - 01 - 01))
+        .rate(RateSpec::Fixed { rate_bp: 500 })
+        .frequency(Tenor::quarterly())
+        .day_count(DayCount::Act360)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
+        .calendar_id_opt(None)
+        .stub(StubKind::None)
+        .discount_curve_id(CurveId::from("USD-OIS"))
+        .amortization(AmortizationSpec::None)
+        .coupon_type(CouponType::Cash)
+        .upfront_fee_opt(None)
+        .ddtl_opt(None)
+        .covenants_opt(None)
+        .settlement_days(7)
+        .attributes(Default::default())
+        .build()
+        .expect("LSTA T+7 loan should build");
+
+    assert_eq!(loan.settlement_days, 7);
+}

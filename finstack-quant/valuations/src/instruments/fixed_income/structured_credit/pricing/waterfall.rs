@@ -209,6 +209,7 @@ fn execute_waterfall_core(
         senior_fees,
         context.restricted_cash,
         context.floating_rate_shift,
+        context.deferred_interest,
     )?;
 
     // Coverage tests share senior balances, so one paydown de-leverages every
@@ -1119,6 +1120,7 @@ fn evaluate_coverage_tests(
     senior_fees: Money,
     restricted_cash: Money,
     floating_rate_shift: f64,
+    deferred_interest: Option<&HashMap<String, Money>>,
 ) -> Result<Vec<CoverageTestResult>> {
     let mut results = Vec::with_capacity(waterfall.coverage_triggers.len() * 2);
 
@@ -1162,6 +1164,7 @@ fn evaluate_coverage_tests(
                 restricted_cash,
                 interest_claim_caps: &claim_caps,
                 floating_rate_shift,
+                deferred_interest,
             };
 
             let oc_test = CoverageTest::new_oc(oc_trigger_level);
@@ -1194,6 +1197,7 @@ fn evaluate_coverage_tests(
                 restricted_cash,
                 interest_claim_caps: &claim_caps,
                 floating_rate_shift,
+                deferred_interest,
             };
 
             let ic_test = CoverageTest::new_ic(ic_trigger_level);

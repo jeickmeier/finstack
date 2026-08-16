@@ -61,6 +61,7 @@ fn context_for_tranche<'a>(
         restricted_cash: Money::new(0.0, Currency::USD),
         interest_claim_caps: &UNCAPPED_CLAIMS,
         floating_rate_shift: 0.0,
+        deferred_interest: None,
     }
 }
 

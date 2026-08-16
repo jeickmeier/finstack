@@ -462,3 +462,79 @@ fn receive_vs_pay_legs_have_opposite_signs() {
         pv_receive + pv_pay
     );
 }
+
+#[test]
+fn estr_overnight_versus_euribor_float_leg_prices() {
+    use finstack_quant_core::market_data::term_structures::ForwardCurve;
+    use finstack_quant_core::math::interp::InterpStyle;
+    use finstack_quant_valuations::instruments::rates::irs::FloatingLegCompounding;
+
+    let base = d(2025, 1, 2);
+    let maturity = d(2026, 1, 2);
+    let mut eur = leg_eur_pay(base, maturity);
+    eur.forward_curve_id = finstack_quant_core::types::CurveId::new("EUR-ESTR-OIS");
+    eur.compounding = FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 };
+    let swap = XccySwap::new(
+        "XCCY-ESTR",
+        leg_usd_receive(base, maturity),
+        eur,
+        Currency::USD,
+    );
+
+    let estr = ForwardCurve::builder("EUR-ESTR-OIS", 1.0 / 365.0)
+        .base_date(base)
+        .knots(vec![(0.0, 0.015), (2.0, 0.015)])
+        .interp(InterpStyle::Linear)
+        .build()
+        .unwrap();
+    let market = market_with_fx().insert(estr);
+    let pv = swap.value(&market, base).expect("estr xccy pv");
+    assert_eq!(pv.currency(), Currency::USD);
+    assert!(pv.amount().is_finite());
+}
+
+#[test]
+fn mtm_reset_still_emits_notional_rebals_with_overnight_leg() {
+    use finstack_quant_cashflows::CashflowProvider;
+    use finstack_quant_core::market_data::term_structures::ForwardCurve;
+    use finstack_quant_core::math::interp::InterpStyle;
+    use finstack_quant_valuations::instruments::rates::irs::FloatingLegCompounding;
+    use finstack_quant_valuations::instruments::rates::xccy_swap::ResettingSide;
+
+    let base = d(2025, 1, 2);
+    let maturity = d(2027, 1, 2);
+    let mut eur = leg_eur_pay(base, maturity);
+    eur.forward_curve_id = finstack_quant_core::types::CurveId::new("EUR-ESTR-OIS");
+    eur.compounding = FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 };
+    let swap = XccySwap::new(
+        "XCCY-ESTR-MTM",
+        leg_usd_receive(base, maturity),
+        eur,
+        Currency::USD,
+    )
+    .with_notional_exchange(NotionalExchange::MtmResetting {
+        resetting_side: ResettingSide::Leg2,
+    });
+
+    let estr = ForwardCurve::builder("EUR-ESTR-OIS", 1.0 / 365.0)
+        .base_date(base)
+        .knots(vec![(0.0, 0.015), (2.0, 0.015)])
+        .interp(InterpStyle::Linear)
+        .build()
+        .unwrap();
+    let market = market_with_fx().insert(estr);
+    let pv = swap.value(&market, base).expect("mtm overnight pv");
+    assert!(pv.amount().is_finite());
+    let schedule = swap
+        .cashflow_schedule(&market, base)
+        .expect("mtm overnight schedule");
+    let notional_flows = schedule
+        .get_flows()
+        .iter()
+        .filter(|cf| cf.kind == finstack_quant_cashflows::primitives::CFKind::Notional)
+        .count();
+    assert!(
+        notional_flows > 2,
+        "MtM overnight swap should still emit rebalancing notionals, got {notional_flows}"
+    );
+}

@@ -62,7 +62,6 @@ pub enum CapFloorVolType {
     ///
     /// Standard market convention. Volatility is typically quoted as a
     /// decimal (e.g., 0.20 for 20% vol).
-    #[default]
     Lognormal,
 
     /// Shifted lognormal (displaced diffusion / shifted Black).
@@ -90,6 +89,7 @@ pub enum CapFloorVolType {
     ///
     /// **Recommended default for production use** — safely handles mixed
     /// positive/negative rate environments without manual intervention.
+    #[default]
     Auto,
 }
 
@@ -299,7 +299,8 @@ pub struct CapFloor {
     /// Using lognormal vol with a normal surface (or vice versa) will produce
     /// incorrect prices.
     ///
-    /// - `Lognormal` (default): Standard Black model, requires positive rates/strikes
+    /// - `Auto` (default): Black when forward and strike are positive, else Normal
+    /// - `Lognormal`: Standard Black model, requires positive rates/strikes
     /// - `Normal`: Bachelier model, handles negative rates
     #[serde(default)]
     pub vol_type: CapFloorVolType,
@@ -354,7 +355,7 @@ impl CapFloor {
     /// Create a canonical example USD 5Y 3% interest rate cap ($10M notional, quarterly SOFR).
     ///
     /// Returns a 5-year cap with quarterly payment frequency, ACT/360 day count,
-    /// lognormal vol convention, and standard schedule conventions.
+    /// automatic vol-type selection, and standard schedule conventions.
     pub fn example() -> finstack_quant_core::Result<Self> {
         use finstack_quant_core::currency::Currency;
         use time::Month;

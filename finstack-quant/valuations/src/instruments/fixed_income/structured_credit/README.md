@@ -188,6 +188,19 @@ balances, deferred interest, reserve and restricted cash, recovery proceeds and
 an OAS floating-rate shift. `execute_waterfall_with_explanation` returns the
 same distribution with a trace.
 
+`Waterfall::standard_sequential` is deal-type aware: CLO/CBO deals split
+interest so an OC/IC fail can trap junior coupon; ABS/RMBS/CMBS keep a
+single non-divertible interest tier and turbo only residual cash.
+
+Non-PIK deferred interest is a carried claim paid from later interest
+collections. It does not compound. Interest coverage uses the same
+denominator as the waterfall claim (current coupon plus those arrears).
+
+Shifting-interest blends scheduled (pro-rata) and unscheduled (lock-out
+schedule) principal by the period's unscheduled fraction; that blend is
+equivalent to a two-bucket split when juniors share the remainder
+pro-rata.
+
 Declarative rules (`WaterfallRules`: available-funds cap, step-down triggers,
 shifting interest) are layered onto the base waterfall by `resolve_waterfall`,
 which is the identity when no rules are configured.

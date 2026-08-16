@@ -25,7 +25,7 @@
       "running_coupon_bp": 100.0,
       "series": 42,
       "side": "buy_protection",
-      "standard_imm_dates": false,
+      "standard_imm_dates": true,
       "upfront": null
     },
     "type": "cds_tranche"

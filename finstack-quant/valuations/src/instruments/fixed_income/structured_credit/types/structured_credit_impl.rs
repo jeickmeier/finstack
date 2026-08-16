@@ -209,8 +209,9 @@ impl StructuredCredit {
     ///
     /// Each trigger names a tranche and the OC and/or IC ratio that must be
     /// maintained for it. When a test fails during simulation, the cure amount
-    /// is diverted from the divertible (equity/residual) tier to redeem senior
-    /// notes — the central structural protection in a CLO.
+    /// is diverted from divertible tiers to redeem senior notes. CLO/CBO
+    /// templates also trap junior coupon; ABS/RMBS/CMBS keep coupons payable
+    /// and turbo only residual cash.
     ///
     /// # Arguments
     ///
@@ -319,6 +320,7 @@ impl StructuredCredit {
             Some(custom) => custom.clone(),
             // Senior transaction fees, paid ahead of every note.
             None => Waterfall::standard_sequential(
+                self.deal_type,
                 self.pool.base_currency(),
                 &self.tranches,
                 self.fee_recipients(),
