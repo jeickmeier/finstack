@@ -59,9 +59,9 @@ def test_vanilla_expiry_payoff_matches_intrinsic() -> None:
     assert vanilla_expiry_payoff(110.0, 100.0, True) == 10.0
     assert vanilla_expiry_payoff(90.0, 100.0, False) == 10.0
     assert vanilla_expiry_payoff(90.0, 100.0, True) == 0.0
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="strike must be finite and positive"):
         vanilla_expiry_payoff(100.0, 0.0, True)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="spot must be finite and non-negative"):
         vanilla_expiry_payoff(-1.0, 100.0, True)
     assert vanilla_expiry_payoff(0.0, 100.0, False) == 100.0
 

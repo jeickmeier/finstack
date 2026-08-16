@@ -958,14 +958,14 @@ class TestAggregation:
     def test_calendar_year_ladder_rejects_non_finite_amount_and_pv(self) -> None:
         from finstack_quant.cashflows.aggregation import calendar_year_ladder
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="amount must be finite"):
             calendar_year_ladder(
                 [dt.date(2027, 3, 15)],
                 ["coupon"],
                 [float("nan")],
                 [90.0],
             )
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="pv must be finite"):
             calendar_year_ladder(
                 [dt.date(2027, 3, 15)],
                 ["coupon"],
