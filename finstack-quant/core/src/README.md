@@ -76,6 +76,7 @@ call site that remains lives under `dates/` (in `imm.rs`, `calendar/algo.rs` and
 | `wire.rs` | Newtype wrappers whose storage form cannot describe its own JSON contract to `schemars`: `SchemaVersion`, `DateWire`, `DecimalWire`, `PositiveF64Wire`, `NonNegativeF64Wire`, `ClosedUnitIntervalF64Wire`, `OpenUnitIntervalF64Wire`, `CorrelationWire`, `PercentageQuantityWire` | Reach for one of these before hand-writing `#[schemars(with = ...)]` on a field |
 
 <a name="math"></a>
+
 ## `math/` (~26.9k LOC)
 
 ### Placement policy
@@ -125,6 +126,7 @@ geometric-Asian, the initial-guess approximations, and `implied_vol_black` /
 and `svi` are `pub mod` and reached by their own path.
 
 <a name="market_data"></a>
+
 ## `market_data/` (~28.7k LOC)
 
 | Path | Role | Visibility |
@@ -145,6 +147,7 @@ and `svi` are `pub mod` and reached by their own path.
 | `dtsm/` | `diebold_li.rs`, `pca.rs`, `types.rs` | All three `pub mod` |
 
 <a name="dates"></a>
+
 ## `dates/` (~11.7k LOC)
 
 `dates/mod.rs` is a facade: it re-exports the `time` crate types (`Date`,
@@ -165,6 +168,7 @@ them, and pulls almost every child module's surface up to `dates::`.
 | `fx.rs` | Joint two-calendar FX settlement: `resolve_calendar`, `adjust_joint_calendar`, `add_joint_business_days`, `fx_spot_date`, `ResolvedCalendarPair` | **`pub mod fx`** — one of only two public child modules under `dates`. Consumed by `finstack-quant-valuations`' FX instruments |
 
 <a name="credit"></a>
+
 ## `credit/` (~8.9k LOC)
 
 All seven children are `pub mod`, so every path here is public API.
@@ -183,6 +187,7 @@ All seven children are `pub mod`, so every path here is public API.
 separate `tests.rs` file rather than an inline `mod tests` block.
 
 <a name="generated-code"></a>
+
 ## Generated code
 
 `src/generated/` is **not a Rust module** — it holds four committed files pulled
