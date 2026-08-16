@@ -1,119 +1,84 @@
-# Finstack Quant Core Benchmarks
+# finstack-quant-core benchmarks
 
-Criterion benchmark suites for `finstack-quant-core`.
+Criterion suites for `finstack-quant-core`. The benchmark sources are the ground
+truth; this file says what each suite measures and how to run it. It carries no
+latency, allocation, or "target met" numbers — those belong in current Criterion
+output, not in a document that cannot be re-run.
 
-The benchmark sources are the ground truth. This README explains what is
-measured and how to run the suites. It intentionally avoids hard latency,
-allocation, or "all targets met" claims unless you have current benchmark
-results to back them up. The suite is manifest-driven (`autobenches = false`) so
-new files do not expand benchmark runtime unless they are deliberately added to
-`Cargo.toml`.
+The crate sets `autobenches = false`, so a new file under `benches/` does nothing
+until it is added as a `[[bench]]` target in `Cargo.toml`. That is deliberate: it
+keeps benchmark runtime an explicit decision.
 
-## Running Benchmarks
+## Suites
+
+Eleven targets are registered. Each is `harness = false` (Criterion owns `main`).
+
+| Target | Measures |
+|--------|----------|
+| `daycount_operations` | Year fractions across day-count conventions; the `ActActIsma` and `Bus252` paths that need a `DayCountContext`; batch date-period calculation. |
+| `interpolation` | Linear, log-linear, cubic Hermite, monotone convex, and piecewise-quadratic-forward interpolation; per-strategy comparison; extrapolation. |
+| `curve_operations` | `DiscountCurve` `df`/`zero`/`forward` lookups, `ForwardCurve` rates, `HazardCurve` survival, interpolation-style comparison, and curve construction. |
+| `rolling` | `CompiledExpr::eval` for `RollingMean`, `RollingStd`, and `RollingMedian` over a 500-row column with a 10-row window. This exercises the expression engine, not a standalone rolling API. |
+| `solver_operations` | Newton with finite differences vs an analytic derivative; Brent; IRR and XIRR (including day-count variants); `LevenbergMarquardtSolver` on a global-fit problem. |
+| `rate_conversions` | Simple / periodic / continuous compounding conversions, round trips, a fixed 100-rate batch conversion, market-convention scenarios, and negative rates. |
+| `cashflow_operations` | Curve-based `npv` with `Money` flows on flat and shaped curves, scalar `npv_amounts`, `Discountable` trait dispatch, and bond/swap flow profiles. Each group runs one fixed flow count; no group sweeps size. |
+| `schedule_generation` | `ScheduleBuilder` across frequencies, stub conventions, tenors, and EOM handling; IMM and CDS-IMM generation; business-day adjustment; schedule iteration. |
+| `expr_eval` | Steady-state `CompiledExpr::eval` cost over a multi-node DAG with many rows — the pooled-arena, node-id-indexed path that statements hits once per period. |
+| `migration_matrix` | `MigrationSimulator::simulate` and `empirical_matrix` per-path cost (the `Arc<RatingScale>` sharing path), which dominates rating-migration VaR/CVA runs. |
+| `context_bump` | `MarketContext::bump` cost as a function of context size — the finite-difference greeks hot path, where each factor costs two full context copies. |
+
+`benches/support/bench_utils.rs` holds `bench_iter` and `bench_with_criterion`,
+pulled in via `#[path = "support/bench_utils.rs"] mod bench_utils;`. It is a
+helper module, not a bench target.
+
+## Running
 
 ```bash
-# Run all core benchmarks
+# All core suites
 cargo bench --package finstack-quant-core
 
-# Run selected suites
-cargo bench --package finstack-quant-core --bench daycount_operations
-cargo bench --package finstack-quant-core --bench interpolation
+# One suite
 cargo bench --package finstack-quant-core --bench curve_operations
-cargo bench --package finstack-quant-core --bench rolling
-cargo bench --package finstack-quant-core --bench solver_operations
-cargo bench --package finstack-quant-core --bench rate_conversions
-cargo bench --package finstack-quant-core --bench cashflow_operations
-cargo bench --package finstack-quant-core --bench schedule_generation
 
-# Compile benchmark targets without running them
-cargo bench --package finstack-quant-core --bench interpolation --bench curve_operations --no-run
+# Compile bench targets without measuring (fast check during refactors)
+cargo bench --package finstack-quant-core --no-run
 
 # Save and compare Criterion baselines
-cargo bench --package finstack-quant-core -- --save-baseline baseline_name
-cargo bench --package finstack-quant-core -- --baseline baseline_name
+cargo bench --package finstack-quant-core -- --save-baseline before
+cargo bench --package finstack-quant-core -- --baseline before
 ```
 
-## Benchmark Coverage
+Workspace tasks run every crate's benches, not just core's, with reduced
+Criterion timing:
 
-### `daycount_operations.rs`
+```bash
+mise run rust-bench            # quick pass; override via FQ_BENCH_* env vars
+mise run rust-bench-baseline   # saves the baseline named "main"
+mise run rust-bench-compare    # fails above a 10% median regression
+```
 
-- Year-fraction calculations across supported day-count conventions
-- Batch date-period calculations
-- More complex conventions such as `ActActIsma` and `Bus252`
+`mise run rust-lint` compiles these targets (`clippy --all-targets`), so a bench
+that stops compiling fails lint even when nobody runs it.
 
-### `interpolation.rs`
+## Reading results
 
-- Single-point and batch interpolation
-- Interpolation style comparisons
-- Extrapolation behavior
+Criterion writes to `target/criterion/`:
 
-### `curve_operations.rs`
+- terminal summaries with confidence intervals,
+- HTML reports at `target/criterion/*/report/index.html` (suppressed when
+  `--noplot` is passed, as the `mise` tasks do),
+- raw measurements under each benchmark directory.
 
-- Discount, forward, and hazard curve lookup costs
-- Batch evaluation across multiple tenors
-- Curve construction overhead
+## Evidence standard
 
-### `rolling.rs`
+Make performance claims from current output, never from this file.
 
-- Rolling mean, median, and standard deviation
-- Different data sizes and window sizes
-- Repeated expression-evaluation overhead for rolling operators
+1. Compile touched targets with `--no-run` while refactoring.
+2. Run the relevant suites on the branch.
+3. Save a baseline before a change you expect to matter.
+4. Compare against that baseline afterwards.
+5. Only then write a number into a release note or a README.
 
-### `solver_operations.rs`
-
-- Newton and Brent root finding
-- IRR/XIRR solver paths
-- Multi-dimensional solver scenarios where present
-
-### `rate_conversions.rs`
-
-- Simple, periodic, and continuous rate compounding conversions
-- Round-trip conversion accuracy paths
-- Batch conversion scaling
-- Market scenario conventions (treasury, LIBOR, corporate)
-- Negative rate handling
-
-### `cashflow_operations.rs`
-
-- Curve-based NPV with Money-typed cashflows (flat and shaped curves)
-- Scalar NPV with flat discount rates
-- Batch cashflow count scaling (4 to 240 flows)
-- Day count convention comparison overhead
-- Discountable trait dispatch vs direct function
-- Investment profile scenarios (bond coupons, swap netted flows)
-
-### `schedule_generation.rs`
-
-- Frequency variant comparison (monthly, quarterly, semi-annual, annual)
-- Stub convention handling (short/long front/back)
-- Tenor scaling from 1Y to 30Y
-- End-of-month convention overhead
-- IMM and CDS-IMM schedule generation
-- Business day adjustment with calendar lookup
-- Schedule iteration and collection
-
-## Reading Results
-
-Criterion writes results under `target/criterion/`. Useful outputs include:
-
-- Terminal summaries with confidence intervals
-- HTML reports in `target/criterion/*/report/index.html`
-- Raw measurement data under each benchmark directory
-
-## Evidence Standard
-
-Use current benchmark output, not this README, to make performance claims.
-
-Recommended workflow:
-1. Compile touched benchmark targets with `--no-run` during refactoring.
-2. Run the relevant suites on the current branch.
-3. Save a baseline before larger changes.
-4. Compare against that baseline after the change.
-5. Record any release-note or README performance claims only after those results exist.
-
-## Notes
-
-- Benchmarks run under Cargo's benchmark profile.
-- Results vary by hardware, toolchain, thermal state, and background load.
-- `black_box()` is used to reduce optimizer distortion.
-- If you add a new benchmark suite, update this README with what it measures, not with guessed numbers or stale target values.
+Results vary with hardware, toolchain, thermal state, and background load.
+`std::hint::black_box` is used to limit optimizer distortion. When you add a
+suite, add a row to the table above describing what it measures — not a number.

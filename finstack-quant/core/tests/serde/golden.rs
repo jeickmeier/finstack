@@ -155,6 +155,7 @@ fn test_roundtrip_all_business_day_conventions() {
         BusinessDayConvention::ModifiedFollowing,
         BusinessDayConvention::Preceding,
         BusinessDayConvention::ModifiedPreceding,
+        BusinessDayConvention::Nearest,
     ];
 
     for business_day_convention in conventions {

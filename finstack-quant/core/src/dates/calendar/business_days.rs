@@ -16,6 +16,7 @@
 //! - **Preceding**: Move to previous business day
 //! - **ModifiedFollowing**: Following, unless crosses month boundary
 //! - **ModifiedPreceding**: Preceding, unless crosses month boundary
+//! - **Nearest**: closer business day; a tie rolls Following (FpML / QuantLib)
 //!
 //! # Built-in Calendars
 //!
@@ -221,6 +222,12 @@ pub enum BusinessDayConvention {
     /// **ISDA**: Section 4.12(e) - "Modified Preceding Business Day Convention"
     /// **FpML**: "MODPRECEDING"
     ModifiedPreceding,
+
+    /// Adjust to the closer business day. A tie (equal calendar-day distance)
+    /// rolls Following, matching FpML `NEAREST` and QuantLib `Nearest`.
+    ///
+    /// **FpML**: "NEAREST"
+    Nearest,
 }
 
 impl core::fmt::Display for BusinessDayConvention {
@@ -231,6 +238,7 @@ impl core::fmt::Display for BusinessDayConvention {
             BusinessDayConvention::ModifiedFollowing => "ModifiedFollowing",
             BusinessDayConvention::Preceding => "Preceding",
             BusinessDayConvention::ModifiedPreceding => "ModifiedPreceding",
+            BusinessDayConvention::Nearest => "Nearest",
         };
         f.write_str(s)
     }
@@ -246,6 +254,7 @@ impl core::str::FromStr for BusinessDayConvention {
             "modified_following" => Ok(BusinessDayConvention::ModifiedFollowing),
             "preceding" => Ok(BusinessDayConvention::Preceding),
             "modified_preceding" => Ok(BusinessDayConvention::ModifiedPreceding),
+            "nearest" => Ok(BusinessDayConvention::Nearest),
             _ => Err(format!("Unknown business day convention: {}", s)),
         }
     }
@@ -364,6 +373,31 @@ pub(crate) fn adjust_with_limit<C: HolidayCalendar + ?Sized>(
                 })
             }
         }
+        BusinessDayConvention::Nearest => {
+            if cal.is_business_day(date) {
+                return Ok(date);
+            }
+            let forward = seek_business_day(date, 1, max_days, cal);
+            let back = seek_business_day(date, -1, max_days, cal);
+            match (forward, back) {
+                (Some(f), Some(b)) => {
+                    let df = (f - date).whole_days().unsigned_abs();
+                    let db = (date - b).whole_days().unsigned_abs();
+                    if df <= db {
+                        Ok(f)
+                    } else {
+                        Ok(b)
+                    }
+                }
+                (Some(f), None) => Ok(f),
+                (None, Some(b)) => Ok(b),
+                (None, None) => Err(Error::Input(InputError::AdjustmentFailed {
+                    date,
+                    convention: BusinessDayConvention::Nearest,
+                    max_days,
+                })),
+            }
+        }
     }
 }
 
@@ -404,6 +438,7 @@ mod serde_tests {
             BusinessDayConvention::ModifiedFollowing,
             BusinessDayConvention::Preceding,
             BusinessDayConvention::ModifiedPreceding,
+            BusinessDayConvention::Nearest,
         ];
 
         for conv in conventions {

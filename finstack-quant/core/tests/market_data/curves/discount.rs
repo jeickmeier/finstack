@@ -149,20 +149,16 @@ fn builder_requires_explicit_base_date() {
 }
 
 #[test]
-fn builder_infers_day_count_from_curve_id() {
-    for (id, expected) in [
-        ("USD-SOFR", DayCount::Act360),
-        ("GBP-SONIA", DayCount::Act365F),
-        ("EUR-ESTR", DayCount::Act360),
-        ("TEST", DayCount::Act365F),
-    ] {
+fn builder_defaults_to_act365f_regardless_of_curve_id() {
+    for id in ["USD-SOFR", "GBP-SONIA", "EUR-ESTR", "TEST"] {
         let curve = DiscountCurve::builder(id)
             .base_date(sample_base_date())
             .knots([(0.0, 1.0), (1.0, 0.95)])
             .build()
             .expect("valid curve");
 
-        assert_eq!(curve.day_count(), expected, "{id}");
+        assert_eq!(curve.day_count(), DayCount::Act365F, "{id}");
+        assert_eq!(curve.min_forward_rate(), Some(-0.005), "{id}");
     }
 }
 
@@ -777,14 +773,12 @@ fn forward_and_df_on_date() {
     let df_curve = curve
         .df_on_date_curve(date)
         .expect("df_on_date_curve should succeed");
-    let df_static = curve
-        .df_on_date(date, curve.day_count())
-        .expect("df_on_date should succeed");
-    assert!((df_curve - df_static).abs() < 1e-12);
+    assert!(df_curve.is_finite());
+    assert!(df_curve > 0.0);
 }
 
 #[test]
-fn df_on_date_day_count_sensitivity() {
+fn df_on_date_curve_uses_stored_day_count() {
     let base = sample_base_date();
     let target = base + time::Duration::days(182); // ~6 months
 
@@ -805,13 +799,13 @@ fn df_on_date_day_count_sensitivity() {
         .unwrap();
 
     let df_360 = curve_360
-        .df_on_date(target, DayCount::Act360)
-        .expect("df_on_date should succeed");
+        .df_on_date_curve(target)
+        .expect("df_on_date_curve should succeed");
     let df_365 = curve_365
-        .df_on_date(target, DayCount::Act365F)
-        .expect("df_on_date should succeed");
+        .df_on_date_curve(target)
+        .expect("df_on_date_curve should succeed");
 
-    // Different day counts = different time fractions = different DFs
+    // Different stored day counts = different time fractions = different DFs
     assert!(
         (df_360 - df_365).abs() > 1e-6,
         "Day counts should produce different DFs: {} vs {}",

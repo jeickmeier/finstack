@@ -88,6 +88,8 @@ fn schedule_spec_builds_expected_dates() {
         imm_mode: false,
         cds_imm_mode: false,
         error_policy: finstack_quant_core::dates::ScheduleErrorPolicy::Strict,
+        payment_lag_business_days: 0,
+        fixing_lag_business_days: None,
     };
 
     let json = serde_json::to_string(&spec).unwrap();
@@ -154,6 +156,8 @@ fn schedule_spec_rejects_dual_imm_modes() {
         imm_mode: true,
         cds_imm_mode: true,
         error_policy: finstack_quant_core::dates::ScheduleErrorPolicy::Strict,
+        payment_lag_business_days: 0,
+        fixing_lag_business_days: None,
     };
     assert!(spec.build().is_err());
 }

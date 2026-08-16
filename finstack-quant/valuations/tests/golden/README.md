@@ -20,7 +20,41 @@ The directory must agree with `metadata.source`: `quantlib` belongs under
 formula, textbook, and Intex fixtures belong under `regression_goldens/`.
 Instrument directories such as `bond/`, `fra/`, and `swaption/` live beneath
 each golden type. Bloomberg screenshot evidence stays beside its fixture in an
-instrument-level `screenshots/` directory.
+instrument-level `screenshots/` directory. Closed-form SABR smile fixtures sit
+outside the pricing tree, under `data/market_data/sabr/`.
+
+## Running
+
+```bash
+# Rust + Python golden layers, including the ignored walk
+mise run goldens-test
+
+# Same, with the unresolved-metric allowlist disabled
+mise run goldens-test-strict
+
+# Rust layer only
+cargo nextest run -p finstack-quant-valuations --test golden --run-ignored all
+
+# One fixture or one subtree
+GOLDEN_FIXTURE_FILTER=usd_sofr_5y \
+  cargo nextest run -p finstack-quant-valuations --test golden --run-ignored all
+```
+
+`GOLDEN_FIXTURE_FILTER` is a plain substring match against each fixture's path.
+
+The fixture walk (`golden_pricing_fixtures_from_existing_json_files`) is
+`#[ignore]`d because it prices every committed fixture, as is the
+structured-credit DV01 repricing check in [`pricing_common.rs`](pricing_common.rs);
+the schema and discovery tests in [`walk.rs`](walk.rs) and the SABR entry point
+in [`sabr.rs`](sabr.rs) run on the default path. Every run writes a per-metric CSV
+to `target/golden-reports/golden-comparisons.csv` with actual, expected,
+absolute and relative differences, the tolerance used, and its reason — the
+first place to look when a fixture fails.
+
+Domain routing lives in [`runner.rs`](runner.rs): `volatility.sabr` goes to the
+SABR runner, the dotted instrument domains listed in `is_pricing_domain` go to
+the pricing runner, and any other `metadata.domain` is a hard error rather than
+a silent skip.
 
 ## Schema (`finstack_quant.golden/1`)
 

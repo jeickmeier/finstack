@@ -174,6 +174,24 @@ pub enum InputError {
     #[error("DayCount::ActActIsma requires a coupon frequency in DayCountContext")]
     MissingFrequencyForActActIsma,
 
+    /// DayCount::ActActIsma requires the regular coupon period for an irregular stub.
+    #[error(
+        "DayCount::ActActIsma requires DayCountContext.coupon_period for an irregular coupon; \
+         frequency-only year fractions are valid only for a regular period"
+    )]
+    MissingCouponPeriodForActActIsma,
+
+    /// Schedule payment or fixing lag is negative.
+    #[error("schedule lag must be a non-negative business-day count, got {lag}")]
+    NegativeScheduleLag {
+        /// Requested lag in business days.
+        lag: i32,
+    },
+
+    /// A non-zero schedule payment or fixing lag was set without a holiday calendar.
+    #[error("schedule payment or fixing lag requires a holiday calendar")]
+    ScheduleLagRequiresCalendar,
+
     /// DayCount::ActActIsma only supports month/year coupon frequencies.
     #[error("DayCount::ActActIsma requires a Months/Years frequency, got {frequency}")]
     ActActIsmaUnsupportedFrequency {

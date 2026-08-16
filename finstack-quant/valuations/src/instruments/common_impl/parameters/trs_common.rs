@@ -155,8 +155,11 @@ impl TrsScheduleSpec {
             dates.push(first.accrual_start);
             dates.extend(periods.iter().map(|period| period.accrual_end));
         }
+        let payment_dates = dates.iter().skip(1).copied().collect();
         Ok(Schedule {
             dates,
+            payment_dates,
+            fixing_dates: Vec::new(),
             warnings: Vec::new(),
         })
     }

@@ -2,7 +2,8 @@
 
 Criterion benchmarks for the maintained valuation hot paths. The suite is
 manifest-driven (`autobenches = false`) so new files do not expand benchmark
-runtime unless they are deliberately added to `Cargo.toml`.
+runtime unless they are deliberately added as a `[[bench]]` entry in
+[`Cargo.toml`](../Cargo.toml).
 
 ## Run
 
@@ -21,6 +22,18 @@ cargo bench -p finstack-quant-valuations --bench bond_pricing -- --save-baseline
 cargo bench -p finstack-quant-valuations --bench bond_pricing -- --baseline main
 ```
 
+Workspace-wide tasks run every crate's benches with reduced Criterion timing;
+they are the form CI uses:
+
+```bash
+mise run rust-bench           # all workspace benches, short sampling
+mise run rust-bench-baseline  # save baseline 'main'
+mise run rust-bench-compare   # compare vs 'main', fail above 10% median regression
+```
+
+Sampling is tunable through `FQ_BENCH_SAMPLE_SIZE`, `FQ_BENCH_WARM_UP_TIME`,
+`FQ_BENCH_MEASUREMENT_TIME`, and `FQ_BENCH_NRESAMPLES`.
+
 ## Suite
 
 | Bench | Focus |
@@ -33,6 +46,7 @@ cargo bench -p finstack-quant-valuations --bench bond_pricing -- --baseline main
 | `cds_pricing` / `cds_option_pricing` / `cds_tranche_pricing` / `cds_index_pricing` | Credit pricing across single-name, option, tranche, and index instruments |
 | `structured_credit_pricing` | Structured-credit waterfall and tranche valuation |
 | `swaption_pricing` | Black and SABR swaption pricing |
+| `fourier_var_pricing` | COS strip pricing, Heston Fourier scalar pricing, Taylor-approximation historical VaR |
 | `cashflow_generation` | Bond/swap cashflow generation, schedule build, and summation examples |
 | `calibration` | Plan-driven discount and forward calibration |
 | `global_calibration` | GlobalSolve discount and hazard calibration examples |
@@ -60,13 +74,19 @@ See each `benches/*.rs` file for scenario names.
 ## Output
 
 - Terminal summary from Criterion
-- HTML: `target/criterion/<bench>/<group>/report/index.html`
+- HTML: `target/criterion/<group>/<benchmark>/report/index.html`. The path keys
+  off the `benchmark_group(...)` name, not the bench target file —
+  `bond_pricing.rs` writes under `bond_pv/`, `bond_ytm_solve/`, `bond_dv01/`,
+  and so on. Note the `mise run rust-bench*` tasks pass `--noplot`.
 
 ## Portfolio benches
 
-Portfolio-scale benches live in `finstack-quant/portfolio/benches/`.
+Portfolio-scale benches live in [`../../portfolio/benches/`](../../portfolio/benches/).
 
 ## Notes
 
-- Benches use release builds.
-- Latency tables in older docs are indicative only; re-measure on your hardware after material changes.
+- Benches use release builds (`--profile bench`).
+- Bench targets are compile- and lint-checked by `mise run rust-lint`
+  (`clippy --all-targets`); they are not executed by `mise run rust-test`.
+- Latency tables in older docs are indicative only; re-measure on your hardware
+  after material changes.

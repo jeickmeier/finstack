@@ -1,84 +1,96 @@
 # finstack-quant-core integration tests
 
-Integration tests for the `finstack-quant-core` crate, organized by domain module.
+Public-API and cross-module tests for `finstack-quant-core`. Unit tests stay in
+`#[cfg(test)]` blocks next to the code they cover; this directory exercises the
+crate the way a downstream caller would.
 
 ## Layout
 
-Each domain has a root file (e.g. `cashflow.rs`, `dates.rs`) that documents the
-suite and includes submodules via `#[path = "..."]`:
+Each integration target is a single root `.rs` file. Targets that grew past one
+file keep a same-named directory beside them and pull submodules in with
+`#[path = "..."]` (Rust's `tests/` discovery only treats top-level files as
+targets, so the directory is not compiled twice).
 
 ```
 tests/
-├── common/mod.rs          # Shared helpers (dates, approx_eq)
-├── cashflow.rs + cashflow/
-├── dates.rs + dates/
-├── expr.rs + expr/
-├── infrastructure.rs + infrastructure/
-├── market_data.rs + market_data/
-├── math.rs + math/
-├── money.rs + money/
-├── serde.rs + serde/
-├── types.rs + types/
-├── golden/                # Reference-value fixtures (see golden/README.md)
-├── golden_tests.rs        # Golden suite entry point
-├── canonical_api.rs       # Public API shape checks
-└── simplicity_parity.rs   # Cross-crate parity guards
+├── cashflow.rs             + cashflow/    discounting, irr, primitives
+├── contract.rs             + contract/    canonical bytes, descriptor, diagnostics, load limits
+├── dates.rs                + dates/       rules, calendars, adjustment, daycount, schedules, DateExt
+├── expr.rs                 + expr/        AST, context, eval, functions, serde
+├── infrastructure.rs       + infrastructure/  config, explain, ResultsMeta
+├── market_data.rs          + market_data/ curves/, surfaces/, context, bumps, diff, fx, scalars,
+│                                          credit_index, hierarchy, serde
+├── math.rs                 + math/        interp, solver, integration, stats, summation
+├── money.rs                + money/       FX conversion, rounding contexts
+├── serde.rs                + serde/       wire-format goldens, roundtrips
+├── types.rs                + types/       Rate / Bps / Percentage
+├── golden_tests.rs         + golden/      reference-value fixtures (see golden/README.md)
+├── canonical_api.rs                       npv/irr/quadrature result and error consistency
+├── credit.rs                              cross-module credit workflows
+├── liability_management.rs                distressed-exchange / LME economics
+├── recovery_waterfall.rs                  absolute-priority recovery allocation
+├── phase2_strictness.rs                   nested serde strictness + finite-value regressions
+├── simplicity_parity.rs                   parity guards on canonical API variants
+├── sobol_golden.rs                        Sobol direction numbers vs Joe & Kuo (2008)
+└── data/                                  fixture data (see data/README_sobol.md)
+    ├── canonical/                         MarketContextState canonical bytes + sha256 pin
+    └── sobol_joe_kuo_d2_40.txt
 ```
 
-Unit tests live in `#[cfg(test)]` blocks inside source files. This directory
-tests public API behavior and cross-module interactions.
+## Helpers
 
-## Test helpers
+There is no shared `tests/common/` module. Helpers are scoped to the target that
+needs them, so a change to one domain's fixtures cannot silently move another
+domain's numbers.
 
-**Global** (`common/mod.rs`):
+| Location | Provides |
+|----------|----------|
+| `dates/common.rs` | `make_date(y, m, d)`, `TestCal` (in-memory holiday calendar), `DAYCOUNT_TOLERANCE = 1e-12` |
+| `math/common.rs` | `approx_eq(a, b, tol)`, `standard_knots`/`standard_dfs`, `two_point_knots`/`two_point_dfs` |
+| `market_data/test_helpers.rs` | `sample_base_date()` (2024-01-01) and `sample_*_curve(id)` / `sample_vol_surface()` builders |
+| `expr/common.rs` | Placeholder; expression tests use `SimpleContext` directly |
 
-- `test_date()` — 2025-01-15
-- `sample_base_date()` — 2024-01-01
-- `make_date(year, month, day)`
-- `approx_eq(a, b, tol)`
+Tolerances that are not shared live next to their assertions, for example
+`XIRR_TOLERANCE = 1e-6` in `cashflow/irr.rs` (Excel-compatible XIRR precision)
+and `financial_tolerance(notional)` in `cashflow/discounting.rs`, which scales
+with the amount rather than fixing an absolute epsilon.
 
-**Module-specific** (`<module>/test_helpers.rs` or `common.rs`):
-
-- Domain tolerance constants
-- Fixtures (curves, surfaces, etc.)
-
-## Tolerance conventions
-
-| Constant | Value | Use case |
-|----------|-------|----------|
-| `XIRR_TOLERANCE` | 1e-6 | XIRR (Excel-compatible precision) |
-| `financial_tolerance(n)` | max(n × 1e-8, 0.01) | Money amounts |
-
-## Running tests
+## Running
 
 ```bash
-# All core tests
-cargo test -p finstack-quant-core
+# Everything in the crate (lib unit tests + all integration targets)
+cargo nextest run -p finstack-quant-core
 
-# One integration target
-cargo test -p finstack-quant-core --test cashflow
+# One target
+cargo nextest run -p finstack-quant-core --test cashflow
 
-# Single test by name
-cargo test -p finstack-quant-core --test cashflow npv_100_cashflows
+# One test, by substring
+cargo nextest run -p finstack-quant-core --test cashflow npv_100_cashflows
 
-# With output
-cargo test -p finstack-quant-core -- --nocapture
+# With stdout from passing tests
+cargo nextest run -p finstack-quant-core --no-capture
 ```
 
-Or via mise:
+Workspace-wide: `mise run rust-test`. Do not invoke a bare `cargo test` — it
+also runs doc tests, which this project keeps to a separate pass
+(`mise run rust-doc`).
 
-```bash
-mise run rust-test
-```
+## Adding a test
 
-## Adding tests
+1. Put the file under the subdirectory for its domain.
+2. Wire it from the domain root file with `#[path = "domain/file.rs"] mod file;`.
+3. Give the file a `//!` doc comment stating its scope.
+4. Reuse the domain helper module for fixtures and tolerances rather than
+   inventing new ones.
 
-1. Add a file under the relevant subdirectory
-2. Wire it from the domain root with `#[path = "..."]`
-3. Document the file's scope in a module doc comment
-4. Use domain helpers and the tolerance table above for float comparisons
+Name tests after the scenario and the expected outcome — existing examples are
+`npv_100_cashflows_maintains_precision`, `npv_negative_rate_inflates_value`,
+`market_context_state_rejects_unknown_top_level_fields`. Each test builds its own
+fixtures; nothing may depend on execution order, wall-clock time, locale, or the
+network. See
+[`.agents/rules/rust/testing-standards.md`](../../../.agents/rules/rust/testing-standards.md)
+for the workspace policy, and [INVARIANTS.md](../../../INVARIANTS.md) for the
+determinism and currency-safety contracts these tests defend.
 
-Test names should describe the scenario and expected outcome, e.g.
-`npv_negative_rate_inflates_value`, `calendar_usny_excludes_thanksgiving`.
-
-Each test should set up its own fixtures and not depend on execution order.
+Reference-value fixtures go through the golden harness instead — see
+[`golden/README.md`](golden/README.md).

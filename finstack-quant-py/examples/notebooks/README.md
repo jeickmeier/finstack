@@ -1,202 +1,259 @@
-# finstack-quant-py Notebook Examples
+# finstack-quant-py notebook examples
 
-Layered Jupyter notebooks for learning quantitative finance workflows and the
-`finstack_quant` Python API, from core data types through pricing, analytics,
-portfolio/scenario workflows, advanced quant methods, and reporting.
+93 layered Jupyter notebooks covering the `finstack_quant` Python API, from core
+types through pricing, analytics, statement modeling, portfolio and scenario
+workflows, advanced quant methods, and reporting. They double as the executable
+regression suite for the Python surface: `mise run python-examples` runs every
+one of them.
 
 ## Prerequisites
 
 - Python 3.12+
-- `finstack_quant` built and installed (`mise run python-build`)
-- Project dependencies installed from the repository root `pyproject.toml`
+- `finstack_quant` built and installed (`mise run python-build` from the
+  repository root; add `-- --release` before running the heavier levels)
+- Dev dependencies synced (`mise run python-sync`), which brings in `jupyter`
+  (and therefore `nbclient`/`nbformat`), `pyarrow`, and `polars`; `numpy` and
+  `pandas` are runtime dependencies of the package itself
 
-## How To Run
+## Running
 
-Interactive use:
+Interactive:
 
 ```bash
 uv run jupyter lab finstack-quant-py/examples/notebooks
 ```
 
-Notebooks that need shared helpers add the notebooks root with a relative
-`sys.path` insert (`".."` or `"../.."` depending on depth), then
-`from _shared import ...`. The batch runner also puts that directory on
-`PYTHONPATH`.
-
-Batch execution from the repository root:
+Batch, from the repository root:
 
 ```bash
 mise run python-examples
-# or:
+# equivalently:
 uv run python finstack-quant-py/examples/notebooks/run_all_notebooks.py
 ```
 
-One section:
+`run_all_notebooks.py` executes each notebook with `nbclient` over an IPC
+kernel transport, with the notebook's own directory as the working directory,
+and prints a per-notebook PASS/FAIL summary. It exits non-zero if any notebook
+fails.
+
+| Flag | Effect |
+|------|--------|
+| `--directory PATH` | Restrict to one subdirectory (recursively) or a single `.ipynb` file, resolved relative to the notebooks root |
+| `--timeout N` | Per-notebook timeout in seconds (default 300) |
+| `--fail-fast` | Stop after the first failure |
+| `--save-outputs` | Write each *successful* notebook back with fresh outputs; failed notebooks are never written |
+| `--verbose` | Dump full per-notebook output at the end |
 
 ```bash
-uv run python finstack-quant-py/examples/notebooks/run_all_notebooks.py --directory 01_foundations
+uv run python finstack-quant-py/examples/notebooks/run_all_notebooks.py --directory 05_portfolio
+uv run python finstack-quant-py/examples/notebooks/run_all_notebooks.py \
+    --directory 02_pricing/pricing_fundamentals.ipynb --verbose
 ```
 
-## How The Curriculum Is Organized
+The runner prepends the notebooks root, `finstack-quant-py/`, and the
+repository root to `PYTHONPATH` so `_shared` resolves without any per-notebook
+setup. Interactively, notebooks that need `_shared` do the equivalent with a
+relative `sys.path` insert (`".."` from a level directory, `"../.."` from a
+deep-dive subdirectory) before `from _shared import ...`.
 
-The curriculum has two tiers:
+## Curriculum structure
 
-- **Overview notebooks** live directly in each numbered level directory and are
-  intended to be read in the order listed below.
-- **Deep-dive notebooks** live in subdirectories and can be read when you need
-  the topic. They repeat some setup from the overview notebooks so they can also
-  be opened independently.
+Two tiers:
 
-Prerequisites are written as notebook paths, not global notebook numbers. The
-numbered directories are the reading order.
+- **Overview notebooks** sit directly in each numbered level directory and are
+  meant to be read in order.
+- **Deep-dive notebooks** sit in subdirectories and can be read on demand. They
+  repeat enough setup to open standalone.
 
-## Notebook Data Files
+Prerequisites are stated inside each notebook as paths
+(`01_foundations/core_types_and_money.ipynb`), not global numbers. The numbered
+directories are the reading order.
 
-Large example payloads live beside notebooks in `data/*.json` files, or in
-`_shared/` when reused across levels. Notebook code loads these files with
-cwd-relative paths such as:
+## Shared helpers and data
+
+Bulk payloads live in `data/<notebook_name>.json` next to the notebook that
+uses them, loaded with a cwd-relative path (the runner sets cwd to the
+notebook's directory):
 
 ```python
 from pathlib import Path
 import json
 
-specs = json.loads(Path("data/example_specs.json").read_text())
+specs = json.loads(Path("data/portfolio_construction_and_valuation.json").read_text())
 ```
 
-Keep one representative spec visible in the notebook when the JSON shape is part
-of the lesson; move bulk catalogs and repeated payloads into data files.
+Keep one representative spec inline when the JSON shape is part of the lesson;
+move catalogs and repeated payloads into the data file.
 
-Reusable examples live in the example-only `_shared` package (it is deliberately
-outside the public `finstack_quant` API):
+Cross-level reuse goes through the example-only `_shared` package, which sits
+deliberately outside the public `finstack_quant` API:
 
-- `_shared.paths` provides stable repository, package, notebook, and fixture
-  paths.
-- `_shared.market.build_demo_market()` returns the canonical typed market,
-  including SOFR historical fixings used by floating-rate examples.
-- `_shared.fixtures` loads independent copies of named instrument and portfolio
-  payloads from versioned `_shared/data/v1/` catalogs.
-- `_shared.instrument_fixtures` contains the larger, parameterized instrument
-  factories used by the multi-asset scale lab.
+| Module | Exports |
+|--------|---------|
+| `_shared.paths` | `NOTEBOOKS_ROOT`, `REPOSITORY_ROOT` (and `PYTHON_PACKAGE_ROOT`) |
+| `_shared.market` | `DEMO_AS_OF`, `build_demo_market()`, `usd_ois_curve`, `usd_sofr_curve`, `usd_sofr_fixings`, `usd_ois_2026` — the canonical deterministic cross-asset `MarketContext`, including the SOFR historical fixings floating-rate examples need |
+| `_shared.instrument_fixtures` | `acme_bond`, `instrument_envelope`, `instrument_envelope_json`, plus parameterized per-asset-class factories used by the scale lab |
+| `_shared.synthetic` | `random_walk_panel`, `demo_pl_builder`, `demo_pl_model` — deterministic synthetic panels and statement models |
+| `_shared.notebook_helpers` | `banner`, `print_metrics`, `series` — presentation only; they never wrap `finstack_quant` logic |
 
-Import shared examples with `from _shared import ...`. New fixture schemas must
-use a new version directory rather than silently changing an existing wire
-contract.
+Import via the package root: `from _shared import build_demo_market`.
 
-## Level 1 -- Foundations (`01_foundations/`)
+`finstack-quant-py/tests/test_notebook_instrument_fixtures.py` deserializes
+every instrument factory in `_shared.instrument_fixtures` through the canonical
+serde path, so a fixture that drifts from the wire contract fails in CI rather
+than in a notebook.
+
+## Notebook hygiene rules
+
+`finstack-quant-py/tests/test_notebook_hygiene.py` parses every code cell and
+fails the build on constructs that hide API breakage. It also validates
+nbformat and compiles every code cell.
+
+| Rule | What it rejects |
+|------|-----------------|
+| `broad-catch` | `except:` / `except Exception:` / `except BaseException:` (including `except*`). Catch the exact documented exception instead. |
+| `first-party-import-soft-fail` | `try: import finstack_quant / except ImportError: ...`. First-party imports must fail visibly. |
+| `public-api-probe` | `hasattr(<finstack object>, ...)` or 3-argument `getattr(<finstack object>, ..., default)`. Call the API directly. |
+
+The scanner tracks name bindings across cells, so aliasing (`CatchAll =
+Exception`) does not evade it. The only exemption is a deliberately failing
+teaching cell tagged `intentional-negative`, recorded in the test's
+`ALLOWLIST`, which is currently empty.
+
+## Level 1 — Foundations (`01_foundations/`)
 
 | Path | Topics |
 |------|--------|
-| `01_foundations/core_types_and_money.ipynb` | Currency, Money, Rate, Bps, Percentage, CreditRating, Attributes |
-| `01_foundations/dates_calendars_schedules.ipynb` | DayCount, Tenor, PeriodId, HolidayCalendar, ScheduleBuilder |
-| `01_foundations/market_data_and_curves.ipynb` | DiscountCurve, ForwardCurve, HazardCurve, FxMatrix, MarketContext |
-| `01_foundations/math_toolkit.ipynb` | Linear algebra, statistics, special functions, compensated summation |
-| `01_foundations/registry_defaults_and_overrides.ipynb` | FinstackConfig extensions, registry override payloads, JSON round-tripping |
-| `01_foundations/market_bootstrap_tour.ipynb` | Calibration envelopes, `calibrate`, market snapshots, diagnostics |
+| `core_types_and_money.ipynb` | `Currency`, `Money`, `Rate`, `Bps`, `Percentage`, `CreditRating` |
+| `dates_calendars_schedules.ipynb` | `DayCount`, `Tenor`, `PeriodId`, `HolidayCalendar`, `ScheduleBuilder` |
+| `market_data_and_curves.ipynb` | `DiscountCurve`, `ForwardCurve`, `HazardCurve`, `FxMatrix`, `MarketContext` |
+| `math_toolkit.ipynb` | Linear algebra, statistics, special functions, compensated summation |
+| `registry_defaults_and_overrides.ipynb` | `FinstackConfig` extensions, registry override payloads, JSON round-tripping |
+| `market_bootstrap_tour.ipynb` | Building a `MarketContext` from raw quotes: calibration envelopes, `calibrate`, diagnostics |
 
 Deep dives:
 
-- `01_foundations/dates/` (3 notebooks): day counts, holiday calendars, schedule building.
-- `01_foundations/market_data/` (10 notebooks): discount/forward/hazard/inflation/price curves, FX matrices, vol surfaces/cubes, SABR, dynamic term structure.
+- `dates/` (3): day-count conventions, holiday calendars and business-day
+  adjustment, schedule building.
+- `market_data/` (10): discount, forward, hazard, inflation, price and
+  volatility-index curves; FX matrix; volatility surfaces; SABR smiles and
+  calibration; dynamic term structure (`core.market_data.dtsm`).
 
-## Level 2 -- Instrument Pricing (`02_pricing/`)
-
-| Path | Topics |
-|------|--------|
-| `02_pricing/pricing_fundamentals.ipynb` | Instrument JSON, ValuationResult, model keys, metrics, report components, valuation caching |
-| `02_pricing/pricing_across_asset_classes.ipynb` | Deposits, swaps, CDS, equity options, FX options, exotics |
-| `02_pricing/pnl_attribution.ipynb` | Pricing-based P&L attribution and explanation workflows |
-
-Deep dives:
-
-- `02_pricing/instruments/`: bonds, rates derivatives, FX, equities/options, credit derivatives, structured credit, inflation-linked products, loans, repos, cashflows, convertibles, Fourier pricing, exotic rates, credit events, and total-return/variance swaps.
-
-## Level 3 -- Performance And Risk Analytics (`03_analytics/`)
+## Level 2 — Instrument pricing (`02_pricing/`)
 
 | Path | Topics |
 |------|--------|
-| `03_analytics/performance_analytics.ipynb` | Performance class, CAGR, Sharpe, drawdowns, rolling metrics |
-| `03_analytics/risk_and_factor_analytics.ipynb` | VaR, factor regression, capture ratios, ruin estimation |
-| `03_analytics/factor_sensitivity.ipynb` | Factor sensitivities and risk decomposition for portfolio positions |
-| `03_analytics/feature_transforms.ipynb` | Cross-sectional ranking, time-series transforms, grouped normalization |
-| `03_analytics/breakeven_analysis.ipynb` | Spread/carry breakevens from cs01, dv01, and carry metrics |
-| `03_analytics/return_contribution.ipynb` | Single-period return contribution, group/factor decomposition, Brinson-Fachler, weighting modes |
-| `03_analytics/portfolio_returns_and_attribution.ipynb` | TWRR/MWRR, multi-period Brinson-Fachler, Carino linking |
+| `pricing_fundamentals.ipynb` | Instrument JSON envelope, `MarketContext`, `ValuationResult`, model keys, metrics, valuation caching |
+| `pricing_across_asset_classes.ipynb` | Deposits, swaps, CDS, equity options, FX options, exotics |
+| `pnl_attribution.ipynb` | Decomposing daily MTM changes by risk factor |
 
-Reporting tear sheets that render many of these analytics live in
-`09_reporting/`.
+Deep dives — `instruments/` (15): complex cashflows, bonds and fixed income,
+rates derivatives (deposits / FRA / IRS), FX spot and forwards, equity options,
+credit derivatives (CDS), credit events and restructuring, structured credit,
+inflation-linked bonds, loans and credit facilities, repo and secured
+financing, convertible bonds, Fourier pricing, exotic rates, total-return and
+variance swaps.
 
-## Level 4 -- Financial Statement Modeling (`04_statement_modeling/`)
-
-| Path | Topics |
-|------|--------|
-| `04_statement_modeling/statement_modeling.ipynb` | ModelBuilder, Evaluator, DSL formulas, Polars export |
-| `04_statement_modeling/statement_analytics.ipynb` | Sensitivity, tornado, variance, goal-seek, dependency tracing |
-
-Deep dives:
-
-- `04_statement_modeling/models/` (11 notebooks): three-statement models, DCF, debt waterfalls, LBO, credit analysis, covenant monitoring, IFRS 9 / CECL ECL, credit scoring / PD, normalization, real-estate and roll-forward templates, comparable-company analysis.
-
-## Level 5 -- Portfolio (`05_portfolio/`)
+## Level 3 — Performance and risk analytics (`03_analytics/`)
 
 | Path | Topics |
 |------|--------|
-| `05_portfolio/portfolio_construction_and_valuation.ipynb` | Portfolio spec, valuation, aggregation, cashflow ladder |
-| `05_portfolio/portfolio_optimization.ipynb` | JSON and typed optimization specs, objectives, constraints, trade universes |
-| `05_portfolio/horizon_total_return.ipynb` | Carry plus scenario P&L composition, factor-decomposed total return |
-| `05_portfolio/historical_replay.ipynb` | Replay portfolio through dated market snapshots, P&L, attribution |
-| `05_portfolio/liquidity_risk.ipynb` | Roll spread, Amihud illiquidity, days-to-liquidate, Bangia LVaR, Almgren-Chriss impact |
-| `05_portfolio/portfolio_risk_decomposition.ipynb` | Euler VaR/ES decomposition, risk budgeting, capital allocation |
-| `05_portfolio/credit_factor_hierarchy.ipynb` | Credit factor levels, hierarchy assignments, period decomposition |
-| `05_portfolio/multi_asset_portfolio_at_scale.ipynb` | Optional scale/throughput lab for larger multi-asset books |
+| `performance_analytics.ipynb` | `Performance`, CAGR, Sharpe, drawdowns, rolling metrics |
+| `risk_and_factor_analytics.ipynb` | VaR, factor regression, capture ratios, ruin estimation |
+| `factor_sensitivity.ipynb` | Factor sensitivities and risk decomposition for portfolio positions |
+| `feature_transforms.ipynb` | Cross-sectional ranking, time-series transforms, grouped normalization |
+| `breakeven_analysis.ipynb` | Spread and carry breakevens from `cs01`, `dv01`, and carry metrics |
+| `return_contribution.ipynb` | Single-period return contribution, group/factor decomposition, Brinson-Fachler, weighting modes |
+| `portfolio_returns_and_attribution.ipynb` | TWRR/MWRR, multi-period Brinson-Fachler, Carino linking |
 
-## Level 6 -- Scenarios (`06_scenarios/`)
+Tear sheets that render these analytics live in `09_reporting/`.
+
+## Level 4 — Financial statement modeling (`04_statement_modeling/`)
+
+| Path | Topics |
+|------|--------|
+| `statement_modeling.ipynb` | `ModelBuilder`, `Evaluator`, DSL formulas, DataFrame export |
+| `statement_analytics.ipynb` | Sensitivity, tornado, variance, goal-seek, dependency tracing |
+
+Deep dives — `models/` (11): three-statement linked model, DCF from statement
+UFCF, debt waterfall and cash sweep, LBO sources and uses, credit ratios,
+covenant monitoring, IFRS 9 / CECL ECL, credit scoring and PD calibration,
+normalization and adjusted EBITDA, real-estate and roll-forward templates,
+comparable-company analysis.
+
+## Level 5 — Portfolio (`05_portfolio/`)
+
+| Path | Topics |
+|------|--------|
+| `portfolio_construction_and_valuation.ipynb` | Portfolio spec, valuation, aggregation, cashflow ladder |
+| `portfolio_optimization.ipynb` | JSON and typed optimization specs, objectives, constraints, trade universes |
+| `horizon_total_return.ipynb` | Carry plus scenario P&L composition, factor-decomposed total return |
+| `historical_replay.ipynb` | Replay a portfolio through dated market snapshots; P&L and attribution |
+| `liquidity_risk.ipynb` | Roll spread, Amihud illiquidity, days-to-liquidate, Bangia LVaR, Almgren-Chriss impact |
+| `portfolio_risk_decomposition.ipynb` | Euler VaR/ES decomposition, risk budgeting, capital allocation, factor engines |
+| `credit_factor_hierarchy.ipynb` | Credit factor levels, hierarchy assignments, period decomposition |
+| `multi_asset_portfolio_at_scale.ipynb` | Optional scale/throughput lab for larger multi-asset books |
+
+## Level 6 — Scenarios (`06_scenarios/`)
 
 Scenarios are a first-class layer: build market shocks once, then apply them to
-markets, portfolios, reporting, or capstone workflows.
+markets, portfolios, reporting, or the capstone workflow.
 
 | Path | Topics |
 |------|--------|
-| `06_scenarios/scenarios_and_stress_testing.ipynb` | Templates, composition, market application, portfolio revaluation |
-| `06_scenarios/rate_scenarios.ipynb` | Rate-curve parallel, node, and composed rate shocks |
-| `06_scenarios/credit_scenarios.ipynb` | Credit-spread, hazard, and default-stress examples |
-| `06_scenarios/composite_stress_tests.ipynb` | Multi-factor macro and market stress packages |
-| `06_scenarios/scenario_impact_analysis.ipynb` | Impact analysis and ranking across scenario outputs |
+| `scenarios_and_stress_testing.ipynb` | Templates, composition, market application, portfolio revaluation |
+| `rate_scenarios.ipynb` | Rate-curve parallel, node, and composed shocks |
+| `credit_scenarios.ipynb` | Credit-spread, hazard, and default-stress examples |
+| `composite_stress_tests.ipynb` | Multi-factor macro and market stress packages |
+| `scenario_impact_analysis.ipynb` | Impact analysis and ranking across scenario outputs |
 
-## Level 7 -- Advanced Quantitative Methods (`07_advanced_quant/`)
+## Level 7 — Advanced quantitative methods (`07_advanced_quant/`)
 
 | Path | Topics |
 |------|--------|
-| `07_advanced_quant/monte_carlo_simulation.ipynb` | TimeGrid, McEngine, EuropeanPricer, Black-Scholes benchmarks |
-| `07_advanced_quant/correlation_and_credit_models.ipynb` | Copulas, recovery models, factor models, correlated Bernoulli |
-| `07_advanced_quant/margin_collateral_and_xva.ipynb` | CSA, VM/IM, XVA, collateral analytics |
-| `07_advanced_quant/regulatory_capital.ipynb` | FRTB SBA, SA-CCR, initial-margin methodologies |
+| `monte_carlo_simulation.ipynb` | `TimeGrid`, `McEngine`, `EuropeanPricer`, Black-Scholes benchmarks |
+| `correlation_and_credit_models.ipynb` | Copulas, recovery models, factor models, correlated Bernoulli |
+| `margin_collateral_and_xva.ipynb` | CSA specs, VM/IM, XVA, collateral analytics |
+| `regulatory_capital.ipynb` | FRTB SA, SA-CCR, initial-margin methodologies |
 
 Deep dives:
 
-- `07_advanced_quant/monte_carlo/` (4 notebooks): Black-Scholes benchmarks, stochastic processes, discretization schemes, exotic payoffs and pricers.
-- `07_advanced_quant/correlation/` (4 notebooks): portfolio default simulation, recovery modeling, CLO tranche modeling, Merton equity↔credit structural models (KMV/CreditGrades, hazard conversion, paths, typed MertonMc).
+- `monte_carlo/` (4): Black-Scholes benchmarks vs Monte Carlo, stochastic
+  processes for equity and rates, discretization schemes (Euler, Milstein,
+  exact GBM), exotic payoffs (European, Asian, American via LSMC).
+- `correlation/` (4): portfolio default simulation, recovery modeling and tail
+  risk, CLO tranche modeling, structural credit models (Merton equity ↔
+  credit).
 
-## Level 8 -- Capstone (`08_capstone/`)
-
-| Path | Topics |
-|------|--------|
-| `08_capstone/end_to_end_credit_portfolio_workflow.ipynb` | Integrated credit portfolio workflow across statements, pricing, scenarios, analytics, and reporting inputs |
-
-## Level 9 -- Reporting (`09_reporting/`)
-
-These notebooks are rendering demos for the reporting API. Read the source
-analytics/modeling notebooks first, then use the reporting notebooks to learn
-how to package results for review.
+## Level 8 — Capstone (`08_capstone/`)
 
 | Path | Topics |
 |------|--------|
-| `09_reporting/reporting_statement_tearsheet.ipynb` | P&L summary, margins, variance-vs-plan (`statement_tearsheet`) |
-| `09_reporting/reporting_credit_tearsheet.ipynb` | Leverage/coverage trend, per-instrument coverage, covenant compliance (`credit_tearsheet`) |
-| `09_reporting/reporting_dcf_tearsheet.ipynb` | EV-to-equity bridge, UFCF projection, WACC/terminal-growth sensitivity (`dcf_tearsheet`) |
-| `09_reporting/reporting_scenario_tearsheet.ipynb` | Driver tornado, scenario comparison, Monte Carlo fan, variance (`scenario_tearsheet`) |
-| `09_reporting/reporting_portfolio_tearsheet.ipynb` | Holdings, exposure by entity, aggregated sensitivities, cashflow ladder (`portfolio_tearsheet`) |
-| `09_reporting/reporting_portfolio_risk_tearsheet.ipynb` | Euler VaR/ES contributions and risk budget (`portfolio_risk_tearsheet`) |
-| `09_reporting/reporting_benchmark_tearsheet.ipynb` | Alpha/beta, capture, rolling greeks, relative series, multi-factor (`benchmark_tearsheet`) |
-| `09_reporting/reporting_instrument_tearsheet.ipynb` | Generic instrument valuation tear sheet |
-| `09_reporting/reporting_performance_tearsheet.ipynb` | Performance analytics tear sheet |
-| `09_reporting/reporting_attribution_tearsheet.ipynb` | Return and P&L attribution tear sheet |
+| `end_to_end_credit_portfolio_workflow.ipynb` | One linear pass over the whole stack: market setup, credit instrument pricing, risk metrics, portfolio aggregation, scenarios, P&L attribution, statement modeling, and JSON / dependency-trace export |
+
+## Level 9 — Reporting (`09_reporting/`)
+
+Rendering demos for `finstack_quant.reporting`, the pure-Python presentation
+layer. Read the corresponding analytics or modeling notebook first, then use
+these to learn how to package results for review.
+
+| Path | API |
+|------|-----|
+| `reporting_statement_tearsheet.ipynb` | `statement_tearsheet` — P&L summary, margins, variance vs plan |
+| `reporting_credit_tearsheet.ipynb` | `credit_tearsheet` — leverage/coverage trend, per-instrument coverage, covenant compliance |
+| `reporting_dcf_tearsheet.ipynb` | `dcf_tearsheet` — EV-to-equity bridge, UFCF projection, WACC / terminal-growth sensitivity |
+| `reporting_scenario_tearsheet.ipynb` | `scenario_tearsheet` — driver tornado, scenario comparison, Monte Carlo fan, variance |
+| `reporting_portfolio_tearsheet.ipynb` | `portfolio_tearsheet` — holdings, exposure by entity, aggregated sensitivities, cashflow ladder |
+| `reporting_portfolio_risk_tearsheet.ipynb` | `portfolio_risk_tearsheet` — Euler VaR/ES contributions and risk budget |
+| `reporting_benchmark_tearsheet.ipynb` | `benchmark_tearsheet` — alpha/beta, capture, rolling greeks, relative series, multi-factor |
+| `reporting_instrument_tearsheet.ipynb` | `instrument_tearsheet` — instrument valuation tear sheet |
+| `reporting_performance_tearsheet.ipynb` | `performance_tearsheet` — performance analytics tear sheet |
+| `reporting_attribution_tearsheet.ipynb` | `attribution_tearsheet` — return and P&L attribution tear sheet |
+
+## Related
+
+- [`../README.md`](../README.md) — the rest of `examples/`: standalone scripts
+  and the reports they produce
+- [`../../README.md`](../../README.md) — `finstack-quant-py` package overview,
+  namespaces, and conventions
+- [`../../DOCS_STYLE.md`](../../DOCS_STYLE.md) — docstring and stub standards

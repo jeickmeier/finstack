@@ -626,10 +626,9 @@ impl ModelBuilder<Ready> {
 
     /// Add all metrics from a loaded registry to the model.
     ///
-    /// Common internal implementation used by [`with_builtin_metrics`] and [`with_metrics`].
+    /// Common internal implementation behind [`with_builtin_metrics`].
     ///
     /// [`with_builtin_metrics`]: ModelBuilder::with_builtin_metrics
-    /// [`with_metrics`]: ModelBuilder::with_metrics
     fn add_all_metrics_from_registry_internal(
         mut self,
         registry: &crate::registry::Registry,

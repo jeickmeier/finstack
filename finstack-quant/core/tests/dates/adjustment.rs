@@ -6,6 +6,7 @@
 //! - Preceding
 //! - ModifiedFollowing
 //! - ModifiedPreceding
+//! - Nearest
 //!
 //! Also includes edge cases for consecutive holidays and infinite loop guards.
 
@@ -158,6 +159,14 @@ fn test_adjust_modified_preceding() {
     assert_eq!(result, make_date(2025, 2, 4)); // Tuesday (since Feb 3 is holiday)
 }
 
+#[test]
+fn test_adjust_nearest_tie_rolls_following() {
+    let cal = TestCal::new().with_holiday(make_date(2025, 1, 1));
+    let wednesday = make_date(2025, 1, 1);
+    let result = adjust(wednesday, BusinessDayConvention::Nearest, &cal).unwrap();
+    assert_eq!(result, make_date(2025, 1, 2));
+}
+
 // Available Calendars
 
 #[test]
@@ -212,6 +221,7 @@ fn test_all_conventions_infinite_loop_guard_and_error_messages() {
         BusinessDayConvention::Preceding,
         BusinessDayConvention::ModifiedFollowing,
         BusinessDayConvention::ModifiedPreceding,
+        BusinessDayConvention::Nearest,
     ];
 
     for convention in conventions {
@@ -271,6 +281,7 @@ fn business_day_convention_display_strings() {
             BusinessDayConvention::ModifiedPreceding,
             "ModifiedPreceding",
         ),
+        (BusinessDayConvention::Nearest, "Nearest"),
     ];
 
     for (conv, expected) in values {

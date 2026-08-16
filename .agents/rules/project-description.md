@@ -45,18 +45,21 @@ Workspace (umbrella crate: finstack-quant)
  │  scenarios            ← deterministic shock/roll DSL + engine                               │
  │  portfolio            ← positions/books; base-currency rollups (top of stack)               │
  │                                                                                             │
- │ Supporting crates                                                                           │
- │  valuations/macros    ← FinancialBuilder + FocusedPricingOverrides derives                  │
+ │ Supporting crates (not re-exported by the umbrella crate — depend on them directly)         │
+ │  valuations/macros    ← FinancialBuilder derive                                             │
+ │  arrow-interchange    ← finstack-quant-arrow: TableEnvelope → Arrow RecordBatch             │
  │  test-utils           ← golden-test framework (dev-dependency only; not published surface)  │
  │  finstack-quant-py    ← Python bindings (PyO3); src/bindings/ mirrors the 14 domains        │
  │  finstack-quant-wasm  ← WASM bindings (wasm-bindgen); src/api/ + hand-written JS facade     │
  └─────────────────────────────────────────────────────────────────────────────────────────────┘
 
-Dependency direction (verified 2026-07-25):
-  core → {analytics, cashflows, covenants, features, monte_carlo}
-       → margin (consumes monte_carlo for its stochastic XVA exposure engine)
-       → factor-model → valuations → {attribution, statements}
-       → scenarios → portfolio
+Dependency direction (read off the manifests):
+  core → {analytics, cashflows, covenants, features, margin, monte_carlo}
+       → factor-model (also analytics)
+       → valuations → {attribution, statements} → scenarios → portfolio
+  `margin` depends only on `core`; exposure generation is out of its scope, so
+  it does not consume `monte_carlo`. The `Marginable` trait is the seam and
+  `valuations` implements it.
   `valuations` is the true mid-stack hub: it consumes margin, monte_carlo,
   factor-model, covenants, analytics and cashflows. Bindings depend on the Rust
   crates; no Rust crate depends on a binding.

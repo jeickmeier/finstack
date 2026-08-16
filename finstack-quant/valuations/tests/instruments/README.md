@@ -1,328 +1,189 @@
-# Instrument Test Suite
+# Instrument test suite
 
-Per-instrument tests for `finstack-quant-valuations` pricing, metrics, and JSON fixtures.
+Per-instrument construction, cashflow, pricing, metrics, and validation tests for
+`finstack-quant-valuations`, plus the cross-cutting contract tests that hold the
+instrument registry, its generated JSON fixtures, and its serde surface together.
 
-## Test Organization Patterns
+Everything here is compiled into one integration target,
+[`tests/instruments.rs`](../instruments.rs), which wires each directory in with
+`#[path = "instruments/<name>/mod.rs"]`. These are integration tests: there is no
+`--lib` path into them, and they may only use the crate's public API.
 
-Each instrument test suite follows a consistent structure:
+## Layout
 
 ```
-instrument/
-├── mod.rs                    # Module organization and documentation
-├── construction.rs           # Builder tests, validation
-├── cashflows.rs             # Cashflow generation tests
-├── pricing.rs               # Core pricing engine tests
-├── metrics/                 # Individual metric tests
-│   ├── mod.rs
-│   ├── dv01.rs
-│   ├── theta.rs
-│   └── ...
-├── validation/              # Edge cases and boundaries
-│   ├── mod.rs
-│   └── edge_cases.rs
-└── integration/             # Multi-metric and scenario tests
-    ├── mod.rs
-    └── ...
+instruments/
+├── common/                 # Shared fixtures, tolerances, parity helpers (see common/README.md)
+├── <instrument>/           # 48 directories: one per instrument, plus exotic_harness/
+├── json_examples/          # 70 GENERATED canonical instrument fixtures (do not hand-edit)
+├── coverage_manifest.toml  # registry tag -> fixture path -> persistence policy
+│
+├── registry_coverage.rs    # Every registry tag has a manifest entry, fixture, schema, and strict round-trip
+├── serde_contract.rs       # Every instrument with example(): JSON round-trip + deny_unknown_fields
+├── serde_skip_guard.rs     # #[serde(skip)] is limited to one documented derived artifact
+├── json_examples_contract.rs        # Every checked-in fixture still loads under the current schema
+├── curve_dependency_completeness.rs # Instruments declare every discount curve they read
+├── forward_curve_dependency_completeness.rs
+├── forward_dependency_completeness.rs
+├── equity_dependency_completeness.rs
+├── fx_dependency_completeness.rs
+├── market_edge_tests.rs    # Upfront conventions, accrual-on-default, ex-coupon, stub periods
+└── test_option_bounds.rs   # Arbitrage-free option bounds (property tests)
 ```
 
-## Shared Test Helpers
+Instrument directories are flat by default (`mod.rs` plus topic files). The
+larger ones split into subdirectories:
 
-All tests should use centralized helpers from `common/test_helpers.rs`:
+| Directory | Subdirectories |
+|-----------|----------------|
+| `bond`, `cap_floor`, `irs` | `metrics/`, `validation/`, `integration/` |
+| `swaption` | `core/`, `pricing/`, `market/`, `metrics/`, `edge_cases/`, `integration/` |
+| `structured_credit` | `unit/` (with `components/`, `metrics/`), `integration/` |
+| `term_loan`, `revolving_credit`, `fra` | `metrics/`, `validation/` |
+| `deposit`, `fx_spot`, `inflation_swap` | `metrics/`, `integration/` |
+| `equity` | `real_estate/` |
+
+Split only when a directory outgrows a flat layout. The authoritative module
+list is `mod.rs` in each directory, not this README.
+
+## Generated fixtures
+
+`json_examples/` is **generated output**, not hand-written test data. Each file
+is the single canonical `finstack_quant.instrument/1` envelope for one registry
+tag, serialized from that instrument's own `example()` provider:
+
+```bash
+# Rewrite schemas, the schema index, and every canonical fixture
+cargo run -p finstack-quant-valuations --bin gen_schemas -- --write
+
+# Fail on drift instead of rewriting
+cargo run -p finstack-quant-valuations --bin gen_schemas -- --check
+```
+
+The generator deletes fixtures whose tag no longer exists, so a stale file is a
+build-output problem, not a merge conflict to resolve by hand.
+
+`coverage_manifest.toml` maps each registry tag to its fixture path and its
+persistence policy. `registry_coverage.rs` asserts the manifest, the registry,
+and the directory agree exactly in both directions — a new instrument that is
+registered but not manifested, or manifested but not on disk, fails there.
+`scripts/check_generated_instrument_fixtures.py` (run by `mise run gen-check`)
+enforces the same invariant outside cargo.
+
+## Shared helpers
+
+Import fixtures and tolerances from `crate::common::test_helpers`; see
+[`common/README.md`](common/README.md) for the full inventory.
 
 ```rust
-use crate::instruments::common::test_helpers::{
-    flat_discount_curve,    // Create flat discount curve
-    flat_hazard_curve,      // Create flat hazard curve
-    date,                   // Create test dates (y, m, d)
-    usd, eur, gbp,          // Create Money values
-    TOLERANCE,              // Standard numerical tolerance
-};
-```
-
-### Example Usage
-
-```rust
-use crate::instruments::common::test_helpers::{date, flat_discount_curve};
+use crate::common::test_helpers::{dates, flat_discount_curve, tolerances};
 
 #[test]
-fn test_bond_pricing() {
-    let as_of = date!(2025, 1, 1);
-    let disc_curve = flat_discount_curve(0.05, as_of, "USD-OIS");
-    // ... rest of test
+fn bond_prices_near_par_at_coupon_rate() {
+    let as_of = dates::TODAY;
+    let curve = flat_discount_curve(0.05, as_of, "USD-OIS");
+    // ...
+    assert!((pv - par).abs() < notional * tolerances::CURVE_PRICING);
 }
 ```
 
-## Coverage Expectations
+Curve, quote, and option builders shared with the non-instrument test binaries
+live in [`../support/`](../support/) and are reachable here as
+`crate::test_support::*` (`date`, `rates`, `credit`, `volatility`,
+`discount_forward_curves`, `commodity_curves`, `equity_fx_options`,
+`calibration`).
 
-### Minimum Coverage per Instrument
+## Coverage expectations
 
-1. **Construction** (3-5 tests)
-   - Builder happy path
-   - Field validation
-   - Edge case validation
+A new instrument directory should cover, at minimum:
 
-2. **Cashflows** (3-5 tests)
-   - Basic cashflow generation
-   - Amortization/schedules
-   - Special features (PIK, floating, etc.)
+1. **Construction** — builder happy path, field validation, rejected inputs.
+2. **Cashflows** — schedule generation, amortization, product-specific features
+   (PIK, floating resets, step-ups).
+3. **Pricing** — par, discount, and premium cases against the pricing engine.
+4. **Metrics** — one or two tests per metric the instrument registers.
+5. **Validation** — zero and extreme inputs, very short and very long maturities,
+   negative rates, boundary conditions.
 
-3. **Pricing** (3-5 tests)
-   - Par pricing
-   - Discount pricing
-   - Premium pricing
+Beyond that, the instrument must appear in `coverage_manifest.toml` with a
+generated fixture, or `registry_coverage.rs` fails.
 
-4. **Metrics** (1-2 tests per metric)
-   - Core metrics (DV01, Theta, YTM, etc.)
-   - Instrument-specific metrics
+## Expected-value provenance
 
-5. **Validation** (3-5 tests)
-   - Zero/extreme values
-   - Very short/long maturities
-   - Negative rates
-   - Boundary conditions
+Every expected number needs documented provenance. Without it a test can pass by
+matching incorrect library behavior, and a later fix looks like a regression.
 
-## Running Tests
-
-### Run All Instrument Tests
-
-```bash
-cargo test --lib instruments
-```
-
-### Run Specific Instrument
-
-```bash
-cargo test --lib instruments::bond
-cargo test --lib instruments::irs
-cargo test --lib instruments::term_loan
-```
-
-### Run Specific Test File
-
-```bash
-cargo test --lib bond::pricing
-cargo test --lib term_loan::metrics::ytm
-```
-
-### Run With Output
-
-```bash
-cargo test --lib instruments -- --nocapture
-```
-
-## Test Writing Guidelines
-
-### AAA Pattern
-
-All tests follow Arrange-Act-Assert:
+Acceptable sources, in rough order of preference:
 
 ```rust
-#[test]
-fn test_example() {
-    // Arrange: Set up test data
-    let bond = Bond::fixed(...);
-    let market = MarketContext::new()...;
-
-    // Act: Execute the operation
-    let pv = bond.value(&market, as_of)?;
-
-    // Assert: Verify results
-    assert!(pv.amount() > 0.0);
-}
-```
-
-### Naming Conventions
-
-- Test functions: `test_<component>_<scenario>_<expected>`
-- Example: `test_ytm_par_bond_matches_coupon`
-
-### Tolerance-Based Assertions
-
-Use appropriate tolerances for floating-point comparisons:
-
-```rust
-use crate::instruments::common::test_helpers::TOLERANCE;
-
-assert!((actual - expected).abs() < TOLERANCE);
-```
-
-## Tolerance Policy
-
-Tests use standardized tolerances from `common/test_helpers.rs` to ensure consistency
-across the test suite. Choose the appropriate tier based on the calculation type:
-
-| Tier | Constant | Value | Use Case |
-|------|----------|-------|----------|
-| Analytical | `tolerances::ANALYTICAL` | 1e-6 (0.0001%) | Closed-form solutions (put-call parity, zero-coupon YTM) |
-| Numerical | `tolerances::NUMERICAL` | 1e-4 (0.01%) | Iterative methods (Newton-Raphson, tree pricing) |
-| Curve Pricing | `tolerances::CURVE_PRICING` | 5e-3 (0.5%) | Curve-based valuations with convention differences |
-| Relative | `tolerances::RELATIVE` | 1e-2 (1%) | Proportional comparisons, textbook benchmarks |
-| Bump vs Analytical | `tolerances::BUMP_VS_ANALYTICAL` | 1.5e-2 (1.5%) | Bump-and-reprice vs analytical approximations (e.g., DV01 vs Duration) |
-| Statistical | `tolerances::STATISTICAL` | 2e-2 (2%) | Monte Carlo and statistical tests |
-
-### Usage Example
-
-```rust
-use crate::instruments::common::test_helpers::{tolerances, scaled_tolerance};
-
-// For analytical calculations (e.g., put-call parity)
-assert!((computed - expected).abs() < tolerances::ANALYTICAL);
-
-// For curve-based pricing with compounding mismatches
-assert!((pv - par).abs() < notional * tolerances::CURVE_PRICING);
-
-// For scaled tolerance (property tests)
-let tol = scaled_tolerance(1e-4, intrinsic, 0.10);  // 0.01% with 0.10 floor
-assert!(price >= intrinsic - tol);
-```
-
-### Convention Notes
-
-- **Par bond pricing**: ~0.3% deviation from par is expected due to semi-annual vs
-  continuous compounding mismatch between bond cashflows and discount curves.
-- **Swaption parity**: Payer - Receiver should match theoretical (Annuity × (F - K) × N)
-  within 1% tolerance.
-- **CDS par spreads**: Validated against ISDA Standard Model reference values.
-- **Options Greeks**: Should satisfy bounds (e.g., call delta ∈ [0, 1]) at all times.
-
-## Instrument Status
-
-| Instrument | Construction | Cashflows | Pricing | Metrics | Validation | Integration |
-|------------|--------------|-----------|---------|---------|------------|-------------|
-| Bond | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| IRS | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| CDS | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| CapFloor | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Swaption | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| TermLoan | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| RevolvingCredit | ✓ | ✓ | ✓ | ✓ | ✓ | - |
-| EquityOption | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| FxOption | ✓ | ✓ | ✓ | ✓ | ✓ | - |
-| StructuredCredit | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-
-## Best Practices
-
-1. **Use shared helpers** - Avoid duplicating curve builders and fixtures
-2. **Descriptive names** - Tests should clearly communicate intent
-3. **Single focus** - One logical assertion per test
-4. **Deterministic** - Fixed seeds, no randomness in non-MC tests
-5. **Isolated** - Tests don't depend on each other
-6. **Fast** - Keep tests quick; use appropriate tolerance for convergence
-7. **Documented** - Complex tests should have explanatory comments
-8. **Provenance** - Document where expected values come from (see below)
-
-## Expected Value Provenance
-
-**Critical**: Every expected value in a test must have documented provenance. This prevents
-"silent corrections" where tests pass by matching incorrect library behavior.
-
-### Good Examples
-
-```rust
-// ✅ Analytical derivation documented
-// Expected: YTM = (100/80)^(1/5) - 1 ≈ 4.56% for 5Y zero-coupon at 80
-let expected_ytm = (100.0 / 80.0_f64).powf(1.0 / 5.0) - 1.0;
-assert!((ytm - expected_ytm).abs() < tolerances::ANALYTICAL);
-
-// ✅ Mathematical invariant (no external reference needed)
-// Put-call parity: C - P = S×e^(-qT) - K×e^(-rT)
+// Mathematical invariant — no external reference needed.
+// Put-call parity: C - P = S*e^(-qT) - K*e^(-rT)
 let expected_diff = (forward_spot - pv_strike) * contract_size;
-assert!((actual_diff - expected_diff).abs() < tolerance);
 
-// ✅ External reference with source
-// Expected PV from QuantLib 1.34 test_suite/swaption.cpp line 142
-let quantlib_ref = 15_449.08;
-assert_approx_eq(finstack_pv, quantlib_ref, tolerances::NUMERICAL, "QuantLib parity");
+// Analytical derivation, spelled out.
+// YTM = (100/80)^(1/5) - 1 for a 5Y zero priced at 80
+let expected_ytm = (100.0_f64 / 80.0).powf(1.0 / 5.0) - 1.0;
 
-// ✅ Roundtrip test (expected is self-derived)
-// Bootstrap hazard curve → reprice CDS → NPV should be ≈ 0
-let npv = cds.value(&market, as_of).unwrap();
-assert!(npv.amount().abs() < 1.0, "Par spread roundtrip");
+// Round-trip self-test — expected is derived from the input.
+// Bootstrap hazard -> reprice the calibrating CDS -> NPV ~ 0
+assert!(npv.amount().abs() < 1.0);
 ```
 
-### Bad Examples
+External vendor references (QuantLib, Bloomberg, ISDA) belong in
+[`../golden/`](../golden/README.md), where the fixture schema forces a `source`,
+`source_detail`, capture date, and reviewer alongside the number. Do not paste a
+bare vendor value into a `#[test]` here.
 
-```rust
-// ❌ No provenance - where does 17_727.07 come from?
-let expected_pv = 17_727.07;
-assert_approx_eq(pv, expected_pv, 0.02, "swaption pricing");
+What not to do: an unexplained constant, a tolerance widened until the test
+passes, or an "expected" value computed from the result under test.
 
-// ❌ "Tolerance hack" that masks a bug
-let expected = result * 1.001; // Silent correction!
-assert!((result - expected).abs() < 0.01);
+When Finstack and a reference genuinely disagree, record the root cause and the
+convention difference in a comment next to the assertion, and keep the
+Finstack-side value labelled as a regression baseline rather than a parity
+target.
 
-// ❌ Loose tolerance without explanation
-assert!((pv - expected).abs() < 1000.0); // Why 1000?
-```
-
-### When External Reference Differs
-
-If finstack-quant produces different values than a reference (QuantLib, Bloomberg), document it:
-
-```rust
-// KNOWN DISCREPANCY: QuantLib reference produces 15_449.08
-// Finstack Quant implementation produces 17_727.07 (~15% higher)
-//
-// Root cause analysis:
-// 1. Annuity calculation: Finstack uses quarterly fixed leg,
-//    QuantLib uses semi-annual (market standard).
-// 2. Day count: Finstack uses Act/360; QuantLib uses 30/360.
-//
-// RECOMMENDATION: Update fixtures to align with market conventions.
-//
-// Using finstack baseline for regression testing:
-expected_pv: 17_727.07, // Finstack empirical baseline (not QuantLib reference)
-```
-
-## Special Notes
-
-### Equity DV01
-
-Equity instruments include DV01 metrics despite not having direct interest rate cashflows. This is because:
-
-- Position values are discounted
-- Forward pricing uses risk-free rates
-- Portfolio-level aggregation mixes equities with fixed income
-
-### Slow Tests
-
-Tests that take longer to run (property-based tests, comprehensive parity checks, multi-scenario
-validation) are marked with `#[ignore = "slow"]` so they are skipped by default:
-
-```rust
-#[test]
-#[ignore = "slow"]
-fn test_put_call_parity_atm() {
-    // Comprehensive parity test...
-}
-```
-
-**When to mark a test `#[ignore = "slow"]`:**
-- Property-based tests with 50+ cases
-- Multi-scenario validation loops
-- Parity tests that create multiple instruments per test
-- Calibration roundtrip tests
-- Tests involving Monte Carlo simulation
-
-**Running slow tests:**
+## Running
 
 ```bash
-# Run fast tests only (default CI)
-cargo test --lib instruments
+# Whole instruments target
+cargo nextest run -p finstack-quant-valuations --test instruments
 
-# Run all tests including slow (via `cargo test`)
-cargo test --lib instruments -- --include-ignored
+# One instrument
+cargo nextest run -p finstack-quant-valuations --test instruments bond::
+cargo nextest run -p finstack-quant-valuations --test instruments irs::
+cargo nextest run -p finstack-quant-valuations --test instruments structured_credit::
 
-# Run slow tests only
-cargo test --lib instruments -- --ignored
+# One file or one metric
+cargo nextest run -p finstack-quant-valuations --test instruments bond::pricing::
+cargo nextest run -p finstack-quant-valuations --test instruments bond::metrics::ytm::
+
+# Contract tests only
+cargo nextest run -p finstack-quant-valuations --test instruments registry_coverage::
+cargo nextest run -p finstack-quant-valuations --test instruments serde_contract::
+```
+
+### Slow tests
+
+Long-running cases carry `#[ignore = "slow: covered by mise rust-test-slow"]`
+and are skipped by default. They currently live in `cds`, `cds_index`,
+`cds_option`, `cds_tranche`, `equity_option`, `exotic_harness`, and
+`structured_credit`. Mark a test slow when it is a large property run, a
+multi-scenario loop, a Monte Carlo convergence check, or a calibration
+round-trip.
+
+```bash
+mise run rust-test-slow   # workspace-wide, ignored tests only
+cargo nextest run -p finstack-quant-valuations --test instruments --run-ignored only
 ```
 
 ## Contributing
 
-When adding new instrument tests:
-
-1. Follow the standard directory structure
-2. Use shared helpers from `common/test_helpers.rs`
-3. Provide comprehensive coverage (construction, cashflows, pricing, metrics, validation)
-4. Update this README with instrument status
-5. Run `mise run all-lint` and `mise run rust-test` before committing
+1. Follow the flat-by-default directory shape; add subdirectories only when the
+   file count justifies it.
+2. Use `crate::common::test_helpers` and `crate::test_support` rather than
+   rebuilding curves inline.
+3. Register the instrument in `coverage_manifest.toml` and regenerate its
+   fixture with `gen_schemas -- --write`.
+4. Give every expected value a provenance comment.
+5. Run `mise run rust-lint` and the targeted `cargo nextest run` filter before
+   committing.

@@ -216,8 +216,10 @@ pub(super) fn year_fraction_act_act_isda(start: Date, end: Date) -> crate::Resul
 ///
 /// When `ctx.coupon_period` is set, delegates to
 /// [`act_act_isma_year_fraction_with_reference_period`] for exact
-/// mid-coupon accrual. Otherwise falls back to the frequency-based
-/// approach that re-anchors from `start`.
+/// mid-coupon or stub accrual. Otherwise the frequency-only path is used
+/// only when `[start, end)` is a regular period of `frequency`; irregular
+/// coupons without a reference period return
+/// [`InputError::MissingCouponPeriodForActActIsma`].
 pub(super) fn year_fraction_act_act_isma_with_ctx(
     start: Date,
     end: Date,
@@ -227,10 +229,59 @@ pub(super) fn year_fraction_act_act_isma_with_ctx(
         .frequency
         .ok_or(InputError::MissingFrequencyForActActIsma)?;
     if let Some((ref_start, ref_end)) = ctx.coupon_period {
-        act_act_isma_year_fraction_with_reference_period(start, end, ref_start, ref_end)
-    } else {
-        year_fraction_act_act_isma(start, end, frequency)
+        return act_act_isma_year_fraction_with_reference_period(start, end, ref_start, ref_end);
     }
+    match frequency.unit() {
+        TenorUnit::Weeks | TenorUnit::Days => {
+            return Err(InputError::ActActIsmaUnsupportedFrequency {
+                frequency: frequency.to_string(),
+            }
+            .into());
+        }
+        TenorUnit::Months | TenorUnit::Years => {}
+    }
+    if start == end {
+        return Ok(0.0);
+    }
+    if is_regular_frequency_period(start, end, frequency) {
+        year_fraction_act_act_isma(start, end, frequency)
+    } else {
+        Err(InputError::MissingCouponPeriodForActActIsma.into())
+    }
+}
+
+/// Returns true when `[start, end)` is an integer number of `frequency` coupons.
+///
+/// A span is regular when some positive multiple of the tenor steps from
+/// `start` to `end`, or the same check run backward from `end` (month-end
+/// clamping can make the forward step miss). Irregular stubs fail both
+/// directions and require an explicit `coupon_period`.
+fn is_regular_frequency_period(start: Date, end: Date, frequency: Tenor) -> bool {
+    if start >= end {
+        return false;
+    }
+    let months = match frequency.unit() {
+        TenorUnit::Months => frequency.count() as i32,
+        TenorUnit::Years => frequency.count() as i32 * 12,
+        TenorUnit::Weeks | TenorUnit::Days => return false,
+    };
+    if months <= 0 {
+        return false;
+    }
+    let mut k: i32 = 1;
+    while k <= MAX_ACT_ACT_ISMA_RECURSION_DEPTH as i32 {
+        let Some(step) = k.checked_mul(months) else {
+            break;
+        };
+        if start.add_months(step) == end || end.add_months(-step) == start {
+            return true;
+        }
+        if start.add_months(step) > end && end.add_months(-step) < start {
+            break;
+        }
+        k += 1;
+    }
+    false
 }
 
 // ACT/ACT (ISMA/ICMA) helper

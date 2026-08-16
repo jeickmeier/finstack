@@ -7,6 +7,20 @@ backward-looking per entity (time-series) or partitioned per timestamp
 skipped and produce `None` outputs, so callers can carry missing data through a
 pipeline without sentinel values.
 
+## Position in the stack
+
+A bindings-facing leaf. Depends only on `finstack-quant-core` (plus `serde` /
+`serde_json` / `schemars` for the JSON entry points); no other domain crate
+depends on it. Its only consumers are the umbrella crate, which re-exports it
+as `finstack_quant::features`, and the two binding crates
+`finstack-quant-py` and `finstack-quant-wasm`.
+
+There is no financial-domain type here: no `Money`, no `Date`, no currency or
+day-count handling. Keys are opaque `String`s sorted lexicographically, so
+callers pass ISO-8601 dates (or any other lexicographically ordered key) as
+strings. Errors are `finstack_quant_core::Error`; the crate defines no error
+type of its own.
+
 ## Public API
 
 | Function | Role |
@@ -22,8 +36,10 @@ These entry points return `finstack_quant_core::Result`. Outputs preserve input
 order and length; element `i` of the output corresponds to element `i` of
 `values`. The string/JSON entry points are retained for Python and WASM
 bindings. Rust callers can use `TimeSeriesOp`, `CrossSectionalOp`, `PairwiseOp`,
-`PanelTransformSpec`, `PanelOperation`, and `PanelTransformResult` to avoid
-string dispatch.
+`PanelTransformSpec`, `PanelOperation`, `PanelTransformResult`, and
+`PanelTransformColumn` to avoid string dispatch. Each op enum exposes
+`as_str()`, returning the canonical snake_case name accepted by the string
+entry points.
 
 ## Time-series operations
 
@@ -128,11 +144,11 @@ both a column and an index level, the helper raises rather than guessing.
 
 ### Time-series returns and rolling std
 
-```rust,no_run
+```rust
 use finstack_quant_features::{transform_timeseries_with_op, TimeSeriesOp};
 use serde_json::json;
 
-# fn main() -> finstack_quant_core::Result<()> {
+fn example() -> finstack_quant_core::Result<()> {
 let values = vec![Some(12.0), Some(10.0), Some(21.0), Some(20.0)];
 let entity = vec!["A".into(), "A".into(), "B".into(), "B".into()];
 let order = vec![
@@ -158,17 +174,17 @@ let rolling_std = transform_timeseries_with_op(
 )?;
 assert_eq!(returns.len(), values.len());
 assert_eq!(rolling_std.len(), values.len());
-# Ok(())
-# }
+Ok(())
+}
 ```
 
 ### Cross-sectional rank and winsorize
 
-```rust,no_run
+```rust
 use finstack_quant_features::{transform_cross_sectional_with_op, CrossSectionalOp};
 use serde_json::json;
 
-# fn main() -> finstack_quant_core::Result<()> {
+fn example() -> finstack_quant_core::Result<()> {
 let values = vec![Some(1.0), Some(2.0), Some(100.0), Some(5.0)];
 let time_key = vec![
     "2026-01-01".into(),
@@ -184,24 +200,26 @@ let _winsorized = transform_cross_sectional_with_op(
     CrossSectionalOp::Winsorize,
     Some(&json!({"lower": 0.0, "upper": 0.5})),
 )?;
-# Ok(())
-# }
+Ok(())
+}
 ```
 
 ### JSON pipeline
 
 `transform_panel` runs a list of named operations against one shared `values`
-column and returns a JSON object mapping each operation `name` to its output
-column. `transform_panel_spec` accepts the same model as Rust structs and
-returns ordered `PanelTransformColumn` values. `entity`/`order` are required for
+column and returns a JSON object with a single `columns` array, one entry per
+operation in request order, each carrying that operation's `name` and its
+output `values`. `transform_panel_spec` accepts the same model as Rust structs
+and returns the equivalent `PanelTransformResult`, whose `get_column(name)`
+looks a column up by name. `entity`/`order` are required for
 `timeseries` operations; `time_key` is required for `cross_sectional`
 operations. Operation names must be unique and non-empty.
 
-```rust,no_run
+```rust
 use finstack_quant_features::transform_panel;
 use serde_json::json;
 
-# fn main() -> finstack_quant_core::Result<()> {
+fn example() -> finstack_quant_core::Result<()> {
 let spec = json!({
     "values": [10.0, 12.0, 20.0, 21.0],
     "entity": ["A", "A", "B", "B"],
@@ -216,8 +234,8 @@ let spec = json!({
 let result_json = transform_panel(&spec.to_string())?;
 // result_json => {"columns": [{"name": "ret1", "values": [...]}, ...]}
 let _ = result_json;
-# Ok(())
-# }
+Ok(())
+}
 ```
 
 The spec uses `serde(deny_unknown_fields)`; unrecognized keys are rejected.
@@ -233,21 +251,44 @@ The spec uses `serde(deny_unknown_fields)`; unrecognized keys are rejected.
   validation error.
 - The zero-denominator and zero-variance tolerance is `1e-12`.
 
+## Bindings
+
+- **Python** — string/JSON entry points under `finstack_quant.features`, plus
+  the pure-Python `finstack_quant.features.dataframe` pandas layer described
+  above. Both are declared in
+  [`parity_contract.toml`](../../finstack-quant-py/parity_contract.toml).
+- **WASM** — the same entry points in camelCase through the `features`
+  namespace ([`exports/features.js`](../../finstack-quant-wasm/exports/features.js)):
+  `transformTimeseries`, `transformCrossSectional`, `transformPanel`,
+  `transformTimeseriesPairwise`, `transformCrossSectionalGrouped`,
+  `neutralize`, `neutralizeAndZscore`, `normalizeSignal`, `cleanSignal`,
+  `rankToWeights`, `riskScaledWeights`, `rollingRegressionResidual`. JavaScript
+  callers pass `number | null` arrays for values and plain objects for params.
+
+The typed-op Rust variants (`*_with_op`) and `transform_panel_spec` have no
+host twin; both bindings go through the string/JSON entry points.
+
 ## Related
 
 - `finstack-quant-core` — provides `Error`/`Result` used for validation failures.
 - `finstack-quant` — re-exports this crate as `finstack_quant::features`.
-- `finstack-quant-py` — exposes the string/JSON entry points under
-  `finstack_quant.features`, plus the pure-Python `dataframe` helpers.
-- `finstack-quant-wasm` — exposes the same string/JSON entry points through the
-  `features` namespace using camelCase names (`transformTimeseries`,
-  `transformCrossSectional`, `transformPanel`, and the multi-input helpers).
-  JavaScript callers pass `number | null` arrays for values and plain objects
-  for params.
+
+## Tests
+
+[`tests/transforms.rs`](tests/transforms.rs) is the single integration suite; it
+covers every op in the tables above plus the validation errors. The crate has no
+benchmarks.
 
 ## Verification
 
 ```bash
-cargo test -p finstack-quant-features
-cargo test -p finstack-quant-wasm --test dts_contract features_dts_matches_transform_surface
+cargo clippy -p finstack-quant-features --all-targets --all-features -- -D warnings
+cargo nextest run -p finstack-quant-features --lib --test '*'
+cargo nextest run -p finstack-quant-wasm --lib --test dts_contract \
+  -E 'test(features_dts_matches_transform_surface)'
 ```
+
+Workspace gates (`mise run rust-lint`, `mise run rust-test`, `mise run rust-doc`
+— the last one runs doctests) are what CI enforces. Use `cargo nextest`, not
+`cargo test`, for crate-scoped runs; see
+[`CONTRIBUTING.md`](../../CONTRIBUTING.md).

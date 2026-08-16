@@ -64,6 +64,20 @@ def test_schedule_builder_setters_are_fluent_and_mutate_in_place() -> None:
     assert date(2025, 3, 20) in builder.build().dates
 
 
+def test_schedule_payment_and_fixing_dates() -> None:
+    schedule = (
+        ScheduleBuilder(date(2025, 1, 2), date(2025, 1, 9))
+        .frequency("1W")
+        .adjust_with(BusinessDayConvention.FOLLOWING, "weekends")
+        .payment_lag_business_days(2)
+        .fixing_lag_business_days(2)
+        .build()
+    )
+    assert schedule.dates == [date(2025, 1, 2), date(2025, 1, 9)]
+    assert schedule.payment_dates == [date(2025, 1, 13)]
+    assert schedule.fixing_dates == [date(2024, 12, 31)]
+
+
 def test_schedule_builder_fluent_setter_preserves_exceptions() -> None:
     builder = ScheduleBuilder(date(2025, 1, 15), date(2026, 1, 15))
     with pytest.raises(ValueError, match=r"(?i)(tenor|parse|invalid)"):

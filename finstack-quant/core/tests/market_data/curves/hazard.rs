@@ -158,14 +158,16 @@ fn sp_piecewise_verification() {
 }
 
 #[test]
-fn explicit_zero_time_knot_defines_first_positive_interval() {
+fn explicit_zero_time_knot_is_ignored_for_survival() {
+    // A redundant t=0 knot does not own (0, t1]; ending-segment attribution
+    // uses λ at the first positive knot on that interval (ISDA-style).
     let curve = HazardCurve::builder("SP-ZERO-KNOT")
         .base_date(base_date())
         .knots([(0.0, 0.01), (5.0, 0.02)])
         .build()
         .unwrap();
 
-    let expected_1 = (-0.01_f64).exp();
+    let expected_1 = (-0.02_f64).exp();
     assert!(
         (curve.sp(1.0) - expected_1).abs() < 1e-12,
         "SP at t=1: got {}, expected {}",
@@ -173,7 +175,7 @@ fn explicit_zero_time_knot_defines_first_positive_interval() {
         expected_1
     );
 
-    let expected_5 = (-0.01_f64 * 5.0).exp();
+    let expected_5 = (-0.02_f64 * 5.0).exp();
     assert!(
         (curve.sp(5.0) - expected_5).abs() < 1e-12,
         "SP at t=5: got {}, expected {}",

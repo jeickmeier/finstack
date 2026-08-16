@@ -8,8 +8,10 @@ use crate::market_data::bumps::BumpType;
 impl DiscountCurve {
     /// Apply a bump specification in-place, mutating values and rebuilding the interpolator.
     ///
-    /// This avoids allocating intermediate `Vec<(f64, f64)>`, skips ID generation,
-    /// and skips sort/validation (bumps preserve knot ordering).
+    /// Additive bumps are **continuously compounded zero-space** shocks
+    /// (`DF *= exp(−δr · t)`), not quote re-bootstraps. This avoids allocating
+    /// intermediate `Vec<(f64, f64)>`, skips ID generation, and skips
+    /// sort/validation (bumps preserve knot ordering).
     ///
     /// # Performance
     ///
@@ -36,6 +38,7 @@ impl DiscountCurve {
         }
         let bump_rate = val;
 
+        // Continuously compounded zero-space shock: DF *= exp(-δr t).
         // Clone only values; assign after the fallible interpolator build to
         // preserve failure atomicity.
         let mut dfs = self.dfs.clone();
@@ -83,7 +86,9 @@ impl DiscountCurve {
 
     /// Create a new curve with a parallel rate bump applied in basis points (fallible).
     ///
-    /// Uses df_bumped(t) = df_original(t) * exp(-bump * t), where bump = bp / 10_000.
+    /// Uses `DF_bumped(t) = DF(t) · exp(−δr · t)` with `δr = bp / 10_000`.
+    /// This is a **continuously compounded zero-space** parallel shock of the
+    /// already-built curve, not a re-bootstrap of the original market quotes.
     ///
     /// # Errors
     ///

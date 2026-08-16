@@ -1,35 +1,200 @@
 # Term Loan
 
-Institutional term loans with DDTL, PIK, covenant-driven events, amortization, and borrower calls.
+Institutional term loans, including delayed-draw term loans (DDTL), PIK and
+split coupons, covenant-driven events, original issue discount (OID) and
+borrower call schedules.
 
-## Features
+`TermLoan` is the leveraged-loan sibling of [`Bond`](../bond/): a bond has a
+single funded notional and a coupon; a term loan has a *commitment limit*, a
+draw path, and fees on both drawn and undrawn balances.
 
-- Fixed or floating rates with floors, caps, and gearing
-- Delayed-draw term loans (DDTL) with commitment and usage fees
-- PIK toggles and split cash/PIK coupons
-- Amortization: bullet, linear, percent-per-period, or custom schedules
-- Covenant events: margin step-ups, cash sweeps, PIK toggles, draw restrictions
-- OID handling and step-down call schedules
-- Metrics: DV01, CS01, YTM, YTC, YTW, discount margin, all-in rate
+## Public surface
 
-## Usage Example
+Import path:
+`finstack_quant_valuations::instruments::fixed_income::term_loan`
+(`TermLoan` is also re-exported at `finstack_quant_valuations::instruments`).
+
+| Item | Purpose |
+|------|---------|
+| `TermLoan` | The runtime instrument. Build with `TermLoan::builder()`; examples: `example`, `example_floating_with_ddtl`, `example_with_covenants`, `example_callable`. |
+| `TermLoanSpec` | Serde-stable specification. `spec.try_into()` yields a `TermLoan`. |
+| `RateSpec` | `Fixed { rate_bp }` or `Floating(FloatingRateSpec)` (floors, caps, gearing, reset lag). |
+| `AmortizationSpec` | `None` (bullet), `Linear { start, end }`, `PercentPerPeriod { bp }`, `PercentOfOriginalNotional { .. }`, `Custom(..)`. |
+| `DdtlSpec`, `DrawEvent`, `CommitmentStepDown`, `CommitmentFeeBase` | Delayed-draw commitment, draw calendar, step-downs, commitment/usage fee bases. |
+| `TermLoanCovenantEvents`, `MarginStepUp`, `PikToggle`, `CashSweepEvent` | Covenant-driven margin step-ups, PIK toggles, cash sweeps, draw-stop dates. |
+| `OidPolicy`, `OidEirSpec` | OID withheld from proceeds vs tracked separately, plus EIR amortization settings. |
+| `LoanCallSchedule`, `LoanCall`, `LoanCallType` | Borrower prepayment options: `Hard`, `Soft`, `MakeWhole { treasury_spread_bp }`. |
+| `TermLoanOverrides` | Scenario-time covenant/schedule adjustments (extra step-ups, forced PIK toggles, extra sweeps, draw stop). |
+| `TermLoanDiscountingPricer`, `TermLoanTreePricer` | The two registered pricers. |
+
+Field-level documentation is in the rustdoc; this file covers the layout,
+conventions and the parts that are easy to get wrong.
+
+## Module layout
+
+```
+term_loan/
+├── mod.rs         # re-exports + module-level overview
+├── types.rs       # TermLoan, RateSpec, builder, examples, Instrument impl
+├── spec.rs        # serde-stable TermLoanSpec and all nested spec types
+├── overrides.rs   # TermLoanOverrides
+├── cashflows.rs   # full internal cashflow schedule (draws, interest, amort, PIK, fees)
+├── pricing/
+│   ├── discounting.rs  # TermLoanDiscountingPricer (ModelKey::Discounting)
+│   └── tree_engine.rs  # TermLoanTreePricer (ModelKey::Tree, callable structures)
+└── metrics/       # YTM, YTC, YTW, YT2Y/3Y/4Y, DM, all-in rate, OID EIR, OAS, CS01
+```
+
+## Construction
+
+Two equivalent entry points. The builder is ergonomic; `TermLoanSpec` is the
+serde-stable shape for stored configurations. (The
+`finstack_quant.instrument/1` envelope carries `TermLoan` itself, not the spec.)
+
+```rust
+use finstack_quant_valuations::instruments::fixed_income::term_loan::{
+    AmortizationSpec, RateSpec, TermLoan,
+};
+use finstack_quant_valuations::instruments::{Attributes, InstrumentPricingOverrides};
+use finstack_quant_cashflows::builder::specs::CouponType;
+use finstack_quant_core::currency::Currency;
+use finstack_quant_core::dates::{BusinessDayConvention, DayCount, StubKind, Tenor};
+use finstack_quant_core::money::Money;
+use finstack_quant_core::types::{CurveId, InstrumentId};
+use time::macros::date;
+
+// Fixed-rate 5Y bullet with 2.5%-per-period amortization.
+let loan = TermLoan::builder()
+    .id(InstrumentId::new("TL-USD-5Y"))
+    .currency(Currency::USD)
+    .notional_limit(Money::new(10_000_000.0, Currency::USD))
+    .issue_date(date!(2024 - 01 - 01))
+    .maturity(date!(2029 - 01 - 01))
+    .rate(RateSpec::Fixed { rate_bp: 600 })          // 6.00%
+    .frequency(Tenor::quarterly())
+    .day_count(DayCount::Act360)
+    .business_day_convention(BusinessDayConvention::ModifiedFollowing)
+    .stub(StubKind::None)
+    .discount_curve_id(CurveId::new("USD-OIS"))
+    .amortization(AmortizationSpec::PercentPerPeriod { bp: 250 })
+    .coupon_type(CouponType::Cash)
+    .instrument_pricing_overrides(InstrumentPricingOverrides::default())
+    .attributes(Attributes::new())
+    .build()?;
+```
+
+From a spec:
 
 ```rust
 use finstack_quant_valuations::instruments::fixed_income::term_loan::{TermLoan, TermLoanSpec};
 
-let spec = TermLoanSpec::example()?; // or build from fields
-let loan: TermLoan = spec.try_into()?;
-let pv = loan.value(&market_context, as_of)?;
+let loan: TermLoan = spec.try_into()?;   // spec: TermLoanSpec
 ```
 
-See `mod.rs` for the full specification surface (`TermLoanSpec`, `RateSpec`, DDTL and covenant types) and cashflow/pricing modules for methodology.
+Notes that bite:
 
-## Limitations
+- Every `Option<T>` field has two setters: `.ddtl(spec)` for the inner value,
+  `.ddtl_opt(Some(spec))` for the `Option` — the builder rejects a build that
+  leaves a required field unset.
+- Rate and fee inputs on the spec types are **integer basis points** (`rate_bp`,
+  `usage_fee_bp`, `commitment_fee_bp`, `treasury_spread_bp`,
+  `AmortizationSpec::PercentPerPeriod { bp }`). `RateSpec::fixed_bp(Bps)` takes
+  the typed form.
+- `notional_limit` is the *commitment*, not the funded balance. Without a
+  `DdtlSpec` the loan funds the full commitment at issue.
+- `AmortizationSpec::PercentPerPeriod { bp }` applies to the **declining**
+  outstanding balance, so dollar amortization decays geometrically. It is not a
+  flat percentage of original notional.
+- `FloatingRateSpec::calendar_id` is ignored for term loans — the loan-level
+  `calendar_id` drives the payment schedule and business-day adjustment. Only
+  `index_id`, `spread_bp`, `gearing`, `index_floor_bp`, `all_in_cap_bp` and
+  `reset_lag_days` are read from the rate spec.
+- `settlement_days` defaults to **2** (T+2), not the LSTA par-trade convention;
+  set `settlement_days: 7` when you need the LSTA anchor.
 
-- Deterministic cashflow projection; no stochastic prepayment or default
-- Covenant evaluation uses supplied metric inputs rather than live financial statements
-- Custom fee schedules beyond standard commitment/usage/upfront fees require extension
+## Pricing
+
+Both pricers are registered in [`src/pricer/fixed_income.rs`](../../../pricer/fixed_income.rs):
+
+| Pricer | `ModelKey` | Use |
+|--------|-----------|-----|
+| `TermLoanDiscountingPricer` | `Discounting` | Deterministic cashflow projection and discounting (default). |
+| `TermLoanTreePricer` | `Tree` | Callable structures — values the borrower's prepayment option and backs `Oas` / `EmbeddedOptionValue`. |
+
+The discounting path generates the full internal schedule (DDTL draws,
+interest, amortization, PIK capitalization, fees), filters to cash flows, then
+discounts from `as_of` on the loan's discount curve.
+
+**PIK treatment**: PIK interest capitalizes into outstanding principal and is
+excluded from PV; it shows up in the final redemption amount. This matches
+institutional practice — PIK grows the debt balance rather than producing a
+cash flow.
+
+**Sign convention**: lender view. Draws are outflows, interest / fees /
+amortization / redemption are inflows.
 
 ## Metrics
 
-Yield metrics (YTM, YTC, YTW, discount margin), rate sensitivities (DV01, bucketed DV01), credit sensitivities (CS01), and theta via the shared metrics registry.
+Registered for `InstrumentType::TermLoan` in `metrics/mod.rs`:
+
+| `MetricId` | Meaning |
+|-----------|---------|
+| `Ytm` | IRR to final maturity |
+| `custom("ytc")` | Yield to first call |
+| `Ytw` | Minimum yield across call dates and maturity |
+| `custom("yt2y")`, `custom("yt3y")`, `custom("yt4y")` | IRR to fixed 2/3/4-year horizons |
+| `DiscountMargin` | Additive spread for floating-rate loans that reproduces the price |
+| `custom("all_in_rate")` | Effective borrower cost including fees |
+| `custom("oid_eir_amortization")` | OID effective-interest-rate amortization schedule |
+| `Oas`, `EmbeddedOptionValue` | Callable-tree metrics |
+| `Dv01`, `BucketedDv01` | Parallel and key-rate curve risk |
+| `Cs01`, `BucketedCs01` | Z-spread CS01, delegating to hazard CS01 when a credit curve and the credit-tree model are both present |
+| `Cs01Hazard`, `BucketedCs01Hazard` | Explicit hazard-curve CS01 (zero when there is no credit curve) |
+
+`Theta` is registered universally by `metrics::standard_registry()`.
+
+## Bindings
+
+- **Python**: `finstack_quant.valuations.instruments.TermLoan` — a typed
+  wrapper with `TermLoan.example()` and `to_json`/`from_json`. Generic pricing
+  runs through `finstack_quant.valuations.instruments.price_instrument(...)`.
+- **WASM**: `valuations.instruments.TermLoan`, plus
+  `valuations.instruments.priceInstrument` and
+  `valuations.instruments.instrumentCashflowsJson`.
+
+Both use `InstrumentJson::TermLoan` inside the `finstack_quant.instrument/1`
+envelope; unknown fields are rejected on deserialize.
+
+## Limitations
+
+- Deterministic cashflow projection: no stochastic prepayment or default model.
+  Credit risk enters through the discount/credit curve, not through simulated
+  default events.
+- Covenant evaluation consumes the supplied `TermLoanCovenantEvents` /
+  `TermLoanOverrides` inputs; it does not read live financial statements.
+  Statement-driven covenant testing lives in `finstack-quant-covenants` and
+  `finstack-quant-statements-analytics`.
+- Fees beyond upfront / commitment / usage require extending `DdtlSpec`.
+- Single currency per loan; multi-currency facilities are not modeled.
+- Revolving utilization belongs to
+  [`../revolving_credit/`](../revolving_credit/), not here.
+
+## Verification
+
+```bash
+# Term-loan unit + integration tests
+cargo nextest run -p finstack-quant-valuations --test instruments term_loan::
+
+# Whole workspace (never `cargo test` — it runs doctests)
+mise run rust-test
+
+# Lints
+mise run rust-lint
+```
+
+## See also
+
+- [`../../README.md`](../../README.md) — instrument module map and how to add one
+- [`../bond/README.md`](../bond/README.md) — shared cashflow-spec and quote conventions
+- [`../revolving_credit/README.md`](../revolving_credit/README.md) — the drawn/undrawn sibling
+- [`INVARIANTS.md`](../../../../../../INVARIANTS.md) — Decimal/f64, determinism and serde invariants

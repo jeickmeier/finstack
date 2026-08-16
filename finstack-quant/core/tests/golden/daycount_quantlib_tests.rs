@@ -4,11 +4,12 @@
 //! QuantLib reference values. The golden test data covers ISDA 2006 Definitions
 //! edge cases, particularly:
 //!
-//! - 30/360 US (Bond Basis) end-of-month rules per ISDA 4.16(f)
+//! - 30/360 US (Bond Basis / SIA-NASD PSA) Feb EOM rules (QuantLib `Thirty360::USA`;
+//!   not ISDA 4.16(f), which leaves February D1 unadjusted)
 //! - 30E/360 (Eurobond Basis) per ISDA 4.16(g)
 //! - Act/Act ISDA year-boundary splitting per ISDA 4.16(b)
 //! - Act/Act ICMA coupon-period basis per ICMA Rule 251
-//! - Act/365L (AFB) Feb 29 detection
+//! - Act/365L leap-year denominator per ICMA Rule 251 (not ACT/ACT AFB)
 //!
 //! # Reference
 //!
@@ -68,6 +69,9 @@ struct DayCountCase {
     /// Coupon frequency for ACT/ACT ICMA convention (e.g., "6M", "3M", "1Y", "1M")
     #[serde(default)]
     frequency: Option<String>,
+    /// Regular coupon period `[start, end)` for irregular ACT/ACT ICMA stubs.
+    #[serde(default)]
+    coupon_period: Option<(String, String)>,
 }
 
 /// Parse a date string in "YYYY-MM-DD" format.
@@ -163,11 +167,15 @@ fn test_single_convention(
 ) -> Result<(), String> {
     // Build context with frequency if ACT/ACT ICMA
     let frequency = case.frequency.as_deref().and_then(parse_frequency);
+    let coupon_period = case
+        .coupon_period
+        .as_ref()
+        .map(|(s, e)| (parse_date(s), parse_date(e)));
     let ctx = DayCountContext {
         calendar: None,
         frequency,
         bus_basis: None,
-        coupon_period: None,
+        coupon_period,
         end_is_termination_date: false,
     };
 

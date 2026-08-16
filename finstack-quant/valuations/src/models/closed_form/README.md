@@ -1,69 +1,56 @@
-# Closed-Form Pricing Models
+# models::closed_form
 
-Analytical and semi-analytical pricing formulas for European-style options and derivatives. Every formula is implemented with academic citations, robust edge-case handling, and comprehensive test coverage.
+Closed-form and semi-analytical pricing formulas for European-style options:
+Black-Scholes/Garman-Kohlhagen vanillas and Greeks, Asian, barrier, lookback,
+quanto, and Heston Fourier pricing. Every formula carries an academic citation
+in its module doc comment.
 
-## Purpose
+The module serves two roles:
 
-This module serves two roles:
+1. Production pricing where an analytical solution exists and is appropriate.
+2. Reference values against which the Monte Carlo, tree, and PDE engines are
+   validated.
 
-1. **Production pricing** -- fast, exact valuations where closed-form solutions exist.
-2. **Monte Carlo validation** -- reference prices and Greeks used to verify numerical engines.
+## Position in the stack
 
-All functions use continuous compounding, continuous dividend yields, and return per-unit (not contract-scaled) values.
+Within the crate, `closed_form` reaches for
+[`models::volatility::black`](../volatility/) (the `d1`/`d2` helpers) and for
+`crate::instruments::common_impl` — `parameters::OptionType` on every
+call/put-selecting entry point, and `helpers::get_unitless_scalar_strict` in
+the Heston parameter validator. From core it uses `math::special_functions`
+(`norm_cdf`, `norm_pdf`), `math::NeumaierAccumulator`,
+`math::volatility::{black_call, black_put}`, and `types::BarrierType`.
 
----
+It reads no market data, no curves, and no `MarketContext`: apart from the
+payoff/barrier enums and the `BarrierParams`/`HestonParams` grouping structs,
+every argument is a flat `f64`.
 
-## Module Structure
+Consumed by `valuations::instruments` — `equity/equity_option`,
+`equity/variance_swap`, `exotics/{asian,barrier,lookback}_option`,
+`fx/fx_barrier_option`, `fx/quanto_option`, and the shared
+`common_impl/pricing` helpers — by `models::pde` as a convergence anchor, and
+by the Python/WASM bindings via [`dispatch.rs`](dispatch.rs).
 
-```
-closed_form/
-├── mod.rs          # Public re-exports and module-level documentation
-├── vanilla.rs      # Black-Scholes / Garman-Kohlhagen pricing & Greeks
-├── greeks.rs       # Standalone analytical Greek functions (delta, gamma, vega, theta, rho)
-├── asian.rs        # Asian options (geometric exact, arithmetic Turnbull-Wakeman)
-├── barrier.rs      # Barrier options (continuous monitoring, all 8 types)
-├── lookback.rs     # Lookback options (fixed and floating strike)
-├── quanto.rs       # Quanto options (cross-currency drift adjustment)
-├── heston/         # Heston stochastic volatility via Fourier inversion
-├── implied_vol.rs  # Implied volatility solvers (BS and Black-76)
-└── README.md
-```
+## Layout
 
-### Dependency Graph
+| File | Contents |
+|------|----------|
+| [`mod.rs`](mod.rs) | Re-exports and module-level references |
+| [`vanilla.rs`](vanilla.rs) | Black-Scholes/Garman-Kohlhagen price, Greeks, Black-76, payoff and finiteness guards |
+| [`asian.rs`](asian.rs) | Geometric (Kemna-Vorst) and arithmetic (Turnbull-Wakeman) average-price options |
+| [`barrier.rs`](barrier.rs) | All eight continuously monitored barrier types, touch probabilities, rebates |
+| [`lookback.rs`](lookback.rs) | Fixed- and floating-strike lookbacks |
+| [`quanto.rs`](quanto.rs) | Cross-currency drift-adjusted vanillas |
+| [`heston/`](heston/) | Heston stochastic volatility via Gil-Pelaez Fourier inversion |
+| [`implied_vol.rs`](implied_vol.rs) | Newton-Raphson + bisection implied-vol solvers |
+| [`dispatch.rs`](dispatch.rs) | String-keyed routing shared by the Python and WASM bindings |
 
-```
-vanilla ◄──── greeks        (BsGreeks struct, d1/d2 helpers)
-  │              │
-  └──────────────┴──── implied_vol   (bs_price for objective, bs_vega for Newton)
-                       asian          (internal vanilla_call_bs / vanilla_put_bs)
-                       barrier        (self-contained BS-like expressions)
-                       lookback       (self-contained, reflection principle)
-                       quanto         (BS with adjusted drift)
-                       heston         (Fourier; falls back to BS when σ_v ≈ 0)
-```
+All analytical Greeks live in `vanilla.rs`, on `bs_greeks` /
+`bs_greeks_checked` / `bs_vega`.
 
----
+## Black-Scholes / Garman-Kohlhagen (`vanilla.rs`)
 
-## Models
-
-### Black-Scholes / Garman-Kohlhagen (`vanilla.rs`, `greeks.rs`)
-
-European call and put pricing with analytical Greeks under constant volatility.
-
-| Function | Description |
-|----------|-------------|
-| `bs_price` | European call/put price |
-| `bs_greeks` | All first-order Greeks in one call (returns `BsGreeks`) |
-| `bs_call_delta`, `bs_put_delta` | Delta |
-| `bs_gamma` | Gamma (same for calls and puts) |
-| `bs_vega` | Vega per 1% vol change |
-| `bs_call_theta`, `bs_put_theta` | Theta (annualized; divide by `theta_days_per_year`) |
-| `bs_call_rho`, `bs_put_rho` | Rho per 1% rate change |
-| `bs_call_greeks`, `bs_put_greeks` | Bundled Greeks including `rho_q` |
-
-**Formulas:**
-
-```
+```text
 C = S·e^(-qT)·N(d₁) - K·e^(-rT)·N(d₂)
 P = K·e^(-rT)·N(-d₂) - S·e^(-qT)·N(-d₁)
 
@@ -71,401 +58,376 @@ d₁ = [ln(S/K) + (r - q + σ²/2)T] / (σ√T)
 d₂ = d₁ - σ√T
 ```
 
-**`BsGreeks` struct** includes `delta`, `gamma`, `vega`, `theta`, `rho_r`, and `rho_q`, with `is_valid()` bounds checking and `clamped()` for numerical noise.
+| Item | Signature sketch |
+|------|------------------|
+| `bs_price` | `(spot, strike, r, q, sigma, t, OptionType) -> f64` |
+| `bs_price_checked` | same, `-> Result<f64>`; rejects non-finite output |
+| `bs_greeks` | `(spot, strike, r, q, sigma, t, OptionType, theta_days_per_year) -> BsGreeks` |
+| `bs_greeks_checked` | same, `-> Result<BsGreeks>`; validates every input |
+| `bs_vega` | `(spot, strike, time, rate, div_yield, vol) -> f64` (note the different argument order) |
+| `black76_call` / `black76_put` | `(forward, strike, sigma, t) -> f64` — undiscounted |
+| `vanilla_expiry_payoff` | `(spot, strike, OptionType) -> Result<f64>` |
+| `checked_closed_form_value` | `(value, what) -> Result<f64>` — the shared finiteness guard |
+| `option_type_from_bool` | boolean-to-`OptionType` adapter used by host bindings |
+| `ONE_PERCENT` | `100.0`, the divisor that puts vega and rho on a per-1% basis |
 
-**References:**
-- Black & Scholes (1973), *Journal of Political Economy*
-- Merton (1973), *Bell Journal of Economics*
-- Garman & Kohlhagen (1983), *Journal of International Money and Finance*
+`BsGreeks` carries `delta`, `gamma`, `vega`, `theta`, `rho_r` (domestic /
+risk-free) and `rho_q` (dividend yield or foreign rate), so the same struct
+serves equity and FX. `is_valid()` and `clamped()` deliberately check and clamp
+only gamma and vega: the true delta bound is `|Δ| ≤ e^{−qT}`, which exceeds 1
+under negative carry, and this type does not know `q` or `T`.
 
----
+`bs_greeks` asserts `theta_days_per_year > 0.0` in release builds; a
+non-positive basis would silently yield infinite theta.
 
-### Asian Options (`asian.rs`)
+References: Black & Scholes (1973); Merton (1973); Garman & Kohlhagen (1983).
 
-Average-price options with closed-form (geometric) and approximate (arithmetic) solutions.
+## Asian options (`asian.rs`)
 
-| Function | Description |
-|----------|-------------|
-| `geometric_asian_call` / `_put` | Exact geometric average pricing (Kemna & Vorst 1990) |
-| `geometric_asian_call_df` / `_put_df` | DF-first variant |
-| `arithmetic_asian_call_tw` / `_put_tw` | Turnbull-Wakeman moment-matching approximation |
-| `arithmetic_asian_call_tw_df` / `_put_tw_df` | DF-first variant |
+| Item | Notes |
+|------|-------|
+| `geometric_asian_call` / `_put` | Exact under geometric averaging (Kemna-Vorst) |
+| `geometric_asian_call_df` / `_put_df` | Discount-factor-first variant; derives `r = -ln(df)/t` |
+| `arithmetic_asian_call_tw` / `_put_tw` | Turnbull-Wakeman two-moment lognormal match |
+| `arithmetic_asian_call_tw_df` / `_put_tw_df` | Discount-factor-first variant |
+| `geometric_asian_price_times` | Arbitrary (unequally spaced) fixing schedule, `-> Result<f64>` |
+| `arithmetic_asian_tw_price_times` | Same, Turnbull-Wakeman |
 
-**Geometric average** (exact): the log of the geometric average is normally distributed, so pricing reduces to Black-Scholes with adjusted volatility:
+Equal-spacing entry points take `(spot, strike, time, rate, div_yield, vol,
+num_fixings)`. `num_fixings == 0` selects the continuous-monitoring limit for
+the geometric forms; for the arithmetic forms it returns `0.0` (no average can
+be formed).
 
+**Geometric average.** The log of the geometric average is normally
+distributed, so pricing reduces to Black-Scholes with an adjusted volatility and
+dividend yield. For `n` fixings at `t_i = iT/n` (no `t = 0` fixing):
+
+```text
+Var[ln G] = σ²·T·(n+1)(2n+1) / (6n²)      ⇒  σ_G = σ·√[(n+1)(2n+1) / (6n²)]
+E[ln G]   = ln S + (r - q - σ²/2)·T·(n+1)/(2n)
 ```
-σ_G = σ √[(2n + 1) / (6(n + 1))]     (discrete, n fixings)
-σ_G = σ / √3                           (continuous limit)
-```
 
-**Arithmetic average** (Turnbull-Wakeman): matches the first two moments of the arithmetic average to a lognormal distribution:
+The continuous limit is `σ_G = σ/√3`, `q_adj = (r+q)/2 + σ²/12`.
 
-```
-M₁ = E[A],  M₂ = E[A²]
-σ*² = ln(M₂ / M₁²),  μ* = ln(M₁) - σ*²/2
+**Arithmetic average (Turnbull-Wakeman).** Match the first two moments of the
+arithmetic average to a lognormal:
+
+```text
+σ*² = ln(M₂ / M₁²),   μ* = ln(M₁) - σ*²/2
+d₁  = (μ* - ln K + σ*²) / σ*,   d₂ = d₁ - σ*
 Price = df · (M₁·N(d₁) - K·N(d₂))
 ```
 
-Accuracy is typically within 1% of Monte Carlo for reasonable parameters.
+The `+σ*²` (not `+σ*²/2`) in `d₁` is correct here: the parameterisation is on
+the log-average directly, not the standard Black-Scholes form. Every return
+path is capped at the no-arbitrage bound `df·M₁`, because the moment-matching
+approximation can overshoot for deep-ITM/high-vol inputs.
 
-**References:**
-- Kemna & Vorst (1990), *Journal of Banking & Finance*
-- Turnbull & Wakeman (1991), *Journal of Financial and Quantitative Analysis*
-- Levy (1992), *Journal of International Money and Finance*
-- Curran (1994), *Management Science*
-- Rogers & Shi (1995), *Journal of Applied Probability*
+`AsianPriceResult` and `AsianGreeks` are declared and re-exported but no
+function in this module currently returns them.
 
----
+References: Kemna & Vorst (1990); Turnbull & Wakeman (1991); Levy (1992);
+Curran (1994); Rogers & Shi (1995); Haug (2007) ch. 3.
 
-### Barrier Options (`barrier.rs`)
+## Barrier options (`barrier.rs`)
 
-All 8 European barrier option types with continuous monitoring, plus touch probabilities and rebates.
+Reiner-Rubinstein continuous-monitoring formulas via the reflection principle,
+with `λ = (r - q + σ²/2) / σ²`.
 
-| Function | Description |
-|----------|-------------|
-| `up_in_call`, `up_out_call` | Up barrier calls |
-| `down_in_call`, `down_out_call` | Down barrier calls |
-| `up_in_put`, `up_out_put` | Up barrier puts |
-| `down_in_put`, `down_out_put` | Down barrier puts |
-| `barrier_call_continuous` | Dispatcher by `BarrierType` enum |
-| `barrier_put_continuous` | Dispatcher by `BarrierType` enum |
-| `barrier_touch_probability` | P(barrier is hit before T) |
-| `barrier_rebate_continuous` | Rebate paid at expiry (hit or no-hit) |
-| `*_df` variants | DF-first API for all of the above |
+| Item | Notes |
+|------|-------|
+| `up_out_call`, `up_in_call`, `down_out_call`, `down_in_call` | `(spot, strike, barrier, time, rate, div_yield, vol) -> f64` |
+| `up_out_put`, `up_in_put`, `down_out_put`, `down_in_put` | same shape (module-level only; not re-exported at `closed_form` root) |
+| `barrier_call_continuous`, `barrier_put_continuous` | `(&BarrierParams, BarrierType) -> f64` |
+| `barrier_touch_probability` | `(spot, barrier, time, rate, div_yield, vol, is_up) -> f64` |
+| `barrier_rebate_continuous` | `(&BarrierParams, rebate, BarrierType) -> f64` — pays at expiry |
+| `barrier_rebate` | adds `RebateTiming::{AtHit, AtExpiry}` |
 
-**Key identity:** In + Out = Vanilla (verified in tests).
+`BarrierType` is `finstack_quant_core::types::BarrierType`, not a type defined
+here. `BarrierParams` groups `spot`/`strike`/`barrier`/`time`/`rate`/
+`div_yield`/`vol`; `BarrierParams::with_df` is the discount-factor-first
+constructor and returns `Result` — it rejects a non-positive or non-finite `df`
+rather than coercing it to `rate = 0.0`. There are no `*_df` function variants
+for barriers.
 
-**Formulas** follow Reiner & Rubinstein (1991) using the reflection principle:
+`RebateTiming::AtHit` is the market standard for knock-out rebates and prices
+`rebate · E[e^{-r·τ} 1{τ≤T}]` via the Rubinstein-Reiner discounted
+first-passage value; it returns a `NaN` sentinel when that closed form is
+undefined (`μ² + 2r/σ² < 0`). Knock-in no-hit rebates always settle at expiry,
+so `timing` is ignored for them.
 
-```
-λ = (r - q + σ²/2) / σ²
-C_do = Vanilla - (H/S)^(2λ) · [reflected vanilla terms]
-```
+Identities verified in tests: in + out = vanilla; up-and-out is `0.0` once
+`spot >= barrier`.
 
-**Discrete monitoring correction:** Real-world barriers are typically monitored daily. Apply the Broadie-Glasserman-Kou (1997) shift: `H_adj = H · exp(±0.5826 · σ · √Δt)`.
+**Edge-case contract.** Public wrappers stay finite for `time <= 0` and
+`vol <= 0`. Zero-vol and near-zero-vol touch probabilities fall back to the
+deterministic drift-path limit. `time <= 0` uses terminal spot as a convenience
+convention only — realized expired barrier settlement needs observed path
+history and belongs at the instrument layer (see `observed_barrier_breached` on
+the FX barrier instrument).
 
-**Edge-case contract:** Public barrier wrappers remain finite for `t <= 0` and `σ <= 0`. Zero-vol and near-zero-vol touch probabilities fall back to the deterministic drift-path limit when the analytical expression becomes ill-conditioned. Low-level helper expiry behavior uses terminal spot as a convenience convention only; true realized expired barrier settlement belongs at the instrument layer via `observed_barrier_breached`.
+**Discrete monitoring.** These formulas assume continuous monitoring and
+underestimate discretely monitored barriers. Apply the Broadie-Glasserman-Kou
+(1997) shift `H_adj = H · exp(±0.5826·σ·√Δt)` at the caller; it is not applied
+inside this module.
 
-**References:**
-- Reiner & Rubinstein (1991), *Risk Magazine*
-- Merton (1973), *Bell Journal of Economics*
-- Broadie, Glasserman & Kou (1997), *Mathematical Finance*
+References: Reiner & Rubinstein (1991); Merton (1973); Broadie, Glasserman &
+Kou (1997); Gobet (2000); Fusai & Recchioni (2007); Haug (2007) ch. 4.
 
----
+## Lookback options (`lookback.rs`)
 
-### Lookback Options (`lookback.rs`)
+| Item | Payoff | Trailing argument |
+|------|--------|-------------------|
+| `fixed_strike_lookback_call` | `max(S_max - K, 0)` | `spot_max` |
+| `fixed_strike_lookback_put` | `max(K - S_min, 0)` | `spot_min` |
+| `floating_strike_lookback_call` | `S_T - S_min` | `spot_min` (no `strike` argument) |
+| `floating_strike_lookback_put` | `S_max - S_T` | `spot_max` (no `strike` argument) |
 
-Fixed-strike and floating-strike lookback options with continuous monitoring.
+Floating-strike call (Goldman, Sosin & Gatto 1979; Haug 2007 ch. 6), with
+`b = r - q`:
 
-| Function | Description |
-|----------|-------------|
-| `fixed_strike_lookback_call` | Payoff: max(S_max - K, 0) |
-| `fixed_strike_lookback_put` | Payoff: max(K - S_min, 0) |
-| `floating_strike_lookback_call` | Payoff: S_T - S_min |
-| `floating_strike_lookback_put` | Payoff: S_max - S_T |
+```text
+C = S·e^(-qT)·N(a₁) - S_min·e^(-rT)·N(a₁ - σ√T)
+  + S·e^(-rT)·(σ²/(2b))·[(S/S_min)^(-2b/σ²)·N(-d₃) - e^(bT)·N(-a₁)]
 
-**Floating-strike call formula** (Goldman, Sosin & Gatto 1979):
-
-```
-C = S·e^(-qT)·N(a₁) - S_min·e^(-rT)·N(a₂)
-  + S·e^(-rT)·(σ²/2b)·[(S/S_min)^(-2b/σ²)·N(-a₂) - e^(bT)·N(-a₁)]
-
-where b = r - q
-```
-
-The `r = q` degenerate case is handled via L'Hopital's rule (tolerance: 1e-4). Fixed-strike variants decompose into intrinsic value plus a floating-strike premium.
-
-**References:**
-- Goldman, Sosin & Gatto (1979), *Journal of Finance*
-- Conze & Viswanathan (1991), *Journal of Finance*
-- Cheuk & Vorst (1997)
-- Haug (2007), *The Complete Guide to Option Pricing Formulas*, Ch. 6
-
----
-
-### Quanto Options (`quanto.rs`)
-
-Cross-currency options priced in a different currency than the underlying's denomination.
-
-| Function | Description |
-|----------|-------------|
-| `quanto_drift_adjustment` | Returns `-ρ·σ_S·σ_X` |
-| `quanto_call` / `quanto_put` | Full quanto pricing with FX correlation |
-
-**Formula:**
-
-```
-μ_quanto = μ_asset - ρ·σ_asset·σ_fx
-F_adj = S · exp((r_for - q - ρ·σ_S·σ_X) · T)
-C_quanto = e^(-r_dom·T) · [F_adj·N(d₁) - K·N(d₂)]
+a₁ = [ln(S/S_min) + (b + σ²/2)T] / (σ√T)
+d₃ = a₁ - 2b√T/σ
 ```
 
-**References:**
-- Garman & Kohlhagen (1983), *Journal of International Money and Finance*
-- Brigo & Mercurio (2006), *Interest Rate Models*, Section 13.16
+The `b → 0` degeneracy uses an L'Hôpital limiting form below
+`RATE_EQ_DIV_TOL = 1e-7`. That threshold is an **absolute** floor by design: at
+`|b| ≈ 5e-7` the general form is still well-conditioned while the limiting form
+mis-prices by order 20%, so scaling the tolerance relative to `max(|r|, |q|)`
+would be wrong. Earlier values of 1e-2 and 1e-4 produced visible price
+discontinuities at the switch.
 
----
+Fixed-strike variants decompose into discounted intrinsic plus a
+floating-strike premium evaluated at a synthetic extremum.
 
-### Heston Stochastic Volatility (`heston/`)
+References: Goldman, Sosin & Gatto (1979); Conze & Viswanathan (1991); Cheuk &
+Vorst (1997); Haug (2007) ch. 6.
 
-European option pricing under the Heston (1993) model via Fourier inversion.
+## Quanto options (`quanto.rs`)
 
-| Function | Description |
-|----------|-------------|
-| `heston_call_price_fourier` | Call price; pass `None` for adaptive integration settings or `Some(&HestonFourierSettings)` to override |
-| `heston_put_price_fourier` | Put price via put-call parity; same optional settings argument |
-
-**`HestonParams`**: `r`, `q`, `kappa` (mean reversion), `theta` (long-run variance), `sigma_v` (vol-of-vol), `rho` (correlation), `v0` (initial variance).
-
-**`HestonFourierSettings`**: `u_max` (integration upper limit, default 100), `panels` (composite GL panels, default 100), `gl_order` (GL quadrature order, default 16), `phi_eps` (singularity guard, default 1e-8).
-
-**Algorithm:**
-
+```text
+μ_quanto = (r_for - q) - ρ·σ_S·σ_X
+F_adj    = S · exp(μ_quanto · T)
+C        = e^(-r_dom·T) · [F_adj·N(d₁) - K·N(d₂)]
 ```
+
+`quanto_drift_adjustment(correlation, vol_asset, vol_fx)` returns `-ρ·σ_S·σ_X`.
+`quanto_call` / `quanto_put` take `(spot, strike, time, rate_domestic,
+rate_foreign, div_yield, vol_asset, vol_fx, correlation)` and return the price
+in domestic currency per unit of foreign notional.
+
+References: Garman & Kohlhagen (1983); Derman, Karasinski & Wecker (1990);
+Brigo & Mercurio (2006) §13.16.
+
+## Heston (`heston/`)
+
+Gil-Pelaez P1/P2 Fourier inversion:
+
+```text
 C = S·e^(-qT)·P₁ - K·e^(-rT)·P₂
-
 P_j = 0.5 + (1/π) ∫₀^∞ Re[e^(-iφ·ln K) · ψ_j(φ) / (iφ)] dφ
 ```
 
-Uses the "Little Heston Trap" formulation (Albrecher et al. 2007) to avoid branch-cut discontinuities. Falls back to Black-Scholes when `sigma_v < 1e-10`.
+| Item | Notes |
+|------|-------|
+| `heston_call_price_fourier` | `(spot, strike, time, &HestonParams, Option<&HestonFourierSettings>) -> f64` |
+| `heston_put_price_fourier` | same, via put-call parity |
+| `heston_call_prices_fourier` / `heston_put_prices_fourier` | strike-strip variants |
+| `HestonStripPricer` | caches the strike-independent characteristic function on the quadrature grid |
+| `HestonParams` | `r, q, kappa, theta, sigma_v, rho, v0` — `new()` validates and returns `Result` |
+| `HestonFourierSettings` | `u_max`, `panels`, `gl_order`, `phi_eps`; `new()` / `validate()` |
+| `heston_defaults` | module of `KAPPA`/`THETA`/`SIGMA_V`/`RHO`/`V0` constants — the single source of truth for Heston defaults across the Fourier, PDE, and Monte Carlo equity pricers |
 
-**References:**
-- Heston (1993), *Review of Financial Studies*
-- Carr & Madan (1999), *Journal of Computational Finance*
-- Albrecher, Mayer, Schoutens & Tistaert (2007), *Wilmott Magazine*
-- Lord & Kahl (2010), *Mathematical Finance*
+The "Little Heston Trap" algebra (Albrecher et al. 2007) lives once in
+`finstack_quant_core::math::volatility::heston`;
+[`characteristic_fn.rs`](heston/characteristic_fn.rs) is a thin adapter that
+maps this module's `HestonParams` (which carries `r` and `q`) onto core's
+five-field `HestonParams` (which does not). **The two `HestonParams` types are
+distinct and must not be conflated.**
 
----
+Passing `settings: None` selects
+`HestonFourierSettings::for_maturity_with_variance(time, v0)`, which widens the
+grid for short maturities and for small `v0` — the integrand tail decays on a
+`u`-scale proportional to `1/√(v0·T)`. Buckets: `u_max = 200/panels = 200`
+under 0.05y, `150/150` under 0.25y, the default `100/100` under 1y, `80/80`
+beyond. `gl_order` must be one of `{2, 4, 8, 16}`; anything else fails
+validation because there is no node/weight table for it and the strip pricer
+would silently degrade to the slower per-strike path.
 
-### Implied Volatility Solvers (`implied_vol.rs`)
+`sigma_v < 1e-10` falls back to Black-Scholes evaluated at the *deterministic
+average variance* `v̄(T)`, not at `v0`. A Feller violation (`2κθ ≤ σ_v²`) logs a
+warning but is informational only: the Fourier pricer never simulates the
+variance path.
 
-Newton-Raphson with bisection fallback for robust implied vol extraction.
+References: Heston (1993); Carr & Madan (1999); Albrecher, Mayer, Schoutens &
+Tistaert (2007); Lord & Kahl (2010).
 
-| Function | Description |
-|----------|-------------|
-| `bs_implied_vol` | Black-Scholes/Garman-Kohlhagen implied vol |
-| `black76_implied_vol` | Black-76 (forward-based) implied vol |
+## Implied volatility (`implied_vol.rs`)
 
-**Algorithm:**
-1. Bracket the root in `[1e-8, 10.0]` (expanding `hi` by 1.5x up to 50 tries).
-2. Phase 1: Newton-Raphson using analytical vega (up to 15 iterations).
-3. Phase 2: Bisection fallback (up to 200 iterations, tolerance 1e-10).
+`bs_implied_vol(spot, strike, r, q, t, OptionType, target_price)` and
+`black76_implied_vol(forward, strike, df, t, OptionType, target_price)`.
 
-Returns `Err` if the target price cannot be bracketed (violates arbitrage bounds).
+1. Reject non-finite inputs, non-positive `spot`/`strike`/`target_price`, and
+   any target at or below intrinsic (an arbitrage violation).
+2. Bracket in `[MIN_VOL = 1e-8, MAX_VOL = 10.0]`, starting the upper bound at
+   `0.3` and expanding by 1.5x for up to 50 tries.
+3. Newton-Raphson using analytical vega, at most `MAX_NEWTON_ITER = 15` steps;
+   falls through to bisection when vega drops below `1e-15` or a step leaves
+   the bracket.
+4. Bisection, at most `MAX_ITER = 200` steps; converges on a price residual
+   below `PRICE_TOL = 1e-10` or a bracket collapsed below `1e-12`.
 
----
+`t <= 0` returns `Ok(0.0)`. Exhausting the iteration budget returns an explicit
+non-convergence error rather than the last unconverged midpoint.
+
+## String dispatch (`dispatch.rs`)
+
+One match table shared by both host bindings, so Python and WASM cannot drift
+apart on selector spelling or error text. Every dispatcher finishes through
+`checked_closed_form_value`, so a non-finite price from a degenerate input
+surfaces as a validation error instead of crossing the host boundary.
+
+| Function | Selectors |
+|----------|-----------|
+| `barrier_call_str` | `direction ∈ {"up","down"}`, `knock ∈ {"in","out"}` |
+| `asian_option_price_str` | `averaging ∈ {"arithmetic","geometric"}` |
+| `lookback_option_price_str` | `strike_type ∈ {"fixed","floating"}` |
+| `quanto_option_price_checked` | call/put only |
 
 ## Conventions
 
-| Convention | Value | Notes |
-|------------|-------|-------|
-| Compounding | Continuous | All rates and yields |
-| Vega | Per 1% vol | Multiply raw ∂V/∂σ by 0.01 |
-| Rho | Per 1% rate | Multiply raw ∂V/∂r by 0.01 |
-| Theta | Per day | Divide annualized theta by `theta_days_per_year` |
-| Day-count basis | Caller's choice | 365 (calendar), 252 (business), 360 (money market) |
-| DF-first API | `*_df` variants | Preferred when discount factor comes from a curve |
+| Convention | Value |
+|------------|-------|
+| Compounding | Continuous throughout (`exp(-r·t)`) |
+| Dividends | Continuous yield `q`; also used as the foreign rate for FX |
+| Vega | Per 1% absolute vol move (raw `∂V/∂σ` divided by `ONE_PERCENT`) |
+| Rho | Per 1% rate move |
+| Theta | Per day; divide the annualized value by `theta_days_per_year` (365 calendar, 252 business) |
+| Time | Year fractions; day-count basis is the caller's choice |
+| Scaling | Per unit of underlying — never multiplied by contract size |
+| Rates | Decimals (`0.05` = 5%), never basis points |
 
-### Edge Case Handling
+Edge cases: `t <= 0` returns intrinsic; `σ <= 0` prices the deterministic
+forward; prices are clamped non-negative. These are `f64` analytics, not
+`Money` — see [INVARIANTS.md](../../../../../INVARIANTS.md) §1 for the
+Decimal/f64 split.
 
-- **t <= 0**: Returns intrinsic value
-- **σ <= 0**: Deterministic forward pricing
-- **Barrier options**: Use barrier-state-dependent expiry conventions and deterministic touch logic; see the barrier section above for the full contract
-- **Deep ITM/OTM**: Prices clamped to non-negative; `BsGreeks::clamped()` for numerical noise
-- **r = q** (lookback): L'Hopital limit form (tolerance 1e-4)
-- **sigma_v ≈ 0** (Heston): Falls back to Black-Scholes
-
----
-
-## Usage Examples
-
-### Vanilla Pricing and Greeks
+## Example
 
 ```rust
+use finstack_quant_valuations::instruments::OptionType;
 use finstack_quant_valuations::models::closed_form::{
-    bs_price, bs_greeks, BsGreeks,
+    barrier::down_out_call,
+    bs_greeks, bs_price,
+    heston::{heston_call_price_fourier, HestonParams},
+    implied_vol::bs_implied_vol,
 };
-use finstack_quant_valuations::instruments::OptionType;
 
-let spot = 100.0;
-let strike = 100.0;
-let r = 0.05;
-let q = 0.02;
-let vol = 0.20;
-let t = 1.0;
+let (spot, strike, r, q, vol, t) = (100.0, 100.0, 0.05, 0.02, 0.20, 1.0);
 
-let call_price = bs_price(spot, strike, r, q, vol, t, OptionType::Call);
+// Vanilla price and Greeks on a 365-day theta basis.
+let price = bs_price(spot, strike, r, q, vol, t, OptionType::Call);
 let greeks = bs_greeks(spot, strike, r, q, vol, t, OptionType::Call, 365.0);
-
 assert!(greeks.is_valid());
-println!("Price: {:.4}, {}", call_price, greeks);
+
+// Invert the same price back to the input vol.
+let iv = bs_implied_vol(spot, strike, r, q, t, OptionType::Call, price)?;
+assert!((iv - vol).abs() < 1e-8);
+
+// Knock-out barrier below spot: worth strictly less than the vanilla.
+let ko = down_out_call(spot, strike, 90.0, t, r, q, vol);
+assert!(ko < price);
+
+// Heston with adaptive quadrature settings.
+let params = HestonParams::new(r, q, 2.0, 0.04, 0.3, -0.7, 0.04)?;
+let heston = heston_call_price_fourier(spot, strike, t, &params, None);
+assert!(heston > 0.0 && heston < spot);
+# Ok::<(), finstack_quant_core::Error>(())
 ```
 
-### Asian Option
+## Binding exposure
 
-```rust
-use finstack_quant_valuations::models::closed_form::asian::{
-    geometric_asian_call, arithmetic_asian_call_tw,
-};
+**Python** (`finstack_quant.valuations`): `bs_price`, `vanilla_expiry_payoff`,
+`bs_greeks`, `bs_implied_vol`, `black76_implied_vol`, plus the four dispatchers
+as `barrier_call`, `asian_option_price`, `lookback_option_price`,
+`quanto_option_price`.
 
-let price_geo = geometric_asian_call(100.0, 100.0, 1.0, 0.05, 0.02, 0.20, 252);
-let price_arith = arithmetic_asian_call_tw(100.0, 100.0, 1.0, 0.05, 0.02, 0.20, 252);
+**WASM** (`valuations` namespace): the same set as `bsPrice`,
+`vanillaExpiryPayoff`, `bsGreeks`, `bsImpliedVol`, `black76ImpliedVol`,
+`barrierCall`, `asianOptionPrice`, `lookbackOptionPrice`, `quantoOptionPrice`.
 
-// Arithmetic >= Geometric (AM-GM inequality)
-assert!(price_arith >= price_geo - 0.01);
+The Heston Fourier pricer is not bound directly in either host; it is reached
+through equity-option pricing. Lookback and Asian put/`_df`/`_times` variants
+are Rust-only.
+
+## Verification
+
+```bash
+# Unit tests for this module (never `cargo test` — it would run doc tests).
+cargo nextest run -p finstack-quant-valuations --lib -E 'test(/models::closed_form/)'
+
+# One file at a time.
+cargo nextest run -p finstack-quant-valuations --lib -E 'test(/closed_form::barrier/)'
+
+# Full Rust suite and lint.
+mise run rust-test
+mise run rust-lint
 ```
 
-### Barrier Option
+Tests are colocated in each file (`heston/` keeps its in
+[`heston/tests.rs`](heston/tests.rs)) and cover non-negativity sweeps, put-call
+parity, barrier in+out=vanilla, monotonicity in vol and strike, Greek bounds,
+zero-vol / zero-time / `r=q` / deep-moneyness edge cases, DF-first versus
+rate-based agreement, Heston-to-Black-Scholes convergence as `σ_v → 0`, and
+literature reference values.
 
-```rust
-use finstack_quant_valuations::models::closed_form::barrier::{
-    down_out_call, up_in_call, BarrierType, barrier_call_continuous,
-};
+## Adding a formula
 
-let doc_price = down_out_call(100.0, 100.0, 90.0, 1.0, 0.05, 0.02, 0.20);
-let uic_price = barrier_call_continuous(
-    100.0, 100.0, 120.0, 1.0, 0.05, 0.02, 0.20, BarrierType::UpAndIn,
-);
-```
+1. Create the file, declare it in [`mod.rs`](mod.rs), and re-export the public
+   names.
+2. Take flat `f64` arguments in the established order (`spot, strike, time,
+   rate, div_yield, vol, ...`) and use continuous compounding.
+3. Handle `t <= 0` (intrinsic), `vol <= 0` (deterministic forward), and
+   non-positive spot; clamp results non-negative.
+4. Add a `*_df` variant if a curve-sourced discount factor is the natural
+   input, and route non-finite results through `checked_closed_form_value` on
+   any `Result`-returning entry point.
+5. Scale vega and rho by `ONE_PERCENT` if you expose Greeks.
+6. Document the formula in a ```` ```text ```` block with a full citation
+   (author, year, journal, pages) and a `docs/REFERENCES.md#anchor` where one
+   exists — see [`.agents/rules/rust/documentation.md`](../../../../../.agents/rules/rust/documentation.md).
+7. Test non-negativity, the model's parity identity, convergence to
+   Black-Scholes in the appropriate limit, expiry intrinsic, and edge cases.
 
-### Heston Stochastic Volatility
+## References
 
-```rust
-use finstack_quant_valuations::models::closed_form::heston::{
-    heston_call_price_fourier, HestonParams, HestonFourierSettings,
-};
+Foundational: Black & Scholes (1973), *JPE* 81(3), 637-654; Merton (1973),
+*Bell J. Econ.* 4(1), 141-183.
 
-let params = HestonParams::new(
-    0.05,   // r
-    0.02,   // q
-    2.0,    // kappa (mean reversion)
-    0.04,   // theta (long-run variance)
-    0.3,    // sigma_v (vol-of-vol)
-    -0.7,   // rho (asset-variance correlation)
-    0.04,   // v0 (initial variance = 20% vol)
-)
-.unwrap();
+Asian: Kemna & Vorst (1990), *JBF* 14(1), 113-129; Turnbull & Wakeman (1991),
+*JFQA* 26(3), 377-389; Levy (1992), *JIMF* 11(5), 474-491; Curran (1994),
+*Mgmt. Sci.* 40(12), 1705-1711; Rogers & Shi (1995), *J. Appl. Prob.* 32(4),
+1077-1088.
 
-let price = heston_call_price_fourier(100.0, 100.0, 1.0, &params, None);
-```
+Barrier: Reiner & Rubinstein (1991), *Risk* 4(8), 28-35; Broadie, Glasserman &
+Kou (1997), *Math. Finance* 7(4), 325-349; Gobet (2000), *SPA* 87(2), 167-197;
+Fusai & Recchioni (2007), *JEDC* 31(3), 826-860.
 
-### Implied Volatility
+Lookback: Goldman, Sosin & Gatto (1979), *J. Finance* 34(5), 1111-1127; Conze &
+Viswanathan (1991), *J. Finance* 46(5), 1893-1907.
 
-```rust
-use finstack_quant_valuations::models::closed_form::implied_vol::{
-    bs_implied_vol, black76_implied_vol,
-};
-use finstack_quant_valuations::instruments::OptionType;
+Quanto: Garman & Kohlhagen (1983), *JIMF* 2(3), 231-237; Brigo & Mercurio
+(2006), *Interest Rate Models* (2nd ed.), §13.16.
 
-let iv = bs_implied_vol(100.0, 100.0, 0.05, 0.02, 1.0, OptionType::Call, 9.5)
-    .expect("should converge");
-```
+Stochastic volatility: Heston (1993), *RFS* 6(2), 327-343; Carr & Madan (1999),
+*J. Comp. Finance* 2(4), 61-73; Albrecher, Mayer, Schoutens & Tistaert (2007),
+*Wilmott*, Jan, 83-92; Lord & Kahl (2010), *Math. Finance* 20(4), 671-694.
 
----
+Texts: Haug (2007), *The Complete Guide to Option Pricing Formulas* (2nd ed.);
+Hull (2018), *Options, Futures, and Other Derivatives* (10th ed.).
 
-## Test Coverage
-
-Every module includes inline `#[cfg(test)]` tests verifying:
-
-| Category | What Is Tested |
-|----------|----------------|
-| **Positivity** | Option prices are non-negative |
-| **Intrinsic** | Expired options return intrinsic value |
-| **Parity** | Put-call parity, barrier in+out=vanilla |
-| **Monotonicity** | Price increases with vol, decreases with strike (calls) |
-| **Bounds** | Greeks satisfy theoretical constraints |
-| **Edge cases** | Zero vol, zero time, r=q, deep ITM/OTM |
-| **Cross-validation** | Heston vs. volatility module, DF vs. rate-based APIs |
-| **Regression** | Turnbull-Wakeman formula fix, clamping behavior |
-
-| File | Tests |
-|------|-------|
-| `vanilla.rs` | 9 |
-| `greeks.rs` | 5 |
-| `asian.rs` | 15 |
-| `barrier.rs` | 22 |
-| `lookback.rs` | 15 |
-| `quanto.rs` | 5 |
-| `heston/` | 12 |
-| **Total** | **83** |
-
----
-
-## Adding a New Closed-Form Model
-
-1. **Create `new_model.rs`** in this directory.
-
-2. **Add the module** to `mod.rs`:
-
-   ```rust
-   pub mod new_model;
-   pub use new_model::{new_model_call, new_model_put, NewModelParams};
-   ```
-
-3. **Implement the formula** following these conventions:
-   - Use continuous compounding (`exp(-r*t)`, not `1/(1+r)^t`).
-   - Accept `spot`, `strike`, `time`, `rate`, `div_yield`, `vol` as individual `f64` args (match existing signatures).
-   - Provide a `*_df` variant if the formula can benefit from a pre-computed discount factor.
-   - Handle edge cases: `t <= 0` (return intrinsic), `vol <= 0` (deterministic forward), `spot <= 0`.
-   - Clamp results to non-negative.
-   - Scale vega per 1% and rho per 1% if providing Greeks.
-
-4. **Document with academic references** in the module-level doc comment. Include:
-   - The formula in ```` ```text ```` blocks.
-   - Paper citation (author, year, journal, volume, pages).
-   - Implementation notes for any numerical tricks.
-
-5. **Add tests** covering at minimum:
-   - Non-negativity across parameter sweeps.
-   - Put-call parity (or the model's equivalent identity).
-   - Convergence to Black-Scholes in the appropriate limit.
-   - Intrinsic value at expiry.
-   - Edge cases (zero vol, zero time, extreme moneyness).
-
-6. **Run the test suite**: `cargo test -p finstack-quant-valuations -- closed_form`
-
----
-
-## Academic References (Complete)
-
-### Foundational
-
-- Black, F. & Scholes, M. (1973). "The Pricing of Options and Corporate Liabilities." *Journal of Political Economy*, 81(3), 637-654.
-- Merton, R. C. (1973). "Theory of Rational Option Pricing." *Bell Journal of Economics*, 4(1), 141-183.
-
-### Asian Options
-
-- Kemna, A. G. Z. & Vorst, A. C. F. (1990). "A Pricing Method for Options Based on Average Asset Values." *Journal of Banking & Finance*, 14(1), 113-129.
-- Turnbull, S. M. & Wakeman, L. M. (1991). "A Quick Algorithm for Pricing European Average Options." *JFQA*, 26(3), 377-389.
-- Levy, E. (1992). "Pricing European Average Rate Currency Options." *JIMF*, 11(5), 474-491.
-- Curran, M. (1994). "Valuing Asian and Portfolio Options by Conditioning on the Geometric Mean Price." *Management Science*, 40(12), 1705-1711.
-- Rogers, L. C. G. & Shi, Z. (1995). "The Value of an Asian Option." *Journal of Applied Probability*, 32(4), 1077-1088.
-
-### Barrier Options
-
-- Reiner, E. & Rubinstein, M. (1991). "Breaking Down the Barriers." *Risk Magazine*, 4(8), 28-35.
-- Broadie, M., Glasserman, P. & Kou, S. G. (1997). "A Continuity Correction for Discrete Barrier Options." *Mathematical Finance*, 7(4), 325-349.
-- Gobet, E. (2000). "Weak Approximation of Killed Diffusion Using Euler Schemes." *Stochastic Processes and their Applications*, 87(2), 167-197.
-
-### Lookback Options
-
-- Goldman, M. B., Sosin, H. B. & Gatto, M. A. (1979). "Path Dependent Options: Buy at the Low, Sell at the High." *Journal of Finance*, 34(5), 1111-1127.
-- Conze, A. & Viswanathan, R. (1991). "Path Dependent Options: The Case of Lookback Options." *Journal of Finance*, 46(5), 1893-1907.
-
-### Quanto Options
-
-- Garman, M. B. & Kohlhagen, S. W. (1983). "Foreign Currency Option Values." *JIMF*, 2(3), 231-237.
-- Brigo, D. & Mercurio, F. (2006). *Interest Rate Models -- Theory and Practice* (2nd ed.). Springer.
-
-### Stochastic Volatility
-
-- Heston, S. L. (1993). "A Closed-Form Solution for Options with Stochastic Volatility." *Review of Financial Studies*, 6(2), 327-343.
-- Carr, P. & Madan, D. (1999). "Option Valuation Using the Fast Fourier Transform." *Journal of Computational Finance*, 2(4), 61-73.
-- Albrecher, H., Mayer, P., Schoutens, W. & Tistaert, J. (2007). "The Little Heston Trap." *Wilmott Magazine*, January, 83-92.
-- Lord, R. & Kahl, C. (2010). "Complex Logarithms in Heston-Like Models." *Mathematical Finance*, 20(4), 671-694.
-
-### Reference Texts
-
-- Haug, E. G. (2007). *The Complete Guide to Option Pricing Formulas* (2nd ed.). McGraw-Hill.
-- Hull, J. C. (2018). *Options, Futures, and Other Derivatives* (10th ed.). Pearson.
-- Wilmott, P. (2006). *Paul Wilmott on Quantitative Finance* (2nd ed.). Wiley.
+Full bibliography with stable anchors: [docs/REFERENCES.md](../../../../../docs/REFERENCES.md).

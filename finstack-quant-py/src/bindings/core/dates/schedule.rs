@@ -185,11 +185,31 @@ impl PySchedule {
         PyScheduleBuilder::new(start, end)
     }
 
-    /// Schedule dates as a list of ``datetime.date``.
+    /// Unadjusted accrual dates as a list of ``datetime.date``.
     #[getter]
     fn dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyAny>>> {
         self.inner
             .dates
+            .iter()
+            .map(|d| date_to_py(py, *d))
+            .collect()
+    }
+
+    /// Payment date for each accrual period (one per period end).
+    #[getter]
+    fn payment_dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyAny>>> {
+        self.inner
+            .payment_dates
+            .iter()
+            .map(|d| date_to_py(py, *d))
+            .collect()
+    }
+
+    /// Fixing dates for each accrual period. Empty when no fixing lag is set.
+    #[getter]
+    fn fixing_dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyAny>>> {
+        self.inner
+            .fixing_dates
             .iter()
             .map(|d| date_to_py(py, *d))
             .collect()
@@ -279,6 +299,8 @@ impl PyScheduleBuilder {
                 imm_mode: false,
                 cds_imm_mode: false,
                 error_policy: ScheduleErrorPolicy::Strict,
+                payment_lag_business_days: 0,
+                fixing_lag_business_days: None,
             },
         })
     }
@@ -306,6 +328,18 @@ impl PyScheduleBuilder {
     ) -> PyRefMut<'py, Self> {
         slf.spec.business_day_convention = Some(convention.inner);
         slf.spec.calendar_id = Some(calendar_id.to_string());
+        slf
+    }
+
+    /// Shift each payment date by ``lag`` business days after the adjusted period end.
+    fn payment_lag_business_days(mut slf: PyRefMut<'_, Self>, lag: i32) -> PyRefMut<'_, Self> {
+        slf.spec.payment_lag_business_days = lag;
+        slf
+    }
+
+    /// Set a T-minus fixing lag from each period's unadjusted accrual start.
+    fn fixing_lag_business_days(mut slf: PyRefMut<'_, Self>, lag: i32) -> PyRefMut<'_, Self> {
+        slf.spec.fixing_lag_business_days = Some(lag);
         slf
     }
 

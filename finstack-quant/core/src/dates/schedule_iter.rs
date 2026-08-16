@@ -8,13 +8,17 @@
 //!
 //! - **Frequency-based**: Monthly, quarterly, annual, or custom day intervals
 //! - **Stub handling**: Short/long stubs at front or back of schedule
-//! - **Business day adjustment**: Modified Following, Following, Preceding
+//! - **Business day adjustment**: payment dates only (Following, Modified
+//!   Following, Preceding, Modified Preceding, Nearest); accrual dates stay
+//!   on the unadjusted roll grid
 //! - **End-of-month**: Snap intermediate roll dates to month-end for
 //!   month-based frequencies (user-provided start/end are never snapped)
 //! - **IMM mode**: Standard IMM quarterly schedules (third Wednesday of Mar/Jun/Sep/Dec)
 //! - **CDS IMM mode**: Credit default swap quarterly schedules (20th of Mar/Jun/Sep/Dec)
+//! - **Payment / fixing lag**: optional business-day offsets from each period end
+//!   (payments) or period start (fixings)
 //! - **Deterministic**: Same inputs always produce identical outputs
-//! - **Deduplication**: Automatically removes duplicate dates from EOM/adjustment
+//! - **Deduplication**: Automatically removes duplicate dates from EOM/stub handling
 //!
 //! # Quick Example
 //!
@@ -115,10 +119,10 @@
 use time::Date;
 
 use super::schedule_gen::{
-    enforce_monotonic_and_dedup, enforce_monotonic_keep_terminal, generate_imm_dates,
-    is_cds_roll_date, BuilderInternal,
+    enforce_monotonic_and_dedup, generate_imm_dates, is_cds_roll_date, BuilderInternal,
 };
-use super::{adjust, prev_cds_date, BusinessDayConvention, HolidayCalendar};
+use super::{adjust, prev_cds_date, BusinessDayConvention, DateExt, HolidayCalendar};
+use crate::error::InputError;
 
 /// Payment or coupon frequency for schedule generation.
 ///
@@ -410,10 +414,28 @@ impl std::fmt::Display for ScheduleWarning {
     Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
 pub struct Schedule {
-    /// The generated sequence of dates, monotonically increasing.
+    /// Unadjusted accrual grid (period start plus each period end).
+    ///
+    /// These dates are never business-day adjusted. Payment-date adjustment,
+    /// payment lag, and fixing lag live on [`Self::payment_dates`] and
+    /// [`Self::fixing_dates`].
     #[serde(with = "crate::wire::dates")]
     #[schemars(with = "Vec<crate::wire::DateWire>")]
     pub dates: Vec<Date>,
+    /// Payment date for each accrual period (one per period end).
+    ///
+    /// Length is `dates.len().saturating_sub(1)`. Duplicate payment dates are
+    /// retained so the series stays 1:1 with period ends.
+    #[serde(default, with = "crate::wire::dates")]
+    #[schemars(with = "Vec<crate::wire::DateWire>")]
+    pub payment_dates: Vec<Date>,
+    /// Fixing dates for each accrual period.
+    ///
+    /// Empty when no fixing lag is configured; otherwise the same length as
+    /// [`Self::payment_dates`].
+    #[serde(default, with = "crate::wire::dates")]
+    #[schemars(with = "Vec<crate::wire::DateWire>")]
+    pub fixing_dates: Vec<Date>,
     /// Warnings generated during schedule construction.
     ///
     /// Non-empty when graceful fallback mode suppressed an error or when
@@ -606,6 +628,10 @@ pub struct ScheduleBuilder<'a> {
     /// CDS IMM mode (20th of Mar/Jun/Sep/Dec) for credit default swaps.
     cds_imm_mode: bool,
     error_policy: ScheduleErrorPolicy,
+    /// Business days after each (adjusted) period end for the payment date.
+    payment_lag_business_days: i32,
+    /// Optional T-minus business days from each period's accrual start.
+    fixing_lag_business_days: Option<i32>,
 }
 
 impl<'a> ScheduleBuilder<'a> {
@@ -647,6 +673,8 @@ impl<'a> ScheduleBuilder<'a> {
             imm_mode: false,
             cds_imm_mode: false,
             error_policy: ScheduleErrorPolicy::Strict,
+            payment_lag_business_days: 0,
+            fixing_lag_business_days: None,
         })
     }
 
@@ -764,6 +792,41 @@ impl<'a> ScheduleBuilder<'a> {
         self
     }
 
+    /// Shift each payment date by `lag` business days after the (adjusted)
+    /// period end.
+    ///
+    /// A lag of zero leaves the payment date on the adjusted period end.
+    /// A positive lag requires a holiday calendar from
+    /// [`adjust_with`](Self::adjust_with) or [`adjust_with_id`](Self::adjust_with_id).
+    ///
+    /// # Arguments
+    ///
+    /// * `lag` - Non-negative business-day delay from each period's payment
+    ///   anchor to the actual payment date. Zero is T+0 (pay on the adjusted
+    ///   end). Negative values are rejected at [`build`](Self::build).
+    #[must_use]
+    pub fn payment_lag_business_days(mut self, lag: i32) -> Self {
+        self.payment_lag_business_days = lag;
+        self
+    }
+
+    /// Set a T-minus fixing lag from each period's unadjusted accrual start.
+    ///
+    /// The fixing date is `accrual_start` minus `lag` business days. A lag of
+    /// zero stores the accrual start itself. A positive lag requires a holiday
+    /// calendar from [`adjust_with`](Self::adjust_with) or
+    /// [`adjust_with_id`](Self::adjust_with_id).
+    ///
+    /// # Arguments
+    ///
+    /// * `lag` - Non-negative business-day lookback from each period's accrual
+    ///   start. Negative values are rejected at [`build`](Self::build).
+    #[must_use]
+    pub fn fixing_lag_business_days(mut self, lag: i32) -> Self {
+        self.fixing_lag_business_days = Some(lag);
+        self
+    }
+
     /// Configure business-day adjustment using calendar ID string lookup.
     ///
     /// This is a convenience method that combines calendar lookup with adjustment
@@ -837,6 +900,8 @@ impl<'a> ScheduleBuilder<'a> {
                 // Capture the error as a warning instead of propagating
                 Ok(Schedule {
                     dates: Vec::new(),
+                    payment_dates: Vec::new(),
+                    fixing_dates: Vec::new(),
                     warnings: vec![ScheduleWarning::GracefulFallback {
                         error_message: e.to_string(),
                     }],
@@ -948,28 +1013,81 @@ impl<'a> ScheduleBuilder<'a> {
             );
         }
 
-        // Apply business day adjustment if configured
-        if let (Some(conv), Some(cal)) = (self.conv, resolved_cal) {
-            for d in &mut dates {
-                *d = adjust(*d, conv, cal)?;
-            }
+        // Apply business day adjustment to period-end payment dates only.
+        // Accrual dates stay on the unadjusted roll grid (CDS 20ths included).
+        let (payment_dates, fixing_dates) = build_payment_and_fixing_dates(
+            &dates,
+            self.conv,
+            resolved_cal,
+            self.payment_lag_business_days,
+            self.fixing_lag_business_days,
+        )?;
 
-            // Adjustment can create duplicates (e.g., both anchors adjust to
-            // same business day) and, in edge cases, non-monotonicities.
-            // Enforce again, but never drop the adjusted maturity date:
-            // collisions merge into the earlier period.
-            let pre_adjust_len = dates.len();
-            enforce_monotonic_keep_terminal(&mut dates);
-            if dates.len() != pre_adjust_len {
-                tracing::warn!(
-                    dropped = pre_adjust_len - dates.len(),
-                    "business-day adjustment collided schedule dates; periods merged"
-                );
-            }
-        }
-
-        Ok(Schedule { dates, warnings })
+        Ok(Schedule {
+            dates,
+            payment_dates,
+            fixing_dates,
+            warnings,
+        })
     }
+}
+
+/// Build the payment and fixing series from an unadjusted accrual grid.
+///
+/// Period ends are optionally business-day adjusted, then shifted by
+/// `payment_lag`. Fixing dates are T-minus from each period start when a
+/// fixing lag is configured. Accrual dates themselves are never adjusted.
+fn build_payment_and_fixing_dates(
+    dates: &[Date],
+    conv: Option<BusinessDayConvention>,
+    cal: Option<&dyn HolidayCalendar>,
+    payment_lag: i32,
+    fixing_lag: Option<i32>,
+) -> crate::Result<(Vec<Date>, Vec<Date>)> {
+    if payment_lag < 0 {
+        return Err(InputError::NegativeScheduleLag { lag: payment_lag }.into());
+    }
+    if let Some(lag) = fixing_lag {
+        if lag < 0 {
+            return Err(InputError::NegativeScheduleLag { lag }.into());
+        }
+    }
+    let needs_calendar = payment_lag > 0 || fixing_lag.is_some_and(|lag| lag > 0);
+    if needs_calendar && cal.is_none() {
+        return Err(InputError::ScheduleLagRequiresCalendar.into());
+    }
+
+    let n_periods = dates.len().saturating_sub(1);
+    let mut payment_dates = Vec::with_capacity(n_periods);
+    for end in dates.windows(2).map(|window| window[1]) {
+        let mut pay = end;
+        if let (Some(conv), Some(cal)) = (conv, cal) {
+            pay = adjust(pay, conv, cal)?;
+        }
+        if payment_lag != 0 {
+            let cal = cal.ok_or(InputError::ScheduleLagRequiresCalendar)?;
+            pay = pay.add_business_days(payment_lag, cal)?;
+        }
+        payment_dates.push(pay);
+    }
+
+    let fixing_dates = if let Some(lag) = fixing_lag {
+        let mut out = Vec::with_capacity(n_periods);
+        for start in dates.windows(2).map(|window| window[0]) {
+            let fix = if lag == 0 {
+                start
+            } else {
+                let cal = cal.ok_or(InputError::ScheduleLagRequiresCalendar)?;
+                start.add_business_days(-lag, cal)?
+            };
+            out.push(fix);
+        }
+        out
+    } else {
+        Vec::new()
+    };
+
+    Ok((payment_dates, fixing_dates))
 }
 
 /// Enforce the strict policy's fail-closed contract on a built schedule.
@@ -1029,6 +1147,12 @@ pub struct ScheduleSpec {
     pub cds_imm_mode: bool,
     /// Policy for recoverable schedule-construction errors.
     pub error_policy: ScheduleErrorPolicy,
+    /// Business days after each (adjusted) period end for the payment date.
+    #[serde(default)]
+    pub payment_lag_business_days: i32,
+    /// Optional T-minus business days from each period's accrual start.
+    #[serde(default)]
+    pub fixing_lag_business_days: Option<i32>,
 }
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
@@ -1049,6 +1173,10 @@ struct ScheduleSpecWire {
     imm_mode: bool,
     cds_imm_mode: bool,
     error_policy: ScheduleErrorPolicy,
+    #[serde(default)]
+    payment_lag_business_days: i32,
+    #[serde(default)]
+    fixing_lag_business_days: Option<i32>,
 }
 
 impl TryFrom<ScheduleSpecWire> for ScheduleSpec {
@@ -1069,6 +1197,8 @@ impl TryFrom<ScheduleSpecWire> for ScheduleSpec {
             imm_mode: wire.imm_mode,
             cds_imm_mode: wire.cds_imm_mode,
             error_policy: wire.error_policy,
+            payment_lag_business_days: wire.payment_lag_business_days,
+            fixing_lag_business_days: wire.fixing_lag_business_days,
         })
     }
 }
@@ -1110,6 +1240,13 @@ impl ScheduleSpec {
             builder = builder.adjust_with_id(conv, id);
         }
 
+        if self.payment_lag_business_days != 0 {
+            builder = builder.payment_lag_business_days(self.payment_lag_business_days);
+        }
+        if let Some(lag) = self.fixing_lag_business_days {
+            builder = builder.fixing_lag_business_days(lag);
+        }
+
         if self.imm_mode {
             builder = builder.imm();
         } else if self.cds_imm_mode {
@@ -1127,6 +1264,8 @@ mod tests {
     fn warned_schedule() -> Schedule {
         Schedule {
             dates: Vec::new(),
+            payment_dates: Vec::new(),
+            fixing_dates: Vec::new(),
             warnings: vec![ScheduleWarning::MissingCalendarId {
                 calendar_id: "nope".to_string(),
             }],
@@ -1146,6 +1285,8 @@ mod tests {
     fn strict_policy_passes_clean_schedules_through() {
         let clean = Schedule {
             dates: Vec::new(),
+            payment_dates: Vec::new(),
+            fixing_dates: Vec::new(),
             warnings: Vec::new(),
         };
         assert!(strict_fail_closed_on_warnings(ScheduleErrorPolicy::Strict, clean).is_ok());

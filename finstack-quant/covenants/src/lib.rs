@@ -33,6 +33,7 @@
 //! let covenant = Covenant::new(
 //!     CovenantType::MaxDebtToEbitda { threshold: 4.5 },
 //!     Tenor::quarterly(),
+//!     "max_total_leverage", // instance label — also the report key
 //! );
 //! let mut engine = CovenantEngine::new();
 //! engine.add_spec(CovenantSpec::with_metric(covenant, "debt_to_ebitda"));
@@ -41,8 +42,8 @@
 //! let test_date = create_date(2025, Month::March, 31)?;
 //! let reports = engine.evaluate(&mut metrics, test_date)?;
 //!
-//! assert!(reports["max_debt_ebitda"].passed);
-//! assert_eq!(reports["max_debt_ebitda"].threshold, Some(4.5));
+//! assert!(reports["max_total_leverage"].passed);
+//! assert_eq!(reports["max_total_leverage"].threshold, Some(4.5));
 //! # Ok(())
 //! # }
 //! ```

@@ -1,86 +1,201 @@
 # finstack-quant-analytics
 
-Portfolio performance and risk analytics on numeric return series and
-`finstack_quant_core::dates::Date`, with no DataFrame or Polars dependency.
+Portfolio performance and risk analytics over numeric return series and
+`finstack_quant_core::dates::Date`. No DataFrame or Polars dependency: inputs
+are `Vec<Vec<f64>>` panels and `Vec<Date>` grids, outputs are `Vec<f64>` or
+small serde-derived result structs.
 
-[`Performance`](src/performance/mod.rs) is the entry point. Construct it from
-a price or return panel; scalars, drawdown statistics, rolling windows,
-periodic returns, and benchmark-relative metrics are methods on that instance.
+The crate also owns the shared correlation-matrix validation and PSD-repair
+helpers used by `finstack-quant-factor-model` and `finstack-quant-valuations`.
 
-Per-domain modules (`returns`, `risk_metrics`, `drawdown`, `benchmark`,
-`aggregation`, `lookback`) hold crate-internal building blocks that
-`Performance` composes. Result and config types those modules define are
-re-exported at the crate root because `Performance` returns them.
+## Position in the stack
 
-## Coverage
+`finstack-quant-core` is the only workspace crate it depends on; the sole
+non-trivial third-party dependency is `nalgebra`, used by the multi-factor
+regression and the constrained least-squares solver. Consumed by:
 
-- **Returns**: simple returns, excess returns, compounded accumulation, geometric mean
-- **Risk metrics**: CAGR, mean return, volatility, Sharpe, Sortino, downside deviation, Omega, gain-to-pain, modified Sharpe
-- **Tail risk**: historical VaR, Expected Shortfall, parametric VaR, Cornish-Fisher VaR, skewness, kurtosis, tail ratios
-- **Drawdown**: drawdown paths, episodes, max/mean drawdown, Ulcer Index, CDaR, Calmar, Martin, Sterling, Burke, Pain, recovery factor
-- **Benchmark-relative**: tracking error, information ratio, beta (with SE and CI), alpha/beta/R² greeks, rolling greeks, up/down capture, batting average, Treynor, M-squared, multi-factor regression
-- **Rolling series**: rolling Sharpe, Sortino, volatility, alpha/beta
-- **Aggregation and lookbacks**: period compounding, win/loss streaks, Kelly criterion, MTD/QTD/YTD/FYTD range selection
+| Consumer | What it uses |
+|----------|--------------|
+| `finstack-quant-factor-model` | `beta` (OLS slope in the credit peel), `correlation::{nearest_correlation_matrix, validate_correlation_matrix, NearestCorrelationOpts}` |
+| `finstack-quant-valuations` | `correlation::*`, re-exported verbatim through `finstack_quant_valuations::correlation` |
+| `finstack-quant` (umbrella) | re-exported as `finstack_quant::analytics` |
+| `finstack-quant-py`, `finstack-quant-wasm` | `Performance`, `regression::constrained_least_squares` |
 
-## Dependencies
+## Entry point
 
-```toml
-[dependencies]
-finstack-quant-analytics = { path = "../finstack-quant/analytics" }
-finstack-quant-core = { path = "../finstack-quant/core" }
-```
-
-Import path uses underscores even though the package name uses hyphens:
+[`Performance`](src/performance/mod.rs) is the entry point. Construct it from a
+price panel (`Performance::new`) or a return panel
+(`Performance::from_returns`); every analytic is then a method on that
+instance.
 
 ```rust
 use finstack_quant_analytics::Performance;
 use finstack_quant_core::dates::{Date, Month, PeriodKind};
+
+let dates: Vec<Date> = (1..=10)
+    .map(|d| Date::from_calendar_date(2025, Month::January, d).unwrap())
+    .collect();
+let prices = vec![(0..10).map(|i| 100.0 + i as f64).collect::<Vec<_>>()];
+let perf = Performance::new(
+    dates,
+    prices,
+    vec!["SPY".into()],
+    None,                 // benchmark ticker; None selects column 0
+    PeriodKind::Daily,
+)
+.unwrap();
+
+assert_eq!(perf.ticker_names(), &["SPY"]);
+let sharpe = perf.sharpe(0.0); // Vec<f64>, one entry per ticker
+assert_eq!(sharpe.len(), 1);
 ```
 
-A runnable construction example, plus return / drawdown / annualization
-conventions, lives in the crate rustdoc (`cargo doc -p finstack-quant-analytics --open`).
+Method families on `Performance`:
 
-## Public API
+| Family | Source | Examples |
+|--------|--------|----------|
+| Scalars | [`performance/scalar.rs`](src/performance/scalar.rs) | `cagr`, `mean_return`, `volatility`, `sharpe`, `sortino`, `calmar`, `omega_ratio`, `gain_to_pain`, `modified_sharpe`, `geometric_mean`, `downside_deviation` |
+| Tail risk | [`performance/scalar.rs`](src/performance/scalar.rs) | `value_at_risk`, `expected_shortfall`, `parametric_var`, `cornish_fisher_var`, `tail_ratio`, `skewness`, `kurtosis`, `cdar` |
+| Drawdown | [`performance/scalar.rs`](src/performance/scalar.rs), [`performance/aggregation.rs`](src/performance/aggregation.rs) | `max_drawdown`, `mean_drawdown`, `max_drawdown_duration`, `drawdown_series`, `drawdown_details`, `ulcer_index`, `martin_ratio`, `sterling_ratio`, `burke_ratio`, `pain_index`, `pain_ratio`, `recovery_factor` |
+| Benchmark-relative | [`performance/benchmark.rs`](src/performance/benchmark.rs) | `beta`, `greeks`, `rolling_greeks`, `multi_factor_greeks`, `tracking_error`, `information_ratio`, `r_squared`, `treynor`, `m_squared`, `up_capture`, `down_capture`, `capture_ratio`, `batting_average` |
+| Rolling series | [`performance/rolling.rs`](src/performance/rolling.rs) | `rolling_returns`, `rolling_volatility`, `rolling_sharpe`, `rolling_sortino` |
+| Panels and periods | [`performance/aggregation.rs`](src/performance/aggregation.rs) | `returns`, `cumulative_returns`, `excess_returns`, `correlation_matrix`, `periodic_returns`, `period_stats`, `lookback_returns`, `cumulative_returns_outperformance`, `drawdown_difference` |
+| Window and benchmark reset | [`performance/mod.rs`](src/performance/mod.rs) | `reset_date_range`, `reset_bench_ticker`, `active_dates`, `active_dates_for_ticker`, `returns_for_ticker` |
+
+The per-domain modules `returns`, `risk_metrics`, `drawdown`, `benchmark`,
+`aggregation`, and `lookback` are `pub(crate)`; only the result and config
+types they define are re-exported at the crate root, because `Performance`
+returns them.
+
+## Public surface
 
 | Item | Module | Notes |
 |------|--------|-------|
-| `Performance`, `LookbackReturns` | `performance` | Entry point |
-| `PeriodStats` | `aggregation` | Returned by `Performance::period_stats` |
+| `Performance` | `performance` | Entry point |
+| `LookbackReturns` | `performance` | `mtd` / `qtd` / `ytd` / optional `fytd`, one entry per ticker |
+| `PeriodStats` | `aggregation` | Best/worst, win rate, streaks, payoff and profit factors, CPC index |
 | `DrawdownEpisode` | `drawdown` | Returned by `Performance::drawdown_details` |
-| `BetaResult`, `GreeksResult`, `RollingGreeks`, `MultiFactorResult` | `benchmark` | Returned by benchmark methods on `Performance` |
+| `BetaResult`, `GreeksResult`, `RollingGreeks`, `MultiFactorResult` | `benchmark` | Returned by benchmark methods |
 | `DatedSeries` | `risk_metrics` | Returned by `Performance::rolling_*` |
-| `beta` | `benchmark` | Freestanding OLS beta; also used by `finstack-quant-valuations` |
-| `correlation` | `correlation` | Shared row-major correlation validation / repair infrastructure used by valuations and factor-model crates |
+| `beta` | `benchmark` | Freestanding OLS slope; consumed by `finstack-quant-factor-model` |
+| `correlation` | `correlation` | Public module: shared row-major correlation validation and repair |
+| `regression` | `regression` | Public module: `constrained_least_squares` |
 
-All other analytics building-block functions are crate-internal (`pub(crate)`).
+All other analytics building blocks are `pub(crate)`.
 
-## Numerical behavior
+### `correlation`
 
-- Compounding uses compensated summation in log space for long-series stability.
-- `Performance::new` and `Performance::from_returns` reject empty inputs, ragged matrices, unknown benchmark names, duplicate or non-monotonic dates, non-finite values, and interior invalid returns.
-- Multi-factor regression rejects mismatched factor lengths, non-finite factors, non-positive annualization factors, and singular or near-singular factor matrices.
-- Volatility, covariance, skewness, and kurtosis use sample statistics (`n - 1` denominator).
-- Degenerate cases return `0.0`, `NaN`, or `±∞` rather than panicking.
+Canonical home for the shared correlation-matrix helpers. Exports:
+
+- `validate_correlation_matrix(matrix, n)` — square-shape, unit-diagonal,
+  symmetry, `[-1, 1]` bounds, and PSD (Cholesky) checks, classifying failures
+  into the module-local `Error` enum.
+- `nearest_correlation_matrix(matrix, n, opts)` with `NearestCorrelationOpts` —
+  Higham (2002) alternating-projection PSD repair.
+- `Error` / `Result` — module-scoped `thiserror` type. This is the only error
+  enum the crate defines; everything else returns
+  `finstack_quant_core::Result`.
+
+`finstack_quant_valuations::correlation` re-exports all of these unchanged, so
+`valuations` callers do not need an analytics dependency. That merged namespace
+is a documented deviation from strict crate-mirroring, recorded in
+[`finstack-quant-py/parity_contract.toml`](../../finstack-quant-py/parity_contract.toml).
+
+### `regression`
+
+`constrained_least_squares` is an equality-constrained least-squares solver.
+`finstack-quant-portfolio`'s factor-Brinson documentation and error messages
+point callers at it for pre-solving factor return vectors; portfolio does not
+link against this crate.
+
+## Conventions
+
+- Returns are simple decimal returns (`0.01` is 1%), not percentages.
+- Annualization is derived from `finstack_quant_core::dates::PeriodKind`.
+- Drawdown depths are non-positive fractions: `-0.25` is a 25% loss.
+- Rolling series are right-labeled — each output value carries the date of the
+  last observation in its window.
+- Benchmark inputs are assumed pre-aligned to the panel's date grid.
+- Volatility and covariance use sample statistics (`n - 1` denominator).
+  `skewness` and `kurtosis` are the bias-corrected G₁ / G₂ estimators
+  (Joanes & Gill 1998), matching Excel `SKEW()` / `KURT()`; both are built on
+  the same `n - 1` sample standard deviation and return `0.0` on
+  zero-variance or too-short series.
+- Compounding accumulates in log space with a Neumaier compensated
+  accumulator for long-series stability.
+- Degenerate cases return `0.0`, `NaN`, or `±∞` rather than panicking; the
+  crate denies `unwrap`/`expect`/`panic`/`unreachable` at the lint level.
+- This crate is `f64` throughout. It holds no `Money` and performs no FX; see
+  [`INVARIANTS.md`](../../INVARIANTS.md) §1 for the workspace Decimal/f64 split.
+
+### Input validation
+
+`Performance::new` and `Performance::from_returns` reject empty inputs, ragged
+matrices, column counts that disagree with `ticker_names`, an unknown
+`benchmark_ticker`, and non-ascending dates. Per ticker, leading and trailing
+`NaN` padding is allowed but the finite span must be contiguous; an interior
+`NaN` or an active return `< -1.0` is an error. `multi_factor_greeks` also
+rejects mismatched factor lengths, non-finite factors, non-positive
+annualization factors, and singular or near-singular factor matrices.
 
 ## Serialization
 
-`Performance`, `LookbackReturns`, `PeriodStats`, `DrawdownEpisode`, `BetaResult`, `GreeksResult`, `MultiFactorResult`, `RollingGreeks`, and `DatedSeries` derive `Serialize`/`Deserialize`.
+`Performance`, `LookbackReturns`, `PeriodStats`, `DrawdownEpisode`,
+`BetaResult`, `GreeksResult`, `MultiFactorResult`, `RollingGreeks`, and
+`DatedSeries` derive `Serialize`/`Deserialize`. The `PeriodStats` fields that
+can legitimately be `±∞` (`payoff_ratio`, `profit_factor`, `cpc_ratio`,
+`kelly_criterion`) go through
+`finstack_quant_core::wire::non_finite_f64` so JSON round-trips exactly. See
+[`docs/SERDE_STABILITY.md`](../../docs/SERDE_STABILITY.md).
 
 ## Bindings
 
-- Python: flat performance surface under `finstack_quant.analytics`; shared correlation utilities are bound under `finstack_quant.valuations.correlation` for historical namespace compatibility. See `finstack-quant-py/parity_contract.toml`.
-- WASM: mirrors `Performance`; result types serialize to JS objects via `serde-wasm-bindgen`.
+- **Python** — flat surface under `finstack_quant.analytics`: `Performance`
+  plus the result wrappers (`BetaResult`, `DatedSeries`, `DrawdownEpisode`,
+  `GreeksResult`, `LookbackReturns`, `MultiFactorResult`, `PeriodStats`,
+  `RollingGreeks`), `constrained_least_squares`, and the `AnalyticsError`
+  exception. `Performance` gains DataFrame-first constructors
+  (`Performance(prices_df, ...)`, `Performance.from_returns(df, ...)`) with the
+  Rust-shaped array constructors available as `Performance.from_arrays` and
+  `Performance.from_returns_arrays`, plus `*_to_dataframe` exits.
+- **WASM** — `analytics.Performance` and `analytics.constrainedLeastSquares`
+  only (see [`exports/analytics.js`](../../finstack-quant-wasm/exports/analytics.js)).
+  WASM `Performance` methods return plain JS values instead of typed wrappers.
+- Shared correlation helpers are bound under
+  `finstack_quant.valuations.correlation` in both hosts, with
+  `nearest_correlation_matrix` exposed as `nearest_correlation`.
+
+The authoritative contract, including every known gap, is
+[`parity_contract.toml`](../../finstack-quant-py/parity_contract.toml)
+(`[crates.analytics]`, `[wasm_analytics_subset]`).
+
+## Tests and benchmarks
+
+| Path | Contents |
+|------|----------|
+| [`tests/performance_smoke.rs`](tests/performance_smoke.rs) | End-to-end `Performance` construction and metric coverage |
+| [`tests/correctness_regressions.rs`](tests/correctness_regressions.rs) | Hand-checked metric values pinned to `1e-12` |
+| [`tests/correlation_validator_agreement.rs`](tests/correlation_validator_agreement.rs) | `correlation::validate_correlation_matrix` agrees with core's `math::linalg` validator |
+| [`tests/serde_roundtrip.rs`](tests/serde_roundtrip.rs) | Result-type JSON round-trips, including non-finite fields |
+| [`benches/analytics_hot_paths.rs`](benches/analytics_hot_paths.rs) | Criterion benches for the hot scalar and rolling paths |
 
 ## References
 
-Quantitative references: [`docs/REFERENCES.md`](../../docs/REFERENCES.md).
+Entries live in [`docs/REFERENCES.md`](../../docs/REFERENCES.md):
+
+- Sharpe ratio — [`#sharpe1966`](../../docs/REFERENCES.md#sharpe1966)
+- Expected shortfall — [`#artzner1999CoherentRisk`](../../docs/REFERENCES.md#artzner1999CoherentRisk)
+- Active-portfolio context — [`#grinoldKahn1999ActivePortfolio`](../../docs/REFERENCES.md#grinoldKahn1999ActivePortfolio)
 
 ## Verification
 
 ```bash
-cargo fmt -p finstack-quant-analytics
-cargo clippy -p finstack-quant-analytics --all-features -- -D warnings
-cargo test -p finstack-quant-analytics
-cargo test -p finstack-quant-analytics --doc
-RUSTDOCFLAGS='-D warnings' cargo doc -p finstack-quant-analytics --no-deps --all-features
+cargo clippy -p finstack-quant-analytics --all-targets --all-features -- -D warnings
+cargo nextest run -p finstack-quant-analytics --lib --test '*'
+cargo bench -p finstack-quant-analytics --bench analytics_hot_paths
 ```
+
+Workspace gates (`mise run rust-lint`, `mise run rust-test`, `mise run rust-doc`
+— the last one runs doctests) are what CI enforces. Use `cargo nextest`, not
+`cargo test`, for crate-scoped runs; see
+[`CONTRIBUTING.md`](../../CONTRIBUTING.md).

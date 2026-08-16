@@ -130,20 +130,19 @@ fn test_schedule_with_business_day_adjustment() {
     let start = make_date(2025, 1, 1); // Holiday Wednesday
     let end = make_date(2025, 1, 8);
 
-    // Test that the builder can handle adjustment (even if AdjustIter is not public)
-    let dates: Vec<_> = ScheduleBuilder::new(start, end)
+    let schedule = ScheduleBuilder::new(start, end)
         .unwrap()
         .frequency(Tenor::weekly())
         .adjust_with(BusinessDayConvention::Following, &cal)
         .build()
-        .unwrap()
-        .into_iter()
-        .collect();
+        .unwrap();
+    let dates: Vec<_> = schedule.dates.clone();
 
-    // First date should be adjusted from Jan 1 (holiday) to Jan 2
+    // Accrual grid stays unadjusted; payment dates are adjusted.
     assert_eq!(dates.len(), 2);
-    assert_eq!(dates[0], make_date(2025, 1, 2)); // Thursday (adjusted from holiday)
-    assert_eq!(dates[1], make_date(2025, 1, 8)); // Wednesday
+    assert_eq!(dates[0], make_date(2025, 1, 1));
+    assert_eq!(dates[1], make_date(2025, 1, 8));
+    assert_eq!(schedule.payment_dates, vec![make_date(2025, 1, 8)]);
 }
 
 #[test]
@@ -153,19 +152,22 @@ fn test_schedule_builder_with_adjustment() {
     let start = make_date(2025, 1, 1); // Wednesday (holiday)
     let end = make_date(2025, 3, 1);
 
-    let dates: Vec<_> = ScheduleBuilder::new(start, end)
+    let schedule = ScheduleBuilder::new(start, end)
         .unwrap()
         .frequency(Tenor::monthly())
         .adjust_with(BusinessDayConvention::Following, &cal)
         .build()
-        .unwrap()
-        .into_iter()
-        .collect();
+        .unwrap();
 
-    // First date should be adjusted from Jan 1 (holiday) to Jan 2
-    assert_eq!(dates[0], make_date(2025, 1, 2)); // Thursday
-    assert_eq!(dates[1], make_date(2025, 2, 3)); // Saturday -> Monday Feb 3
-    assert_eq!(dates[2], make_date(2025, 3, 3)); // Saturday -> Monday Mar 3
+    // Accrual dates stay on the unadjusted roll grid.
+    assert_eq!(schedule.dates[0], make_date(2025, 1, 1));
+    assert_eq!(schedule.dates[1], make_date(2025, 2, 1));
+    assert_eq!(schedule.dates[2], make_date(2025, 3, 1));
+    // Period-end payments: Feb 1 (Sat) → Feb 3, Mar 1 (Sat) → Mar 3.
+    assert_eq!(
+        schedule.payment_dates,
+        vec![make_date(2025, 2, 3), make_date(2025, 3, 3)]
+    );
 }
 
 #[test]
@@ -549,28 +551,44 @@ fn test_eom_quarterly_through_feb() {
 
 #[test]
 fn test_adjustment_collision_keeps_maturity_date() {
-    // Daily schedule ending Fri Mar 29 2024 with Mar 27 + Mar 28 holidays:
-    // Following adjusts all three of Mar 27/28/29 to Mar 29. The maturity
-    // date must survive the post-adjustment dedup.
+    // Daily schedule ending Fri Mar 29 2024 with Mar 27 + Mar 28 holidays.
+    // Accrual dates stay unadjusted (including the holiday 27ths/28ths).
+    // Payment dates may collide after Following adjustment; they stay 1:1
+    // with period ends rather than merging the accrual grid.
     let start = make_date(2024, 3, 26);
     let end = make_date(2024, 3, 29);
     let cal = TestCal::new()
         .with_holiday(make_date(2024, 3, 27))
         .with_holiday(make_date(2024, 3, 28));
 
-    let dates: Vec<_> = ScheduleBuilder::new(start, end)
+    let schedule = ScheduleBuilder::new(start, end)
         .unwrap()
         .frequency(Tenor::daily())
         .adjust_with(BusinessDayConvention::Following, &cal)
         .build()
-        .unwrap()
-        .into_iter()
-        .collect();
+        .unwrap();
 
-    assert_eq!(dates.last().copied(), Some(end), "maturity must survive");
-    assert!(
-        dates.windows(2).all(|w| w[0] < w[1]),
-        "dates must be strictly increasing: {dates:?}"
+    assert_eq!(
+        schedule.dates,
+        vec![
+            make_date(2024, 3, 26),
+            make_date(2024, 3, 27),
+            make_date(2024, 3, 28),
+            make_date(2024, 3, 29),
+        ]
+    );
+    assert_eq!(
+        schedule.dates.last().copied(),
+        Some(end),
+        "maturity must survive"
+    );
+    assert_eq!(
+        schedule.payment_dates,
+        vec![
+            make_date(2024, 3, 29),
+            make_date(2024, 3, 29),
+            make_date(2024, 3, 29),
+        ]
     );
 }
 
@@ -918,4 +936,87 @@ fn test_zero_count_tenor_rejected_via_serde() {
     let tenor: Tenor =
         serde_json::from_str(r#"{"count":3,"unit":"months"}"#).expect("valid tenor deserializes");
     assert_eq!(tenor, Tenor::quarterly());
+}
+
+#[test]
+fn cds_imm_accrual_20ths_stay_unadjusted() {
+    let start = make_date(2025, 1, 15);
+    let end = make_date(2025, 12, 20);
+    let cal = TestCal::new().with_holiday(make_date(2025, 3, 20));
+
+    let schedule = ScheduleBuilder::new(start, end)
+        .unwrap()
+        .cds_imm()
+        .adjust_with(BusinessDayConvention::Following, &cal)
+        .build()
+        .unwrap();
+
+    assert!(
+        schedule.dates.contains(&make_date(2025, 3, 20)),
+        "CDS 20ths stay on the unadjusted accrual grid: {:?}",
+        schedule.dates
+    );
+    assert!(
+        schedule.payment_dates.contains(&make_date(2025, 3, 21)),
+        "holiday 20th pays Following: {:?}",
+        schedule.payment_dates
+    );
+}
+
+#[test]
+fn payment_lag_shifts_adjusted_period_ends() {
+    let start = make_date(2025, 1, 2);
+    let end = make_date(2025, 1, 9);
+    let cal = TestCal::new();
+
+    let schedule = ScheduleBuilder::new(start, end)
+        .unwrap()
+        .frequency(Tenor::weekly())
+        .adjust_with(BusinessDayConvention::Following, &cal)
+        .payment_lag_business_days(2)
+        .build()
+        .unwrap();
+
+    assert_eq!(schedule.dates, vec![start, end]);
+    assert_eq!(schedule.payment_dates, vec![make_date(2025, 1, 13)]);
+}
+
+#[test]
+fn fixing_lag_is_t_minus_from_accrual_start() {
+    let start = make_date(2025, 1, 2);
+    let end = make_date(2025, 1, 9);
+    let cal = TestCal::new();
+
+    let schedule = ScheduleBuilder::new(start, end)
+        .unwrap()
+        .frequency(Tenor::weekly())
+        .adjust_with(BusinessDayConvention::Following, &cal)
+        .fixing_lag_business_days(2)
+        .build()
+        .unwrap();
+
+    assert_eq!(schedule.fixing_dates, vec![make_date(2024, 12, 31)]);
+}
+
+#[test]
+fn nearest_payment_tie_rolls_following() {
+    // Wednesday 1 Jan 2025 is a holiday; Tue 31 Dec and Thu 2 Jan are equally
+    // close, so Nearest must roll Following.
+    let start = make_date(2024, 12, 18);
+    let end = make_date(2025, 1, 1);
+    let cal = TestCal::new().with_holiday(make_date(2025, 1, 1));
+
+    let schedule = ScheduleBuilder::new(start, end)
+        .unwrap()
+        .frequency(Tenor::weekly())
+        .stub_rule(StubKind::ShortBack)
+        .adjust_with(BusinessDayConvention::Nearest, &cal)
+        .build()
+        .unwrap();
+
+    assert_eq!(schedule.dates.last().copied(), Some(end));
+    assert_eq!(
+        schedule.payment_dates.last().copied(),
+        Some(make_date(2025, 1, 2))
+    );
 }

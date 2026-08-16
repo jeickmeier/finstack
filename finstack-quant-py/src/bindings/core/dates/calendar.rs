@@ -67,6 +67,11 @@ impl PyBusinessDayConvention {
     const MODIFIED_PRECEDING: PyBusinessDayConvention = PyBusinessDayConvention {
         inner: BusinessDayConvention::ModifiedPreceding,
     };
+    /// Closer business day; a tie rolls following.
+    #[classattr]
+    const NEAREST: PyBusinessDayConvention = PyBusinessDayConvention {
+        inner: BusinessDayConvention::Nearest,
+    };
 
     /// Parse from a string (e.g. ``"following"``, ``"modified_following"``).
     #[classmethod]
@@ -85,6 +90,7 @@ impl PyBusinessDayConvention {
             BusinessDayConvention::ModifiedFollowing => 2,
             BusinessDayConvention::Preceding => 3,
             BusinessDayConvention::ModifiedPreceding => 4,
+            BusinessDayConvention::Nearest => 5,
             #[allow(unreachable_patterns)]
             _ => 255,
         }

@@ -8,7 +8,7 @@ mod conventions;
 mod interp;
 mod knot_ops;
 
-pub(crate) use conventions::{infer_discount_curve_day_count, infer_forward_curve_defaults};
+pub(crate) use conventions::infer_forward_curve_defaults;
 pub(crate) use interp::{
     build_interp, build_interp_allow_any_values, build_interp_input_error, default_curve_base_date,
     split_points, year_fraction_to,

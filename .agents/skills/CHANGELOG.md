@@ -2,7 +2,7 @@
 
 ## Active Catalog
 
-Final active skill count: 12.
+Active skill count: 13. See [`README.md`](README.md) for what each one is for.
 
 Active skills:
 
@@ -18,6 +18,7 @@ Active skills:
 - `finstack-rust-architecture-review`
 - `finstack-rust-library-architecture-docs`
 - `finstack-senior-code-review`
+- `finstack-stepwise-quant-audit`
 
 ## Renamed Or Merged
 
@@ -27,7 +28,8 @@ Active skills:
 
 ## Retired Or Demoted
 
-Moved to `.agents/retired-skills/`:
+Moved to `.agents/retired-skills/`, then deleted outright in `b81bd85d8`. That
+directory no longer exists; recover the files from git history if needed.
 
 - `code-simplifier`
 - `simplicity-auditor`

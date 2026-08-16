@@ -50,23 +50,18 @@ fn inferred_currency_day_count(currency: &str) -> DayCount {
     }
 }
 
-/// Infer a market-standard day-count basis from a curve identifier.
+/// Infer a market-standard *index* day-count basis from a forward-curve identifier.
 ///
 /// Matching is by substring on the normalized (trimmed, upper-cased) ID:
 /// known index names first (e.g. `SOFR` ⇒ Act/360, `SONIA` ⇒ Act/365F), then
 /// a leading currency code (e.g. `USD-...` ⇒ Act/360). The fallback remains
 /// `Act365F` for synthetic IDs that carry no market hint.
 ///
-/// **Build-vs-query basis trap**: the inferred basis only affects how knot
-/// *dates* are converted to year fractions when a curve is built from dated
-/// pillars, and how query dates are converted back. If the ID is renamed
-/// (e.g. `USD-SOFR` → `USD-OIS-1`) the inferred basis can silently change
-/// from Act/360 to Act/365F, shifting every pillar time by ~1.4%. Callers
-/// that care about the basis should set `day_count(...)` explicitly on the
-/// builder rather than relying on inference. Each inference is logged at
-/// `debug` level for auditability.
+/// Discount curves do **not** use this helper: their default time basis is
+/// always [`DayCount::Act365F`]. Callers that need a money-market Act/360
+/// discount axis must set `day_count(...)` explicitly on the discount builder.
 #[inline]
-pub(crate) fn infer_discount_curve_day_count(id: &str) -> DayCount {
+pub(crate) fn infer_index_day_count(id: &str) -> DayCount {
     let normalized_id = normalize_curve_id(id);
 
     let inferred = if contains_any(
@@ -102,7 +97,7 @@ pub(crate) fn infer_discount_curve_day_count(id: &str) -> DayCount {
 #[inline]
 pub(crate) fn infer_forward_curve_defaults(id: &str) -> ForwardConventionDefaults {
     let normalized_id = normalize_curve_id(id);
-    let day_count = infer_discount_curve_day_count(id);
+    let day_count = infer_index_day_count(id);
 
     let is_overnight = normalized_id.contains("OIS")
         || contains_any(

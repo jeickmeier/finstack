@@ -1,77 +1,111 @@
-# Portfolio Margin Aggregation
+# Portfolio margin aggregation
 
-Portfolio-level margin aggregation for `finstack-quant-portfolio`, built on the
-instrument-level margin interfaces in `finstack-quant-margin` and
-`finstack-quant-valuations`.
+Portfolio-level netting-set organization and margin aggregation for
+`finstack-quant-portfolio`. It builds on the `Marginable` trait and the
+SIMM/schedule/CCP calculators in `finstack-quant-margin`, reaching individual
+holdings through `finstack-quant-valuations`, whose instruments implement
+`Marginable` and surface it via `Instrument::as_marginable()`. It does not
+implement a margin model of its own.
 
-## What It Does
+The module itself is `pub(crate)`; its six public types are re-exported at the
+crate root.
 
-- Groups positions into netting sets using instrument-provided margin metadata.
-- Nets SIMM sensitivities within each netting set before computing initial
-  margin.
+## What it does
+
+- Groups positions into netting sets from instrument-provided margin metadata
+  (`Marginable::netting_set_id()` and `Marginable::margin_spec()`).
+- Extracts per-position SIMM sensitivities, scales them to the held position,
+  FX-collapses them into the aggregator base currency, then nets them within
+  each netting set before computing initial margin.
 - Computes variation margin from netting-set mark-to-market values.
 - Aggregates per-netting-set results into a portfolio-wide report in the
   portfolio base currency.
 
-## Main Types
+## Types
 
-- `PortfolioMarginAggregator`: main orchestration entry point.
-- `NettingSet` and `NettingSetManager`: grouping and aggregation containers.
-- `NettingSetMargin`: result for one netting set.
-- `PortfolioMarginResult`: portfolio-wide margin summary.
+| Type | Role |
+|------|------|
+| `PortfolioMarginAggregator` | Orchestration entry point (`new`, `from_portfolio`, `add_position`, `calculate`) |
+| `NettingSet`, `NettingSetManager` | Grouping containers and sensitivity merge |
+| `NettingSetMargin` | One netting set's IM, VM, total, methodology, sensitivities, and IM breakdown |
+| `PortfolioMarginResult` | Portfolio summary: totals, `by_netting_set`, counts, `degraded_positions` |
+| `CurrencyMismatchError` | Returned when a netting-set result is not in the base currency |
 
-## Core Conventions
+Identifiers (`NettingSetId`), specs (`OtcMarginSpec`), methodologies
+(`ImMethodology`: `Haircut`, `Simm`, `Schedule`, …) and `SimmSensitivities`
+come from `finstack-quant-margin`.
 
-- Initial margin is computed per netting set, not on a gross portfolio basis.
-- Variation margin is the net mark-to-market of positions in the set.
-- Cross-currency netting-set results must be FX-converted explicitly when they
-  are not already in the portfolio base currency.
-- Positions whose SIMM sensitivities or margin MTM cannot be computed are
-  recorded in `degraded_positions` instead of being silently ignored.
+## Conventions
 
-## Minimal Example
+- **Per-netting-set IM.** Initial margin is computed per netting set, never on a
+  gross portfolio basis, then summed into the base currency.
+- **Signed, scaled sensitivities.** `Marginable::simm_sensitivities` returns
+  per-unit values (the same contract as `mtm_for_vm`). The aggregator scales
+  them by the signed `Position::scale_factor()` before merging, so a short
+  position offsets an equal long — which is what ISDA SIMM netting requires.
+- **Explicit FX, before netting.** Sensitivities produced in a currency other
+  than the aggregator base currency are converted with an explicit spot factor
+  before the netting-set merge. Rebasing a set that carries non-empty
+  `fx_delta` is refused (`MO-17`) because there is no calculation-currency
+  remap policy. VM mark-to-market is FX-converted per position.
+- **Registration is opt-in.** `add_position` ignores any instrument whose
+  `as_marginable()` is `None` or whose `netting_set_id()` is `None`.
+- **Failures are recorded, not dropped.** A position whose sensitivities or VM
+  mark-to-market cannot be computed lands in
+  `PortfolioMarginResult::degraded_positions`.
+  `positions_without_margin` counts non-marginable *plus* degraded positions;
+  `truly_non_marginable_count()` subtracts the degraded ones back out, which is
+  the figure risk reports usually want.
+- **Determinism.** Sensitivity extraction fans out over positions with Rayon
+  and collects positionally, so the downstream merge order matches the serial
+  path. `NettingSetMargin` and `PortfolioMarginResult` serialize through
+  internal `*Wire` types so `HashMap`-backed fields emit in a stable order.
+
+## Example
 
 ```rust,no_run
-use finstack_quant_portfolio::PortfolioMarginAggregator;
 use finstack_quant_core::market_data::context::MarketContext;
+use finstack_quant_portfolio::{Portfolio, PortfolioMarginAggregator};
 use time::macros::date;
 
-# fn main() -> finstack_quant_portfolio::Result<()> {
-# let portfolio: finstack_quant_portfolio::Portfolio = unimplemented!("Provide a portfolio");
-# let market: MarketContext = unimplemented!("Provide market data");
-let mut aggregator = PortfolioMarginAggregator::from_portfolio(&portfolio);
-let result = aggregator.calculate(&portfolio, &market, date!(2025-01-15))?;
+fn report(
+    portfolio: &Portfolio,
+    market: &MarketContext,
+) -> finstack_quant_portfolio::Result<()> {
+    let mut aggregator = PortfolioMarginAggregator::from_portfolio(portfolio);
+    let result = aggregator.calculate(portfolio, market, date!(2025 - 01 - 15))?;
 
-println!("Total IM: {}", result.total_initial_margin);
-println!("Total VM: {}", result.total_variation_margin);
-println!("Netting sets: {}", result.netting_set_count());
-# Ok(())
-# }
+    println!("Total IM: {}", result.total_initial_margin);
+    println!("Total VM: {}", result.total_variation_margin);
+    println!("Netting sets: {}", result.netting_set_count());
+
+    let (cleared, bilateral) = result.cleared_bilateral_split();
+    println!("Cleared {cleared} / bilateral {bilateral}");
+
+    for (position_id, reason) in &result.degraded_positions {
+        eprintln!("degraded: {position_id}: {reason}");
+    }
+    Ok(())
+}
 ```
 
-## Current Scope
+## Scope and limits
 
-- Netting-set organization and reporting.
-- SIMM-style sensitivity aggregation.
-- Portfolio-level IM and VM totals.
-- Cleared-vs-bilateral splits via `PortfolioMarginResult::cleared_bilateral_split`.
-
-## Known Limits
-
-- This layer reports margin requirements; it does not track posted or received
-  collateral inventory.
-- Accuracy depends on the underlying instrument implementations of
+- This layer reports margin *requirements*. It does not track posted or
+  received collateral inventory.
+- Results are only as good as the instrument implementations of
   `as_marginable`, `simm_sensitivities`, and `mtm_for_vm`.
-- Clearing-house methodologies are represented through the available
-  `ImMethodology` surface; venue-specific external CCP integrations are outside
-  this crate.
+- Clearing-house treatment is expressed through the available `ImMethodology`
+  variants; venue-specific CCP integrations are out of scope for this crate.
 
 ## Tests
 
 ```bash
-cargo test -p finstack-quant-portfolio --test margin_aggregation --test margin_serialization
+cargo nextest run -p finstack-quant-portfolio --test margin_aggregation
+cargo nextest run -p finstack-quant-portfolio --test margin_serialization
 ```
 
 ## References
 
-- `docs/REFERENCES.md#isda-simm`
+- ISDA SIMM: [`docs/REFERENCES.md#isda-simm`](../../../../docs/REFERENCES.md)
+- Crate overview: [`../../README.md`](../../README.md)

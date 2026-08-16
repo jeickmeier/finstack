@@ -1,132 +1,184 @@
 # Bond
 
-Fixed, floating, callable/utable, amortizing, and PIK bonds with discount, hazard, tree (OAS), and structural-credit pricing paths.
+Fixed, floating, step-up, amortizing, callable/putable and PIK bonds, with
+discount, hazard, tree (OAS) and Merton structural-credit pricing paths.
 
-## Overview
+`Bond` is the reference instrument of `finstack-quant-valuations`: several other
+instruments (asset-swap legs, convertibles, bond futures) reuse its cashflow
+spec, quote conversions and yield solver.
 
-- **Types**: Fixed, FRN, zero, amortizing, callable/putable, PIK
-- **Engines**: Discount (`BondEngine`), hazard, binomial tree + OAS, Merton MC for structural credit
-- **Metrics**: Price, yield, duration, convexity, spreads (Z, OAS, I, ASW, DM), DV01
-- **Cashflows**: Holder-view positive amounts for long positions
+## Public surface
 
-## Module Structure
+Import path: `finstack_quant_valuations::instruments::fixed_income::bond`
+(the main types are also re-exported at `finstack_quant_valuations::instruments`).
+
+| Item | Purpose |
+|------|---------|
+| `Bond` | The instrument. `Bond::builder()` plus factories `fixed`, `floating`, `zero_coupon`, `with_convention`, `example`. |
+| `CashflowSpec` | `Fixed` / `Floating` / `StepUp` / `Amortizing { base, schedule }`. |
+| `AmortizationSpec` | Amortization schedule for `CashflowSpec::Amortizing`. |
+| `CallPut`, `CallPutSchedule` | Embedded call/put windows and redemption prices. |
+| `MakeWholeSpec` | Make-whole call: `max(price_pct_of_par, PV @ reference curve + spread)`. |
+| `ReturnFloorSpec`, `ReturnFloorKind`, `IssuePrice`, `ProtectionWindow` | Guaranteed minimum MOIC/XIRR call protection. |
+| `BondSettlementConvention` | Settlement days and ex-coupon days. |
+| `AccrualMethod` | `Linear` (default) or `Compounded` (ICMA Rule 251). |
+| `bond_from_cashflows_json` | Build a `Bond` from an explicit cashflow list. |
+| `BondBuilderParams`, `FloatingConventionParams` | Argument structs for `CashflowSpec::from_bond_builder_params` and `::floating_with_conventions`; they flatten the binding-facing builder fields into one parameter. |
+| `pricing::engine::{discount, hazard, tree, merton_mc}` | Pricing engines and their registry adapters. |
+| `pricing::quote_conversions`, `pricing::ytm_solver` | Price ↔ yield ↔ spread conversions and the YTM root finder. |
+
+Details are in the rustdoc; this file covers layout, conventions and the parts
+that are easy to get wrong.
+
+## Module layout
 
 ```
 bond/
-├── mod.rs                   # Main module entry point and re-exports
-├── types.rs                 # Bond struct, CallPut, CallPutSchedule
-├── cashflow_spec.rs         # CashflowSpec enum (Fixed/Floating/Amortizing)
-├── cashflows.rs             # Cashflow generation utilities
+├── mod.rs                   # re-exports; module-level pricing conventions
+├── types/                   # Bond struct and construction
+│   ├── definitions.rs       # Bond, CallPut, CallPutSchedule, MakeWholeSpec, BondSettlementConvention
+│   ├── construction.rs      # builder + factories (fixed/floating/zero_coupon/with_convention/example)
+│   ├── return_floor.rs      # ReturnFloorSpec, ReturnFloorKind, IssuePrice, ProtectionWindow
+│   ├── pricing.rs           # Instrument::base_value and quote-override precedence
+│   └── traits.rs            # Instrument / CashflowProvider impls
+├── cashflow_spec.rs         # CashflowSpec + BondBuilderParams + FloatingConventionParams
+├── cashflows.rs             # holder-view (Date, Money) projection
+├── json.rs                  # bond_from_cashflows_json
 ├── pricing/
-│   ├── mod.rs               # Module declarations and convenience re-exports
-│   ├── engine/              # Core pricing math (one per model)
-│   │   ├── mod.rs
+│   ├── engine/              # pricing math + the thin Simple*Pricer registry adapters
 │   │   ├── discount.rs      # BondEngine: PV = Σ CF_i × DF_i
-│   │   ├── hazard.rs        # HazardBondEngine: survival-weighted PV + FRP recovery
-│   │   ├── tree.rs          # TreePricer: binomial tree for callable/putable + OAS
-│   │   └── merton_mc/       # MertonMcEngine: structural credit MC for PIK bonds
-│   ├── pricer/              # Registry adapters (thin glue: downcast → engine → ValuationResult)
-│   │   ├── mod.rs
-│   │   ├── discount.rs      # SimpleBondDiscountingPricer
-│   │   ├── hazard.rs        # SimpleBondHazardPricer
-│   │   ├── oas.rs           # SimpleBondOasPricer
-│   │   └── merton_mc.rs     # SimpleBondMertonMcPricer (+ cash-equiv Z-spread/YTM)
-│   ├── quote_conversions/   # Price ↔ yield ↔ spread conversion functions
-│   ├── ytm_solver.rs        # Newton-Brent yield-to-maturity solver
-│   └── settlement.rs        # Settlement date and accrued interest utilities
-└── metrics/                 # Bond-specific metric calculators
-    ├── mod.rs
-    ├── accrued.rs           # Accrued interest
-    ├── duration_macaulay.rs
-    ├── duration_modified.rs
-    ├── convexity.rs
-    └── price_yield_spread/  # Price, yield, and spread metrics
-        ├── mod.rs
-        ├── prices.rs        # Clean/dirty price
-        ├── ytm.rs           # Yield to maturity
-        ├── ytw.rs           # Yield to worst
-        ├── z_spread.rs      # Zero-volatility spread
-        ├── oas.rs           # Option-adjusted spread
-        ├── i_spread.rs      # Interpolated spread
-        ├── dm.rs            # Discount margin (FRNs)
-        ├── asw.rs           # Asset swap spreads
-        └── embedded_option_value.rs
+│   │   ├── hazard.rs        # HazardBondEngine + SimpleBondHazardPricer (survival-weighted PV + FRP)
+│   │   ├── tree/            # TreePricer + SimpleBondOasPricer (callable/putable, OAS)
+│   │   └── merton_mc/       # MertonMcEngine + SimpleBondMertonMcPricer (structural credit, PIK)
+│   ├── quote_conversions/   # yield↔price, spread↔price, annuity helpers
+│   ├── ytm_solver.rs        # Newton/Brent yield-to-maturity solver
+│   ├── return_floor.rs      # lowers ReturnFloorSpec into a CallPutSchedule at pricing time
+│   ├── settlement.rs        # quote date, accrued interest, ex-coupon windows
+│   └── time_basis.rs        # metric time axis helpers
+└── metrics/                 # bond-specific MetricCalculator impls
+    ├── price_yield_spread/  # clean/dirty price, YTM, YTW, Z, OAS, I-spread, DM, ASW, vega
+    ├── return_metrics/      # MOIC and XIRR (spot and to-worst)
+    ├── accrued.rs  convexity.rs  cs01.rs  dv01.rs  yield_dv01.rs
+    ├── duration_macaulay.rs  duration_modified.rs  effective.rs  spread_duration.rs  wal.rs
+    └── risk_view.rs         # quote-reproducing basis shared by the bump metrics
 ```
 
-### Design: Engines vs Pricers
+### Engines vs pricers
 
-- **Engines** (`engine/*.rs`) contain the core pricing math. They take a `Bond` + `MarketContext` and return a PV. They know nothing about the registry.
-- **Pricers** (`pricer/*.rs`) are thin registry adapters. They downcast the instrument, call the appropriate engine, and wrap the result in a `ValuationResult`. Adding a new pricing model means one engine file + one pricer file.
-- **Utilities** (`quote_conversions/`, `ytm_solver.rs`, `settlement.rs`) are shared helpers used by both engines and metrics.
+Each `engine/*` file holds the pricing math **and** the thin `Simple*Pricer`
+registry adapter next to it. The adapter downcasts the instrument, calls the
+engine, and wraps the result in a `ValuationResult`. Registration happens once,
+in `src/pricer/rates.rs`:
 
-## Feature Set
+| Engine | `ModelKey` | Registered pricer |
+|--------|-----------|-------------------|
+| `BondEngine` | `Discounting` | generic pricer (`register_generic!` → `Instrument::base_value`) |
+| `HazardBondEngine` | `HazardRate` | `SimpleBondHazardPricer` |
+| `TreePricer` | `Tree` | `SimpleBondOasPricer` |
+| `MertonMcEngine` | `MertonMc` | `SimpleBondMertonMcPricer` |
 
-### Bond Types
+Adding a model means one file under `pricing/engine/` and one `registry.register(...)`
+line in `src/pricer/rates.rs`.
 
-#### Fixed-Rate Bonds
+## Construction
 
-Standard bonds with fixed coupon payments at regular intervals.
+```rust
+use finstack_quant_valuations::instruments::fixed_income::bond::{Bond, CashflowSpec};
+use finstack_quant_valuations::instruments::{Attributes, InstrumentPricingOverrides};
+use finstack_quant_core::currency::Currency;
+use finstack_quant_core::dates::{DayCount, Tenor};
+use finstack_quant_core::money::Money;
+use finstack_quant_core::types::Rate;
+use time::macros::date;
+
+// Factory: semi-annual, 30/360, T+2 settlement.
+let corp = Bond::fixed(
+    "CORP-001",
+    Money::new(1_000_000.0, Currency::USD),
+    Rate::from_percent(5.0),
+    date!(2025 - 01 - 01),
+    date!(2030 - 01 - 01),
+    "USD-OIS",
+)?;
+
+// Builder: full control over the coupon spec.
+let bond = Bond::builder()
+    .id("BOND-001".into())
+    .notional(Money::new(1_000_000.0, Currency::USD))
+    .issue_date(date!(2025 - 01 - 01))
+    .maturity(date!(2030 - 01 - 01))
+    .cashflow_spec(CashflowSpec::fixed(0.05, Tenor::semi_annual(), DayCount::Thirty360)?)
+    .discount_curve_id("USD-OIS".into())
+    .instrument_pricing_overrides(InstrumentPricingOverrides::default())
+    .attributes(Attributes::new())
+    .build()?;
+```
+
+Notes that bite:
+
+- Builder setters use the **field names**: `issue_date` (not `issue`),
+  `maturity`, `cashflow_spec`, `discount_curve_id`.
+- Every `Option<T>` field gets two setters: `.call_put(schedule)` takes the
+  inner value, `.call_put_opt(Some(schedule))` takes the `Option`.
+- `CashflowSpec::fixed` / `fixed_rate` return `Result` (the coupon must be a
+  finite `Decimal`). `CashflowSpec::floating_bp` takes a typed `Bps` and does
+  not.
+- `Bond::fixed` / `with_convention` / `zero_coupon` / `floating` all return
+  `Result<Bond>` and run `validate()` before returning.
+
+### Floating-rate notes
 
 ```rust
 use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::money::Money;
 use finstack_quant_core::dates::{DayCount, Tenor};
+use finstack_quant_core::money::Money;
 use finstack_quant_core::types::Bps;
 use time::macros::date;
 
-let bond = Bond::fixed(
-    "BOND-001",
-    Money::new(1_000_000.0, Currency::USD),
-    0.05,  // 5% coupon
-    date!(2025 - 01 - 01),
-    date!(2030 - 01 - 01),
-    "USD-OIS",
-);
-```
-
-#### Floating-Rate Notes (FRNs)
-
-Bonds with floating coupon rates tied to an index (e.g., SOFR, LIBOR).
-
-```rust
 let frn = Bond::floating(
     "FRN-001",
     Money::new(1_000_000.0, Currency::USD),
-    "USD-SOFR-3M".into(),
+    "USD-SOFR-3M",
     Bps::new(200),
     date!(2025 - 01 - 01),
     date!(2030 - 01 - 01),
     Tenor::quarterly(),
     DayCount::Act360,
     "USD-OIS",
-);
+)?;
 ```
 
-#### PIK (Payment-in-Kind) Bonds
+Reset lag and fixing calendar default from the index id when it is a known
+rate index; construct `FloatingCouponSpec` directly for floors, caps or gearing.
 
-Bonds where coupons accrete to notional instead of being paid in cash. Supported via `CouponType::PIK` on the cashflow spec. The Merton MC engine handles PIK accrual dynamically with endogenous hazard feedback and dynamic recovery.
-
-```rust
-// Build via the Python API:
-// Bond.builder("PIK-001").coupon_rate(0.085).coupon_type("pik").build()
-
-// Or via PikSchedule for scheduled PIK windows:
-// MertonMcConfig(merton=m, pik_schedule=[(0.0, "pik"), (2.0, "cash")])
-```
-
-#### Callable/Putable Bonds
-
-Bonds with embedded options allowing early redemption.
+### Callable and putable bonds
 
 ```rust
-use finstack_quant_valuations::instruments::fixed_income::bond::{Bond, CallPutSchedule, CallPut};
+use finstack_quant_valuations::instruments::fixed_income::bond::{
+    Bond, CallPut, CallPutSchedule, CashflowSpec,
+};
+use finstack_quant_valuations::instruments::{Attributes, InstrumentPricingOverrides};
+use finstack_quant_core::currency::Currency;
+use finstack_quant_core::dates::{DayCount, Tenor};
+use finstack_quant_core::money::Money;
+use time::macros::date;
 
-// Discrete (one-day) call dates use the same value for start_date and end_date.
-let call_schedule = CallPutSchedule {
+// A one-day (discrete) call date uses the same value for start_date and end_date.
+let schedule = CallPutSchedule {
     calls: vec![
-        CallPut { start_date: date!(2027 - 01 - 01), end_date: date!(2027 - 01 - 01), price_pct_of_par: 102.0, make_whole: None },
-        CallPut { start_date: date!(2028 - 01 - 01), end_date: date!(2028 - 01 - 01), price_pct_of_par: 101.0, make_whole: None },
+        CallPut {
+            start_date: date!(2027 - 01 - 01),
+            end_date: date!(2027 - 01 - 01),
+            price_pct_of_par: 102.0,
+            make_whole: None,
+        },
+        CallPut {
+            start_date: date!(2028 - 01 - 01),
+            end_date: date!(2028 - 01 - 01),
+            price_pct_of_par: 101.0,
+            make_whole: None,
+        },
     ],
     puts: vec![],
 };
@@ -134,216 +186,201 @@ let call_schedule = CallPutSchedule {
 let callable = Bond::builder()
     .id("CALLABLE-001".into())
     .notional(Money::new(1_000_000.0, Currency::USD))
-    .issue(date!(2025 - 01 - 01))
+    .issue_date(date!(2025 - 01 - 01))
     .maturity(date!(2030 - 01 - 01))
-    .cashflow_spec(CashflowSpec::fixed(0.06, Tenor::semi_annual(), DayCount::Thirty360))
+    .cashflow_spec(CashflowSpec::fixed(0.06, Tenor::semi_annual(), DayCount::Thirty360)?)
     .discount_curve_id("USD-OIS".into())
-    .call_put(Some(call_schedule))
+    .call_put(schedule)
+    .instrument_pricing_overrides(InstrumentPricingOverrides::default())
+    .attributes(Attributes::new())
     .build()?;
 ```
 
-### Pricing Engines
+`price_pct_of_par` is applied to the **outstanding** principal at the exercise
+date, so amortizing callables are handled correctly. At a node the coupon is
+always paid; the exercise decision applies to principal only:
+`node_value = coupon + min(max(continuation, put_price), call_price)`.
 
-| Engine | Model Key | Description |
-|--------|-----------|-------------|
-| `BondEngine` | `discounting` | Standard PV using discount curves |
-| `HazardBondEngine` | `hazard_rate` | Survival-weighted PV + FRP recovery leg |
-| `TreePricer` | `tree` | Binomial tree for callable/putable bonds, OAS |
-| `MertonMcEngine` | `merton_mc` | Structural credit MC for PIK bonds with endogenous hazard, dynamic recovery, and toggle exercise |
+### PIK bonds
 
-#### Merton MC Engine (PIK Bonds)
+PIK coupons accrete to notional instead of paying cash. Set
+`CouponType::Pik` (or `Split { cash_pct, pik_pct }`) on `FixedCouponSpec` /
+`FloatingCouponSpec` and price under `ModelKey::MertonMc`.
 
-The Merton MC engine prices bonds with PIK features using a structural credit framework:
+The Merton MC engine (`pricing::engine::merton_mc`) prices PIK bonds in a
+structural credit framework:
 
-- **Merton model**: Asset value follows GBM; default = asset breaches barrier
-- **Endogenous hazard**: Hazard rate increases with leverage (power law / exponential)
-- **Dynamic recovery**: Recovery rate declines as PIK accrual grows notional
-- **PIK schedule**: Per-coupon Cash/PIK/Split/Toggle modes, including time-stepped schedules
-- **Toggle exercise**: Threshold, stochastic (sigmoid), or optimal (nested MC) PIK/cash decisions
-- **Cash-equivalent metrics**: Z-spread and YTM computed on a cash-pay bond structure for cross-structure comparability
-- **Barrier calibration**: `MertonModel::from_target_pd` calibrates the barrier to match historical annual PDs
+- **Merton model** — asset value follows GBM (or jump diffusion); default is a
+  first-passage barrier breach.
+- **Endogenous hazard** — the hazard rate rises with leverage.
+- **Dynamic recovery** — recovery declines as PIK accrual grows the notional.
+- **PIK schedule** — `PikSchedule` / `PikMode` give per-coupon Cash / PIK /
+  Split / Toggle modes, including time-stepped windows.
+- **Toggle exercise** — threshold, stochastic (sigmoid), or optimal (nested MC)
+  PIK-versus-cash decisions.
+- **Cash-equivalent metrics** — Z-spread and YTM are computed on an equivalent
+  cash-pay structure so PIK and cash-pay bonds are comparable.
+- **Barrier calibration** — `merton_mc::calibration` fits the barrier to a
+  target historical annual PD.
 
-### Metrics
+Public types: `MertonMcConfig`, `MertonMcResult`, `MertonMcCalibrationSpec`,
+`CalibrationParameter`, `PikSchedule`, `PikMode`, `PathStatistics`,
+`BarrierCrossing`.
 
-#### Price Metrics
+## Pricing conventions
 
-- **Clean Price**: Quoted price excluding accrued interest
-- **Dirty Price**: Clean price plus accrued interest
-- **Accrued Interest**: Interest accrued since last coupon
+- **PV anchor**: PV is always discounted from `as_of`, never from the
+  settlement date. Settlement affects how *quotes* are interpreted.
+- **Quote date**: market-derived metrics (YTM, YTW, Z-spread, DM, OAS,
+  duration, convexity) are computed from `quote_date = as_of + settlement_days`,
+  with accrued measured at that date, because market quotes are settlement
+  quotes.
+- **Cashflow sign**: holder view. Coupons, amortization and redemption are
+  positive; purchase price and funding legs live outside the schedule. PIK
+  coupons carry zero cash and grow the redemption amount.
+- **Rate units**: `f64` model inputs are decimals (`0.05` = 5%). Fields and
+  arguments suffixed `_bp` are basis points; `Bps` and `Rate` are the typed
+  forms.
+- **Accrual**: `AccrualMethod::Linear` by default; `Compounded` follows ICMA
+  Rule 251. Ex-coupon windows drop accrual to zero.
+- **Quote overrides**: `InstrumentPricingOverrides::market_quotes` accepts at
+  most one price driver (clean price, dirty price, YTM, YTW, Z-spread, OAS,
+  discount margin, I-spread, ASW). `validate()` rejects two. A scenario spread
+  shock composes additively with a quoted Z-spread but errors against a
+  price-pinning quote rather than silently no-op'ing.
 
-#### Yield Metrics
+### Regional conventions
 
-- **Yield to Maturity (YTM)**: Internal rate of return
-- **Yield to Worst (YTW)**: Minimum yield across call/put/maturity paths
+`Bond::with_convention(id, notional, coupon, issue, maturity, convention, curve_id)`
+applies `BondConvention`:
 
-#### Risk Metrics
+| Convention | Day count | Frequency | Settlement | Ex-coupon |
+|------------|-----------|-----------|------------|-----------|
+| `UsTreasury` | ACT/ACT ICMA | Semi-annual | T+1 | — |
+| `UsAgency` | 30/360 | Semi-annual | T+1 | — |
+| `Corporate` | 30/360 | Semi-annual | T+2 | — |
+| `UkGilt` | ACT/ACT ICMA | Semi-annual | T+1 | 7 days |
+| `GermanBund` | ACT/ACT ICMA | Annual | T+2 | — |
+| `FrenchOat` | ACT/ACT ICMA | Annual | T+2 | — |
+| `Jgb` | ACT/365F | Semi-annual | T+2 (cross-border) | — |
 
-- **Macaulay Duration**: Weighted average time to cashflows
-- **Modified Duration**: Interest rate sensitivity measure
-- **Convexity**: Curvature of price/yield relationship
-- **DV01**: Dollar value of 1bp rate change
-- **CS01**: Credit spread sensitivity
+## Metrics
 
-#### Spread Metrics
+Registered for `InstrumentType::Bond` in `metrics/mod.rs`:
 
-- **Z-Spread**: Zero-volatility spread over discount curve
-- **OAS**: Option-adjusted spread (for callable/putable bonds)
-- **I-Spread**: Interpolated spread (YTM minus par swap rate)
-- **Discount Margin**: Spread measure for floating-rate notes
-- **Asset Swap Spreads**: Par and market asset swap spreads
+| Group | `MetricId` |
+|-------|-----------|
+| Price | `Accrued`, `CleanPrice`, `DirtyPrice` |
+| Yield | `Ytm`, `Ytw`, `YieldDv01` |
+| Duration / convexity | `DurationMac`, `DurationMod`, `Convexity`, `SpreadDuration`, `WAL` |
+| Spreads | `ZSpread`, `ISpread`, `Oas`, `DiscountMargin`, `ASWPar`, `ASWMarket` |
+| Optionality | `EmbeddedOptionValue`, `Vega` |
+| Rates risk | `Dv01`, `BucketedDv01` |
+| Credit risk | `Cs01`, `BucketedCs01`, `CrossGammaRatesCredit` |
+| Return floor | `Moic`, `MoicToWorst`, `Xirr`, `XirrToWorst` |
 
-## How to Add New Features
+`Theta` is registered universally by `metrics::standard_registry()`.
+Duration and convexity switch to the effective (option-aware) computation in
+`metrics/effective.rs` when the bond carries a call/put schedule.
 
-### Adding a New Pricing Engine
+## Return floors (guaranteed minimum MOIC / XIRR)
 
-1. **Create the engine** in `pricing/engine/`:
-
-```rust
-// pricing/engine/my_model.rs
-pub struct MyEngine;
-
-impl MyEngine {
-    pub fn price(bond: &Bond, market: &MarketContext, as_of: Date) -> Result<Money> {
-        // Core pricing math
-    }
-}
-```
-
-2. **Create the pricer** in `pricing/pricer/`:
-
-```rust
-// pricing/pricer/my_model.rs
-pub struct SimpleBondMyModelPricer;
-
-impl Pricer for SimpleBondMyModelPricer {
-    fn key(&self) -> PricerKey {
-        PricerKey::new(InstrumentType::Bond, ModelKey::MyModel)
-    }
-
-    fn price_dyn(&self, instrument, market, as_of) -> Result<ValuationResult> {
-        let bond = downcast to Bond;
-        let pv = MyEngine::price(bond, market, as_of)?;
-        Ok(ValuationResult::stamped(bond.id(), as_of, pv))
-    }
-}
-```
-
-3. **Register** in `pricer.rs`:
-
-```rust
-register_pricer!(registry, Bond, MyModel, SimpleBondMyModelPricer);
-```
-
-### Adding a New Metric
-
-1. Create a `MetricCalculator` impl in `metrics/`
-2. Register it in `register_bond_metrics()`
-3. Add a `MetricId` variant if needed
-
-## Cashflow Convention
-
-All bond cashflows follow a **holder-view** convention:
-
-- **Positive amounts** represent contractual inflows to a long holder (coupons, amortization, redemption)
-- **PIK accrual** increases the outstanding notional; PIK coupons have zero cash flow but grow the redemption amount
-- **Initial draw / funding legs** are handled outside the schedule (e.g., via trade price)
-
-## Regional Market Conventions
-
-| Market | Day Count | Frequency | Settlement |
-|--------|-----------|-----------|------------|
-| US Treasuries | 30/360 | Semi-annual | T+1 |
-| UK Gilts | ACT/ACT | Semi-annual | T+1 |
-| Eurozone | 30E/360 or ACT/ACT | Annual | T+2 |
-| Japan | ACT/365F | Semi-annual | T+2 |
-
-Use `Bond::with_convention()` for standard regional conventions.
-
-## Return Floors (Guaranteed Minimum MOIC / XIRR)
-
-A **return floor** is an issuer-side, call-protection-only term common in private credit and leveraged loan structures. It guarantees that on any early issuer-called or prepaid redemption, the investor's realized return (measured from the issue date against the invested capital `V0`) meets a stated minimum. It does **not** guarantee the held-to-maturity return — the maturity path is always unfloored.
-
-### One-Line Declaration
+A return floor is an **issuer-side, call-protection-only** term common in
+private credit and leveraged loans: on any early issuer-called or prepaid
+redemption inside the protection window, the redemption price is floored so the
+investor's realized return from issue against invested capital `V0` meets a
+stated minimum. It does **not** guarantee the held-to-maturity return — the
+maturity path is always unfloored.
 
 ```rust
-use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
-use finstack_quant_core::currency::Currency;
-use finstack_quant_core::money::Money;
+use finstack_quant_valuations::instruments::fixed_income::bond::{
+    Bond, ProtectionWindow, ReturnFloorSpec,
+};
+use finstack_quant_core::types::Rate;
 use time::macros::date;
 
-// 1.25× MOIC floor, prepayable across the bond's full life:
-let loan = Bond::fixed("LOAN-001", Money::new(1_000_000.0, Currency::USD),
-    0.10, date!(2025-01-01), date!(2030-01-01), "USD-OIS")
-    .unwrap()
-    .min_moic(1.25);
+// 1.25x MOIC floor, prepayable across the bond's full life.
+let moic_floor = Bond::example()?.min_moic(1.25);
 
-// 12% minimum XIRR floor:
-let loan = Bond::fixed("LOAN-002", Money::new(1_000_000.0, Currency::USD),
-    0.10, date!(2025-01-01), date!(2030-01-01), "USD-OIS")
-    .unwrap()
-    .min_xirr(0.12);
+// 12% minimum XIRR floor.
+let xirr_floor = Bond::example()?.min_xirr(Rate::from_percent(12.0));
+
+// NC-2: the floor only binds on calls from 2027-01-01 onward.
+let nc2 = Bond::example()?.with_return_floor(
+    ReturnFloorSpec::moic(1.25).window(ProtectionWindow::From(date!(2027 - 01 - 01))),
+);
 ```
 
-For a 2-year no-call (NC-2) structure, narrow the window:
+`ReturnFloorSpec` builders: `moic(f64)` / `xirr(impl Into<Rate>)`, then
+`.issue_price(IssuePrice::{Par, PctOfPar(p), Amount(m)})`,
+`.window(ProtectionWindow::{Full, From(d), Between { start, end }})`,
+`.day_count(DayCount)` (defaults to Act/365F, matching `core::cashflow::xirr`).
 
-```rust
-use finstack_quant_valuations::instruments::fixed_income::bond::{Bond, ReturnFloorSpec, ProtectionWindow};
-use finstack_quant_core::{currency::Currency, money::Money};
-use time::macros::date;
+The spec is lowered into a `CallPutSchedule` at pricing time
+(`pricing/return_floor.rs`), making every in-window coupon date a
+floor-protected call date.
 
-let loan = Bond::fixed("LOAN-NC2", Money::new(1_000_000.0, Currency::USD),
-    0.10, date!(2025-01-01), date!(2030-01-01), "USD-OIS")
-    .unwrap()
-    .with_return_floor(
-        ReturnFloorSpec::moic(1.25)
-            .window(ProtectionWindow::From(date!(2027-01-01))),
-    );
+**`*ToWorst` honesty caveat**: `MoicToWorst` / `XirrToWorst` take the minimum
+over *all* exit paths, including the unfloored maturity path, so they are not
+bounded below by the floor target. When the natural maturity return is below
+the target, the maturity path is the worst case and the metric reports it. The
+floor's actual guarantee (every early-call path meets the target) is verified by
+the unit tests in `pricing/return_floor.rs` and by
+[`tests/return_floor_example.rs`](../../../../tests/return_floor_example.rs).
+
+### Known limitations
+
+- **Floating coupons** are forward-projected from the curve at pricing time;
+  path-accurate LSMC (rate paths driving coupon and call trigger together) is
+  not implemented.
+- **Make-whole calls** cannot compose with a return floor; the combination is
+  a validation error because make-whole effective prices are path dependent.
+- **Amortizing to-worst**: `MoicToWorst` / `XirrToWorst` use the initial
+  notional as the redemption basis — exact for bullets, overstated for
+  amortizers.
+- `min_moic` / `min_xirr` imply `ProtectionWindow::Full`; use
+  `.with_return_floor(...)` with an explicit window for a no-call period.
+
+## Bindings
+
+- **Python**: `finstack_quant.valuations.instruments.Bond` — a typed wrapper
+  with `Bond.fixed(...)`, `Bond.floating(...)`, `to_json`/`from_json` and
+  `price_merton_mc(...)`. Generic pricing goes through
+  `finstack_quant.valuations.instruments.price_instrument(instrument_json, market, as_of, ...)`.
+- **WASM**: `valuations.instruments.Bond`, plus the JSON-envelope entry points
+  `valuations.instruments.priceInstrument`,
+  `valuations.instruments.instrumentCashflowsJson` and
+  `valuations.instruments.bondFromCashflowsJson`.
+
+Both paths use the canonical `finstack_quant.instrument/1` envelope with
+`InstrumentJson::Bond`; unknown fields are rejected on deserialize.
+
+## Other limitations
+
+- Deterministic curve inputs outside the Merton MC engine; no stochastic
+  rate/credit paths.
+- No tax/withholding, fail penalties, or settlement-date PV.
+- Merton MC DV01/CS01 require re-running the simulation with bumped curves;
+  only cash-equivalent Z-spread and YTM are computed inline.
+- Inflation linkage and convertibility live in
+  [`../inflation_linked_bond/`](../inflation_linked_bond/) and
+  [`../convertible/`](../convertible/).
+
+## Verification
+
+```bash
+cargo nextest run -p finstack-quant-valuations --test instruments bond::
+
+mise run rust-test
+
+mise run rust-lint
 ```
 
-### Semantics
+## See also
 
-- The floor is **issuer-side**: it raises the minimum redemption price the issuer must pay on a voluntary call or prepayment, protecting the investor's return.
-- The floor binds **only on early redemptions** within the [`ProtectionWindow`]. At maturity, the normal contractual cashflows apply unchanged.
-- The spec is lowered into a [`CallPutSchedule`] at pricing time, making every in-window coupon date a potential floor-protected call date.
-
-### Verification Metrics
-
-Four `MetricId` constants expose the investor's realized return across exit scenarios:
-
-| Metric | Meaning |
-|--------|---------|
-| `MetricId::Moic` | MOIC if held to maturity: total distributions / invested capital |
-| `MetricId::MoicToWorst` | **Minimum** MOIC across all exits (every call/put path AND maturity) |
-| `MetricId::Xirr` | XIRR (Act/365F) if held to maturity |
-| `MetricId::XirrToWorst` | **Minimum** XIRR across all exits (every call/put path AND maturity) |
-
-**`*ToWorst` honesty caveat**: the to-worst metrics take the minimum over ALL paths — including the unfloored maturity path. They are therefore **not bounded below by the floor target**. When the bond's natural maturity return falls below the floor target, the maturity path is the worst case and the metric reflects that. The floor's guarantee (every *early-call* path meets the target) is verified by the return-floor unit tests in `bond/pricing/return_floor.rs`.
-
-```rust,ignore
-use finstack_quant_valuations::{instruments::Instrument, metrics::MetricId};
-use finstack_quant_valuations::instruments::PricingOptions;
-
-let result = loan.price_with_metrics(
-    &market, as_of,
-    &[MetricId::Moic, MetricId::MoicToWorst, MetricId::Xirr, MetricId::XirrToWorst],
-    PricingOptions::default(),
-)?;
-println!("MOIC to maturity:  {:.3}x", result.measures[MetricId::Moic.as_str()]);
-println!("MOIC to worst:     {:.3}x", result.measures[MetricId::MoicToWorst.as_str()]);
-println!("XIRR to maturity:  {:.2}%", result.measures[MetricId::Xirr.as_str()] * 100.0);
-println!("XIRR to worst:     {:.2}%", result.measures[MetricId::XirrToWorst.as_str()] * 100.0);
-```
-
-### v1 Limitations
-
-- **Floating-rate coupons**: forward-projected using the yield curve at pricing time. Path-accurate LSMC (where rate paths determine both coupon and call-trigger simultaneously) is deferred to v2.
-- **Make-whole calls**: contractual make-whole provisions cannot compose with a return floor in v1; attempting this returns a validation error. Make-whole effective prices are path-dependent and cannot be pre-computed statically.
-- **Amortizing bonds (to-worst)**: `MoicToWorst` / `XirrToWorst` use the initial notional as the redemption basis, which is exact for bullet bonds but overstates the redemption for amortizing structures (TODO v2).
-- **`min_moic` / `min_xirr` shortcuts**: these set `ProtectionWindow::Full` (prepayable across the bond's entire life). Use `.with_return_floor(ReturnFloorSpec::moic(m).window(...))` for a no-call period.
-
-## Limitations / Known Issues
-
-- Deterministic curve inputs only; no stochastic rate/credit paths beyond the Merton MC engine.
-- Does not model tax/withholding, accrued settlement pricing, or fail penalties.
-- DV01/CS01 for Merton MC require re-running the simulation with bumped curves (expensive); currently only cash-equivalent Z-spread and YTM are computed inline.
-- Inflation linkage and convertibility live in dedicated modules.
+- [`../../README.md`](../../README.md) — instrument module map and how to add one
+- [`../../../metrics/README.md`](../../../metrics/README.md) — metric ids and calculators
+- [`INVARIANTS.md`](../../../../../../INVARIANTS.md) — Decimal/f64,
+  determinism and serde invariants
+- [`docs/REFERENCES.md`](../../../../../../docs/REFERENCES.md) —
+  bibliography for day counts, conventions and models

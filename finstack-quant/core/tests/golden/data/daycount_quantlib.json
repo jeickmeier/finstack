@@ -1,7 +1,7 @@
 {
   "meta": {
     "suite_id": "daycount_quantlib_parity",
-    "description": "Day count convention tests validated against QuantLib output. Covers ISDA 2006 Definitions edge cases for 30/360 US (Bond Basis), 30E/360 (Eurobond), Act/Act ISDA, and Act/365L (AFB).",
+    "description": "Day count convention tests validated against QuantLib output. Covers 30/360 US (SIA-NASD PSA / QuantLib Thirty360::USA), 30E/360 (Eurobond), Act/Act ISDA, and Act/365L (ICMA Rule 251, not AFB).",
     "reference_source": {
       "name": "QuantLib",
       "version": "1.32",
@@ -25,7 +25,7 @@
   "cases": [
     {
       "id": "thirty360_us_eom_feb28_to_mar31_non_leap",
-      "description": "30/360 US: Feb 28 (last day of Feb in non-leap year) to Mar 31. ISDA 4.16(f) EOM rule applies.",
+      "description": "30/360 US: Feb 28 (last day of Feb in non-leap year) to Mar 31. SIA/PSA (QuantLib USA) sets D1=30; ISDA 4.16(f) would leave D1=28.",
       "convention": "30_360",
       "start_date": "2025-02-28",
       "end_date": "2025-03-31",
@@ -38,7 +38,7 @@
     },
     {
       "id": "thirty360_us_eom_feb29_to_mar31_leap",
-      "description": "30/360 US: Feb 29 (last day of Feb in leap year) to Mar 31. ISDA 4.16(f) EOM rule applies.",
+      "description": "30/360 US: Feb 29 (last day of Feb in leap year) to Mar 31. SIA/PSA (QuantLib USA) sets D1=30; ISDA 4.16(f) would leave D1=29.",
       "convention": "30_360",
       "start_date": "2024-02-29",
       "end_date": "2024-03-31",
@@ -280,11 +280,12 @@
       "start_date": "2025-03-15",
       "end_date": "2025-07-15",
       "frequency": "6M",
+      "coupon_period": ["2025-01-15", "2025-07-15"],
       "expected": {
-        "year_fraction": 0.33152173913043478,
+        "year_fraction": 0.33701657458563536,
         "tolerance": 1e-12
       },
-      "notes": "4 months in 6-month coupon period Mar 15 - Sep 15. 122 days / 184 days * 0.5 = 0.33152..."
+      "notes": "ICMA Rule 251: 122 days in the regular coupon Jan 15–Jul 15 (181 days) × 0.5. Frequency-only re-anchoring from Mar 15 is rejected."
     },
     {
       "id": "actact_icma_long_first_coupon",

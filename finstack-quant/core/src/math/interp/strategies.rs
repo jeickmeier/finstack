@@ -142,8 +142,10 @@ fn segment_slope(knots: &[f64], values: &[f64], left_index: usize, right_index: 
 /// Strategy for log-linear interpolation of discount factors.
 ///
 /// Performs linear interpolation on ln(DF), equivalent to piecewise-constant
-/// zero rates. Guarantees positive forward rates and is commonly used for
-/// government bond curves and simple yield curve construction.
+/// instantaneous forwards. Continuously compounded zeros are generally not
+/// constant between knots except on a segment that starts at `t = 0`.
+/// Guarantees positive forward rates and is commonly used for government
+/// bond curves and simple yield curve construction.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LogLinearStrategy {
     /// Precomputed log(values) for efficient evaluation.

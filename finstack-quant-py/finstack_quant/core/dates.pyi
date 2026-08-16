@@ -2195,6 +2195,8 @@ class BusinessDayConvention:
     """Roll backward to the previous business day."""
     MODIFIED_PRECEDING: BusinessDayConvention
     """Roll backward unless it crosses a month boundary, then roll forward."""
+    NEAREST: BusinessDayConvention
+    """Roll to the closer business day; a tie rolls following (FpML NEAREST)."""
 
     @classmethod
     def from_name(cls, name: str) -> BusinessDayConvention:
@@ -2637,11 +2639,54 @@ class Schedule:
     @property
     def dates(self) -> list[datetime.date]:
         """
-        Schedule dates as a list of ``datetime.date``.
+        Unadjusted accrual dates as a list of ``datetime.date``.
+
+        These dates are the roll-grid anchors and are never business-day
+        adjusted. Payment-date adjustment lives on ``payment_dates``.
 
         Returns
         -------
         list[datetime.date]
+            Monotonic unadjusted accrual grid (period start plus each period end).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def payment_dates(self) -> list[datetime.date]:
+        """
+        Payment date for each accrual period (one per period end).
+
+        Length is ``len(dates) - 1`` for a non-empty schedule. Duplicate
+        payment dates are retained so the series stays 1:1 with period ends.
+
+        Returns
+        -------
+        list[datetime.date]
+            Adjusted (and optionally lagged) payment dates.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def fixing_dates(self) -> list[datetime.date]:
+        """
+        Fixing dates for each accrual period.
+
+        Empty when no fixing lag was configured; otherwise the same length
+        as ``payment_dates``. Each date is the period's accrual start minus
+        the configured T-minus business-day lag.
+
+        Returns
+        -------
+        list[datetime.date]
+            Fixing dates, or an empty list when no fixing lag is set.
 
         Notes
         -----
@@ -2822,6 +2867,51 @@ class ScheduleBuilder:
         Notes
         -----
         This method does not raise; it returns the same instance for chaining.
+        """
+        ...
+
+    def payment_lag_business_days(self, lag: int) -> ScheduleBuilder:
+        """
+        Shift each payment date by *lag* business days after the adjusted period end.
+
+        Parameters
+        ----------
+        lag : int
+            Non-negative business-day delay from each period's payment
+            anchor. Zero is T+0. A positive lag requires a calendar from
+            ``adjust_with``. Negative values are rejected at ``build()``.
+
+        Returns
+        -------
+        ScheduleBuilder
+            Same builder instance after storing the payment lag.
+
+        Notes
+        -----
+        This method does not raise; validation happens in ``build()``.
+        """
+        ...
+
+    def fixing_lag_business_days(self, lag: int) -> ScheduleBuilder:
+        """
+        Set a T-minus fixing lag from each period's unadjusted accrual start.
+
+        Parameters
+        ----------
+        lag : int
+            Non-negative business-day lookback from each period's accrual
+            start. Zero stores the accrual start itself. A positive lag
+            requires a calendar from ``adjust_with``. Negative values are
+            rejected at ``build()``.
+
+        Returns
+        -------
+        ScheduleBuilder
+            Same builder instance after storing the fixing lag.
+
+        Notes
+        -----
+        This method does not raise; validation happens in ``build()``.
         """
         ...
 

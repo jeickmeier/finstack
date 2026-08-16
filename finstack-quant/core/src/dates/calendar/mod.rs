@@ -14,7 +14,8 @@
 //!   date against the calendar's `&'static` rule set (a short linear scan;
 //!   typically a handful of rules per calendar) — no per-date heap allocation
 //! - **Composite calendars**: Combine multiple calendars for multi-currency schedules
-//! - **Business day adjustments**: Following, Modified Following, Preceding conventions
+//! - **Business day adjustments**: Following, Modified Following, Preceding,
+//!   Modified Preceding, Nearest conventions
 //!
 //! # Supported Date Range
 //!

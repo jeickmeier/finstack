@@ -20,6 +20,11 @@ repricing cost and operational moving parts.
 | Waterfall    | [`attribute_pnl_waterfall`](src/waterfall.rs)              | Apply factors in order; per-factor P&Ls sum to total P&L up to tolerance. Order matters.       |
 | Taylor       | [`attribute_pnl_taylor`](src/taylor.rs)                    | First- and optional second-order sensitivity expansion from bump-and-reprice Greeks.           |
 
+`AttributionMethod` selects among the four decomposition methods when
+dispatching through a spec: `Parallel` (the `Default`),
+`Waterfall(Vec<AttributionFactor>)`, `MetricsBased`, and
+`Taylor(TaylorAttributionConfig)`.
+
 Default waterfall order (from [`default_waterfall_order`](src/waterfall.rs)):
 
 ```
@@ -27,10 +32,16 @@ Carry → RatesCurves → CreditCurves → InflationCurves → Correlations
       → Fx → Volatility → ModelParameters → MarketScalars
 ```
 
+Separately, [`attribute_return_contribution`](src/return_contribution.rs)
+performs single-period *return* contribution (weight × return roll-ups by
+group, with optional factor exposures and a benchmark-relative view). It is a
+weights-and-returns calculation on plain `f64` rows, not a repricing method —
+it never touches instruments or market contexts.
+
 ## Factors
 
-`AttributionFactor` in [`types.rs`](src/types.rs) enumerates the nine factor
-families. Each populates a top-level field on `PnlAttribution` (`carry`,
+`AttributionFactor` in [`types/result.rs`](src/types/result.rs) enumerates the
+nine factor families. Each populates a top-level field on `PnlAttribution` (`carry`,
 `rates_curves_pnl`, …) and, when requested, an optional `*_detail` struct with
 finer breakdowns:
 
@@ -52,9 +63,12 @@ finer breakdowns:
 ## Layout
 
 ```
-attribution/
+attribution/src/
 ├── lib.rs                  # Module docs, simple_pnl_bridge, public re-exports
-├── types.rs                # AttributionFactor, PnlAttribution, AttributionMeta, *Detail structs
+├── types.rs                # types module declaration
+├── types/result.rs         # AttributionFactor, AttributionMethod, ExecutionPolicy,
+│                           #   PnlAttribution, AttributionMeta
+├── types/detail.rs         # Per-factor *Detail / *Attribution structs
 ├── factors.rs              # MarketSnapshot, restore flags, per-factor market mutation
 ├── helpers.rs              # reprice_instrument, compute_pnl, compute_pnl_with_fx
 ├── parallel.rs             # attribute_pnl_parallel
@@ -66,18 +80,21 @@ attribution/
 ├── credit_cascade.rs       # Waterfall credit-factor cascade
 ├── credit_decomposition.rs # Generic / per-level / adder decomposition
 ├── execution.rs            # AttributionSpec::execute dispatcher
-├── target_currency.rs           # translate_to_target_currency (native → reporting currency)
-└── spec.rs                 # JSON envelope, AttributionSpec, AttributionResult
+├── return_contribution.rs  # Single-period weight × return contribution
+├── long_rows.rs            # PnlAttribution → long-format LongDetailRow projection
+├── target_currency.rs      # translate_to_target_currency (native → reporting currency)
+├── schema.rs               # Published JSON Schema artifacts
+├── spec.rs                 # JSON envelope, AttributionSpec, AttributionResult
+└── bin/gen_schemas.rs      # gen_attribution_schemas generator binary
 ```
 
-## Dependencies
+## Position in the stack
 
-```toml
-[dependencies]
-finstack-quant-attribution = { path = "../finstack-quant/attribution" }
-finstack-quant-core        = { path = "../finstack-quant/core" }
-finstack-quant-valuations  = { path = "../finstack-quant/valuations" }
-```
+Depends on `finstack-quant-core`, `finstack-quant-cashflows`,
+`finstack-quant-factor-model`, and `finstack-quant-valuations`. Consumed by
+`finstack-quant-portfolio`, which rolls per-instrument `PnlAttribution` values
+into book-level views, and by `finstack-quant-scenarios`. Re-exported by the
+umbrella crate as `finstack_quant::attribution`.
 
 Import path uses underscores:
 
@@ -102,23 +119,36 @@ subset). When parallel or waterfall runs request curve detail, optional
 ## JSON specification
 
 [`AttributionEnvelope`](src/spec.rs) / [`AttributionSpec`](src/spec.rs) define a
-schema-versioned (`finstack_quant.attribution/1`) JSON contract used by bindings and
-batch pipelines. A spec carries an `InstrumentJson` payload, two
-`MarketContextState` snapshots, both `as_of` dates, the methodology, and
-optional config / credit-factor-model overrides.
+schema-versioned JSON contract used by bindings and batch pipelines. A spec
+carries an `InstrumentJson` payload, two `MarketContextState` snapshots, both
+`as_of` dates, the `AttributionMethod`, and optional `model_params_t0`, config,
+and credit-factor-model overrides. Both types are
+`#[serde(deny_unknown_fields)]`.
+
+The version marker is the `AttributionSchema` enum, whose single variant
+serializes as the string constant `ATTRIBUTION_SCHEMA`
+(`"finstack_quant.attribution/1"`); an unrecognized marker is rejected during
+deserialization.
 
 ```rust,ignore
-use finstack_quant_attribution::{AttributionEnvelope, AttributionSpec, ATTRIBUTION_SCHEMA_V1};
+use finstack_quant_attribution::{AttributionEnvelope, AttributionSchema};
 
 let envelope: AttributionEnvelope = serde_json::from_str(&json)?;
-assert_eq!(envelope.schema, ATTRIBUTION_SCHEMA_V1);
+assert_eq!(envelope.schema, AttributionSchema::CURRENT);
 
 let result_envelope = envelope.execute()?;
 let result = &result_envelope.result; // AttributionResult { attribution, results_meta }
 ```
 
 `AttributionSpec::from_json_inputs` is the binding-friendly constructor used by
-the Python and WASM layers. Schemas live under `schemas/attribution/1/`.
+the Python and WASM layers, and `validate_attribution_json` checks a payload
+without executing it.
+
+Two schema artifacts are checked in under
+[`schemas/attribution/1/`](schemas/attribution/1) — `attribution.schema.json`
+(input) and `attribution_result.schema.json` (output) — indexed by
+[`schemas/index.json`](schemas/index.json). Regenerate with
+`mise run rust-gen-schemas`; verify with `mise run rust-check-schemas`.
 
 ## Public API
 
@@ -136,7 +166,15 @@ the Python and WASM layers. Schemas live under `schemas/attribution/1/`.
 | `translate_to_target_currency`                                                         | `target_currency`     | Post-hoc translation of a native-currency `PnlAttribution` into a reporting currency, adding `fx_translation_pnl` |
 | `extract_model_params`, `with_model_params`, `measure_prepayment_shift`, `measure_default_shift`, `measure_recovery_shift`, `measure_conversion_shift` | `model_params` | Model-parameter snapshotting and shift attribution; use `finstack_quant_valuations::instruments::model_params::ModelParamsSnapshot` for the snapshot type |
 | `compute_credit_factor_attribution`, `CreditAttributionInput`, `CreditFactorDetailOptions`, `credit_factor_model_id` | `credit_factor` | Calibrated credit-factor decomposition of `credit_curves_pnl`; the model type is `finstack_quant_factor_model::credit::hierarchy::CreditFactorModel` |
-| `AttributionEnvelope`, `AttributionSpec`, `AttributionConfig`, `AttributionResult`, `AttributionResultEnvelope`, `ATTRIBUTION_SCHEMA_V1`, `default_attribution_metrics` | `spec` | JSON contract |
+| `AttributionEnvelope`, `AttributionSpec`, `AttributionSchema`, `AttributionConfig`, `AttributionResult`, `AttributionResultEnvelope`, `ATTRIBUTION_SCHEMA`, `default_attribution_metrics`, `validate_attribution_json` | `spec` | JSON contract |
+| `attribute_return_contribution`, `attribute_return_contribution_json`, `validate_return_contribution_json`, `ReturnContributionSpec`, `ReturnContributionResult`, `ReturnContributionPosition`, `ReturnContributionFactor`, `ReturnContributionWeighting`, `InstrumentContribution`, `GroupContribution`, `FactorContribution`, `BenchmarkRelativeContribution` | `return_contribution` | Single-period weight × return contribution |
+| `pnl_attribution_long_rows`, `pnl_attribution_carry_rows`, `pnl_attribution_credit_factor_rows`, `LongDetailRow` | `long_rows` | Long-format projection of a `PnlAttribution`, consumed by the Python DataFrame exports |
+| `ARTIFACTS`, `ATTRIBUTION_SCHEMA_BASE` | `schema` | Published JSON Schema artifacts and their base URI |
+
+`long_rows` and `schema` are the crate's only public submodules. Every other
+module in the layout above is `pub(crate)`; the `Module` column names where an
+item is defined, not an importable path — those items reach callers through the
+crate-root re-exports in [`lib.rs`](src/lib.rs).
 
 Sign, carry, currency, and residual conventions are documented in the crate
 rustdoc.
@@ -165,27 +203,40 @@ rustdoc.
 
 Adding a new factor requires coordinated updates to:
 
-1. `AttributionFactor` and `PnlAttribution` in [`types.rs`](src/types.rs).
+1. `AttributionFactor` and `PnlAttribution` in
+   [`types/result.rs`](src/types/result.rs), plus any detail struct in
+   [`types/detail.rs`](src/types/detail.rs).
 2. The factor-isolation / restore logic in [`factors.rs`](src/factors.rs).
 3. All four methodology modules (`parallel`, `waterfall`, `metrics_based`,
    `taylor`).
 4. `default_waterfall_order` in [`waterfall.rs`](src/waterfall.rs).
-5. The JSON schema under `schemas/attribution/1/` and parity tests under
-   `tests/attribution/`.
+5. The long-row projection in [`long_rows.rs`](src/long_rows.rs).
+6. The regenerated schemas under [`schemas/attribution/1/`](schemas/attribution/1)
+   and the contract tests under [`tests/attribution/`](tests/attribution).
 
 Follow an existing factor (e.g. `Fx` or `Volatility`) end-to-end as a template.
 
 ## Bindings
 
-- **Python**: `AttributionSpec`-based JSON pipeline; result types serialize via
-  serde and are exposed under `finstack_quant.attribution`. See
-  `finstack-quant-py/parity_contract.toml`.
-- **WASM**: attribution is exposed as a JSON-first surface under
-  `finstack-quant-wasm/exports/attribution.js`. It intentionally mirrors the Python
-  JSON/spec entry points (`attribute_pnl`, `attribute_pnl_from_spec`,
-  `validate_attribution_json`, and the default-list helpers) rather than the
-  full Rust type surface. The agreed WASM facade is pinned in
-  `[wasm_attribution_subset]` in `finstack-quant-py/parity_contract.toml`.
+Hosts reach attribution through string-dispatched and JSON entry points; the
+large typed decomposition API is deliberately Rust-only.
+
+- **Python** — `finstack_quant.attribution` binds `attribute_pnl`,
+  `attribute_pnl_from_spec`, `validate_attribution_json`,
+  `attribute_return_contribution`, `validate_return_contribution_json`, the
+  `default_waterfall_order` / `default_attribution_metrics` helpers, and the
+  `PnlAttribution` / `ReturnContributionResult` wrappers. Detail structs are
+  reachable as serde payloads on `PnlAttribution` detail getters.
+  `finstack_quant.attribution.schema` exposes `index` / `get` / `validate`.
+- **WASM** — [`exports/attribution.js`](../../finstack-quant-wasm/exports/attribution.js)
+  exposes `attributePnl`, `attributePnlJson`, `attributePnlFromSpec`,
+  `validateAttributionJson`, `defaultWaterfallOrder`,
+  `defaultAttributionMetrics`, and the `AttributionParams` helper class. There
+  is no WASM twin for the schema module or for return contribution.
+
+The authoritative contract, including the full Rust-only inventory, is
+[`parity_contract.toml`](../../finstack-quant-py/parity_contract.toml)
+(`[crates.attribution]`, `[wasm_attribution_subset]`).
 
 ## Related
 
@@ -194,19 +245,35 @@ Follow an existing factor (e.g. `Fx` or `Volatility`) end-to-end as a template.
 - [`finstack-quant-factor-model`](../factor-model/README.md) — calibrated credit-factor models consumed via `CreditFactorModel`.
 - [`finstack-quant-portfolio`](../portfolio/README.md) — aggregates per-instrument `PnlAttribution`s into book-level views.
 
+## Tests and benchmarks
+
+| Path | Contents |
+|------|----------|
+| [`tests/attribution.rs`](tests/attribution.rs) | Aggregator for the [`tests/attribution/`](tests/attribution) tree: invariants, per-factor suites, QuantLib parity, schema and serialization contracts, rounding policy |
+| [`tests/market_restore.rs`](tests/market_restore.rs) | `MarketSnapshot` / `MarketRestoreFlags` round-trip behavior |
+| [`tests/cross_factor_attribution_tests.rs`](tests/cross_factor_attribution_tests.rs) | Cross-factor / interaction residual behavior |
+| [`tests/credit_carry_split.rs`](tests/credit_carry_split.rs) | Credit carry decomposition split |
+| [`benches/attribution.rs`](benches/attribution.rs) | Per-method cost against the `simple_pnl_bridge` baseline |
+| [`benches/attribution_scale.rs`](benches/attribution_scale.rs) | Scaling with factor and tenor count |
+
 ## References
 
-Quantitative references: [`docs/REFERENCES.md`](../../docs/REFERENCES.md).
+Entries live in [`docs/REFERENCES.md`](../../docs/REFERENCES.md):
 
-- Fixed-income sensitivity intuition: `docs/REFERENCES.md#tuckman-serrat-fixed-income`
-- Risk decomposition and factor attribution: `docs/REFERENCES.md#meucci-risk-and-asset-allocation`
+- Fixed-income sensitivity intuition —
+  [`#tuckman-serrat-fixed-income`](../../docs/REFERENCES.md#tuckman-serrat-fixed-income)
+- Risk decomposition and factor attribution —
+  [`#meucci-risk-and-asset-allocation`](../../docs/REFERENCES.md#meucci-risk-and-asset-allocation)
 
 ## Verification
 
 ```bash
-cargo fmt -p finstack-quant-attribution
-cargo clippy -p finstack-quant-attribution --all-features -- -D warnings
-cargo test  -p finstack-quant-attribution
-cargo test  -p finstack-quant-attribution --doc
-RUSTDOCFLAGS='-D warnings' cargo doc -p finstack-quant-attribution --no-deps --all-features
+cargo clippy -p finstack-quant-attribution --all-targets --all-features -- -D warnings
+cargo nextest run -p finstack-quant-attribution --lib --test '*'
+cargo bench -p finstack-quant-attribution --bench attribution
 ```
+
+Workspace gates (`mise run rust-lint`, `mise run rust-test`, `mise run rust-doc`
+— the last one runs doctests) are what CI enforces. Use `cargo nextest`, not
+`cargo test`, for crate-scoped runs; see
+[`CONTRIBUTING.md`](../../CONTRIBUTING.md).

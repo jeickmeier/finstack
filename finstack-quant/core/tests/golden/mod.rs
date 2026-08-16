@@ -5,7 +5,8 @@
 //!
 //! ## Available Test Suites
 //!
-//! - `variance_tests`: Realized variance estimator tests (Parkinson, Garman-Klass)
+//! - `variance_tests`: Realized variance estimator tests (Parkinson,
+//!   Garman-Klass, Rogers-Satchell, Yang-Zhang)
 //! - `daycount_quantlib_tests`: QuantLib parity tests for day count conventions
 //! - `vol_models_quantlib_tests`: QuantLib parity tests for volatility models
 //!   (Black-76, BSM, Bachelier, SABR, Heston, SVI, rough Heston)

@@ -39,10 +39,10 @@
 //!   finstack is the more accurate side). See `data/gen_vol_golden.py`.
 //! - SABR: 1e-10 relative (same Hagan 2002 formula as QuantLib).
 //! - Heston: 1e-6 relative (different quadrature: composite Gauss-Legendre
-//!   here vs adaptive Gauss-Lobatto in QuantLib). Four T=1 cases are pinned
-//!   but marked `skip: true` in the fixture: the fixed Gauss-Legendre grid
-//!   carries ~2.6e-6 (vov 0.3, rho -0.5) to ~7.5e-5 (vov 0.5, rho -0.9)
-//!   absolute error at short maturity; T=5 and T=10 pass at 1e-6.
+//!   here vs adaptive Gauss-Lobatto in QuantLib). Four high-vol-of-vol T=1
+//!   cases carry an explicit `skip` flag in the fixture because they once
+//!   diverged at short maturity; all four are now `skip: false` and pass at
+//!   1e-6, as do the T=5 and T=10 cases.
 //! - Implied vol round-trip: 1e-8 absolute on the recovered vol.
 //! - SVI: 1e-12 relative (exact formula vs 50-digit mpmath).
 //! - Rough Heston classical limit: 0.5% relative (H = 0.499 approximates the

@@ -1,4 +1,4 @@
-# Finstack Quant
+# finstack-quant
 
 ![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
 ![Rust](https://img.shields.io/badge/rust-1.90%2B-orange)
@@ -6,48 +6,163 @@
 ![WASM](https://img.shields.io/badge/wasm-ready-purple)
 ![Status](https://img.shields.io/badge/status-alpha-yellow)
 
-High-performance quantitative finance primitives, pricing, portfolio analytics,
-and scenario tooling written in Rust, with Python and WebAssembly bindings.
+A deterministic financial computation workspace. Fourteen Rust domain crates
+cover market data, cashflows, instrument pricing, risk, factor models,
+financial-statement modeling, scenarios, margin/XVA, and portfolio aggregation.
+PyO3 and wasm-bindgen binding crates expose the same APIs to Python and
+JavaScript.
 
-Finstack Quant is for developers, researchers, and investment teams who want one
-deterministic financial computation engine that can run in Rust services,
-Python notebooks, and browser or Node applications.
+Financial logic lives in Rust. Bindings do type conversion, error mapping, and
+module registration only, so the same calculation produces the same answer from
+a Rust service, a Python notebook, and a browser.
 
-## What You Can Do With It
+## Scope
 
-- Build currency-safe financial models using Rust `Decimal`-backed primitives.
-- Price instruments across rates, credit, FX, equity options, structured credit,
-  private markets, and structured products.
-- Run portfolio analytics, risk decomposition, attribution, stress testing, and
-  liquidity-aware scenario analysis.
-- Model financial statements, forecasts, sensitivities, covenants, and credit
-  workflows.
-- Reuse the same core logic from Rust, Python, or WebAssembly.
-- Teach, prototype, and validate workflows through the included notebook
-  curriculum.
+- Currency-safe monetary primitives (`Money` is Decimal-backed and refuses to
+  mix currencies), ISO-4217 currencies, ISDA day counts, holiday calendars,
+  schedule generation.
+- Term structures and market data: discount/forward/hazard/inflation/price
+  curves, FX matrices, vol surfaces and cubes, bootstrap and calibration.
+- Instrument pricing and risk across rates, credit, FX, equity, inflation,
+  commodities, convertibles, structured credit, and private markets, with
+  closed-form, tree, PDE, Fourier, and Monte Carlo models.
+- Performance and risk analytics, factor models, P&L attribution, and
+  panel feature transforms.
+- Financial-statement modeling with `Value > Forecast > Formula` precedence,
+  DCF, sensitivity, covenants, and ECL workflows.
+- Deterministic scenario shocks and roll-forward, portfolio aggregation to a
+  base currency with an explicit FX policy, margin/collateral/XVA, and
+  regulatory capital (FRTB-SBA, SA-CCR, ISDA SIMM).
+- Published JSON Schemas for the persisted wire contracts, indexed and
+  validatable from Rust and Python.
 
-## Why Finstack Quant?
+## Repository layout
 
-Most financial analytics code ends up split across Python notebooks, backend
-services, spreadsheets, and web applications. Finstack Quant keeps the financial
-logic in one Rust core and exposes it through Python and WebAssembly so the same
-calculations can run in research, production, and interactive applications.
+```text
+finstack-quant/
+├── finstack-quant/               # Rust workspace crates
+│   ├── Cargo.toml                # `finstack-quant` umbrella crate manifest
+│   ├── src/                      # umbrella re-exports + the `schema` registry
+│   ├── core/                     # money/FX, dates, market data, math, expressions
+│   ├── analytics/                # return-series performance and risk statistics
+│   ├── attribution/              # multi-period P&L attribution
+│   ├── cashflows/                # schedule construction, accrual, dated flows
+│   ├── covenants/                # covenant specs, evaluation, forecasting
+│   ├── factor-model/             # factor primitives, matching, credit calibration
+│   ├── features/                 # vectorized panel feature transforms
+│   ├── margin/                   # CSA/VM/IM, SIMM, FRTB-SBA, SA-CCR, XVA
+│   ├── monte_carlo/              # processes, discretization, RNG, payoffs, engine
+│   ├── valuations/               # instruments, pricing, models, calibration, metrics
+│   │   └── macros/               # `FinancialBuilder` derive used by valuations
+│   ├── statements/               # statement model graph and period evaluation
+│   ├── statements-analytics/     # DCF, scenario sets, sensitivity, ECL, backtesting
+│   ├── portfolio/                # positions/books, base-currency rollups
+│   ├── scenarios/                # deterministic shock/roll DSL and engine
+│   ├── arrow-interchange/        # `finstack-quant-arrow`: TableEnvelope -> RecordBatch
+│   ├── test-utils/               # golden-test helpers (dev-dependency only)
+│   └── tests/                    # umbrella-level integration tests
+├── finstack-quant-py/            # PyO3 bindings; builds the `finstack_quant` package
+├── finstack-quant-wasm/          # wasm-bindgen bindings + hand-written JS facade
+├── benchmarks/                   # materialization benchmark fixtures and notes
+├── docs/                         # references, contracts, serde policy, design notes
+├── scripts/                      # generation and check scripts driven by mise tasks
+├── Cargo.toml                    # Rust workspace manifest
+├── pyproject.toml                # Python packaging and tooling
+└── mise.toml                     # toolchain pins and dev tasks
+```
 
-Design goals:
+## Crate map
 
-- Deterministic financial calculations.
-- Currency-safe and accounting-aware primitives.
-- Strongly typed APIs with documented public surfaces.
-- Cross-platform reuse across Rust, Python, and JavaScript.
-- Useful coverage for public markets, private credit, portfolio construction,
-  scenario analysis, and risk.
+`finstack-quant` is the umbrella crate. It has no cargo features and
+unconditionally re-exports all fourteen domain crates, so one dependency
+reaches the whole API.
 
-## Quick Start: Python
+| Crate | Umbrella path | Provides |
+|---|---|---|
+| [`finstack-quant-core`](finstack-quant/core/README.md) | `finstack_quant::core` | `Money`/`Currency`/`Rate`, FX providers, dates and calendars, term structures, math, expression engine, config, `table` envelope |
+| [`finstack-quant-analytics`](finstack-quant/analytics/README.md) | `finstack_quant::analytics` | `Performance` entry point: return/risk scalars, drawdowns, rolling windows, alpha/beta, basic factor models |
+| [`finstack-quant-attribution`](finstack-quant/attribution/README.md) | `finstack_quant::attribution` | Multi-period P&L attribution: simple bridge, metrics-based, parallel, waterfall, Taylor |
+| [`finstack-quant-cashflows`](finstack-quant/cashflows/README.md) | `finstack_quant::cashflows` | Schedule construction, accrual, currency-preserving aggregation |
+| [`finstack-quant-covenants`](finstack-quant/covenants/README.md) | `finstack_quant::covenants` | Covenant specs, evaluation engine, threshold schedules, forecasting, standard packages |
+| [`finstack-quant-factor-model`](finstack-quant/factor-model/README.md) | `finstack_quant::factor_model` | Factor definitions and matching, covariance, sensitivity matrix, credit hierarchy calibration |
+| [`finstack-quant-features`](finstack-quant/features/README.md) | `finstack_quant::features` | Time-series, cross-sectional, and panel feature transforms over `Option<f64>` columns |
+| [`finstack-quant-margin`](finstack-quant/margin/README.md) | `finstack_quant::margin` | CSA/repo terms, VM and IM engines (SIMM, schedule, haircut, CCP), collateral metrics, XVA config, regulatory capital |
+| [`finstack-quant-monte-carlo`](finstack-quant/monte_carlo/README.md) | `finstack_quant::monte_carlo` | `McEngine`, stochastic processes, discretizations, Philox RNG, payoffs, European/path-dependent/LSMC pricers |
+| [`finstack-quant-valuations`](finstack-quant/valuations/README.md) | `finstack_quant::valuations` | Instruments, pricers, models (closed-form, trees, PDE, Fourier, MC), calibration, metrics, result envelopes |
+| [`finstack-quant-statements`](finstack-quant/statements/README.md) | `finstack_quant::statements` | Statement model graph, DSL formulas, forecasting, corkscrews, deterministic period evaluation |
+| [`finstack-quant-statements-analytics`](finstack-quant/statements-analytics/README.md) | `finstack_quant::statements_analytics` | Sensitivity, scenario sets, variance, DCF, goal seek, covenant forecasting, backtesting, templates |
+| [`finstack-quant-portfolio`](finstack-quant/portfolio/README.md) | `finstack_quant::portfolio` | Entities and positions, valuation and metric aggregation, grouping, optimization, risk decomposition, materialization |
+| [`finstack-quant-scenarios`](finstack-quant/scenarios/README.md) | `finstack_quant::scenarios` | Deterministic market/instrument/statement shocks and time rolls as serde-stable specs, template registry, composition, phase-ordered apply, horizon P&L |
+
+### Crates that are not re-exported
+
+Depend on these directly when you need them:
+
+| Crate | Path | Purpose |
+|---|---|---|
+| [`finstack-quant-arrow`](finstack-quant/arrow-interchange/README.md) | `finstack-quant/arrow-interchange/` | Export a `core::table::TableEnvelope` as an Arrow `RecordBatch` |
+| [`finstack-quant-test-utils`](finstack-quant/test-utils/README.md) | `finstack-quant/test-utils/` | Golden-test framework shared across crates; dev-dependency only |
+| `finstack-quant-valuations-macros` | `finstack-quant/valuations/macros/` | `FinancialBuilder` derive used inside `valuations` |
+
+### Dependency direction
+
+Every domain crate depends on `core`, as does `arrow-interchange`; `test-utils`
+and `valuations-macros` have no in-workspace dependencies. The rest of the
+edges, read off the manifests:
+
+| Crate | Also depends on |
+|---|---|
+| `analytics`, `cashflows`, `covenants`, `features`, `margin`, `monte_carlo` | nothing else in-workspace |
+| `factor-model` | `analytics` |
+| `valuations` | `analytics`, `cashflows`, `covenants`, `margin`, `monte_carlo`, `factor-model`, `valuations-macros` |
+| `attribution` | `cashflows`, `factor-model`, `valuations` |
+| `statements` | `cashflows`, `valuations` |
+| `statements-analytics` | `covenants`, `statements`, `valuations` |
+| `scenarios` | `attribution`, `statements`, `valuations` |
+| `portfolio` | `attribution`, `cashflows`, `factor-model`, `margin`, `scenarios`, `valuations` |
+
+`valuations` is the mid-stack hub and `portfolio` is the top. No Rust crate
+depends on a binding crate.
+
+No cargo feature selects financial behavior. The workspace declares two:
+`ts_export` (on `core`, `valuations`, `portfolio`, and the WASM crate), which
+drives the TypeScript-declaration generator, and `extension-module` (on the
+PyO3 crate), the standard PyO3 linking switch.
+
+## Quick start
+
+### Rust
+
+```toml
+[dependencies]
+finstack-quant = { path = "finstack-quant" }
+```
+
+```rust
+use finstack_quant::core::currency::Currency;
+use finstack_quant::core::money::Money;
+
+fn main() -> finstack_quant::core::Result<()> {
+    // Parse ISO-4217 codes (case-insensitive).
+    let _eur = "eur".parse::<Currency>().expect("valid ISO-4217 currency");
+
+    // Arithmetic refuses to mix currencies.
+    let subtotal = Money::new(49.50, Currency::EUR);
+    let tax = Money::new(9.90, Currency::EUR);
+    let total = subtotal.checked_add(tax)?;
+    assert_eq!(format!("{total}"), "EUR 59.40");
+    Ok(())
+}
+```
+
+### Python
 
 ```bash
 git clone https://github.com/jeickmeier/finstack-quant.git
 cd finstack-quant
 mise install
+mise run python-setup
+mise run python-sync
 mise run python-build
 uv run python
 ```
@@ -68,140 +183,157 @@ settle = adjust(
     HolidayCalendar("usny"),
 )
 
-print(amount.format())
-print(settle)
+print(amount.format())  # 'USD 1000000.00'
+print(settle)           # 2025-01-06
 ```
 
-## Learn By Example
+`finstack-quant-py` builds the Python package `finstack_quant`. It exposes the
+same fourteen domains — `analytics`, `attribution`, `cashflows`, `core`,
+`covenants`, `factor_model`, `features`, `margin`, `monte_carlo`, `portfolio`,
+`scenarios`, `statements`, `statements_analytics`, `valuations` — plus
+`reporting` (a pure-Python presentation layer with no Rust crate) and `schema`
+(a compiled submodule). Submodules load lazily, and `finstack_quant.__version__`
+reports the installed version. See
+[`finstack-quant-py/README.md`](finstack-quant-py/README.md).
 
-The Python notebook curriculum walks through:
+### WebAssembly
 
-1. Foundations: money, dates, curves, market data, math, registry defaults.
-2. Pricing: deposits, swaps, CDS, equity options, FX options, exotics,
-   attribution.
-3. Analytics: performance, VaR, factor regression, return attribution, reporting
-   tear sheets.
-4. Statement modeling: formulas, forecasts, sensitivities, covenants, credit
-   scoring.
-5. Portfolio and scenarios: aggregation, stress testing, liquidity, risk
-   decomposition.
-6. Advanced quant: Monte Carlo, correlation, margin, XVA, regulatory capital.
-7. Capstone: an end-to-end credit portfolio workflow.
+```bash
+mise run wasm-pkg
+```
 
-Start with
+```javascript
+import init, { core } from 'finstack-quant-wasm';
+
+await init();
+
+const usd = new core.Currency('USD');
+const amount = new core.Money(1000.0, usd);
+console.log(amount.toString());
+```
+
+The published entry point is
+[`finstack-quant-wasm/index.js`](finstack-quant-wasm/index.js), which re-exports
+the fourteen namespaces assembled in `finstack-quant-wasm/exports/`. TypeScript
+declarations live in
+[`finstack-quant-wasm/index.d.ts`](finstack-quant-wasm/index.d.ts). The
+`wasm-pack` output under `pkg/` and `pkg-node/` is generated build output, not
+the public API. See
+[`finstack-quant-wasm/README.md`](finstack-quant-wasm/README.md).
+
+## Conventions
+
+These bite callers who assume otherwise. [`INVARIANTS.md`](INVARIANTS.md) is
+authoritative; this is the short form.
+
+- **Numerics.** `Money` stores `rust_decimal::Decimal` plus a `Currency`.
+  `Money::new` / `amount()` take and return `f64`; `Money::from_decimal` /
+  `amount_decimal()` are the lossless path. Curves, rates, vols, correlations,
+  greeks, optimizers, and Monte Carlo paths use `f64`. There is no `F` type
+  alias in this workspace.
+- **Currency safety.** `Money` arithmetic is checked and errors on a currency
+  mismatch. There is no implicit FX. Cross-currency collapse goes through an
+  explicit `FxProvider`, and the applied policy is stamped into the result
+  envelope.
+- **Rate units.** Rate and coupon fields are decimals (`0.05` means 5%). Fields
+  whose name ends in `_bp` are basis points. Ratio metrics are turns (`4.5`
+  means 4.5x).
+- **Determinism.** Randomized paths take an explicit seed; nothing reads the
+  system clock. Every public stochastic API declares a reproducibility tier —
+  bit-reproducible, seed-reproducible, or statistically reproducible — and a
+  reproducible parallel reduction uses a fixed partition and merge tree, so
+  ordering is stable. Parallelism uses Rayon behind no cargo feature; on
+  `wasm32` the parallel paths are `cfg`-gated to a serial fallback because
+  there is no usable thread pool.
+- **Serde strictness.** Inbound types deny unknown fields and use stable field
+  names. Wire-format policy is in
+  [`docs/SERDE_STABILITY.md`](docs/SERDE_STABILITY.md); the persisted-contract
+  matrix is in [`docs/CONTRACTS.md`](docs/CONTRACTS.md).
+- **Binding result contract.** Computation entry points return typed results
+  (a Rust struct, a `Py*` wrapper, a plain JS object); `_json` / `*Json`
+  surfaces are the wire twins that return JSON strings. Python result wrappers
+  carry typed getters, `to_json`, `from_json`, and — where the result is
+  tabular — `to_dataframe()`, plus `to_series()` for 1-D labeled vectors. On
+  the WASM side the rule is pinned per export rather than across the whole
+  surface, and a known set of exports still returns a JSON string under an
+  unsuffixed name, so read the declared return type in `index.d.ts` before
+  assuming an object. See
+  [`finstack-quant-py/README.md`](finstack-quant-py/README.md) and
+  [`finstack-quant-wasm/README.md`](finstack-quant-wasm/README.md).
+
+## JSON schemas
+
+Each domain crate owns its own schema artifacts. The umbrella crate's
+`finstack_quant::schema` module is the only place that sees all of them at once,
+which is what a cross-document `$ref` resolver and a whole-corpus index need.
+
+```rust
+use serde_json::json;
+
+fn main() -> finstack_quant::core::Result<()> {
+    let artifact = finstack_quant::schema::find("bond.schema.json")?;
+    let failures = finstack_quant::schema::validate(artifact, &json!({}))?;
+    assert!(!failures.is_empty());
+    Ok(())
+}
+```
+
+Union failures are reported at the offending field rather than at the enclosing
+`oneOf`, and unit-enum mismatches list the accepted spellings.
+
+The same registry is reachable from Python as `finstack_quant.schema`, with
+`index()`, `get(selector, profile="canonical")`, `validate(selector, payload)`,
+and `domains()`. These are the schema wire surface: `index`, `get`, and
+`validate` return JSON strings, and `validate` takes `payload` as a JSON string
+too — pass `json.dumps(payload)`, not a `dict`. Only `domains()` returns a
+Python list. Nine domains publish schemas today (`attribution`, `cashflows`,
+`core`, `factor_model`, `margin`, `portfolio`, `scenarios`, `statements`,
+`valuations`); each is also a `finstack_quant.<domain>.schema` namespace. There
+is no WASM schema namespace.
+
+Regenerate with `mise run rust-gen-schemas`; check for drift with
+`mise run rust-check-schemas`.
+
+## Notebook curriculum
+
+The Python notebooks are the main tutorial path, organized in nine levels:
+
+1. `01_foundations` — money, dates and calendars, market data and curves, math,
+   registry defaults, market bootstrap.
+2. `02_pricing` — instrument JSON, valuation results, per-asset-class pricing
+   deep dives, and daily MTM attribution.
+3. `03_analytics` — performance, VaR and factor analytics, factor sensitivity,
+   feature transforms, breakeven analysis, return contribution, and
+   TWRR/MWRR attribution.
+4. `04_statement_modeling` — model building, DSL formulas, sensitivity,
+   tornado, variance, goal seek, and eleven model deep dives.
+5. `05_portfolio` — construction and valuation, optimization, horizon total
+   return, historical replay, liquidity risk, risk decomposition, the credit
+   factor hierarchy, and an optional multi-asset scale lab.
+6. `06_scenarios` — templates and composition, rate/credit/composite stress,
+   impact analysis.
+7. `07_advanced_quant` — Monte Carlo, correlation and credit models, margin and
+   XVA, regulatory capital.
+8. `08_capstone` — end-to-end credit portfolio workflow.
+9. `09_reporting` — tear-sheet rendering demos for the `reporting` API.
+
+Start at
 [`finstack-quant-py/examples/notebooks/README.md`](finstack-quant-py/examples/notebooks/README.md).
-Run every notebook with:
+Execute the whole curriculum with:
 
 ```bash
 mise run python-examples
 ```
 
-## Architecture
+## Development setup
 
-Finstack Quant is a Rust-first quantitative finance workspace with Python and
-WebAssembly bindings. The repository is organized around reusable financial
-primitives, pricing and risk engines, statement modeling, deterministic scenario
-tooling, portfolio analytics, and thin binding layers that keep business logic
-in Rust.
-
-## Workspace Layout
-
-```text
-finstack-quant/
-├── finstack-quant/
-│   ├── Cargo.toml                 # `finstack-quant` umbrella crate
-│   ├── src/                       # Feature-gated re-exports
-│   ├── core/                      # Dates, money, market data, math, expressions
-│   ├── cashflows/                 # Schedule construction and cashflow aggregation
-│   ├── analytics/                 # Return-series performance and risk analytics
-│   ├── monte_carlo/               # Simulation engine, processes, payoffs, pricers
-│   ├── margin/                    # Margin, collateral, and XVA primitives
-│   ├── statements/                # Financial statement modeling and evaluation
-│   ├── statements-analytics/      # Higher-level statement analytics and reporting
-│   ├── valuations/                # Instruments, pricing, metrics, calibration
-│   ├── portfolio/                 # Portfolio valuation, grouping, optimization
-│   └── scenarios/                 # Scenario composition and application
-├── finstack-quant-py/             # PyO3 bindings packaged as `finstack-quant-py`
-├── finstack-quant-wasm/           # wasm-bindgen bindings packaged as `finstack-quant-wasm`
-├── docs/                          # References, standards, reviews, and design notes
-├── pyproject.toml                 # Python packaging and tooling
-├── Cargo.toml                     # Rust workspace manifest
-└── mise.toml                      # Toolchain versions and dev tasks
-```
-
-## Library Map
-
-- `finstack-quant-core`: currencies, money, rates, dates, calendars, market data,
-  cashflow primitives, math utilities, and the expression engine.
-- `finstack-quant-cashflows`: schedule construction, accrual logic, and
-  currency-preserving cashflow aggregation for bonds, loans, swaps, and
-  structured products.
-- `finstack-quant-analytics`: return-series performance analytics, drawdown
-  analysis, tail risk, benchmark-relative metrics, and rolling statistics.
-- `finstack-quant-monte-carlo`: generic Monte Carlo engine, stochastic processes,
-  discretizations, payoffs, variance reduction, and result types.
-- `finstack-quant-margin`: CSA and repo margin specs, VM/IM engines, SIMM
-  helpers, collateral eligibility, and XVA primitives.
-- `finstack-quant-statements`: period-based financial statement modeling,
-  forecasting, formula evaluation, and extension hooks.
-- `finstack-quant-statements-analytics`: higher-level analysis on top of
-  `finstack-quant-statements`, including scenarios, variance tooling, templates,
-  reporting, and covenant-oriented workflows.
-- `finstack-quant-valuations`: instrument coverage across rates, credit, equity,
-  FX, structured products, and private markets, plus pricing, metrics,
-  attribution, covenants, and calibration.
-- `finstack-quant-portfolio`: entity and position containers, aggregation,
-  grouping, selective repricing, factor decomposition, optimization, and
-  scenario-aware workflows.
-- `finstack-quant-scenarios`: deterministic scenario composition, market-data
-  and statement shocks, instrument shocks, and time roll-forward workflows.
-
-## Packages
-
-### Rust
-
-The top-level Rust crate is `finstack-quant`, imported in Rust as
-`finstack_quant`, and re-exports every sub-crate so downstream consumers reach
-the full API through a single dependency.
-
-```toml
-[dependencies]
-finstack-quant = { path = "finstack-quant" }
-```
-
-### Python
-
-`finstack-quant-py` builds the Python package `finstack_quant`. Top-level
-subpackages are lazy-loaded:
-
-- `analytics`, `cashflows`, `core`, `margin`, `monte_carlo`, `portfolio`,
-  `scenarios`, `statements`, `statements_analytics`, `valuations`.
-
-Nested modules under `finstack_quant.valuations` mirror the Rust crate layout.
-See [`finstack-quant-py/README.md`](finstack-quant-py/README.md).
-
-### WebAssembly
-
-`finstack-quant-wasm` builds the `finstack-quant-wasm` package for browser and
-Node.js consumers. The public facade lives in `finstack-quant-wasm/index.js`,
-TypeScript declarations live in `finstack-quant-wasm/index.d.ts`, and namespace
-shims live in `finstack-quant-wasm/exports/`.
-
-## Documentation
-
-- [`docs/index.md`](docs/index.md) for the public documentation map.
-- [`docs/REFERENCES.md`](docs/REFERENCES.md) for formulas, conventions, and
-  market references.
-- [`finstack-quant-py/README.md`](finstack-quant-py/README.md) for Python
-  bindings.
-- [`finstack-quant-py/examples/notebooks/README.md`](finstack-quant-py/examples/notebooks/README.md)
-  for the notebook curriculum.
-
-## Development Setup
-
-The repository uses [mise](https://mise.jdx.dev/) as the single source of truth
-for toolchain versions: Rust, Python, Node, `uv`, `wasm-pack`, `cargo-nextest`,
-`cargo-deny`, `cargo-llvm-cov`, and `maturin`.
+[mise](https://mise.jdx.dev/) pins the toolchain in [`mise.toml`](mise.toml): an
+exact stable Rust with `clippy`, `rustfmt`, and the `wasm32-unknown-unknown`
+target, plus nightly (needed only for the rustdoc JSON that `cargo-public-api`
+consumes), Node, `wasm-pack`, `cargo-nextest`, `cargo-llvm-cov`, `cargo-deny`,
+`cargo-public-api`, `maturin`, and `osv-scanner`. The pinned toolchain is ahead
+of the declared MSRV; `mise run rust-msrv` checks production targets against
+Rust 1.90.
 
 ```bash
 # Install mise on macOS or Linux
@@ -211,47 +343,93 @@ curl https://mise.run | sh
 mise install
 ```
 
-Windows users should run `mise run <task>` from a POSIX shell such as Git Bash,
-MSYS2, or WSL. mise itself works natively on Windows, and the tasks in
-`mise.toml` are written for POSIX shells.
+Python is not a mise-managed tool here. Install [uv](https://docs.astral.sh/uv/)
+separately, then create the virtualenv and sync dev dependencies:
 
-## Common Commands
+```bash
+mise run python-setup   # uv venv --python 3.12
+mise run python-sync    # uv sync --group dev
+```
+
+Windows users should run `mise run <task>` from a POSIX shell such as Git Bash,
+MSYS2, or WSL. mise itself works natively on Windows; the tasks in `mise.toml`
+are written for POSIX shells.
+
+## Common commands
+
+`mise.toml` defines 82 tasks named `<domain>-<action>`. `all-*` fans out across
+all three languages, `rust-*` / `python-*` / `wasm-*` are per-language, and the
+rest are narrower (`goldens-*`, `wheel-*`, `pre-commit-*`, `materialization-*`,
+`check-*`). `*-fmt` tasks mutate; `*-lint` tasks are check-only. Run
+`mise tasks` for the full list.
 
 | Command | Purpose |
 |---|---|
-| `mise run rust-build` | Build the Rust workspace excluding binding crates |
+| `mise run all-lint` | Lint Rust, Python, and WASM (check-only) |
+| `mise run all-fmt` | Format and auto-fix Rust, Python, and WASM (mutating) |
 | `mise run all-test` | Run Rust, Python, and WASM tests |
-| `mise run all-fmt` | Format Rust, Python, and WASM code |
-| `mise run all-lint` | Run the fast lint pass across Rust, Python, and WASM |
-| `mise run python-sync` | Sync Python dev dependencies with `uv sync --group dev` |
-| `mise run python-build` | Build the Python extension in-place with the dev profile |
-| `mise run python-build -- --release` | Build the Python extension in release mode |
-| `mise run python-bench` | Manually run the complete Python binding benchmark suite against a release build |
-| `mise run rust-bench` | Manually execute native Criterion benchmarks with reduced measurement timing |
-| `mise run wasm-gen-bindings` | Export TypeScript types from Rust |
-| `mise run wasm-pkg` | Build the web and Node WASM packages |
-| `mise run rust-test` | Run Rust tests with `cargo nextest` |
-| `mise run python-test` | Build the dev Python extension, then run fast Python tests |
-| `mise run wasm-test` | Run WASM package tests |
-| `mise run rust-test-cov` | Run Rust tests with HTML coverage report |
-| `mise run python-test-cov` | Build the dev Python extension, then run Python tests with HTML coverage report |
-| `mise run wasm-test-cov` | Run WASM binding tests with HTML coverage report |
+| `mise run all-ci` | Reproduce the CI job set locally (lint, tests, docs, cargo-deny, publish checks) |
+| `mise run rust-build` | Build the Rust workspace excluding the binding crates |
+| `mise run rust-test` | Run native Rust tests via `cargo nextest` |
+| `mise run rust-lint` | `cargo fmt --check` plus clippy with `-D warnings` across the workspace |
+| `mise run rust-doc` | Build workspace docs, enforce input docs, and run doctests |
+| `mise run rust-msrv` | Check production targets against the declared Rust 1.90 MSRV |
+| `mise run rust-bench` | Run Criterion benchmarks with reduced measurement timing |
+| `mise run rust-gen-schemas` | Regenerate typed JSON schemas from Rust types |
 | `mise run rust-check-schemas` | Verify JSON schemas match Rust types |
+| `mise run python-build` | Build the Python extension in place (dev profile) |
+| `mise run python-build -- --release` | Build the Python extension in release mode |
+| `mise run python-test` | Build the dev extension, then run fast Python tests |
+| `mise run python-typecheck` | Type-check the Python bindings with `ty` |
+| `mise run python-examples` | Execute every example notebook |
+| `mise run python-bench` | Benchmark the Python bindings against a release build |
+| `mise run wasm-build` | Build the WASM package (web target) |
+| `mise run wasm-pkg` | Build the web and Node WASM packages |
+| `mise run wasm-test` | Run wasm-bindgen and Node facade tests |
+| `mise run wasm-gen-bindings` | Export TypeScript types from Rust |
+| `mise run goldens-test` | Run the Rust and Python golden-test layers |
+| `mise run rust-test-cov` | Rust tests with an HTML coverage report |
+| `mise run python-test-cov` | Python tests with an HTML coverage report |
+| `mise run wasm-test-cov` | WASM binding tests with an HTML coverage report |
 | `mise run wheel-local` | Build a Python wheel for the current platform |
 
-Benchmarks are measurement tasks and intentionally stay outside `all-test`,
-Nextest, and wall-clock-gated pull-request CI. `rust-lint --all-targets`
-compile-checks and lints native Criterion targets; run `mise run rust-bench` or
-a specific `cargo bench -p <crate> --bench <target>` command explicitly to
-collect native measurements. `mise run python-bench-portfolio` remains the controlled
-materialization-specific Python benchmark path.
+Do not run `cargo test` directly: it pulls in doc tests, which are owned by
+`mise run rust-doc`. Use `mise run rust-test` (nextest) for unit and integration
+tests.
 
-Run `mise tasks` to list every available task.
+Benchmarks are measurement tasks and stay outside `all-test`, nextest, and
+wall-clock-gated PR CI. `rust-lint --all-targets` compile-checks and lints the
+Criterion targets; run `mise run rust-bench`, or a specific
+`cargo bench -p <crate> --bench <target>`, to collect measurements.
+`mise run python-bench-portfolio` is the materialization-specific Python
+benchmark path; see
+[`benchmarks/MATERIALIZATION_BENCHMARKS.md`](benchmarks/MATERIALIZATION_BENCHMARKS.md).
+
+## Documentation
+
+| Document | Contents |
+|---|---|
+| [`docs/index.md`](docs/index.md) | Public documentation map |
+| [`INVARIANTS.md`](INVARIANTS.md) | Cross-crate numerical, convention, and API invariants |
+| [`docs/REFERENCES.md`](docs/REFERENCES.md) | Canonical sources for formulas, conventions, and market practice |
+| [`docs/CONTRACTS.md`](docs/CONTRACTS.md) | Persisted-contract matrix, strict loaders, generated schemas |
+| [`docs/SERDE_STABILITY.md`](docs/SERDE_STABILITY.md) | Wire-format and schema-version policy |
+| [`CHANGELOG.md`](CHANGELOG.md) | Release history, including breaking changes |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Development setup, principles, binding-change checklist |
+| [`AGENTS.md`](AGENTS.md) | Repository operating rules for automated contributors |
+| [`.agents/rules/`](.agents/rules/) | Rust, Python, and WASM code, testing, and documentation standards |
+| [`finstack-quant-py/README.md`](finstack-quant-py/README.md) | Python package layout, stubs, parity checks, pitfalls |
+| [`finstack-quant-py/parity_contract.toml`](finstack-quant-py/parity_contract.toml) | Python and WASM binding parity contract |
+| [`finstack-quant-wasm/README.md`](finstack-quant-wasm/README.md) | WASM namespaces, facade, type-declaration strategy |
+
+Rustdoc is the reference for the Rust API surface; build it with
+`mise run rust-doc`. For Python, the `.pyi` stubs shipped in the package are the
+IDE-facing API docs. For TypeScript, `index.d.ts` is the authoritative
+IntelliSense surface.
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the development setup, project
-principles, and starter contribution areas.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## License
 

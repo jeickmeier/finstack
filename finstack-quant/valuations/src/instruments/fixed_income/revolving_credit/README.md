@@ -1,166 +1,169 @@
-## Revolving Credit Facility (RCF) — Pricing and Cashflow Engine
+# Revolving Credit Facility
 
-This module implements a complete, production‑grade revolving credit facility (RCF) with deterministic and stochastic utilization modeling, fixed or floating base rates, tiered fees, and optional credit‑risk survival weighting. A single unified implementation drives both pricing modes and cashflow generation to ensure parity, determinism, and maintainability.
+Corporate revolving credit facilities (revolvers) with deterministic or
+stochastic utilization, fixed or floating base rates, tiered fees, and optional
+hazard-curve survival weighting. A single cashflow engine drives both modes so
+deterministic and stochastic pricing cannot drift apart.
 
-### Key capabilities
+Where [`term_loan`](../term_loan/) has a funded balance and a draw calendar, a
+revolver has a commitment that is drawn and repaid over its life, with fees on
+both the drawn and the undrawn portion.
 
-- Deterministic draws/repays and full cashflow schedule generation
-- Stochastic utilization via a 3‑factor Monte Carlo (utilization, interest rate, credit spread) with correlation
-- Fixed or floating base rates (forward curve projection, margin, optional floors)
-- Fees: upfront, commitment (tiered by utilization), usage (tiered), and facility fees
-- Credit risk: hazard curve survival weighting or dynamic survival from simulated credit spreads
-- Unified PV calculation and metric integration (DV01/CS01/Theta/Bucketed DV01 + facility metrics)
+## Public surface
 
----
+Import path:
+`finstack_quant_valuations::instruments::fixed_income::revolving_credit`
+(`RevolvingCredit` is also re-exported at
+`finstack_quant_valuations::instruments`).
 
-## Instrument surface
+| Item | Purpose |
+|------|---------|
+| `RevolvingCredit` | The instrument. Build with `RevolvingCredit::builder()`; `RevolvingCredit::example()` for a canonical facility. |
+| `BaseRateSpec` | `Fixed { rate }` or `Floating(FloatingRateSpec)` (floors, caps, gearing, reset lag). |
+| `RevolvingCreditFees` | `upfront_fee`, `commitment_fee_tiers`, `usage_fee_tiers`, `facility_fee_bp`. Helpers: `flat(..)`, `flat_bp(..)`. |
+| `DrawRepaySpec`, `DrawRepayEvent` | `Deterministic(Vec<DrawRepayEvent>)` or `Stochastic(Box<StochasticUtilizationSpec>)`. |
+| `StochasticUtilizationSpec`, `UtilizationProcess` | Path count, seed, antithetic/Sobol switch, and the utilization process. |
+| `McConfig`, `CreditSpreadProcessSpec`, `InterestRateProcessSpec` | Optional multi-factor dynamics: correlation matrix, credit-spread and short-rate processes. |
+| `RevolvingCreditPricer` | `price_with_paths(facility, market, as_of)` for full Monte Carlo path capture. |
+| `EnhancedMonteCarloResult`, `PathResult` | MC statistics plus per-path PV, cashflows and factor trajectories. |
+| `PathAwareCashflowSchedule`, `ThreeFactorPathData` | Cashflow schedule carrying the simulated factor path. |
+| `ZERO_TOLERANCE`, `UTILIZATION_CHANGE_THRESHOLD`, `INTERPOLATION_TOLERANCE`, `MIN_CIR_SPREAD`, `MAX_RECOVERY_RATE` | Module numerical constants. |
 
-The instrument is defined by `RevolvingCredit` with a builder for ergonomic construction:
+Note that `pricer` and `types` are `pub(crate)` submodules — import the names
+above from the module root, not from `revolving_credit::types::…`.
+
+## Module layout
+
+```
+revolving_credit/
+├── mod.rs                # re-exports, numerical constants, module overview
+├── types.rs              # RevolvingCredit, fees, rate/draw specs, MC config, Instrument impl
+├── cashflow_engine.rs    # single engine for both deterministic and path-driven schedules
+├── utils.rs              # calendar-aware schedules, reset dates, floating projection, balance evolution
+├── pricer/
+│   ├── unified.rs                    # RevolvingCreditPricer: single-path PV, MC aggregation, path capture
+│   ├── components.rs                 # upfront-fee PV, discount factors, survival weights, rate projection
+│   ├── path_generator.rs             # 3-factor path generation (Philox or Sobol, optional antithetic)
+│   ├── monte_carlo_process.rs        # utilization / rate / spread process definitions
+│   └── monte_carlo_discretization.rs # discretization schemes
+└── metrics/              # utilization_rate, available_capacity, weighted_average_cost, CS01
+```
+
+## Construction
 
 ```rust
 use finstack_quant_valuations::instruments::fixed_income::revolving_credit::{
-    RevolvingCredit, RevolvingCreditFees, BaseRateSpec, DrawRepaySpec, DrawRepayEvent,
+    BaseRateSpec, DrawRepayEvent, DrawRepaySpec, RevolvingCredit, RevolvingCreditFees,
 };
-use finstack_quant_core::dates::{Date, DayCount, Tenor};
-use finstack_quant_core::money::Money;
 use finstack_quant_core::currency::Currency;
+use finstack_quant_core::dates::{DayCount, Tenor};
+use finstack_quant_core::money::Money;
+use time::macros::date;
 
 let facility = RevolvingCredit::builder()
     .id("RC-001".into())
     .commitment_amount(Money::new(10_000_000.0, Currency::USD))
     .drawn_amount(Money::new(5_000_000.0, Currency::USD))
-    .commitment_date(Date::from_ymd(2025, 1, 1).unwrap())
-    .maturity_date(Date::from_ymd(2026, 1, 1).unwrap())
-    .base_rate_spec(BaseRateSpec::Floating {
-        index_id: "USD-SOFR-3M".into(),
-        margin_bp: 200.0,
-        reset_frequency: Tenor::quarterly(),
-        index_floor_bp: Some(0.0),
-    })
+    .commitment_date(date!(2025 - 01 - 01))
+    .maturity(date!(2028 - 01 - 01))
+    .base_rate_spec(BaseRateSpec::Fixed { rate: 0.05 })
     .day_count(DayCount::Act360)
-    .payment_frequency(Tenor::quarterly())
-    .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0)?)
+    .frequency(Tenor::quarterly())
+    .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0)?)   // commitment / usage / facility, bp
     .draw_repay_spec(DrawRepaySpec::Deterministic(vec![
-        DrawRepayEvent { date: Date::from_ymd(2025, 3, 1).unwrap(), amount: Money::new(1_000_000.0, Currency::USD), is_draw: true },
-        DrawRepayEvent { date: Date::from_ymd(2025, 6, 1).unwrap(), amount: Money::new(500_000.0, Currency::USD), is_draw: false },
+        DrawRepayEvent {
+            date: date!(2025 - 03 - 01),
+            amount: Money::new(1_000_000.0, Currency::USD),
+            is_draw: true,
+        },
+        DrawRepayEvent {
+            date: date!(2025 - 06 - 01),
+            amount: Money::new(500_000.0, Currency::USD),
+            is_draw: false,
+        },
     ]))
     .discount_curve_id("USD-OIS".into())
-    // Optional credit risk inputs:
+    // Optional credit inputs:
     // .credit_curve_id("BORROWER-HZ".into())
     // .recovery_rate(0.4)
     .build()?;
 ```
 
-Inputs of note:
+Notes that bite:
 
-- Base rate: `Fixed { rate }` or `Floating { index_id, margin_bp, reset_frequency, index_floor_bp }`
-- Fees: `upfront_fee`, `commitment_fee_tiers`, `usage_fee_tiers`, `facility_fee_bp`
-- Draw/repay regime: `DrawRepaySpec::Deterministic(Vec<DrawRepayEvent>)` or `DrawRepaySpec::Stochastic(...)`
-- Optional `credit_curve_id` and `recovery_rate` to enable survival weighting
-- Calendar metadata via `attributes` (e.g., `calendar_id`) to control schedule adjustments
+- Builder setters follow the **field names**: `maturity` (not `maturity_date`),
+  `frequency` (not `payment_frequency`).
+- `BaseRateSpec::Floating` is a **tuple variant** wrapping the canonical
+  `finstack_quant_cashflows::builder::FloatingRateSpec` — not a struct variant
+  with `index_id` / `margin_bp` fields.
+- `RevolvingCreditFees::flat` returns `Result` (non-finite bp are rejected);
+  `flat_bp` takes typed `Bps` and does not.
+- `recovery_rate` must be in `[0, MAX_RECOVERY_RATE)`; a recovery of exactly 1
+  divides by zero in the hazard mapping `λ = s / (1 − R)`.
+- `antithetic` and `use_sobol_qmc` are mutually exclusive; `validate()` rejects
+  the combination.
 
----
+## Cashflow engine and sign conventions
 
-## Architecture
+Lender perspective:
 
-- Cashflow engine (`cashflow_engine.rs`)
-  - Deterministic: period slicing around intra‑period draw/repay events; accrues interest and fees exactly on sub‑period balances; emits period cashflows at period end and all principal flows on event dates
-  - Stochastic: consumes 3‑factor paths (utilization, short rate, credit spread) and produces per‑period cashflows; principal changes occur when utilization moves between period start and end
-- Path generator (`pricer/path_generator.rs`)
-  - 3‑factor process with correlation:
-    - Utilization: mean‑reverting OU‑style process bounded to [0,1] at output
-    - Short rate: deterministic forward curve, or Hull‑White 1F
-    - Credit spread: CIR or market‑anchored to hazard curve; maps to hazard for survival
-  - RNG: Philox (default) or Sobol QMC
-- Unified pricer (`pricer/unified.rs`)
-  - Deterministic: single cashflow schedule → discount and survival weight
-  - Stochastic: generate many paths → per‑path deterministic pricing → aggregate MC statistics; optional full path capture (`price_with_paths`)
-- Components (`pricer/components.rs`)
-  - Upfront fee PV, discount factor utilities, survival weights, and rate projection helpers
-- Utilities (`utils.rs`)
-  - Calendar‑aware schedule and reset‑date builders, floating‑rate projection, and balance evolution helpers
+- Principal draws are negative (capital deployed).
+- Principal repayments are positive.
+- Interest and every fee are positive, posted at period end.
 
-All paths produce a `CashFlowSchedule` which downstream metrics and exporters consume uniformly.
+**Deterministic mode** slices each period around intra-period draw/repay
+events, accrues interest and fees on the exact drawn balance in each sub-period,
+and posts principal on the contractual event dates.
 
----
+**Stochastic mode** consumes simulated factor paths that observe utilization
+only at period boundaries. Accruals use the average of start and end
+utilization; the matching principal delta is posted at the **period midpoint**,
+which is the unbiased timing for a change occurring uniformly within the period
+and keeps the funding leg consistent with the average-utilization accrual. Any
+outstanding balance is repaid at maturity.
 
-## Cashflows and sign conventions
+Same-date flow ordering is deterministic: interest/reset → fees →
+amortization/PIK → notional.
 
-From the lender’s perspective:
+Both modes emit a `CashFlowSchedule`, so metrics and exporters see one shape.
 
-- Principal draws: negative cashflows (capital deployment)
-- Principal repayments: positive cashflows
-- Interest and all fees: positive cashflows at period end
+### Fee math
 
-Deterministic engine uses intra‑period event slicing to accrue interest/fees on exact drawn balances between events, and posts principal exactly on contractual draw/repay event dates. Stochastic engine uses the average of start/end utilization in the period for accruals and posts the matching principal delta at the period midpoint — the path only observes utilization at period boundaries, so midpoint booking is the unbiased timing for a change occurring uniformly within the period and keeps the funding leg consistent with the average‑utilization accrual.
+For a sub-period `[t_i, t_{i+1}]` with accrual factor `dt`, commitment `C` and
+drawn balance `B`:
 
-Flow ordering at the same date is deterministic: interest/reset → fees → amortization/PIK → notional.
-
----
-
-## Mathematics
-
-### Interest and fees
-
-For a sub‑period \([t_i, t_{i+1}]\) with accrual factor \(dt\):
-
-- Interest (fixed): \(I = B_\text{drawn} \cdot r \cdot dt\)
-- Interest (floating): \(I = B_\text{drawn} \cdot \max(\text{index}, \text{floor}) + \text{margin}\) applied over \(dt\)
-- Commitment fee: \(F_c = (C - B_\text{drawn}) \cdot \text{commitment\_bp} \cdot 10^{-4} \cdot dt\)
-- Usage fee: \(F_u = B_\text{drawn} \cdot \text{usage\_bp} \cdot 10^{-4} \cdot dt\)
-- Facility fee: \(F_f = C \cdot \text{facility\_bp} \cdot 10^{-4} \cdot dt\)
-
-Tiered fees choose the highest tier where \( \text{utilization} \ge \text{threshold} \).
-
-### Credit survival weighting
-
-PV uses discount factors and survival probabilities:
-\[ \mathrm{PV} = \sum_i \left( \mathrm{CF}_i \cdot \mathrm{DF}(t_i) \cdot \mathrm{SP}(t_i) \right) + \mathrm{PV}_\text{upfront} \]
-
-- Static hazard curve: \(\mathrm{SP}(t)\) taken from the hazard curve at each cashflow date.
-- Dynamic survival from credit spread path: hazard is mapped via \( \lambda_t \approx \frac{s_t}{1 - R} \) and integrated cumulatively to get \(\mathrm{SP}(t) = e^{-\int_0^t \lambda_u du}\) with linear interpolation between simulated grid points.
-
-### Monte Carlo processes (stochastic mode)
-
-- Utilization: mean‑reverting OU on a real line, output clamped to \([0,1]\)
-- Short rate:
-  - Deterministic: read from forward curve by period (rate locking per step)
-  - Stochastic: Hull‑White 1F \(dr_t = \kappa(\theta - r_t)dt + \sigma dW_t\)
-- Credit spread:
-  - CIR \(ds_t = \kappa(\theta - s_t)dt + \sigma \sqrt{s_t}\, dW_t\) with Feller‑safeguards
-  - Market‑anchored: mean anchored to hazard curve average; initial to first segment; volatility scaled from CDS index vol, then mapped to hazard via \(s \approx (1-R)\lambda\)
-
-Correlation across the 3 factors is supported via a 3×3 matrix. RNG supports Philox or Sobol (QMC). Zero volatility reduces stoch to deterministic (“parity mode”).
-
----
-
-## APIs and workflows
-
-### Pricing
-
-```rust
-use finstack_quant_valuations::instruments::fixed_income::revolving_credit::pricer::unified::RevolvingCreditPricer;
-
-// Deterministic (or fallback fast path)
-let pv = RevolvingCreditPricer::price(&facility, &market, as_of)?; // auto‑dispatch
-
-// Explicit deterministic
-let pv_det = RevolvingCreditPricer::price_deterministic(&facility, &market, as_of)?;
-
-// Stochastic with full path capture
-let enhanced = RevolvingCreditPricer::price_with_paths(&facility_stoch, &market, as_of)?;
-let mean_pv = enhanced.mc_result.estimate.mean;
-let per_path = &enhanced.path_results; // PVs, cashflows, and 3‑factor trajectories
+```text
+interest (fixed)    = B * r * dt
+interest (floating) = B * (max(index, floor) + margin) * dt
+commitment fee      = (C - B) * commitment_bp * 1e-4 * dt
+usage fee           = B       * usage_bp      * 1e-4 * dt
+facility fee        = C       * facility_bp   * 1e-4 * dt
 ```
 
-### Stochastic utilization spec
+Tiered fees select the highest tier whose threshold is at or below the current
+utilization. Fee tiers must be sorted by threshold ascending — `validate()`
+enforces it.
+
+### Survival weighting
+
+```text
+PV = Σ_i CF_i * DF(t_i) * SP(t_i) + PV(upfront fee)
+```
+
+- With `credit_curve_id` and no path data, `SP(t)` comes from the hazard curve
+  at each cashflow date.
+- On a stochastic credit path, the simulated spread maps to hazard via
+  `λ_t ≈ s_t / (1 − R)`, integrated cumulatively with linear interpolation
+  between grid points to give `SP(t) = exp(−∫λ)`.
+
+## Stochastic utilization
 
 ```rust
-use finstack_quant_valuations::instruments::fixed_income::revolving_credit::types::{
-    StochasticUtilizationSpec, UtilizationProcess
+use finstack_quant_valuations::instruments::fixed_income::revolving_credit::{
+    DrawRepaySpec, StochasticUtilizationSpec, UtilizationProcess,
 };
 
-let stoch = StochasticUtilizationSpec {
+let stochastic = DrawRepaySpec::Stochastic(Box::new(StochasticUtilizationSpec {
     utilization_process: UtilizationProcess::MeanReverting {
         target_rate: 0.5,
         speed: 1.0,
@@ -170,96 +173,137 @@ let stoch = StochasticUtilizationSpec {
     seed: Some(42),
     antithetic: false,
     use_sobol_qmc: false,
-    mc_config: None, // or Some(McConfig { ... }) for stochastic dynamics
-};
+    mc_config: None,     // Some(McConfig { .. }) enables rate and credit dynamics
+}));
 ```
 
-Optional `McConfig` enables rate and credit dynamics, correlation, and market anchoring to a hazard curve.
+Factors, when `McConfig` is supplied:
 
-### Cashflow schedules
+- **Utilization** — clamped Ornstein-Uhlenbeck. Each step uses the exact OU
+  transition and is then clamped to `[0, 1]`. Keep the stationary standard
+  deviation `volatility / sqrt(2 * speed)` small relative to the distance from
+  `target_rate` to the nearest boundary, or the clamp biases the simulated mean
+  toward the interior.
+- **Short rate** — `InterestRateProcessSpec::HullWhite1F`. With `sigma > 0` the
+  pricer fits θ(t) to the facility's discount curve and reads the initial rate
+  from it, ignoring the supplied `initial`/`theta`. With `sigma == 0` the
+  supplied constants are used verbatim (deterministic parity mode). The σ → 0
+  limit of the stochastic branch therefore does **not** converge to the σ = 0
+  branch unless the supplied constants are already curve-consistent.
+- **Credit spread** — `CreditSpreadProcessSpec::{Cir, Constant, MarketAnchored}`.
+  `MarketAnchored` anchors the initial spread and mean level to a hazard curve
+  and scales volatility from a CDS index implied vol.
 
-Deterministic and stochastic modes both produce `CashFlowSchedule`. In deterministic mode, the engine slices periods around events and posts interest/fees at period end. In stochastic mode, per‑period average utilization drives accruals, with principal deltas posted at period end and a terminal repayment at maturity for any outstanding balance.
+Correlation across the three factors comes from `McConfig::correlation_matrix`
+(3×3, symmetric, positive semi-definite) or from the
+`util_credit_corr` shortcut, which builds
+`[[1, 0, ρ], [0, 1, 0], [ρ, 0, 1]]`.
 
-### Calendars and schedules
+**Adverse selection by default**: when the facility carries a hazard curve and
+no explicit `McConfig` is supplied, the synthesized config uses a positive
+utilization–credit correlation and a genuinely stochastic credit spread, so
+spread up ⇒ utilization up ⇒ higher exposure at default. Pass an explicit
+`McConfig` with `util_credit_corr: Some(0.0)` to disable it.
 
-Payment schedules (and floating reset schedules) are built from `commitment_date → maturity_date` using the configured `Tenor`, and optionally adjusted using a calendar from `attributes` (e.g., `calendar_id="nyse"`). A sentinel date can be appended for exclusive‑end period aggregation where needed.
+**Determinism**: the seed is always fixed (`None` falls back to 42), so
+bump-and-reprice sensitivities reuse the same variates for base and bumped runs
+(common random numbers) and finite-difference Greeks carry no MC noise.
 
----
+## Pricing
 
-## Metrics
+`RevolvingCreditPricer` is registered under both `ModelKey::Discounting` and
+`ModelKey::MonteCarloGBM` in
+[`src/pricer/fixed_income.rs`](../../../pricer/fixed_income.rs):
 
-Standard risk metrics are available via the valuations registry:
+| Mode | Behavior |
+|------|----------|
+| Deterministic | Single schedule, discounted and survival-weighted. |
+| Monte Carlo | Path generation, per-path deterministic pricing, MC aggregation; PV is the mean estimate. |
 
-- DV01 and CS01: unified spread sensitivity using symmetric bumping
-- Theta and Bucketed DV01: via common metric helpers
+`Instrument::value(&market, as_of)` picks the mode from `draw_repay_spec`
+(`Deterministic` vs `Stochastic`) rather than from the requested model key, so a
+stochastic facility has one canonical value regardless of which public entry
+point invokes it. Setting `attributes.meta["pricing_model"]` to a `ModelKey`
+string routes through the registry instead.
 
-Facility‑specific metrics:
+For per-path detail use the pricer directly:
 
-- `utilization_rate`
-- `available_capacity`
-- `weighted_average_cost` (approximate)
+```rust
+use finstack_quant_valuations::instruments::fixed_income::revolving_credit::RevolvingCreditPricer;
 
----
+// Requires DrawRepaySpec::Stochastic; a deterministic spec is a validation error.
+let enhanced = RevolvingCreditPricer::price_with_paths(&facility, &market, as_of)?;
+let mean_pv = enhanced.mc_result.estimate.mean;
+let per_path = &enhanced.path_results;
+```
 
-## Determinism, parity, and testing
+### Convention limitation
 
-- Deterministic vs stochastic parity: with zero vol and aligned configurations, the stochastic engine matches deterministic PV to tight tolerances (floating rate tolerances are slightly relaxed due to interpolation and period vs point‑in‑time differences).
-- Property tests assert invariants: utilization bounds, undrawn arithmetic, event/balance consistency, cashflow ordering, non‑negative fees.
-- Unit tests cover fee math, discounting utilities, and survival computations.
-
----
-
-## Implementation details and design choices
-
-- Unified cashflow engine: one code path for both deterministic and stochastic modes ensures consistent math and reduces drift.
-- Survival weighting: either static from a hazard curve at cashflow dates or dynamic from simulated credit spreads mapped to hazard and integrated to cumulative survival.
-- Principal flow handling:
-  - Deterministic: principal flows occur exactly on event dates; sub‑period accruals computed with event slicing
-  - Stochastic: principal deltas from utilization changes are posted at period end; accruals use average utilization in the period
-- Floating rates: deterministic forward projection with margin and optional floors; HW1F available via `McConfig` when stochastic rates are required.
-- Rounding and zero guards: consistent `RoundingContext` checks avoid emitting noise cashflows; safeguards applied to CIR params (e.g., Feller condition) to maintain numerical stability.
-- Stochastic paths and advanced credit/rate dynamics use the workspace Monte Carlo infrastructure; deterministic pricing and scheduling remain the simpler path for standard facilities.
-
----
-
-## Limitations / Known Issues
-
-- CSA/funding adjustments are external; discounting is curve-driven without embedded FVA/CVA/DVA.
-- Stochastic mode depends on Monte Carlo market and model inputs; without those inputs, use deterministic utilization paths.
-- Covenant coverage is limited to the modeled triggers; bespoke covenants or restructuring events need explicit extensions.
-- Multi-currency facilities are not modeled; all amounts assume a single currency throughout the lifecycle.
-
----
-
-## Python and examples
-
-Python bindings expose the same shapes and behaviors. Notebook examples that are
-closest to revolving-credit workflows live in:
-
-- `finstack-quant-py/examples/02_pricing/instruments/loans_and_credit_facilities.ipynb`
-- `finstack-quant-py/examples/README.md`
-
----
-
-## Extensibility
-
-The design allows for:
-
-- Additional utilization processes (e.g., jump‑diffusion, regime‑switching)
-- Alternative credit or rate models
-- More fee types and covenant modeling
-- Enhanced cashflow tagging and reporting
-
-All extensions should preserve the unified engine paradigm to maintain parity and keep PV/metrics consistent across modes.
-
-## Pricing Methodology
-
-- Deterministic engine: generates draws/repays, fees, and interest using schedules and rate specs; discounts cashflows via curve.
-- Stochastic engine (requires `mc`): simulates utilization, rates, and credit spread factors with correlation; maps to cashflows via unified engine.
-- Hazard/survival weighting optionally applied for credit risk; supports fee tiers and PIK/cash splits where configured.
+Floating-rate projection is **term-style**: forward rate over the accrual
+period plus margin, with optional floors and caps. Overnight compounding
+(SOFR in arrears), fixing lookback and payment lags from `FloatingRateSpec` are
+**not** applied. Facilities that need daily-compounded SOFR must extend
+`utils::build_reset_dates` and `utils::project_floating_rate_with_curve`.
 
 ## Metrics
 
-- PV, facility-level DV01/CS01/Theta/Bucketed DV01 via generic calculators using cashflow outputs.
-- Utilization metrics (peak/average), fee attribution, and carry/roll analyses.
-- Scenario metrics from stochastic paths: distribution of utilization, loss-adjusted PV, and covenant breach statistics when modeled.
+Registered for `InstrumentType::RevolvingCredit` in `metrics/mod.rs`:
+
+| `MetricId` | Meaning |
+|-----------|---------|
+| `Dv01`, `BucketedDv01` | Parallel and key-rate curve risk |
+| `Cs01`, `BucketedCs01` | Hazard CS01 when a credit curve is present, z-spread CS01 otherwise |
+| `Cs01Hazard`, `BucketedCs01Hazard` | Explicit hazard CS01 (zero with no credit curve) |
+| `custom("utilization_rate")` | Drawn / commitment at the valuation date |
+| `custom("available_capacity")` | Commitment − drawn |
+| `custom("weighted_average_cost")` | Approximate all-in cost of the facility |
+
+`Theta` is registered universally by `metrics::standard_registry()`.
+
+## Bindings
+
+Reachable from Python and WASM through the JSON envelope
+(`InstrumentJson::RevolvingCredit` inside `finstack_quant.instrument/1`):
+
+- **Python**: `finstack_quant.valuations.instruments.price_instrument(...)` and
+  `finstack_quant.valuations.instruments.instrument_cashflows_json(...)`.
+- **WASM**: `valuations.instruments.priceInstrument`,
+  `valuations.instruments.instrumentCashflowsJson`.
+
+There is no typed `RevolvingCredit` class in either binding.
+
+Closest notebook:
+[`loans_and_credit_facilities.ipynb`](../../../../../../finstack-quant-py/examples/notebooks/02_pricing/instruments/loans_and_credit_facilities.ipynb).
+
+## Limitations
+
+- CSA/funding adjustments are external; discounting is curve-driven with no
+  embedded FVA/CVA/DVA.
+- Covenant modeling is out of scope here — see `finstack-quant-covenants`.
+- Single currency per facility throughout the lifecycle.
+- No PIK or amortization on the revolver itself; those belong to
+  [`../term_loan/`](../term_loan/).
+
+## Verification
+
+```bash
+# Revolving-credit unit + integration tests (incl. deterministic/MC parity)
+cargo nextest run -p finstack-quant-valuations --test instruments revolving_credit::
+
+# Whole workspace (never `cargo test` — it runs doctests)
+mise run rust-test
+
+# Lints
+mise run rust-lint
+```
+
+`tests/instruments/revolving_credit/revolving_credit_parity.rs` asserts that a
+zero-volatility stochastic configuration reproduces the deterministic PV;
+`revolving_credit_properties.rs` covers utilization bounds, undrawn arithmetic,
+event/balance consistency, cashflow ordering and fee non-negativity.
+
+## See also
+
+- [`../../README.md`](../../README.md) — instrument module map and how to add one
+- [`../term_loan/README.md`](../term_loan/README.md) — the funded-balance sibling
+- [`INVARIANTS.md`](../../../../../../INVARIANTS.md) — Decimal/f64, determinism and serde invariants

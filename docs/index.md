@@ -20,7 +20,7 @@ notes.
 
 - [`REFERENCES.md`](REFERENCES.md): canonical sources for formulas, conventions,
   and market practice.
-- [`FINSTACK_DATA_PLATFORM_PRD.md`](FINSTACK_DATA_PLATFORM_PRD.md): product
+- [`superpowers/specs/FINSTACK_DATA_PLATFORM_PRD.md`](superpowers/specs/FINSTACK_DATA_PLATFORM_PRD.md): product
   requirements for the versioned database platform, artifact compiler,
   multi-backend adapters, pandas research interface, and portfolio
   materialization targets.

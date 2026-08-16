@@ -9,7 +9,7 @@
 //! ## Actual-Based Conventions
 //! - Act/Act (ISDA)
 //! - Act/Act (ISMA) - frequency-dependent
-//! - Act/365L (AFB)
+//! - Act/365L (ICMA Rule 251; not AFB)
 //! - Act/360
 //! - Act/365
 //!
@@ -615,21 +615,12 @@ fn actact_isma_partial_period() {
         end_is_termination_date: false,
     };
 
-    let yf = DayCount::ActActIsma.year_fraction(start, end, ctx).unwrap();
-
-    // ISMA uses actual days in the quasi-coupon period
-    // Jan 15 to Apr 15 = 90 actual days (31 + 28 + 31 for remaining Jan, Feb, Mar)
-    // The quasi-coupon period (Jan 15 to Jul 15) = 181 days in 2025
-    // Year fraction = (90 / 181) × 0.5 (semi-annual) = 0.24861878...
-    let actual_days = 90.0;
-    let quasi_coupon_days = 181.0;
-    let expected = (actual_days / quasi_coupon_days) * 0.5;
-
+    let yf = DayCount::ActActIsma
+        .year_fraction(start, end, ctx)
+        .expect_err("partial Act/Act ICMA without coupon_period must fail");
     assert!(
-        (yf - expected).abs() < TOL,
-        "Expected {:.10}, got {:.10}",
-        expected,
-        yf
+        yf.to_string().contains("coupon_period"),
+        "unexpected error: {yf}"
     );
 }
 

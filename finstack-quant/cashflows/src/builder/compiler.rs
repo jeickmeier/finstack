@@ -159,8 +159,6 @@ pub(crate) struct FloatSchedule {
     pub(crate) runtime_spec: ResolvedFloatingRateSpec,
     pub(crate) dates: Vec<Date>,
     pub(crate) prev: PeriodMap,
-    /// Payment dates whose accrual period is a genuine stub (irregular span).
-    pub(crate) first_last: DateSet,
     /// Terminal accrual end.
     pub(crate) terminal_accrual_end: Option<Date>,
 }
@@ -784,7 +782,6 @@ pub(super) fn compute_coupon_schedules(
                     runtime_spec,
                     dates,
                     prev,
-                    first_last: first_or_last,
                     terminal_accrual_end: terminal,
                 });
             }

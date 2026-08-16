@@ -8,6 +8,10 @@
 //!
 //! - Additive rate bumps are normalized into decimal form before application.
 //!   For example, `1bp = 0.0001` and `2% = 0.02`.
+//! - Discount-curve bumps are **continuously compounded zero-space** shocks
+//!   (`DF_bumped(t) = DF(t) · exp(−δr · t)`), not quote re-bootstraps. Bucketed
+//!   DV01 from this path will not match hedge-instrument KRDs from a quote
+//!   shock plus re-calibration.
 //! - Inflation bumps are interpreted in annualized inflation-rate space rather
 //!   than as direct CPI-level multipliers.
 //! - FX percentage bumps are quoted in percent (`5.0 = +5%`) and strengthen the
@@ -534,6 +538,12 @@ pub trait Bumpable: Sized + Send + Sync {
 }
 
 impl Bumpable for DiscountCurve {
+    /// Apply a continuously compounded zero-space shock.
+    ///
+    /// Additive `RateBp` / `Percent` / `Fraction` bumps shift zeros via
+    /// `DF_bumped(t) = DF(t) · exp(−δr · t)` (and the triangular-weighted
+    /// analogue for key-rate bumps). This does **not** re-bootstrap from
+    /// stored [`super::term_structures::RateCalibrationRecipe`] quotes.
     fn apply_bump(&self, spec: BumpSpec) -> crate::Result<Self> {
         let (val, is_multiplicative) = spec.resolve_standard_values_or_error(
             "DiscountCurve",

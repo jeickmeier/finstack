@@ -27,11 +27,14 @@
 //!
 //! ## Forward Curve
 //!
-//! The forward curve f(t₁, t₂) represents the rate agreed today for borrowing
-//! from t₁ to t₂:
+//! [`DiscountCurve::forward`] returns the **continuously compounded** interval
+//! forward:
 //! ```text
-//! f(t₁, t₂) = [DF(t₁) / DF(t₂) - 1] / (t₂ - t₁)
+//! f(t₁, t₂) = -ln(DF(t₂) / DF(t₁)) / (t₂ - t₁)
 //! ```
+//!
+//! The simple money-market forward `(DF(t₁)/DF(t₂) − 1) / (t₂ − t₁)` lives on
+//! [`ForwardCurve::rate_between`], not on the discount curve.
 //!
 //! ## Hazard Curve
 //!

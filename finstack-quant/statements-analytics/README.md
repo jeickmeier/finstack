@@ -1,20 +1,41 @@
 # finstack-quant-statements-analytics
 
-Analysis, reporting, templates, and runtime extensions on top of `finstack-quant-statements`.
+Analysis, reporting, templates, and runtime extensions layered on top of the
+[`finstack-quant-statements`](../statements/README.md) evaluation engine.
+Nothing here re-implements evaluation: every workflow builds or evaluates a
+`FinancialModelSpec` through the statements crate and then interprets the
+resulting `StatementResult`.
 
-## Where it fits
+## Where it sits
+
+Depends on [`finstack-quant-statements`](../statements/README.md) (models and
+evaluation), [`finstack-quant-covenants`](../covenants/README.md) (covenant
+forecasting), [`finstack-quant-valuations`](../valuations/README.md) (the DCF
+instrument, terminal-value specs, market context), and
+[`finstack-quant-core`](../core/README.md). `rayon` is a dependency only on
+non-`wasm32` targets.
+
+It is a leaf of the domain stack: no other domain crate depends on it. Only the
+umbrella crate `finstack-quant` (which re-exports it as
+`finstack_quant::statements_analytics`) and the `finstack-quant-py` /
+`finstack-quant-wasm` binding crates consume it.
+
+It defines no error type of its own: most of the crate returns
+`finstack_quant_statements::Result`, and the ECL staging and covenant-forecast
+paths return `finstack_quant_core::Result`.
 
 | Need | Crate |
 |------|-------|
-| Build and evaluate statement models | `finstack-quant-statements` |
-| Scenarios, DCF, covenants, reports, templates, extensions | `finstack-quant-statements-analytics` |
-| Instrument pricing | `finstack-quant-valuations` |
-| Covenant evaluation and forecasting | `finstack-quant-covenants` |
+| Build and evaluate statement models, formula DSL, checks | `finstack-quant-statements` |
+| Scenarios, sensitivity, DCF, LBO, ECL, comps, reports, templates | `finstack-quant-statements-analytics` |
+| Covenant specs, engine, breach tracking | `finstack-quant-covenants` |
+| Instrument pricing and risk | `finstack-quant-valuations` |
 | Dates, money, curves, core types | `finstack-quant-core` |
 
 ## Quick start
 
-`CorporateAnalysisBuilder` evaluates a model once and optionally adds DCF equity valuation and per-instrument credit context:
+`CorporateAnalysisBuilder` evaluates a model once and optionally adds DCF equity
+valuation and per-instrument credit context:
 
 ```rust
 use finstack_quant_core::dates::PeriodId;
@@ -54,54 +75,159 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-## Core workflows
+`dcf()` reads the free-cash-flow series from a node named `ufcf`.
+`net_debt_override` only takes effect when `dcf()` was called first.
+`coverage_node` defaults to `"ebitda"`. Add `.market(ctx)` and `.as_of(date)`
+when the model carries capital structure — the same context is then used for
+both statement evaluation and DCF discounting.
 
-**Scenarios and variance** — `ScenarioSet` registers named cases with optional parent inheritance and scalar overrides. Use `evaluate_all`, `diff`, `VarianceAnalyzer`, and `SensitivityAnalyzer` for comparisons and sweeps. Statement-model Monte Carlo evaluation lives in `finstack-quant-statements`.
+## Module layout
 
-**Credit and covenants** — `compute_credit_context()` derives coverage and leverage from statement results plus capital-structure cashflows. `forecast_breaches()` and `forecast_covenant(s)()` adapt statement results into `finstack-quant-covenants`.
+Three public modules: `analysis`, `extensions`, `templates`. Inside `analysis`,
+only `checks`, `backtesting`, `goal_seek`, `introspection`, and `reports` are
+public module paths; everything else is `pub(crate)` and reaches callers through
+re-exports at `analysis::*`. Import from `analysis` directly rather than naming
+a submodule.
 
-**Templates** — build-time `ModelBuilder` extensions: `TemplatesExtension` (roll-forward), `VintageExtension` (cohort buildup), `RealEstateExtension` (NOI, NCF, rent roll, property operating statement). Templates add nodes at build time; use `CorkscrewExtension` at runtime to validate roll-forward articulation.
+| Area | Key exports |
+|------|-------------|
+| Valuation | `CorporateAnalysisBuilder`, `CorporateAnalysis`, `CorporateValuationResult`, `evaluate_dcf_with_market`, `DcfOptions`, `dcf_sensitivity`, `DcfSensitivityResult`, `ExitMultipleBump`, `wacc` |
+| LBO | `evaluate_lbo`, `LboConfig`, `LboResult`, `LboTranche`, `LboCheckMappings` |
+| Scenarios | `ScenarioSet`, `ScenarioDefinition`, `ScenarioResults`, `ScenarioDiff` |
+| Sensitivity | `SensitivityAnalyzer`, `SensitivityConfig`, `SensitivityMode`, `SensitivityResult`, `ParameterSpec`, `TornadoEntry`, `generate_tornado_entries` |
+| Variance | `VarianceAnalyzer`, `VarianceConfig`, `VarianceReport`, `VarianceRow`, `BridgeChart`, `BridgeStep` |
+| Credit | `compute_credit_context`, `CreditContextMetrics`, `forecast_covenant`, `forecast_covenants`, `forecast_breaches`, `StatementsAdapter`, `to_table` |
+| Checks (`analysis::checks`) | `three_statement_checks`, `credit_underwriting_checks`, `lbo_model_checks`, `ThreeStatementMapping`, `CreditMapping`, `FormulaCheck`, `CheckReportRenderer`, plus reconciliation / consistency / credit check types |
+| ECL | `EclEngine`, `EclConfig`, `EclConfigBuilder`, `CeclEngine`, `CeclConfig`, `classify_stage`, `StagingConfig`, `PdTermStructure`, `PortfolioEclResult`, `ProvisionWaterfall`, `compute_waterfall` |
+| Comps | `PeerSet`, `PeerFilter`, `PeerStats`, `compute_peer_multiples`, `compute_multiple`, `regression_fair_value`, `score_relative_value`, `percentile_rank`, `z_score` |
+| Goal seek | `goal_seek` |
+| Backtesting | `backtest_forecast`, `ForecastMetrics` |
+| Introspection | `DependencyTracer`, `DependencyTree`, `FormulaExplainer`, `Explanation`, `render_tree_ascii`, `render_tree_detailed` |
+| Reports | `TableBuilder`, `PLSummaryReport`, `CreditAssessmentReport`, `CreditAssessment`, `Report`, `Alignment` |
+| `extensions` | `CorkscrewExtension` + `CorkscrewConfig`/`CorkscrewReport`/`CorkscrewAccount`/`AccountType`/`CorkscrewStatus`; `CreditScorecardExtension` + `ScorecardConfig`/`ScorecardMetric`/`ScorecardReport`/`ScorecardStatus` |
+| `templates` | `TemplatesExtension`, `VintageExtension`, `RealEstateExtension` (builder traits), plus the `roll_forward`, `vintage`, and `real_estate` modules |
 
-**Runtime extensions** — `CorkscrewExtension` (balance-sheet roll-forward checks) and `CreditScorecardExtension` (weighted metric scoring with embedded S&P/Moody's/Fitch scales).
+Item-level detail is in the rustdoc:
+`cargo doc -p finstack-quant-statements-analytics --open`.
 
-**Other analysis** — `goal_seek`, `backtest_forecast`, dependency tracing (`DependencyTracer`, `FormulaExplainer`), and formatted reports (`TableBuilder`, `PLSummaryReport`, `CreditAssessmentReport`).
+## Workflows
 
-## Module guide
+**Scenarios and variance.** `ScenarioSet` is an ordered map of named
+`ScenarioDefinition`s, each an optional `parent` plus `overrides: node_id → f64`.
+Parent chains may be arbitrarily deep but must be acyclic; a child's overrides
+win over its ancestors' for the same node, and `trace` shows the resolution
+chain. `evaluate_all(&model)` runs every case; `diff(&results, baseline,
+comparison, metrics, periods)` compares two and returns a `ScenarioDiff`;
+`to_comparison_table` renders the set as a `TableEnvelope`.
+`VarianceAnalyzer::new(&baseline, &comparison)` then `.compute(&config)` yields a
+`VarianceReport`, and `.bridge_decomposition(...)` a `BridgeChart`.
+`SensitivityAnalyzer::new(&model).run(&config)` sweeps `ParameterSpec`s and
+`generate_tornado_entries` ranks the result. Statement-model Monte Carlo lives in
+`finstack-quant-statements`, not here.
 
-| Module | Purpose | Key exports |
-|--------|---------|-------------|
-| `analysis::valuation` | DCF and corporate pipeline | `CorporateAnalysisBuilder`, `evaluate_dcf_with_market` |
-| `analysis::credit` | Coverage, leverage, covenants | `compute_credit_context`, `forecast_breaches` |
-| `analysis::scenarios` | Scenarios, sensitivity, variance | `ScenarioSet`, `SensitivityAnalyzer`, `VarianceAnalyzer` |
-| `analysis::checks` | Reconciliation, consistency, credit checks | `three_statement_checks`, `FormulaCheck` |
-| `analysis::ecl` | IFRS 9 / CECL staging and portfolio ECL | `EclEngine`, `CeclEngine`, `classify_stage` |
-| `analysis::comps` | Peer multiples and relative value | `PeerSet`, `compute_peer_multiples` |
-| `analysis::goal_seek` | Root-finding on model drivers | `goal_seek` |
-| `analysis::backtesting` | Forecast accuracy | `backtest_forecast`, `ForecastMetrics` |
-| `analysis::introspection` | Dependency and formula explanation | `DependencyTracer`, `FormulaExplainer` |
-| `analysis::reports` | Formatted output | `TableBuilder`, `PLSummaryReport` |
-| `extensions` | Runtime extensions | `CorkscrewExtension`, `CreditScorecardExtension` |
-| `templates` | Build-time model helpers | `TemplatesExtension`, `VintageExtension`, `RealEstateExtension` |
+**Credit and covenants.** `compute_credit_context` derives coverage, leverage,
+and LTV-style metrics from a `StatementResult` plus its capital-structure
+cashflows. `StatementsAdapter` implements the covenants crate's `ModelTimeSeries`
+trait over a statement result, so `forecast_covenant`, `forecast_covenants`, and
+`forecast_breaches` reach `finstack-quant-covenants` without that crate
+depending on statements. `to_table` renders a `CovenantForecast` as a
+`TableEnvelope`.
 
-Most types re-export from `finstack_quant_statements_analytics::analysis::*`.
+**Checks.** `analysis::checks` extends the structural checks in
+`finstack_quant_statements::checks::builtins` with cross-statement
+reconciliation (`CapexReconciliation`, `DepreciationReconciliation`,
+`DividendReconciliation`, `InterestExpenseReconciliation`), internal consistency
+(`EffectiveTaxRateCheck`, `GrowthRateConsistency`, `WorkingCapitalConsistency`),
+and credit reasonableness (`CoverageFloorCheck`, `LeverageRangeCheck`,
+`LiquidityRunwayCheck`, `FcfSignCheck`, `TrendCheck`). The pre-built suites take
+typed node-id mappings rather than hard-coded names, so they work against any
+chart of accounts: `three_statement_checks(ThreeStatementMapping)`,
+`credit_underwriting_checks(CreditMapping)`, and
+`lbo_model_checks(ThreeStatementMapping, CreditMapping)`. All three return a
+`finstack_quant_statements::checks::CheckSuite`, ready for
+`Evaluator::with_checks`.
+
+**ECL.** IFRS 9 staging (`classify_stage`, `StagingConfig`, `StagingTrigger`)
+and CECL (`CeclEngine`, `CeclMethodology`), with single-exposure, weighted, and
+portfolio aggregation paths plus a `ProvisionWaterfall`. `EclConfig` can be
+persisted through the `ECL_POLICY_EXTENSION_KEY` `FinstackConfig` extension.
+
+**Templates.** Build-time `ModelBuilder` extension traits:
+`TemplatesExtension::add_roll_forward` (beginning + changes = ending),
+`VintageExtension::add_vintage_buildup` (cohort convolution), and
+`RealEstateExtension` (`add_rent_roll`, `add_noi_buildup`, `add_ncf_buildup`,
+`add_property_operating_statement`, the last driven by `LeaseSpec`,
+`ManagementFeeSpec`, and friends). Templates only add nodes; they add no runtime
+behavior. Real-estate amounts are per model period, not annualized, unless a
+field says otherwise.
+
+**Runtime extensions.** `CorkscrewExtension` validates roll-forward articulation
+after evaluation; `CreditScorecardExtension` applies weighted metric scoring with
+embedded S&P / Moody's / Fitch scales. Both are plain structs — `new()` /
+`with_config(cfg)` / `set_config(cfg)` then `execute(&model, &results)` — not
+trait objects, and both error if no configuration was supplied.
 
 ## Conventions
 
-- Ratios (DSCR, coverage, leverage, valuation multiples) are plain scalars: `2.0` means `2.0x`.
-- Percentage-style inputs (WACC, growth) use decimal form: `0.10` means `10%`.
-- `ScenarioDefinition.overrides` maps `node_id → scalar`, broadcast across forecast periods; historical actuals are preserved when the model has an actuals cutoff.
-- On native targets, sensitivity diagonal runs use Rayon.
+- Ratios (DSCR, coverage, leverage, valuation multiples) are plain scalars:
+  `2.0` means `2.0x`.
+- Percentage-style inputs (WACC, growth rates, discounts) use decimal form:
+  `0.10` means `10%`.
+- `ScenarioDefinition.overrides` are broadcast as explicit scalar values across
+  **forecast** periods only, so historical actuals survive when the model
+  declares an actuals cutoff. With no cutoff every period is a forecast period
+  and the override applies throughout. Overrides ride the statements crate's
+  `Value > Forecast > Formula` precedence, so they replace forecasts and
+  formulas alike.
+- Monetary outputs (`equity_value`, `enterprise_value`, `net_debt`,
+  `terminal_value_pv`) are `Money` in the evaluated model's currency; coverage
+  and leverage metrics are unitless scalars.
+- A non-positive DCF enterprise value is not used as an LTV reference; the
+  pipeline records that in `CorporateAnalysis::ev_suppressed_non_positive` and
+  computes credit metrics without one.
+- `SensitivityMode::Diagonal` runs in parallel on rayon on native targets and
+  serially on `wasm32`. `FullGrid` and `Tornado` are always serial. Every mode
+  drives `Evaluator::prepare` / `evaluate_prepared`, so the model's formulas are
+  compiled once per sweep.
+
+Workspace-wide invariants (Decimal vs f64, currency safety, serde strictness)
+are in [INVARIANTS.md](../../INVARIANTS.md).
+
+## Bindings
+
+- **Python** — `finstack_quant.statements_analytics`: sensitivity, variance,
+  scenario sets, backtesting, goal seek, introspection, DCF and corporate
+  analysis, the check runners and report renderers, comps, ECL, the corkscrew and
+  scorecard extensions, and the roll-forward / vintage / real-estate templates.
+- **WASM** — `statements_analytics` namespace in
+  `finstack-quant-wasm/exports/statements_analytics.js`: `runSensitivity`,
+  `runVariance`, `evaluateScenarioSet`, `backtestForecast`,
+  `generateTornadoEntries`, `goalSeek`, `dcfSensitivity`, `evaluateLbo`, `wacc`,
+  `traceDependencies`, `explainFormula`, the report renderers, the check
+  runners, and the comps helpers.
 
 ## Verification
 
 ```bash
-cargo test -p finstack-quant-statements-analytics
-cargo doc -p finstack-quant-statements-analytics --no-deps
+cargo nextest run -p finstack-quant-statements-analytics --lib --test '*'
+cargo test -p finstack-quant-statements-analytics --doc
+cargo clippy -p finstack-quant-statements-analytics --all-targets -- -D warnings
+RUSTDOCFLAGS='-D warnings' cargo doc -p finstack-quant-statements-analytics --no-deps
 ```
+
+Integration tests live in `tests/`: `analysis_corporate.rs`,
+`analysis_orchestrator.rs`, `analysis_scenario_set.rs`, `analysis_ecl.rs`,
+`analysis_goal_seek.rs`, `analysis_monte_carlo.rs`, and
+`extensions_scorecards.rs` are standalone targets; `checks_all.rs`,
+`extensions_all.rs`, `forecast_all.rs`, and `integration_all.rs` are harness
+entry points for the `checks/`, `extensions/`, `forecast/`, and `integration/`
+module directories.
 
 ## See also
 
-- `finstack-quant/statements/README.md`
-- `finstack-quant/covenants/README.md`
-- `finstack-quant/valuations/README.md`
-- `finstack-quant/core/README.md`
+- [`../statements/README.md`](../statements/README.md)
+- [`../covenants/README.md`](../covenants/README.md)
+- [`../valuations/README.md`](../valuations/README.md)
+- [`../core/README.md`](../core/README.md)
+- [`../../docs/REFERENCES.md`](../../docs/REFERENCES.md) — DCF, coverage, and
+  leverage source references

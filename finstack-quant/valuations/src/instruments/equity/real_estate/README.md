@@ -1,71 +1,214 @@
-# Real Estate Asset (Equity) — `RealEstateAsset`
+# Real Estate
 
-Single-asset real estate valuation instrument supporting the two most common appraisal-style methods:
+Single-asset real estate valuation (`RealEstateAsset`) under the two standard
+appraisal methods, plus a levered deal wrapper
+(`LeveredRealEstateEquity`) that composes the asset with a financing stack.
 
-- **DCF**: discount explicit NOI (and optional CapEx) plus an **exit-cap** terminal value.
-- **Direct Cap**: value a stabilized NOI at a cap rate.
+- **DCF** — discount an explicit annual NOI schedule (less CapEx) plus an
+  exit-cap or explicit-sale terminal value.
+- **Direct Cap** — capitalize a stabilized NOI at a cap rate.
 
-This instrument is intentionally **single-asset** and **unlevered** by default. You can represent leverage by valuing the debt (e.g. `TermLoan`) separately and netting at the portfolio layer, or by using the return metrics that reference `purchase_price`.
+`RealEstateAsset` is deliberately **unlevered**. Model leverage either by
+valuing the debt separately and netting at the portfolio layer, or by using
+`LeveredRealEstateEquity`.
+
+## Public surface
+
+Import path: `finstack_quant_valuations::instruments::equity::real_estate`
+(`RealEstateAsset` and `LeveredRealEstateEquity` are also re-exported at
+`finstack_quant_valuations::instruments`).
+
+| Item | Purpose |
+|------|---------|
+| `RealEstateAsset` | The unlevered asset. `builder()`, `example()`. |
+| `RealEstateValuationMethod` | `Dcf` or `DirectCap`. |
+| `RealEstatePropertyType` | `Office`, `Multifamily`, `Retail`, `Industrial`, `Hospitality`, `MixedUse`, `Other`. |
+| `LeveredRealEstateEquity` | Asset + financing stack (`Vec<InstrumentJson>`) with an optional `exit_date`. |
+| `LeveredRealEstateDiscountingPricer` | Exported but **not registered** in the pricer registry — see [Module layout](#module-layout). |
+
+## Module layout
+
+```
+real_estate/
+├── mod.rs            # re-exports
+├── types.rs          # RealEstateAsset, valuation method, property type, example
+├── pricer.rs         # DCF / direct-cap NPV, horizon, sale proceeds, rf-bump PV
+├── levered.rs        # LeveredRealEstateEquity
+├── levered_pricer.rs # equity/financing cashflows, exit date, payoff, PV
+└── metrics/
+    ├── cap_rates.rs     # going-in / exit cap rate
+    ├── returns.rs       # unlevered IRR, multiple, cash-on-cash
+    ├── levered.rs       # levered IRR, equity multiple, LTV, DSCR, debt payoff
+    └── sensitivities.rs # cap-rate and discount-rate finite differences
+```
+
+Both instruments are registered with `register_generic!` under
+`InstrumentType::RealEstateAsset` and `InstrumentType::LeveredRealEstateEquity`
+in [`src/pricer/equity.rs`](../../../pricer/equity.rs), so pricing runs through
+`Instrument::base_value`. `levered_pricer.rs` holds the PV and cashflow helpers
+that `LeveredRealEstateEquity` calls from its own methods; the
+`LeveredRealEstateDiscountingPricer` struct in that file is public but is not
+registered under any `ModelKey` and is not on the pricing path.
 
 ## Levered equity composition
 
-If you want a first-class “deal wrapper” around the asset + financing, use:
+`LeveredRealEstateEquity` holds `asset: RealEstateAsset`,
+`financing: Vec<InstrumentJson>` and an optional `exit_date`.
 
-- **`LeveredRealEstateEquity`**: composes `RealEstateAsset` + a financing stack (e.g. `TermLoan`, `Bond`)
-  - **Value convention**: \(PV_{equity} = PV_{asset} - PV_{financing}\) (financing valued from lender perspective)
-  - **Return metrics**: computed off a simplified equity cashflow schedule with explicit **sale proceeds** and **financing payoff at exit**
-  - **Financing stack**: supports multiple financing instruments via `InstrumentJson` (so you can mix `TermLoan`, `Bond`, etc.)
-  - **Note**: cashflow-based leverage metrics (DSCR / payoff / levered IRR) currently require financing instruments that can produce cashflow schedules (e.g. `TermLoan`, `Bond`, `RevolvingCredit`, `Repo`). PV netting works for any `InstrumentJson`.
+- **Value convention**: `PV_equity = PV_asset − PV_financing`, with financing
+  valued from the lender's perspective.
+- **Return metrics** are computed off a simplified equity cashflow schedule with
+  explicit sale proceeds and financing payoff at exit.
+- **Financing stack**: any `InstrumentJson` works for PV netting. The
+  cashflow-based leverage metrics (DSCR, debt payoff, levered IRR) additionally
+  require financing instruments that produce cashflow schedules — `TermLoan`,
+  `Bond`, `RevolvingCredit`, `Repo`.
 
-## Key conventions
+## Conventions that bite
 
-- **Annual NOI schedule**: `noi_schedule` entries must be **annual** NOI amounts. Cap-rate formulas (direct cap, exit-cap terminal value, going-in cap rate) apply a quoted annual cap rate to a single schedule entry; sub-annual schedules would understate those values.
-- **Valuation horizon**: when `sale_date` is set, DCF valuation, the cashflow schedule, and all return metrics truncate flows at `sale_date` and realize terminal proceeds there. Otherwise the horizon is the last NOI date on/after `as_of`. Flows dated exactly on `as_of` are included undiscounted.
-- **Discounting**:
-  - DCF always discounts at the property `discount_rate`; `discount_curve_id` is for risk attribution only. DV01 bumps the risk-free component inside the rate.
-  - Otherwise, DCF discounts using **annual discrete compounding**: \( PV = CF / (1 + r)^t \) using `day_count`.
-- **Terminal value (DCF)**:
-  - **Explicit sale price** (if `sale_price` is set): terminal proceeds use `sale_price` (gross), realized on `sale_date` if provided (otherwise last NOI date).
-  - Otherwise, **exit-cap** convention: \( TV = NOI_{N+1} / cap\_rate\_exit \)
-  - `terminal_growth_rate` (optional) is used to project \(NOI_{N+1} = NOI_N \times (1 + g)\).
-  - Disposition costs:
-    - `disposition_cost_pct` (optional) reduces gross proceeds: \(TV_{net} = TV \times (1 - c)\).
-    - `disposition_costs` (optional) are **dollar** line items subtracted from proceeds.
-- **CapEx**:
-  - `capex_schedule` values are treated as **positive outflows** and valued as `NOI - CapEx`.
+- **Annual NOI**: `noi_schedule` entries must be **annual** NOI amounts. Cap
+  rates are quoted annually, so direct cap, exit-cap terminal value and the
+  going-in cap rate all apply an annual rate to a single schedule entry. A
+  sub-annual schedule silently understates those values.
+- **No discount curve**: `RealEstateAsset` has **no** `discount_curve_id` field.
+  DCF always discounts at the property's own `discount_rate` with annual
+  discrete compounding, `PV = CF / (1 + r)^t` on the asset's `day_count`. The
+  PV does not depend on the market context at all. Rate sensitivity comes from
+  bumping the additive risk-free component *inside* that rate
+  (`RfComponentDv01Calculator`), not from bumping a market curve.
+- **Appraisal override**: when `appraisal_value` is set it short-circuits both
+  methods and is returned directly (after a currency check).
+- **Horizon**: with `sale_date` set, DCF valuation, the cashflow schedule and
+  every return metric truncate at `sale_date` and realize terminal proceeds
+  there. Otherwise the horizon is the last NOI date on or after `as_of`. Flows
+  dated exactly on `as_of` are included undiscounted. `validate()` requires
+  `sale_date` to be **strictly after `valuation_date`** — note that the check is
+  against the instrument's own `valuation_date`, not the `as_of` passed at
+  pricing time.
+- **Terminal value**:
+  - `sale_price` set → gross proceeds are `sale_price`, realized at `sale_date`
+    (or the last NOI date). Cap-rate sensitivity is then zero by construction.
+  - otherwise → exit cap: `TV = NOI_{N+1} / terminal_cap_rate`, with
+    `NOI_{N+1} = NOI_N · (1 + terminal_growth_rate)`. Growth is validated into
+    `[-100%, 20%]`.
+  - `disposition_cost_pct` (validated into `[0, 1)`) scales gross proceeds by
+    `(1 − c)`; `disposition_costs` are dollar line items subtracted afterwards.
+- **CapEx**: `capex_schedule` values are treated as **positive outflows** and
+  valued as `NOI − CapEx`.
+- **Direct cap**: uses `stabilized_noi` when set, otherwise the first future NOI
+  entry. `cap_rate` must be positive.
 
-## Fields you’ll typically set
+## Fields you typically set
 
-- **Core**: `noi_schedule`, `valuation_method`, `discount_curve_id`, `day_count`
-- **DCF**: `discount_rate` (required), `terminal_cap_rate`, `terminal_growth_rate`
-- **Sale modeling**: `sale_date`, `sale_price`
-- **Transaction**: `purchase_price`, `acquisition_cost` (scalar) and/or `acquisition_costs` (line items), `disposition_cost_pct` and/or `disposition_costs`
-- **Cashflow realism**: `capex_schedule`
+| Group | Fields |
+|-------|--------|
+| Core | `id`, `currency`, `valuation_date`, `valuation_method`, `noi_schedule`, `day_count` |
+| DCF | `discount_rate` (required), `terminal_cap_rate`, `terminal_growth_rate` |
+| Direct cap | `cap_rate` (required), `stabilized_noi` |
+| Sale modeling | `sale_date`, `sale_price` |
+| Transaction | `purchase_price`, `acquisition_cost` (scalar) and/or `acquisition_costs` (line items), `disposition_cost_pct` and/or `disposition_costs` |
+| Cashflow realism | `capex_schedule` |
+| Override | `appraisal_value` |
 
-## Custom deal metrics registered
+```rust
+use finstack_quant_valuations::instruments::equity::real_estate::{
+    RealEstateAsset, RealEstatePropertyType, RealEstateValuationMethod,
+};
+use finstack_quant_valuations::instruments::Attributes;
+use finstack_quant_core::currency::Currency;
+use finstack_quant_core::dates::{Date, DayCount};
+use finstack_quant_core::types::InstrumentId;
+use time::macros::date;
 
-The real estate module registers these custom metric IDs (via `MetricId::custom(...)`):
+let noi_schedule: Vec<(Date, f64)> = vec![
+    (date!(2026 - 01 - 01), 100_000.0),
+    (date!(2027 - 01 - 01), 100_000.0),
+    (date!(2028 - 01 - 01), 100_000.0),
+];
 
-- `real_estate::going_in_cap_rate`
-- `real_estate::exit_cap_rate`
-- `real_estate::unlevered_irr` (requires `purchase_price` + `terminal_cap_rate`)
-- `real_estate::unlevered_multiple` (requires `purchase_price` + `terminal_cap_rate`)
-- `real_estate::unlevered_cash_on_cash_first` (requires `purchase_price`)
-- `real_estate::cap_rate_sensitivity` (finite-difference; DirectCap uses `cap_rate`, DCF uses `terminal_cap_rate` when applicable)
-- `real_estate::discount_rate_sensitivity` (finite-difference bump of `discount_rate`; DCF always discounts at the property rate)
+let asset = RealEstateAsset::builder()
+    .id(InstrumentId::new("RE-OFFICE-DCF"))
+    .currency(Currency::USD)
+    .valuation_date(date!(2025 - 01 - 01))
+    .valuation_method(RealEstateValuationMethod::Dcf)
+    .property_type_opt(Some(RealEstatePropertyType::Office))
+    .noi_schedule(noi_schedule)
+    .discount_rate_opt(Some(0.08))
+    .terminal_cap_rate_opt(Some(0.055))
+    .day_count(DayCount::Act365F)
+    .attributes(Attributes::default())
+    .build()?;
+```
 
-Both sensitivities return `dV/dr` per **unit** of rate (1.0 = 10,000bp), computed with a 1bp central difference; divide by 10,000 for a per-bp value change.
+`RealEstateAsset::example()` builds the same shape with a 5-year flat NOI
+schedule.
 
-DSCR metrics (`dscr_min`, `dscr_min_interest_only`) measure NOI over **scheduled** debt service (cash interest + fees, plus scheduled amortization for `dscr_min`); balloon principal at maturity, prepayments, and revolver movements are excluded.
+## Metrics
 
-For `LeveredRealEstateEquity`:
+### `RealEstateAsset`
 
-- `real_estate::levered_irr`
-- `real_estate::equity_multiple`
-- `real_estate::ltv`
-- `real_estate::ltv_at_origination`
-- `real_estate::dscr_min`
-- `real_estate::dscr_min_interest_only`
-- `real_estate::debt_payoff_at_exit`
-- `real_estate::cap_rate_sensitivity`
-- `real_estate::discount_rate_sensitivity`
+| `MetricId` | Meaning |
+|-----------|---------|
+| `Dv01`, `BucketedDv01` | Risk-free component bump inside the property discount rate |
+| `custom("real_estate::going_in_cap_rate")` | First future NOI / `purchase_price`, falling back to the asset PV when `purchase_price` is unset |
+| `custom("real_estate::exit_cap_rate")` | The configured `terminal_cap_rate`; errors when unset |
+| `custom("real_estate::unlevered_irr")` | Requires `purchase_price` + `terminal_cap_rate` |
+| `custom("real_estate::unlevered_multiple")` | Requires `purchase_price` + `terminal_cap_rate` |
+| `custom("real_estate::unlevered_cash_on_cash_first")` | Requires `purchase_price` |
+| `custom("real_estate::cap_rate_sensitivity")` | Finite difference: DirectCap bumps `cap_rate`, DCF bumps `terminal_cap_rate` |
+| `custom("real_estate::discount_rate_sensitivity")` | Finite difference on `discount_rate` |
+
+### `LeveredRealEstateEquity`
+
+| `MetricId` | Meaning |
+|-----------|---------|
+| `Dv01`, `BucketedDv01` | Standard parallel / key-rate curve risk on the composed position |
+| `custom("real_estate::levered_irr")` | IRR on the equity cashflow schedule |
+| `custom("real_estate::equity_multiple")` | Equity multiple at exit |
+| `custom("real_estate::ltv")`, `custom("real_estate::ltv_at_origination")` | Loan-to-value |
+| `custom("real_estate::dscr_min")`, `custom("real_estate::dscr_min_interest_only")` | Minimum debt service coverage |
+| `custom("real_estate::debt_payoff_at_exit")` | Financing payoff at the exit date |
+| `custom("real_estate::cap_rate_sensitivity")`, `custom("real_estate::discount_rate_sensitivity")` | Same finite differences, applied through the wrapper |
+
+**Sensitivity units**: both sensitivities return `dV/dr` per **unit** of rate
+(1.0 = 10,000 bp), computed with a 1 bp central difference. Divide by 10,000
+for a per-bp value change. When `sale_price` is set, cap-rate sensitivity is
+zero because terminal proceeds no longer depend on the cap rate.
+
+**DSCR definition**: `dscr_min` and `dscr_min_interest_only` measure NOI over
+**scheduled** debt service — cash interest and fees, plus scheduled
+amortization for `dscr_min`. Balloon principal at maturity, prepayments and
+revolver movements are excluded.
+
+## Bindings
+
+Reachable from Python and WASM through the JSON envelope
+(`InstrumentJson::RealEstateAsset` / `InstrumentJson::LeveredRealEstateEquity`
+inside `finstack_quant.instrument/1`):
+
+- **Python**: `finstack_quant.valuations.instruments.price_instrument(...)`.
+- **WASM**: `valuations.instruments.priceInstrument`.
+
+There is no typed real-estate class in either binding.
+
+## Verification
+
+```bash
+# Real estate pricing and metric tests
+cargo nextest run -p finstack-quant-valuations --test instruments real_estate::
+
+# Whole workspace (never `cargo test` — it runs doctests)
+mise run rust-test
+
+# Lints
+mise run rust-lint
+```
+
+Tests live in
+[`tests/instruments/equity/real_estate/`](../../../../tests/instruments/equity/real_estate/).
+
+## See also
+
+- [`../../fixed_income/term_loan/README.md`](../../fixed_income/term_loan/README.md) — the usual financing leg
+- [`../../README.md`](../../README.md) — instrument module map and how to add one
+- [`INVARIANTS.md`](../../../../../../INVARIANTS.md) — Decimal/f64, determinism and serde invariants

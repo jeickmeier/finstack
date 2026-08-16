@@ -640,6 +640,8 @@ impl DayCount {
     ///   Using `Bus252` with a zero basis
     /// - [`InputError::MissingFrequencyForActActIsma`](crate::error::InputError::MissingFrequencyForActActIsma):
     ///   Using `ActActIsma` without a frequency in `ctx`
+    /// - [`InputError::MissingCouponPeriodForActActIsma`](crate::error::InputError::MissingCouponPeriodForActActIsma):
+    ///   Using `ActActIsma` on an irregular coupon without `ctx.coupon_period`
     /// - [`InputError::ActActIsmaUnsupportedFrequency`](crate::error::InputError::ActActIsmaUnsupportedFrequency):
     ///   Using `ActActIsma` with a Day or Week frequency
     ///
@@ -1240,14 +1242,19 @@ mod tests {
             .year_fraction(settlement, coupon_end, ctx_with)
             .expect("should succeed with coupon_period");
 
-        // Without coupon_period: re-anchors from settlement
+        // Without coupon_period an irregular span must error rather than
+        // re-anchoring a quasi-coupon grid on settlement.
         let ctx_without = DayCountContext {
             frequency: Some(frequency),
             ..Default::default()
         };
-        let yf_without = DayCount::ActActIsma
+        let err = DayCount::ActActIsma
             .year_fraction(settlement, coupon_end, ctx_without)
-            .expect("should succeed without coupon_period");
+            .expect_err("irregular Act/Act ICMA without coupon_period must fail");
+        assert!(
+            err.to_string().contains("coupon_period"),
+            "unexpected error: {err}"
+        );
 
         // With reference period: 122 days / 181 days × 0.5 ≈ 0.33702
         let expected_days = (coupon_end - settlement).whole_days() as f64;
@@ -1270,10 +1277,5 @@ mod tests {
             (yf_with - yf_direct).abs() < 1e-14,
             "coupon_period routing should match direct call: {yf_with} vs {yf_direct}"
         );
-
-        // The two paths may diverge for mid-coupon dates because the
-        // re-anchor path infers a different reference period.
-        // We just assert the reference-period path gives the expected result.
-        let _ = yf_without;
     }
 }

@@ -309,6 +309,12 @@ impl HazardCurve {
     /// For piecewise-constant hazard curves, this returns the lambda value
     /// corresponding to the interval containing `t`.
     ///
+    /// Hazards are right-continuous at knot boundaries. λᵢ applies to the
+    /// segment *ending* at knot tᵢ (ISDA-style): `hazard_rate(tᵢ) = λᵢ` and
+    /// the next segment starts immediately after tᵢ. An explicit t≈0 knot is
+    /// ignored for this lookup except at `t <= 0`, which returns the first
+    /// stored lambda.
+    ///
     /// # Arguments
     ///
     /// * `t` - Year-fraction from the curve base date to the query point; values
@@ -330,17 +336,7 @@ impl HazardCurve {
             return self.lambdas[0];
         }
 
-        // Hazards are right-continuous at knot boundaries. For an explicit
-        // zero-time anchor, lambda_i applies from knot_i onward. Without an
-        // anchor, lambda_i applies up to knot_i and lambda_{i+1} immediately
-        // after it.
-        let idx = if self.knots.first().is_some_and(|&k| k <= 1e-9) {
-            self.knots.partition_point(|&k| k <= t).saturating_sub(1)
-        } else {
-            // Without an explicit zero anchor, lambda_i applies through its
-            // own end knot; the next segment starts immediately after it.
-            self.knots.partition_point(|&k| k < t)
-        };
+        let idx = self.knots.partition_point(|&k| k < t);
         let idx = idx.min(self.lambdas.len() - 1);
         self.lambdas[idx]
     }
@@ -1081,12 +1077,10 @@ impl HazardCurveBuilder {
 /// builder (`HazardCurveBuilder::build`) and in-place rebuilds
 /// (`HazardCurve::rebuild_interp`, the `MarketContext::bump` / CS01 path):
 ///
-/// - **No zero-time anchor knot**: λᵢ applies to the segment *ending* at tᵢ
-///   (segment `[tᵢ₋₁, tᵢ]` accrues `λᵢ·(tᵢ − tᵢ₋₁)`; segment `[0, t₁]` uses λ₁).
-/// - **Explicit t≈0 anchor knot**: λᵢ applies to the segment *starting* at tᵢ
-///   (segment `[0, t₁]` uses λ₀, segment `[t₁, t₂]` uses λ₁, …). The last λ
-///   does not affect survival within the knot range; it is reported by
-///   `hazard_rate` beyond the last knot.
+/// - **Ending-segment attribution**: λᵢ applies to the segment *ending* at tᵢ
+///   (segment `(tᵢ₋₁, tᵢ]` accrues `λᵢ·(tᵢ − tᵢ₋₁)`; segment `(0, t₁]` uses λ₁).
+///   A redundant t≈0 knot is ignored for the integral; its lambda is not
+///   applied to `(0, t₁]`.
 ///
 /// Sharing this function guarantees that bumping a curve in place with a
 /// zero-size bump is an exact no-op (no silent re-attribution of base hazards
@@ -1099,25 +1093,15 @@ fn survival_pillars(knots: &[f64], lambdas: &[f64]) -> (Vec<f64>, Vec<f64>) {
 
     let mut accum = 0.0;
     let mut prev_t = 0.0;
-    let mut has_zero_anchor = false;
-    let mut prev_lambda = None;
 
     for (&t, &lambda) in knots.iter().zip(lambdas.iter()) {
         if t <= 1e-9 {
-            has_zero_anchor = true;
-            prev_lambda = Some(lambda);
             continue;
         }
-        let segment_lambda = if has_zero_anchor {
-            prev_lambda.unwrap_or(lambda)
-        } else {
-            lambda
-        };
-        accum += segment_lambda * (t - prev_t);
+        accum += lambda * (t - prev_t);
         interp_knots.push(t);
         interp_sp.push((-accum).exp());
         prev_t = t;
-        prev_lambda = Some(lambda);
     }
 
     (interp_knots, interp_sp)

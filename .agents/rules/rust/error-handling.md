@@ -19,12 +19,19 @@ This approach provides the best of both worlds: structured, specific error types
 A library crate **SHOULD** reuse `finstack_quant_core::Error` unless it has a
 genuinely distinct failure domain.
 
-Today, six crates define their own root `Error`: `core` (the shared base itself),
-`valuations`, `portfolio`, `scenarios`, `statements` and `factor-model`. Eight
-deliberately reuse core's: `analytics`, `attribution`, `cashflows`, `covenants`,
-`features`, `margin`, `monte_carlo`, `statements-analytics`. That reuse is the
-default, not drift. (`test-utils` is a dev-only supporting crate, not one of the 14
-domain crates; it has a small `Error` of its own.)
+Today, five crates define their own root `Error`: `core` (the shared base itself),
+`valuations`, `portfolio`, `scenarios` and `statements`. The other nine reuse
+core's at the root: `analytics`, `attribution`, `cashflows`, `covenants`,
+`factor-model`, `features`, `margin`, `monte_carlo`, `statements-analytics`
+(`statements-analytics` mostly propagates `finstack_quant_statements::Result`,
+which wraps it). That reuse is the default, not drift.
+
+Module-scoped `thiserror` enums for a narrow failure domain are a separate,
+allowed thing and do not make a crate a root-`Error` crate — for example
+`analytics::correlation::Error`, `factor_model::matching::FactorMatchError`, and
+`factor_model::credit::decomposition::DecompositionError`. (`test-utils` is a
+dev-only supporting crate, not one of the 14 domain crates; it has a small
+`Error` of its own.)
 
 Introduce a new crate-level `Error` only when the crate's failure modes are not
 expressible as core variants, and say why in the PR description. `thiserror` is

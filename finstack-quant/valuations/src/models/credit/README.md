@@ -1,327 +1,468 @@
-# Credit Models
+# models::credit
 
-Structural credit models for default probability estimation, PIK/cash toggle decisions,
-dynamic recovery, and endogenous hazard rates. These models power the Monte Carlo pricing
-engine for bonds with pay-in-kind (PIK) features and can be used standalone for credit
-analytics.
+Structural default models and the PIK-toggle machinery built on top of them:
+Merton / Black-Cox / CreditGrades default probabilities, notional-dependent
+recovery, leverage-dependent hazard rates, cash-vs-PIK exercise rules, and the
+market-anchored credit-volatility conversions the callable lattice and the
+revolving-credit CIR process consume.
 
-## Module Structure
+These models drive the Merton Monte Carlo bond pricer and are usable standalone
+for credit analytics (distance-to-default, implied spread, hazard-curve
+bootstrapping from a structural fit).
 
+## Position in the stack
+
+Depends on `finstack_quant_core` for `HazardCurve`, `math::random`
+(`RandomNumberGenerator`, `Pcg64Rng`, `poisson_inverse_cdf`),
+`math::solver::BrentSolver`, `math::special_functions`, and `InputError`.
+Nothing here reads a `MarketContext`.
+
+Consumed by the Merton MC engine at
+`instruments/fixed_income/bond/pricing/engine/merton_mc/`; by
+`market::credit_option_vol` and the revolving-credit path generator
+(`instruments/fixed_income/revolving_credit/pricer/path_generator.rs`), which
+both route through `market_anchored`; and by both host bindings — see
+[Binding exposure](#binding-exposure).
+
+## Layout
+
+| File | Contents |
+|------|----------|
+| [`mod.rs`](mod.rs) | Re-exports |
+| [`merton.rs`](merton.rs) | `MertonModel`, `AssetDynamics`, `BarrierType`, `SimulatedPaths` |
+| [`dynamic_recovery.rs`](dynamic_recovery.rs) | `DynamicRecoverySpec`, `RecoveryModel` |
+| [`endogenous_hazard.rs`](endogenous_hazard.rs) | `EndogenousHazardSpec`, `LeverageHazardMap` |
+| [`toggle_exercise.rs`](toggle_exercise.rs) | `ToggleExerciseModel`, `CreditState`, `ThresholdToggle`, `StochasticToggle`, `OptimalToggle` |
+| [`market_anchored.rs`](market_anchored.rs) | `CreditVolatilityConversion` and the fractional-to-absolute credit-vol mappings |
+
+Re-exported at the `credit` root: `AssetDynamics`, `BarrierType`,
+`MertonModel`, `SimulatedPaths`, `DynamicRecoverySpec`, `EndogenousHazardSpec`,
+`CreditVolatilityConversion`, `CreditState`, `CreditStateVariable`,
+`OptimalToggle`, `ThresholdDirection`, `ToggleExerciseModel`. `ThresholdToggle`
+and `StochasticToggle` are reachable through `credit::toggle_exercise::`.
+
+## Merton structural model (`merton.rs`)
+
+Equity is a call option on firm assets; default is triggered when the asset
+value crosses the debt barrier.
+
+| Method | Formula / behaviour |
+|--------|---------------------|
+| `distance_to_default(horizon)` | `DD = [ln(V/B) + (r − q − σ²/2)T] / (σ√T)`; returns `+∞` for `horizon <= 0` |
+| `default_probability(horizon)` | `Terminal`: `N(−DD)`. `FirstPassage`: Black-Cox closed form. `CreditGrades`: the approximate survival function |
+| `implied_spread(horizon, recovery)` | `s = −ln(1 − PD·(1−R)) / T` |
+| `try_implied_equity(horizon)` | `-> Result<(equity_value, equity_vol)>` via Black-Scholes with a continuous payout rate |
+| `to_hazard_curve(id, base_date, &tenors, recovery)` | Piecewise-constant `HazardCurve` from the structural survival curve; tenors need not be sorted |
+| `simulate_paths(num_paths, num_steps, horizon, &mut rng, antithetic)` | `-> Result<SimulatedPaths>` |
+
+Read-only accessors: `asset_value()`, `asset_vol()`, `debt_barrier()`,
+`risk_free_rate()`, `payout_rate()`, `barrier_type()`, `dynamics()`.
+
+### Asset dynamics
+
+| Variant | Fields |
+|---------|--------|
+| `GeometricBrownian` | — |
+| `JumpDiffusion` | `jump_intensity`, `jump_mean`, `jump_vol` (Merton 1976, Poisson-compensated) |
+| `CreditGrades` | `barrier_uncertainty`, `mean_recovery` |
+
+`CreditGrades::barrier_uncertainty` is the lognormal dispersion λ of the global
+recovery rate, not a generic uncertainty scalar: it enters the survival formula
+as `a_t² = σ²t + λ²` and the barrier shift as `exp(λ²)`.
+
+### Barrier
+
+`BarrierType::Terminal` (classic Merton, assessed at maturity only) or
+`BarrierType::FirstPassage { barrier_growth_rate }` (Black-Cox, continuous
+monitoring with an exponentially growing barrier). This is **not** the
+barrier-option `finstack_quant_core::types::BarrierType`; the schema name is
+`MertonBarrierType` to keep them apart on the wire.
+
+### Constructors and calibration
+
+| Constructor | Arguments |
+|-------------|-----------|
+| `new` | `(asset_value, asset_vol, debt_barrier, risk_free_rate)` |
+| `new_with_dynamics` | adds `(payout_rate, BarrierType, AssetDynamics)` |
+| `from_equity` | `(equity_value, equity_vol, total_debt, risk_free_rate, payout_rate, maturity)` — KMV fixed-point |
+| `from_cds_spread` | `(cds_spread_bp, recovery, total_debt, risk_free_rate, maturity, asset_value, payout_rate)` — Brent solve on σ |
+| `from_target_pd` | `(asset_value, asset_vol, risk_free_rate, target_pd, maturity)` — Brent solve on the barrier |
+| `credit_grades` | `(equity_value, equity_vol, total_debt, risk_free_rate, barrier_uncertainty, mean_recovery)` |
+
+All return `Result<Self>` and reject non-positive `asset_value`, `asset_vol`,
+or `debt_barrier` with `InputError::NonPositiveValue`.
+
+`asset_value <= debt_barrier` is **intentionally accepted** — it represents a
+firm at or through its default point. Pricing then degenerates consistently:
+first-passage paths default immediately, terminal-barrier PD approaches 1, and
+the CreditGrades survival formula returns PD = 1 in the zero-variance limit.
+Callers wanting a strictly solvent firm must validate that themselves.
+
+`from_equity` rejects a near-zero `equity_value` up front: the KMV inversion
+`σ_V = σ_E·E / (N(d₁)·e^{−qT}·V)` is ill-conditioned there and would drive
+iterates to inf/NaN, silently defeating the convergence test.
+
+### `SimulatedPaths`
+
+Flat path storage with `values_per_path()`, `get(path_idx, time_idx)`,
+`path(path_idx)`, `iter_paths()`, and `to_nested()`. Seeded via the
+`RandomNumberGenerator` the caller passes to `simulate_paths`, so the same seed
+reproduces the same paths. `num_steps == 0` or `horizon <= 0` is a validation
+error, not a degenerate grid.
+
+## Dynamic recovery (`dynamic_recovery.rs`)
+
+Recovery declines as PIK accrual inflates the outstanding notional.
+
+| `RecoveryModel` | `recovery_at_notional(N)` |
+|-----------------|---------------------------|
+| `Constant` | `R₀` |
+| `InverseLinear` | `R₀ · (N₀ / N)` |
+| `InversePower { exponent }` | `R₀ · (N₀ / N)^α` |
+| `FlooredInverse { floor }` | `max(floor, R₀ · (N₀ / N))` |
+| `LinearDecline { sensitivity, floor }` | `max(floor, R₀ · (1 − β·(N/N₀ − 1)))` |
+
+Constructors: `constant`, `inverse_linear`, `inverse_power`, `floored_inverse`,
+`linear_decline` — all `-> Result<Self>`. `N <= 0` returns `0.0`; every other
+result is clamped to `[0, base_recovery]`. Accessors: `base_recovery()`,
+`base_notional()`, `model()`.
+
+The clamp introduces a kink in recovery as a function of accreted notional;
+paths far inside the clamped region all contribute the same floored or capped
+recovery. No smoothed (logistic) rule is applied.
+
+## Endogenous hazard (`endogenous_hazard.rs`)
+
+Closes the feedback loop: PIK accrual raises leverage, which raises the hazard
+rate.
+
+| `LeverageHazardMap` | `hazard_at_leverage(L)` |
+|---------------------|-------------------------|
+| `PowerLaw { exponent }` | `λ₀ · (L / L₀)^β` |
+| `Exponential { sensitivity }` | `λ₀ · exp(β·(L − L₀))` |
+| `Tabular { leverage_points, hazard_points }` | Linear interpolation with flat extrapolation |
+
+Constructors `power_law`, `exponential`, `tabular` return `Result<Self>`.
+`hazard_after_pik_accrual(accreted_notional, asset_value)` computes leverage as
+the ratio and delegates. Accessors: `base_hazard_rate()`, `base_leverage()`,
+`leverage_hazard_map()`.
+
+Results are clamped to `[0, MAX_HAZARD_RATE]` with `MAX_HAZARD_RATE = 1e6`, and
+a `NaN` raw rate (e.g. `0 · inf`) collapses to `0.0`. The order matters —
+`clamp` alone would propagate `NaN`. A degenerate tabular map (empty or
+mismatched vector lengths, reachable only through `Deserialize` since the
+constructor validates) yields `0.0`.
+
+## Toggle exercise (`toggle_exercise.rs`)
+
+Decides cash versus PIK at each coupon date.
+
+| Variant | Rule |
+|---------|------|
+| `Threshold(ThresholdToggle)` | PIK when the credit metric crosses `threshold` in `direction` |
+| `Stochastic(StochasticToggle)` | `P(PIK) = 1 / (1 + exp(−(intercept + sensitivity·x)))` |
+| `OptimalExercise(OptimalToggle)` | Nested Monte Carlo comparing equity value under cash and PIK |
+
+Constructors `ToggleExerciseModel::threshold(variable, threshold, direction)`
+and `::stochastic(variable, intercept, sensitivity)` are infallible;
+`OptimalExercise` is built by naming the `OptimalToggle` fields
+(`nested_paths`, `equity_discount_rate`, `asset_vol`, `risk_free_rate`,
+`horizon`) directly.
+
+Decision entry points: `should_pik(&CreditState, &mut dyn
+RandomNumberGenerator) -> bool`, the deterministic
+`should_pik_with_uniform(&CreditState, u)`, and `pik_fraction(...)`.
+
+`CreditStateVariable` is `HazardRate`, `DistanceToDefault`, or `Leverage`;
+`ThresholdDirection` is `Above` or `Below`. Both implement `FromStr` over the
+snake_case serde names, which is how the Python binding accepts strings.
+
+`CreditState` carries `hazard_rate`, `distance_to_default: Option<f64>`,
+`leverage`, `accreted_notional`, `coupon_due`, and `asset_value:
+Option<f64>`.
+
+**Missing distance-to-default reads as `0.0`** — maximally stressed. Under a
+`Below` rule that deterministically elects PIK. The pessimism is deliberate (an
+issuer with no computable DD should not be treated as healthy), but a
+`DistanceToDefault` rule should populate the field explicitly rather than rely
+on it.
+
+The optimal model simulates `nested_paths` GBM paths over `horizon` at
+`NESTED_STEPS_PER_YEAR = 12` steps per year with first-passage barrier checks
+under both scenarios, and elects PIK when the estimated equity value under PIK
+exceeds that under cash. A liquidity early-exit guard forces PIK when paying
+cash would itself breach the default barrier. The nested simulation drifts
+under the risk-neutral measure but discounts at `equity_discount_rate`, so the
+intermediate equity figures are decision inputs, not measure-consistent prices;
+the rate cancels in the comparison and does not bias the elected branch.
+
+## Market-anchored credit volatility (`market_anchored.rs`)
+
+Index CDS-option markets quote a **fractional** (relative, lognormal)
+forward-spread volatility — `0.35` meaning 35% of the spread level. The
+callable lattice wants an additive hazard-rate volatility in decimal hazard
+points per √year, and the revolving-credit CIR process wants a square-root
+diffusion coefficient. Feeding `0.35` into either is roughly an order of
+magnitude wrong. This module owns the conversion so both consumers derive their
+parameters from one place.
+
+The credit triangle `s ≈ (1 − R)·λ` (O'Kane 2008, §5.4), differentiated at
+fixed recovery, gives:
+
+```text
+σ_s,abs = σ_fractional · s_ref
+σ_λ     = σ_fractional · λ_ref = σ_s,abs / (1 − R)
 ```
-credit/
-├── mod.rs                 # Public re-exports
-├── merton.rs              # Merton / Black-Cox structural model
-├── toggle_exercise.rs     # PIK vs cash toggle decision models
-├── dynamic_recovery.rs    # Notional-dependent recovery rates
-└── endogenous_hazard.rs   # Leverage-dependent hazard rates
-```
 
-## Features
+Recovery cancels from the hazard volatility exactly as it cancels from the
+level relation.
 
-### Merton Structural Model (`merton.rs`)
+| Item | Notes |
+|------|-------|
+| `CreditVolatilityConversion::from_survival_window(σ_frac, sp_start, sp_end, horizon, recovery)` | Anchors on a survival ratio from the target curve |
+| `CreditVolatilityConversion::from_reference_hazard(σ_frac, λ_ref, horizon, recovery)` | Anchors on a quoted flat hazard |
+| `conditional_average_hazard`, `reference_spread`, `absolute_spread_volatility`, `additive_hazard_volatility`, `cir_diffusion_coefficient` | The individual mappings |
+| `MIN_REFERENCE_LEVEL = 1e-8` | Below this the fractional vol of a vanishing spread carries no absolute information and conversion is an error |
 
-Models a firm's equity as a call option on its assets. Default occurs when
-the asset value falls below the debt barrier.
+The returned struct reports every quantity it used and produced
+(`horizon_years`, `recovery`, `reference_hazard`, `reference_spread`,
+`fractional_spread_volatility`, `absolute_spread_volatility`,
+`hazard_volatility`, `cir_diffusion`), so a relative quote cannot be dropped
+into an additive lattice unnoticed.
 
-**Core analytics**
+This is an explicit first-order **local** mapping evaluated at one reference
+hazard over one horizon. It is not a calibration: feeding the resulting `σ_λ`
+into the callable lattice will not exactly reprice the index option it came
+from. Term structure of credit volatility, skew, and issuer/index beta are out
+of scope — applying an index-derived fractional vol to a single name is a
+caller decision, made explicit by passing the target curve's own reference
+hazard.
 
-| Method                  | Description                                                      |
-|-------------------------|------------------------------------------------------------------|
-| `distance_to_default()` | DD = (ln(V/B) + (r - q - σ²/2)·T) / (σ√T)                      |
-| `default_probability()` | Terminal: PD = N(-DD). First-passage: Black-Cox closed-form      |
-| `implied_spread()`      | s = -ln(1 - PD·(1-R)) / T                                       |
-| `try_implied_equity()`  | Black-Scholes call formula with continuous payout rate            |
-| `to_hazard_curve()`     | Converts structural PD to piecewise-constant hazard curve        |
+## Integration with the Merton MC engine
 
-**Asset dynamics**
+`MertonMcConfig`
+(`instruments/fixed_income/bond/pricing/engine/merton_mc`) assembles these
+pieces:
 
-- `GeometricBrownian` — standard lognormal diffusion (GBM).
-- `JumpDiffusion` — Merton (1976) Poisson-compensated jumps on top of GBM.
-- `CreditGrades` — simplified Finger et al. (2002) with deterministic barrier.
-
-**Barrier types**
-
-- `Terminal` — classic Merton; default assessed only at maturity.
-- `FirstPassage` — Black-Cox continuous monitoring with exponential barrier growth.
-
-**Calibration**
-
-| Constructor        | Calibrates from                                                  |
-|--------------------|------------------------------------------------------------------|
-| `new()`            | Direct specification (V, σ, B, r)                                |
-| `from_equity()`    | KMV fixed-point iteration from observed equity value and vol     |
-| `from_cds_spread()`| Brent solver on σ to match a target CDS spread                   |
-| `from_target_pd()` | Brent solver on B to match a target cumulative PD                |
-| `credit_grades()`  | CreditGrades construction from equity observables                |
-
-**Monte Carlo**
-
-`simulate_paths()` generates forward asset-value paths under GBM or
-jump-diffusion dynamics with optional antithetic variates.
-
-### Toggle Exercise (`toggle_exercise.rs`)
-
-Decides whether the borrower pays in kind (PIK) or pays cash at each coupon date.
-
-| Model              | Decision rule                                                         |
-|--------------------|-----------------------------------------------------------------------|
-| `Threshold`        | PIK when a credit metric (hazard rate, DD, leverage) crosses a boundary |
-| `Stochastic`       | PIK probability via logistic sigmoid: P = 1/(1 + exp(-(a + b·x)))    |
-| `OptimalExercise`  | Nested Monte Carlo comparing equity value under cash vs PIK scenarios |
-
-The optimal exercise model runs a small nested GBM simulation at each coupon date
-with first-passage barrier checks, including a liquidity early-exit guard that
-forces PIK when cash payment would breach the default barrier.
-
-### Dynamic Recovery (`dynamic_recovery.rs`)
-
-Recovery rates that decline as PIK accrual inflates the outstanding notional.
-
-| Model            | Formula                                                    |
-|------------------|------------------------------------------------------------|
-| `Constant`       | R(t) = R₀                                                 |
-| `InverseLinear`  | R(t) = R₀ · (N₀ / N(t))                                  |
-| `InversePower`   | R(t) = R₀ · (N₀ / N(t))^α                                |
-| `FlooredInverse` | R(t) = max(floor, R₀ · (N₀ / N(t)))                      |
-| `LinearDecline`  | R(t) = clamp(R₀ · (1 - β · (N(t)/N₀ - 1)), floor, R₀)   |
-
-All outputs are clamped to `[0, base_recovery]`.
-
-### Endogenous Hazard (`endogenous_hazard.rs`)
-
-Creates a feedback loop: PIK accrual increases leverage, which drives the
-hazard rate higher.
-
-| Model          | Formula                                        |
-|----------------|------------------------------------------------|
-| `PowerLaw`     | λ(L) = λ₀ · (L / L₀)^β                       |
-| `Exponential`  | λ(L) = λ₀ · exp(β · (L - L₀))                |
-| `Tabular`      | Linear interpolation with flat extrapolation   |
-
-All outputs are floored at 0.
-
-## Integration with Pricing Engines
-
-The credit models feed into `MertonMcEngine` (the Monte Carlo bond pricer):
-
-```
+```text
 MertonMcConfig
-├── merton: MertonModel           ← asset dynamics, barrier, calibration
-├── pik_schedule: PikSchedule     ← per-coupon cash/PIK/toggle behavior
+├── merton: MertonModel                            ← dynamics, barrier, calibration
+├── pik_schedule: PikSchedule                      ← Uniform(PikMode) | Stepped(Vec<(f64, PikMode)>)
 ├── endogenous_hazard: Option<EndogenousHazardSpec>
 ├── dynamic_recovery: Option<DynamicRecoverySpec>
-└── toggle_model: Option<ToggleExerciseModel>
+├── toggle_model: Option<ToggleExerciseModel>      ← consulted only at PikMode::Toggle dates
+├── num_paths, seed, antithetic, time_steps_per_year
+├── barrier_crossing: BarrierCrossing              ← Discrete | BrownianBridge
+├── default_recovery_rate                          ← used when dynamic_recovery is None
+├── calibration: Option<MertonMcCalibrationSpec>
+└── discount factors (optional term structure; otherwise a flat rate)
 ```
 
-**Simulation loop** (per path, per time step):
+Per path, per time step: evolve the asset value; take the hazard from
+`EndogenousHazardSpec` if present, otherwise from the Merton model; check
+first-passage default against the barrier; at coupon dates evaluate the toggle
+model when `PikMode::Toggle` is active; on default compute recovery through
+`DynamicRecoverySpec` if present, otherwise `default_recovery_rate`.
 
-1. Evolve asset value via GBM or jump-diffusion.
-2. Compute hazard rate from `EndogenousHazardSpec` (if present) or from the
-   Merton model directly.
-3. Check for first-passage default against the barrier.
-4. At coupon dates, evaluate `ToggleExerciseModel` to decide PIK vs cash
-   (when `PikMode::Toggle` is active).
-5. On default, compute recovery via `DynamicRecoverySpec` (if present).
+`PikMode::Toggle` falls back to `Cash` when no toggle model is set.
+`BarrierCrossing` defaults to `BrownianBridge` when the Merton model uses
+`FirstPassage`, otherwise `Discrete`.
 
-## Usage Examples
+`Bond::price_merton_mc(&config, discount_rate, as_of)` overrides a default
+`PikSchedule::Uniform(Cash)` from the bond's own `CouponType`; a non-default
+schedule on the config takes precedence.
 
-### Rust
+## Example
 
 ```rust
 use finstack_quant_valuations::models::credit::{
-    MertonModel, BarrierType, AssetDynamics,
-    DynamicRecoverySpec, EndogenousHazardSpec, ToggleExerciseModel,
-};
-use finstack_quant_valuations::models::credit::toggle_exercise::{
-    CreditState, CreditStateVariable, ThresholdDirection,
+    toggle_exercise::{CreditStateVariable, ThresholdDirection},
+    AssetDynamics, BarrierType, CreditVolatilityConversion, DynamicRecoverySpec,
+    EndogenousHazardSpec, MertonModel, ToggleExerciseModel,
 };
 
-// --- Merton model: direct construction ---
+// Direct construction.
 let model = MertonModel::new(100.0, 0.20, 80.0, 0.05)?;
-let dd = model.distance_to_default(1.0);    // ~1.27
-let pd = model.default_probability(1.0);     // ~10.3%
-let spread = model.implied_spread(5.0, 0.40)?; // implied credit spread
+let dd = model.distance_to_default(1.0);
+let pd = model.default_probability(1.0);
+let spread = model.implied_spread(5.0, 0.40)?;
+assert!(dd > 0.0 && (0.0..1.0).contains(&pd) && spread > 0.0);
 
-// --- Calibrate from equity observables (KMV) ---
-let model = MertonModel::from_equity(
-    25.0,   // equity_value
-    0.50,   // equity_vol
-    80.0,   // total_debt
-    0.05,   // risk_free_rate
-    0.0,    // payout_rate
-    1.0,    // maturity
-)?;
+// Calibrate the barrier to a 5-year cumulative PD implied by a 2% annual hazard.
+let five_year_pd = 1.0 - (-0.02_f64 * 5.0).exp();
+let calibrated = MertonModel::from_target_pd(200.0, 0.25, 0.045, five_year_pd, 5.0)?;
+assert!((calibrated.default_probability(5.0) - five_year_pd).abs() < 1e-6);
 
-// --- Calibrate barrier from target PD ---
-let annual_pd = 0.02;
-let five_year_pd = 1.0 - (-annual_pd * 5.0_f64).exp();
-let model = MertonModel::from_target_pd(200.0, 0.25, 0.045, five_year_pd, 5.0)?;
-
-// --- First-passage (Black-Cox) with growing barrier ---
-let model = MertonModel::new_with_dynamics(
-    100.0, 0.25, 80.0, 0.05, 0.0,
+// Black-Cox first passage with a growing barrier, same parameters as `model`.
+let black_cox = MertonModel::new_with_dynamics(
+    100.0,
+    0.20,
+    80.0,
+    0.05,
+    0.0,
     BarrierType::FirstPassage { barrier_growth_rate: 0.02 },
     AssetDynamics::GeometricBrownian,
 )?;
+// Continuous monitoring can only default at least as often as terminal-only.
+assert!(black_cox.default_probability(5.0) >= model.default_probability(5.0));
 
-// --- Generate hazard curve for use with other engines ---
-let hc = model.to_hazard_curve("ISSUER_001", base_date, &[1.0, 3.0, 5.0, 10.0], 0.40)?;
+// Structural PD -> hazard curve for the reduced-form engines.
+let base_date = time::Date::from_calendar_date(2024, time::Month::January, 15).unwrap();
+let hazard_curve =
+    model.to_hazard_curve("ISSUER_001", base_date, &[1.0, 3.0, 5.0, 10.0], 0.40)?;
 
-// --- Dynamic recovery ---
-let dyn_rec = DynamicRecoverySpec::floored_inverse(0.40, 100.0, 0.15)?;
-let recovery = dyn_rec.recovery_at_notional(130.0); // R declines as notional accretes
+// PIK feedback components.
+let recovery = DynamicRecoverySpec::floored_inverse(0.40, 100.0, 0.15)?;
+assert!(recovery.recovery_at_notional(130.0) < 0.40);
 
-// --- Endogenous hazard ---
-let endo = EndogenousHazardSpec::power_law(0.05, 0.60, 2.0)?;
-let lambda = endo.hazard_at_leverage(0.75); // hazard rises with leverage
+let hazard = EndogenousHazardSpec::power_law(0.05, 0.60, 2.0)?;
+assert!(hazard.hazard_at_leverage(0.75) > 0.05);
 
-// --- Toggle exercise ---
 let toggle = ToggleExerciseModel::threshold(
-    CreditStateVariable::HazardRate, 0.15, ThresholdDirection::Above,
+    CreditStateVariable::HazardRate,
+    0.15,
+    ThresholdDirection::Above,
 );
+
+// 35% relative CDS-option vol on a 3% hazard is a 1.05% absolute hazard vol.
+let survival_end = (-0.03_f64 * 5.0).exp();
+let conv = CreditVolatilityConversion::from_survival_window(0.35, 1.0, survival_end, 5.0, 0.4)?;
+assert!((conv.hazard_volatility - 0.0105).abs() < 1e-12);
+# Ok::<(), finstack_quant_core::Error>(())
 ```
 
-### Python
+## Conventions
 
-```python
-from finstack_quant.valuations import (
-    MertonModel,
-    MertonMcConfig,
-    EndogenousHazardSpec,
-    DynamicRecoverySpec,
-    ToggleExerciseModel,
-    Bond,
-)
-import math
+- Rates, hazards, recoveries, and volatilities are decimals; `from_cds_spread`
+  is the one exception and takes basis points.
+- Horizons and maturities are year fractions.
+- `MertonModel`, `AssetDynamics`, `BarrierType`, `DynamicRecoverySpec`,
+  `EndogenousHazardSpec`, `CreditState`, and `ToggleExerciseModel` all derive
+  `Serialize`/`Deserialize`/`JsonSchema`, so a whole `MertonMcConfig`
+  round-trips through the wire format. `CreditVolatilityConversion` is a
+  plain-value diagnostic and is not serialized.
+- Fallible constructors return `finstack_quant_core::Result<Self>` with
+  `InputError` variants or `Error::Validation`.
+- Recovery is clamped to `[0, base_recovery]`; hazard to
+  `[0, MAX_HAZARD_RATE]`.
+- Simulation is deterministic given the seed: the same `RandomNumberGenerator`
+  seed reproduces the same paths and the same toggle decisions.
+- These are `f64` analytics, not `Money` — see
+  [INVARIANTS.md](../../../../../INVARIANTS.md) §1.
 
-# Calibrate Merton from target PD
-annual_pd = 0.02
-five_year_pd = 1.0 - math.exp(-annual_pd * 5.0)
-merton = MertonModel.from_target_pd(
-    asset_value=200.0,
-    asset_vol=0.25,
-    risk_free_rate=0.045,
-    target_pd=five_year_pd,
-    maturity=5.0,
-)
+## Binding exposure
 
-# Build credit components
-endo = EndogenousHazardSpec.power_law(
-    base_hazard=0.02,
-    base_leverage=0.60,
-    exponent=2.0,
-)
-dyn_rec = DynamicRecoverySpec.floored_inverse(
-    base_recovery=0.40,
-    base_notional=100.0,
-    floor=0.15,
-)
-toggle = ToggleExerciseModel.threshold(
-    variable="hazard_rate",
-    threshold=0.15,
-    direction="above",
-)
+**Python** — `finstack_quant.valuations.models.credit` exposes `MertonModel`,
+`AssetDynamics`, `BarrierType`, `SimulatedPaths`, `DynamicRecoverySpec`,
+`EndogenousHazardSpec`, `CreditState`, and `ToggleExerciseModel`.
+`MertonMcConfig` and `MertonMcResult` live one namespace over in
+`finstack_quant.valuations.instruments`; `MertonMcConfig` is a fluent builder
+(`MertonMcConfig(merton).num_paths(50_000).seed(42).antithetic(True)`), not a
+keyword constructor.
 
-# Assemble MC config
-config = MertonMcConfig(
-    merton,
-    endogenous_hazard=endo,
-    dynamic_recovery=dyn_rec,
-    toggle_model=toggle,
-    num_paths=50_000,
-    seed=42,
-    antithetic=True,
-)
+The wire and export surface is not uniform across the eight classes:
 
-# Price a PIK toggle bond
-result = bond.price_merton_mc(config, discount_rate=0.05, as_of=as_of_date)
-```
+| Class | `to_json` / `from_json` / `__reduce__` | `to_dataframe()` |
+|-------|----------------------------------------|------------------|
+| `MertonModel` | yes | yes |
+| `DynamicRecoverySpec` | yes | yes |
+| `EndogenousHazardSpec` | yes | yes |
+| `CreditState` | yes | yes |
+| `AssetDynamics` | yes | no |
+| `BarrierType` | yes | no |
+| `ToggleExerciseModel` | yes | no |
+| `SimulatedPaths` | no | no |
 
-## Academic References
+`SimulatedPaths` is a plain path container: `times()`, `asset_values()`,
+`num_paths()`, `num_steps()`, `get()`, `path()`, `to_nested()`.
 
-| Model / Concept        | Reference                                                                                                          |
-|------------------------|--------------------------------------------------------------------------------------------------------------------|
-| Structural default     | Merton, R. C. (1974). "On the Pricing of Corporate Debt: The Risk Structure of Interest Rates." *JF*, 29(2), 449-470. |
-| First-passage barrier  | Black, F. & Cox, J. C. (1976). "Valuing Corporate Securities: Some Effects of Bond Indenture Provisions." *JF*, 31(2), 351-367. |
-| Jump-diffusion         | Merton, R. C. (1976). "Option Pricing When Underlying Stock Returns Are Discontinuous." *JFE*, 3(1-2), 125-144.    |
-| CreditGrades           | Finger, C., Finkelstein, V., Pan, G., Lardy, J.-P., Ta, T., & Tierney, J. (2002). *CreditGrades Technical Document*. RiskMetrics Group. |
-| KMV calibration        | Hull, J. C. *Options, Futures, and Other Derivatives*, 9th ed., Chapter 17.                                         |
+Not every Rust constructor is bound. `DynamicRecoverySpec` exposes only
+`constant`, `EndogenousHazardSpec` only `power_law`, and `ToggleExerciseModel`
+only `threshold` and `optimal`. The remaining variants are reachable from
+Python through `from_json` on the canonical wire form.
 
-## Adding New Features
+**WASM** — bound as the `valuations.credit` namespace
+([`finstack-quant-wasm/exports/valuations/credit.js`](../../../../../finstack-quant-wasm/exports/valuations/credit.js)
+over [`src/api/valuations/credit.rs`](../../../../../finstack-quant-wasm/src/api/valuations/credit.rs)),
+as JSON-string functions rather than classes: `mertonModelJson`,
+`mertonModelWithDynamicsJson`, `creditGradesModelJson`,
+`mertonFromEquityJson`, `mertonFromCdsSpreadJson`, `mertonFromTargetPdJson`,
+`mertonDefaultProbability`, `mertonDistanceToDefault`, `mertonImpliedSpread`,
+`mertonTryImpliedEquity`, `mertonToHazardCurveJson`,
+`mertonSimulatePathsJson`, `dynamicRecoveryConstantJson`,
+`dynamicRecoveryAtNotional`, `endogenousHazardPowerLawJson`,
+`endogenousHazardAtLeverage`, `endogenousHazardAfterPikAccrual`,
+`creditStateJson`, `toggleExerciseThresholdJson`,
+`toggleExerciseOptimalJson`. The same constructor gaps as Python apply.
 
-### Adding a new recovery model
+`market_anchored` is Rust-only in both hosts.
 
-1. Add a variant to `RecoveryModel` in `dynamic_recovery.rs`.
-2. Implement the formula in `DynamicRecoverySpec::recovery_at_notional()`.
-3. Add a convenience constructor (e.g., `DynamicRecoverySpec::new_model_name()`).
-4. Add unit tests verifying the formula, edge cases, and clamping behavior.
-5. Expose the new variant in the Python bindings
-   (`finstack-quant-py/src/valuations/instruments/credit/dynamic_recovery.rs`).
-
-### Adding a new hazard mapping
-
-1. Add a variant to `LeverageHazardMap` in `endogenous_hazard.rs`.
-2. Implement the formula in `EndogenousHazardSpec::hazard_at_leverage()`.
-3. Add a convenience constructor.
-4. Add unit tests (base leverage returns base hazard, monotonicity, edge cases).
-5. Update Python bindings in
-   `finstack-quant-py/src/valuations/instruments/credit/endogenous_hazard.rs`.
-
-### Adding a new toggle model
-
-1. Add a variant to `ToggleExerciseModel` in `toggle_exercise.rs`.
-2. Implement the decision logic in `should_pik()`.
-3. Ensure the model receives `CreditState` and `&mut dyn RandomNumberGenerator`.
-4. Add tests for determinism (same seed = same result), boundary behavior, and
-   economic intuition (stressed firms should prefer PIK).
-5. Update Python bindings in
-   `finstack-quant-py/src/valuations/instruments/credit/toggle_exercise.rs`.
-
-### Adding a new asset dynamics variant
-
-1. Add a variant to `AssetDynamics` in `merton.rs`.
-2. Update `simulate_paths()` to handle the new dynamics (drift compensation, etc.).
-3. If the new dynamics affect `default_probability()`, add an analytical branch
-   or note that MC is required.
-4. Add unit tests: mean convergence, path dimension checks, comparison with
-   existing dynamics.
-
-### General checklist
-
-- All new types must derive `Serialize, Deserialize` for configuration persistence.
-- Input validation must return `finstack_quant_core::Result<T>` with appropriate
-  `InputError` variants.
-- Public constructors should use the `Result<Self>` pattern for fallible creation.
-- Recovery rates are clamped to `[0, base_recovery]`; hazard rates are floored at 0.
-- Python bindings live under `finstack-quant-py/src/valuations/instruments/credit/`.
-- Python stub files live under `finstack-quant-py/finstack_quant/valuations/instruments/credit/`.
-
-## Testing
-
-Unit tests are co-located in each module. Run with:
+## Verification
 
 ```bash
-cargo test -p finstack-quant-valuations -- models::credit
+# Unit tests for this module (never `cargo test` — it would run doc tests).
+cargo nextest run -p finstack-quant-valuations --lib -E 'test(/models::credit/)'
+
+# One area at a time.
+cargo nextest run -p finstack-quant-valuations --lib -E 'test(/credit::merton/)'
+cargo nextest run -p finstack-quant-valuations --lib -E 'test(/credit::toggle_exercise/)'
+
+mise run rust-test
+mise run rust-lint
+
+# Python binding behaviour.
+mise run python-build
+uv run pytest finstack-quant-py/tests/test_merton_model.py
 ```
 
-Python binding tests:
+Coverage highlights: textbook DD/PD values, monotonicity in vol and leverage,
+first-passage versus terminal ordering, implied-equity/KMV/CDS-spread/target-PD
+round-trips, the CreditGrades survival formula, hazard-curve survival matching,
+MC mean convergence, jump-diffusion versus GBM divergence; threshold
+above/below, stochastic probability monotonicity, optimal-toggle stressed
+versus healthy behaviour, seeded reproducibility, zero-notional and zero-vol
+guards; per-model recovery formulas with floor and cap enforcement; base
+-leverage identity, leverage monotonicity, PIK accrual effect, tabular
+interpolation and extrapolation.
 
-```bash
-uv run pytest finstack-quant-py/tests/test_merton_bindings.py
-uv run pytest finstack-quant-py/tests/test_credit_specs_bindings.py
-uv run pytest finstack-quant-py/tests/test_merton_mc_bindings.py
-```
+## Extending
 
-### Test coverage highlights
+**New recovery model.** Add a `RecoveryModel` variant, implement it in
+`DynamicRecoverySpec::recovery_at_notional`, add a fallible convenience
+constructor, and test the formula, its edge cases, and the `[0, base_recovery]`
+clamp.
 
-- **Merton**: textbook DD/PD values, monotonicity in vol and leverage, first-passage
-  vs terminal ordering, implied equity round-trip, KMV round-trip, CDS spread round-trip,
-  `from_target_pd` round-trip for BB/B/CCC ratings, CreditGrades formula verification,
-  hazard curve survival matching, MC mean convergence, jump-diffusion vs GBM divergence.
-- **Toggle**: threshold above/below, stochastic probability monotonicity, optimal
-  toggle stressed-vs-healthy behavior, deterministic reproducibility, zero-notional
-  guard, zero-vol nested MC determinism.
-- **Dynamic recovery**: per-model formula verification, floor enforcement, base-recovery
-  capping, input validation.
-- **Endogenous hazard**: base-leverage identity, leverage monotonicity, PIK accrual
-  effect, tabular interpolation and extrapolation, input validation.
+**New hazard mapping.** Add a `LeverageHazardMap` variant, implement it in
+`EndogenousHazardSpec::hazard_at_leverage`, add a constructor, and test that
+`hazard_at_leverage(base_leverage) == base_hazard_rate`, that the map is
+monotonic where it should be, and that the `NaN`/`inf` guards hold.
+
+**New toggle model.** Add a `ToggleExerciseModel` variant and its config
+struct, implement the branch in `should_pik` (and
+`should_pik_with_uniform` / `pik_fraction`), and test determinism under a fixed
+seed, boundary behaviour, and the economic intuition that stressed firms prefer
+PIK.
+
+**New asset dynamics.** Add an `AssetDynamics` variant, handle it in
+`simulate_paths` (including drift compensation), and either add an analytical
+branch to `default_probability` or document that Monte Carlo is required. Test
+mean convergence, path dimensions, and divergence from the existing dynamics.
+
+Across all four: derive `Serialize, Deserialize, schemars::JsonSchema`; return
+`finstack_quant_core::Result<T>` from validating constructors; and mirror the
+new variant into the Python binding at
+`finstack-quant-py/src/bindings/valuations/credit.rs` with a matching stub in
+`finstack-quant-py/finstack_quant/valuations/models/credit/__init__.pyi`.
+
+## References
+
+| Concept | Source |
+|---------|--------|
+| Structural default | Merton, R. C. (1974). "On the Pricing of Corporate Debt: The Risk Structure of Interest Rates." *Journal of Finance*, 29(2), 449-470. |
+| First-passage barrier | Black, F. & Cox, J. C. (1976). "Valuing Corporate Securities: Some Effects of Bond Indenture Provisions." *Journal of Finance*, 31(2), 351-367. |
+| Jump diffusion | Merton, R. C. (1976). "Option Pricing When Underlying Stock Returns Are Discontinuous." *Journal of Financial Economics*, 3(1-2), 125-144. |
+| CreditGrades | Finger, C., Finkelstein, V., Pan, G., Lardy, J.-P., Ta, T. & Tierney, J. (2002). *CreditGrades Technical Document*. RiskMetrics Group. |
+| KMV calibration | Hull, J. C. *Options, Futures, and Other Derivatives*, ch. 17. |
+| Credit triangle, CDS conventions | O'Kane, D. (2008). *Modelling Single-name and Multi-name Credit Derivatives*. Wiley, §5.4. |
+
+Full bibliography with stable anchors: [docs/REFERENCES.md](../../../../../docs/REFERENCES.md).

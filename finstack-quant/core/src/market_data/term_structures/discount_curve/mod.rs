@@ -26,7 +26,7 @@
 //!
 //! The curve supports multiple interpolation schemes via [`crate::math::interp::InterpStyle`]:
 //! - **Linear**: Simple, but may create arbitrage
-//! - **LogLinear**: Constant zero rates between knots
+//! - **LogLinear**: Piecewise-constant instantaneous forwards (linear in log DF)
 //! - **MonotoneConvex**: Smooth, no-arbitrage (Hagan-West algorithm)
 //! - **CubicHermite**: Shape-preserving cubic (requires monotone input for no-arb)
 //! - **PiecewiseQuadraticForward**: Smooth forward curve (C²), commonly used for display

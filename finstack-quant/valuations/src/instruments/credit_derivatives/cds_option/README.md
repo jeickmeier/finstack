@@ -1,127 +1,259 @@
 # CDS Option
 
-CDS options are priced with the Bloomberg CDSO numerical-quadrature model, not
-the legacy closed-form Black-on-forward-spread approximation. The instrument
-supports European payer/receiver options on single-name CDS and CDS indices,
-struck either on a forward spread or on a clean index price (the CDX HY
-convention), with explicit controls for settlement, protection-start
-convention, knockout behavior, index factors, realized index loss, and
-underlying CDS coupon.
+European payer/receiver options (credit swaptions) on a single-name CDS or a
+CDS index. The Bloomberg CDSO numerical-quadrature model is the only pricing
+engine: there is no closed-form Black-on-forward-spread alternative, and
+`ModelKey::BloombergCdso` is the sole registration.
+
+Strikes are quoted either on the forward spread (single-name, CDX IG, iTraxx) or
+on a clean index price (the CDX HY convention), with explicit control over
+settlement, protection-start convention, knockout, index factors, realized index
+loss and the underlying CDS coupon.
+
+## Public surface
+
+Import path:
+`finstack_quant_valuations::instruments::credit_derivatives::cds_option`
+(`CDSOption` is also re-exported at `finstack_quant_valuations::instruments`).
+
+| Item | Purpose |
+|------|---------|
+| `CDSOption` | The instrument. `CDSOption::new(id, &option_params, &credit_params, discount_curve_id, vol_surface_id)`; `CDSOption::example()`. |
+| `CDSOptionParams` | Deal-level fields; `CDSOptionParams::call(..)` (payer) / `::put(..)` (receiver). |
+| `CDSOptionStrike` | `Spread(Decimal)` or `CleanPricePct(Decimal)`. |
+| `CDSOptionStrikeKind` | Discriminant for branching pricing and metric paths. |
+| `ProtectionStartConvention` | `Spot` (default) or `Forward`. |
+| `bloomberg_quadrature` | The quadrature integration (`#[doc(hidden)]`, exposed for tests and goldens): `npv`, `theta`, `forward_par_at_expiry_bp`, `calibrate_lognormal_mean`, `price_with_calibrated_mean`, `ForwardCdsContext`, `QuadratureStrike`. |
+| `pricer` | `#[doc(hidden)]`; the only public item is `synthetic_underlying_cds`. Its `npv` / `theta` / `implied_vol` are `pub(crate)` — reach implied vol through the `CDSOption::implied_vol` method or the `ImpliedVol` metric. |
+
+Useful methods on `CDSOption`: `with_implied_vol(vol)` (instrument-level vol
+override, highest precedence), `effective_cash_settlement_date(as_of)`, and the
+direct Greek entry points `delta`, `gamma`, `vega`, `theta` and
+`implied_vol(curves, as_of, target_price, initial_guess)`. Each is the same
+computation the corresponding metric calculator registers.
+
+## Module layout
+
+```
+cds_option/
+├── mod.rs                    # re-exports + model overview and Greek definitions
+├── types.rs                  # CDSOption, ProtectionStartConvention, validation, example
+├── parameters.rs             # CDSOptionParams (call/put constructors)
+├── strike.rs                 # CDSOptionStrike, CDSOptionStrikeKind
+├── bloomberg_quadrature.rs   # DOCS 2055833 quadrature, calibration, native ATM coordinate
+├── pricer.rs                 # BloombergCdsoPricer + npv / theta / implied_vol primitives
+└── metrics/                  # delta, gamma, vega, theta, dv01, spread_dv01, par_spread,
+                              # implied_vol, recovery01
+```
+
+Registered as `(InstrumentType::CdsOption, ModelKey::BloombergCdso)` →
+`BloombergCdsoPricer` in [`src/pricer/credit.rs`](../../../pricer/credit.rs).
 
 ## Strike conventions
 
-The strike is a typed enum, `CDSOptionStrike`:
+`CDSOptionStrike` is a typed enum; the pre-enum bare-decimal wire shape is
+rejected with no compatibility fallback.
 
-- `Spread` — decimal annual rate; `{"spread": "0.0325"}` means 325 bp.
-  Single-name, CDX IG, and iTraxx options are quoted this way.
-- `CleanPricePct` — percentage-price points; `{"clean_price_pct": "107.0"}`
-  means a clean-price fraction `K = 1.07`. CDX HY index options are quoted
-  this way. Price strikes require an index underlying, no-knockout terms, an
-  explicit contractual coupon, the current index factor `f`, and the original
-  strike factor `f0` (`strike_index_factor`); `f0` is never inferred from the
-  current factor after a default.
-
-The pre-enum bare decimal strike wire shape is rejected with no compatibility
-fallback.
+- **`Spread`** — decimal annual rate. `{"spread": "0.0325"}` means 325 bp.
+  Single-name, CDX IG and iTraxx options quote this way.
+- **`CleanPricePct`** — percentage-price points. `{"clean_price_pct": "107.0"}`
+  means a clean-price fraction `K = 1.07`. CDX HY index options quote this way.
+  A price strike requires an index underlying (`underlying_is_index`),
+  no-knockout terms, an explicit `underlying_cds_coupon`, the current index
+  factor `f` (`index_factor`), and the original strike factor `f0`
+  (`strike_index_factor`). `f0` is never inferred from `f` after a default,
+  because settled defaults reduce `f` below `f0`.
 
 ## Methodology
 
 The pricer implements Bloomberg DOCS 2055833 Eq. 2.5:
 
 ```text
-O = P(t_e) * E_0[(xi * V_te + H(K) + D)+]
+O = P(t_e) · E_0[(ξ · V_te + H(K) + D)+]
 ```
 
-- `V_te` is the random forward CDS value at option expiry; the state variable
-  is the lognormal forward CDS spread for both strike conventions.
+- `V_te` is the random forward CDS value at option expiry. The state variable is
+  the **lognormal forward CDS spread** for both strike conventions — a
+  clean-price strike axis does not change the state variable.
 - `H(K)` is the deterministic strike term, branched by strike kind:
-  - spread strike: `H_spread = xi * (c - K) * A(K)` (Eq. 2.4);
-  - clean-price strike: `H_price = xi * (K - 1) * f0 / f`, evaluated inside
-    the outer current-factor scale `f`.
+  - spread strike: `H_spread = ξ · (c − K) · A(K)` (Eq. 2.4);
+  - clean-price strike: `H_price = ξ · (K − 1) · f0 / f`, evaluated inside the
+    outer current-factor scale `f`.
 - `D` is the deterministic settlement of realized index losses and expected
-  front-end protection: `D = xi * (L / f + FEP)`. Realized loss lives here
+  front-end protection: `D = ξ · (L / f + FEP)`. Realized loss appears here
   exactly once — it is never also folded into an adjusted strike.
-- `m` is calibrated so the lognormal spread process reproduces the bootstrapped
-  no-knockout forward value `F_0`.
+- The lognormal mean `m` is calibrated so the process reproduces the
+  bootstrapped no-knockout forward value `F_0` (DOCS 2055833 §1.2). Index
+  options trade no-knockout, so the calibration target includes the
+  `(1−R)·(1−q_te)` FEP-equivalent contribution; single-name options knock out on
+  default and skip it.
 
-The native ATM-forward clean-price coordinate follows from payer/receiver
-parity under the same payoff: `K_ATM = 1 - (f*F0 + L + f*FEP) / f0`, exposed
-in percentage points for moneyness and surface selection.
+The native ATM-forward clean-price coordinate follows from payer/receiver parity
+under the same payoff:
 
-Underlying CDS mechanics use Bloomberg CDSW-style conventions from DOCS 2057273
+```text
+K_ATM = 1 − (f·F0 + L + f·FEP) / f0
+```
+
+exposed in percentage points (`100 · K_ATM`) for moneyness and surface
+selection. In the limit `f = f0 = 1`, `L = 0`, `FEP = 0` it reduces to
+`K_ATM = 1 − F0`.
+
+Underlying CDS mechanics follow Bloomberg CDSW conventions from DOCS 2057273
 where relevant, including spot default-leg valuation and the CDSO-scoped
 inclusive protection-end adjustment.
 
 ## Settlement
 
-Cash- and physical-settled European options carry the same cash-equivalent
-model NPV before expiry and route through the same quadrature. The clean
-payoff excludes accrued because the same underlying accrued appears on both
-sides before exercise and cancels; a physical exercise cashflow at settlement
-is dirty and includes accrued at exercise settlement. This pricer values the
-pre-expiry option only — it does not create or deliver a live underlying CDS
-position, and valuation at or after a physical exercise lifecycle boundary
-fails explicitly rather than returning a misleading cash number. Manual
-exercise state, partial exercise, and post-expiry settlement lifecycle are out
-of scope.
+Cash- and physical-settled European options carry the same cash-equivalent model
+NPV before expiry and route through the same quadrature. The clean payoff
+excludes accrued, because the same underlying accrued appears on both sides
+before exercise and cancels; a physical exercise cashflow at settlement is dirty
+and includes accrued at exercise settlement.
+
+This pricer values the **pre-expiry option only**. It does not create or deliver
+a live underlying CDS position, and valuation at or after a physical exercise
+lifecycle boundary fails explicitly rather than returning a misleading cash
+number. Manual exercise state, partial exercise and post-expiry settlement
+lifecycle are out of scope. Non-European exercise is rejected at pricing time,
+so a deserialized instrument cannot silently fall through to an unsupported
+engine.
 
 ## Volatility
 
-The quadrature consumes a lognormal forward-spread model volatility for both
-strike conventions — a clean-price strike axis does not change the state
-variable. Resolution is strict:
+The quadrature consumes a **lognormal forward-spread model volatility** for both
+strike conventions. Resolution is strict, with no clamped fallback:
 
 1. An instrument implied-vol override has highest precedence and needs no
    surface.
 2. Otherwise the `VolSurface` under `vol_surface_id` is queried with
    `value_checked(t_expiry, native_strike_coordinate)` — the decimal spread
-   (`0.0325`) for spread strikes and the percentage clean price (`107.0`) for
-   price strikes. Expiry or strike extrapolation is an error; there is no
-   clamped fallback.
+   (`0.0325`) for spread strikes, the percentage clean price (`107.0`) for price
+   strikes. Expiry or strike extrapolation is an error.
 3. The surface must carry `VolSurfaceAxis::Strike` and
-   `VolQuoteType::BlackLognormal`. Stored values are model spread vols even on
-   a price-quoted strike axis; provider premiums or provider-specific "price
+   `VolQuoteType::BlackLognormal`. Stored values are model **spread** vols even
+   on a price-quoted strike axis; provider premiums or provider-specific "price
    vols" must be inverted to model vol before a surface is materialized.
 
-## Usage Example
+## Usage
 
 ```rust
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::CDSOption;
-use finstack_quant_core::dates::Date;
-use time::Month;
+use finstack_quant_valuations::instruments::Instrument;
+use time::macros::date;
 
-let as_of = Date::from_calendar_date(2024, Month::January, 5)?;
-let opt = CDSOption::example().unwrap();
-let pv = opt.value(&market_context, as_of)?;
+let option = CDSOption::example()?;
+let as_of = date!(2024 - 01 - 05);
+let pv = option.value(&market, as_of)?;
+```
+
+Building one explicitly:
+
+```rust
+use finstack_quant_valuations::instruments::credit_derivatives::cds_option::{
+    CDSOption, CDSOptionParams, CDSOptionStrike,
+};
+use finstack_quant_valuations::instruments::CreditParams;
+use finstack_quant_core::currency::Currency;
+use finstack_quant_core::money::Money;
+use rust_decimal::Decimal;
+use time::macros::date;
+
+// Payer (call on spread) struck at 100 bp.
+let params = CDSOptionParams::call(
+    CDSOptionStrike::Spread(Decimal::new(1, 2)),
+    date!(2025 - 06 - 20),   // expiry
+    date!(2030 - 06 - 20),   // underlying CDS maturity
+    Money::new(10_000_000.0, Currency::USD),
+)?;
+
+let credit = CreditParams::corporate_standard("CORP", "CORP-HAZARD");
+
+let option = CDSOption::new(
+    "CDSOPT-CALL-CORP-5Y",
+    &params,
+    &credit,
+    "USD-OIS",
+    "CDSOPT-VOL",
+)?;
 ```
 
 ## Metrics
 
-- PV, delta, gamma, vega, theta, CS01, DV01, Recovery01.
-- `dv01` is the canonical CDSO interest-rate sensitivity: it bumps the
-  calibrated swap-curve quotes and rebuilds the discount curve.
-- `par_spread` reports the Bloomberg CDSO displayed ATM forward spread.
-- `implied_vol` solves the Bloomberg quadrature price in log-vol space.
-- Spread-struck delta/gamma are the Bloomberg closed-form Black-76 `N(d1)`
-  screen values on the displayed ATM forward spread. That formula is not
-  valid for a clean-price strike; price-struck delta/gamma use curve-reprice
-  hedge-ratio semantics instead.
+Registered for `InstrumentType::CdsOption` in `metrics/mod.rs`:
+
+| `MetricId` | Definition |
+|-----------|-----------|
+| `Delta` | Closed-form Black-76 `N(d₁)` on the displayed ATM forward spread (matches the Bloomberg CDSO screen). Not valid for a clean-price strike — price-struck delta uses curve-reprice hedge-ratio semantics instead. |
+| `Gamma` | Central difference of delta across a ±5 bp move in the displayed ATM forward. Same spread/price branch as delta. |
+| `Vega` | One-sided forward difference of the canonical quadrature NPV on a `+0.01` lognormal-vol bump. |
+| `Theta` | DOCS 2055833 §2.5 verbatim: shorten `t_e` by `1/365.25` and re-price. |
+| `Cs01`, `BucketedCs01` | Credit par-quote curve bumps (re-bootstrap and re-price). Falls back to a parallel hazard shift when the hazard curve has no CDS quote points. |
+| `SpreadDv01` | Underlying spread sensitivity. |
+| `Dv01`, `BucketedDv01` | The canonical CDSO interest-rate sensitivity: bump the calibrated swap-curve quotes and rebuild the discount curve. |
+| `ParSpread` | Bloomberg CDSO displayed ATM forward spread. |
+| `ImpliedVol` | Solves the Bloomberg quadrature price in log-vol space. |
+| `Recovery01` | Recovery-rate sensitivity. |
+
+## Bindings
+
+Reachable from Python and WASM through the JSON envelope
+(`InstrumentJson::CdsOption` inside `finstack_quant.instrument/1`):
+
+- **Python**: `finstack_quant.valuations.instruments.price_instrument(...)`.
+- **WASM**: `valuations.instruments.priceInstrument`.
+
+There is no typed `CDSOption` class in either binding; the typed credit surface
+covers `CreditDefaultSwap`, `CDSIndex` and `CDSTranche`.
 
 ## Limitations
 
-- European exercise only; pre-expiry valuation only.
-- Lognormal spread volatility; stochastic recovery and volatility are out of scope.
+- European exercise only, pre-expiry valuation only.
+- Lognormal spread volatility; stochastic recovery and stochastic volatility are
+  out of scope.
 - Distressed forward spreads beyond the Bloomberg CDSO calibration guard are
-  rejected.
+  rejected rather than extrapolated.
 - Some Bloomberg CDSO internals remain proprietary; source-backed residuals are
   documented in the `cdx_ig_46` golden fixture rather than widened away.
 
+## Verification
+
+```bash
+# CDS-option pricing, Greeks, implied vol, moneyness, knockout and golden regressions
+cargo nextest run -p finstack-quant-valuations --test instruments cds_option::
+
+# Whole workspace (never `cargo test` — it runs doctests)
+mise run rust-test
+
+# Lints
+mise run rust-lint
+```
+
+Golden data and screenshots live in
+[`tests/golden/data/pricing/bloomberg/cds_option/`](../../../../tests/golden/data/pricing/bloomberg/cds_option/);
+the regression suite is
+[`tests/instruments/cds_option/`](../../../../tests/instruments/cds_option/),
+including `test_bloomberg_cdsw_parity.rs`, `test_cdx_hy_price_strike.rs` and
+`test_cdx_ig_46_cdso_regressions.rs`.
+
 ## References
 
-- Bloomberg L.P. Quantitative Analytics, *Pricing Credit Index Options*, DOCS
-  2055833. `docs/REFERENCES.md#bloomberg-cdso`
-- Bloomberg L.P. Quantitative Analytics, *The Bloomberg CDS Model*, DOCS
-  2057273. `docs/REFERENCES.md#bloomberg-cds-model`
-- S&P Dow Jones Indices, *CDS Indices Primer* — clean-price strike
-  factor/loss adjustment (the `107.0 -> 107.9874` fixture).
-  `docs/REFERENCES.md#sp-cds-indices-primer`
+- Bloomberg L.P. Quantitative Analytics, *Pricing Credit Index Options*,
+  DOCS 2055833 —
+  [`docs/REFERENCES.md#bloomberg-cdso`](../../../../../../docs/REFERENCES.md#bloomberg-cdso)
+- Bloomberg L.P. Quantitative Analytics, *The Bloomberg CDS Model*,
+  DOCS 2057273 —
+  [`docs/REFERENCES.md#bloomberg-cds-model`](../../../../../../docs/REFERENCES.md#bloomberg-cds-model)
+- S&P Dow Jones Indices, *CDS Indices Primer* — clean-price strike factor/loss
+  adjustment (the `107.0 → 107.9874` fixture) —
+  [`docs/REFERENCES.md#sp-cds-indices-primer`](../../../../../../docs/REFERENCES.md#sp-cds-indices-primer)
+- O'Kane, D. (2008). *Modelling Single-name and Multi-name Credit Derivatives*,
+  ch. 11 —
+  [`docs/REFERENCES.md#o-kane-2008`](../../../../../../docs/REFERENCES.md#o-kane-2008)
+
+## See also
+
+- [`../cds/`](../cds/) — the underlying single-name CDS
+- [`../cds_index/`](../cds_index/) — CDS index
+- [`../../README.md`](../../README.md) — instrument module map and how to add one
+- [`INVARIANTS.md`](../../../../../../INVARIANTS.md) — Decimal/f64, determinism and serde invariants

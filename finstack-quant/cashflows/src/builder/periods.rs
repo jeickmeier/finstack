@@ -10,7 +10,7 @@ use finstack_quant_core::InputError;
 
 use super::calendar::resolve_calendar_strict;
 use super::date_generation::{
-    build_schedule_period, generate_periods_with_adjustment, is_regular_period,
+    build_schedule_period, generate_periods_with_adjustment, icma_coupon_period,
     validate_unique_payment_dates,
 };
 use super::emission::compute_reset_date;
@@ -115,23 +115,18 @@ fn enrich_period(
     // §4.16(c)): business-day adjustment of the accrual boundaries must not
     // reclassify a regular period as an ICMA stub. The accrual year fraction
     // itself still spans the (possibly adjusted) accrual boundaries.
-    let regular = is_regular_period(
-        period.unadjusted_start,
-        period.unadjusted_end,
-        params.frequency,
-    );
-    // ACT/ACT ICMA reference period: for regular periods the reference is the
-    // UNADJUSTED scheduled period (ICMA quasi-coupon periods are unadjusted;
-    // a business-day-adjusted reference would corrupt the whole-month period
-    // length inference). For unadjusted schedules this is the accrual period
-    // itself. For stub periods the reference period is not cleanly derivable
-    // from a single period, so it is left unset and core falls back to the
-    // quasi-coupon grid anchored on the accrual start.
+    // ACT/ACT ICMA reference period: regular periods use the unadjusted
+    // scheduled span; short and long stubs use the adjacent regular coupon
+    // so ICMA Rule 251 can subdivide from a known denominator.
     let day_count_context = DayCountContext {
         calendar: Some(cal),
         frequency: Some(params.frequency),
         bus_basis: None,
-        coupon_period: regular.then_some((period.unadjusted_start, period.unadjusted_end)),
+        coupon_period: icma_coupon_period(
+            period.unadjusted_start,
+            period.unadjusted_end,
+            params.frequency,
+        ),
         end_is_termination_date: period.accrual_end >= params.end,
     };
     period.accrual_year_fraction = params.day_count.year_fraction(
@@ -433,6 +428,36 @@ mod tests {
             (periods[1].accrual_year_fraction - expected_second).abs() < 1e-12,
             "second adjusted ICMA period: got {}, expected {expected_second}",
             periods[1].accrual_year_fraction
+        );
+    }
+
+    #[test]
+    fn short_front_icma_stub_uses_ending_regular_coupon() {
+        let params = BuildPeriodsParams {
+            start: Date::from_calendar_date(2025, Month::March, 15).expect("valid date"),
+            end: Date::from_calendar_date(2025, Month::July, 15).expect("valid date"),
+            frequency: Tenor::semi_annual(),
+            stub: StubKind::ShortFront,
+            business_day_convention: BusinessDayConvention::Unadjusted,
+            calendar_id: "weekends_only",
+            end_of_month: false,
+            day_count: DayCount::ActActIsma,
+            payment_lag_days: 0,
+            reset_lag_days: None,
+            adjust_accrual_dates: false,
+            roll_rule: RollRule::None,
+        };
+        let periods = build_periods(params).expect("short front stub period");
+        assert_eq!(periods.len(), 1);
+        let start = Date::from_calendar_date(2025, Month::March, 15).expect("valid date");
+        let end = Date::from_calendar_date(2025, Month::July, 15).expect("valid date");
+        let ref_start = Date::from_calendar_date(2025, Month::January, 15).expect("valid date");
+        let expected =
+            (end - start).whole_days() as f64 / (end - ref_start).whole_days() as f64 * 0.5;
+        assert!(
+            (periods[0].accrual_year_fraction - expected).abs() < 1e-12,
+            "short-front ICMA stub: got {}, expected {expected}",
+            periods[0].accrual_year_fraction
         );
     }
 

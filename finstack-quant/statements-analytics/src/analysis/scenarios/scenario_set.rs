@@ -73,9 +73,11 @@ pub struct ScenarioDefinition {
     /// Scalar overrides for model nodes (`node_id -> scalar value`).
     ///
     /// During evaluation these are applied as explicit `AmountOrScalar::scalar`
-    /// values for **all periods** of the model, leveraging the existing
-    /// `Value > Forecast > Formula` precedence to override forecasts and
-    /// formulas when present.
+    /// values for the model's **forecast periods only** (`!period.is_actual`),
+    /// leveraging the existing `Value > Forecast > Formula` precedence to
+    /// override forecasts and formulas when present. A model with no actuals
+    /// cutoff has only forecast periods, so the override then applies
+    /// throughout.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     pub overrides: IndexMap<String, f64>,
 }
@@ -84,7 +86,7 @@ pub struct ScenarioDefinition {
 ///
 /// The `scenarios` map preserves insertion order and is the primary surface
 /// for JSON (de)serialization. Scenario overrides use plain scalar values that
-/// are broadcast to every model period.
+/// are broadcast to every forecast period of the model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ScenarioSet {

@@ -1,25 +1,61 @@
-# Portfolio Benchmarks
+# Portfolio benchmarks
 
-Criterion benchmarks for the maintained portfolio hot paths: full valuation,
-cashflows, metrics, attribution, and parallel threshold behavior. The suite is manifest-driven
-(`autobenches = false`) so new files do not expand benchmark runtime unless they
-are deliberately added to `Cargo.toml`.
+Criterion benchmarks for the maintained portfolio hot paths: valuation,
+selective repricing, cashflows, metrics, attribution, scenario/replay
+workflows, sensitivity engines, Rayon thresholds, and materialization.
+
+The suite is manifest-driven (`autobenches = false` in
+[`../Cargo.toml`](../Cargo.toml)), so a new file under `benches/` does not
+expand benchmark runtime unless a matching `[[bench]]` entry is added.
+
+## Layout
+
+| File | Registered bench? | Contents |
+|------|-------------------|----------|
+| `portfolio_valuation.rs` | yes | Full valuation, entity/multicurrency aggregation, filtering, PV scaling, selective-repricing shapes, `revalue_affected` |
+| `portfolio_cashflows.rs` | yes | `aggregate_full_cashflows` ladder |
+| `portfolio_metrics.rs` | yes | `aggregate_metrics` alone and combined with valuation |
+| `portfolio_attribution.rs` | yes | Parallel, metrics-based, and method-owned attribution controls |
+| `portfolio_workflows.rs` | yes | `scenario_pnl` / `scenario_pnl_batch` reuse and `replay_portfolio` |
+| `sensitivity_simulation.rs` | yes | Full-repricing grids, factor stress, Monte Carlo risk decomposition |
+| `parallel_thresholds.rs` | yes | Historical tail-risk decomposer around `PARALLEL_TAIL_THRESHOLD = 100_000` |
+| `materialization.rs` | yes | `Portfolio::from_materialization` / `validate_materialization` plus absolute latency gates |
+| `bench_common.rs` | no | Shared fixture builders, pulled in with `#[path = "bench_common.rs"] mod bench_common;` |
+| `materialization_fixtures.rs`, `materialization_gate.rs` | no | Fixture builders and percentile/gate logic used only by `materialization.rs` |
+| `support/rates.rs` | no | IRS fixture helper |
 
 ## Run
 
 ```bash
-cargo bench -p finstack-quant-portfolio
+mise run rust-bench                                   # whole workspace, reduced timing
+cargo bench -p finstack-quant-portfolio               # this crate, full Criterion timing
 cargo bench -p finstack-quant-portfolio --bench portfolio_valuation
 cargo bench -p finstack-quant-portfolio -- --quick
 cargo bench -p finstack-quant-portfolio -- --save-baseline my_baseline
 cargo bench -p finstack-quant-portfolio -- --baseline my_baseline
 ```
 
-The default matrix keeps large workflow runs bounded while retaining the
-63/64 threshold, 3,000-position PV/selective cases, 40/120 attribution cases,
-10/100 scenario batches, and 20/250-snapshot replay cases. Enable the extended
-large-book replay/scenario matrix and the 25,000-position valuation control
-explicitly:
+`mise run rust-bench` overrides Criterion sample size and timing via
+`FQ_BENCH_SAMPLE_SIZE`, `FQ_BENCH_WARM_UP_TIME`, `FQ_BENCH_MEASUREMENT_TIME`,
+and `FQ_BENCH_NRESAMPLES`. `mise run rust-bench-baseline` and
+`mise run rust-bench-compare` save and diff a `main` baseline; the compare task
+fails above a 10% median regression.
+
+## Default matrix and opt-in extensions
+
+The default matrix keeps the large workflows bounded:
+
+- `portfolio_valuation` PV scaling: 63 / 64 / 250 / 3,000 positions. The 63/64
+  pair straddles `POSITION_PARALLEL_MIN_POSITIONS = 64`, the Rayon cut-over in
+  `src/evaluation/executor.rs`.
+- `portfolio_valuation` selective repricing: a 3,000-position uniform-cost
+  fixture measured at 3% / 25% / 50% / 100% dirty sets.
+- `portfolio_attribution`: 40 / 120 / 250 positions (40 / 120 for the
+  method-owned controls).
+- `portfolio_workflows` scenario P&L: 120 positions, 1 / 10 / 100 scenarios.
+- `portfolio_workflows` replay: 40-position book, 20 and 250 snapshots.
+
+Two environment flags widen it:
 
 ```bash
 FINSTACK_PORTFOLIO_BENCH_FULL=1 \
@@ -27,29 +63,61 @@ FINSTACK_PORTFOLIO_BENCH_XL=1 \
 cargo bench -p finstack-quant-portfolio
 ```
 
-## Benches
+- `FINSTACK_PORTFOLIO_BENCH_FULL=1` (read by `portfolio_workflows.rs`) adds the
+  3,000-position scenario-P&L case and the 300-position replay book.
+- `FINSTACK_PORTFOLIO_BENCH_XL=1` (read by `portfolio_valuation.rs`) adds the
+  25,000-position PV control, which materially increases Criterion setup and
+  measurement time.
 
-| Bench | Focus |
-|-------|--------|
-| `portfolio_valuation` | Full valuation, entity/multicurrency aggregation, filtering, scaling, `revalue_affected` |
-| `portfolio_cashflows` | Cashflow ladder aggregation |
-| `portfolio_metrics` | `aggregate_metrics` alone and with valuation |
-| `portfolio_attribution` | P&L attribution paths |
-| `portfolio_workflows` | Batched scenario P&L and historical replay reuse |
-| `sensitivity_simulation` | Full-repricing grids, factor stress, and simulation decomposition |
-| `parallel_thresholds` | Rayon parallel thresholds |
+`bench_common::create_institutional_portfolio` builds the multi-entity fixture
+used by most groups: deposits, bonds, interest-rate swaps, inflation-linked
+bonds and inflation swaps, convertibles, repos, swaptions, equities and equity
+options, variance swaps, FX spot and options, CDS, CDS options, CDS tranches,
+and structured credit (CLO). Read
+`bench_common.rs` for the exact composition before quoting a number from these
+benchmarks.
 
-`portfolio_valuation` builds multi-entity portfolios (deposits, bonds, swaps,
-options, CDS, convertibles, structured credit, and related types). The
-25,000-position control is opt-in because it materially increases Criterion
-setup and measurement time.
+## Materialization bench
+
+`materialization.rs` is not a pure Criterion bench: before the Criterion groups
+run, it takes p95 acceptance samples and **asserts** that cold fixture A stays
+under a 1,000 ms hard gate (`COLD_HARD_LIMIT_MILLIS` in
+`materialization_gate.rs`, alongside the 500 ms cold and 250 ms warm
+engineering targets). Fixture A is 5,000 unique instrument artifacts over 5,000
+positions; fixture B is 5,000 positions sharing 50 artifacts, which is the
+cache-hit case.
+
+Environment variables it reads:
+
+| Variable | Effect |
+|----------|--------|
+| `FQ_MATERIALIZATION_P95_SAMPLES` | Acceptance sample count (minimum 100 unless smoke mode) |
+| `FQ_MATERIALIZATION_SMOKE=1` | Permit a sample count below the acceptance minimum |
+| `FQ_MATERIALIZATION_RAW_OUTPUT` | Write raw per-sample timings and phase counters to this JSON path |
+| `FQ_MATERIALIZATION_CRITERION_DIR` | Criterion output directory (default `target/materialization-criterion/criterion`) |
+
+The release workflow drives it through mise rather than by hand:
+
+```bash
+mise run materialization-benchmark-fixtures      # regenerate deterministic fixtures
+mise run materialization-rust-bench-compare      # compare against the checked-in baseline
+mise run materialization-rust-bench-baseline     # re-establish the baseline (guarded)
+mise run materialization-benchmark-doc-check     # verify tracked digests and baselines
+```
+
+The tracked record lives in
+[`benchmarks/MATERIALIZATION_BENCHMARKS.md`](../../../benchmarks/MATERIALIZATION_BENCHMARKS.md).
 
 ## Results
 
-HTML reports: `target/criterion/<bench>/report/index.html`
+HTML reports: `target/criterion/<group>/report/index.html`.
 
 ```bash
-open target/criterion/portfolio_valuation/report/index.html
+open target/criterion/portfolio_pv_scaling/report/index.html
 ```
 
-Release builds only; timings vary by hardware. Use `--quick` during iteration.
+`materialization` is the exception — it writes to
+`target/materialization-criterion/criterion` unless
+`FQ_MATERIALIZATION_CRITERION_DIR` says otherwise.
+
+Release builds only; timings vary by hardware. Use `--quick` while iterating.

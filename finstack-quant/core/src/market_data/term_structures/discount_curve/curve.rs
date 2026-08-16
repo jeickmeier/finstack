@@ -1,12 +1,11 @@
 //! Discount-curve construction, queries, and forward derivation.
 
-use super::super::common::infer_discount_curve_day_count;
 use super::super::forward_curve::ForwardCurve;
 use super::{DiscountCurve, DiscountCurveBuilder, ValidationMode, DEFAULT_MIN_FORWARD_TENOR};
 use crate::math::interp::{ExtrapolationPolicy, InterpStyle};
 use crate::math::Compounding;
 use crate::{
-    dates::{Date, DayCount, DayCountContext},
+    dates::{Date, DayCount},
     types::CurveId,
 };
 
@@ -346,23 +345,6 @@ impl DiscountCurve {
         self.min_forward_rate
     }
 
-    /// Fallible: discount factor on a specific date `date` using explicit day-count `day_count`.
-    ///
-    /// # Errors
-    ///
-    /// Propagates a failure from `day_count.signed_year_fraction` for the curve base
-    /// date and `date`.
-    #[inline]
-    #[must_use = "computed discount factor should not be discarded"]
-    pub fn df_on_date(&self, date: Date, day_count: crate::dates::DayCount) -> crate::Result<f64> {
-        let t = if date == self.base {
-            0.0
-        } else {
-            day_count.signed_year_fraction(self.base, date, DayCountContext::default())?
-        };
-        Ok(self.df(t))
-    }
-
     /// Fallible: discount factor on a specific date `date` using the curve's day-count.
     ///
     /// # Errors
@@ -544,23 +526,15 @@ impl DiscountCurve {
     /// [`ValidationMode::Raw`] if you need to disable this validation (not
     /// recommended for production use).
     ///
-    /// **Defaults:** The builder infers a market day-count from the curve ID when
-    /// possible (for example `USD-OIS -> Act360`, `GBP-SONIA -> Act365F`). Synthetic
-    /// IDs without a market hint fall back to `Act365F`. Interpolation defaults to
-    /// MonotoneConvex with FlatForward extrapolation.
+    /// **Defaults:** Day count is [`DayCount::Act365F`] (QuantLib-style curve
+    /// time basis). Set [`DiscountCurveBuilder::day_count`] when the curve must
+    /// use a different time axis (for example Act/360). Interpolation defaults
+    /// to MonotoneConvex with FlatForward extrapolation. Validation defaults to
+    /// [`ValidationMode::MarketStandard`]: monotonic discount factors and a
+    /// −50bp implied-forward floor.
     ///
-    /// **Build-vs-query basis trap:** the day-count basis is used both to convert
-    /// dated pillars to year fractions at build time and to convert query dates
-    /// back at lookup time. Because inference is substring-based, *renaming* the
-    /// curve ID (e.g. `USD-SOFR` → `OIS-1`) can silently change the inferred
-    /// basis and shift every pillar time by ~1.4% (Act/360 vs Act/365F). When the
-    /// basis matters, set [`DiscountCurveBuilder::day_count`] explicitly instead
-    /// of relying on inference; each inference is logged at `debug` level.
-    ///
-    /// **Negative rates:** the default [`ValidationMode::MarketStandard`] enforces
-    /// monotonic discount factors with a -50bp implied-forward floor. For deeply
-    /// negative-rate markets (CHF, JPY, EUR historical), pass
-    /// [`ValidationMode::NegativeRateFriendly`] (or `Raw`) via
+    /// **Negative rates:** for deeply negative-rate markets (CHF, JPY, EUR
+    /// historical), pass [`ValidationMode::NegativeRateFriendly`] (or `Raw`) via
     /// [`DiscountCurveBuilder::validation`]. All interpolation styles —
     /// including the default MonotoneConvex — support increasing-DF
     /// (negative-rate) inputs; MonotoneConvex auto-detects negative discrete
@@ -568,18 +542,16 @@ impl DiscountCurve {
     /// rates interpolate faithfully.
     #[must_use]
     pub fn builder(id: impl Into<CurveId>) -> DiscountCurveBuilder {
-        let id: CurveId = id.into();
-        let day_count = infer_discount_curve_day_count(id.as_str());
         DiscountCurveBuilder {
-            id,
+            id: id.into(),
             base: None,
-            day_count,
+            day_count: DayCount::Act365F,
             points: Vec::new(),
             style: InterpStyle::MonotoneConvex,
             extrapolation: ExtrapolationPolicy::FlatForward,
-            min_forward_rate: None,     // No floor by default
-            allow_non_monotonic: false, // Strict validation by default
-            min_forward_tenor: DEFAULT_MIN_FORWARD_TENOR, // Default ~30 seconds
+            min_forward_rate: Some(-0.005),
+            allow_non_monotonic: false,
+            min_forward_tenor: DEFAULT_MIN_FORWARD_TENOR,
             rate_calibration: None,
             calibration_ois_cutoff_days: None,
             fx_policy: None,
