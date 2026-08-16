@@ -466,7 +466,7 @@ class RatingScaleRegistry:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
 
     def default_scale_id(self) -> str:
@@ -480,7 +480,7 @@ class RatingScaleRegistry:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
 
     def unknown_scale_policy(self) -> UnknownScalePolicy:
@@ -494,7 +494,7 @@ class RatingScaleRegistry:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
 
     def is_known_rating_scale(self, name: str) -> bool:
@@ -514,7 +514,7 @@ class RatingScaleRegistry:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns ``True`` or ``False``.
         """
 
     def rating_scale(self, name: str) -> ScorecardScale:

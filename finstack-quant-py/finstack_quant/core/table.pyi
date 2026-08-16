@@ -101,7 +101,7 @@ class ArrowTable:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 

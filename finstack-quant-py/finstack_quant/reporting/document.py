@@ -186,7 +186,7 @@ class TearSheet:
             Complete standalone HTML document containing the configured report.
 
         Notes:
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; it returns the stored or derived value.
         """
         return (
             "<!DOCTYPE html>\n"

@@ -471,7 +471,7 @@ impl PyCsaSpec {
         serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
-    /// CSA identifier.
+    /// Stable CSA identifier used in margin lookups.
     #[getter]
     fn id(&self) -> &str {
         &self.inner.id

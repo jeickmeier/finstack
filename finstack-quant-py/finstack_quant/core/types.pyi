@@ -133,7 +133,7 @@ class Rate:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
 
         Examples
@@ -152,7 +152,7 @@ class Rate:
         Returns
         -------
         float
-            The as decimal exposed by this `Rate`.
+            Rate as a decimal fraction.
 
         Notes
         -----
@@ -168,7 +168,7 @@ class Rate:
         Returns
         -------
         float
-            The as percent exposed by this `Rate`.
+            Rate as a percent value.
 
         Notes
         -----
@@ -184,7 +184,7 @@ class Rate:
         Returns
         -------
         int
-            The as bp exposed by this `Rate`.
+            Rate rounded to the nearest basis point.
 
         Notes
         -----
@@ -268,11 +268,12 @@ class Bps:
         -------
         float
 
-            The as decimal exposed by this `Bps`.
+            Value as a decimal fraction.
 
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> from finstack_quant.core.types import Bps
@@ -290,11 +291,12 @@ class Bps:
         -------
         int
 
-            The as bp exposed by this `Bps`.
+            Value as whole basis points.
 
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> from finstack_quant.core.types import Bps
@@ -377,11 +379,12 @@ class Percentage:
         -------
         float
 
-            The as decimal exposed by this `Percentage`.
+            Value as a decimal fraction.
 
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> from finstack_quant.core.types import Percentage
@@ -399,11 +402,12 @@ class Percentage:
         -------
         float
 
-            The as percent exposed by this `Percentage`.
+            Value expressed in percent units (``5.0`` means five percent).
 
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> from finstack_quant.core.types import Percentage
@@ -530,11 +534,12 @@ class CreditRating:
         -------
         str
 
-            The name exposed by this `CreditRating`.
+            Canonical S&P/Fitch-style rating name (e.g. ``"BBB-"``).
 
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> from finstack_quant.core.types import CreditRating
@@ -551,7 +556,7 @@ class CreditRating:
         Returns
         -------
         float
-            The warf exposed by this `CreditRating`.
+            Moody's weighted-average rating factor for this exact notch.
 
         Notes
         -----
@@ -616,7 +621,7 @@ class CurveId:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         Examples
         --------
         >>> from finstack_quant.core.types import CurveId
@@ -717,7 +722,7 @@ class InstrumentId:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         Examples
         --------
         >>> from finstack_quant.core.types import InstrumentId
@@ -812,7 +817,7 @@ class Attributes:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; a missing result is ``None`` rather than an exception.
         """
         ...
 
@@ -829,7 +834,7 @@ class Attributes:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it updates stored state in place.
         """
         ...
 
@@ -850,7 +855,7 @@ class Attributes:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns ``True`` or ``False``.
         """
         ...
 
@@ -866,7 +871,7 @@ class Attributes:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 

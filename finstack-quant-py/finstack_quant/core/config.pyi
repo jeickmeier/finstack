@@ -164,7 +164,7 @@ class ToleranceConfig:
         -------
         float
 
-            The rate epsilon exposed by this `ToleranceConfig`.
+            Epsilon used for rate-style comparisons.
 
         Notes
         -----
@@ -181,7 +181,7 @@ class ToleranceConfig:
         -------
         float
 
-            The generic epsilon exposed by this `ToleranceConfig`.
+            Epsilon used for generic floating-point comparisons.
 
         Notes
         -----
@@ -329,7 +329,7 @@ class FinstackConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns ``True`` or ``False``.
         """
         ...
 
@@ -344,7 +344,7 @@ class FinstackConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 

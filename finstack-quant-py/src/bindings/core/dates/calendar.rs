@@ -231,7 +231,7 @@ impl PyHolidayCalendar {
         Ok(cal.metadata().map(PyCalendarMetadata::from_rust))
     }
 
-    /// Calendar code.
+    /// Stable holiday-calendar identifier such as ``nyc`` or ``target``.
     #[getter]
     fn code(&self) -> &str {
         &self.code

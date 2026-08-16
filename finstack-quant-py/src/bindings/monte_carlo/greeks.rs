@@ -1,128 +1,18 @@
 //! Python bindings for Monte Carlo Greek estimators.
 //!
-//! Exposes finite-difference deltas and gammas with independent-path and
-//! common-random-number standard errors.
-//!
-//! All functions release the GIL during the underlying Monte Carlo runs.
+//! Thin wrappers around the canonical GBM European finite-difference
+//! convenience entry points in `finstack_quant_monte_carlo::greeks::gbm_european`.
 
 use super::engine::resolve_currency;
 use crate::errors::core_to_py;
-use finstack_quant_core::cashflow::flat_discount_factor;
-use finstack_quant_monte_carlo::discretization::exact::ExactGbm;
-use finstack_quant_monte_carlo::engine::{McEngine, McEngineConfig};
-use finstack_quant_monte_carlo::greeks::finite_diff;
-use finstack_quant_monte_carlo::payoff::vanilla::{EuropeanCall, EuropeanPut};
-use finstack_quant_monte_carlo::process::gbm::GbmProcess;
-use finstack_quant_monte_carlo::registry;
-use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_monte_carlo::time_grid::TimeGrid;
+use finstack_quant_monte_carlo::greeks::gbm_european::{
+    finite_diff_delta_crn_gbm, finite_diff_delta_gbm, finite_diff_gamma_crn_gbm,
+    finite_diff_gamma_gbm, GbmEuropeanFdSpec,
+};
 use pyo3::prelude::*;
 
-type Currency = finstack_quant_core::currency::Currency;
-type GreekResult = finstack_quant_core::Result<(f64, f64)>;
-type CallGreekEstimator = fn(
-    &McEngine,
-    &PhiloxRng,
-    &GbmProcess,
-    &ExactGbm,
-    f64,
-    &EuropeanCall,
-    Currency,
-    f64,
-    f64,
-) -> GreekResult;
-type PutGreekEstimator = fn(
-    &McEngine,
-    &PhiloxRng,
-    &GbmProcess,
-    &ExactGbm,
-    f64,
-    &EuropeanPut,
-    Currency,
-    f64,
-    f64,
-) -> GreekResult;
-
-#[derive(Debug, Clone, Copy)]
-enum OptionType {
-    Call,
-    Put,
-}
-
-struct GreekSetup {
-    engine: McEngine,
-    rng: PhiloxRng,
-    gbm: GbmProcess,
-    disc: ExactGbm,
-    currency: Currency,
-    num_steps: usize,
-    bump_size: f64,
-    option_type: OptionType,
-    discount_factor: f64,
-}
-
-fn parse_option(name: &str) -> PyResult<OptionType> {
-    match name {
-        "call" => Ok(OptionType::Call),
-        "put" => Ok(OptionType::Put),
-        _ => Err(crate::errors::value_error(format!(
-            "unknown option_type '{name}'; expected 'call' or 'put'"
-        ))),
-    }
-}
-
-fn build_engine(num_paths: usize, expiry: f64, num_steps: usize) -> PyResult<McEngine> {
-    let time_grid = TimeGrid::uniform(expiry, num_steps).map_err(core_to_py)?;
-    let defaults = greek_defaults()?;
-    let config = McEngineConfig::new(num_paths, time_grid)
-        .parallel(defaults.use_parallel)
-        .chunk_size(defaults.chunk_size)
-        .antithetic(defaults.antithetic);
-    Ok(McEngine::new(config))
-}
-
-fn greek_defaults() -> PyResult<&'static registry::ConvenienceGreekDefaults> {
-    registry::embedded_defaults()
-        .map(|defaults| &defaults.convenience.greeks)
-        .map_err(core_to_py)
-}
-
 #[allow(clippy::too_many_arguments)]
-fn build_greek_setup(
-    rate: f64,
-    div_yield: f64,
-    vol: f64,
-    expiry: f64,
-    num_paths: Option<usize>,
-    seed: Option<u64>,
-    num_steps: Option<usize>,
-    bump_size: Option<f64>,
-    option_type: Option<&str>,
-    currency: Option<&Bound<'_, PyAny>>,
-) -> PyResult<GreekSetup> {
-    let defaults = greek_defaults()?;
-    let num_paths = num_paths.unwrap_or(defaults.num_paths);
-    let seed = seed.unwrap_or(defaults.seed);
-    let num_steps = num_steps.unwrap_or(defaults.num_steps);
-    let bump_size = bump_size.unwrap_or(defaults.bump_size);
-    let option_type = option_type.unwrap_or(&defaults.option_type);
-
-    Ok(GreekSetup {
-        engine: build_engine(num_paths, expiry, num_steps)?,
-        rng: PhiloxRng::new(seed),
-        gbm: GbmProcess::with_params(rate, div_yield, vol).map_err(core_to_py)?,
-        disc: ExactGbm::new(),
-        currency: resolve_currency(currency)?,
-        num_steps,
-        bump_size,
-        option_type: parse_option(option_type)?,
-        discount_factor: flat_discount_factor(rate, expiry).map_err(core_to_py)?,
-    })
-}
-
-#[allow(clippy::too_many_arguments)]
-fn run_greek(
-    py: Python<'_>,
+fn spec_from_args(
     spot: f64,
     strike: f64,
     rate: f64,
@@ -135,52 +25,21 @@ fn run_greek(
     bump_size: Option<f64>,
     option_type: Option<&str>,
     currency: Option<&Bound<'_, PyAny>>,
-    call_estimator: CallGreekEstimator,
-    put_estimator: PutGreekEstimator,
-) -> PyResult<(f64, f64)> {
-    let setup = build_greek_setup(
+) -> PyResult<GbmEuropeanFdSpec> {
+    Ok(GbmEuropeanFdSpec {
+        spot,
+        strike,
         rate,
-        div_yield,
-        vol,
+        dividend_yield: div_yield,
+        volatility: vol,
         expiry,
         num_paths,
         seed,
         num_steps,
         bump_size,
-        option_type,
-        currency,
-    )?;
-    py.detach(|| match setup.option_type {
-        OptionType::Call => {
-            let payoff = EuropeanCall::new(strike, 1.0, setup.num_steps);
-            call_estimator(
-                &setup.engine,
-                &setup.rng,
-                &setup.gbm,
-                &setup.disc,
-                spot,
-                &payoff,
-                setup.currency,
-                setup.discount_factor,
-                setup.bump_size,
-            )
-        }
-        OptionType::Put => {
-            let payoff = EuropeanPut::new(strike, 1.0, setup.num_steps);
-            put_estimator(
-                &setup.engine,
-                &setup.rng,
-                &setup.gbm,
-                &setup.disc,
-                spot,
-                &payoff,
-                setup.currency,
-                setup.discount_factor,
-                setup.bump_size,
-            )
-        }
+        option_type: option_type.map(str::to_owned),
+        currency: Some(resolve_currency(currency)?),
     })
-    .map_err(core_to_py)
 }
 
 /// Finite-difference delta for a vanilla European option under GBM.
@@ -218,8 +77,7 @@ fn finite_diff_delta(
     option_type: Option<&str>,
     currency: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<(f64, f64)> {
-    run_greek(
-        py,
+    let spec = spec_from_args(
         spot,
         strike,
         rate,
@@ -232,9 +90,8 @@ fn finite_diff_delta(
         bump_size,
         option_type,
         currency,
-        finite_diff::finite_diff_delta,
-        finite_diff::finite_diff_delta,
-    )
+    )?;
+    py.detach(|| finite_diff_delta_gbm(spec)).map_err(core_to_py)
 }
 
 /// Finite-difference delta with paired common-random-number stderr.
@@ -269,8 +126,7 @@ fn finite_diff_delta_crn(
     option_type: Option<&str>,
     currency: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<(f64, f64)> {
-    run_greek(
-        py,
+    let spec = spec_from_args(
         spot,
         strike,
         rate,
@@ -283,9 +139,9 @@ fn finite_diff_delta_crn(
         bump_size,
         option_type,
         currency,
-        finite_diff::finite_diff_delta_crn,
-        finite_diff::finite_diff_delta_crn,
-    )
+    )?;
+    py.detach(|| finite_diff_delta_crn_gbm(spec))
+        .map_err(core_to_py)
 }
 
 /// Finite-difference gamma (independence-bound stderr).
@@ -320,8 +176,7 @@ fn finite_diff_gamma(
     option_type: Option<&str>,
     currency: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<(f64, f64)> {
-    run_greek(
-        py,
+    let spec = spec_from_args(
         spot,
         strike,
         rate,
@@ -334,9 +189,8 @@ fn finite_diff_gamma(
         bump_size,
         option_type,
         currency,
-        finite_diff::finite_diff_gamma,
-        finite_diff::finite_diff_gamma,
-    )
+    )?;
+    py.detach(|| finite_diff_gamma_gbm(spec)).map_err(core_to_py)
 }
 
 /// Finite-difference gamma with paired common-random-number stderr.
@@ -371,8 +225,7 @@ fn finite_diff_gamma_crn(
     option_type: Option<&str>,
     currency: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<(f64, f64)> {
-    run_greek(
-        py,
+    let spec = spec_from_args(
         spot,
         strike,
         rate,
@@ -385,9 +238,9 @@ fn finite_diff_gamma_crn(
         bump_size,
         option_type,
         currency,
-        finite_diff::finite_diff_gamma_crn,
-        finite_diff::finite_diff_gamma_crn,
-    )
+    )?;
+    py.detach(|| finite_diff_gamma_crn_gbm(spec))
+        .map_err(core_to_py)
 }
 
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

@@ -157,7 +157,7 @@ impl PyMoney {
         decimal_to_py(py, self.inner.amount_decimal())
     }
 
-    /// Currency tag.
+    /// ISO-4217 currency of this money amount.
     #[getter]
     fn currency(&self, py: Python<'_>) -> PyResult<Py<PyCurrency>> {
         Py::new(py, PyCurrency::from_inner(self.inner.currency()))

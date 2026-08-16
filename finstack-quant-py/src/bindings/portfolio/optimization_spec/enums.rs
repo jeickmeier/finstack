@@ -177,6 +177,7 @@ impl PyInequality {
         }
     }
 
+    /// Canonical inequality operator label such as ``le``, ``ge``, or ``eq``.
     #[getter]
     fn label(&self) -> &'static str {
         match self.inner {

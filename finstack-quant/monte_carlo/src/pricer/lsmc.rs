@@ -31,7 +31,7 @@ use super::lsq::{regression_coefficients_with_basis, regression_with_basis};
 use crate::discretization::exact::ExactGbm;
 use crate::estimate::Estimate;
 use crate::online_stats::OnlineStats;
-use crate::pricer::basis::BasisFunctions;
+use crate::pricer::basis::{build_lsmc_basis, BasisFunctions, BasisKind, LsmcBasis};
 use crate::process::gbm::GbmProcess;
 use crate::rng::philox::PhiloxRng;
 use crate::time_grid::TimeGrid;
@@ -257,6 +257,27 @@ impl LsmcConfig {
         })
     }
 
+    /// American convenience schedule: exercise at every simulated step
+    /// `1..=num_steps`, including the terminal date.
+    ///
+    /// This is the exercise grid used by the host-binding `LsmcPricer` GBM
+    /// helpers; both hosts delegate here rather than building the index vector
+    /// themselves.
+    ///
+    /// # Arguments
+    ///
+    /// * `num_paths` - Simulated paths; must be positive.
+    /// * `num_steps` - Time-grid steps between `0` and expiry; the returned
+    ///   dates are `1..=num_steps`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `num_paths` is zero or `num_steps` is zero (empty
+    /// exercise schedule).
+    pub fn every_step(num_paths: usize, num_steps: usize) -> finstack_quant_core::Result<Self> {
+        Self::new(num_paths, (1..=num_steps).collect(), num_steps)
+    }
+
     /// Set random seed.
     #[must_use]
     pub fn with_seed(mut self, seed: u64) -> Self {
@@ -290,6 +311,34 @@ impl LsmcPricer {
     /// Create a new LSMC pricer.
     pub fn new(config: LsmcConfig) -> Self {
         Self { config }
+    }
+
+    /// Convenience constructor for GBM American host bindings.
+    ///
+    /// Uses [`LsmcConfig::every_step`] so exercise occurs at each simulated
+    /// step `1..=num_steps`.
+    ///
+    /// # Arguments
+    ///
+    /// * `num_paths` - Simulated paths; must be positive.
+    /// * `num_steps` - Time-grid steps; also the last exercise date.
+    /// * `seed` - Root RNG seed for path generation.
+    /// * `use_parallel` - Whether path generation uses the rayon pool.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `num_paths` or `num_steps` is zero.
+    pub fn gbm_american(
+        num_paths: usize,
+        num_steps: usize,
+        seed: u64,
+        use_parallel: bool,
+    ) -> Result<Self> {
+        Ok(Self::new(
+            LsmcConfig::every_step(num_paths, num_steps)?
+                .with_seed(seed)
+                .with_parallel(use_parallel),
+        ))
     }
 
     /// Price an American-style option.
@@ -1006,6 +1055,289 @@ impl LsmcPricer {
 
         present_values
     }
+
+    /// Price an American put under GBM with the binding convenience pipeline.
+    ///
+    /// Builds the GBM process, Laguerre/polynomial basis, unit-notional put
+    /// exercise, and every-step exercise schedule, then runs [`Self::price`].
+    /// Host bindings must delegate here rather than assembling those pieces.
+    ///
+    /// # Arguments
+    ///
+    /// * `spot` - Spot level at time `0`.
+    /// * `strike` - Exercise price in the same units as `spot`; must be positive.
+    /// * `rate` - Continuously compounded risk-free rate (decimal, annualized).
+    /// * `dividend_yield` - Continuous dividend yield (decimal, annualized).
+    /// * `volatility` - Annualized GBM volatility (decimal).
+    /// * `expiry` - Time to expiry in years.
+    /// * `num_steps` - Number of time-grid steps between `0` and `expiry`.
+    /// * `currency` - Currency stamped on the returned estimate.
+    /// * `basis` - Regression basis family.
+    /// * `basis_degree` - Basis degree; must be positive (`laguerre` also
+    ///   requires the degree in `[1, 4]`).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the strike, GBM parameters, basis, path count,
+    /// step count, or discounting inputs fail validation, or the run fails.
+    #[allow(clippy::too_many_arguments)]
+    pub fn price_gbm_american_put(
+        &self,
+        spot: f64,
+        strike: f64,
+        rate: f64,
+        dividend_yield: f64,
+        volatility: f64,
+        expiry: f64,
+        num_steps: usize,
+        currency: Currency,
+        basis: BasisKind,
+        basis_degree: usize,
+    ) -> Result<MoneyEstimate> {
+        let exercise = AmericanPut::new(strike)?;
+        self.price_gbm_american(
+            spot,
+            strike,
+            rate,
+            dividend_yield,
+            volatility,
+            expiry,
+            num_steps,
+            currency,
+            basis,
+            basis_degree,
+            &exercise,
+        )
+    }
+
+    /// Price an American call under GBM with the binding convenience pipeline.
+    ///
+    /// Identical machinery to [`Self::price_gbm_american_put`] with a call
+    /// exercise payoff.
+    ///
+    /// # Arguments
+    ///
+    /// * `spot` - Spot level at time `0`.
+    /// * `strike` - Exercise price in the same units as `spot`; must be positive.
+    /// * `rate` - Continuously compounded risk-free rate (decimal, annualized).
+    /// * `dividend_yield` - Continuous dividend yield (decimal, annualized).
+    /// * `volatility` - Annualized GBM volatility (decimal).
+    /// * `expiry` - Time to expiry in years.
+    /// * `num_steps` - Number of time-grid steps between `0` and `expiry`.
+    /// * `currency` - Currency stamped on the returned estimate.
+    /// * `basis` - Regression basis family.
+    /// * `basis_degree` - Basis degree; must be positive (`laguerre` also
+    ///   requires the degree in `[1, 4]`).
+    ///
+    /// # Errors
+    ///
+    /// Same failure modes as [`Self::price_gbm_american_put`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn price_gbm_american_call(
+        &self,
+        spot: f64,
+        strike: f64,
+        rate: f64,
+        dividend_yield: f64,
+        volatility: f64,
+        expiry: f64,
+        num_steps: usize,
+        currency: Currency,
+        basis: BasisKind,
+        basis_degree: usize,
+    ) -> Result<MoneyEstimate> {
+        let exercise = AmericanCall::new(strike)?;
+        self.price_gbm_american(
+            spot,
+            strike,
+            rate,
+            dividend_yield,
+            volatility,
+            expiry,
+            num_steps,
+            currency,
+            basis,
+            basis_degree,
+            &exercise,
+        )
+    }
+
+    /// Two-pass unbiased American put price under GBM.
+    ///
+    /// Fits the exercise policy on the configured training seed and prices on
+    /// an independent `pricing_seed` path set via [`Self::price_unbiased`].
+    ///
+    /// # Arguments
+    ///
+    /// * `spot` - Spot level at time `0`.
+    /// * `strike` - Exercise price in the same units as `spot`; must be positive.
+    /// * `rate` - Continuously compounded risk-free rate (decimal, annualized).
+    /// * `dividend_yield` - Continuous dividend yield (decimal, annualized).
+    /// * `volatility` - Annualized GBM volatility (decimal).
+    /// * `expiry` - Time to expiry in years.
+    /// * `num_steps` - Number of time-grid steps between `0` and `expiry`.
+    /// * `currency` - Currency stamped on the returned estimate.
+    /// * `basis` - Regression basis family.
+    /// * `basis_degree` - Basis degree; must be positive (`laguerre` also
+    ///   requires the degree in `[1, 4]`).
+    /// * `pricing_seed` - Seed for the out-of-sample pricing paths; must differ
+    ///   from the configured training seed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when inputs fail validation, `pricing_seed` matches the
+    /// training seed, or either Monte Carlo pass fails.
+    #[allow(clippy::too_many_arguments)]
+    pub fn price_gbm_american_put_unbiased(
+        &self,
+        spot: f64,
+        strike: f64,
+        rate: f64,
+        dividend_yield: f64,
+        volatility: f64,
+        expiry: f64,
+        num_steps: usize,
+        currency: Currency,
+        basis: BasisKind,
+        basis_degree: usize,
+        pricing_seed: u64,
+    ) -> Result<MoneyEstimate> {
+        let exercise = AmericanPut::new(strike)?;
+        self.price_gbm_american_unbiased(
+            spot,
+            strike,
+            rate,
+            dividend_yield,
+            volatility,
+            expiry,
+            num_steps,
+            currency,
+            basis,
+            basis_degree,
+            pricing_seed,
+            &exercise,
+        )
+    }
+
+    /// Two-pass unbiased American call price under GBM.
+    ///
+    /// Identical machinery to [`Self::price_gbm_american_put_unbiased`] with a
+    /// call exercise payoff.
+    ///
+    /// # Arguments
+    ///
+    /// * `spot` - Spot level at time `0`.
+    /// * `strike` - Exercise price in the same units as `spot`; must be positive.
+    /// * `rate` - Continuously compounded risk-free rate (decimal, annualized).
+    /// * `dividend_yield` - Continuous dividend yield (decimal, annualized).
+    /// * `volatility` - Annualized GBM volatility (decimal).
+    /// * `expiry` - Time to expiry in years.
+    /// * `num_steps` - Number of time-grid steps between `0` and `expiry`.
+    /// * `currency` - Currency stamped on the returned estimate.
+    /// * `basis` - Regression basis family.
+    /// * `basis_degree` - Basis degree; must be positive (`laguerre` also
+    ///   requires the degree in `[1, 4]`).
+    /// * `pricing_seed` - Seed for the out-of-sample pricing paths; must differ
+    ///   from the configured training seed.
+    ///
+    /// # Errors
+    ///
+    /// Same failure modes as [`Self::price_gbm_american_put_unbiased`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn price_gbm_american_call_unbiased(
+        &self,
+        spot: f64,
+        strike: f64,
+        rate: f64,
+        dividend_yield: f64,
+        volatility: f64,
+        expiry: f64,
+        num_steps: usize,
+        currency: Currency,
+        basis: BasisKind,
+        basis_degree: usize,
+        pricing_seed: u64,
+    ) -> Result<MoneyEstimate> {
+        let exercise = AmericanCall::new(strike)?;
+        self.price_gbm_american_unbiased(
+            spot,
+            strike,
+            rate,
+            dividend_yield,
+            volatility,
+            expiry,
+            num_steps,
+            currency,
+            basis,
+            basis_degree,
+            pricing_seed,
+            &exercise,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn price_gbm_american<E: ImmediateExercise>(
+        &self,
+        spot: f64,
+        strike: f64,
+        rate: f64,
+        dividend_yield: f64,
+        volatility: f64,
+        expiry: f64,
+        num_steps: usize,
+        currency: Currency,
+        basis: BasisKind,
+        basis_degree: usize,
+        exercise: &E,
+    ) -> Result<MoneyEstimate> {
+        let process = GbmProcess::with_params(rate, dividend_yield, volatility)?;
+        let basis = lsmc_basis(basis, basis_degree, strike)?;
+        self.price(
+            &process,
+            spot,
+            expiry,
+            num_steps,
+            exercise,
+            &basis,
+            currency,
+            rate,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn price_gbm_american_unbiased<E: ImmediateExercise>(
+        &self,
+        spot: f64,
+        strike: f64,
+        rate: f64,
+        dividend_yield: f64,
+        volatility: f64,
+        expiry: f64,
+        num_steps: usize,
+        currency: Currency,
+        basis: BasisKind,
+        basis_degree: usize,
+        pricing_seed: u64,
+        exercise: &E,
+    ) -> Result<MoneyEstimate> {
+        let process = GbmProcess::with_params(rate, dividend_yield, volatility)?;
+        let basis = lsmc_basis(basis, basis_degree, strike)?;
+        self.price_unbiased(
+            &process,
+            spot,
+            expiry,
+            num_steps,
+            exercise,
+            &basis,
+            currency,
+            rate,
+            pricing_seed,
+        )
+    }
+}
+
+fn lsmc_basis(kind: BasisKind, degree: usize, strike: f64) -> Result<LsmcBasis> {
+    build_lsmc_basis(kind, degree, strike).map_err(finstack_quant_core::Error::Validation)
 }
 
 #[cfg(test)]
@@ -1323,5 +1655,26 @@ mod tests {
                 "tiny intrinsic value should trigger exercise instead of being dropped: {value}"
             );
         }
+    }
+
+    #[test]
+    fn price_gbm_american_put_atm_is_positive() {
+        let pricer = LsmcPricer::gbm_american(1_000, 8, 42, false)
+            .expect("GBM American pricer should construct");
+        let estimate = pricer
+            .price_gbm_american_put(
+                100.0,
+                100.0,
+                0.05,
+                0.0,
+                0.2,
+                1.0,
+                8,
+                Currency::USD,
+                BasisKind::Laguerre,
+                3,
+            )
+            .expect("American put pricing should succeed");
+        assert!(estimate.mean.amount() > 0.0);
     }
 }

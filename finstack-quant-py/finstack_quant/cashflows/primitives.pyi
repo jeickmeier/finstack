@@ -140,7 +140,7 @@ class CFKind:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns ``True`` or ``False``.
         """
         ...
 

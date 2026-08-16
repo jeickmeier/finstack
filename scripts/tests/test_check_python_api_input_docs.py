@@ -388,6 +388,10 @@ def test_generator_boilerplate_patterns_are_rejected() -> None:
     Supported selector string or enum value controlling the documented behavior.
     Value of ``to_json``.
     Compute VarianceRow.
+    The id exposed by this `Widget`.
+    Compute daily for `Tenor`.
+    Return the id for `Widget`.
+    This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
     """
 
     assert _MODULE.fabricated_doc_messages(docstring) == [
@@ -402,6 +406,10 @@ def test_generator_boilerplate_patterns_are_rejected() -> None:
         "generic-selector boilerplate",
         "value-of-name boilerplate",
         "compute-typename boilerplate",
+        "generic-field-exposed boilerplate",
+        "generic-compute-for boilerplate",
+        "generic-return-the-for boilerplate",
+        "generic-nan-sentinel boilerplate",
     ]
 
 

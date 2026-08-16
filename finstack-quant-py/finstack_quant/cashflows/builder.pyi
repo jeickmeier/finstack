@@ -101,7 +101,7 @@ class AmortizationSpec:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -167,7 +167,7 @@ class AmortizationSpec:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -740,7 +740,7 @@ class CashFlowSchedule:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -756,7 +756,7 @@ class CashFlowSchedule:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -786,7 +786,7 @@ class CashFlowSchedule:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -801,7 +801,7 @@ class CashFlowSchedule:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -817,7 +817,7 @@ class CashFlowSchedule:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1115,7 +1115,7 @@ class DefaultModelSpec:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1142,7 +1142,7 @@ class DefaultModelSpec:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1164,7 +1164,7 @@ class DefaultModelSpec:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1267,7 +1267,7 @@ class FeeBase:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1989,7 +1989,7 @@ class PrepaymentModelSpec:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -2016,7 +2016,7 @@ class PrepaymentModelSpec:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -2038,7 +2038,7 @@ class PrepaymentModelSpec:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -2414,7 +2414,7 @@ class ScheduleParams:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -2436,7 +2436,7 @@ class ScheduleParams:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -2458,7 +2458,7 @@ class ScheduleParams:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -2480,7 +2480,7 @@ class ScheduleParams:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -2502,7 +2502,7 @@ class ScheduleParams:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -2524,7 +2524,7 @@ class ScheduleParams:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -2546,7 +2546,7 @@ class ScheduleParams:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -2568,7 +2568,7 @@ class ScheduleParams:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -2590,7 +2590,7 @@ class ScheduleParams:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -2612,7 +2612,7 @@ class ScheduleParams:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------

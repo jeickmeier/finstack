@@ -176,7 +176,7 @@ impl PyTenor {
             .map_err(core_to_py)
     }
 
-    /// Numeric count.
+    /// Positive integer multiplying this tenor's calendar unit.
     #[getter]
     fn count(&self) -> u32 {
         self.inner.count()

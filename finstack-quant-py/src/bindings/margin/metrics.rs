@@ -126,13 +126,13 @@ impl PyExcessCollateral {
         })
     }
 
-    /// Collateral value.
+    /// Market value of posted collateral in the CSA currency.
     #[getter]
     fn collateral_value(&self) -> f64 {
         self.inner.collateral_value.amount()
     }
 
-    /// Required value.
+    /// Required collateral amount in the same currency as the mark.
     #[getter]
     fn required_value(&self) -> f64 {
         self.inner.required_value.amount()

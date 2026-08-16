@@ -160,7 +160,7 @@ class Money:
         Returns
         -------
         float
-            The amount exposed by this `Money`.
+            Numeric amount as ``float``.
 
         Notes
         -----
@@ -172,14 +172,13 @@ class Money:
     def amount_decimal(self) -> Decimal:
         """
         Lossless amount as ``decimal.Decimal``.
-
         The internal Rust ``Decimal`` is rendered to a string and parsed by
         ``decimal.Decimal``; no ``float`` round-trip occurs.
 
         Returns
         -------
         decimal.Decimal
-            The amount decimal exposed by this `Money`.
+            Lossless amount as ``decimal.Decimal``.
 
         Notes
         -----
@@ -190,13 +189,12 @@ class Money:
     @property
     def currency(self) -> Currency:
         """
-        Return the currency for `Money`.
-        Currency tag.
+        ISO-4217 currency of this money amount.
 
         Returns
         -------
         Currency
-            The currency exposed by this `Money`.
+            Currency tag stored with the decimal amount.
 
         Notes
         -----
@@ -225,7 +223,7 @@ class Money:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -287,7 +285,7 @@ class Money:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 

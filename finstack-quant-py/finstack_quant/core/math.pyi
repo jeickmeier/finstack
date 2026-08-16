@@ -254,7 +254,7 @@ class stats:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; an empty series returns ``0.0``.
 
         Examples
         --------
@@ -283,7 +283,7 @@ class stats:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; fewer than two observations return ``0.0``.
 
         Examples
         --------
@@ -312,7 +312,7 @@ class stats:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; an empty series returns ``0.0``.
 
         Examples
         --------
@@ -343,7 +343,7 @@ class stats:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; unequal lengths return ``NaN``.
 
         Examples
         --------
@@ -374,7 +374,7 @@ class stats:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; unequal lengths return ``NaN``.
 
         Examples
         --------
@@ -406,7 +406,7 @@ class stats:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; empty data, ``q`` outside ``[0, 1]``, or non-finite inputs return ``NaN``.
 
         Examples
         --------
@@ -664,7 +664,7 @@ class summation:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the compensated sum of ``values``.
 
         Examples
         --------
@@ -694,7 +694,7 @@ class summation:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the compensated sum of ``values``.
 
         Examples
         --------

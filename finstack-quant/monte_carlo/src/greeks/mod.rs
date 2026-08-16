@@ -10,5 +10,6 @@
 //! need a general bump-and-reprice fallback.
 
 pub mod finite_diff;
+pub mod gbm_european;
 pub mod lrm;
 pub mod pathwise;

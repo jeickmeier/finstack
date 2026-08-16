@@ -92,7 +92,7 @@ class ImMethodology:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -113,7 +113,7 @@ class ImMethodology:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -134,7 +134,7 @@ class ImMethodology:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -155,7 +155,7 @@ class ImMethodology:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -176,7 +176,7 @@ class ImMethodology:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -247,7 +247,7 @@ class MarginTenor:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -268,7 +268,7 @@ class MarginTenor:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -289,7 +289,7 @@ class MarginTenor:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -310,7 +310,7 @@ class MarginTenor:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -382,7 +382,7 @@ class MarginCallType:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -403,7 +403,7 @@ class MarginCallType:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -424,7 +424,7 @@ class MarginCallType:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -445,7 +445,7 @@ class MarginCallType:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -466,7 +466,7 @@ class MarginCallType:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -642,7 +642,7 @@ class CollateralAssetClass:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -663,7 +663,7 @@ class CollateralAssetClass:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -684,7 +684,7 @@ class CollateralAssetClass:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -705,7 +705,7 @@ class CollateralAssetClass:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -717,8 +717,7 @@ class CollateralAssetClass:
     @staticmethod
     def equity() -> CollateralAssetClass:
         """
-        Compute equity for `CollateralAssetClass`.
-        Equity class.
+        Eligible-collateral class for listed equity.
 
         Returns
         -------
@@ -727,7 +726,7 @@ class CollateralAssetClass:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -739,8 +738,7 @@ class CollateralAssetClass:
     @staticmethod
     def gold() -> CollateralAssetClass:
         """
-        Compute gold for `CollateralAssetClass`.
-        Gold class.
+        Eligible-collateral class for allocated gold.
 
         Returns
         -------
@@ -749,7 +747,7 @@ class CollateralAssetClass:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -770,7 +768,7 @@ class CollateralAssetClass:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1135,19 +1133,17 @@ class CsaSpec:
     @property
     def id(self) -> str:
         """
-        Return the id for `CsaSpec`.
-        CSA identifier.
+        Stable CSA identifier used in margin lookups.
 
         Returns
         -------
         str
-            CSA id.
-
-            The id exposed by this `CsaSpec`.
+            Identifier of this CSA specification.
 
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> isinstance(CsaSpec.usd_regulatory().id, str)
@@ -1184,7 +1180,7 @@ class CsaSpec:
         Returns
         -------
         str
-            The calendar id exposed by this `CsaSpec`.
+            Contractual business-day calendar identifier.
 
         Notes
         -----
@@ -1434,7 +1430,7 @@ class EligibleCollateralSchedule:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns ``True`` or ``False``.
 
         Examples
         --------
@@ -1460,7 +1456,7 @@ class EligibleCollateralSchedule:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; a missing result is ``None`` rather than an exception.
 
         Examples
         --------
@@ -1863,7 +1859,7 @@ class ImResult:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1883,7 +1879,7 @@ class ImResult:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; a missing result is ``None`` rather than an exception.
         """
         ...
 
@@ -2085,7 +2081,7 @@ class SimmSensitivities:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it updates stored state in place.
         """
         ...
 
@@ -2127,7 +2123,7 @@ class SimmSensitivities:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it updates stored state in place.
         """
         ...
 
@@ -2144,7 +2140,7 @@ class SimmSensitivities:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it updates stored state in place.
         """
         ...
 
@@ -2200,7 +2196,7 @@ class SimmSensitivities:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it updates stored state in place.
         """
         ...
 
@@ -2238,7 +2234,7 @@ class SimmSensitivities:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns ``True`` or ``False``.
         """
         ...
 
@@ -2713,7 +2709,7 @@ class HaircutImCalculator:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -3000,7 +2996,7 @@ class FundingConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
 
         Examples
         --------
@@ -3020,7 +3016,7 @@ class FundingConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
 
         Examples
         --------
@@ -3706,9 +3702,7 @@ class XvaResult:
         Returns
         -------
         float
-            Peak PFE.
-
-            The max pfe exposed by this `XvaResult`.
+            Maximum PFE across the profile.
 
         Notes
         -----
@@ -3927,11 +3921,12 @@ class CsaTerms:
         float
             MTA.
 
-            The mta exposed by this `CsaTerms`.
+            Minimum transfer amount.
 
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> CsaTerms(0.0, 5e4, 5, 0.0).mta
@@ -3947,13 +3942,12 @@ class CsaTerms:
         Returns
         -------
         int
-            MPOR days.
-
-            The mpor days exposed by this `CsaTerms`.
+            Margin period of risk in calendar days.
 
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> CsaTerms(0.0, 0.0, 14, 0.0).mpor_days
@@ -4053,13 +4047,12 @@ class XvaNettingSet:
         Returns
         -------
         str
-            Id string.
-
-            The id exposed by this `XvaNettingSet`.
+            Identifier of the XVA netting set in the CSA graph.
 
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> XvaNettingSet("A", "B").id
@@ -4731,11 +4724,12 @@ class MarginUtilization:
         float
             Ratio.
 
-            The ratio exposed by this `MarginUtilization`.
+            Utilization ratio (posted / required).
 
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> MarginUtilization(50.0, 100.0, "EUR").ratio
@@ -4754,7 +4748,7 @@ class MarginUtilization:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns ``True`` or ``False``.
 
         Examples
         --------
@@ -4774,7 +4768,7 @@ class MarginUtilization:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
 
         Examples
         --------
@@ -4887,8 +4881,7 @@ class ExcessCollateral:
     @property
     def required_value(self) -> float:
         """
-        Return the required value for `ExcessCollateral`.
-        Required value.
+        Required collateral amount in the same currency as the mark.
 
         Returns
         -------
@@ -4938,7 +4931,7 @@ class ExcessCollateral:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns ``True`` or ``False``.
 
         Examples
         --------
@@ -4958,7 +4951,7 @@ class ExcessCollateral:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns ``True`` or ``False``.
 
         Examples
         --------
@@ -4978,7 +4971,7 @@ class ExcessCollateral:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
 
         Examples
         --------
@@ -5169,7 +5162,7 @@ class MarginFundingCost:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
 
         Examples
         --------
@@ -5194,7 +5187,7 @@ class MarginFundingCost:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -5315,11 +5308,12 @@ class Haircut01:
         float
             Haircut.
 
-            The current haircut exposed by this `Haircut01`.
+            Current haircut (decimal).
 
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> Haircut01(100.0, 0.1, "USD").current_haircut
@@ -5359,7 +5353,7 @@ class Haircut01:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
 
         Examples
         --------
@@ -5491,7 +5485,7 @@ class FrtbSensitivities:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it updates stored state in place.
         """
         ...
 
@@ -5510,7 +5504,7 @@ class FrtbSensitivities:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it updates stored state in place.
         """
         ...
 
@@ -5551,7 +5545,7 @@ class FrtbSensitivities:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it updates stored state in place.
         """
         ...
 
@@ -5600,7 +5594,7 @@ class FrtbSensitivities:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it updates stored state in place.
         """
         ...
 
@@ -5663,7 +5657,7 @@ class FrtbSensitivities:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it updates stored state in place.
         """
         ...
 
@@ -5704,7 +5698,7 @@ class FrtbSensitivities:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it updates stored state in place.
         """
         ...
 

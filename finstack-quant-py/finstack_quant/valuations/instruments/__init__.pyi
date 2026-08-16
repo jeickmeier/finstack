@@ -424,7 +424,7 @@ class BarrierCrossing:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -449,7 +449,7 @@ class BarrierCrossing:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -547,7 +547,7 @@ class MertonMcConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the same instance for chaining.
         """
         ...
 
@@ -569,7 +569,7 @@ class MertonMcConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the same instance for chaining.
         """
         ...
 
@@ -589,7 +589,7 @@ class MertonMcConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the same instance for chaining.
         """
         ...
 
@@ -609,7 +609,7 @@ class MertonMcConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the same instance for chaining.
         """
         ...
 
@@ -629,7 +629,7 @@ class MertonMcConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the same instance for chaining.
         """
         ...
 
@@ -649,7 +649,7 @@ class MertonMcConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the same instance for chaining.
         """
         ...
 
@@ -669,7 +669,7 @@ class MertonMcConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the same instance for chaining.
         """
         ...
 
@@ -689,7 +689,7 @@ class MertonMcConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the same instance for chaining.
         """
         ...
 
@@ -709,7 +709,7 @@ class MertonMcConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the same instance for chaining.
         """
         ...
 
@@ -729,7 +729,7 @@ class MertonMcConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the same instance for chaining.
         """
         ...
 
@@ -1176,7 +1176,7 @@ class PikMode:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1207,7 +1207,7 @@ class PikMode:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1231,7 +1231,7 @@ class PikMode:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1314,7 +1314,7 @@ class PikSchedule:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1371,7 +1371,7 @@ class PikSchedule:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -8292,7 +8292,7 @@ def list_models() -> list[str]:
 
     Notes
     -----
-    This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+    This method does not raise; it returns the stored or derived value.
 
     Examples
     --------
@@ -8317,7 +8317,7 @@ def list_models_grouped() -> dict[str, list[str]]:
 
     Notes
     -----
-    This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+    This method does not raise; it returns the stored or derived value.
 
     Examples
     --------
@@ -8339,7 +8339,7 @@ def list_standard_metrics() -> list[str]:
 
     Notes
     -----
-    This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+    This method does not raise; it returns the stored or derived value.
 
     Examples
     --------
@@ -8361,7 +8361,7 @@ def list_standard_metrics_grouped() -> dict[str, list[str]]:
 
     Notes
     -----
-    This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+    This method does not raise; it returns the stored or derived value.
 
     Examples
     --------
@@ -8940,7 +8940,7 @@ class ScenarioTable:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 

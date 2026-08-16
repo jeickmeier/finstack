@@ -274,7 +274,7 @@ class Currency:
         Returns
         -------
         str
-            The code exposed by this `Currency`.
+            Three-letter ISO-4217 alphabetic code (uppercase).
 
         Notes
         -----
@@ -290,7 +290,7 @@ class Currency:
         Returns
         -------
         int
-            The numeric exposed by this `Currency`.
+            ISO-4217 numeric identifier.
 
         Notes
         -----
@@ -306,7 +306,7 @@ class Currency:
         Returns
         -------
         int
-            The decimals exposed by this `Currency`.
+            Typical number of decimal places (minor units) for this currency.
 
         Notes
         -----

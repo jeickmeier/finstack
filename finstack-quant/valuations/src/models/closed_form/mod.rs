@@ -167,5 +167,5 @@ pub use lookback::{
 pub use quanto::{quanto_call, quanto_drift_adjustment, quanto_put};
 pub use vanilla::{
     black76_call, black76_put, bs_greeks, bs_greeks_checked, bs_price, bs_price_checked, bs_vega,
-    checked_closed_form_value, option_type_from_bool, BsGreeks, ONE_PERCENT,
+    checked_closed_form_value, option_type_from_bool, vanilla_expiry_payoff, BsGreeks, ONE_PERCENT,
 };

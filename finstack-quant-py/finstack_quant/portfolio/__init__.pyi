@@ -718,10 +718,11 @@ class Portfolio:
     def id(self) -> str:
         """
         Stable identifier of this portfolio in the registry.
+
         Returns
         -------
         str
-            The id exposed by this `Portfolio`.
+            Stable identifier of this portfolio in the registry.
 
         Notes
         -----
@@ -733,10 +734,11 @@ class Portfolio:
     def as_of(self) -> str:
         """
         Portfolio as-of date as an ISO 8601 string.
+
         Returns
         -------
         str
-            The as of exposed by this `Portfolio`.
+            Portfolio as-of date as an ISO 8601 string.
 
         Notes
         -----
@@ -748,10 +750,11 @@ class Portfolio:
     def base_currency(self) -> str:
         """
         Base currency code used for valuation and aggregation.
+
         Returns
         -------
         str
-            The base ccy exposed by this `Portfolio`.
+            Base currency code used for valuation and aggregation.
 
         Notes
         -----
@@ -1226,10 +1229,11 @@ class PortfolioValuation:
     def total_value(self) -> float:
         """
         Total portfolio value in ``base_currency``.
+
         Returns
         -------
         float
-            The total value exposed by this `PortfolioValuation`.
+            Total portfolio value in ``base_currency``.
 
         Notes
         -----
@@ -1241,10 +1245,11 @@ class PortfolioValuation:
     def base_currency(self) -> str:
         """
         Base currency code for this valuation.
+
         Returns
         -------
         str
-            The base ccy exposed by this `PortfolioValuation`.
+            Base currency code for this valuation.
 
         Notes
         -----
@@ -1256,10 +1261,11 @@ class PortfolioValuation:
     def as_of(self) -> str:
         """
         Valuation date as an ISO 8601 string.
+
         Returns
         -------
         str
-            The as of exposed by this `PortfolioValuation`.
+            Valuation date as an ISO 8601 string.
 
         Notes
         -----
@@ -1471,7 +1477,7 @@ class PortfolioCashflows:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1485,7 +1491,7 @@ class PortfolioCashflows:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1646,10 +1652,11 @@ class PortfolioResult:
     def total_value(self) -> float:
         """
         Total value stored in the result envelope.
+
         Returns
         -------
         float
-            The total value exposed by this `PortfolioResult`.
+            Total value stored in the result envelope.
 
         Notes
         -----
@@ -1674,7 +1681,7 @@ class PortfolioResult:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; a missing result is ``None`` rather than an exception.
         """
         ...
 
@@ -7457,10 +7464,11 @@ class FactorContribution:
     def factor_id(self) -> str:
         """
         Identifier of the contributing risk factor in the model.
+
         Returns
         -------
         str
-            The factor id exposed by this `FactorContribution`.
+            Identifier of the contributing risk factor in the model.
 
         Notes
         -----
@@ -7472,10 +7480,11 @@ class FactorContribution:
     def absolute_risk(self) -> float:
         """
         Absolute risk contribution.
+
         Returns
         -------
         float
-            The absolute risk exposed by this `FactorContribution`.
+            Absolute risk contribution.
 
         Notes
         -----
@@ -7487,10 +7496,11 @@ class FactorContribution:
     def relative_risk(self) -> float:
         """
         Share of total portfolio risk.
+
         Returns
         -------
         float
-            The relative risk exposed by this `FactorContribution`.
+            Share of total portfolio risk.
 
         Notes
         -----
@@ -7502,10 +7512,11 @@ class FactorContribution:
     def marginal_risk(self) -> float:
         """
         Marginal risk contribution.
+
         Returns
         -------
         float
-            The marginal risk exposed by this `FactorContribution`.
+            Marginal risk contribution.
 
         Notes
         -----
@@ -7584,10 +7595,11 @@ class PositionFactorContribution:
     def position_id(self) -> str:
         """
         Portfolio position identifier.
+
         Returns
         -------
         str
-            The position id exposed by this `PositionFactorContribution`.
+            Portfolio position identifier.
 
         Notes
         -----
@@ -7599,10 +7611,11 @@ class PositionFactorContribution:
     def factor_id(self) -> str:
         """
         Identifier of the contributing risk factor in the model.
+
         Returns
         -------
         str
-            The factor id exposed by this `PositionFactorContribution`.
+            Identifier of the contributing risk factor in the model.
 
         Notes
         -----
@@ -7614,10 +7627,11 @@ class PositionFactorContribution:
     def risk_contribution(self) -> float:
         """
         Risk contribution for this position-factor pair.
+
         Returns
         -------
         float
-            The risk contribution exposed by this `PositionFactorContribution`.
+            Risk contribution for this position-factor pair.
 
         Notes
         -----
@@ -7698,10 +7712,11 @@ class PositionResidualContribution:
     def position_id(self) -> str:
         """
         Portfolio position identifier.
+
         Returns
         -------
         str
-            The position id exposed by this `PositionResidualContribution`.
+            Portfolio position identifier.
 
         Notes
         -----
@@ -7713,10 +7728,11 @@ class PositionResidualContribution:
     def residual_variance(self) -> float:
         """
         Residual variance assigned to this position.
+
         Returns
         -------
         float
-            The residual variance exposed by this `PositionResidualContribution`.
+            Residual variance assigned to this position.
 
         Notes
         -----
@@ -7728,10 +7744,11 @@ class PositionResidualContribution:
     def source_kind(self) -> str:
         """
         Source category used to derive residual risk.
+
         Returns
         -------
         str
-            The source kind exposed by this `PositionResidualContribution`.
+            Source category used to derive residual risk.
 
         Notes
         -----
@@ -7743,10 +7760,10 @@ class PositionResidualContribution:
     def source_issuer_id(self) -> str | None:
         """
         Issuer identifier for issuer-sourced residual risk, if present.
+
         Returns
         -------
-        str or None
-            The source issuer id exposed by this `PositionResidualContribution`.
+            Issuer identifier for issuer-sourced residual risk, if present.
 
         Notes
         -----
@@ -7824,10 +7841,11 @@ class RiskDecomposition:
     def total_risk(self) -> float:
         """
         Total portfolio risk under the decomposition measure.
+
         Returns
         -------
         float
-            The total risk exposed by this `RiskDecomposition`.
+            Total portfolio risk under the decomposition measure.
 
         Notes
         -----
@@ -7839,10 +7857,11 @@ class RiskDecomposition:
     def measure_json(self) -> str:
         """
         Risk measure specification as JSON.
+
         Returns
         -------
         str
-            The measure json exposed by this `RiskDecomposition`.
+            Risk measure specification as JSON.
 
         Notes
         -----
@@ -7854,10 +7873,11 @@ class RiskDecomposition:
     def residual_risk(self) -> float:
         """
         Residual risk not explained by factor contributions.
+
         Returns
         -------
         float
-            The residual risk exposed by this `RiskDecomposition`.
+            Residual risk not explained by factor contributions.
 
         Notes
         -----
@@ -8068,10 +8088,11 @@ class PositionVarContribution:
     def position_id(self) -> str:
         """
         Portfolio position identifier.
+
         Returns
         -------
         str
-            The position id exposed by this `PositionVarContribution`.
+            Portfolio position identifier.
 
         Notes
         -----
@@ -8083,10 +8104,11 @@ class PositionVarContribution:
     def component_var(self) -> float:
         """
         Component VaR assigned to this position.
+
         Returns
         -------
         float
-            The component var exposed by this `PositionVarContribution`.
+            Component VaR assigned to this position.
 
         Notes
         -----
@@ -8098,10 +8120,11 @@ class PositionVarContribution:
     def relative_var(self) -> float:
         """
         Share of total portfolio VaR.
+
         Returns
         -------
         float
-            The relative var exposed by this `PositionVarContribution`.
+            Share of total portfolio VaR.
 
         Notes
         -----
@@ -8113,10 +8136,10 @@ class PositionVarContribution:
     def marginal_var(self) -> float | None:
         """
         Marginal VaR, if computed.
+
         Returns
         -------
-        float or None
-            The marginal var exposed by this `PositionVarContribution`.
+            Marginal VaR, if computed.
 
         Notes
         -----
@@ -8128,10 +8151,10 @@ class PositionVarContribution:
     def incremental_var(self) -> float | None:
         """
         Incremental VaR, if requested in the decomposition config.
+
         Returns
         -------
-        float or None
-            The incremental var exposed by this `PositionVarContribution`.
+            Incremental VaR, if requested in the decomposition config.
 
         Notes
         -----
@@ -8232,10 +8255,11 @@ class PositionEsContribution:
     def position_id(self) -> str:
         """
         Portfolio position identifier.
+
         Returns
         -------
         str
-            The position id exposed by this `PositionEsContribution`.
+            Portfolio position identifier.
 
         Notes
         -----
@@ -8247,10 +8271,11 @@ class PositionEsContribution:
     def component_es(self) -> float:
         """
         Component expected shortfall assigned to this position.
+
         Returns
         -------
         float
-            The component es exposed by this `PositionEsContribution`.
+            Component expected shortfall assigned to this position.
 
         Notes
         -----
@@ -8262,10 +8287,11 @@ class PositionEsContribution:
     def relative_es(self) -> float:
         """
         Share of total portfolio expected shortfall.
+
         Returns
         -------
         float
-            The relative es exposed by this `PositionEsContribution`.
+            Share of total portfolio expected shortfall.
 
         Notes
         -----
@@ -8277,10 +8303,10 @@ class PositionEsContribution:
     def marginal_es(self) -> float | None:
         """
         Marginal expected shortfall, if computed.
+
         Returns
         -------
-        float or None
-            The marginal es exposed by this `PositionEsContribution`.
+            Marginal expected shortfall, if computed.
 
         Notes
         -----
@@ -8374,10 +8400,11 @@ class PositionRiskDecomposition:
     def portfolio_es(self) -> float:
         """
         Portfolio expected shortfall.
+
         Returns
         -------
         float
-            The portfolio es exposed by this `PositionRiskDecomposition`.
+            Portfolio expected shortfall.
 
         Notes
         -----
@@ -8389,10 +8416,11 @@ class PositionRiskDecomposition:
     def confidence(self) -> float:
         """
         Confidence level used for VaR/ES.
+
         Returns
         -------
         float
-            The confidence exposed by this `PositionRiskDecomposition`.
+            Confidence level used for VaR/ES.
 
         Notes
         -----
@@ -8404,10 +8432,11 @@ class PositionRiskDecomposition:
     def n_positions(self) -> int:
         """
         Number of positions included in the decomposition.
+
         Returns
         -------
         int
-            The n positions exposed by this `PositionRiskDecomposition`.
+            Number of positions included in the decomposition.
 
         Notes
         -----
@@ -8419,10 +8448,11 @@ class PositionRiskDecomposition:
     def method(self) -> str:
         """
         Decomposition method label.
+
         Returns
         -------
         str
-            The method exposed by this `PositionRiskDecomposition`.
+            Decomposition method label.
 
         Notes
         -----
@@ -8434,10 +8464,10 @@ class PositionRiskDecomposition:
     def euler_residual(self) -> float | None:
         """
         Euler allocation residual, if reported.
+
         Returns
         -------
-        float or None
-            The euler residual exposed by this `PositionRiskDecomposition`.
+            Euler allocation residual, if reported.
 
         Notes
         -----
@@ -8575,10 +8605,11 @@ class PositionBudgetEntry:
     def position_id(self) -> str:
         """
         Portfolio position identifier.
+
         Returns
         -------
         str
-            The position id exposed by this `PositionBudgetEntry`.
+            Portfolio position identifier.
 
         Notes
         -----
@@ -8590,10 +8621,11 @@ class PositionBudgetEntry:
     def actual_component_var(self) -> float:
         """
         Actual component VaR for this position.
+
         Returns
         -------
         float
-            The actual component var exposed by this `PositionBudgetEntry`.
+            Actual component VaR for this position.
 
         Notes
         -----
@@ -8605,10 +8637,11 @@ class PositionBudgetEntry:
     def target_component_var(self) -> float:
         """
         Target component VaR for this position.
+
         Returns
         -------
         float
-            The target component var exposed by this `PositionBudgetEntry`.
+            Target component VaR for this position.
 
         Notes
         -----
@@ -8620,10 +8653,11 @@ class PositionBudgetEntry:
     def utilization(self) -> float:
         """
         Actual-to-target utilization ratio.
+
         Returns
         -------
         float
-            The utilization exposed by this `PositionBudgetEntry`.
+            Actual-to-target utilization ratio.
 
         Notes
         -----
@@ -8635,10 +8669,11 @@ class PositionBudgetEntry:
     def excess(self) -> float:
         """
         Actual component VaR less target component VaR.
+
         Returns
         -------
         float
-            The excess exposed by this `PositionBudgetEntry`.
+            Actual component VaR less target component VaR.
 
         Notes
         -----
@@ -8734,10 +8769,11 @@ class RiskBudgetResult:
     def total_overbudget(self) -> float:
         """
         Total amount above target risk budgets.
+
         Returns
         -------
         float
-            The total overbudget exposed by this `RiskBudgetResult`.
+            Total amount above target risk budgets.
 
         Notes
         -----
@@ -8869,10 +8905,11 @@ class FactorContributionDelta:
     def factor_id(self) -> str:
         """
         Identifier of the contributing risk factor in the model.
+
         Returns
         -------
         str
-            The factor id exposed by this `FactorContributionDelta`.
+            Identifier of the contributing risk factor in the model.
 
         Notes
         -----
@@ -8884,10 +8921,11 @@ class FactorContributionDelta:
     def absolute_change(self) -> float:
         """
         Absolute contribution change.
+
         Returns
         -------
         float
-            The absolute change exposed by this `FactorContributionDelta`.
+            Absolute contribution change.
 
         Notes
         -----
@@ -8899,10 +8937,11 @@ class FactorContributionDelta:
     def relative_change(self) -> float:
         """
         Relative contribution change.
+
         Returns
         -------
         float
-            The relative change exposed by this `FactorContributionDelta`.
+            Relative contribution change.
 
         Notes
         -----
@@ -9117,10 +9156,11 @@ class StressResult:
     def total_pnl(self) -> float:
         """
         Total portfolio P&L under the stress scenario.
+
         Returns
         -------
         float
-            The total pnl exposed by this `StressResult`.
+            Total portfolio P&L under the stress scenario.
 
         Notes
         -----
@@ -9251,10 +9291,11 @@ class StressPositionEntry:
     def position_id(self) -> str:
         """
         Portfolio position identifier.
+
         Returns
         -------
         str
-            The position id exposed by this `StressPositionEntry`.
+            Portfolio position identifier.
 
         Notes
         -----
@@ -9266,10 +9307,11 @@ class StressPositionEntry:
     def avg_tail_pnl(self) -> float:
         """
         Average P&L across tail scenarios.
+
         Returns
         -------
         float
-            The avg tail pnl exposed by this `StressPositionEntry`.
+            Average P&L across tail scenarios.
 
         Notes
         -----
@@ -9281,10 +9323,11 @@ class StressPositionEntry:
     def pct_of_tail_loss(self) -> float:
         """
         Share of aggregate tail loss.
+
         Returns
         -------
         float
-            The pct of tail loss exposed by this `StressPositionEntry`.
+            Share of aggregate tail loss.
 
         Notes
         -----
@@ -9296,10 +9339,11 @@ class StressPositionEntry:
     def worst_scenario_pnl(self) -> float:
         """
         Worst single-scenario P&L for this position.
+
         Returns
         -------
         float
-            The worst scenario pnl exposed by this `StressPositionEntry`.
+            Worst single-scenario P&L for this position.
 
         Notes
         -----
@@ -9378,10 +9422,11 @@ class TailScenarioBreakdown:
     def scenario_index(self) -> int:
         """
         Scenario index in the source P&L matrix.
+
         Returns
         -------
         int
-            The scenario index exposed by this `TailScenarioBreakdown`.
+            Scenario index in the source P&L matrix.
 
         Notes
         -----
@@ -9393,10 +9438,11 @@ class TailScenarioBreakdown:
     def portfolio_pnl(self) -> float:
         """
         Portfolio P&L for this tail scenario.
+
         Returns
         -------
         float
-            The portfolio pnl exposed by this `TailScenarioBreakdown`.
+            Portfolio P&L for this tail scenario.
 
         Notes
         -----
@@ -9410,10 +9456,11 @@ class TailScenarioBreakdown:
         Per-position P&L for this scenario, index-aligned to
         ``StressAttribution.position_ids`` (entry ``i`` is the P&L for
         ``position_ids[i]``).
+
         Returns
         -------
         list[float]
-            The position pnls exposed by this `TailScenarioBreakdown`.
+            Per-position P&L for this scenario, index-aligned to
 
         Notes
         -----
@@ -9520,10 +9567,11 @@ class StressAttribution:
     def var_threshold(self) -> float:
         """
         VaR threshold used to select tail scenarios.
+
         Returns
         -------
         float
-            The var threshold exposed by this `StressAttribution`.
+            VaR threshold used to select tail scenarios.
 
         Notes
         -----
@@ -9535,10 +9583,11 @@ class StressAttribution:
     def n_tail_scenarios(self) -> int:
         """
         Number of scenarios classified as tail scenarios.
+
         Returns
         -------
         int
-            The n tail scenarios exposed by this `StressAttribution`.
+            Number of scenarios classified as tail scenarios.
 
         Notes
         -----
@@ -9551,10 +9600,11 @@ class StressAttribution:
         """
         Canonical position ordering shared by every ``tail_scenarios`` entry.
         ``tail_scenarios[k].position_pnls[i]`` is the P&L for ``position_ids[i]``.
+
         Returns
         -------
         list[str]
-            The position ids exposed by this `StressAttribution`.
+            Canonical position ordering shared by every ``tail_scenarios`` entry.
 
         Notes
         -----
@@ -9711,10 +9761,11 @@ class PositionAssignment:
     def position_id(self) -> str:
         """
         Portfolio position identifier.
+
         Returns
         -------
         str
-            The position id exposed by this `PositionAssignment`.
+            Portfolio position identifier.
 
         Notes
         -----
@@ -9726,10 +9777,11 @@ class PositionAssignment:
     def n_mappings(self) -> int:
         """
         Number of dependency-to-factor mappings.
+
         Returns
         -------
         int
-            The n mappings exposed by this `PositionAssignment`.
+            Number of dependency-to-factor mappings.
 
         Notes
         -----
@@ -9755,10 +9807,11 @@ class PositionAssignment:
     def factor_ids(self) -> list[str]:
         """
         Matched factor identifiers.
+
         Returns
         -------
         list[str]
-            The factor ids exposed by this `PositionAssignment`.
+            Matched factor identifiers.
 
         Notes
         -----
@@ -9837,10 +9890,11 @@ class UnmatchedEntry:
     def position_id(self) -> str:
         """
         Portfolio position identifier.
+
         Returns
         -------
         str
-            The position id exposed by this `UnmatchedEntry`.
+            Portfolio position identifier.
 
         Notes
         -----
@@ -10029,10 +10083,11 @@ class LevelVolContribution:
     def level_name(self) -> str:
         """
         Name of the hierarchy level that received this volatility contribution.
+
         Returns
         -------
         str
-            The level name exposed by this `LevelVolContribution`.
+            Name of the hierarchy level that received this volatility contribution.
 
         Notes
         -----
@@ -10044,10 +10099,11 @@ class LevelVolContribution:
     def total(self) -> float:
         """
         Total contribution for this level.
+
         Returns
         -------
         float
-            The total exposed by this `LevelVolContribution`.
+            Total contribution for this level.
 
         Notes
         -----
@@ -10059,10 +10115,11 @@ class LevelVolContribution:
     def by_bucket(self) -> dict[str, float]:
         """
         Contribution by hierarchy bucket.
+
         Returns
         -------
         dict[str, float]
-            The by bucket exposed by this `LevelVolContribution`.
+            Contribution by hierarchy bucket.
 
         Notes
         -----
@@ -10096,10 +10153,11 @@ class PositionVolContribution:
     def position_id(self) -> str:
         """
         Portfolio position identifier.
+
         Returns
         -------
         str
-            The position id exposed by this `PositionVolContribution`.
+            Portfolio position identifier.
 
         Notes
         -----
@@ -10111,10 +10169,11 @@ class PositionVolContribution:
     def factor_total(self) -> float:
         """
         Factor-driven volatility contribution.
+
         Returns
         -------
         float
-            The factor total exposed by this `PositionVolContribution`.
+            Factor-driven volatility contribution.
 
         Notes
         -----
@@ -10126,10 +10185,11 @@ class PositionVolContribution:
     def idiosyncratic(self) -> float:
         """
         Idiosyncratic volatility contribution.
+
         Returns
         -------
         float
-            The idiosyncratic exposed by this `PositionVolContribution`.
+            Idiosyncratic volatility contribution.
 
         Notes
         -----
@@ -10141,10 +10201,11 @@ class PositionVolContribution:
     def total(self) -> float:
         """
         Total position volatility contribution.
+
         Returns
         -------
         float
-            The total exposed by this `PositionVolContribution`.
+            Total position volatility contribution.
 
         Notes
         -----
@@ -10178,10 +10239,11 @@ class CreditVolReport:
     def total(self) -> float:
         """
         Total portfolio volatility under the report measure.
+
         Returns
         -------
         float
-            The total exposed by this `CreditVolReport`.
+            Total portfolio volatility under the report measure.
 
         Notes
         -----
@@ -10193,10 +10255,11 @@ class CreditVolReport:
     def measure_json(self) -> str:
         """
         Risk measure specification as JSON.
+
         Returns
         -------
         str
-            The measure json exposed by this `CreditVolReport`.
+            Risk measure specification as JSON.
 
         Notes
         -----
@@ -10208,10 +10271,11 @@ class CreditVolReport:
     def generic(self) -> float:
         """
         Generic factor contribution.
+
         Returns
         -------
         float
-            The generic exposed by this `CreditVolReport`.
+            Generic factor contribution.
 
         Notes
         -----
@@ -10223,10 +10287,11 @@ class CreditVolReport:
     def idiosyncratic_total(self) -> float:
         """
         Aggregate idiosyncratic contribution.
+
         Returns
         -------
         float
-            The idiosyncratic total exposed by this `CreditVolReport`.
+            Aggregate idiosyncratic contribution.
 
         Notes
         -----
@@ -10364,7 +10429,7 @@ class VolHorizon:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -10386,7 +10451,7 @@ class VolHorizon:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -10413,7 +10478,7 @@ class VolHorizon:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -10485,10 +10550,11 @@ class VolHorizon:
     def kind(self) -> str:
         """
         Discriminator for the volatility-horizon variant.
+
         Returns
         -------
         str
-            The kind exposed by this `VolHorizon`.
+            Discriminator for the volatility-horizon variant.
 
         Notes
         -----
@@ -10500,10 +10566,10 @@ class VolHorizon:
     def n(self) -> int | None:
         """
         Step count for ``n_steps`` horizons.
+
         Returns
         -------
-        int or None
-            The n exposed by this `VolHorizon`.
+            Step count for ``n_steps`` horizons.
 
         Notes
         -----
@@ -10515,10 +10581,10 @@ class VolHorizon:
     def years_value(self) -> float | None:
         """
         Year fraction for ``years`` horizons.
+
         Returns
         -------
-        float or None
-            The years value exposed by this `VolHorizon`.
+            Year fraction for ``years`` horizons.
 
         Notes
         -----
@@ -10557,7 +10623,7 @@ class DecompositionConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -10579,7 +10645,7 @@ class DecompositionConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -10607,7 +10673,7 @@ class DecompositionConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -10626,7 +10692,7 @@ class DecompositionConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the same instance for chaining.
         """
         ...
 
@@ -10655,10 +10721,11 @@ class DecompositionConfig:
     def confidence(self) -> float:
         """
         VaR/ES confidence level.
+
         Returns
         -------
         float
-            The confidence exposed by this `DecompositionConfig`.
+            VaR/ES confidence level.
 
         Notes
         -----
@@ -10670,10 +10737,11 @@ class DecompositionConfig:
     def method(self) -> str:
         """
         Decomposition method label.
+
         Returns
         -------
         str
-            The method exposed by this `DecompositionConfig`.
+            Decomposition method label.
 
         Notes
         -----
@@ -10685,10 +10753,11 @@ class DecompositionConfig:
     def compute_incremental(self) -> bool:
         """
         Whether incremental VaR is requested.
+
         Returns
         -------
         bool
-            The compute incremental exposed by this `DecompositionConfig`.
+            Whether incremental VaR is requested.
 
         Notes
         -----
@@ -10700,10 +10769,10 @@ class DecompositionConfig:
     def seed(self) -> int | None:
         """
         Optional deterministic seed.
+
         Returns
         -------
-        int or None
-            The seed exposed by this `DecompositionConfig`.
+            Optional deterministic seed.
 
         Notes
         -----
@@ -10991,7 +11060,7 @@ class WeightingScheme:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11013,7 +11082,7 @@ class WeightingScheme:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11035,7 +11104,7 @@ class WeightingScheme:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11049,10 +11118,11 @@ class WeightingScheme:
     def label(self) -> str:
         """
         Rust enum label for this weighting scheme.
+
         Returns
         -------
         str
-            The label exposed by this `WeightingScheme`.
+            Rust enum label for this weighting scheme.
 
         Notes
         -----
@@ -11113,7 +11183,7 @@ class MissingMetricPolicy:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11135,7 +11205,7 @@ class MissingMetricPolicy:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11149,10 +11219,11 @@ class MissingMetricPolicy:
     def label(self) -> str:
         """
         Rust enum label for this policy.
+
         Returns
         -------
         str
-            The label exposed by this `MissingMetricPolicy`.
+            Rust enum label for this policy.
 
         Notes
         -----
@@ -11191,7 +11262,7 @@ class Inequality:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11213,7 +11284,7 @@ class Inequality:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11235,7 +11306,7 @@ class Inequality:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11248,12 +11319,12 @@ class Inequality:
     @property
     def label(self) -> str:
         """
-        Return the label for `Inequality`.
-        Operator label.
+        Canonical inequality operator label such as ``<=``.
+
         Returns
         -------
         str
-            The label exposed by this `Inequality`.
+            Operator name used in optimization constraint expressions.
 
         Notes
         -----
@@ -11283,8 +11354,7 @@ class TradeDirection:
     @classmethod
     def buy(cls) -> TradeDirection:
         """
-        Compute buy for `TradeDirection`.
-        Buy direction.
+        Direction for increasing an instrument exposure.
 
         Returns
         -------
@@ -11293,7 +11363,7 @@ class TradeDirection:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11306,8 +11376,7 @@ class TradeDirection:
     @classmethod
     def sell(cls) -> TradeDirection:
         """
-        Compute sell for `TradeDirection`.
-        Sell direction.
+        Direction for decreasing an instrument exposure.
 
         Returns
         -------
@@ -11316,7 +11385,7 @@ class TradeDirection:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11338,7 +11407,7 @@ class TradeDirection:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11352,10 +11421,11 @@ class TradeDirection:
     def label(self) -> str:
         """
         Buy/sell/short label for the trade direction.
+
         Returns
         -------
         str
-            The label exposed by this `TradeDirection`.
+            Buy/sell/short label for the trade direction.
 
         Notes
         -----
@@ -11394,7 +11464,7 @@ class TradeType:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11416,7 +11486,7 @@ class TradeType:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11438,7 +11508,7 @@ class TradeType:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11452,10 +11522,11 @@ class TradeType:
     def label(self) -> str:
         """
         Human-readable label for the trade-type variant.
+
         Returns
         -------
         str
-            The label exposed by this `TradeType`.
+            Human-readable label for the trade-type variant.
 
         Notes
         -----
@@ -11532,7 +11603,7 @@ class PerPositionMetric:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11554,7 +11625,7 @@ class PerPositionMetric:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11576,7 +11647,7 @@ class PerPositionMetric:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11604,7 +11675,7 @@ class PerPositionMetric:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11731,10 +11802,11 @@ class PerPositionMetric:
     def kind(self) -> str:
         """
         Metric-source variant label.
+
         Returns
         -------
         str
-            The kind exposed by this `PerPositionMetric`.
+            Metric-source variant label.
 
         Notes
         -----
@@ -11773,7 +11845,7 @@ class PositionFilter:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11800,7 +11872,7 @@ class PositionFilter:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11868,7 +11940,7 @@ class PositionFilter:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11895,7 +11967,7 @@ class PositionFilter:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11922,7 +11994,7 @@ class PositionFilter:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -11949,7 +12021,7 @@ class PositionFilter:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -12008,10 +12080,11 @@ class PositionFilter:
     def kind(self) -> str:
         """
         Discriminator for the position-filter variant.
+
         Returns
         -------
         str
-            The kind exposed by this `PositionFilter`.
+            Discriminator for the position-filter variant.
 
         Notes
         -----
@@ -12061,7 +12134,7 @@ class MetricExpr:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -12094,7 +12167,7 @@ class MetricExpr:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -12153,10 +12226,11 @@ class MetricExpr:
     def kind(self) -> str:
         """
         Metric-expression variant label.
+
         Returns
         -------
         str
-            The kind exposed by this `MetricExpr`.
+            Metric-expression variant label.
 
         Notes
         -----
@@ -12200,7 +12274,7 @@ class Objective:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -12228,7 +12302,7 @@ class Objective:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -12288,10 +12362,11 @@ class Objective:
     def direction(self) -> str:
         """
         Optimization direction label.
+
         Returns
         -------
         str
-            The direction exposed by this `Objective`.
+            Optimization direction label.
 
         Notes
         -----
@@ -12303,10 +12378,11 @@ class Objective:
     def expr(self) -> MetricExpr:
         """
         Metric expression being optimized.
+
         Returns
         -------
         MetricExpr
-            The expr exposed by this `Objective`.
+            Metric expression being optimized.
 
         Notes
         -----
@@ -12362,7 +12438,7 @@ class Constraint:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -12626,10 +12702,11 @@ class Constraint:
     def kind(self) -> str:
         """
         Constraint variant label.
+
         Returns
         -------
         str
-            The kind exposed by this `Constraint`.
+            Constraint variant label.
 
         Notes
         -----
@@ -12641,10 +12718,10 @@ class Constraint:
     def label(self) -> str | None:
         """
         Optional human-readable label.
+
         Returns
         -------
-        str or None
-            The label exposed by this `Constraint`.
+            Optional human-readable label.
 
         Notes
         -----
@@ -12681,10 +12758,11 @@ class CandidatePosition:
     def id(self) -> str:
         """
         Candidate position identifier.
+
         Returns
         -------
         str
-            The id exposed by this `CandidatePosition`.
+            Candidate position identifier.
 
         Notes
         -----
@@ -12696,10 +12774,11 @@ class CandidatePosition:
     def entity_id(self) -> str:
         """
         Candidate entity identifier.
+
         Returns
         -------
         str
-            The entity id exposed by this `CandidatePosition`.
+            Candidate entity identifier.
 
         Notes
         -----
@@ -12711,10 +12790,11 @@ class CandidatePosition:
     def max_weight(self) -> float:
         """
         Maximum allowed candidate weight.
+
         Returns
         -------
         float
-            The max weight exposed by this `CandidatePosition`.
+            Maximum allowed candidate weight.
 
         Notes
         -----
@@ -12726,10 +12806,11 @@ class CandidatePosition:
     def min_weight(self) -> float:
         """
         Minimum allowed candidate weight.
+
         Returns
         -------
         float
-            The min weight exposed by this `CandidatePosition`.
+            Minimum allowed candidate weight.
 
         Notes
         -----
@@ -12741,10 +12822,11 @@ class CandidatePosition:
     def instrument_id(self) -> str:
         """
         Underlying instrument identifier.
+
         Returns
         -------
         str
-            The instrument id exposed by this `CandidatePosition`.
+            Underlying instrument identifier.
 
         Notes
         -----
@@ -12783,7 +12865,7 @@ class TradeUniverse:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -12798,10 +12880,11 @@ class TradeUniverse:
     def tradeable_filter(self) -> PositionFilter:
         """
         Filter selecting tradeable positions.
+
         Returns
         -------
         PositionFilter
-            The tradeable filter exposed by this `TradeUniverse`.
+            Filter selecting tradeable positions.
 
         Notes
         -----
@@ -12841,10 +12924,11 @@ class TradeUniverse:
     def allow_short_candidates(self) -> bool:
         """
         Whether candidates may receive negative weights.
+
         Returns
         -------
         bool
-            The allow short candidates exposed by this `TradeUniverse`.
+            Whether candidates may receive negative weights.
 
         Notes
         -----
@@ -12883,7 +12967,7 @@ class OptimizationStatus:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -12905,7 +12989,7 @@ class OptimizationStatus:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -12927,7 +13011,7 @@ class OptimizationStatus:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -12954,7 +13038,7 @@ class OptimizationStatus:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -12982,7 +13066,7 @@ class OptimizationStatus:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -13041,10 +13125,11 @@ class OptimizationStatus:
     def kind(self) -> str:
         """
         Discriminator for the optimization status variant.
+
         Returns
         -------
         str
-            The kind exposed by this `OptimizationStatus`.
+            Discriminator for the optimization status variant.
 
         Notes
         -----
@@ -13071,10 +13156,11 @@ class OptimizationStatus:
     def conflicting_constraints(self) -> list[str]:
         """
         Constraint labels implicated in infeasibility.
+
         Returns
         -------
         list[str]
-            The conflicting constraints exposed by this `OptimizationStatus`.
+            Constraint labels implicated in infeasibility.
 
         Notes
         -----
@@ -13086,10 +13172,10 @@ class OptimizationStatus:
     def message(self) -> str | None:
         """
         Error or diagnostic message, if present.
+
         Returns
         -------
-        str or None
-            The message exposed by this `OptimizationStatus`.
+            Error or diagnostic message, if present.
 
         Notes
         -----
@@ -13195,10 +13281,11 @@ class TradeSpec:
     def position_id(self) -> str:
         """
         Portfolio position identifier.
+
         Returns
         -------
         str
-            The position id exposed by this `TradeSpec`.
+            Portfolio position identifier.
 
         Notes
         -----
@@ -13210,10 +13297,11 @@ class TradeSpec:
     def instrument_id(self) -> str:
         """
         Underlying instrument identifier.
+
         Returns
         -------
         str
-            The instrument id exposed by this `TradeSpec`.
+            Underlying instrument identifier.
 
         Notes
         -----
@@ -13225,11 +13313,11 @@ class TradeSpec:
     def trade_type(self) -> TradeType:
         """
         Whether the trade adjusts an existing position, opens a new one, or
-        closes one out.
+
         Returns
         -------
         TradeType
-            The trade type exposed by this `TradeSpec`.
+            Whether the trade adjusts an existing position, opens a new one, or
 
         Notes
         -----
@@ -13241,10 +13329,11 @@ class TradeSpec:
     def direction(self) -> TradeDirection:
         """
         Buy, sell, or short direction for this trade spec.
+
         Returns
         -------
         TradeDirection
-            The direction exposed by this `TradeSpec`.
+            Buy, sell, or short direction for this trade spec.
 
         Notes
         -----
@@ -13256,10 +13345,11 @@ class TradeSpec:
     def current_quantity(self) -> float:
         """
         Quantity held before this trade is applied.
+
         Returns
         -------
         float
-            The current quantity exposed by this `TradeSpec`.
+            Quantity held before this trade is applied.
 
         Notes
         -----
@@ -13271,10 +13361,11 @@ class TradeSpec:
     def target_quantity(self) -> float:
         """
         Desired post-trade quantity in instrument units.
+
         Returns
         -------
         float
-            The target quantity exposed by this `TradeSpec`.
+            Desired post-trade quantity in instrument units.
 
         Notes
         -----
@@ -13286,10 +13377,11 @@ class TradeSpec:
     def delta_quantity(self) -> float:
         """
         Target quantity less current quantity.
+
         Returns
         -------
         float
-            The delta quantity exposed by this `TradeSpec`.
+            Target quantity less current quantity.
 
         Notes
         -----
@@ -13301,10 +13393,11 @@ class TradeSpec:
     def current_weight(self) -> float:
         """
         Current portfolio weight.
+
         Returns
         -------
         float
-            The current weight exposed by this `TradeSpec`.
+            Current portfolio weight.
 
         Notes
         -----
@@ -13316,10 +13409,11 @@ class TradeSpec:
     def target_weight(self) -> float:
         """
         Target portfolio weight, as a **fraction** rather than a percentage.
+
         Returns
         -------
         float
-            The target weight exposed by this `TradeSpec`.
+            Target portfolio weight, as a **fraction** rather than a percentage.
 
         Notes
         -----
@@ -13563,10 +13657,11 @@ class PortfolioOptimizationSpec:
     def objective(self) -> Objective:
         """
         Objective maximized or minimized by this optimization spec.
+
         Returns
         -------
         Objective
-            The objective exposed by this `PortfolioOptimizationSpec`.
+            Objective maximized or minimized by this optimization spec.
 
         Notes
         -----
@@ -13578,10 +13673,11 @@ class PortfolioOptimizationSpec:
     def constraints(self) -> list[Constraint]:
         """
         Optimization constraints.
+
         Returns
         -------
         list[Constraint]
-            The constraints exposed by this `PortfolioOptimizationSpec`.
+            Optimization constraints.
 
         Notes
         -----
@@ -13593,10 +13689,11 @@ class PortfolioOptimizationSpec:
     def weighting(self) -> WeightingScheme:
         """
         Weighting scheme used by the optimization.
+
         Returns
         -------
         WeightingScheme
-            The weighting exposed by this `PortfolioOptimizationSpec`.
+            Weighting scheme used by the optimization.
 
         Notes
         -----
@@ -13622,10 +13719,10 @@ class PortfolioOptimizationSpec:
     def label(self) -> str | None:
         """
         Optional human-readable label.
+
         Returns
         -------
-        str or None
-            The label exposed by this `PortfolioOptimizationSpec`.
+            Optional human-readable label.
 
         Notes
         -----
@@ -13747,10 +13844,11 @@ class PortfolioOptimizationResult:
     def objective_value(self) -> float:
         """
         Objective value at the solution.
+
         Returns
         -------
         float
-            The objective value exposed by this `PortfolioOptimizationResult`.
+            Objective value at the solution.
 
         Notes
         -----
@@ -13762,10 +13860,11 @@ class PortfolioOptimizationResult:
     def current_weights(self) -> dict[str, float]:
         """
         Current weights by position ID.
+
         Returns
         -------
         dict[str, float]
-            The current weights exposed by this `PortfolioOptimizationResult`.
+            Current weights by position ID.
 
         Notes
         -----
@@ -13777,10 +13876,11 @@ class PortfolioOptimizationResult:
     def optimal_weights(self) -> dict[str, float]:
         """
         Optimized target weights by position ID.
+
         Returns
         -------
         dict[str, float]
-            The optimal weights exposed by this `PortfolioOptimizationResult`.
+            Optimized target weights by position ID.
 
         Notes
         -----
@@ -13792,10 +13892,11 @@ class PortfolioOptimizationResult:
     def weight_deltas(self) -> dict[str, float]:
         """
         Target less current weight by position ID.
+
         Returns
         -------
         dict[str, float]
-            The weight deltas exposed by this `PortfolioOptimizationResult`.
+            Target less current weight by position ID.
 
         Notes
         -----
@@ -13807,10 +13908,11 @@ class PortfolioOptimizationResult:
     def implied_quantities(self) -> dict[str, float]:
         """
         Implied target quantities by position ID.
+
         Returns
         -------
         dict[str, float]
-            The implied quantities exposed by this `PortfolioOptimizationResult`.
+            Implied target quantities by position ID.
 
         Notes
         -----
@@ -13822,10 +13924,11 @@ class PortfolioOptimizationResult:
     def metric_values(self) -> dict[str, float]:
         """
         Portfolio metric values at the solution.
+
         Returns
         -------
         dict[str, float]
-            The metric values exposed by this `PortfolioOptimizationResult`.
+            Portfolio metric values at the solution.
 
         Notes
         -----
@@ -13837,10 +13940,11 @@ class PortfolioOptimizationResult:
     def constraint_slacks(self) -> dict[str, float]:
         """
         Constraint slack values by constraint label.
+
         Returns
         -------
         dict[str, float]
-            The constraint slacks exposed by this `PortfolioOptimizationResult`.
+            Constraint slack values by constraint label.
 
         Notes
         -----
@@ -13852,10 +13956,11 @@ class PortfolioOptimizationResult:
     def turnover(self) -> float:
         """
         Total turnover implied by the solution.
+
         Returns
         -------
         float
-            The turnover exposed by this `PortfolioOptimizationResult`.
+            Total turnover implied by the solution.
 
         Notes
         -----
@@ -13873,7 +13978,7 @@ class PortfolioOptimizationResult:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -13887,7 +13992,7 @@ class PortfolioOptimizationResult:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -13952,7 +14057,7 @@ class PortfolioOptimizationResult:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -14045,10 +14150,11 @@ class SensitivityMatrix:
     def position_ids(self) -> list[str]:
         """
         Ordered position identifiers (row axis).
+
         Returns
         -------
         list[str]
-            The position ids exposed by this `SensitivityMatrix`.
+            Ordered position identifiers (row axis).
 
         Notes
         -----
@@ -14060,10 +14166,11 @@ class SensitivityMatrix:
     def factor_ids(self) -> list[str]:
         """
         Ordered factor identifiers (column axis).
+
         Returns
         -------
         list[str]
-            The factor ids exposed by this `SensitivityMatrix`.
+            Ordered factor identifiers (column axis).
 
         Notes
         -----
@@ -14075,10 +14182,11 @@ class SensitivityMatrix:
     def n_positions(self) -> int:
         """
         Number of positions (rows).
+
         Returns
         -------
         int
-            The n positions exposed by this `SensitivityMatrix`.
+            Number of positions (rows).
 
         Notes
         -----
@@ -14090,10 +14198,11 @@ class SensitivityMatrix:
     def n_factors(self) -> int:
         """
         Number of factors (columns).
+
         Returns
         -------
         int
-            The n factors exposed by this `SensitivityMatrix`.
+            Number of factors (columns).
 
         Notes
         -----
@@ -14213,10 +14322,11 @@ class FactorPnlProfile:
     def factor_id(self) -> str:
         """
         Identifier of the contributing risk factor in the model.
+
         Returns
         -------
         str
-            The factor id exposed by this `FactorPnlProfile`.
+            Identifier of the contributing risk factor in the model.
 
         Notes
         -----
@@ -14228,10 +14338,11 @@ class FactorPnlProfile:
     def shifts(self) -> list[float]:
         """
         Scenario shift coordinates (bump-size multiples).
+
         Returns
         -------
         list[float]
-            The shifts exposed by this `FactorPnlProfile`.
+            Scenario shift coordinates (bump-size multiples).
 
         Notes
         -----
@@ -14243,10 +14354,11 @@ class FactorPnlProfile:
     def position_pnls(self) -> list[list[float]]:
         """
         Per-shift P&L vectors indexed as ``[shift_idx][position_idx]``.
+
         Returns
         -------
         list[list[float]]
-            The position pnls exposed by this `FactorPnlProfile`.
+            Per-shift P&L vectors indexed as ``[shift_idx][position_idx]``.
 
         Notes
         -----
@@ -14411,10 +14523,11 @@ class FactorRiskDecomposition:
     def total_risk(self) -> float:
         """
         Total portfolio risk under the selected measure.
+
         Returns
         -------
         float
-            The total risk exposed by this `FactorRiskDecomposition`.
+            Total portfolio risk under the selected measure.
 
         Notes
         -----
@@ -14428,10 +14541,11 @@ class FactorRiskDecomposition:
         Risk-measure tag in canonical snake_case serde form: ``"variance"``,
         ``"volatility"``, ``"var"``, or ``"expected_shortfall"``. Matches the
         tag reported by the WASM ``decomposeFactorRisk`` output.
+
         Returns
         -------
         str
-            The measure exposed by this `FactorRiskDecomposition`.
+            Risk-measure tag in canonical snake_case serde form: ``"variance"``,
 
         Notes
         -----
@@ -14443,10 +14557,11 @@ class FactorRiskDecomposition:
     def residual_risk(self) -> float:
         """
         Residual (idiosyncratic) risk not attributed to any factor.
+
         Returns
         -------
         float
-            The residual risk exposed by this `FactorRiskDecomposition`.
+            Residual (idiosyncratic) risk not attributed to any factor.
 
         Notes
         -----

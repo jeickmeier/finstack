@@ -281,7 +281,7 @@ impl PyInflationIndex {
         &self.inner.id
     }
 
-    /// Index currency.
+    /// ISO-4217 currency of this inflation index.
     #[getter]
     fn currency(&self) -> PyCurrency {
         PyCurrency::from_inner(self.inner.currency)

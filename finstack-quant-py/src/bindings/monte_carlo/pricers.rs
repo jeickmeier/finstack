@@ -3,12 +3,13 @@
 use super::engine::{py_mc_defaults, resolve_currency};
 use super::results::PyMoneyEstimate;
 use crate::errors::core_to_py;
-use finstack_quant_core::cashflow::flat_discount_factor;
 use finstack_quant_core::currency::Currency;
-use finstack_quant_monte_carlo::pricer::basis::{build_lsmc_basis, BasisKind, LsmcBasis};
+use finstack_quant_monte_carlo::pricer::basis::BasisKind;
 use finstack_quant_monte_carlo::pricer::european::EuropeanPricer;
-use finstack_quant_monte_carlo::pricer::lsmc::{LsmcConfig, LsmcPricer};
-use finstack_quant_monte_carlo::process::gbm::GbmProcess;
+use finstack_quant_monte_carlo::pricer::lsmc::LsmcPricer;
+use finstack_quant_monte_carlo::pricer::path_dependent::{
+    PathDependentPricer, PathDependentPricerConfig,
+};
 use pyo3::prelude::*;
 
 /// Convenience pricer for European options under GBM dynamics.
@@ -36,14 +37,17 @@ impl PyEuropeanPricer {
         })
     }
 
+    /// Independent Monte Carlo path count used by this pricer.
     #[getter]
     fn num_paths(&self) -> usize {
         self.num_paths
     }
+    /// Seed value used for path generation.
     #[getter]
     fn seed(&self) -> u64 {
         self.seed
     }
+    /// Whether path generation runs on the rayon pool.
     #[getter]
     fn use_parallel(&self) -> bool {
         self.use_parallel
@@ -167,17 +171,14 @@ impl PyPathDependentPricer {
         num_steps: Option<usize>,
         currency: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PyMoneyEstimate> {
-        use finstack_quant_monte_carlo::payoff::asian::{
-            default_fixing_steps, AsianCall, AveragingMethod,
-        };
         let ccy = resolve_currency(currency)?;
         let num_steps = num_steps.unwrap_or(py_mc_defaults()?.path_dependent_pricer.num_steps);
-        let fixing_steps = default_fixing_steps(num_steps);
-        let payoff = AsianCall::new(strike, 1.0, AveragingMethod::Arithmetic, fixing_steps);
-        let df = flat_discount_factor(rate, expiry).map_err(core_to_py)?;
-        self.run_gbm(
-            py, &payoff, spot, rate, div_yield, vol, expiry, num_steps, ccy, df,
-        )
+        let pricer = self.build_pricer();
+        py.detach(|| {
+            pricer.price_gbm_asian_call(spot, strike, rate, div_yield, vol, expiry, num_steps, ccy)
+        })
+        .map(PyMoneyEstimate::from_inner)
+        .map_err(core_to_py)
     }
 
     /// Price an Asian put under GBM dynamics.
@@ -197,23 +198,22 @@ impl PyPathDependentPricer {
         num_steps: Option<usize>,
         currency: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PyMoneyEstimate> {
-        use finstack_quant_monte_carlo::payoff::asian::{
-            default_fixing_steps, AsianPut, AveragingMethod,
-        };
         let ccy = resolve_currency(currency)?;
         let num_steps = num_steps.unwrap_or(py_mc_defaults()?.path_dependent_pricer.num_steps);
-        let fixing_steps = default_fixing_steps(num_steps);
-        let payoff = AsianPut::new(strike, 1.0, AveragingMethod::Arithmetic, fixing_steps);
-        let df = flat_discount_factor(rate, expiry).map_err(core_to_py)?;
-        self.run_gbm(
-            py, &payoff, spot, rate, div_yield, vol, expiry, num_steps, ccy, df,
-        )
+        let pricer = self.build_pricer();
+        py.detach(|| {
+            pricer.price_gbm_asian_put(spot, strike, rate, div_yield, vol, expiry, num_steps, ccy)
+        })
+        .map(PyMoneyEstimate::from_inner)
+        .map_err(core_to_py)
     }
 
+    /// Independent Monte Carlo path count used by this pricer.
     #[getter]
     fn num_paths(&self) -> usize {
         self.num_paths
     }
+    /// Seed value used for path generation.
     #[getter]
     fn seed(&self) -> u64 {
         self.seed
@@ -228,42 +228,12 @@ impl PyPathDependentPricer {
 }
 
 impl PyPathDependentPricer {
-    #[allow(clippy::too_many_arguments)]
-    fn run_gbm(
-        &self,
-        py: Python<'_>,
-        payoff: &impl finstack_quant_monte_carlo::traits::Payoff,
-        spot: f64,
-        rate: f64,
-        div_yield: f64,
-        vol: f64,
-        expiry: f64,
-        num_steps: usize,
-        currency: finstack_quant_core::currency::Currency,
-        discount_factor: f64,
-    ) -> PyResult<PyMoneyEstimate> {
-        use finstack_quant_monte_carlo::pricer::path_dependent::{
-            PathDependentPricer, PathDependentPricerConfig,
-        };
-
-        let config = PathDependentPricerConfig::new(self.num_paths)
-            .with_seed(self.seed)
-            .with_parallel(self.use_parallel);
-        let pricer = PathDependentPricer::new(config);
-        let process = GbmProcess::with_params(rate, div_yield, vol).map_err(core_to_py)?;
-        py.detach(|| {
-            pricer.price(
-                &process,
-                spot,
-                expiry,
-                num_steps,
-                payoff,
-                currency,
-                discount_factor,
-            )
-        })
-        .map(PyMoneyEstimate::from_inner)
-        .map_err(core_to_py)
+    fn build_pricer(&self) -> PathDependentPricer {
+        PathDependentPricer::new(
+            PathDependentPricerConfig::new(self.num_paths)
+                .with_seed(self.seed)
+                .with_parallel(self.use_parallel),
+        )
     }
 }
 
@@ -277,50 +247,22 @@ pub struct PyLsmcPricer {
     basis_degree: usize,
 }
 
-struct PyLsmcRun {
-    pricer: LsmcPricer,
-    process: GbmProcess,
-    basis: LsmcBasis,
-    currency: Currency,
-    num_steps: usize,
-}
-
 impl PyLsmcPricer {
-    fn build_basis(&self, strike: f64) -> PyResult<LsmcBasis> {
-        let to_py = |e: String| crate::errors::value_error(e);
-        build_lsmc_basis(self.basis, self.basis_degree, strike).map_err(to_py)
-    }
-
-    fn build_config(&self, num_steps: usize) -> PyResult<LsmcConfig> {
-        let exercise_dates: Vec<usize> = (1..=num_steps).collect();
-        LsmcConfig::new(self.num_paths, exercise_dates, num_steps)
-            .map_err(core_to_py)
-            .map(|config| config.with_seed(self.seed).with_parallel(self.use_parallel))
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn prepare_gbm_run(
+    fn prepare(
         &self,
-        rate: f64,
-        div_yield: f64,
-        vol: f64,
-        strike: f64,
         num_steps: Option<usize>,
         currency: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<PyLsmcRun> {
+    ) -> PyResult<(LsmcPricer, usize, Currency)> {
         let currency = resolve_currency(currency)?;
         let num_steps = num_steps.unwrap_or(py_mc_defaults()?.lsmc.num_steps);
-        let config = self.build_config(num_steps)?;
-        let process = GbmProcess::with_params(rate, div_yield, vol).map_err(core_to_py)?;
-        let basis = self.build_basis(strike)?;
-
-        Ok(PyLsmcRun {
-            pricer: LsmcPricer::new(config),
-            process,
-            basis,
-            currency,
+        let pricer = LsmcPricer::gbm_american(
+            self.num_paths,
             num_steps,
-        })
+            self.seed,
+            self.use_parallel,
+        )
+        .map_err(core_to_py)?;
+        Ok((pricer, num_steps, currency))
     }
 }
 
@@ -345,11 +287,6 @@ impl PyLsmcPricer {
         let basis = BasisKind::parse(basis.unwrap_or(defaults.basis.as_str()))
             .map_err(crate::errors::value_error)?;
         let basis_degree = basis_degree.unwrap_or(defaults.basis_degree);
-        if basis_degree == 0 {
-            return Err(crate::errors::value_error(
-                "basis_degree must be a positive integer",
-            ));
-        }
         Ok(Self {
             num_paths: num_paths.unwrap_or(defaults.num_paths),
             seed: seed.unwrap_or(defaults.seed),
@@ -359,14 +296,17 @@ impl PyLsmcPricer {
         })
     }
 
+    /// Independent Monte Carlo path count used by this pricer.
     #[getter]
     fn num_paths(&self) -> usize {
         self.num_paths
     }
+    /// Seed value used for path generation.
     #[getter]
     fn seed(&self) -> u64 {
         self.seed
     }
+    /// Whether path generation runs on the rayon pool.
     #[getter]
     fn use_parallel(&self) -> bool {
         self.use_parallel
@@ -397,20 +337,19 @@ impl PyLsmcPricer {
         num_steps: Option<usize>,
         currency: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PyMoneyEstimate> {
-        use finstack_quant_monte_carlo::pricer::lsmc::AmericanPut;
-
-        let exercise = AmericanPut::new(strike).map_err(core_to_py)?;
-        let run = self.prepare_gbm_run(rate, div_yield, vol, strike, num_steps, currency)?;
+        let (pricer, num_steps, currency) = self.prepare(num_steps, currency)?;
         py.detach(|| {
-            run.pricer.price(
-                &run.process,
+            pricer.price_gbm_american_put(
                 spot,
-                expiry,
-                run.num_steps,
-                &exercise,
-                &run.basis,
-                run.currency,
+                strike,
                 rate,
+                div_yield,
+                vol,
+                expiry,
+                num_steps,
+                currency,
+                self.basis,
+                self.basis_degree,
             )
         })
         .map(PyMoneyEstimate::from_inner)
@@ -434,20 +373,19 @@ impl PyLsmcPricer {
         num_steps: Option<usize>,
         currency: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PyMoneyEstimate> {
-        use finstack_quant_monte_carlo::pricer::lsmc::AmericanCall;
-
-        let exercise = AmericanCall::new(strike).map_err(core_to_py)?;
-        let run = self.prepare_gbm_run(rate, div_yield, vol, strike, num_steps, currency)?;
+        let (pricer, num_steps, currency) = self.prepare(num_steps, currency)?;
         py.detach(|| {
-            run.pricer.price(
-                &run.process,
+            pricer.price_gbm_american_call(
                 spot,
-                expiry,
-                run.num_steps,
-                &exercise,
-                &run.basis,
-                run.currency,
+                strike,
                 rate,
+                div_yield,
+                vol,
+                expiry,
+                num_steps,
+                currency,
+                self.basis,
+                self.basis_degree,
             )
         })
         .map(PyMoneyEstimate::from_inner)
@@ -481,20 +419,19 @@ impl PyLsmcPricer {
         num_steps: Option<usize>,
         currency: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PyMoneyEstimate> {
-        use finstack_quant_monte_carlo::pricer::lsmc::AmericanPut;
-
-        let exercise = AmericanPut::new(strike).map_err(core_to_py)?;
-        let run = self.prepare_gbm_run(rate, div_yield, vol, strike, num_steps, currency)?;
+        let (pricer, num_steps, currency) = self.prepare(num_steps, currency)?;
         py.detach(|| {
-            run.pricer.price_unbiased(
-                &run.process,
+            pricer.price_gbm_american_put_unbiased(
                 spot,
-                expiry,
-                run.num_steps,
-                &exercise,
-                &run.basis,
-                run.currency,
+                strike,
                 rate,
+                div_yield,
+                vol,
+                expiry,
+                num_steps,
+                currency,
+                self.basis,
+                self.basis_degree,
                 pricing_seed,
             )
         })
@@ -524,20 +461,19 @@ impl PyLsmcPricer {
         num_steps: Option<usize>,
         currency: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PyMoneyEstimate> {
-        use finstack_quant_monte_carlo::pricer::lsmc::AmericanCall;
-
-        let exercise = AmericanCall::new(strike).map_err(core_to_py)?;
-        let run = self.prepare_gbm_run(rate, div_yield, vol, strike, num_steps, currency)?;
+        let (pricer, num_steps, currency) = self.prepare(num_steps, currency)?;
         py.detach(|| {
-            run.pricer.price_unbiased(
-                &run.process,
+            pricer.price_gbm_american_call_unbiased(
                 spot,
-                expiry,
-                run.num_steps,
-                &exercise,
-                &run.basis,
-                run.currency,
+                strike,
                 rate,
+                div_yield,
+                vol,
+                expiry,
+                num_steps,
+                currency,
+                self.basis,
+                self.basis_degree,
                 pricing_seed,
             )
         })

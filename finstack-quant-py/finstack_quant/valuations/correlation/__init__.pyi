@@ -79,7 +79,7 @@ class CopulaSpec:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -137,7 +137,7 @@ class CopulaSpec:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -165,7 +165,7 @@ class CopulaSpec:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -323,7 +323,7 @@ class Copula:
         Returns
         -------
         int
-            The num factors exposed by this `Copula`.
+            Number of systematic factors in the model.
 
         Notes
         -----
@@ -339,7 +339,7 @@ class Copula:
         Returns
         -------
         str
-            The model name exposed by this `Copula`.
+            Model name for diagnostics.
 
         Notes
         -----
@@ -369,7 +369,7 @@ class Copula:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
         """
         ...
 
@@ -447,12 +447,12 @@ class CreditExposure:
     @property
     def id(self) -> str:
         """
-        Return the id for `CreditExposure`.
+        Stable identifier for this exposure.
 
         Returns
         -------
         str
-            The id exposed by this `CreditExposure`.
+            Caller-supplied exposure identifier retained on simulated losses.
 
         Notes
         -----
@@ -463,12 +463,12 @@ class CreditExposure:
     @property
     def notional(self) -> float:
         """
-        Return the notional for `CreditExposure`.
+        Exposure at default, in the portfolio currency.
 
         Returns
         -------
         float
-            The notional exposed by this `CreditExposure`.
+            Exposure at default in portfolio currency units.
 
         Notes
         -----
@@ -479,12 +479,12 @@ class CreditExposure:
     @property
     def default_probability(self) -> float:
         """
-        Return the default probability for `CreditExposure`.
+        Marginal probability of default over the horizon, in ``[0, 1]``.
 
         Returns
         -------
         float
-            The default probability exposed by this `CreditExposure`.
+            Horizon default probability as a decimal in ``[0, 1]``.
 
         Notes
         -----
@@ -495,12 +495,12 @@ class CreditExposure:
     @property
     def lgd(self) -> float:
         """
-        Return the lgd for `CreditExposure`.
+        Loss given default, as a fraction of notional in ``[0, 1]``.
 
         Returns
         -------
         float
-            The lgd exposed by this `CreditExposure`.
+            Loss-given-default fraction of notional in ``[0, 1]``.
 
         Notes
         -----
@@ -511,12 +511,12 @@ class CreditExposure:
     @property
     def factor_loadings(self) -> list[float]:
         """
-        Return the factor loadings for `CreditExposure`.
+        Systematic factor loadings driving correlated defaults.
 
         Returns
         -------
         list[float]
-            The factor loadings exposed by this `CreditExposure`.
+            Loadings onto the copula factors, one weight per factor.
 
         Notes
         -----
@@ -618,12 +618,12 @@ class PortfolioLossConfig:
     @property
     def num_paths(self) -> int:
         """
-        Return the num paths for `PortfolioLossConfig`.
+        Number of simulated paths.
 
         Returns
         -------
         int
-            The num paths exposed by this `PortfolioLossConfig`.
+            Count of Monte Carlo paths used to build the loss distribution.
 
         Notes
         -----
@@ -634,12 +634,12 @@ class PortfolioLossConfig:
     @property
     def seed(self) -> int:
         """
-        Return the seed for `PortfolioLossConfig`.
+        RNG seed; the same seed reproduces the same paths exactly.
 
         Returns
         -------
         int
-            The seed exposed by this `PortfolioLossConfig`.
+            Unsigned seed that makes the simulated loss paths reproducible.
 
         Notes
         -----
@@ -650,12 +650,12 @@ class PortfolioLossConfig:
     @property
     def confidence(self) -> float:
         """
-        Return the confidence for `PortfolioLossConfig`.
+        Confidence level for VaR and expected shortfall, in ``(0, 1)``.
 
         Returns
         -------
         float
-            The confidence exposed by this `PortfolioLossConfig`.
+            VaR/ES quantile as a decimal in ``(0, 1)``, for example ``0.99``.
 
         Notes
         -----
@@ -666,12 +666,12 @@ class PortfolioLossConfig:
     @property
     def copula(self) -> CopulaSpec:
         """
-        Return the copula for `PortfolioLossConfig`.
+        Dependence structure used to couple the marginal defaults.
 
         Returns
         -------
         CopulaSpec
-            The copula exposed by this `PortfolioLossConfig`.
+            Copula specification that couples the names' default indicators.
 
         Notes
         -----
@@ -750,12 +750,12 @@ class PortfolioLossResult:
     @property
     def losses(self) -> list[float]:
         """
-        Return the losses for `PortfolioLossResult`.
+        Simulated portfolio loss per path, in the ascending path order Rust produced.
 
         Returns
         -------
         list[float]
-            The losses exposed by this `PortfolioLossResult`.
+            One loss amount per path, in portfolio currency, in path-id order.
 
         Notes
         -----
@@ -766,12 +766,12 @@ class PortfolioLossResult:
     @property
     def expected_loss(self) -> float:
         """
-        Return the expected loss for `PortfolioLossResult`.
+        Mean simulated loss.
 
         Returns
         -------
         float
-            The expected loss exposed by this `PortfolioLossResult`.
+            Sample mean of simulated portfolio losses, in portfolio currency.
 
         Notes
         -----
@@ -782,12 +782,12 @@ class PortfolioLossResult:
     @property
     def var(self) -> float:
         """
-        Return the var for `PortfolioLossResult`.
+        Value at risk at the configured confidence, loss-positive.
 
         Returns
         -------
         float
-            The var exposed by this `PortfolioLossResult`.
+            Nearest-rank VaR at ``confidence``; larger values are worse.
 
         Notes
         -----
@@ -798,12 +798,12 @@ class PortfolioLossResult:
     @property
     def expected_shortfall(self) -> float:
         """
-        Return the expected shortfall for `PortfolioLossResult`.
+        Mean loss beyond VaR, loss-positive.
 
         Returns
         -------
         float
-            The expected shortfall exposed by this `PortfolioLossResult`.
+            Sample mean of losses at or beyond VaR, in portfolio currency.
 
         Notes
         -----
@@ -1026,7 +1026,7 @@ class TrancheLossStatistics:
     @property
     def attachment(self) -> float:
         """
-        Return the attachment point for `TrancheLossStatistics`.
+        Lower tranche boundary as a fraction of pool notional.
 
         Returns
         -------
@@ -1042,7 +1042,7 @@ class TrancheLossStatistics:
     @property
     def detachment(self) -> float:
         """
-        Return the detachment point for `TrancheLossStatistics`.
+        Upper tranche boundary as a fraction of pool notional.
 
         Returns
         -------
@@ -1058,7 +1058,7 @@ class TrancheLossStatistics:
     @property
     def tranche_notional(self) -> float:
         """
-        Return the tranche notional for `TrancheLossStatistics`.
+        Tranche thickness times pool notional.
 
         Returns
         -------
@@ -1074,7 +1074,7 @@ class TrancheLossStatistics:
     @property
     def expected_loss_fraction(self) -> float:
         """
-        Return the expected loss fraction for `TrancheLossStatistics`.
+        Mean tranche loss as a share of tranche notional, in ``[0, 1]``.
 
         Returns
         -------
@@ -1090,7 +1090,7 @@ class TrancheLossStatistics:
     @property
     def expected_loss_amount(self) -> float:
         """
-        Return the expected loss amount for `TrancheLossStatistics`.
+        Mean tranche loss in pool-notional units.
 
         Returns
         -------
@@ -1106,7 +1106,7 @@ class TrancheLossStatistics:
     @property
     def var_fraction(self) -> float:
         """
-        Return the VaR fraction for `TrancheLossStatistics`.
+        Nearest-rank tranche loss share at the distribution's confidence.
 
         Returns
         -------
@@ -1122,7 +1122,7 @@ class TrancheLossStatistics:
     @property
     def var_amount(self) -> float:
         """
-        Return the VaR amount for `TrancheLossStatistics`.
+        Nearest-rank tranche loss in pool-notional units.
 
         Returns
         -------
@@ -1138,7 +1138,7 @@ class TrancheLossStatistics:
     @property
     def expected_shortfall_fraction(self) -> float:
         """
-        Return the expected shortfall fraction for `TrancheLossStatistics`.
+        Mean tranche loss share from the VaR observation through the worst path.
 
         Returns
         -------
@@ -1154,7 +1154,7 @@ class TrancheLossStatistics:
     @property
     def expected_shortfall_amount(self) -> float:
         """
-        Return the expected shortfall amount for `TrancheLossStatistics`.
+        Mean tranche loss amount from the VaR observation through the worst path.
 
         Returns
         -------
@@ -1170,7 +1170,7 @@ class TrancheLossStatistics:
     @property
     def prob_attachment_breached(self) -> float:
         """
-        Return the attachment-breach probability for `TrancheLossStatistics`.
+        Share of paths whose pool loss fraction strictly exceeds the attachment.
 
         Returns
         -------
@@ -1186,7 +1186,7 @@ class TrancheLossStatistics:
     @property
     def prob_full_writedown(self) -> float:
         """
-        Return the full-write-down probability for `TrancheLossStatistics`.
+        Share of paths whose pool loss fraction reaches or exceeds the detachment.
 
         Returns
         -------
@@ -1394,7 +1394,7 @@ class RecoverySpec:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1409,7 +1409,6 @@ class RecoverySpec:
     def expected_recovery(self) -> float:
         """
         Location-parameter recovery rate of this spec.
-
         For a constant spec this is the constant rate. For a
         market-correlated spec this returns the ``mean`` input — the target
         recovery at factor ``Z = 0`` — which differs from the
@@ -1420,7 +1419,7 @@ class RecoverySpec:
         Returns
         -------
         float
-            The expected recovery exposed by this `RecoverySpec`.
+            Location-parameter recovery rate of this spec.
 
         Notes
         -----
@@ -1439,7 +1438,7 @@ class RecoverySpec:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1466,7 +1465,7 @@ class RecoveryModel:
         Returns
         -------
         float
-            The expected recovery exposed by this `RecoveryModel`.
+            Expected (unconditional) recovery rate.
 
         Notes
         -----
@@ -1490,7 +1489,7 @@ class RecoveryModel:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
         """
         ...
 
@@ -1502,7 +1501,7 @@ class RecoveryModel:
         Returns
         -------
         float
-            The lgd exposed by this `RecoveryModel`.
+            Loss given default (1 − recovery).
 
         Notes
         -----
@@ -1526,7 +1525,7 @@ class RecoveryModel:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
         """
         ...
 
@@ -1538,7 +1537,7 @@ class RecoveryModel:
         Returns
         -------
         float
-            The recovery volatility exposed by this `RecoveryModel`.
+            Recovery-rate volatility scale (0 for constant models).
 
         Notes
         -----
@@ -1570,7 +1569,7 @@ class RecoveryModel:
         Returns
         -------
         str
-            The model name exposed by this `RecoveryModel`.
+            Model name for diagnostics.
 
         Notes
         -----
@@ -1618,7 +1617,7 @@ class LatentFactorSpec:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1650,7 +1649,7 @@ class LatentFactorSpec:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1669,7 +1668,7 @@ class LatentFactorSpec:
         Returns
         -------
         int
-            The num factors exposed by this `LatentFactorSpec`.
+            Number of factors implied by this specification.
 
         Notes
         -----
@@ -1717,7 +1716,7 @@ class LatentFactorKind:
         Returns
         -------
         int
-            The num factors exposed by this `LatentFactorKind`.
+            Number of factors in the model.
 
         Notes
         -----
@@ -1733,7 +1732,7 @@ class LatentFactorKind:
         Returns
         -------
         list[float]
-            The correlation matrix exposed by this `LatentFactorKind`.
+            Factor correlation matrix (flattened row-major).
 
         Notes
         -----
@@ -1749,7 +1748,7 @@ class LatentFactorKind:
         Returns
         -------
         list[float]
-            The volatilities exposed by this `LatentFactorKind`.
+            Annualized volatilities of the latent factors, in factor order.
 
         Notes
         -----
@@ -1765,7 +1764,7 @@ class LatentFactorKind:
         Returns
         -------
         list[str]
-            The factor names exposed by this `LatentFactorKind`.
+            Factor names for reporting.
 
         Notes
         -----
@@ -1781,7 +1780,7 @@ class LatentFactorKind:
         Returns
         -------
         str
-            The model name exposed by this `LatentFactorKind`.
+            Model name for diagnostics.
 
         Notes
         -----
@@ -1807,7 +1806,7 @@ class LatentFactorKind:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
         """
         ...
 
@@ -1856,7 +1855,7 @@ class LatentSingleFactor:
         Returns
         -------
         float
-            The volatility exposed by this `LatentSingleFactor`.
+            Annualized volatility of the single latent factor.
 
         Notes
         -----
@@ -1872,7 +1871,7 @@ class LatentSingleFactor:
         Returns
         -------
         float
-            The mean reversion exposed by this `LatentSingleFactor`.
+            Mean-reversion speed of the single latent factor, per year.
 
         Notes
         -----
@@ -1888,7 +1887,7 @@ class LatentSingleFactor:
         Returns
         -------
         int
-            The num factors exposed by this `LatentSingleFactor`.
+            Number of factors (always 1).
 
         Notes
         -----
@@ -1947,7 +1946,7 @@ class LatentTwoFactor:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1970,7 +1969,7 @@ class LatentTwoFactor:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1989,7 +1988,7 @@ class LatentTwoFactor:
         Returns
         -------
         float
-            The prepay vol exposed by this `LatentTwoFactor`.
+            Prepayment factor volatility.
 
         Notes
         -----
@@ -2005,7 +2004,7 @@ class LatentTwoFactor:
         Returns
         -------
         float
-            The credit vol exposed by this `LatentTwoFactor`.
+            Credit factor volatility.
 
         Notes
         -----
@@ -2021,7 +2020,7 @@ class LatentTwoFactor:
         Returns
         -------
         float
-            The correlation exposed by this `LatentTwoFactor`.
+            Correlation between the two latent credit factors.
 
         Notes
         -----
@@ -2037,7 +2036,7 @@ class LatentTwoFactor:
         Returns
         -------
         int
-            The num factors exposed by this `LatentTwoFactor`.
+            Number of factors (always 2).
 
         Notes
         -----
@@ -2053,7 +2052,7 @@ class LatentTwoFactor:
         Returns
         -------
         float
-            The cholesky l10 exposed by this `LatentTwoFactor`.
+            Cholesky ``L[1][0]`` for correlated factor generation.
 
         Notes
         -----
@@ -2069,7 +2068,7 @@ class LatentTwoFactor:
         Returns
         -------
         float
-            The cholesky l11 exposed by this `LatentTwoFactor`.
+            Cholesky ``L[1][1]`` for correlated factor generation.
 
         Notes
         -----
@@ -2145,7 +2144,7 @@ class LatentMultiFactor:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -2164,7 +2163,7 @@ class LatentMultiFactor:
         Returns
         -------
         int
-            The num factors exposed by this `LatentMultiFactor`.
+            Count of latent factors in this multi-factor specification.
 
         Notes
         -----
@@ -2180,7 +2179,7 @@ class LatentMultiFactor:
         Returns
         -------
         list[float]
-            The correlation matrix exposed by this `LatentMultiFactor`.
+            Factor correlation matrix (flattened row-major).
 
         Notes
         -----
@@ -2196,7 +2195,7 @@ class LatentMultiFactor:
         Returns
         -------
         list[float]
-            The volatilities exposed by this `LatentMultiFactor`.
+            Annualized volatilities of the latent factors, in factor order.
 
         Notes
         -----
@@ -2280,7 +2279,7 @@ class CorrelatedBernoulli:
         Returns
         -------
         float
-            The p1 exposed by this `CorrelatedBernoulli`.
+            Marginal probability of event 1.
 
         Notes
         -----
@@ -2296,7 +2295,7 @@ class CorrelatedBernoulli:
         Returns
         -------
         float
-            The p2 exposed by this `CorrelatedBernoulli`.
+            Marginal probability of event 2.
 
         Notes
         -----
@@ -2312,7 +2311,7 @@ class CorrelatedBernoulli:
         Returns
         -------
         float
-            The correlation exposed by this `CorrelatedBernoulli`.
+            Effective correlation after Fréchet-Hoeffding clamping.
 
         Notes
         -----
@@ -2328,7 +2327,7 @@ class CorrelatedBernoulli:
         Returns
         -------
         float
-            The requested correlation exposed by this `CorrelatedBernoulli`.
+            Caller-requested correlation before Fréchet-Hoeffding clamping.
 
         Notes
         -----
@@ -2339,13 +2338,12 @@ class CorrelatedBernoulli:
     @property
     def joint_p11(self) -> float:
         """
-        Return the joint p11 for `CorrelatedBernoulli`.
-        P(X₁=1, X₂=1).
+        Joint probability P(X₁=1, X₂=1) under the fitted Bernoulli pair.
 
         Returns
         -------
         float
-            The joint p11 exposed by this `CorrelatedBernoulli`.
+            Model joint probability of both events occurring.
 
         Notes
         -----
@@ -2356,13 +2354,12 @@ class CorrelatedBernoulli:
     @property
     def joint_p10(self) -> float:
         """
-        Return the joint p10 for `CorrelatedBernoulli`.
-        P(X₁=1, X₂=0).
+        Joint probability P(X₁=1, X₂=0) under the fitted Bernoulli pair.
 
         Returns
         -------
         float
-            The joint p10 exposed by this `CorrelatedBernoulli`.
+            Model joint probability of the first event only.
 
         Notes
         -----
@@ -2373,13 +2370,12 @@ class CorrelatedBernoulli:
     @property
     def joint_p01(self) -> float:
         """
-        Return the joint p01 for `CorrelatedBernoulli`.
-        P(X₁=0, X₂=1).
+        Joint probability P(X₁=0, X₂=1) under the fitted Bernoulli pair.
 
         Returns
         -------
         float
-            The joint p01 exposed by this `CorrelatedBernoulli`.
+            Model joint probability of the second event only.
 
         Notes
         -----
@@ -2390,13 +2386,12 @@ class CorrelatedBernoulli:
     @property
     def joint_p00(self) -> float:
         """
-        Return the joint p00 for `CorrelatedBernoulli`.
-        P(X₁=0, X₂=0).
+        Joint probability P(X₁=0, X₂=0) under the fitted Bernoulli pair.
 
         Returns
         -------
         float
-            The joint p00 exposed by this `CorrelatedBernoulli`.
+            Model joint probability of neither event occurring.
 
         Notes
         -----
@@ -2415,7 +2410,7 @@ class CorrelatedBernoulli:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -2430,7 +2425,7 @@ class CorrelatedBernoulli:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -2445,7 +2440,7 @@ class CorrelatedBernoulli:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 

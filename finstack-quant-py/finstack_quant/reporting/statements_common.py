@@ -72,7 +72,7 @@ class StatementView:
             Stored scalar value, or ``None`` when the node or period is absent.
 
         Notes:
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; a missing result is ``None`` rather than an exception.
         """
         node = self._nodes.get(node_id)
         return node.get(period) if node else None
@@ -86,7 +86,7 @@ class StatementView:
             Node identifiers in source insertion order.
 
         Notes:
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; it returns the stored or derived value.
         """
         return list(self._nodes)
 
@@ -99,7 +99,7 @@ class StatementView:
             Distinct period labels in ascending order.
 
         Notes:
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; it returns the stored or derived value.
         """
         seen: dict[str, None] = {}
         for series in self._nodes.values():

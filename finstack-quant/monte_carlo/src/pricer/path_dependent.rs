@@ -9,12 +9,14 @@ use super::super::traits::Payoff;
 use crate::discretization::exact::ExactGbm;
 use crate::estimate::Estimate;
 use crate::online_stats::OnlineStats;
+use crate::payoff::asian::{default_fixing_steps, AsianCall, AsianPut, AveragingMethod};
 use crate::process::gbm::GbmProcess;
 use crate::process::metadata::ProcessMetadata;
 use crate::rng::philox::PhiloxRng;
 use crate::rng::sobol::{SobolRng, MAX_SOBOL_DIMENSION};
 use crate::time_grid::TimeGrid;
 use crate::traits::{Discretization, RandomStream, StochasticProcess};
+use finstack_quant_core::cashflow::flat_discount_factor;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::math::random::BrownianBridge;
 use finstack_quant_core::{Error, Result};
@@ -606,6 +608,141 @@ impl PathDependentPricer {
             currency,
             discount_factor,
         )
+    }
+
+    /// Price an arithmetic Asian call under risk-neutral GBM.
+    ///
+    /// Uses unit notional, arithmetic averaging, and the default post-step
+    /// fixing schedule [`default_fixing_steps`]. Discounting is the flat
+    /// continuous factor `exp(-rT)`.
+    ///
+    /// This is the canonical composition behind the host-binding
+    /// `PathDependentPricer.price_asian_call` methods; both hosts delegate here
+    /// rather than assembling process, discount factor, and payoff themselves.
+    ///
+    /// # Arguments
+    ///
+    /// * `spot` - Spot level at time `0`.
+    /// * `strike` - Exercise price in the same units as `spot`.
+    /// * `rate` - Continuously compounded risk-free rate (decimal, annualized).
+    /// * `dividend_yield` - Continuous dividend yield (decimal, annualized).
+    /// * `volatility` - Annualized GBM volatility (decimal).
+    /// * `expiry` - Time to expiry in years; also the uniform-grid horizon.
+    /// * `num_steps` - Number of time-grid steps between `0` and `expiry`.
+    /// * `currency` - Currency stamped on the returned estimate.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when GBM parameters fail validation, the flat discount
+    /// factor is invalid, the uniform grid is invalid, or the underlying engine
+    /// rejects the run.
+    #[allow(clippy::too_many_arguments)]
+    pub fn price_gbm_asian_call(
+        &self,
+        spot: f64,
+        strike: f64,
+        rate: f64,
+        dividend_yield: f64,
+        volatility: f64,
+        expiry: f64,
+        num_steps: usize,
+        currency: Currency,
+    ) -> Result<MoneyEstimate> {
+        self.price_gbm_asian(
+            true,
+            spot,
+            strike,
+            rate,
+            dividend_yield,
+            volatility,
+            expiry,
+            num_steps,
+            currency,
+        )
+    }
+
+    /// Price an arithmetic Asian put under risk-neutral GBM.
+    ///
+    /// Identical machinery to [`Self::price_gbm_asian_call`] with a put payoff.
+    ///
+    /// # Arguments
+    ///
+    /// * `spot` - Spot level at time `0`.
+    /// * `strike` - Exercise price in the same units as `spot`.
+    /// * `rate` - Continuously compounded risk-free rate (decimal, annualized).
+    /// * `dividend_yield` - Continuous dividend yield (decimal, annualized).
+    /// * `volatility` - Annualized GBM volatility (decimal).
+    /// * `expiry` - Time to expiry in years; also the uniform-grid horizon.
+    /// * `num_steps` - Number of time-grid steps between `0` and `expiry`.
+    /// * `currency` - Currency stamped on the returned estimate.
+    ///
+    /// # Errors
+    ///
+    /// Same failure modes as [`Self::price_gbm_asian_call`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn price_gbm_asian_put(
+        &self,
+        spot: f64,
+        strike: f64,
+        rate: f64,
+        dividend_yield: f64,
+        volatility: f64,
+        expiry: f64,
+        num_steps: usize,
+        currency: Currency,
+    ) -> Result<MoneyEstimate> {
+        self.price_gbm_asian(
+            false,
+            spot,
+            strike,
+            rate,
+            dividend_yield,
+            volatility,
+            expiry,
+            num_steps,
+            currency,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn price_gbm_asian(
+        &self,
+        is_call: bool,
+        spot: f64,
+        strike: f64,
+        rate: f64,
+        dividend_yield: f64,
+        volatility: f64,
+        expiry: f64,
+        num_steps: usize,
+        currency: Currency,
+    ) -> Result<MoneyEstimate> {
+        let process = GbmProcess::with_params(rate, dividend_yield, volatility)?;
+        let discount_factor = flat_discount_factor(rate, expiry)?;
+        let fixing_steps = default_fixing_steps(num_steps);
+        if is_call {
+            let payoff = AsianCall::new(strike, 1.0, AveragingMethod::Arithmetic, fixing_steps);
+            self.price(
+                &process,
+                spot,
+                expiry,
+                num_steps,
+                &payoff,
+                currency,
+                discount_factor,
+            )
+        } else {
+            let payoff = AsianPut::new(strike, 1.0, AveragingMethod::Arithmetic, fixing_steps);
+            self.price(
+                &process,
+                spot,
+                expiry,
+                num_steps,
+                &payoff,
+                currency,
+                discount_factor,
+            )
+        }
     }
 
     /// Price a path-dependent option with a custom time grid.
@@ -1384,5 +1521,31 @@ mod tests {
             .expect_err("excessive Sobol dimension should be rejected");
 
         assert!(err.to_string().contains("Sobol"));
+    }
+
+    #[test]
+    fn price_gbm_asian_call_atm_is_positive() {
+        let pricer = PathDependentPricer::new(
+            PathDependentPricerConfig::new(2_000)
+                .with_seed(42)
+                .with_parallel(false),
+        );
+        let estimate = pricer
+            .price_gbm_asian_call(100.0, 100.0, 0.05, 0.0, 0.2, 1.0, 12, Currency::USD)
+            .expect("Asian call pricing should succeed");
+        assert!(estimate.mean.amount() > 0.0);
+    }
+
+    #[test]
+    fn price_gbm_asian_put_atm_is_positive() {
+        let pricer = PathDependentPricer::new(
+            PathDependentPricerConfig::new(2_000)
+                .with_seed(42)
+                .with_parallel(false),
+        );
+        let estimate = pricer
+            .price_gbm_asian_put(100.0, 100.0, 0.05, 0.0, 0.2, 1.0, 12, Currency::USD)
+            .expect("Asian put pricing should succeed");
+        assert!(estimate.mean.amount() > 0.0);
     }
 }

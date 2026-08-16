@@ -115,7 +115,7 @@ class SifmaSettlementClass:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -503,7 +503,7 @@ class DayCountContext:
         Returns
         -------
         str | None
-            The calendar id exposed by this `DayCountContext`.
+            Optional calendar identifier.
 
         Notes
         -----
@@ -519,7 +519,7 @@ class DayCountContext:
         Returns
         -------
         Tenor | None
-            The frequency exposed by this `DayCountContext`.
+            Optional coupon frequency.
 
         Notes
         -----
@@ -535,7 +535,7 @@ class DayCountContext:
         Returns
         -------
         int | None
-            The bus basis exposed by this `DayCountContext`.
+            Optional custom business-day divisor.
 
         Notes
         -----
@@ -566,7 +566,7 @@ class DayCountContext:
         Returns
         -------
         bool
-            The end is termination date exposed by this `DayCountContext`.
+            Whether the accrual end is the instrument termination date.
 
         Notes
         -----
@@ -584,7 +584,7 @@ class DayCountContext:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -654,7 +654,7 @@ class DayCountContextState:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -666,7 +666,7 @@ class DayCountContextState:
         Returns
         -------
         str | None
-            The calendar id exposed by this `DayCountContextState`.
+            Optional calendar identifier.
 
         Notes
         -----
@@ -682,7 +682,7 @@ class DayCountContextState:
         Returns
         -------
         Tenor | None
-            The frequency exposed by this `DayCountContextState`.
+            Optional coupon frequency.
 
         Notes
         -----
@@ -698,7 +698,7 @@ class DayCountContextState:
         Returns
         -------
         int | None
-            The bus basis exposed by this `DayCountContextState`.
+            Optional custom business-day divisor.
 
         Notes
         -----
@@ -729,7 +729,7 @@ class DayCountContextState:
         Returns
         -------
         bool
-            The end is termination date exposed by this `DayCountContextState`.
+            Whether the accrual end is the instrument termination date.
 
         Notes
         -----
@@ -902,8 +902,7 @@ class Tenor:
     @classmethod
     def daily(cls) -> Tenor:
         """
-        Compute daily for `Tenor`.
-        1-day tenor.
+        One-calendar-day tenor.
 
         Returns
         -------
@@ -912,7 +911,7 @@ class Tenor:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -925,8 +924,7 @@ class Tenor:
     @classmethod
     def weekly(cls) -> Tenor:
         """
-        Compute weekly for `Tenor`.
-        1-week tenor.
+        One-week tenor, equivalent to seven calendar days.
 
         Returns
         -------
@@ -935,7 +933,7 @@ class Tenor:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -948,8 +946,7 @@ class Tenor:
     @classmethod
     def biweekly(cls) -> Tenor:
         """
-        Compute biweekly for `Tenor`.
-        2-week tenor.
+        Two-week tenor, equivalent to fourteen calendar days.
 
         Returns
         -------
@@ -958,7 +955,7 @@ class Tenor:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -971,8 +968,7 @@ class Tenor:
     @classmethod
     def monthly(cls) -> Tenor:
         """
-        Compute monthly for `Tenor`.
-        1-month tenor.
+        One-month tenor.
 
         Returns
         -------
@@ -981,7 +977,7 @@ class Tenor:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -994,8 +990,7 @@ class Tenor:
     @classmethod
     def bimonthly(cls) -> Tenor:
         """
-        Compute bimonthly for `Tenor`.
-        2-month tenor.
+        Two-month tenor.
 
         Returns
         -------
@@ -1004,7 +999,7 @@ class Tenor:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1026,7 +1021,7 @@ class Tenor:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1048,7 +1043,7 @@ class Tenor:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1070,7 +1065,7 @@ class Tenor:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1113,13 +1108,12 @@ class Tenor:
     @property
     def count(self) -> int:
         """
-        Return the count for `Tenor`.
-        Numeric count.
+        Positive integer multiplying this tenor's calendar unit.
 
         Returns
         -------
         int
-            The count exposed by this `Tenor`.
+            Count of days, weeks, months, or years represented by this tenor.
 
         Notes
         -----
@@ -1135,7 +1129,7 @@ class Tenor:
         Returns
         -------
         TenorUnit
-            The unit exposed by this `Tenor`.
+            Calendar unit of this tenor (days, months, or years).
 
         Notes
         -----
@@ -1151,7 +1145,7 @@ class Tenor:
         Returns
         -------
         int | None
-            The months exposed by this `Tenor`.
+            Equivalent whole months (``None`` for day/week tenors).
 
         Notes
         -----
@@ -1167,7 +1161,7 @@ class Tenor:
         Returns
         -------
         int | None
-            The days exposed by this `Tenor`.
+            Equivalent whole days (``None`` for month/year tenors).
 
         Notes
         -----
@@ -1188,7 +1182,7 @@ class Tenor:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1204,7 +1198,7 @@ class Tenor:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1281,7 +1275,7 @@ class PeriodKind:
         Returns
         -------
         int
-            The periods per year exposed by this `PeriodKind`.
+            Number of periods per year for this frequency.
 
         Notes
         -----
@@ -1297,7 +1291,7 @@ class PeriodKind:
         Returns
         -------
         float
-            The annualization factor exposed by this `PeriodKind`.
+            Annualization factor for this frequency.
 
         Notes
         -----
@@ -1435,7 +1429,7 @@ class PeriodId:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1546,7 +1540,7 @@ class PeriodId:
         Returns
         -------
         str
-            The code exposed by this `PeriodId`.
+            Period code string (e.g. ``"2025Q1"``).
 
         Notes
         -----
@@ -1562,7 +1556,7 @@ class PeriodId:
         Returns
         -------
         int
-            The year exposed by this `PeriodId`.
+            Gregorian or fiscal year label.
 
         Notes
         -----
@@ -1578,7 +1572,7 @@ class PeriodId:
         Returns
         -------
         int
-            The index exposed by this `PeriodId`.
+            Ordinal index within the year.
 
         Notes
         -----
@@ -1594,7 +1588,7 @@ class PeriodId:
         Returns
         -------
         PeriodKind
-            The kind exposed by this `PeriodId`.
+            Kind (frequency) of this period.
 
         Notes
         -----
@@ -1626,7 +1620,7 @@ class PeriodId:
         Returns
         -------
         int
-            The periods per year exposed by this `PeriodId`.
+            Number of periods per year for this kind.
 
         Notes
         -----
@@ -1752,7 +1746,7 @@ class Period:
         Returns
         -------
         PeriodId
-            The id exposed by this `Period`.
+            Stable string identifier for this schedule period.
 
         Notes
         -----
@@ -1768,7 +1762,7 @@ class Period:
         Returns
         -------
         datetime.date
-            The start exposed by this `Period`.
+            First date included in this schedule period.
 
         Notes
         -----
@@ -1784,7 +1778,7 @@ class Period:
         Returns
         -------
         datetime.date
-            The end exposed by this `Period`.
+            First date after the period; the period does not include it.
 
         Notes
         -----
@@ -1833,7 +1827,7 @@ class PeriodPlan:
         Returns
         -------
         list[Period]
-            The periods exposed by this `PeriodPlan`.
+            List of periods in ascending order.
 
         Notes
         -----
@@ -1900,7 +1894,7 @@ class FiscalConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1923,7 +1917,7 @@ class FiscalConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1946,7 +1940,7 @@ class FiscalConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1969,7 +1963,7 @@ class FiscalConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -1992,7 +1986,7 @@ class FiscalConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -2015,7 +2009,7 @@ class FiscalConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -2038,7 +2032,7 @@ class FiscalConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -2061,7 +2055,7 @@ class FiscalConfig:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns a fixed instance.
 
         Examples
         --------
@@ -2080,7 +2074,7 @@ class FiscalConfig:
         Returns
         -------
         int
-            The start month exposed by this `FiscalConfig`.
+            Month when the fiscal year starts (1-12).
 
         Notes
         -----
@@ -2096,7 +2090,7 @@ class FiscalConfig:
         Returns
         -------
         int
-            The start day exposed by this `FiscalConfig`.
+            Day when the fiscal year starts (1-31).
 
         Notes
         -----
@@ -2260,7 +2254,7 @@ class CalendarMetadata:
         Returns
         -------
         str
-            The id exposed by this `CalendarMetadata`.
+            Short identifier for this holiday calendar (for example ``NYSE``).
 
         Notes
         -----
@@ -2276,7 +2270,7 @@ class CalendarMetadata:
         Returns
         -------
         str
-            The name exposed by this `CalendarMetadata`.
+            Display name of this holiday calendar.
 
         Notes
         -----
@@ -2292,7 +2286,7 @@ class CalendarMetadata:
         Returns
         -------
         bool
-            The ignore weekends exposed by this `CalendarMetadata`.
+            Whether weekends are ignored for this calendar.
 
         Notes
         -----
@@ -2425,13 +2419,12 @@ class HolidayCalendar:
     @property
     def code(self) -> str:
         """
-        Return the code for `HolidayCalendar`.
-        Calendar code.
+        Stable holiday-calendar identifier such as ``nyc`` or ``target``.
 
         Returns
         -------
         str
-            The code exposed by this `HolidayCalendar`.
+            Canonical calendar code used for business-day adjustments.
 
         Notes
         -----
@@ -2490,7 +2483,7 @@ def available_calendars() -> list[str]:
 
     Notes
     -----
-    This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+    This method does not raise; it returns the stored or derived value.
 
     Examples
     --------
@@ -2667,7 +2660,7 @@ class Schedule:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns ``True`` or ``False``.
         """
         ...
 
@@ -2682,7 +2675,7 @@ class Schedule:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns ``True`` or ``False``.
         """
         ...
 
@@ -2694,7 +2687,7 @@ class Schedule:
         Returns
         -------
         list[str]
-            The warnings exposed by this `Schedule`.
+            Warning messages (if any).
 
         Notes
         -----
@@ -2805,7 +2798,7 @@ class ScheduleBuilder:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the same instance for chaining.
         """
         ...
 
@@ -2828,7 +2821,7 @@ class ScheduleBuilder:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the same instance for chaining.
         """
         ...
 
@@ -2848,7 +2841,7 @@ class ScheduleBuilder:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the same instance for chaining.
         """
         ...
 
@@ -2862,7 +2855,7 @@ class ScheduleBuilder:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the same instance for chaining.
         """
         ...
 
@@ -2876,7 +2869,7 @@ class ScheduleBuilder:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the same instance for chaining.
         """
         ...
 
@@ -2899,7 +2892,7 @@ class ScheduleBuilder:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the same instance for chaining.
         """
         ...
 

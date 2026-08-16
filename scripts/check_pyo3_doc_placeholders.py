@@ -40,6 +40,10 @@ PLACEHOLDER_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "fabricated error description",
         re.compile(r"If supplied inputs violate the documented type, shape, finite-value, or domain constraints\."),
     ),
+    (
+        "generic-nan-sentinel boilerplate",
+        re.compile(r"undefined results use ``None``, ``NaN``, or ``inf``"),
+    ),
 )
 
 

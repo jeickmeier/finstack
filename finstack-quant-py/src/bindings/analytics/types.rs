@@ -254,7 +254,7 @@ impl PyGreeksResult {
     fn beta(&self) -> f64 {
         self.inner.beta
     }
-    /// R-squared.
+    /// Coefficient of determination of the fitted model.
     #[getter]
     fn r_squared(&self) -> f64 {
         self.inner.r_squared
@@ -437,12 +437,12 @@ impl PyMultiFactorResult {
     fn alpha(&self) -> f64 {
         self.inner.alpha
     }
-    /// Factor betas.
+    /// One beta per factor, in factor order.
     #[getter]
     fn betas<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
         slice_to_pyarray(py, &self.inner.betas)
     }
-    /// R-squared.
+    /// Coefficient of determination of the fitted model.
     #[getter]
     fn r_squared(&self) -> f64 {
         self.inner.r_squared

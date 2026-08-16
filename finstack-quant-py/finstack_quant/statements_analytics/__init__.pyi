@@ -1028,7 +1028,7 @@ class ScenarioResults:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; a missing result is ``None`` rather than an exception.
         """
         ...
 
@@ -3236,7 +3236,7 @@ class ScorecardReport:
         Returns
         -------
         str
-            The status exposed by this `ScorecardReport`.
+            Overall scorecard status after metric evaluation.
 
         Notes
         -----
@@ -3463,7 +3463,7 @@ class CreditScorecardExtension:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it updates stored state in place.
         """
         ...
     def config(self) -> ScorecardConfig | None:
@@ -3476,7 +3476,7 @@ class CreditScorecardExtension:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; a missing result is ``None`` rather than an exception.
         """
         ...
     def execute(self, model: FinancialModelSpec | str, results: StatementResult | str) -> ScorecardReport:
@@ -4138,7 +4138,7 @@ class CorkscrewExtension:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it updates stored state in place.
         """
         ...
     def config(self) -> CorkscrewConfig | None:
@@ -4151,7 +4151,7 @@ class CorkscrewExtension:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; a missing result is ``None`` rather than an exception.
         """
         ...
     def execute(self, model: FinancialModelSpec | str, results: StatementResult | str) -> CorkscrewReport:

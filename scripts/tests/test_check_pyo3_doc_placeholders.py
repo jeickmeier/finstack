@@ -48,6 +48,7 @@ impl Widget {
 /// Result of compute for the binding in the annotated representation.
 /// Validated `Widget` instance reconstructed from the canonical JSON payload.
 /// If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+/// This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
 ///
 /// Examples
 /// --------
@@ -69,6 +70,7 @@ fn compute(value: i32) -> i32 {
         ("compute", "fabricated return description"),
         ("compute", "fabricated reconstruction description"),
         ("compute", "fabricated error description"),
+        ("compute", "generic-nan-sentinel boilerplate"),
     ]
 
 

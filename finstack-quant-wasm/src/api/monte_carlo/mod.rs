@@ -13,12 +13,13 @@
 use std::str::FromStr;
 
 use crate::utils::to_js_err;
-use finstack_quant_core::cashflow::flat_discount_factor;
 use finstack_quant_core::currency::Currency;
-use finstack_quant_monte_carlo::pricer::basis::LsmcBasis;
+use finstack_quant_monte_carlo::pricer::basis::BasisKind;
 use finstack_quant_monte_carlo::pricer::european::EuropeanPricer;
 use finstack_quant_monte_carlo::pricer::lsmc::LsmcPricer;
-use finstack_quant_monte_carlo::process::gbm::GbmProcess;
+use finstack_quant_monte_carlo::pricer::path_dependent::{
+    PathDependentPricer, PathDependentPricerConfig,
+};
 use finstack_quant_monte_carlo::results::MoneyEstimate;
 use wasm_bindgen::prelude::*;
 
@@ -439,31 +440,16 @@ fn price_asian(
     num_steps: Option<usize>,
     currency: Option<String>,
 ) -> Result<JsValue, JsValue> {
-    use finstack_quant_monte_carlo::payoff::asian::{
-        default_fixing_steps, AsianCall, AsianPut, AveragingMethod,
-    };
-    use finstack_quant_monte_carlo::pricer::path_dependent::{
-        PathDependentPricer, PathDependentPricerConfig,
-    };
-
     let ccy = resolve_currency(currency.as_deref())?;
     let steps = match num_steps {
         Some(steps) => steps,
         None => binding_defaults()?.path_dependent_pricer.num_steps,
     };
-    let fixing_steps = default_fixing_steps(steps);
-    let df = flat_discount_factor(rate, expiry).map_err(to_js_err)?;
-    let config = PathDependentPricerConfig::new(num_paths)
-        .with_seed(seed)
-        .with_parallel(false);
-    let pricer = PathDependentPricer::new(config);
-    let process = GbmProcess::with_params(rate, div_yield, vol).map_err(to_js_err)?;
+    let pricer = build_path_dependent_pricer(num_paths, seed);
     let est = if is_call {
-        let payoff = AsianCall::new(strike, 1.0, AveragingMethod::Arithmetic, fixing_steps);
-        pricer.price(&process, spot, expiry, steps, &payoff, ccy, df)
+        pricer.price_gbm_asian_call(spot, strike, rate, div_yield, vol, expiry, steps, ccy)
     } else {
-        let payoff = AsianPut::new(strike, 1.0, AveragingMethod::Arithmetic, fixing_steps);
-        pricer.price(&process, spot, expiry, steps, &payoff, ccy, df)
+        pricer.price_gbm_asian_put(spot, strike, rate, div_yield, vol, expiry, steps, ccy)
     }
     .map_err(to_js_err)?;
     estimate_to_js(&est)
@@ -514,24 +500,9 @@ pub fn price_american_put(
     basis: Option<String>,
     basis_degree: Option<usize>,
 ) -> Result<JsValue, JsValue> {
-    use finstack_quant_monte_carlo::pricer::lsmc::AmericanPut;
-
-    let exercise = AmericanPut::new(strike).map_err(to_js_err)?;
     price_lsmc_gbm(
-        spot,
-        strike,
-        rate,
-        div_yield,
-        vol,
-        expiry,
-        num_paths,
-        seed,
-        num_steps,
-        currency,
-        use_parallel,
-        basis,
-        basis_degree,
-        &exercise,
+        true, spot, strike, rate, div_yield, vol, expiry, num_paths, seed, num_steps, currency,
+        use_parallel, basis, basis_degree, None,
     )
 }
 
@@ -575,24 +546,9 @@ pub fn price_american_call(
     basis: Option<String>,
     basis_degree: Option<usize>,
 ) -> Result<JsValue, JsValue> {
-    use finstack_quant_monte_carlo::pricer::lsmc::AmericanCall;
-
-    let exercise = AmericanCall::new(strike).map_err(to_js_err)?;
     price_lsmc_gbm(
-        spot,
-        strike,
-        rate,
-        div_yield,
-        vol,
-        expiry,
-        num_paths,
-        seed,
-        num_steps,
-        currency,
-        use_parallel,
-        basis,
-        basis_degree,
-        &exercise,
+        false, spot, strike, rate, div_yield, vol, expiry, num_paths, seed, num_steps, currency,
+        use_parallel, basis, basis_degree, None,
     )
 }
 
@@ -637,10 +593,8 @@ pub fn price_american_put_unbiased(
     basis: Option<String>,
     basis_degree: Option<usize>,
 ) -> Result<JsValue, JsValue> {
-    use finstack_quant_monte_carlo::pricer::lsmc::AmericanPut;
-
-    let exercise = AmericanPut::new(strike).map_err(to_js_err)?;
-    price_lsmc_gbm_unbiased(
+    price_lsmc_gbm(
+        true,
         spot,
         strike,
         rate,
@@ -649,13 +603,12 @@ pub fn price_american_put_unbiased(
         expiry,
         num_paths,
         seed,
-        pricing_seed,
         num_steps,
         currency,
         use_parallel,
         basis,
         basis_degree,
-        &exercise,
+        Some(pricing_seed),
     )
 }
 
@@ -700,10 +653,8 @@ pub fn price_american_call_unbiased(
     basis: Option<String>,
     basis_degree: Option<usize>,
 ) -> Result<JsValue, JsValue> {
-    use finstack_quant_monte_carlo::pricer::lsmc::AmericanCall;
-
-    let exercise = AmericanCall::new(strike).map_err(to_js_err)?;
-    price_lsmc_gbm_unbiased(
+    price_lsmc_gbm(
+        false,
         spot,
         strike,
         rate,
@@ -712,18 +663,18 @@ pub fn price_american_call_unbiased(
         expiry,
         num_paths,
         seed,
-        pricing_seed,
         num_steps,
         currency,
         use_parallel,
         basis,
         basis_degree,
-        &exercise,
+        Some(pricing_seed),
     )
 }
 
 #[allow(clippy::too_many_arguments)]
-fn price_lsmc_gbm<E>(
+fn price_lsmc_gbm(
+    is_put: bool,
     spot: f64,
     strike: f64,
     rate: f64,
@@ -737,139 +688,57 @@ fn price_lsmc_gbm<E>(
     use_parallel: Option<bool>,
     basis: Option<String>,
     basis_degree: Option<usize>,
-    exercise: &E,
-) -> Result<JsValue, JsValue>
-where
-    E: finstack_quant_monte_carlo::pricer::lsmc::ImmediateExercise,
-{
-    let run = prepare_lsmc_gbm(
-        strike,
-        rate,
-        div_yield,
-        vol,
-        num_paths,
-        seed,
-        num_steps,
-        currency,
-        use_parallel,
-        basis,
-        basis_degree,
-    )?;
-
-    let est = run
-        .pricer
-        .price(
-            &run.process,
-            spot,
-            expiry,
-            run.num_steps,
-            exercise,
-            &run.basis,
-            run.currency,
-            rate,
-        )
-        .map_err(to_js_err)?;
-    estimate_to_js(&est)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn price_lsmc_gbm_unbiased<E>(
-    spot: f64,
-    strike: f64,
-    rate: f64,
-    div_yield: f64,
-    vol: f64,
-    expiry: f64,
-    num_paths: usize,
-    seed: u64,
-    pricing_seed: u64,
-    num_steps: Option<usize>,
-    currency: Option<String>,
-    use_parallel: Option<bool>,
-    basis: Option<String>,
-    basis_degree: Option<usize>,
-    exercise: &E,
-) -> Result<JsValue, JsValue>
-where
-    E: finstack_quant_monte_carlo::pricer::lsmc::ImmediateExercise,
-{
-    let run = prepare_lsmc_gbm(
-        strike,
-        rate,
-        div_yield,
-        vol,
-        num_paths,
-        seed,
-        num_steps,
-        currency,
-        use_parallel,
-        basis,
-        basis_degree,
-    )?;
-
-    let est = run
-        .pricer
-        .price_unbiased(
-            &run.process,
-            spot,
-            expiry,
-            run.num_steps,
-            exercise,
-            &run.basis,
-            run.currency,
-            rate,
-            pricing_seed,
-        )
-        .map_err(to_js_err)?;
-    estimate_to_js(&est)
-}
-
-struct LsmcGbmRun {
-    pricer: LsmcPricer,
-    process: GbmProcess,
-    basis: LsmcBasis,
-    currency: Currency,
-    num_steps: usize,
-}
-
-#[allow(clippy::too_many_arguments)]
-fn prepare_lsmc_gbm(
-    strike: f64,
-    rate: f64,
-    div_yield: f64,
-    vol: f64,
-    num_paths: usize,
-    seed: u64,
-    num_steps: Option<usize>,
-    currency: Option<String>,
-    use_parallel: Option<bool>,
-    basis: Option<String>,
-    basis_degree: Option<usize>,
-) -> Result<LsmcGbmRun, JsValue> {
-    use finstack_quant_monte_carlo::pricer::basis::build_lsmc_basis_from_name;
-    use finstack_quant_monte_carlo::pricer::lsmc::LsmcConfig;
-
+    pricing_seed: Option<u64>,
+) -> Result<JsValue, JsValue> {
     let defaults = &binding_defaults()?.lsmc;
     let currency = resolve_currency(currency.as_deref())?;
     let num_steps = num_steps.unwrap_or(defaults.num_steps);
-    let exercise_dates: Vec<usize> = (1..=num_steps).collect();
-    let config = LsmcConfig::new(num_paths, exercise_dates, num_steps)
-        .map_err(to_js_err)?
-        .with_seed(seed)
-        .with_parallel(use_parallel.unwrap_or(false));
-    let process = GbmProcess::with_params(rate, div_yield, vol).map_err(to_js_err)?;
-
     let degree = basis_degree.unwrap_or(defaults.basis_degree);
     let basis_name = basis.as_deref().unwrap_or(defaults.basis.as_str());
-    let basis = build_lsmc_basis_from_name(basis_name, degree, strike).map_err(to_js_err)?;
-
-    Ok(LsmcGbmRun {
-        pricer: LsmcPricer::new(config),
-        process,
-        basis,
-        currency,
+    let basis = BasisKind::parse(basis_name).map_err(to_js_err)?;
+    let pricer = LsmcPricer::gbm_american(
+        num_paths,
         num_steps,
-    })
+        seed,
+        use_parallel.unwrap_or(false),
+    )
+    .map_err(to_js_err)?;
+    let est = match (is_put, pricing_seed) {
+        (true, None) => pricer.price_gbm_american_put(
+            spot, strike, rate, div_yield, vol, expiry, num_steps, currency, basis, degree,
+        ),
+        (false, None) => pricer.price_gbm_american_call(
+            spot, strike, rate, div_yield, vol, expiry, num_steps, currency, basis, degree,
+        ),
+        (true, Some(pricing_seed)) => pricer.price_gbm_american_put_unbiased(
+            spot,
+            strike,
+            rate,
+            div_yield,
+            vol,
+            expiry,
+            num_steps,
+            currency,
+            basis,
+            degree,
+            pricing_seed,
+        ),
+        (false, Some(pricing_seed)) => pricer.price_gbm_american_call_unbiased(
+            spot,
+            strike,
+            rate,
+            div_yield,
+            vol,
+            expiry,
+            num_steps,
+            currency,
+            basis,
+            degree,
+            pricing_seed,
+        ),
+    }
+    .map_err(to_js_err)?;
+    estimate_to_js(&est)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -953,6 +822,14 @@ fn resolve_currency(code: Option<&str>) -> Result<Currency, JsValue> {
 /// determinism invariant.
 fn build_pricer(num_paths: usize, seed: u64) -> EuropeanPricer {
     EuropeanPricer::new(num_paths).with_seed(seed)
+}
+
+fn build_path_dependent_pricer(num_paths: usize, seed: u64) -> PathDependentPricer {
+    PathDependentPricer::new(
+        PathDependentPricerConfig::new(num_paths)
+            .with_seed(seed)
+            .with_parallel(false),
+    )
 }
 
 #[cfg(test)]

@@ -587,7 +587,7 @@ class recovery_waterfall:
 
     class RecoveryClaim:
         """
-        Compute recovery waterfall.RecoveryClaim.
+        A claim participating in an absolute-priority recovery waterfall.
 
         Examples
         --------
@@ -595,7 +595,6 @@ class recovery_waterfall:
         >>> claim = recovery_waterfall.RecoveryClaim("SEN", "secured", 1, 100.0, accrued=5.0)
         >>> (claim.id, claim.total_claim)
         ('SEN', 105.0)
-
         """
 
         def __init__(
@@ -638,12 +637,12 @@ class recovery_waterfall:
         @property
         def id(self) -> str:
             """
-            Return the id for `recovery_waterfall.RecoveryClaim`.
+            Stable identifier for this claim.
 
             Returns
             -------
             str
-                The id exposed by this `recovery_waterfall.RecoveryClaim`.
+                Stable identifier retained on the resulting allocation.
 
             Notes
             -----
@@ -654,12 +653,12 @@ class recovery_waterfall:
         @property
         def seniority(self) -> str:
             """
-            Return the seniority for `recovery_waterfall.RecoveryClaim`.
+            Seniority class the claim sits in.
 
             Returns
             -------
             str
-                The seniority exposed by this `recovery_waterfall.RecoveryClaim`.
+                Human-readable seniority label used in recovery reporting.
 
             Notes
             -----
@@ -670,12 +669,12 @@ class recovery_waterfall:
         @property
         def priority(self) -> int:
             """
-            Return the priority for `recovery_waterfall.RecoveryClaim`.
+            Absolute-priority rank; lower ranks are paid first.
 
             Returns
             -------
             int
-                The priority exposed by this `recovery_waterfall.RecoveryClaim`.
+                Absolute-priority rank; lower values receive estate proceeds first.
 
             Notes
             -----
@@ -686,12 +685,12 @@ class recovery_waterfall:
         @property
         def principal(self) -> float:
             """
-            Return the principal for `recovery_waterfall.RecoveryClaim`.
+            Principal outstanding, before accrued interest and penalties.
 
             Returns
             -------
             float
-                The principal exposed by this `recovery_waterfall.RecoveryClaim`.
+                Outstanding principal claim in the estate's monetary units.
 
             Notes
             -----
@@ -702,12 +701,12 @@ class recovery_waterfall:
         @property
         def accrued(self) -> float:
             """
-            Return the accrued for `recovery_waterfall.RecoveryClaim`.
+            Accrued but unpaid interest included in the claim.
 
             Returns
             -------
             float
-                The accrued exposed by this `recovery_waterfall.RecoveryClaim`.
+                Unpaid accrued interest added to the claim amount.
 
             Notes
             -----
@@ -718,12 +717,12 @@ class recovery_waterfall:
         @property
         def penalties(self) -> float:
             """
-            Return the penalties for `recovery_waterfall.RecoveryClaim`.
+            Penalties and fees included in the claim.
 
             Returns
             -------
             float
-                The penalties exposed by this `recovery_waterfall.RecoveryClaim`.
+                Contractual penalty or default-interest claim added to the total.
 
             Notes
             -----
@@ -734,12 +733,12 @@ class recovery_waterfall:
         @property
         def collateral_value(self) -> float | None:
             """
-            Return the collateral value for `recovery_waterfall.RecoveryClaim`.
+            Gross value of collateral pledged to this claim.
 
             Returns
             -------
             float | None
-                The collateral value exposed by this `recovery_waterfall.RecoveryClaim`.
+                Pledged collateral market value, or ``None`` when the claim is unsecured.
 
             Notes
             -----
@@ -750,12 +749,12 @@ class recovery_waterfall:
         @property
         def collateral_haircut(self) -> float:
             """
-            Return the collateral haircut for `recovery_waterfall.RecoveryClaim`.
+            Haircut applied to pledged collateral, as a fraction in ``[0, 1]``.
 
             Returns
             -------
             float
-                The collateral haircut exposed by this `recovery_waterfall.RecoveryClaim`.
+                Decimal haircut deducted from collateral value before estate allocation.
 
             Notes
             -----
@@ -766,12 +765,12 @@ class recovery_waterfall:
         @property
         def total_claim(self) -> float:
             """
-            Return the total claim for `recovery_waterfall.RecoveryClaim`.
+            Principal plus accrued interest and penalties.
 
             Returns
             -------
             float
-                The total claim exposed by this `recovery_waterfall.RecoveryClaim`.
+                Sum of principal, accrued interest, and penalties in estate units.
 
             Notes
             -----
@@ -781,7 +780,7 @@ class recovery_waterfall:
 
     class RecoveryAllocation:
         """
-        Compute recovery waterfall.RecoveryAllocation.
+        Recovery allocated to one claim under absolute priority.
 
         Examples
         --------
@@ -790,18 +789,17 @@ class recovery_waterfall:
         >>> allocation = recovery_waterfall.allocate_recovery(40.0, [claim]).allocations[0]
         >>> (allocation.id, allocation.total_recovery, allocation.recovery_rate)
         ('SEN', 40.0, 0.4)
-
         """
 
         @property
         def id(self) -> str:
             """
-            Return the id for `recovery_waterfall.RecoveryAllocation`.
+            Stable identifier for this claim.
 
             Returns
             -------
             str
-                The id exposed by this `recovery_waterfall.RecoveryAllocation`.
+                Claim identifier copied from the source ``RecoveryClaim``.
 
             Notes
             -----
@@ -812,12 +810,12 @@ class recovery_waterfall:
         @property
         def seniority(self) -> str:
             """
-            Return the seniority for `recovery_waterfall.RecoveryAllocation`.
+            Seniority class the claim sits in.
 
             Returns
             -------
             str
-                The seniority exposed by this `recovery_waterfall.RecoveryAllocation`.
+                Human-readable seniority label copied from the source claim.
 
             Notes
             -----
@@ -828,12 +826,12 @@ class recovery_waterfall:
         @property
         def priority(self) -> int:
             """
-            Return the priority for `recovery_waterfall.RecoveryAllocation`.
+            Absolute-priority rank; lower ranks are paid first.
 
             Returns
             -------
             int
-                The priority exposed by this `recovery_waterfall.RecoveryAllocation`.
+                Absolute-priority rank copied from the source claim.
 
             Notes
             -----
@@ -844,12 +842,12 @@ class recovery_waterfall:
         @property
         def total_claim(self) -> float:
             """
-            Return the total claim for `recovery_waterfall.RecoveryAllocation`.
+            Principal plus accrued interest and penalties.
 
             Returns
             -------
             float
-                The total claim exposed by this `recovery_waterfall.RecoveryAllocation`.
+                Total admitted claim amount in estate units.
 
             Notes
             -----
@@ -860,12 +858,12 @@ class recovery_waterfall:
         @property
         def collateral_recovery(self) -> float:
             """
-            Return the collateral recovery for `recovery_waterfall.RecoveryAllocation`.
+            Amount recovered from pledged collateral.
 
             Returns
             -------
             float
-                The collateral recovery exposed by this `recovery_waterfall.RecoveryAllocation`.
+                Recovery attributed to pledged collateral, in estate units.
 
             Notes
             -----
@@ -876,12 +874,12 @@ class recovery_waterfall:
         @property
         def general_recovery(self) -> float:
             """
-            Return the general recovery for `recovery_waterfall.RecoveryAllocation`.
+            Amount recovered from the general estate.
 
             Returns
             -------
             float
-                The general recovery exposed by this `recovery_waterfall.RecoveryAllocation`.
+                Recovery attributed to the unsecured estate, in estate units.
 
             Notes
             -----
@@ -892,12 +890,12 @@ class recovery_waterfall:
         @property
         def total_recovery(self) -> float:
             """
-            Return the total recovery for `recovery_waterfall.RecoveryAllocation`.
+            Collateral plus general recovery.
 
             Returns
             -------
             float
-                The total recovery exposed by this `recovery_waterfall.RecoveryAllocation`.
+                Sum of collateral and general recovery, in estate units.
 
             Notes
             -----
@@ -908,12 +906,12 @@ class recovery_waterfall:
         @property
         def recovery_rate(self) -> float:
             """
-            Return the recovery rate for `recovery_waterfall.RecoveryAllocation`.
+            Total recovery divided by total claim, as a fraction in ``[0, 1]``.
 
             Returns
             -------
             float
-                The recovery rate exposed by this `recovery_waterfall.RecoveryAllocation`.
+                ``total_recovery / total_claim``, floored at zero when the claim is zero.
 
             Notes
             -----
@@ -924,12 +922,12 @@ class recovery_waterfall:
         @property
         def deficiency(self) -> float:
             """
-            Return the deficiency for `recovery_waterfall.RecoveryAllocation`.
+            Unrecovered claim after collateral and general recovery.
 
             Returns
             -------
             float
-                The deficiency exposed by this `recovery_waterfall.RecoveryAllocation`.
+                ``total_claim - total_recovery``, floored at zero.
 
             Notes
             -----
@@ -939,7 +937,7 @@ class recovery_waterfall:
 
     class RecoveryWaterfallResult:
         """
-        Compute recovery waterfall.RecoveryWaterfallResult.
+        Result of allocating a distributable estate across claims.
 
         Examples
         --------
@@ -948,18 +946,17 @@ class recovery_waterfall:
         >>> result = recovery_waterfall.allocate_recovery(40.0, [claim])
         >>> (result.total_distributed, result.undistributed_estate, result.apr_satisfied)
         (40.0, 0.0, True)
-
         """
 
         @property
         def total_distributed(self) -> float:
             """
-            Return the total distributed for `recovery_waterfall.RecoveryWaterfallResult`.
+            Sum of every claim's total recovery.
 
             Returns
             -------
             float
-                The total distributed exposed by this `recovery_waterfall.RecoveryWaterfallResult`.
+                Aggregate recovery paid across all claims, in estate units.
 
             Notes
             -----
@@ -970,12 +967,12 @@ class recovery_waterfall:
         @property
         def undistributed_estate(self) -> float:
             """
-            Return the undistributed estate for `recovery_waterfall.RecoveryWaterfallResult`.
+            Estate value left after all claims are satisfied.
 
             Returns
             -------
             float
-                The undistributed estate exposed by this `recovery_waterfall.RecoveryWaterfallResult`.
+                Residual estate after absolute-priority allocation, in estate units.
 
             Notes
             -----
@@ -986,12 +983,12 @@ class recovery_waterfall:
         @property
         def apr_satisfied(self) -> bool:
             """
-            Return the apr satisfied for `recovery_waterfall.RecoveryWaterfallResult`.
+            Whether the run respected absolute priority end to end.
 
             Returns
             -------
             bool
-                The apr satisfied exposed by this `recovery_waterfall.RecoveryWaterfallResult`.
+                ``True`` when every senior claim was paid before any junior claim.
 
             Notes
             -----
@@ -1002,12 +999,12 @@ class recovery_waterfall:
         @property
         def allocations(self) -> list[recovery_waterfall.RecoveryAllocation]:
             """
-            Return the allocations for `recovery_waterfall.RecoveryWaterfallResult`.
+            Per-claim allocations, in absolute-priority order.
 
             Returns
             -------
             list[recovery_waterfall.RecoveryAllocation]
-                The allocations exposed by this `recovery_waterfall.RecoveryWaterfallResult`.
+                One ``RecoveryAllocation`` per claim, ordered by increasing priority.
 
             Notes
             -----
@@ -2244,7 +2241,7 @@ class migration:
 
             Notes
             -----
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; it returns a fixed instance.
 
             Examples
             --------
@@ -2266,7 +2263,7 @@ class migration:
 
             Notes
             -----
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; it returns a fixed instance.
 
             Examples
             --------
@@ -2288,7 +2285,7 @@ class migration:
 
             Notes
             -----
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; it returns a fixed instance.
 
             Examples
             --------
@@ -2372,7 +2369,7 @@ class migration:
 
             Notes
             -----
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; it returns the stored or derived value.
             """
             ...
 
@@ -2392,7 +2389,7 @@ class migration:
 
             Notes
             -----
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; a missing result is ``None`` rather than an exception.
             """
             ...
 
@@ -2407,7 +2404,7 @@ class migration:
 
             Notes
             -----
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; a missing result is ``None`` rather than an exception.
             """
             ...
 
@@ -2422,7 +2419,7 @@ class migration:
 
             Notes
             -----
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; it returns the stored or derived value.
             """
             ...
 
@@ -2586,7 +2583,7 @@ class migration:
 
             Notes
             -----
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; it returns the stored or derived value.
             """
             ...
 
@@ -2601,7 +2598,7 @@ class migration:
 
             Notes
             -----
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; it returns the stored or derived value.
             """
             ...
 
@@ -2616,7 +2613,7 @@ class migration:
 
             Notes
             -----
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; it returns the stored or derived value.
             """
             ...
 
@@ -2632,7 +2629,7 @@ class migration:
 
             Notes
             -----
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; a missing result is ``None`` rather than an exception.
             """
             ...
 
@@ -2783,7 +2780,7 @@ class migration:
 
             Notes
             -----
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; it returns the stored or derived value.
             """
             ...
 
@@ -2798,7 +2795,7 @@ class migration:
 
             Notes
             -----
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; it returns the stored or derived value.
             """
             ...
 
@@ -2806,13 +2803,12 @@ class migration:
         def regularization_l1(self) -> float:
             """
             L1 mass clamped by Kreinin-Sidenius regularization.
-
             Returns ``0.0`` for directly constructed generators.
 
             Returns
             -------
             float
-                The regularization l1 exposed by this `migration.GeneratorMatrix`.
+                L1 mass clamped by Kreinin-Sidenius regularization.
 
             Notes
             -----
@@ -2824,13 +2820,12 @@ class migration:
         def round_trip_error(self) -> float:
             """
             Infinity-norm reconstruction error against the source matrix.
-
             Returns ``0.0`` for directly constructed generators.
 
             Returns
             -------
             float
-                The round trip error exposed by this `migration.GeneratorMatrix`.
+                Infinity-norm reconstruction error against the source matrix.
 
             Notes
             -----
@@ -2873,7 +2868,7 @@ class migration:
 
             Notes
             -----
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; it returns the stored or derived value.
             """
             ...
 
@@ -2893,7 +2888,7 @@ class migration:
 
             Notes
             -----
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; it returns the stored or derived value.
             """
             ...
 
@@ -2908,7 +2903,7 @@ class migration:
 
             Notes
             -----
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; it returns ``True`` or ``False``.
             """
             ...
 
@@ -2923,7 +2918,7 @@ class migration:
 
             Notes
             -----
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; a missing result is ``None`` rather than an exception.
             """
             ...
 
@@ -2938,7 +2933,7 @@ class migration:
 
             Notes
             -----
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; it returns the stored or derived value.
             """
             ...
 
@@ -2953,7 +2948,7 @@ class migration:
 
             Notes
             -----
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; it returns the stored or derived value.
             """
             ...
 
@@ -2969,7 +2964,7 @@ class migration:
 
             Notes
             -----
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; it returns the stored or derived value.
             """
             ...
 
@@ -3086,7 +3081,7 @@ class migration:
 
             Notes
             -----
-            This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+            This method does not raise; it returns the stored or derived value.
             """
             ...
 

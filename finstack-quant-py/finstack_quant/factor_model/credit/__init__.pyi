@@ -186,7 +186,7 @@ class CreditFactorModel:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -201,7 +201,7 @@ class CreditFactorModel:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -216,7 +216,7 @@ class CreditFactorModel:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -495,8 +495,7 @@ class PeriodDecomposition:
         Returns
         -------
         str
-            Period end.
-            The to date exposed by this `PeriodDecomposition`.
+            End date of the decomposition window (ISO 8601).
 
         Notes
         -----

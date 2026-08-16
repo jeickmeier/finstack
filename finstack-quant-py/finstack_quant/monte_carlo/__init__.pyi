@@ -348,7 +348,7 @@ class MoneyEstimate:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
 
         Examples
         --------
@@ -738,13 +738,12 @@ class TimeGrid:
         Returns
         -------
         int
-            Step count.
-
-            The num steps exposed by this `TimeGrid`.
+            Number of time steps on the grid.
 
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+
         Examples
         --------
         >>> from finstack_quant.monte_carlo import TimeGrid
@@ -955,12 +954,12 @@ class GbmPathSummary:
     @property
     def num_paths(self) -> int:
         """
-        Return the num paths for `GbmPathSummary`.
+        Number of independent path estimators.
 
         Returns
         -------
         int
-            The num paths exposed by this `GbmPathSummary`.
+            Count of independent estimators; half of simulated paths when antithetic.
 
         Notes
         -----
@@ -971,12 +970,12 @@ class GbmPathSummary:
     @property
     def num_simulated_paths(self) -> int:
         """
-        Return the num simulated paths for `GbmPathSummary`.
+        Total number of simulated sample paths.
 
         Returns
         -------
         int
-            The num simulated paths exposed by this `GbmPathSummary`.
+            Raw simulated path count including antithetic partners when enabled.
 
         Notes
         -----
@@ -987,12 +986,12 @@ class GbmPathSummary:
     @property
     def times(self) -> list[float]:
         """
-        Return the times for `GbmPathSummary`.
+        Shared path times in year fractions, including time zero.
 
         Returns
         -------
         list[float]
-            The times exposed by this `GbmPathSummary`.
+            Common time grid in years, including the origin at time zero.
 
         Notes
         -----
@@ -1003,12 +1002,12 @@ class GbmPathSummary:
     @property
     def paths(self) -> list[list[float]]:
         """
-        Return the paths for `GbmPathSummary`.
+        Captured spot paths in deterministic path-id order.
 
         Returns
         -------
         list[list[float]]
-            The paths exposed by this `GbmPathSummary`.
+            One spot path per captured estimator, each aligned to ``times``.
 
         Notes
         -----
@@ -1367,8 +1366,7 @@ class EuropeanPricer:
     @property
     def seed(self) -> int:
         """
-        Return the seed for `EuropeanPricer`.
-        RNG seed.
+        Seed value used for path generation.
 
         Returns
         -------
@@ -1702,8 +1700,7 @@ class PathDependentPricer:
     @property
     def seed(self) -> int:
         """
-        Return the seed for `PathDependentPricer`.
-        RNG seed.
+        Seed value used for path generation.
 
         Returns
         -------
@@ -1794,8 +1791,7 @@ class LsmcPricer:
     @property
     def seed(self) -> int:
         """
-        Return the seed for `LsmcPricer`.
-        RNG seed.
+        Seed value used for path generation.
 
         Returns
         -------

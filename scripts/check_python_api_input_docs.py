@@ -79,6 +79,22 @@ FABRICATED_DOC_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "compute-typename boilerplate",
         re.compile(r"\bCompute [A-Z][A-Za-z0-9_]+\."),
     ),
+    (
+        "generic-field-exposed boilerplate",
+        re.compile(r"\bexposed by this\b", re.IGNORECASE),
+    ),
+    (
+        "generic-compute-for boilerplate",
+        re.compile(r"\bCompute \S+ for `"),
+    ),
+    (
+        "generic-return-the-for boilerplate",
+        re.compile(r"\bReturn the .+ for `[A-Za-z_][A-Za-z0-9_.]*`\."),
+    ),
+    (
+        "generic-nan-sentinel boilerplate",
+        re.compile(r"undefined results use ``None``, ``NaN``, or ``inf``"),
+    ),
 )
 
 

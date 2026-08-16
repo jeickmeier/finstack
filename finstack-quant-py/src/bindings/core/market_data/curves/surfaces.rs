@@ -99,7 +99,7 @@ impl PyVolSurface {
         self.inner.expiries().to_vec()
     }
 
-    /// Strike axis.
+    /// Strike axis of the stored volatility grid.
     #[getter]
     fn strikes(&self) -> Vec<f64> {
         self.inner.strikes().to_vec()

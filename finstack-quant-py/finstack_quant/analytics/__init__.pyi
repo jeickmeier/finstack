@@ -582,8 +582,7 @@ class GreeksResult:
     @property
     def r_squared(self) -> float:
         """
-        Return the r squared for `GreeksResult`.
-        R-squared.
+        Coefficient of determination of the fitted model.
 
         Returns
         -------
@@ -864,8 +863,7 @@ class MultiFactorResult:
     @property
     def betas(self) -> npt.NDArray[np.float64]:
         """
-        Return the betas for `MultiFactorResult`.
-        Factor betas.
+        One beta per factor, in factor order.
 
         Returns
         -------
@@ -880,8 +878,7 @@ class MultiFactorResult:
     @property
     def r_squared(self) -> float:
         """
-        Return the r squared for `MultiFactorResult`.
-        R-squared.
+        Coefficient of determination of the fitted model.
 
         Returns
         -------
@@ -2578,7 +2575,7 @@ class Performance:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
 
     def returns_for_ticker(self, ticker_idx: int) -> list[float]:
@@ -2613,7 +2610,7 @@ class Performance:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
 
     def drawdown_series(self) -> list[list[float]]:
@@ -2627,7 +2624,7 @@ class Performance:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
 
     def correlation_matrix(self) -> list[list[float]]:
@@ -2641,7 +2638,7 @@ class Performance:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
 
     def cumulative_returns_outperformance(self) -> list[list[float]]:
@@ -2655,7 +2652,7 @@ class Performance:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
 
     def drawdown_difference(self) -> list[list[float]]:
@@ -2669,7 +2666,7 @@ class Performance:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
 
     def excess_returns(
@@ -2695,7 +2692,7 @@ class Performance:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
 
     # -- Per-ticker structured methods --
@@ -2711,7 +2708,7 @@ class Performance:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
 
     def greeks(self, risk_free_rate: float = 0.0) -> list[GreeksResult]:
@@ -2730,7 +2727,7 @@ class Performance:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
 
     def rolling_greeks(

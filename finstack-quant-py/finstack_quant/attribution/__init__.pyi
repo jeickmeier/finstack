@@ -375,7 +375,7 @@ class PnlAttribution:
         Returns
         -------
         str
-            The currency exposed by this `PnlAttribution`.
+            Currency code for all P&L amounts.
 
         Notes
         -----
@@ -391,7 +391,7 @@ class PnlAttribution:
         Returns
         -------
         str
-            The instrument id exposed by this `PnlAttribution`.
+            Identifier of the instrument whose P&L was attributed.
 
         Notes
         -----
@@ -408,7 +408,7 @@ class PnlAttribution:
         Returns
         -------
         str
-            The method exposed by this `PnlAttribution`.
+            Canonical attribution method name (``parallel``, ``waterfall``,
 
         Notes
         -----
@@ -424,7 +424,7 @@ class PnlAttribution:
         Returns
         -------
         str
-            The t0 exposed by this `PnlAttribution`.
+            Start date (T₀) as ISO string.
 
         Notes
         -----
@@ -440,7 +440,7 @@ class PnlAttribution:
         Returns
         -------
         str
-            The t1 exposed by this `PnlAttribution`.
+            End date (T₁) as ISO string.
 
         Notes
         -----
@@ -456,7 +456,7 @@ class PnlAttribution:
         Returns
         -------
         int
-            The num repricings exposed by this `PnlAttribution`.
+            Number of repricings performed.
 
         Notes
         -----
@@ -472,7 +472,7 @@ class PnlAttribution:
         Returns
         -------
         float
-            The residual pct exposed by this `PnlAttribution`.
+            Residual as percentage of total P&L.
 
         Notes
         -----
@@ -488,7 +488,7 @@ class PnlAttribution:
         Returns
         -------
         list[str]
-            The notes exposed by this `PnlAttribution`.
+            Diagnostic notes and warnings.
 
         Notes
         -----
@@ -504,7 +504,7 @@ class PnlAttribution:
         Returns
         -------
         bool
-            The result invalid exposed by this `PnlAttribution`.
+            True when attribution was flagged invalid and residual checks should fail.
 
         Notes
         -----
@@ -829,7 +829,7 @@ class PnlAttribution:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns ``True`` or ``False``.
         """
         ...
 
@@ -846,7 +846,7 @@ class PnlAttribution:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns ``True`` or ``False``.
         """
         ...
 
@@ -875,7 +875,7 @@ class PnlAttribution:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -890,7 +890,7 @@ class PnlAttribution:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -1470,7 +1470,7 @@ def default_waterfall_order() -> list[str]:
 
     Notes
     -----
-    This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+    This method does not raise; it returns the stored or derived value.
 
     Examples
     --------
@@ -1491,7 +1491,7 @@ def default_attribution_metrics() -> list[str]:
 
     Notes
     -----
-    This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+    This method does not raise; it returns the stored or derived value.
 
     Examples
     --------

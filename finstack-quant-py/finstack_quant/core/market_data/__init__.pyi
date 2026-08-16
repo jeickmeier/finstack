@@ -218,7 +218,7 @@ class DiscountCurve:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
         """
         ...
 
@@ -273,7 +273,7 @@ class DiscountCurve:
         Returns
         -------
         str
-            The id exposed by this `DiscountCurve`.
+            Curve identifier string.
 
         Notes
         -----
@@ -289,7 +289,7 @@ class DiscountCurve:
         Returns
         -------
         datetime.date
-            The base date exposed by this `DiscountCurve`.
+            Curve base date used for year-fraction calculations.
 
         Notes
         -----
@@ -475,7 +475,7 @@ class ForwardCurve:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
         """
         ...
 
@@ -510,7 +510,7 @@ class ForwardCurve:
         Returns
         -------
         str
-            The id exposed by this `ForwardCurve`.
+            Curve identifier string.
 
         Notes
         -----
@@ -526,7 +526,7 @@ class ForwardCurve:
         Returns
         -------
         datetime.date
-            The base date exposed by this `ForwardCurve`.
+            Curve base date used for year-fraction calculations.
 
         Notes
         -----
@@ -542,7 +542,7 @@ class ForwardCurve:
         Returns
         -------
         list[float] | None
-            The projection grid exposed by this `ForwardCurve`.
+            Contractual projection boundaries, if explicitly configured.
 
         Notes
         -----
@@ -558,7 +558,7 @@ class ForwardCurve:
         Returns
         -------
         int
-            The reset lag exposed by this `ForwardCurve`.
+            Business days from fixing to spot.
 
         Notes
         -----
@@ -658,7 +658,7 @@ class HazardCurve:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
         """
         ...
 
@@ -678,7 +678,7 @@ class HazardCurve:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
         """
         ...
 
@@ -690,7 +690,7 @@ class HazardCurve:
         Returns
         -------
         str
-            The id exposed by this `HazardCurve`.
+            Curve identifier string.
 
         Notes
         -----
@@ -706,7 +706,7 @@ class HazardCurve:
         Returns
         -------
         datetime.date
-            The base date exposed by this `HazardCurve`.
+            Curve base date used for year-fraction calculations.
 
         Notes
         -----
@@ -722,7 +722,7 @@ class HazardCurve:
         Returns
         -------
         float
-            The recovery rate in ``[0, 1]`` exposed by this `HazardCurve`.
+            Recovery rate assumed on default.
 
         Notes
         -----
@@ -770,10 +770,11 @@ class BaseCorrelationCurve:
     def id(self) -> str:
         """
         Curve identifier string.
+
         Returns
         -------
         str
-            The id exposed by this `BaseCorrelationCurve`.
+            Curve identifier string.
 
         Notes
         -----
@@ -799,7 +800,7 @@ class BaseCorrelationCurve:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
         """
         ...
 
@@ -854,10 +855,11 @@ class CreditIndexData:
     def num_constituents(self) -> int:
         """
         Number of constituents in the index.
+
         Returns
         -------
         int
-            The num constituents exposed by this `CreditIndexData`.
+            Number of constituents in the index.
 
         Notes
         -----
@@ -869,10 +871,11 @@ class CreditIndexData:
     def recovery_rate(self) -> float:
         """
         Assumed recovery rate for the credit index, as a decimal.
+
         Returns
         -------
         float
-            The recovery rate exposed by this `CreditIndexData`.
+            Assumed recovery rate for the credit index, as a decimal.
 
         Notes
         -----
@@ -967,7 +970,7 @@ class PriceCurve:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
         """
         ...
 
@@ -979,7 +982,7 @@ class PriceCurve:
         Returns
         -------
         str
-            The id exposed by this `PriceCurve`.
+            Curve identifier string.
 
         Notes
         -----
@@ -995,7 +998,7 @@ class PriceCurve:
         Returns
         -------
         datetime.date
-            The base date exposed by this `PriceCurve`.
+            Curve base date used for year-fraction calculations.
 
         Notes
         -----
@@ -1105,7 +1108,7 @@ class InflationCurve:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
         """
         ...
 
@@ -1127,7 +1130,7 @@ class InflationCurve:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
         """
         ...
 
@@ -1180,7 +1183,7 @@ class InflationCurve:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
         """
         ...
 
@@ -1203,19 +1206,19 @@ class InflationCurve:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
         """
         ...
 
     @property
     def id(self) -> str:
         """
-        Return the id for `InflationCurve`.
+        Curve identifier string.
 
         Returns
         -------
         str
-            The id exposed by this `InflationCurve`.
+            Exact ``MarketContext`` lookup key for this inflation curve.
 
         Notes
         -----
@@ -1226,12 +1229,12 @@ class InflationCurve:
     @property
     def base_date(self) -> datetime.date:
         """
-        Return the base date for `InflationCurve`.
+        Valuation base date.
 
         Returns
         -------
         datetime.date
-            The base date exposed by this `InflationCurve`.
+            Curve as-of date from which year fractions and CPI levels are measured.
 
         Notes
         -----
@@ -1242,12 +1245,12 @@ class InflationCurve:
     @property
     def day_count(self) -> str:
         """
-        Return the day count for `InflationCurve`.
+        Day-count convention used by this curve.
 
         Returns
         -------
         str
-            The day count exposed by this `InflationCurve`.
+            Day-count name such as ``act_365f`` used for year fractions.
 
         Notes
         -----
@@ -1258,12 +1261,12 @@ class InflationCurve:
     @property
     def indexation_lag_months(self) -> int:
         """
-        Return the indexation lag months for `InflationCurve`.
+        Indexation lag in months.
 
         Returns
         -------
         int
-            The indexation lag months exposed by this `InflationCurve`.
+            Whole months of indexation lag applied to CPI lookups.
 
         Notes
         -----
@@ -1274,12 +1277,12 @@ class InflationCurve:
     @property
     def base_cpi(self) -> float:
         """
-        Return the base cpi for `InflationCurve`.
+        Base CPI level at ``t = 0``.
 
         Returns
         -------
         float
-            The base cpi exposed by this `InflationCurve`.
+            CPI index level corresponding to the curve base date.
 
         Notes
         -----
@@ -1427,12 +1430,12 @@ class VolSurface:
     @property
     def id(self) -> str:
         """
-        Return the id for `VolSurface`.
+        Surface identifier string.
 
         Returns
         -------
         str
-            The id exposed by this `VolSurface`.
+            Exact ``MarketContext`` lookup key for this volatility surface.
 
         Notes
         -----
@@ -1443,12 +1446,12 @@ class VolSurface:
     @property
     def expiries(self) -> list[float]:
         """
-        Return the expiries for `VolSurface`.
+        Expiry axis in years.
 
         Returns
         -------
         list[float]
-            The expiries exposed by this `VolSurface`.
+            Strictly increasing option expiries in years on the ACT/365F basis.
 
         Notes
         -----
@@ -1459,12 +1462,12 @@ class VolSurface:
     @property
     def strikes(self) -> list[float]:
         """
-        Return the strikes for `VolSurface`.
+        Strike axis of the stored volatility grid.
 
         Returns
         -------
         list[float]
-            The strikes exposed by this `VolSurface`.
+            Strike nodes of the surface, in the same units as the quoted underlying.
 
         Notes
         -----
@@ -1475,12 +1478,12 @@ class VolSurface:
     @property
     def secondary_axis(self) -> str:
         """
-        Return the secondary axis for `VolSurface`.
+        Secondary-axis semantic meaning.
 
         Returns
         -------
         str
-            The secondary axis exposed by this `VolSurface`.
+            Axis kind stored on the surface, typically ``strike`` or ``delta``.
 
         Notes
         -----
@@ -1491,12 +1494,12 @@ class VolSurface:
     @property
     def quote_type(self) -> str:
         """
-        Return the quote type for `VolSurface`.
+        Quoting convention of the stored volatilities.
 
         Returns
         -------
         str
-            The quote type exposed by this `VolSurface`.
+            Quote convention such as ``black_lognormal`` or ``normal``.
 
         Notes
         -----
@@ -1507,12 +1510,12 @@ class VolSurface:
     @property
     def interpolation_mode(self) -> str:
         """
-        Return the interpolation mode for `VolSurface`.
+        Interpolation contract used between grid points.
 
         Returns
         -------
         str
-            The interpolation mode exposed by this `VolSurface`.
+            Either ``vol`` or ``total_variance`` interpolation between nodes.
 
         Notes
         -----
@@ -1523,12 +1526,12 @@ class VolSurface:
     @property
     def grid_shape(self) -> tuple[int, int]:
         """
-        Return the grid shape for `VolSurface`.
+        Surface grid shape as ``(n_expiries, n_strikes)``.
 
         Returns
         -------
         tuple[int, int]
-            The grid shape exposed by this `VolSurface`.
+            Tuple ``(n_expiries, n_strikes)`` of the stored volatility grid.
 
         Notes
         -----
@@ -1599,12 +1602,12 @@ class FxDeltaVolSurface:
     @property
     def id(self) -> str:
         """
-        Return the id for `FxDeltaVolSurface`.
+        Surface identifier string.
 
         Returns
         -------
         str
-            The id exposed by this `FxDeltaVolSurface`.
+            Exact ``MarketContext`` lookup key for this FX delta vol surface.
 
         Notes
         -----
@@ -1615,12 +1618,12 @@ class FxDeltaVolSurface:
     @property
     def expiries(self) -> list[float]:
         """
-        Return the expiries for `FxDeltaVolSurface`.
+        Expiry axis in years.
 
         Returns
         -------
         list[float]
-            The expiries exposed by this `FxDeltaVolSurface`.
+            Strictly increasing FX option expiries in years on the ACT/365F basis.
 
         Notes
         -----
@@ -1631,12 +1634,12 @@ class FxDeltaVolSurface:
     @property
     def num_expiries(self) -> int:
         """
-        Return the num expiries for `FxDeltaVolSurface`.
+        Number of expiry pillars.
 
         Returns
         -------
         int
-            The num expiries exposed by this `FxDeltaVolSurface`.
+            Count of expiry pillars stored on the delta-quoted surface.
 
         Notes
         -----
@@ -1754,7 +1757,7 @@ class FxDeltaVolSurface:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -1787,7 +1790,7 @@ class FxDeltaVolSurface:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
 
         Examples
         --------
@@ -2115,12 +2118,12 @@ class VolCube:
     @property
     def id(self) -> str:
         """
-        Return the id for `VolCube`.
+        Cube identifier string.
 
         Returns
         -------
         str
-            The id exposed by this `VolCube`.
+            Exact ``MarketContext`` lookup key for this volatility cube.
 
         Notes
         -----
@@ -2131,12 +2134,12 @@ class VolCube:
     @property
     def expiries(self) -> list[float]:
         """
-        Return the expiries for `VolCube`.
+        Option expiry axis in years.
 
         Returns
         -------
         list[float]
-            The expiries exposed by this `VolCube`.
+            Strictly increasing option expiries in years on the ACT/365F basis.
 
         Notes
         -----
@@ -2147,12 +2150,12 @@ class VolCube:
     @property
     def tenors(self) -> list[float]:
         """
-        Return the tenors for `VolCube`.
+        Underlying swap tenor axis in years.
 
         Returns
         -------
         list[float]
-            The tenors exposed by this `VolCube`.
+            Underlying swap tenors in years that slice the cube.
 
         Notes
         -----
@@ -2163,12 +2166,12 @@ class VolCube:
     @property
     def grid_shape(self) -> tuple[int, int]:
         """
-        Return the grid shape for `VolCube`.
+        Grid shape as ``(n_expiries, n_tenors)``.
 
         Returns
         -------
         tuple[int, int]
-            The grid shape exposed by this `VolCube`.
+            Tuple ``(n_expiries, n_tenors)`` of the stored cube grid.
 
         Notes
         -----
@@ -2179,12 +2182,12 @@ class VolCube:
     @property
     def interpolation_mode(self) -> str:
         """
-        Return the interpolation mode for `VolCube`.
+        Interpolation contract used between grid points.
 
         Returns
         -------
         str
-            The interpolation mode exposed by this `VolCube`.
+            Either ``vol`` or ``total_variance`` interpolation between nodes.
 
         Notes
         -----
@@ -2279,7 +2282,7 @@ class VolatilityIndexCurve:
 
         Notes
         -----
-        This method does not raise; undefined results use ``None``, ``NaN``, or ``inf`` rather than an exception.
+        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
         """
         ...
 
@@ -2291,7 +2294,7 @@ class VolatilityIndexCurve:
         Returns
         -------
         str
-            The id exposed by this `VolatilityIndexCurve`.
+            Curve identifier string.
 
         Notes
         -----
@@ -2307,7 +2310,7 @@ class VolatilityIndexCurve:
         Returns
         -------
         datetime.date
-            The base date exposed by this `VolatilityIndexCurve`.
+            Curve base date used for year-fraction calculations.
 
         Notes
         -----
@@ -2399,7 +2402,7 @@ class FxRateResult:
         Returns
         -------
         float
-            The rate exposed by this `FxRateResult`.
+            FX conversion rate applied for this quote, in quote-per-base units.
 
         Notes
         -----
@@ -2415,7 +2418,7 @@ class FxRateResult:
         Returns
         -------
         bool
-            The triangulated exposed by this `FxRateResult`.
+            Whether the rate was obtained via triangulation.
 
         Notes
         -----
@@ -2631,12 +2634,12 @@ class ScalarTimeSeries:
     @property
     def id(self) -> str:
         """
-        Return the id for `ScalarTimeSeries`.
+        Series identifier.
 
         Returns
         -------
         str
-            The id exposed by this `ScalarTimeSeries`.
+            Exact ``MarketContext`` lookup key for this scalar series.
 
         Notes
         -----
@@ -2647,12 +2650,12 @@ class ScalarTimeSeries:
     @property
     def currency(self) -> Currency | None:
         """
-        Return the currency for `ScalarTimeSeries`.
+        Optional currency tag.
 
         Returns
         -------
         Currency | None
-            The currency exposed by this `ScalarTimeSeries`.
+            ISO-4217 currency if the series is dimensional, otherwise ``None``.
 
         Notes
         -----
@@ -2663,12 +2666,12 @@ class ScalarTimeSeries:
     @property
     def interpolation(self) -> str:
         """
-        Return the interpolation for `ScalarTimeSeries`.
+        Interpolation policy name.
 
         Returns
         -------
         str
-            The interpolation exposed by this `ScalarTimeSeries`.
+            Interpolation policy used between observation dates.
 
         Notes
         -----
@@ -2679,12 +2682,12 @@ class ScalarTimeSeries:
     @property
     def observations(self) -> list[tuple[datetime.date, float]]:
         """
-        Return the observations for `ScalarTimeSeries`.
+        Chronologically sorted observations.
 
         Returns
         -------
         list[tuple[datetime.date, float]]
-            The observations exposed by this `ScalarTimeSeries`.
+            ``(date, value)`` pairs in ascending date order.
 
         Notes
         -----
@@ -2843,12 +2846,12 @@ class InflationIndex:
     @property
     def id(self) -> str:
         """
-        Return the id for `InflationIndex`.
+        Inflation-index identifier.
 
         Returns
         -------
         str
-            The id exposed by this `InflationIndex`.
+            Exact ``MarketContext`` lookup key for this inflation index.
 
         Notes
         -----
@@ -2859,12 +2862,12 @@ class InflationIndex:
     @property
     def currency(self) -> Currency:
         """
-        Return the currency for `InflationIndex`.
+        ISO-4217 currency of this inflation index.
 
         Returns
         -------
         Currency
-            The currency exposed by this `InflationIndex`.
+            ISO-4217 currency of the published inflation index.
 
         Notes
         -----
@@ -2875,12 +2878,12 @@ class InflationIndex:
     @property
     def interpolation(self) -> str:
         """
-        Return the interpolation for `InflationIndex`.
+        Interpolation policy name.
 
         Returns
         -------
         str
-            The interpolation exposed by this `InflationIndex`.
+            Interpolation policy used between published index dates.
 
         Notes
         -----
@@ -2891,12 +2894,12 @@ class InflationIndex:
     @property
     def observations(self) -> list[tuple[datetime.date, float]]:
         """
-        Return the observations for `InflationIndex`.
+        Chronologically sorted observations.
 
         Returns
         -------
         list[tuple[datetime.date, float]]
-            The observations exposed by this `InflationIndex`.
+            ``(date, index_level)`` pairs in ascending date order.
 
         Notes
         -----
@@ -3483,7 +3486,7 @@ class MarketContext:
         Returns
         -------
         FxMatrix | None
-            The fx exposed by this `MarketContext`.
+            Access the FX matrix (returns ``None`` if not set).
 
         Notes
         -----

@@ -157,6 +157,40 @@ pub fn option_type_from_bool(is_call: bool) -> OptionType {
     }
 }
 
+/// Vanilla option payoff at expiry: `max(±(spot - strike), 0)`.
+///
+/// # Arguments
+///
+/// * `spot` - Underlying level at expiry, in the same price units as `strike`.
+/// * `strike` - Exercise price; must be finite and strictly positive.
+/// * `option_type` - Call pays `max(spot - strike, 0)`; put pays
+///   `max(strike - spot, 0)`.
+///
+/// # Errors
+///
+/// Returns an error if `spot` is non-finite or `strike` is non-finite or not
+/// strictly positive.
+pub fn vanilla_expiry_payoff(spot: f64, strike: f64, option_type: OptionType) -> Result<f64> {
+    if !spot.is_finite() {
+        return Err(Error::Validation(format!(
+            "vanilla expiry payoff spot must be finite, got {spot}"
+        )));
+    }
+    if !strike.is_finite() || strike <= 0.0 {
+        return Err(Error::Validation(format!(
+            "vanilla expiry payoff strike must be finite and positive, got {strike}"
+        )));
+    }
+    Ok(vanilla_expiry_payoff_unchecked(spot, strike, option_type))
+}
+
+fn vanilla_expiry_payoff_unchecked(spot: f64, strike: f64, option_type: OptionType) -> f64 {
+    match option_type {
+        OptionType::Call => (spot - strike).max(0.0),
+        OptionType::Put => (strike - spot).max(0.0),
+    }
+}
+
 /// Return a closed-form value when finite, otherwise report a validation error.
 ///
 /// # Arguments
@@ -215,10 +249,7 @@ pub fn bs_price(
     option_type: OptionType,
 ) -> f64 {
     if t <= 0.0 {
-        return match option_type {
-            OptionType::Call => (spot - strike).max(0.0),
-            OptionType::Put => (strike - spot).max(0.0),
-        };
+        return vanilla_expiry_payoff_unchecked(spot, strike, option_type);
     }
 
     // Use combined d1_d2 to avoid redundant computation
@@ -663,6 +694,16 @@ mod tests {
     fn option_type_from_bool_maps_binding_flags() {
         assert!(matches!(option_type_from_bool(true), OptionType::Call));
         assert!(matches!(option_type_from_bool(false), OptionType::Put));
+    }
+
+    #[test]
+    fn vanilla_expiry_payoff_matches_intrinsic() {
+        let call = vanilla_expiry_payoff(110.0, 100.0, OptionType::Call).expect("call");
+        let put = vanilla_expiry_payoff(90.0, 100.0, OptionType::Put).expect("put");
+        assert!((call - 10.0).abs() < 1e-12);
+        assert!((put - 10.0).abs() < 1e-12);
+        assert!(vanilla_expiry_payoff(90.0, 100.0, OptionType::Call).expect("otm") == 0.0);
+        assert!(vanilla_expiry_payoff(100.0, 0.0, OptionType::Call).is_err());
     }
 
     #[test]
