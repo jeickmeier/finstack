@@ -5,7 +5,7 @@ Typed bindings for ``finstack_quant_cashflows::aggregation``.
 :func:`aggregate_by_period` groups dated flows into reporting periods while
 preserving currency separation; :func:`aggregate_cashflows_checked` sums flows
 into a single currency, rejecting mismatches; and :func:`calendar_year_ladder`
-rolls coupon / principal / PV totals by calendar year.
+rolls non-principal / principal / PV totals by calendar year.
 
 Examples
 --------

@@ -124,6 +124,7 @@ impl SwaptionLsmcConfig {
             seed: self.seed,
             exercise_dates: Vec::new(),
             use_parallel: false, // LSMC is complex, default to serial
+            antithetic: self.antithetic,
         }
     }
 

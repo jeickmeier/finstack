@@ -609,12 +609,14 @@ pub fn calendar_year_ladder(
 
     Ok(by_year
         .into_iter()
-        .map(|(year, [non_principal, principal, pv])| CalendarYearLadderRow {
-            year,
-            non_principal: non_principal.total(),
-            principal: principal.total(),
-            pv: pv.total(),
-        })
+        .map(
+            |(year, [non_principal, principal, pv])| CalendarYearLadderRow {
+                year,
+                non_principal: non_principal.total(),
+                principal: principal.total(),
+                pv: pv.total(),
+            },
+        )
         .collect())
 }
 

@@ -263,7 +263,7 @@ impl PyLsmcPricer {
             self.use_parallel,
             self.antithetic,
         )
-                .map_err(core_to_py)?;
+        .map_err(core_to_py)?;
         Ok((pricer, num_steps, currency))
     }
 }

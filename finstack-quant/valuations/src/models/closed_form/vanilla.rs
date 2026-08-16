@@ -717,7 +717,10 @@ mod tests {
         assert!((vanilla_expiry_payoff(90.0, 100.0, OptionType::Call).expect("otm")).abs() < 1e-12);
         assert!(vanilla_expiry_payoff(100.0, 0.0, OptionType::Call).is_err());
         assert!(vanilla_expiry_payoff(-1.0, 100.0, OptionType::Call).is_err());
-        assert!((vanilla_expiry_payoff(0.0, 100.0, OptionType::Put).expect("zero spot") - 100.0).abs() < 1e-12);
+        assert!(
+            (vanilla_expiry_payoff(0.0, 100.0, OptionType::Put).expect("zero spot") - 100.0).abs()
+                < 1e-12
+        );
     }
 
     #[test]

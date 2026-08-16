@@ -472,7 +472,7 @@ fn price_asian(
 /// # Errors
 ///
 /// Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is
-/// unknown; `strike <= 0`; the GBM parameters, path count, step count, expiry,
+/// unknown; `strike` is non-finite or `<= 0`; the GBM parameters, path count, step count, expiry,
 /// basis name, or basis degree fail validation; path generation fails; or the
 /// result cannot be serialized.
 /// @param spot - Current spot price or exchange rate in the same units as the strike.
@@ -524,14 +524,14 @@ pub fn price_american_put(
 }
 
 #[allow(clippy::too_many_arguments)]
-/// Price an American call via LSMC under GBM dynamics.
+/// Price a Bermudan call via LSMC under GBM dynamics.
 ///
 /// Optional knobs match [`price_american_put`].
 ///
 /// # Errors
 ///
 /// Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is
-/// unknown; `strike <= 0`; the GBM parameters, path count, step count, expiry,
+/// unknown; `strike` is non-finite or `<= 0`; the GBM parameters, path count, step count, expiry,
 /// basis name, or basis degree fail validation; path generation fails; or the
 /// result cannot be serialized.
 /// @param spot - Current spot price or exchange rate in the same units as the strike.
@@ -588,7 +588,7 @@ pub fn price_american_call(
 /// # Errors
 ///
 /// Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is
-/// unknown; `strike <= 0`; the GBM parameters, path count, step count, expiry,
+/// unknown; `strike` is non-finite or `<= 0`; the GBM parameters, path count, step count, expiry,
 /// basis name, or basis degree fail validation; `pricing_seed == seed`; either
 /// path-generation pass or the regression fit fails; or the result cannot be
 /// serialized.
@@ -648,7 +648,7 @@ pub fn price_american_put_unbiased(
 /// # Errors
 ///
 /// Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is
-/// unknown; `strike <= 0`; the GBM parameters, path count, step count, expiry,
+/// unknown; `strike` is non-finite or `<= 0`; the GBM parameters, path count, step count, expiry,
 /// basis name, or basis degree fail validation; `pricing_seed == seed`; either
 /// path-generation pass or the regression fit fails; or the result cannot be
 /// serialized.
@@ -726,15 +726,14 @@ fn price_lsmc_gbm(
     let degree = basis_degree.unwrap_or(defaults.basis_degree);
     let basis_name = basis.as_deref().unwrap_or(defaults.basis.as_str());
     let basis = BasisKind::parse(basis_name).map_err(to_js_err)?;
-    let pricer =
-        LsmcPricer::gbm_american(
-            num_paths,
-            num_steps,
-            seed,
-            use_parallel.unwrap_or(false),
-            defaults.antithetic,
-        )
-            .map_err(to_js_err)?;
+    let pricer = LsmcPricer::gbm_american(
+        num_paths,
+        num_steps,
+        seed,
+        use_parallel.unwrap_or(false),
+        defaults.antithetic,
+    )
+    .map_err(to_js_err)?;
     let est = match (is_put, pricing_seed) {
         (true, None) => pricer.price_gbm_american_put(
             spot, strike, rate, div_yield, vol, expiry, num_steps, currency, basis, degree,

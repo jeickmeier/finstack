@@ -2508,7 +2508,9 @@ def finite_diff_delta_crn(
     Examples
     --------
     >>> from finstack_quant.monte_carlo import finite_diff_delta_crn
-    >>> delta, stderr = finite_diff_delta_crn(100, 100, 0.05, 0.0, 0.2, 1.0, "call", num_paths=200, seed=7, num_steps=10)
+    >>> delta, stderr = finite_diff_delta_crn(
+    ...     100, 100, 0.05, 0.0, 0.2, 1.0, "call", num_paths=200, seed=7, num_steps=10
+    ... )
     >>> 0 < delta < 1 and stderr >= 0
     True
     """
@@ -2652,7 +2654,9 @@ def finite_diff_gamma_crn(
     Examples
     --------
     >>> from finstack_quant.monte_carlo import finite_diff_gamma_crn
-    >>> gamma, stderr = finite_diff_gamma_crn(100, 100, 0.05, 0.0, 0.2, 1.0, "call", num_paths=200, seed=7, num_steps=10)
+    >>> gamma, stderr = finite_diff_gamma_crn(
+    ...     100, 100, 0.05, 0.0, 0.2, 1.0, "call", num_paths=200, seed=7, num_steps=10
+    ... )
     >>> gamma > 0 and stderr >= 0
     True
     """

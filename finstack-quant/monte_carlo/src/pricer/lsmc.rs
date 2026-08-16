@@ -45,7 +45,7 @@ use crate::pricer::basis::{build_lsmc_basis, BasisFunctions, BasisKind, LsmcBasi
 use crate::process::gbm::GbmProcess;
 use crate::rng::philox::PhiloxRng;
 use crate::time_grid::TimeGrid;
-use crate::traits::Discretization;
+use crate::traits::{Discretization, RandomStream};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
 

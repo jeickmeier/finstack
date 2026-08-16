@@ -356,8 +356,7 @@ mod tests {
         let (atm_spot, atm_strike) = (100.0, 100.0);
         let (delta, stderr) =
             finite_diff_delta_crn_gbm(crn_spec(atm_spot, atm_strike, "call")).expect("atm delta");
-        let (bs_delta, _) =
-            bs_spot_delta_gamma(atm_spot, atm_strike, 0.05, 0.0, 0.2, 1.0, true);
+        let (bs_delta, _) = bs_spot_delta_gamma(atm_spot, atm_strike, 0.05, 0.0, 0.2, 1.0, true);
         let tol = (4.0 * stderr).max(0.03);
         assert!(
             (delta - bs_delta).abs() < tol,
@@ -367,8 +366,7 @@ mod tests {
         let otm_strike = 120.0;
         let (delta_25, stderr_25) =
             finite_diff_delta_crn_gbm(crn_spec(atm_spot, otm_strike, "call")).expect("otm delta");
-        let (bs_delta_25, _) =
-            bs_spot_delta_gamma(atm_spot, otm_strike, 0.05, 0.0, 0.2, 1.0, true);
+        let (bs_delta_25, _) = bs_spot_delta_gamma(atm_spot, otm_strike, 0.05, 0.0, 0.2, 1.0, true);
         let tol_25 = (4.0 * stderr_25).max(0.03);
         assert!(
             (delta_25 - bs_delta_25).abs() < tol_25,
