@@ -702,7 +702,7 @@ mod tests {
         let put = vanilla_expiry_payoff(90.0, 100.0, OptionType::Put).expect("put");
         assert!((call - 10.0).abs() < 1e-12);
         assert!((put - 10.0).abs() < 1e-12);
-        assert!(vanilla_expiry_payoff(90.0, 100.0, OptionType::Call).expect("otm") == 0.0);
+        assert!((vanilla_expiry_payoff(90.0, 100.0, OptionType::Call).expect("otm")).abs() < 1e-12);
         assert!(vanilla_expiry_payoff(100.0, 0.0, OptionType::Call).is_err());
     }
 
