@@ -100,6 +100,8 @@ impl Bond {
     /// - **Tenor:** Semi-annual
     /// - **Settlement:** T+2 (cross-border; domestic is T+1 since May 2018)
     /// - **Calendar:** Japan holidays
+    /// - **Quoted yield:** Japanese simple yield (`japanese_simple_yield`, 単利).
+    ///   Street `ytm` remains the secondary-market IRR and is not switched.
     ///
     /// # Example
     /// ```

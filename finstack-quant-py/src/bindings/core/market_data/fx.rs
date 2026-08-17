@@ -3,12 +3,15 @@
 use std::sync::Arc;
 
 use finstack_quant_core::money::fx::{
-    FxConversionPolicy, FxMatrix, FxQuery, FxRateResult, SimpleFxProvider,
+    fx_market_pair as rust_fx_market_pair, fx_pair_convention as rust_fx_pair_convention,
+    fx_pip_size as rust_fx_pip_size, invert_fx_rate as rust_invert_fx_rate, FxConversionPolicy,
+    FxMatrix, FxPairConvention, FxQuery, FxQuoteConvention, FxRateResult, SimpleFxProvider,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
+use pyo3::wrap_pyfunction;
 
-use crate::bindings::core::currency::extract_currency;
+use crate::bindings::core::currency::{extract_currency, PyCurrency};
 use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe_with_schema;
 use crate::errors::core_to_py;
@@ -270,7 +273,214 @@ impl PyFxMatrix {
     }
 }
 
-pub(super) const EXPORTS: &[&str] = &["FxConversionPolicy", "FxMatrix", "FxRateResult"];
+/// Parse an [`FxQuoteConvention`] from a string.
+fn parse_fx_quote_convention(s: &str) -> PyResult<FxQuoteConvention> {
+    s.parse::<FxQuoteConvention>()
+        .map_err(|e| crate::errors::value_error(format!("Invalid FxQuoteConvention {s:?}: {e}")))
+}
+
+/// USD quotation style for a market FX pair (Direct or Indirect versus USD).
+///
+/// Wraps [`FxQuoteConvention`] from `finstack-quant-core`.
+#[pyclass(
+    name = "FxQuoteConvention",
+    module = "finstack_quant.core.market_data.fx",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone, Copy, Debug)]
+pub struct PyFxQuoteConvention {
+    /// Inner Rust convention.
+    pub(crate) inner: FxQuoteConvention,
+}
+
+impl PyFxQuoteConvention {
+    pub(crate) fn from_inner(inner: FxQuoteConvention) -> Self {
+        Self { inner }
+    }
+}
+
+#[pymethods]
+impl PyFxQuoteConvention {
+    /// USD is the quote currency (EURUSD, GBPUSD).
+    #[classattr]
+    const DIRECT: PyFxQuoteConvention = PyFxQuoteConvention {
+        inner: FxQuoteConvention::Direct,
+    };
+    /// USD is the base currency (USDJPY, USDCAD).
+    #[classattr]
+    const INDIRECT: PyFxQuoteConvention = PyFxQuoteConvention {
+        inner: FxQuoteConvention::Indirect,
+    };
+
+    /// Parse from a string label (``"direct"`` or ``"indirect"``).
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Convention label: ``"direct"`` or ``"indirect"``.
+    #[classmethod]
+    #[pyo3(text_signature = "(cls, name)")]
+    fn from_name(_cls: &Bound<'_, pyo3::types::PyType>, name: &str) -> PyResult<Self> {
+        parse_fx_quote_convention(name).map(Self::from_inner)
+    }
+
+    fn __repr__(&self) -> String {
+        format!("FxQuoteConvention({})", self.inner)
+    }
+
+    fn __str__(&self) -> String {
+        self.inner.to_string()
+    }
+}
+
+/// Market convention for one FX pair after Bloomberg/Reuters CCY1 ordering.
+///
+/// Wraps [`FxPairConvention`] from `finstack-quant-core`. Instances come from
+/// [`fx_pair_convention`].
+#[pyclass(
+    name = "FxPairConvention",
+    module = "finstack_quant.core.market_data.fx",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone, Copy, Debug)]
+pub struct PyFxPairConvention {
+    /// Inner Rust convention.
+    inner: FxPairConvention,
+}
+
+impl PyFxPairConvention {
+    fn from_inner(inner: FxPairConvention) -> Self {
+        Self { inner }
+    }
+}
+
+#[pymethods]
+impl PyFxPairConvention {
+    /// Market CCY1 (one unit of this currency).
+    #[getter]
+    fn base(&self) -> PyCurrency {
+        PyCurrency::from_inner(self.inner.base)
+    }
+
+    /// Market CCY2 (units of this currency per one unit of CCY1).
+    #[getter]
+    fn quote(&self) -> PyCurrency {
+        PyCurrency::from_inner(self.inner.quote)
+    }
+
+    /// Direct if the USD leg quotes USD as CCY2; Indirect if USD is CCY1.
+    #[getter]
+    fn usd_quotation(&self) -> PyFxQuoteConvention {
+        PyFxQuoteConvention::from_inner(self.inner.usd_quotation)
+    }
+
+    /// Pip size in outright-rate units (`0.01` or `0.0001`).
+    #[getter]
+    fn pip_size(&self) -> f64 {
+        self.inner.pip_size
+    }
+
+    /// Standard spot lag in business days (T+1 or T+2).
+    #[getter]
+    fn spot_lag_days(&self) -> u32 {
+        self.inner.spot_lag_days
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "FxPairConvention(base={}, quote={}, usd_quotation={}, pip_size={}, spot_lag_days={})",
+            self.inner.base,
+            self.inner.quote,
+            self.inner.usd_quotation,
+            self.inner.pip_size,
+            self.inner.spot_lag_days,
+        )
+    }
+}
+
+/// Order two currencies into the market CCY1/CCY2 pair.
+///
+/// Priority is EUR > GBP > AUD > NZD > USD > other, with an ISO-code tie-break.
+///
+/// # Arguments
+///
+/// * `a` - First currency of the unordered pair (`Currency` or ISO code).
+/// * `b` - Second currency of the unordered pair (`Currency` or ISO code).
+#[pyfunction]
+#[pyo3(text_signature = "(a, b)")]
+fn fx_market_pair(
+    a: &Bound<'_, PyAny>,
+    b: &Bound<'_, PyAny>,
+) -> PyResult<(PyCurrency, PyCurrency)> {
+    let (base, quote) = rust_fx_market_pair(extract_currency(a)?, extract_currency(b)?);
+    Ok((PyCurrency::from_inner(base), PyCurrency::from_inner(quote)))
+}
+
+/// Market convention for an unordered currency pair.
+///
+/// Returned ``base`` / ``quote`` are always market CCY1/CCY2.
+///
+/// # Arguments
+///
+/// * `base` - One currency of the pair (`Currency` or ISO code). Orientation
+///   is ignored.
+/// * `quote` - The other currency of the pair (`Currency` or ISO code).
+///   Orientation is ignored.
+#[pyfunction]
+#[pyo3(text_signature = "(base, quote)")]
+fn fx_pair_convention(
+    base: &Bound<'_, PyAny>,
+    quote: &Bound<'_, PyAny>,
+) -> PyResult<PyFxPairConvention> {
+    Ok(PyFxPairConvention::from_inner(rust_fx_pair_convention(
+        extract_currency(base)?,
+        extract_currency(quote)?,
+    )))
+}
+
+/// Pip size in outright-rate units for a currency pair.
+///
+/// ``0.01`` when either side is JPY, KRW, or HUF; otherwise ``0.0001``.
+///
+/// # Arguments
+///
+/// * `base` - One currency of the pair (`Currency` or ISO code). Order is not
+///   significant.
+/// * `quote` - The other currency of the pair (`Currency` or ISO code). Order
+///   is not significant.
+#[pyfunction]
+#[pyo3(text_signature = "(base, quote)")]
+fn fx_pip_size(base: &Bound<'_, PyAny>, quote: &Bound<'_, PyAny>) -> PyResult<f64> {
+    Ok(rust_fx_pip_size(
+        extract_currency(base)?,
+        extract_currency(quote)?,
+    ))
+}
+
+/// Reciprocal of a strictly positive finite FX rate.
+///
+/// # Arguments
+///
+/// * `rate` - Outright FX rate to invert, in quote-per-base units. Must be
+///   finite and strictly positive; the reciprocal must also be a valid FX rate.
+#[pyfunction]
+#[pyo3(text_signature = "(rate)")]
+fn invert_fx_rate(rate: f64) -> PyResult<f64> {
+    rust_invert_fx_rate(rate).map_err(core_to_py)
+}
+
+pub(super) const EXPORTS: &[&str] = &[
+    "FxConversionPolicy",
+    "FxMatrix",
+    "FxPairConvention",
+    "FxQuoteConvention",
+    "FxRateResult",
+    "fx_market_pair",
+    "fx_pair_convention",
+    "fx_pip_size",
+    "invert_fx_rate",
+];
 
 /// Register the `finstack_quant.core.market_data.fx` submodule.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -283,6 +493,12 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyFxConversionPolicy>()?;
     m.add_class::<PyFxRateResult>()?;
     m.add_class::<PyFxMatrix>()?;
+    m.add_class::<PyFxQuoteConvention>()?;
+    m.add_class::<PyFxPairConvention>()?;
+    m.add_function(wrap_pyfunction!(fx_market_pair, &m)?)?;
+    m.add_function(wrap_pyfunction!(fx_pair_convention, &m)?)?;
+    m.add_function(wrap_pyfunction!(fx_pip_size, &m)?)?;
+    m.add_function(wrap_pyfunction!(invert_fx_rate, &m)?)?;
 
     let all = PyList::new(py, EXPORTS)?;
     m.setattr("__all__", all)?;

@@ -30,11 +30,16 @@
 //! assert!((res.rate - 1.1).abs() < 1e-12);
 //! ```
 
+mod conventions;
 mod matrix;
 mod provider;
 mod providers;
 mod types;
 
+pub use conventions::{
+    fx_market_pair, fx_pair_convention, fx_pip_size, invert_fx_rate, FxPairConvention,
+    FxQuoteConvention,
+};
 pub use matrix::FxMatrix;
 pub use provider::FxProvider;
 pub(crate) use provider::{reciprocal_rate_or_err, validate_fx_rate};

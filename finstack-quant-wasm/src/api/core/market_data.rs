@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use crate::api::core::currency::JsCurrency;
 use crate::utils::{date_to_iso, parse_iso_date, to_js_err};
 use finstack_quant_core::currency::Currency as RustCurrency;
 use finstack_quant_core::dates::DayCount;
@@ -15,10 +16,13 @@ use finstack_quant_core::market_data::term_structures::{
 use finstack_quant_core::math::interp::{ExtrapolationPolicy, InterpStyle};
 use finstack_quant_core::math::volatility::sabr::SabrParams;
 use finstack_quant_core::money::fx::{
-    FxConversionPolicy as RustFxConversionPolicy, FxMatrix as RustFxMatrix, FxQuery,
+    fx_market_pair as rust_fx_market_pair, fx_pair_convention as rust_fx_pair_convention,
+    fx_pip_size as rust_fx_pip_size, invert_fx_rate as rust_invert_fx_rate,
+    FxConversionPolicy as RustFxConversionPolicy, FxMatrix as RustFxMatrix,
+    FxPairConvention as RustFxPairConvention, FxQuery, FxQuoteConvention as RustFxQuoteConvention,
     FxRateResult as RustFxRateResult, SimpleFxProvider,
 };
-use js_sys::Float64Array;
+use js_sys::{Array, Float64Array};
 use serde::Deserialize;
 use wasm_bindgen::prelude::*;
 
@@ -566,6 +570,229 @@ impl JsFxRateResult {
     pub fn triangulated(&self) -> bool {
         self.inner.triangulated
     }
+}
+
+/// USD quotation style for a market FX pair (Direct or Indirect versus USD).
+///
+/// **Direct** means USD is the quote currency (EURUSD, GBPUSD). **Indirect**
+/// means USD is the base (USDJPY, USDCAD). Non-USD crosses inherit the USD
+/// quotation of market CCY1 versus USD.
+///
+/// @example
+/// ```javascript
+/// import init, { core } from "finstack-quant-wasm";
+/// await init();
+/// const direct = core.FxQuoteConvention.direct();
+/// direct.toString(); // "direct"
+/// ```
+#[wasm_bindgen(js_name = FxQuoteConvention)]
+#[derive(Clone, Copy, Debug)]
+pub struct JsFxQuoteConvention {
+    inner: RustFxQuoteConvention,
+}
+
+#[wasm_bindgen(js_class = FxQuoteConvention)]
+impl JsFxQuoteConvention {
+    /// USD is the quote currency (units of USD per one unit of CCY1).
+    pub fn direct() -> Self {
+        Self {
+            inner: RustFxQuoteConvention::Direct,
+        }
+    }
+
+    /// USD is the base currency (units of CCY2 per one USD).
+    pub fn indirect() -> Self {
+        Self {
+            inner: RustFxQuoteConvention::Indirect,
+        }
+    }
+
+    /// Parse from a string label such as `"direct"` or `"indirect"`.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Convention label: `direct` or `indirect`.
+    ///
+    /// @param name - Convention label: `direct` or `indirect`.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception unless `name` is `direct` or `indirect`.
+    #[wasm_bindgen(js_name = fromName)]
+    pub fn from_name(name: &str) -> Result<Self, JsValue> {
+        Ok(Self {
+            inner: name.parse().map_err(to_js_err)?,
+        })
+    }
+
+    /// String form of the USD quotation style (`"direct"` or `"indirect"`).
+    #[wasm_bindgen(js_name = toString)]
+    #[allow(clippy::inherent_to_string)]
+    pub fn to_string(&self) -> String {
+        self.inner.to_string()
+    }
+}
+
+/// Market convention for one FX pair after Bloomberg/Reuters CCY1 ordering.
+///
+/// Instances come from `fxPairConvention`. `base` / `quote` are always market
+/// CCY1/CCY2, even when the lookup arguments were inverted.
+///
+/// @example
+/// ```javascript
+/// import init, { core } from "finstack-quant-wasm";
+/// await init();
+/// const conv = core.fxPairConvention("USD", "EUR");
+/// conv.base.code;          // "EUR"
+/// conv.usdQuotation.toString(); // "direct"
+/// conv.pipSize;            // 0.0001
+/// conv.spotLagDays;        // 2
+/// ```
+#[wasm_bindgen(js_name = FxPairConvention)]
+#[derive(Clone, Copy, Debug)]
+pub struct JsFxPairConvention {
+    inner: RustFxPairConvention,
+}
+
+#[wasm_bindgen(js_class = FxPairConvention)]
+impl JsFxPairConvention {
+    /// Market CCY1 (one unit of this currency in the screen pair).
+    #[wasm_bindgen(getter, js_name = base)]
+    pub fn base(&self) -> JsCurrency {
+        JsCurrency {
+            inner: self.inner.base,
+        }
+    }
+
+    /// Market CCY2 (units of this currency per one unit of CCY1).
+    #[wasm_bindgen(getter, js_name = quote)]
+    pub fn quote(&self) -> JsCurrency {
+        JsCurrency {
+            inner: self.inner.quote,
+        }
+    }
+
+    /// Direct if the USD leg quotes USD as CCY2; Indirect if USD is CCY1.
+    #[wasm_bindgen(getter, js_name = usdQuotation)]
+    pub fn usd_quotation(&self) -> JsFxQuoteConvention {
+        JsFxQuoteConvention {
+            inner: self.inner.usd_quotation,
+        }
+    }
+
+    /// Pip size in outright-rate units (`0.01` or `0.0001`).
+    #[wasm_bindgen(getter, js_name = pipSize)]
+    pub fn pip_size(&self) -> f64 {
+        self.inner.pip_size
+    }
+
+    /// Standard spot lag in business days (T+1 or T+2).
+    #[wasm_bindgen(getter, js_name = spotLagDays)]
+    pub fn spot_lag_days(&self) -> u32 {
+        self.inner.spot_lag_days
+    }
+}
+
+/// Order two currencies into the market CCY1/CCY2 pair.
+///
+/// Priority is EUR > GBP > AUD > NZD > USD > other, with a stable ISO-4217
+/// alphabetic tie-break when both sides share the same rank.
+///
+/// # Arguments
+///
+/// * `a` - First currency ISO code of the unordered pair. Need not be market CCY1.
+/// * `b` - Second currency ISO code of the unordered pair. Need not be market CCY2.
+///
+/// @param a - First currency ISO code of the unordered pair. Need not be market CCY1.
+/// @param b - Second currency ISO code of the unordered pair. Need not be market CCY2.
+/// @returns A two-element array `[CCY1, CCY2]` of `Currency` handles in market order.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if either code is not a recognized ISO-4217
+/// alphabetic currency.
+#[wasm_bindgen(js_name = fxMarketPair)]
+pub fn fx_market_pair(a: &str, b: &str) -> Result<Array, JsValue> {
+    let a: RustCurrency = a.parse().map_err(to_js_err)?;
+    let b: RustCurrency = b.parse().map_err(to_js_err)?;
+    let (base, quote) = rust_fx_market_pair(a, b);
+    let out = Array::new();
+    out.push(&JsCurrency { inner: base }.into());
+    out.push(&JsCurrency { inner: quote }.into());
+    Ok(out)
+}
+
+/// Market convention for an unordered currency pair.
+///
+/// Returned `base` / `quote` are always the market CCY1/CCY2, even when the
+/// arguments are inverted.
+///
+/// # Arguments
+///
+/// * `base` - One currency ISO code of the pair. Orientation is ignored.
+/// * `quote` - The other currency ISO code of the pair. Orientation is ignored.
+///
+/// @param base - One currency ISO code of the pair. Orientation is ignored.
+/// @param quote - The other currency ISO code of the pair. Orientation is ignored.
+/// @returns Market CCY1/CCY2, USD quotation, pip size, and standard spot lag.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if either code is not a recognized ISO-4217
+/// alphabetic currency.
+#[wasm_bindgen(js_name = fxPairConvention)]
+pub fn fx_pair_convention(base: &str, quote: &str) -> Result<JsFxPairConvention, JsValue> {
+    let base: RustCurrency = base.parse().map_err(to_js_err)?;
+    let quote: RustCurrency = quote.parse().map_err(to_js_err)?;
+    Ok(JsFxPairConvention {
+        inner: rust_fx_pair_convention(base, quote),
+    })
+}
+
+/// Pip size in outright-rate units for a currency pair.
+///
+/// Returns `0.01` when either side is JPY, KRW, or HUF; otherwise `0.0001`.
+/// Argument order does not matter.
+///
+/// # Arguments
+///
+/// * `base` - One currency ISO code of the pair. Order is not significant.
+/// * `quote` - The other currency ISO code of the pair. Order is not significant.
+///
+/// @param base - One currency ISO code of the pair. Order is not significant.
+/// @param quote - The other currency ISO code of the pair. Order is not significant.
+/// @returns Pip size as a decimal increment of the outright FX rate.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if either code is not a recognized ISO-4217
+/// alphabetic currency.
+#[wasm_bindgen(js_name = fxPipSize)]
+pub fn fx_pip_size(base: &str, quote: &str) -> Result<f64, JsValue> {
+    let base: RustCurrency = base.parse().map_err(to_js_err)?;
+    let quote: RustCurrency = quote.parse().map_err(to_js_err)?;
+    Ok(rust_fx_pip_size(base, quote))
+}
+
+/// Reciprocal of a strictly positive finite FX rate.
+///
+/// # Arguments
+///
+/// * `rate` - Outright FX rate to invert, in quote-per-base units. Must be
+///   finite and strictly positive; the reciprocal must also be a valid FX rate.
+///
+/// @param rate - Outright FX rate to invert, in quote-per-base units. Must be
+/// finite and strictly positive; the reciprocal must also be a valid FX rate.
+/// @returns `1 / rate` when that reciprocal is a valid FX rate.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `rate` is non-finite, non-positive, or
+/// when `1 / rate` is not a usable FX rate (overflow to infinity, zero, or a
+/// negative value).
+#[wasm_bindgen(js_name = invertFxRate)]
+pub fn invert_fx_rate(rate: f64) -> Result<f64, JsValue> {
+    rust_invert_fx_rate(rate).map_err(to_js_err)
 }
 
 /// Foreign-exchange rate matrix for currency conversion.
@@ -1164,6 +1391,25 @@ mod tests {
         let r = m.rate_default("USD", "EUR", "2024-01-15").expect("fx rate");
         assert!((r.rate() - 0.92).abs() < 1e-9);
         assert!(!r.triangulated());
+    }
+
+    #[test]
+    fn fx_pair_convention_helpers() {
+        let conv = fx_pair_convention("USD", "JPY").expect("USDJPY convention");
+        assert_eq!(conv.base().code(), "USD");
+        assert_eq!(conv.quote().code(), "JPY");
+        assert_eq!(conv.usd_quotation().to_string(), "indirect");
+        assert!((conv.pip_size() - 0.01).abs() < 1e-12);
+        assert_eq!(conv.spot_lag_days(), 2);
+        assert!((fx_pip_size("EUR", "USD").expect("EURUSD pip") - 0.0001).abs() < 1e-12);
+        let inverted = invert_fx_rate(1.10).expect("positive rate");
+        assert!((inverted - 1.0 / 1.10).abs() < 1e-12);
+        assert_eq!(
+            JsFxQuoteConvention::from_name("direct")
+                .expect("direct")
+                .to_string(),
+            "direct"
+        );
     }
 
     // JsVolCube tests require a WASM runtime (JsValue) — run via wasm-pack test.

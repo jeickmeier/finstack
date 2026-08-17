@@ -106,6 +106,8 @@ fn parse_convention(s: &str) -> Option<DayCount> {
         "act_365l" => Some(DayCount::Act365L),
         "act_360" => Some(DayCount::Act360),
         "act_365f" => Some(DayCount::Act365F),
+        "act_act_afb" => Some(DayCount::ActActAfb),
+        "30_360_it" => Some(DayCount::Thirty360It),
         "comparison" => None, // Special case for comparison tests
         _ => panic!("Unknown convention: {}", s),
     }

@@ -301,6 +301,21 @@ class DayCount:
     """Actual/Actual (ISDA)."""
     ACT_ACT_ISMA: DayCount
     """Actual/Actual (ICMA/ISMA)."""
+    ACT_ACT_AFB: DayCount
+    """Actual/Actual AFB (Actual/Actual Euro).
+
+    Walks whole years backwards from the end date (QuantLib
+    ``ActualActual::AFB``). A year-step landing on 28 February of a leap
+    year is bumped to 29 February. The residual uses denominator 366 if
+    29 February lies in ``[start, residual_end)``, else 365. No context
+    is required.
+    """
+    THIRTY_360_IT: DayCount
+    """30/360 Italian.
+
+    Day 31 becomes 30, and any February day after the 27th becomes 30
+    (QuantLib ``Thirty360::Italian``). Distinct from US SIA and 30E/360.
+    """
     BUS_252: DayCount
     """Business/252 (Brazilian market convention)."""
 
@@ -313,7 +328,7 @@ class DayCount:
         ----------
         name : str
             Convention identifier (e.g. ``"act_360"``, ``"act_365f"``,
-            ``"30_360"``, ``"bus_252"``).
+            ``"30_360"``, ``"act_act_afb"``, ``"30_360_it"``, ``"bus_252"``).
 
         Returns
         -------
@@ -330,6 +345,10 @@ class DayCount:
         --------
         >>> from finstack_quant.core.dates import DayCount
         >>> DayCount.from_name("act_360") == DayCount.ACT_360
+        True
+        >>> DayCount.from_name("act_act_afb") == DayCount.ACT_ACT_AFB
+        True
+        >>> DayCount.from_name("30_360_it") == DayCount.THIRTY_360_IT
         True
 
         """
@@ -759,6 +778,8 @@ class Thirty360Convention:
     """30/360 ISDA convention."""
     EUROPEAN: Thirty360Convention
     """European 30E/360 convention."""
+    ITALIAN: Thirty360Convention
+    """30/360 Italian convention (31→30 and February day after 27→30)."""
 
     def __repr__(self) -> str: ...
     def __str__(self) -> str: ...

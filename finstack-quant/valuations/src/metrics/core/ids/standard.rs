@@ -11,6 +11,8 @@ impl MetricId {
     pub const SPREAD_EQUIVALENT_METRICS: &'static [MetricId] = &[
         MetricId::Ytm,
         MetricId::Ytw,
+        MetricId::JapaneseSimpleYield,
+        MetricId::MoosmullerYtm,
         MetricId::ZSpread,
         MetricId::ISpread,
         MetricId::DiscountMargin,
@@ -31,6 +33,8 @@ impl MetricId {
         MetricId::Accrued,
         MetricId::Ytm,
         MetricId::Ytw,
+        MetricId::JapaneseSimpleYield,
+        MetricId::MoosmullerYtm,
         MetricId::Moic,
         MetricId::MoicToWorst,
         MetricId::Xirr,

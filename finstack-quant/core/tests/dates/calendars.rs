@@ -2,11 +2,12 @@
 
 use super::common::make_date;
 use finstack_quant_core::dates::calendar::{
-    calendar_by_id, ALL_IDS, ASX as Asx, AUCE as Auce, BRBD as Brbd, CATO as Cato, CHZH as Chzh,
-    CME as Cme, CNBE as Cnbe, DEFR as Defr, GBLO as Gblo, HKEX as Hkex, HKHK as Hkhk, NYSE as Nyse,
-    SGSI as Sgsi, SIFMA as Sifma, SSE as Sse, TARGET2 as Target2, USNY as Usny,
+    calendar_by_id, ALL_IDS, ASX as Asx, AUCE as Auce, BRBD as Brbd, BSE as Bse, CATO as Cato,
+    CHZH as Chzh, CME as Cme, CNBE as Cnbe, DEFR as Defr, EUREX as Eurex, GBLO as Gblo,
+    HKEX as Hkex, HKHK as Hkhk, NSE as Nse, NYSE as Nyse, SGSI as Sgsi, SIFMA as Sifma, SIX as Six,
+    SSE as Sse, TARGET2 as Target2, TSX as Tsx, USNY as Usny,
 };
-use finstack_quant_core::dates::{Date, HolidayCalendar};
+use finstack_quant_core::dates::{available_calendars, Date, HolidayCalendar};
 use std::collections::HashSet;
 
 fn holiday_set(cal: &dyn HolidayCalendar, year: i32) -> HashSet<Date> {
@@ -335,7 +336,113 @@ const CASES: &[CalendarCase] = &[
             },
         ],
     },
+    CalendarCase {
+        name: "EUREX",
+        cal: &Eurex,
+        checks: &[YearCheck {
+            year: 2025,
+            expected_count: Some(8),
+            must_have: &[(2025, 4, 18), (2025, 12, 24), (2025, 12, 31)],
+        }],
+    },
+    CalendarCase {
+        name: "SIX",
+        cal: &Six,
+        checks: &[YearCheck {
+            year: 2025,
+            expected_count: Some(12),
+            must_have: &[(2025, 5, 29), (2025, 8, 1), (2025, 12, 24), (2025, 12, 31)],
+        }],
+    },
+    CalendarCase {
+        name: "TSX",
+        cal: &Tsx,
+        checks: &[
+            YearCheck {
+                year: 2025,
+                expected_count: Some(10),
+                must_have: &[(2025, 2, 17), (2025, 7, 1), (2025, 10, 13)],
+            },
+            YearCheck {
+                year: 2026,
+                expected_count: Some(10),
+                must_have: &[(2026, 12, 28)],
+            },
+        ],
+    },
+    CalendarCase {
+        name: "NSE",
+        cal: &Nse,
+        checks: &[YearCheck {
+            year: 2026,
+            expected_count: None,
+            must_have: &[(2026, 1, 26), (2026, 3, 3)],
+        }],
+    },
+    CalendarCase {
+        name: "BSE",
+        cal: &Bse,
+        checks: &[YearCheck {
+            year: 2026,
+            expected_count: None,
+            must_have: &[(2026, 1, 26), (2026, 3, 3)],
+        }],
+    },
 ];
+
+/// Exchange calendars are not aliases of the nearest country/settlement set.
+#[test]
+fn exchange_calendars_are_not_aliases() {
+    let eve = make_date(2025, 12, 24);
+    let nye = make_date(2025, 12, 31);
+    assert!(Eurex.is_holiday(eve));
+    assert!(Eurex.is_holiday(nye));
+    assert!(
+        Defr.is_business_day(eve),
+        "defr must remain open on Christmas Eve (eurex is not an alias)"
+    );
+    assert!(
+        Defr.is_business_day(nye),
+        "defr must remain open on New Year's Eve (eurex is not an alias)"
+    );
+
+    let truth = make_date(2025, 9, 30);
+    let remembrance = make_date(2025, 11, 11);
+    assert!(
+        Tsx.is_business_day(truth),
+        "TSX trades on National Day for Truth and Reconciliation"
+    );
+    assert!(
+        Tsx.is_business_day(remembrance),
+        "TSX trades on Remembrance Day"
+    );
+    assert!(Cato.is_holiday(truth));
+    assert!(Cato.is_holiday(remembrance));
+
+    assert!(Nse.is_holiday(make_date(2026, 1, 26)));
+    assert!(Nse.is_holiday(make_date(2026, 3, 3)));
+    let independence_saturday = make_date(2026, 8, 15);
+    assert_eq!(
+        independence_saturday.weekday(),
+        time::Weekday::Saturday,
+        "2026-08-15 must be Saturday for this regression"
+    );
+    assert!(
+        Nse.is_business_day(make_date(2026, 8, 14)),
+        "Independence Day 2026 is Saturday; Friday is not an observed weekday holiday"
+    );
+    assert!(
+        Nse.is_business_day(make_date(2026, 8, 17)),
+        "Independence Day 2026 is Saturday; Monday is not an observed weekday holiday"
+    );
+    assert!(Bse.is_holiday(make_date(2026, 1, 26)));
+    assert!(Bse.is_holiday(make_date(2026, 3, 3)));
+
+    let ids = available_calendars();
+    for id in ["eurex", "six", "tsx", "nse", "bse"] {
+        assert!(ids.contains(&id), "available_calendars must include {id}");
+    }
+}
 
 #[test]
 fn calendars_match_sample_expectations() {

@@ -127,7 +127,9 @@ fn day_count_rank(day_count: DayCount) -> u8 {
         DayCount::ActAct => 7,
         DayCount::ActActIsma => 8,
         DayCount::Bus252 => 9,
-        _ => 10,
+        DayCount::ActActAfb => 10,
+        DayCount::Thirty360It => 11,
+        _ => 12,
     }
 }
 

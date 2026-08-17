@@ -485,6 +485,64 @@ impl FxForward {
         Ok(self)
     }
 
+    /// Create an FX forward from spot plus forward points quoted in pips.
+    ///
+    /// Converts pips to decimal points with
+    /// [`fx_pip_size`](finstack_quant_core::money::fx::fx_pip_size) for this
+    /// instrument's stored `base_currency` / `quote_currency`, then delegates
+    /// to [`with_forward_points`](Self::with_forward_points). Pip size is
+    /// `0.01` when either side is JPY, KRW, or HUF, otherwise `0.0001`.
+    ///
+    /// # Arguments
+    ///
+    /// * `spot_rate` - Current spot rate in quote-per-base units. Must be
+    ///   finite and strictly positive.
+    /// * `pips` - Forward points in pip units (for example `50.0` for "+50"
+    ///   on EURUSD). May be negative for a discount; must be finite.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `spot_rate` is non-finite or not strictly
+    /// positive, `pips` is non-finite, or `spot_rate + pips * pip_size` is
+    /// not a finite strictly positive contract rate.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use finstack_quant_valuations::instruments::fx::fx_forward::FxForward;
+    /// # use finstack_quant_core::currency::Currency;
+    /// # use finstack_quant_core::dates::Date;
+    /// # use finstack_quant_core::money::Money;
+    /// # use finstack_quant_core::types::{CurveId, InstrumentId};
+    /// # use time::Month;
+    /// let forward = FxForward::builder()
+    ///     .id(InstrumentId::new("EURUSD-FWD"))
+    ///     .base_currency(Currency::EUR)
+    ///     .quote_currency(Currency::USD)
+    ///     .maturity(Date::from_calendar_date(2025, Month::June, 15).unwrap())
+    ///     .notional(Money::new(1_000_000.0, Currency::EUR))
+    ///     .domestic_discount_curve_id(CurveId::new("USD-OIS"))
+    ///     .foreign_discount_curve_id(CurveId::new("EUR-OIS"))
+    ///     .build()
+    ///     .unwrap()
+    ///     .with_forward_pips(1.1000, 50.0)
+    ///     .unwrap();
+    ///
+    /// // Contract rate = 1.1000 + 50 × 0.0001 = 1.1050
+    /// assert!((forward.contract_rate.unwrap() - 1.1050).abs() < 1e-10);
+    /// ```
+    pub fn with_forward_pips(self, spot_rate: f64, pips: f64) -> finstack_quant_core::Result<Self> {
+        if !pips.is_finite() {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "FX forward pips must be finite, got {}",
+                pips
+            )));
+        }
+        let pip_size =
+            finstack_quant_core::money::fx::fx_pip_size(self.base_currency, self.quote_currency);
+        self.with_forward_points(spot_rate, pips * pip_size)
+    }
+
     /// Compute the market forward rate via covered interest rate parity.
     ///
     /// # Errors

@@ -68,6 +68,8 @@ public = [
     "FxConversionPolicy",
     "FxDeltaVolSurface",
     "FxMatrix",
+    "FxPairConvention",
+    "FxQuoteConvention",
     "FxRateResult",
     "HazardCurve",
     "InflationCurve",
@@ -83,6 +85,10 @@ public = [
     "curves",
     "dtsm",
     "fx",
+    "fx_market_pair",
+    "fx_pair_convention",
+    "fx_pip_size",
+    "invert_fx_rate",
     "scalars",
 ]
 
@@ -106,7 +112,7 @@ allow_additional = true # ISO-4217 code constants are generated from the Rust re
 [crates.core.module_symbols.money]
 python_package = "finstack_quant.core.money"
 public = ["Money"]
-note = "Subset scope: the Rust money module's FormatOpts family (FormatOpts + Money formatting entry points taking it), fx submodule types beyond the bound FxMatrix/FxConversionPolicy/FxRateResult (FxProvider, FxConfig, FxQuery, SimpleFxProvider), rounding helpers, and Money::convert(&dyn FxProvider) remain Rust-only; hosts format via Money.format(...) and convert via convert_at_rate or MarketContext-level FX."
+note = "Subset scope: the Rust money module's FormatOpts family (FormatOpts + Money formatting entry points taking it), fx submodule types beyond the bound FxMatrix/FxConversionPolicy/FxRateResult/FxQuoteConvention/FxPairConvention helpers (FxProvider, FxConfig, FxQuery, SimpleFxProvider), rounding helpers, and Money::convert(&dyn FxProvider) remain Rust-only; hosts format via Money.format(...) and convert via convert_at_rate or MarketContext-level FX."
 
 [crates.core.module_symbols.math]
 python_package = "finstack_quant.core.math"
@@ -139,6 +145,8 @@ public = [
     "BaseCorrelationCurve", "CreditIndexData", "DiscountCurve", "ForwardCurve",
     "FxDeltaVolSurface", "HazardCurve", "InflationCurve", "PriceCurve", "VolSurface",
     "VolCube", "VolatilityIndexCurve", "FxConversionPolicy", "FxRateResult", "FxMatrix",
+    "FxQuoteConvention", "FxPairConvention", "fx_market_pair", "fx_pair_convention",
+    "fx_pip_size", "invert_fx_rate",
     "ScalarTimeSeries", "InflationIndex", "MarketContext",
 ]
 note = "Subset scope: Rust-only market_data extras — the dividends, fixings, hierarchy, bumps and diff submodules, curve/surface builders (DiscountCurveBuilder etc.), ValidationMode, and the BasisSpreadCurve / ParametricCurve term structures — are deliberately unbound. Hosts construct curves through the bound constructors and apply bumps/diffs through the scenarios crate."
@@ -2228,6 +2236,12 @@ root_exports = [
     "FxConversionPolicy",
     "FxRateResult",
     "FxMatrix",
+    "FxQuoteConvention",
+    "FxPairConvention",
+    "fxMarketPair",
+    "fxPairConvention",
+    "fxPipSize",
+    "invertFxRate",
     "nelsonSiegelYields",
     "applyLowerTriangular",
     "choleskyDecomposition",
@@ -2406,6 +2420,12 @@ wasm_only = [
 "market_data.FxConversionPolicy" = "FxConversionPolicy"
 "market_data.FxRateResult" = "FxRateResult"
 "market_data.FxMatrix" = "FxMatrix"
+"market_data.FxQuoteConvention" = "FxQuoteConvention"
+"market_data.FxPairConvention" = "FxPairConvention"
+"market_data.fx_market_pair" = "fxMarketPair"
+"market_data.fx_pair_convention" = "fxPairConvention"
+"market_data.fx_pip_size" = "fxPipSize"
+"market_data.invert_fx_rate" = "invertFxRate"
 "market_data.dtsm.nelson_siegel_yields" = "nelsonSiegelYields"
 "math.linalg.apply_lower_triangular" = "applyLowerTriangular"
 "math.linalg.cholesky_decomposition" = "choleskyDecomposition"

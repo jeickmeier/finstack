@@ -54,6 +54,8 @@
 //! - [`DayCount::ThirtyE360Isda`] - 30E/360 (ISDA), ISDA 2006 §4.16(h)
 //! - [`DayCount::ActAct`] - Actual/Actual (ISDA)
 //! - [`DayCount::ActActIsma`] - Actual/Actual (ICMA) regular-period helper
+//! - [`DayCount::ActActAfb`] - Actual/Actual AFB (Actual/Actual Euro)
+//! - [`DayCount::Thirty360It`] - 30/360 Italian
 //! - [`DayCount::Bus252`] - Business/252 (Brazilian and some equity markets)
 //!
 //! # Examples
@@ -137,7 +139,9 @@ pub use thirty360::{days_30_360, days_30e_360_isda, Thirty360Convention};
 use time::Date;
 
 use crate::error::InputError;
-use act_act::{year_fraction_act_act_isda, year_fraction_act_act_isma_with_ctx};
+use act_act::{
+    year_fraction_act_act_afb, year_fraction_act_act_isda, year_fraction_act_act_isma_with_ctx,
+};
 use other::{year_fraction_act_365l, year_fraction_bus252, year_fraction_nl_365};
 
 #[cfg(test)]
@@ -263,7 +267,7 @@ pub enum DayCount {
     /// Note: this is **not** ACT/ACT AFB (Association Française des Banques),
     /// which uses a different (sub-period splitting) algorithm. The former
     /// `act_365afb` parse alias was removed because it conflated the two
-    /// .
+    /// conventions. Use [`DayCount::ActActAfb`] for AFB / Actual/Actual Euro.
     ///
     /// # Usage
     ///
@@ -432,6 +436,40 @@ pub enum DayCount {
     #[serde(rename = "30e_360_isda")]
     ThirtyE360Isda,
 
+    /// 30/360 Italian day count convention.
+    ///
+    /// Assumes 30 days per month and 360 days per year. Day 31 becomes 30,
+    /// and any February day after the 27th becomes 30 (QuantLib
+    /// `Thirty360::Italian`).
+    ///
+    /// # Formula
+    ///
+    /// ```text
+    /// D1' = 30 if D1 == 31 or (month == Feb and D1 > 27)
+    /// D2' = 30 if D2 == 31 or (month == Feb and D2 > 27)
+    /// days = 360*(Y2-Y1) + 30*(M2-M1) + (D2'-D1')
+    /// year_fraction = days / 360
+    /// ```
+    ///
+    /// Distinct from US SIA (February EOM only when both ends are February
+    /// EOM) and 30E/360 (no February-after-27 rule).
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
+    /// use time::Month;
+    ///
+    /// let start = Date::from_calendar_date(2025, Month::January, 31).expect("Valid date");
+    /// let end = Date::from_calendar_date(2025, Month::February, 28).expect("Valid date");
+    ///
+    /// let yf = DayCount::Thirty360It.year_fraction(start, end, DayCountContext::default()).expect("Year fraction calculation should succeed");
+    /// // D1=31→30, Feb 28>27 → D2=30: 30 days / 360
+    /// assert_eq!(yf, 30.0 / 360.0);
+    /// ```
+    #[serde(rename = "30_360_it")]
+    Thirty360It,
+
     /// NL/365 (Actual/365 No Leap) day count convention.
     ///
     /// Year fraction = (actual days excluding any February 29) / 365
@@ -568,6 +606,33 @@ pub enum DayCount {
     #[serde(rename = "act_act_isma")]
     ActActIsma,
 
+    /// Actual/Actual AFB (Association Française des Banques) day count.
+    ///
+    /// Also known as Actual/Actual Euro. QuantLib `ActualActual::AFB`.
+    /// Walks whole years **backwards from `end`** until the candidate is
+    /// before `start`. Each accepted year-step adds `1.0`. A year-step that
+    /// lands on 28 February of a leap year is bumped to 29 February. The
+    /// residual fraction is `days(start, residual_end) / den`, where `den`
+    /// is 366 if 29 February lies in `[start, residual_end)`, else 365.
+    ///
+    /// No [`DayCountContext`] is required.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
+    /// use time::Month;
+    ///
+    /// let start = Date::from_calendar_date(2024, Month::February, 1).expect("Valid date");
+    /// let end = Date::from_calendar_date(2024, Month::March, 1).expect("Valid date");
+    ///
+    /// let yf = DayCount::ActActAfb.year_fraction(start, end, DayCountContext::default()).expect("Year fraction calculation should succeed");
+    /// // 29 days / 366 (29 February lies in the residual period)
+    /// assert_eq!(yf, 29.0 / 366.0);
+    /// ```
+    #[serde(rename = "act_act_afb")]
+    ActActAfb,
+
     /// Business/252 day count convention.
     ///
     /// Year fraction = (business days between dates) / 252
@@ -700,9 +765,13 @@ impl DayCount {
             DayCount::ThirtyE360Isda => {
                 Ok(f64::from(days_30e_360_isda(start, end, ctx.end_is_termination_date)) / 360.0)
             }
+            DayCount::Thirty360It => {
+                Ok(days_30_360(start, end, Thirty360Convention::Italian) as f64 / 360.0)
+            }
             DayCount::Nl365 => Ok(year_fraction_nl_365(start, end)),
             DayCount::ActAct => year_fraction_act_act_isda(start, end),
             DayCount::ActActIsma => year_fraction_act_act_isma_with_ctx(start, end, ctx),
+            DayCount::ActActAfb => Ok(year_fraction_act_act_afb(start, end)),
             DayCount::Bus252 => year_fraction_bus252(start, end, ctx),
         }
     }
@@ -795,8 +864,10 @@ impl std::fmt::Display for DayCount {
             DayCount::Thirty360 => "30_360",
             DayCount::ThirtyE360 => "30e_360",
             DayCount::ThirtyE360Isda => "30e_360_isda",
+            DayCount::Thirty360It => "30_360_it",
             DayCount::ActAct => "act_act",
             DayCount::ActActIsma => "act_act_isma",
+            DayCount::ActActAfb => "act_act_afb",
             DayCount::Bus252 => "bus_252",
         };
         f.write_str(label)
@@ -815,8 +886,10 @@ impl std::str::FromStr for DayCount {
             "30_360" => Ok(Self::Thirty360),
             "30e_360" => Ok(Self::ThirtyE360),
             "30e_360_isda" => Ok(Self::ThirtyE360Isda),
+            "30_360_it" => Ok(Self::Thirty360It),
             "act_act" => Ok(Self::ActAct),
             "act_act_isma" => Ok(Self::ActActIsma),
+            "act_act_afb" => Ok(Self::ActActAfb),
             "bus_252" => Ok(Self::Bus252),
             other => Err(format!("unknown day-count convention: {other}")),
         }
@@ -914,8 +987,10 @@ mod tests {
             super::DayCount::Thirty360,
             super::DayCount::ThirtyE360,
             super::DayCount::ThirtyE360Isda,
+            super::DayCount::Thirty360It,
             super::DayCount::ActAct,
             super::DayCount::ActActIsma,
+            super::DayCount::ActActAfb,
             super::DayCount::Bus252,
         ];
 
@@ -947,6 +1022,9 @@ mod tests {
             "30E/360",
             "eurobond_basis",
             "30E/360 ISDA",
+            "act_365afb",
+            "30/360 IT",
+            "30_360_italian",
             "act/act ISDA",
             "isda",
             "act_act_icma",
@@ -1134,6 +1212,24 @@ mod tests {
         assert_eq!(days_30_360(start, end, Thirty360Convention::European), 31);
         // ISDA: D1=29→30 (last day of Feb), D2=31→30: 30 + (30-30) = 30.
         assert_eq!(days_30e_360_isda(start, end, false), 30);
+    }
+
+    #[test]
+    fn thirty_360_italian_feb_after_27_and_day_31() {
+        use super::{days_30_360, Thirty360Convention};
+
+        // Jan 31 → Feb 28 2025: Italian D1=30, D2=30 → 30.
+        // European D2 stays 28; US SIA D2 stays 28 (not both Feb EOM).
+        let start = date!(2025 - 01 - 31);
+        let end = date!(2025 - 02 - 28);
+        assert_eq!(days_30_360(start, end, Thirty360Convention::Italian), 30);
+        assert_eq!(days_30_360(start, end, Thirty360Convention::European), 28);
+        assert_eq!(days_30_360(start, end, Thirty360Convention::UsSia), 28);
+
+        // Leap: Feb 29 → Mar 31 2024: Italian D1=30 (Feb>27), D2=30 → 30.
+        let start = date!(2024 - 02 - 29);
+        let end = date!(2024 - 03 - 31);
+        assert_eq!(days_30_360(start, end, Thirty360Convention::Italian), 30);
     }
 
     // NL/365

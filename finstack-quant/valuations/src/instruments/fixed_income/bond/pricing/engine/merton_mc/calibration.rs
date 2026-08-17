@@ -3,7 +3,7 @@
 use super::{CalibrationParameter, MertonMcCalibrationSpec, MertonMcConfig, PikMode, PikSchedule};
 use crate::cashflow::builder::specs::CouponType;
 use crate::instruments::fixed_income::bond::pricing::quote_conversions::{
-    price_from_ytm, price_from_z_spread, BondQuoteInput,
+    price_from_japanese_simple_yield, price_from_ytm, price_from_z_spread, BondQuoteInput,
 };
 use crate::instruments::fixed_income::bond::pricing::settlement::QuoteDateContext;
 use crate::instruments::fixed_income::bond::types::Bond;
@@ -103,6 +103,9 @@ fn target_pv_from_quote(
             quote_ctx.dirty_from_clean_pct(clean_pct, bond.notional.amount())
         }
         BondQuoteInput::DirtyPriceCurrency(dirty_currency) => dirty_currency,
+        BondQuoteInput::JapaneseSimpleYield(simple_yield) => {
+            price_from_japanese_simple_yield(bond, quote_date, simple_yield)?
+        }
         BondQuoteInput::Ytm(ytm) | BondQuoteInput::Ytw(ytm) => {
             // YTW inversion uses maturity flows (same convention as
             // `Bond::base_value`'s `quoted_ytw` path); for callable bonds,

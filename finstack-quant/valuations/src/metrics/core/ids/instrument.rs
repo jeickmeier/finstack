@@ -23,6 +23,12 @@ impl MetricId {
     /// Yield to worst
     pub const Ytw: Self = Self(Cow::Borrowed("ytw"));
 
+    /// Japanese simple yield (単利) using ACT/365F remaining life.
+    pub const JapaneseSimpleYield: Self = Self(Cow::Borrowed("japanese_simple_yield"));
+
+    /// Moosmüller yield to maturity (simple first period, then periodic).
+    pub const MoosmullerYtm: Self = Self(Cow::Borrowed("moosmuller_ytm"));
+
     /// Money multiple (MOIC) to maturity: total distributions / invested capital.
     pub const Moic: Self = Self(Cow::Borrowed("moic"));
 

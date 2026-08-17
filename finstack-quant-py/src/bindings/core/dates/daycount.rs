@@ -77,6 +77,24 @@ impl PyDayCount {
     const ACT_ACT_ISMA: PyDayCount = PyDayCount {
         inner: DayCount::ActActIsma,
     };
+    /// Actual/Actual AFB (Actual/Actual Euro).
+    ///
+    /// Walks whole years backwards from the end date (QuantLib
+    /// ``ActualActual::AFB``). A year-step landing on 28 February of a leap
+    /// year is bumped to 29 February. The residual uses denominator 366 if
+    /// 29 February lies in ``[start, residual_end)``, else 365.
+    #[classattr]
+    const ACT_ACT_AFB: PyDayCount = PyDayCount {
+        inner: DayCount::ActActAfb,
+    };
+    /// 30/360 Italian.
+    ///
+    /// Day 31 becomes 30, and any February day after the 27th becomes 30
+    /// (QuantLib ``Thirty360::Italian``). Distinct from US SIA and 30E/360.
+    #[classattr]
+    const THIRTY_360_IT: PyDayCount = PyDayCount {
+        inner: DayCount::Thirty360It,
+    };
     /// Business/252 (Brazilian market convention).
     #[classattr]
     const BUS_252: PyDayCount = PyDayCount {
@@ -84,6 +102,11 @@ impl PyDayCount {
     };
 
     /// Parse a day-count convention from its string name (e.g. ``"act_360"``).
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Canonical lowercase convention identifier such as
+    ///   ``"act_360"``, ``"act_act_afb"``, or ``"30_360_it"``.
     #[classmethod]
     #[pyo3(text_signature = "(cls, name)")]
     fn from_name(_cls: &Bound<'_, PyType>, name: &str) -> PyResult<Self> {
@@ -165,6 +188,8 @@ impl PyDayCount {
             DayCount::ActAct => 6,
             DayCount::ActActIsma => 7,
             DayCount::Bus252 => 8,
+            DayCount::ActActAfb => 9,
+            DayCount::Thirty360It => 10,
             #[allow(unreachable_patterns)]
             _ => 255,
         }
@@ -451,6 +476,11 @@ impl PyThirty360Convention {
     const EUROPEAN: PyThirty360Convention = PyThirty360Convention {
         inner: Thirty360Convention::European,
     };
+    /// 30/360 Italian convention.
+    #[classattr]
+    const ITALIAN: PyThirty360Convention = PyThirty360Convention {
+        inner: Thirty360Convention::Italian,
+    };
 
     /// Hash based on the discriminant.
     fn __hash__(&self) -> isize {
@@ -458,6 +488,7 @@ impl PyThirty360Convention {
             Thirty360Convention::UsSia => 0,
             Thirty360Convention::Isda => 1,
             Thirty360Convention::European => 2,
+            Thirty360Convention::Italian => 3,
         }
     }
 
@@ -466,6 +497,7 @@ impl PyThirty360Convention {
             Thirty360Convention::UsSia => "US_SIA",
             Thirty360Convention::Isda => "ISDA",
             Thirty360Convention::European => "EUROPEAN",
+            Thirty360Convention::Italian => "ITALIAN",
         };
         format!("Thirty360Convention.{label}")
     }
@@ -475,6 +507,7 @@ impl PyThirty360Convention {
             Thirty360Convention::UsSia => "us_sia".to_string(),
             Thirty360Convention::Isda => "isda".to_string(),
             Thirty360Convention::European => "european".to_string(),
+            Thirty360Convention::Italian => "italian".to_string(),
         }
     }
 }

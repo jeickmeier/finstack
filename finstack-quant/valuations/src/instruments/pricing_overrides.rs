@@ -165,6 +165,7 @@ fn check_finite_fields(fields: &[(Option<f64>, bool)]) -> finstack_quant_core::R
 /// 7. `quoted_discount_margin` — decimal DM (FRNs)
 /// 8. `quoted_i_spread` — decimal I-spread
 /// 9. `quoted_asw_market` — decimal ASW (market convention)
+/// 10. `quoted_japanese_simple_yield` — decimal Tokyo simple yield (単利)
 #[derive(
     Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
@@ -205,6 +206,13 @@ pub struct MarketQuoteOverrides {
     /// Quoted asset-swap spread (market convention) in decimal.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quoted_asw_market: Option<f64>,
+
+    /// Quoted Japanese simple yield (単利) in decimal.
+    ///
+    /// Seeds a JGB from the Tokyo quoted yield without touching Street
+    /// [`Self::quoted_ytm`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quoted_japanese_simple_yield: Option<f64>,
 
     /// Implied volatility (overrides vol surface). When set on surface-driven
     /// pricers, it is used as a flat σ across tenor and strike.
@@ -261,6 +269,7 @@ impl MarketQuoteOverrides {
             self.quoted_discount_margin.is_some(),
             self.quoted_i_spread.is_some(),
             self.quoted_asw_market.is_some(),
+            self.quoted_japanese_simple_yield.is_some(),
         ]
         .iter()
         .filter(|b| **b)
@@ -303,6 +312,7 @@ impl MarketQuoteOverrides {
             (self.quoted_discount_margin, false),
             (self.quoted_i_spread, false),
             (self.quoted_asw_market, false),
+            (self.quoted_japanese_simple_yield, false),
             (self.implied_volatility, true),
             (self.cds_quote_bp, true),
         ])?;
@@ -714,6 +724,16 @@ impl InstrumentPricingOverrides {
     /// Set quoted asset-swap spread in decimal form.
     pub fn with_quoted_asw_market(mut self, asw: f64) -> Self {
         self.market_quotes.quoted_asw_market = Some(asw);
+        self
+    }
+
+    /// Set quoted Japanese simple yield (単利) in decimal form.
+    ///
+    /// # Arguments
+    ///
+    /// * `simple_yield` - Tokyo simple yield as a decimal (e.g. `0.02` for 2%).
+    pub fn with_quoted_japanese_simple_yield(mut self, simple_yield: f64) -> Self {
+        self.market_quotes.quoted_japanese_simple_yield = Some(simple_yield);
         self
     }
 

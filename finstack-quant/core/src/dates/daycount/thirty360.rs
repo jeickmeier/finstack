@@ -20,6 +20,12 @@ pub enum Thirty360Convention {
     Isda,
     /// 30E/360 (European).
     European,
+    /// 30/360 Italian (QuantLib `Thirty360::Italian`).
+    ///
+    /// Day 31 becomes 30, and any February day after the 27th becomes 30.
+    /// Distinct from US SIA (February EOM only when both ends are February
+    /// EOM) and 30E/360 (no February-after-27 rule).
+    Italian,
 }
 
 /// Compute day count between `start` (inclusive) and `end` (exclusive) under a 30/360 convention.
@@ -85,6 +91,21 @@ pub fn days_30_360(start: Date, end: Date, convention: Thirty360Convention) -> i
             // Note: NO February EOM rule for European convention
             let d1_adj = if d1 == 31 { 30 } else { d1 };
             let d2_adj = if d2 == 31 { 30 } else { d2 };
+            (d1_adj, d2_adj)
+        }
+        Thirty360Convention::Italian => {
+            // QuantLib Thirty360::Italian:
+            // D' = 30 if D == 31 or (month == February and D > 27)
+            let d1_adj = if d1 == 31 || (start.month() == Month::February && d1 > 27) {
+                30
+            } else {
+                d1
+            };
+            let d2_adj = if d2 == 31 || (end.month() == Month::February && d2 > 27) {
+                30
+            } else {
+                d2
+            };
             (d1_adj, d2_adj)
         }
     };

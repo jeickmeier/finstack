@@ -212,7 +212,9 @@ impl YtmSolver {
             if years > 0.0 && fv > 0.0 && target > 0.0 {
                 let ratio = fv / target;
                 let ytm = match spec.compounding {
-                    YieldCompounding::Simple => (ratio - 1.0) / years,
+                    YieldCompounding::Simple | YieldCompounding::Moosmuller => {
+                        (ratio - 1.0) / years
+                    }
                     YieldCompounding::Annual => ratio.powf(1.0 / years) - 1.0,
                     YieldCompounding::Continuous => ratio.ln() / years,
                     YieldCompounding::Street | YieldCompounding::TreasuryActual => {
@@ -510,6 +512,34 @@ mod tests {
         let m = 2.0_f64;
         let years = 2.0_f64;
         let expected = m * ((1000.0_f64 / 900.0_f64).powf(1.0 / (m * years)) - 1.0);
+        assert!((ytm - expected).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_zcb_ytm_honors_moosmuller_simple_first_period() {
+        let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
+        let maturity = Date::from_calendar_date(2027, Month::January, 1).expect("valid date");
+        let cashflows = vec![(maturity, Money::new(1000.0, Currency::USD))];
+        let target_price = Money::new(900.0, Currency::USD);
+        let solver = YtmSolver::new();
+
+        let ytm = solver
+            .solve(
+                &cashflows,
+                as_of,
+                target_price,
+                YtmPricingSpec {
+                    day_count: DayCount::Act365F,
+                    notional: Money::new(1000.0, Currency::USD),
+                    coupon_rate: 0.0,
+                    compounding: YieldCompounding::Moosmuller,
+                    frequency: Tenor::annual(),
+                },
+            )
+            .expect("should solve");
+
+        let years = 2.0_f64;
+        let expected = (1000.0_f64 / 900.0_f64 - 1.0) / years;
         assert!((ytm - expected).abs() < 1e-12);
     }
 }

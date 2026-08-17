@@ -151,6 +151,46 @@ fn test_fx_forward_with_forward_points_builder() {
 }
 
 #[test]
+fn test_fx_forward_with_forward_pips() {
+    let forward = FxForward::builder()
+        .id(InstrumentId::new("PIPS-TEST"))
+        .base_currency(Currency::EUR)
+        .quote_currency(Currency::USD)
+        .maturity(Date::from_calendar_date(2025, Month::June, 15).expect("valid date"))
+        .notional(Money::new(1_000_000.0, Currency::EUR))
+        .domestic_discount_curve_id(CurveId::new("USD-OIS"))
+        .foreign_discount_curve_id(CurveId::new("EUR-OIS"))
+        .attributes(Attributes::new())
+        .build()
+        .expect("should build")
+        .with_forward_pips(1.10, 50.0)
+        .expect("valid forward pips");
+
+    assert_eq!(forward.spot_rate_override, Some(1.10));
+    assert!((forward.contract_rate.unwrap() - 1.1050).abs() < 1e-10);
+}
+
+#[test]
+fn test_fx_forward_with_forward_pips_jpy_pair() {
+    let forward = FxForward::builder()
+        .id(InstrumentId::new("PIPS-JPY"))
+        .base_currency(Currency::USD)
+        .quote_currency(Currency::JPY)
+        .maturity(Date::from_calendar_date(2025, Month::June, 15).expect("valid date"))
+        .notional(Money::new(1_000_000.0, Currency::USD))
+        .domestic_discount_curve_id(CurveId::new("JPY-OIS"))
+        .foreign_discount_curve_id(CurveId::new("USD-OIS"))
+        .attributes(Attributes::new())
+        .build()
+        .expect("should build")
+        .with_forward_pips(150.00, 50.0)
+        .expect("valid JPY pips");
+
+    assert_eq!(forward.spot_rate_override, Some(150.00));
+    assert!((forward.contract_rate.unwrap() - 150.50).abs() < 1e-10);
+}
+
+#[test]
 fn test_fx_forward_clone() {
     let forward = FxForward::example().unwrap();
     let cloned = forward.clone();

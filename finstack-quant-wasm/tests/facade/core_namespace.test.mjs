@@ -147,6 +147,21 @@ test('core.FxDeltaVolSurface constructs from 25-delta quotes', () => {
   assert.equal(surface.numExpiries, 3);
 });
 
+test('core FX pair convention helpers', () => {
+  const pair = core.fxMarketPair('USD', 'EUR');
+  assert.equal(pair[0].code, 'EUR');
+  assert.equal(pair[1].code, 'USD');
+  const conv = core.fxPairConvention('USD', 'JPY');
+  assert.equal(conv.base.code, 'USD');
+  assert.equal(conv.quote.code, 'JPY');
+  assert.equal(conv.usdQuotation.toString(), 'indirect');
+  assert.equal(conv.pipSize, 0.01);
+  assert.equal(conv.spotLagDays, 2);
+  assert.equal(core.fxPipSize('EUR', 'USD'), 0.0001);
+  assert.ok(Math.abs(core.invertFxRate(1.1) - 1 / 1.1) < 1e-12);
+  assert.equal(core.FxQuoteConvention.direct().toString(), 'direct');
+});
+
 test('core.FxMatrix rate returns FxRateResult with rate/triangulated getters', () => {
   const fx = new core.FxMatrix();
   const policy = core.FxConversionPolicy.cashflowDate();

@@ -28,6 +28,8 @@ mod credit_quote_risk;
 mod cs01;
 mod dm;
 mod duration;
+mod japanese_simple_yield;
+mod moosmuller_ytm;
 mod oas;
 mod prices;
 mod quote_engine;

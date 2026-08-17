@@ -4,7 +4,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
-use finstack_quant_core::money::fx::{FxMatrix, SimpleFxProvider};
+use finstack_quant_core::money::fx::{invert_fx_rate, FxMatrix, SimpleFxProvider};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_valuations::instruments::fx::fx_forward::FxForward;
@@ -283,6 +283,60 @@ fn test_fx_forward_with_forward_points() {
 
     let npv = forward.value(&market, as_of).expect("should price");
     assert_eq!(npv.currency(), Currency::USD);
+}
+
+#[test]
+fn test_fx_forward_with_forward_pips() {
+    let as_of = Date::from_calendar_date(2024, Month::January, 15).expect("valid date");
+    let maturity = Date::from_calendar_date(2024, Month::July, 15).expect("valid date");
+    let market = create_test_market(as_of);
+
+    let forward = FxForward::builder()
+        .id(InstrumentId::new("EURUSD-PIPS"))
+        .base_currency(Currency::EUR)
+        .quote_currency(Currency::USD)
+        .maturity(maturity)
+        .notional(Money::new(1_000_000.0, Currency::EUR))
+        .domestic_discount_curve_id(CurveId::new("USD-OIS"))
+        .foreign_discount_curve_id(CurveId::new("EUR-OIS"))
+        .attributes(Attributes::new())
+        .build()
+        .expect("should build")
+        .with_forward_pips(1.10, 50.0)
+        .expect("valid forward pips");
+
+    assert_eq!(forward.spot_rate_override, Some(1.10));
+    assert!((forward.contract_rate.unwrap() - 1.105).abs() < 1e-10);
+
+    let npv = forward.value(&market, as_of).expect("should price");
+    assert_eq!(npv.currency(), Currency::USD);
+}
+
+#[test]
+fn test_fx_forward_with_forward_pips_inverted_pair_still_prices() {
+    let as_of = Date::from_calendar_date(2024, Month::January, 15).expect("valid date");
+    let maturity = Date::from_calendar_date(2024, Month::July, 15).expect("valid date");
+    let market = create_test_market(as_of);
+
+    let inverted = invert_fx_rate(1.10).expect("spot reciprocal");
+    let forward = FxForward::builder()
+        .id(InstrumentId::new("USDEUR-PIPS"))
+        .base_currency(Currency::USD)
+        .quote_currency(Currency::EUR)
+        .maturity(maturity)
+        .notional(Money::new(1_000_000.0, Currency::USD))
+        .domestic_discount_curve_id(CurveId::new("EUR-OIS"))
+        .foreign_discount_curve_id(CurveId::new("USD-OIS"))
+        .attributes(Attributes::new())
+        .build()
+        .expect("inverted pair must construct")
+        .with_forward_pips(inverted, 10.0)
+        .expect("pips on inverted pair");
+
+    let npv = forward
+        .value(&market, as_of)
+        .expect("inverted pair still prices");
+    assert_eq!(npv.currency(), Currency::EUR);
 }
 
 #[test]

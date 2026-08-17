@@ -8,6 +8,10 @@ pub(crate) mod dm;
 pub(crate) mod embedded_option_value;
 /// I-spread (interpolated spread) calculator
 pub(crate) mod i_spread;
+/// Japanese simple yield (単利) calculator
+pub(crate) mod japanese_simple_yield;
+/// Moosmüller yield-to-maturity calculator
+pub(crate) mod moosmuller_ytm;
 /// Option-adjusted spread (OAS) calculator
 pub(crate) mod oas;
 /// Price calculators (clean and dirty)
@@ -25,6 +29,8 @@ pub use asw::{AssetSwapMarketCalculator, AssetSwapParCalculator};
 pub use dm::DiscountMarginCalculator;
 pub(crate) use embedded_option_value::EmbeddedOptionValueCalculator;
 pub(crate) use i_spread::ISpreadCalculator;
+pub(crate) use japanese_simple_yield::JapaneseSimpleYieldCalculator;
+pub(crate) use moosmuller_ytm::MoosmullerYtmCalculator;
 pub(crate) use oas::OasCalculator;
 pub(crate) use prices::{CleanPriceCalculator, DirtyPriceCalculator};
 pub(crate) use vega::BondVegaCalculator;

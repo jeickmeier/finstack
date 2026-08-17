@@ -160,6 +160,31 @@ fn df_second_derivative(
             let denom = m + ytm;
             c * (c + 1.0) / (denom * denom) * df
         }
+        YieldCompounding::Moosmuller => {
+            let m = periods_per_year(frequency)?.max(1.0);
+            let n_full = (t * m).floor();
+            let mut w = t - n_full / m;
+            if w <= 1e-12 {
+                w = 1.0 / m;
+            }
+            if t <= w + 1e-12 {
+                let denom = 1.0 + ytm * w;
+                2.0 * w * w / (denom * denom * denom)
+            } else {
+                let k_minus_1 = ((t - w) * m).round().max(0.0);
+                let df_stub = 1.0 / (1.0 + ytm * w);
+                let df_periodic = (1.0 + ytm / m).powf(-k_minus_1);
+                let df_stub_prime = -w / (1.0 + ytm * w).powi(2);
+                let df_stub_second = 2.0 * w * w / (1.0 + ytm * w).powi(3);
+                let denom = m + ytm;
+                let df_periodic_prime = -(k_minus_1 / denom) * df_periodic;
+                let df_periodic_second =
+                    k_minus_1 * (k_minus_1 + 1.0) / (denom * denom) * df_periodic;
+                df_stub_second * df_periodic
+                    + 2.0 * df_stub_prime * df_periodic_prime
+                    + df_stub * df_periodic_second
+            }
+        }
         YieldCompounding::TreasuryActual => {
             let m = periods_per_year(frequency)?.max(1.0);
             let period_length = 1.0 / m;

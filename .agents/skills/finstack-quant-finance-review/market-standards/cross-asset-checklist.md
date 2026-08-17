@@ -281,7 +281,7 @@ Use this checklist to identify coverage gaps. Items marked with priority indicat
 | UST settlement | T+1 | Changed from T+2 in May 2023 |
 | Bund day count | ACT/ACT (ICMA) | Annual coupons |
 | Gilt day count | ACT/ACT (ICMA) | Semi-annual, 7-day ex-div |
-| JGB day count | varies | Simple yield convention |
+| JGB day count | ACT/365F | Quoted yield is Japanese simple (単利, `japanese_simple_yield`); Street `ytm` is a separate metric |
 | Corporate bond day count | 30/360 (US), ACT/ACT (EUR) | Market dependent |
 | Corporate settlement | T+1 in current US cash market | Check market and settlement regime outside the US |
 | Accrued interest (UST) | ACT/ACT, inclusive start, exclusive end | |

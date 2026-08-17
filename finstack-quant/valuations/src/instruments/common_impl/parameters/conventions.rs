@@ -44,6 +44,10 @@ pub enum BondConvention {
     /// Domestic JGB settlement moved to T+1 in May 2018 (JSCC). Cross-border
     /// transactions settle T+2 (BOJ). This variant uses T+2 as the safer
     /// default for international participants.
+    ///
+    /// Tokyo quotes the bond on **Japanese simple yield**
+    /// (`japanese_simple_yield`, 単利). Street [`crate::metrics::MetricId::Ytm`]
+    /// remains the secondary-market IRR and is **not** switched for `Jgb`.
     Jgb,
     /// US corporate cash: Semi-annual, 30/360, T+1 settlement (SIFMA May 2024).
     UsCorporate,

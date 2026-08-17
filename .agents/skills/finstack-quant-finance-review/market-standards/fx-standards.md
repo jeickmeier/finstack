@@ -29,10 +29,10 @@ Example: EURGBP not GBPEUR, AUDUSD not USDAUD
 
 ### Audit checklist - FX Spot
 
-- [ ] Quote convention follows market standard
-- [ ] Settlement days correct (for example USD/CAD, USD/TRY, and USD/RUB are T+1; many G10 pairs are T+2)
+- [x] Quote convention follows market standard (`FxQuoteConvention` / `fx_pair_convention`)
+- [x] Settlement days correct (for example USD/CAD, USD/TRY, and USD/RUB are T+1; many G10 pairs are T+2) — `fx_standard_spot_lag_days` / `FxPairConvention.spot_lag_days` (USD/RUB still defaults to T+2)
 - [ ] Business day calendar uses joint calendars (both currencies)
-- [ ] Base/quote currency follows priority rules
+- [x] Base/quote currency follows priority rules (`fx_market_pair`: EUR > GBP > AUD > NZD > USD > other)
 
 ---
 
@@ -89,7 +89,7 @@ Bloomberg FXFA:
 ### Audit checklist - FX Forward
 
 - [ ] Forward calculated from discount factors (not simple rates)
-- [ ] Points quoted per market convention (10000 or 100)
+- [x] Points quoted per market convention (10000 or 100) — `fx_pip_size` / `FxForward::with_forward_pips`
 - [ ] Both currency notionals settle on value date
 - [ ] Business days use joint calendar
 - [ ] For NDF: correct fixing source and settlement convention

@@ -385,3 +385,57 @@ const fn days_in_year(year: i32) -> i32 {
         365
     }
 }
+
+/// ACT/ACT AFB (Association Française des Banques / Actual/Actual Euro).
+///
+/// QuantLib `ActualActual::AFB`: walk whole years backwards from `end` until
+/// the candidate is before `start`, then divide the residual actual days by
+/// 366 if 29 February lies in `[start, residual_end)`, else 365.
+pub(super) fn year_fraction_act_act_afb(start: Date, end: Date) -> f64 {
+    if start == end {
+        return 0.0;
+    }
+
+    let mut residual_end = end;
+    let mut whole_years = 0.0;
+
+    loop {
+        let mut candidate = residual_end.add_months(-12);
+        // QuantLib leap-day alignment: a year-step that lands on 28 February
+        // of a leap year is bumped to 29 February.
+        if candidate.month() == Month::February
+            && candidate.day() == 28
+            && time::util::is_leap_year(candidate.year())
+        {
+            candidate += time::Duration::days(1);
+        }
+        if candidate >= start {
+            whole_years += 1.0;
+            residual_end = candidate;
+        } else {
+            break;
+        }
+    }
+
+    let days = (residual_end - start).whole_days() as f64;
+    let den = if feb29_in_half_open(start, residual_end) {
+        366.0
+    } else {
+        365.0
+    };
+    whole_years + days / den
+}
+
+/// True when 29 February lies in the half-open interval `[start, end)`.
+fn feb29_in_half_open(start: Date, end: Date) -> bool {
+    for year in start.year()..=end.year() {
+        if time::util::is_leap_year(year) {
+            if let Ok(feb_29) = Date::from_calendar_date(year, Month::February, 29) {
+                if feb_29 >= start && feb_29 < end {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}

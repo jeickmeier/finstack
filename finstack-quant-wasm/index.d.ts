@@ -664,6 +664,8 @@ export interface PercentageConstructor {
  * - `30e_360_isda` → `DayCount.thirtyE360Isda`
  * - `act_act` (ISDA) → `DayCount.actAct`
  * - `act_act_isma` (ICMA) → `DayCount.actActIsma`
+ * - `act_act_afb` (AFB / Actual/Actual Euro) → `DayCount.actActAfb`
+ * - `30_360_it` (Italian) → `DayCount.thirty360It`
  * - `bus_252` → `DayCount.bus252`
  *
  * @example
@@ -748,6 +750,8 @@ export interface DayCount extends WasmOwned {
  * - `30e_360_isda` → `DayCount.thirtyE360Isda`
  * - `act_act` (ISDA) → `DayCount.actAct`
  * - `act_act_isma` (ICMA) → `DayCount.actActIsma`
+ * - `act_act_afb` (AFB / Actual/Actual Euro) → `DayCount.actActAfb`
+ * - `30_360_it` (Italian) → `DayCount.thirty360It`
  * - `bus_252` → `DayCount.bus252`
  *
  * @example
@@ -814,6 +818,24 @@ export interface DayCountConstructor {
    * @returns A `DayCount` handle for this convention.
    */
   actActIsma(): DayCount;
+  /**
+   * Actual/Actual AFB (Actual/Actual Euro).
+   *
+   * Walks whole years backwards from the end date (QuantLib
+   * `ActualActual::AFB`). A year-step landing on 28 February of a leap
+   * year is bumped to 29 February. The residual uses denominator 366 if
+   * 29 February lies in `[start, residual_end)`, else 365.
+   * @returns A `DayCount` handle for this convention.
+   */
+  actActAfb(): DayCount;
+  /**
+   * 30/360 Italian.
+   *
+   * Day 31 becomes 30, and any February day after the 27th becomes 30
+   * (QuantLib `Thirty360::Italian`). Distinct from US SIA and 30E/360.
+   * @returns A `DayCount` handle for this convention.
+   */
+  thirty360It(): DayCount;
   /**
    * Business/252 day-count convention.
    * @returns A `DayCount` handle for this convention.
@@ -1596,6 +1618,110 @@ export interface FxMatrixConstructor {
 }
 
 /**
+ * USD quotation style for a market FX pair (Direct or Indirect versus USD).
+ *
+ * **Direct** means USD is the quote currency (EURUSD, GBPUSD). **Indirect**
+ * means USD is the base (USDJPY, USDCAD). Non-USD crosses inherit the USD
+ * quotation of market CCY1 versus USD.
+ */
+export interface FxQuoteConvention extends WasmOwned {
+  /**
+   * String form of the USD quotation style (`"direct"` or `"indirect"`).
+   * @returns Human-readable string form of this value.
+   */
+  toString(): string;
+}
+
+/**
+ * USD quotation style for a market FX pair (Direct or Indirect versus USD).
+ *
+ * **Direct** means USD is the quote currency (EURUSD, GBPUSD). **Indirect**
+ * means USD is the base (USDJPY, USDCAD). Non-USD crosses inherit the USD
+ * quotation of market CCY1 versus USD.
+ *
+ * @example
+ * ```javascript
+ * import init, { core } from "finstack-quant-wasm";
+ * await init();
+ * const direct = core.FxQuoteConvention.direct();
+ * direct.toString(); // "direct"
+ * ```
+ */
+export interface FxQuoteConventionConstructor {
+  /**
+   * USD is the quote currency (units of USD per one unit of CCY1).
+   * @returns An `FxQuoteConvention` handle.
+   */
+  direct(): FxQuoteConvention;
+  /**
+   * USD is the base currency (units of CCY2 per one USD).
+   * @returns An `FxQuoteConvention` handle.
+   */
+  indirect(): FxQuoteConvention;
+  /**
+   * Parse from a string label such as `"direct"` or `"indirect"`.
+   * @param name - Convention label: `direct` or `indirect`.
+   * @returns An `FxQuoteConvention` handle.
+   * @throws Error - Throws a JavaScript exception unless `name` is `direct` or `indirect`.
+   */
+  fromName(name: string): FxQuoteConvention;
+}
+
+/**
+ * Market convention for one FX pair after Bloomberg/Reuters CCY1 ordering.
+ *
+ * Instances come from `fxPairConvention`. `base` / `quote` are always market
+ * CCY1/CCY2, even when the lookup arguments were inverted.
+ */
+export interface FxPairConvention extends WasmOwned {
+  /**
+   * Market CCY1 (one unit of this currency in the screen pair).
+   */
+  readonly base: Currency;
+  /**
+   * Market CCY2 (units of this currency per one unit of CCY1).
+   */
+  readonly quote: Currency;
+  /**
+   * Direct if the USD leg quotes USD as CCY2; Indirect if USD is CCY1.
+   */
+  readonly usdQuotation: FxQuoteConvention;
+  /**
+   * Pip size in outright-rate units (`0.01` or `0.0001`).
+   */
+  readonly pipSize: number;
+  /**
+   * Standard spot lag in business days (T+1 or T+2).
+   */
+  readonly spotLagDays: number;
+}
+
+/**
+ * Market convention for one FX pair after Bloomberg/Reuters CCY1 ordering.
+ *
+ * Instances come from `fxPairConvention`. `base` / `quote` are always market
+ * CCY1/CCY2, even when the lookup arguments were inverted.
+ *
+ * @example
+ * ```javascript
+ * import init, { core } from "finstack-quant-wasm";
+ * await init();
+ * const conv = core.fxPairConvention("USD", "EUR");
+ * conv.base.code;          // "EUR"
+ * conv.usdQuotation.toString(); // "direct"
+ * conv.pipSize;            // 0.0001
+ * conv.spotLagDays;        // 2
+ * ```
+ */
+export interface FxPairConventionConstructor {
+  /**
+   * JavaScript prototype of `FxPairConvention`; instances come from
+   * `fxPairConvention`, not `new`.
+   */
+  readonly prototype: FxPairConvention;
+}
+
+/**
  * FX vol surface quoted in **delta space** (ATM, 25-delta RR/BF, optional
  * 10-delta wings).
  *
@@ -2080,6 +2206,54 @@ export interface CoreNamespace {
    * Cross-currency FX matrix constructor.
    */
   FxMatrix: FxMatrixConstructor;
+  /**
+   * USD quotation-style constructor (`direct` / `indirect` versus USD).
+   */
+  FxQuoteConvention: FxQuoteConventionConstructor;
+  /**
+   * Market FX pair-convention prototype; instances come from `fxPairConvention`.
+   */
+  FxPairConvention: FxPairConventionConstructor;
+  /**
+   * Order two currencies into the market CCY1/CCY2 pair.
+   *
+   * Priority is EUR > GBP > AUD > NZD > USD > other, with a stable ISO-4217
+   * alphabetic tie-break when both sides share the same rank.
+   * @param a - First currency ISO code of the unordered pair. Need not be market CCY1.
+   * @param b - Second currency ISO code of the unordered pair. Need not be market CCY2.
+   * @returns A two-element array `[CCY1, CCY2]` of `Currency` handles in market order.
+   * @throws Error - Throws a JavaScript exception if either code is not a recognized ISO-4217 alphabetic currency.
+   */
+  fxMarketPair(a: string, b: string): Currency[];
+  /**
+   * Market convention for an unordered currency pair.
+   *
+   * Returned `base` / `quote` are always the market CCY1/CCY2, even when the
+   * arguments are inverted.
+   * @param base - One currency ISO code of the pair. Orientation is ignored.
+   * @param quote - The other currency ISO code of the pair. Orientation is ignored.
+   * @returns Market CCY1/CCY2, USD quotation, pip size, and standard spot lag.
+   * @throws Error - Throws a JavaScript exception if either code is not a recognized ISO-4217 alphabetic currency.
+   */
+  fxPairConvention(base: string, quote: string): FxPairConvention;
+  /**
+   * Pip size in outright-rate units for a currency pair.
+   *
+   * Returns `0.01` when either side is JPY, KRW, or HUF; otherwise `0.0001`.
+   * Argument order does not matter.
+   * @param base - One currency ISO code of the pair. Order is not significant.
+   * @param quote - The other currency ISO code of the pair. Order is not significant.
+   * @returns Pip size as a decimal increment of the outright FX rate.
+   * @throws Error - Throws a JavaScript exception if either code is not a recognized ISO-4217 alphabetic currency.
+   */
+  fxPipSize(base: string, quote: string): number;
+  /**
+   * Reciprocal of a strictly positive finite FX rate.
+   * @param rate - Outright FX rate to invert, in quote-per-base units. Must be finite and strictly positive; the reciprocal must also be a valid FX rate.
+   * @returns `1 / rate` when that reciprocal is a valid FX rate.
+   * @throws Error - Throws a JavaScript exception if `rate` is non-finite, non-positive, or when `1 / rate` is not a usable FX rate (overflow to infinity, zero, or a negative value).
+   */
+  invertFxRate(rate: number): number;
   /**
    * Evaluate the static Nelson-Siegel (1987) yield curve for one factor triple.
    *

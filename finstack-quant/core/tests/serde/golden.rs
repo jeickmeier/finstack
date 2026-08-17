@@ -131,8 +131,10 @@ fn test_roundtrip_all_daycounts() {
         DayCount::Act365L,
         DayCount::Thirty360,
         DayCount::ThirtyE360,
+        DayCount::Thirty360It,
         DayCount::ActAct,
         DayCount::ActActIsma,
+        DayCount::ActActAfb,
         DayCount::Bus252,
     ];
 

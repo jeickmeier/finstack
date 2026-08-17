@@ -89,16 +89,16 @@ impl MetricGroup {
 
     fn metric_range(&self) -> (usize, usize) {
         match self {
-            MetricGroup::Pricing => (0, 27),
-            MetricGroup::Carry => (27, 38),
-            MetricGroup::Sensitivity => (38, 57),
-            MetricGroup::Greeks => (57, 81),
-            MetricGroup::Credit => (81, 98),
-            MetricGroup::Rates => (98, 126),
-            MetricGroup::Fx => (126, 133),
-            MetricGroup::Equity => (133, 151),
-            MetricGroup::StructuredCredit => (151, 180),
-            MetricGroup::Alternatives => (180, 206),
+            MetricGroup::Pricing => (0, 29),
+            MetricGroup::Carry => (29, 40),
+            MetricGroup::Sensitivity => (40, 59),
+            MetricGroup::Greeks => (59, 83),
+            MetricGroup::Credit => (83, 100),
+            MetricGroup::Rates => (100, 128),
+            MetricGroup::Fx => (128, 135),
+            MetricGroup::Equity => (135, 153),
+            MetricGroup::StructuredCredit => (153, 182),
+            MetricGroup::Alternatives => (182, 208),
         }
     }
 }

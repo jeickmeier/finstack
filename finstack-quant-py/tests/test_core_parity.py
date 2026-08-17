@@ -21,6 +21,7 @@ from finstack_quant.core.dates import (
     SifmaSettlementClass,
     Tenor,
     TenorUnit,
+    available_calendars,
     build_periods,
     sifma_settlement_date,
     sifma_settlement_date_for_class,
@@ -32,10 +33,15 @@ from finstack_quant.core.market_data import (
     ForwardCurve,
     FxConversionPolicy,
     FxMatrix,
+    FxQuoteConvention,
     HazardCurve,
     InflationIndex,
     MarketContext,
     ScalarTimeSeries,
+    fx_market_pair,
+    fx_pair_convention,
+    fx_pip_size,
+    invert_fx_rate,
 )
 from finstack_quant.core.money import Money
 from finstack_quant.core.types import Bps, CreditRating, Percentage, Rate
@@ -256,6 +262,40 @@ class TestDayCountParity:
         metadata = HolidayCalendar("usny").metadata
         assert metadata is not None
         assert metadata.weekend_rule == "saturday_sunday"
+
+    def test_act_act_afb_and_thirty_360_it(self) -> None:
+        """New AFB and Italian conventions parse and match QuantLib formulas."""
+        assert DayCount.from_name("act_act_afb") == DayCount.ACT_ACT_AFB
+        assert DayCount.from_name("30_360_it") == DayCount.THIRTY_360_IT
+        afb = DayCount.ACT_ACT_AFB.year_fraction(date(2024, 2, 1), date(2024, 3, 1))
+        italian = DayCount.THIRTY_360_IT.year_fraction(date(2025, 1, 31), date(2025, 2, 28))
+        assert afb == pytest.approx(29.0 / 366.0, abs=1e-14)
+        assert italian == pytest.approx(30.0 / 360.0, abs=1e-14)
+
+    def test_available_calendars_includes_new_exchange_ids(self) -> None:
+        ids = available_calendars()
+        for calendar_id in ("eurex", "six", "tsx", "nse", "bse"):
+            assert calendar_id in ids
+
+
+class TestFxConventionParity:
+    """FX pair-convention helpers match Rust market order, pips, and invert."""
+
+    def test_fx_market_pair_and_convention(self) -> None:
+        base, quote = fx_market_pair("USD", "EUR")
+        assert [base.code, quote.code] == ["EUR", "USD"]
+        conv = fx_pair_convention("USD", "JPY")
+        assert conv.base.code == "USD"
+        assert conv.quote.code == "JPY"
+        assert str(conv.usd_quotation) == "indirect"
+        assert conv.usd_quotation == FxQuoteConvention.INDIRECT
+        assert conv.pip_size == 0.01
+        assert conv.spot_lag_days == 2
+
+    def test_fx_pip_size_and_invert(self) -> None:
+        assert fx_pip_size("USD", "JPY") == 0.01
+        assert fx_pip_size("EUR", "USD") == 0.0001
+        assert invert_fx_rate(1.10) == pytest.approx(1.0 / 1.10)
 
 
 class TestPeriodParity:

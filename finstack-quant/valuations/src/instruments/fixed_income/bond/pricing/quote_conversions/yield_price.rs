@@ -33,6 +33,7 @@ use rust_decimal::prelude::ToPrimitive;
 /// | Continuous | `exp(-y*t)` |
 /// | Street | `(1 + y/f)^(-f*t)` where f = frequency |
 /// | TreasuryActual | Simple for t < 1/f, then periodic |
+/// | Moosmuller | `1/(1 + y*w) * (1 + y/f)^(-(k-1))` (schedule-aware in pricing) |
 ///
 /// # Errors
 ///
@@ -180,6 +181,19 @@ pub fn df_from_yield(
                 }
             }
         }
+        YieldCompounding::Moosmuller => {
+            // Time-based Moosmüller: the fractional period at the start is `w`
+            // and the remaining whole coupon periods are `k-1`. On a period
+            // boundary (`t` is a multiple of `1/m`) this collapses to Street:
+            // `w = 1/m` and `DF = (1 + y/m)^(-m*t)`.
+            let m = periods_per_year(bond_frequency)?.max(1.0);
+            let n_full = (t * m).floor();
+            let mut w = t - n_full / m;
+            if w <= 1e-12 {
+                w = 1.0 / m;
+            }
+            df_moosmuller_with_first_period(ytm, t, m, w)?
+        }
     })
 }
 
@@ -222,6 +236,43 @@ pub(super) fn df_treasury_actual_with_first_period(
     Ok(df_stub * periodic_base.powf(-m * remaining))
 }
 
+/// Moosmüller discount factor with a schedule-flagged first-period length `w`.
+///
+/// ```text
+/// DF_1 = 1 / (1 + y * w)
+/// DF_k = 1 / (1 + y * w) * (1 + y / f)^{1-k}   for k ≥ 2
+/// ```
+///
+/// `w` is the year fraction from settlement to the next coupon and `f` is `m`.
+/// Subsequent coupon counts are inferred as `round((t - w) * m)`.
+pub(super) fn df_moosmuller_with_first_period(
+    ytm: f64,
+    t: f64,
+    m: f64,
+    first_period_len: f64,
+) -> finstack_quant_core::Result<f64> {
+    let w = first_period_len;
+    let simple_denom = 1.0 + ytm * w;
+    if simple_denom <= 0.0 {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "Moosmüller simple-interest denom (1 + y*w) = {simple_denom} is non-positive for ytm={ytm}, w={w}"
+        )));
+    }
+    let df_simple = 1.0 / simple_denom;
+    if t <= first_period_len + 1e-12 {
+        return Ok(df_simple);
+    }
+
+    let periodic_base = 1.0 + ytm / m;
+    if periodic_base <= 0.0 {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "Moosmüller periodic base (1 + y/m) = {periodic_base} is non-positive for ytm={ytm}, m={m}"
+        )));
+    }
+    let k_minus_1 = ((t - first_period_len) * m).round().max(0.0);
+    Ok(df_simple * periodic_base.powf(-k_minus_1))
+}
+
 /// Price from yield using explicit day count and frequency (no `Bond` borrow required).
 ///
 /// For the [`YieldCompounding::TreasuryActual`] convention the first (potentially
@@ -259,9 +310,12 @@ pub fn price_from_ytm_compounded_params(
         ..DayCountContext::default()
     };
 
-    // Schedule-aware first-period length for the TreasuryActual stub: the
-    // year-fraction from `as_of` to the first cashflow strictly after `as_of`.
-    let treasury_first_period = if matches!(comp, YieldCompounding::TreasuryActual) {
+    // Schedule-aware first-period length for TreasuryActual / Moosmüller:
+    // the year-fraction from `as_of` to the first cashflow strictly after `as_of`.
+    let schedule_first_period = if matches!(
+        comp,
+        YieldCompounding::TreasuryActual | YieldCompounding::Moosmuller
+    ) {
         let mut first: Option<f64> = None;
         for &(date, _) in flows {
             if date <= as_of {
@@ -279,16 +333,27 @@ pub fn price_from_ytm_compounded_params(
     };
 
     let mut pv = NeumaierAccumulator::new();
+    let mut moosmuller_k: u32 = 0;
+    let mut moosmuller_date: Option<Date> = None;
     for &(date, amount) in flows {
         if date <= as_of {
             continue;
         }
         let t = day_count.year_fraction(as_of, date, dc_ctx)?;
         if t > 0.0 {
-            let df = match (comp, treasury_first_period) {
+            let df = match (comp, schedule_first_period) {
                 (YieldCompounding::TreasuryActual, Some(first_period_len)) => {
                     let m = periods_per_year(frequency)?.max(1.0);
                     df_treasury_actual_with_first_period(ytm, t, m, first_period_len)?
+                }
+                (YieldCompounding::Moosmuller, Some(w)) => {
+                    // Coupon + redemption on the same payment date share `k`.
+                    if moosmuller_date != Some(date) {
+                        moosmuller_k = moosmuller_k.saturating_add(1);
+                        moosmuller_date = Some(date);
+                    }
+                    let m = periods_per_year(frequency)?.max(1.0);
+                    moosmuller_df_for_coupon(ytm, m, w, moosmuller_k)?
                 }
                 _ => df_from_yield(ytm, t, comp, frequency)?,
             };
@@ -296,6 +361,26 @@ pub fn price_from_ytm_compounded_params(
         }
     }
     Ok(pv.total())
+}
+
+fn moosmuller_df_for_coupon(ytm: f64, m: f64, w: f64, k: u32) -> finstack_quant_core::Result<f64> {
+    let simple_denom = 1.0 + ytm * w;
+    if simple_denom <= 0.0 {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "Moosmüller simple-interest denom (1 + y*w) = {simple_denom} is non-positive for ytm={ytm}, w={w}"
+        )));
+    }
+    let df_simple = 1.0 / simple_denom;
+    if k <= 1 {
+        return Ok(df_simple);
+    }
+    let periodic_base = 1.0 + ytm / m;
+    if periodic_base <= 0.0 {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "Moosmüller periodic base (1 + y/m) = {periodic_base} is non-positive for ytm={ytm}, m={m}"
+        )));
+    }
+    Ok(df_simple * periodic_base.powf(-f64::from(k.saturating_sub(1))))
 }
 
 /// Price from ytm compounded.
@@ -342,6 +427,63 @@ pub fn price_from_ytm(
     ytm: f64,
 ) -> finstack_quant_core::Result<f64> {
     price_from_ytm_compounded(bond, flows, as_of, ytm, YieldCompounding::Street)
+}
+
+/// Dirty price in currency from a Japanese simple yield (単利).
+///
+/// Closed form for a **bullet fixed-rate** bond, using ACT/365F remaining life
+/// and the contractual annual coupon rate:
+///
+/// ```text
+/// P = 100 * (1 + C * n) / (1 + y * n)
+/// dirty = P / 100 * notional
+/// ```
+///
+/// This is not a discount-factor convention and must not be used as
+/// [`df_from_yield`] compounding.
+///
+/// # Arguments
+///
+/// * `bond` - Bullet fixed-rate bond supplying the annual coupon rate,
+///   notional, and contractual maturity used for remaining life `n`.
+/// * `quote_date` - Settlement/quote date from which ACT/365F remaining life
+///   is measured to `bond.maturity`.
+/// * `simple_yield` - Tokyo simple yield as a decimal (e.g. `0.02` for 2%).
+pub(crate) fn price_from_japanese_simple_yield(
+    bond: &Bond,
+    quote_date: Date,
+    simple_yield: f64,
+) -> finstack_quant_core::Result<f64> {
+    let crate::instruments::fixed_income::bond::CashflowSpec::Fixed(spec) = &bond.cashflow_spec
+    else {
+        return Err(finstack_quant_core::Error::from(
+            finstack_quant_core::InputError::Invalid,
+        ));
+    };
+    let coupon = spec.rate.to_f64().unwrap_or(0.0);
+    let n = finstack_quant_core::dates::DayCount::Act365F.year_fraction(
+        quote_date,
+        bond.maturity,
+        DayCountContext::default(),
+    )?;
+    if n <= 0.0 {
+        return Err(finstack_quant_core::Error::Validation(
+            "Japanese simple yield requires positive ACT/365F remaining life".to_string(),
+        ));
+    }
+    let denom = 1.0 + simple_yield * n;
+    if denom <= 0.0 {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "Japanese simple yield denominator (1 + y*n) = {denom} is non-positive for y={simple_yield}, n={n}"
+        )));
+    }
+    let dirty_pct = 100.0 * (1.0 + coupon * n) / denom;
+    if dirty_pct <= 0.0 {
+        return Err(finstack_quant_core::Error::from(
+            finstack_quant_core::InputError::Invalid,
+        ));
+    }
+    Ok(dirty_pct / 100.0 * bond.notional.amount())
 }
 
 /// Compute outstanding principal at a given date from the cashflow schedule.

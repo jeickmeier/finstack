@@ -10,6 +10,8 @@
 //! - **Dirty Price**: Clean price plus accrued interest
 //! - **Yield to Maturity (YTM)**: Internal rate of return
 //! - **Yield to Worst (YTW)**: Minimum yield across call/put/maturity paths
+//! - **Japanese simple yield**: Tokyo 単利 closed form (`japanese_simple_yield`)
+//! - **Moosmüller YTM**: Simple first period, then periodic (`moosmuller_ytm`)
 //!
 //! ## Risk Metrics
 //! - **Macaulay Duration**: Weighted average time to cashflows
@@ -86,7 +88,8 @@ pub use price_yield_spread::{
 };
 pub(crate) use price_yield_spread::{
     BondVegaCalculator, CleanPriceCalculator, DirtyPriceCalculator, EmbeddedOptionValueCalculator,
-    ISpreadCalculator, OasCalculator, YtmCalculator, YtwCalculator,
+    ISpreadCalculator, JapaneseSimpleYieldCalculator, MoosmullerYtmCalculator, OasCalculator,
+    YtmCalculator, YtwCalculator,
 };
 pub(crate) use spread_duration::BondSpreadDurationCalculator;
 pub(crate) use wal::BondWalCalculator;
@@ -189,6 +192,8 @@ pub(crate) fn register_bond_metrics(registry: &mut crate::metrics::MetricRegistr
             (CleanPrice, CleanPriceCalculator),
             (Ytm, YtmCalculator),
             (Ytw, YtwCalculator),
+            (JapaneseSimpleYield, JapaneseSimpleYieldCalculator),
+            (MoosmullerYtm, MoosmullerYtmCalculator),
 
             (DurationMac, MacaulayDurationCalculator),
             (DurationMod, ModifiedDurationCalculator),

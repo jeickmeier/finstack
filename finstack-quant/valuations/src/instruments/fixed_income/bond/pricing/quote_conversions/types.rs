@@ -29,6 +29,12 @@ pub enum BondQuoteInput {
     AswMarket(f64),
     /// I-spread (decimal).
     ISpread(f64),
+    /// Japanese simple yield (単利, decimal).
+    ///
+    /// Closed-form Tokyo quote: remaining ACT/365F life versus dirty price as
+    /// a percent of par. This is **not** a discount-factor convention and does
+    /// not alter Street [`BondQuoteInput::Ytm`].
+    JapaneseSimpleYield(f64),
 }
 
 /// Full quote set produced by the quote engine.
@@ -59,6 +65,10 @@ pub struct BondQuoteSet {
     pub asw_market: Option<f64>,
     /// I-spread (decimal), if applicable.
     pub i_spread: Option<f64>,
+    /// Japanese simple yield (単利, decimal), if applicable.
+    pub japanese_simple_yield: Option<f64>,
+    /// Moosmüller yield to maturity (decimal), if applicable.
+    pub moosmuller_ytm: Option<f64>,
 }
 
 /// Yield Compounding enumeration.
@@ -122,4 +132,18 @@ pub enum YieldCompounding {
     /// irregular first coupons that don't align with the standard frequency (e.g., a
     /// long-first stub spanning 8 months on a semi-annual bond).
     TreasuryActual,
+
+    /// Moosmüller: simple interest to the next coupon, then periodic compounding.
+    ///
+    /// ```text
+    /// PV = 1/(1 + y*w) * [CF_1 + Σ_{k≥2} CF_k / (1 + y/f)^{k-1}]
+    /// ```
+    ///
+    /// `w` is the year fraction from settlement to the next coupon (bond day
+    /// count) and `f` is coupon frequency. Used by the `moosmuller_ytm` metric.
+    /// Street `ytm` is unchanged.
+    ///
+    /// On a coupon date `w = 1/f`, so the simple factor is absorbed into
+    /// periodic compounding and the discount factors match [`Self::Street`].
+    Moosmuller,
 }

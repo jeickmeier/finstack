@@ -980,6 +980,7 @@ mod tests {
             InstrumentPricingOverrides::default().with_quoted_discount_margin(0.008),
             InstrumentPricingOverrides::default().with_quoted_i_spread(0.004),
             InstrumentPricingOverrides::default().with_quoted_asw_market(0.005),
+            InstrumentPricingOverrides::default().with_quoted_japanese_simple_yield(0.02),
         ] {
             assert!(overrides.validate().is_ok());
         }

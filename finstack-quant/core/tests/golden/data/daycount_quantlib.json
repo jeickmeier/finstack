@@ -1,7 +1,7 @@
 {
   "meta": {
     "suite_id": "daycount_quantlib_parity",
-    "description": "Day count convention tests validated against QuantLib output. Covers 30/360 US (SIA-NASD PSA / QuantLib Thirty360::USA), 30E/360 (Eurobond), Act/Act ISDA, and Act/365L (ICMA Rule 251, not AFB).",
+    "description": "Day count convention tests validated against QuantLib output. Covers 30/360 US (SIA-NASD PSA / QuantLib Thirty360::USA), 30E/360 (Eurobond), 30/360 Italian, Act/Act ISDA, Act/Act AFB, and Act/365L (ICMA Rule 251).",
     "reference_source": {
       "name": "QuantLib",
       "version": "1.32",
@@ -325,6 +325,68 @@
         "tolerance": 1e-12
       },
       "notes": "Full monthly period = 1/12 ≈ 0.0833"
+    },
+    {
+      "id": "act_act_afb_short_leap_february",
+      "description": "ACT/ACT AFB: Feb 1 to Mar 1 in leap year 2024. Remainder only; Feb 29 in [start, end) → 29/366.",
+      "convention": "act_act_afb",
+      "start_date": "2024-02-01",
+      "end_date": "2024-03-01",
+      "expected": {
+        "year_fraction": 0.07923497267759563,
+        "tolerance": 1e-14
+      },
+      "notes": "QuantLib ActualActual::AFB. 29 actual days, denominator 366 because 2024-02-29 lies in [2024-02-01, 2024-03-01)."
+    },
+    {
+      "id": "act_act_afb_short_non_leap_february",
+      "description": "ACT/ACT AFB: Feb 1 to Mar 1 in non-leap year 2025. Remainder only; no Feb 29 → 28/365.",
+      "convention": "act_act_afb",
+      "start_date": "2025-02-01",
+      "end_date": "2025-03-01",
+      "expected": {
+        "year_fraction": 0.07671232876712329,
+        "tolerance": 1e-14
+      },
+      "notes": "QuantLib ActualActual::AFB. 28 actual days / 365."
+    },
+    {
+      "id": "act_act_afb_multi_year_whole_year_walk",
+      "description": "ACT/ACT AFB: 2023-03-15 to 2025-09-15. Two backwards whole-year steps plus 184/365 remainder.",
+      "convention": "act_act_afb",
+      "start_date": "2023-03-15",
+      "end_date": "2025-09-15",
+      "expected": {
+        "year_fraction": 2.504109589041096,
+        "tolerance": 1e-14
+      },
+      "notes": "Walk end backwards: 2024-09-15 and 2023-09-15 accepted. Remainder [2023-03-15, 2023-09-15) = 184 days, no Feb 29, den=365."
+    },
+    {
+      "id": "thirty360_italian_jan31_to_feb28",
+      "description": "30/360 Italian: Jan 31 to Feb 28 2025. D1=31→30, Feb 28>27 → D2=30 → 30/360.",
+      "convention": "30_360_it",
+      "start_date": "2025-01-31",
+      "end_date": "2025-02-28",
+      "expected": {
+        "days_30_360": 30,
+        "year_fraction": 0.08333333333333333,
+        "tolerance": 1e-14
+      },
+      "notes": "QuantLib Thirty360::Italian. Distinct from 30E/360 (D2 stays 28) and US SIA (Feb EOM only when both ends are Feb EOM)."
+    },
+    {
+      "id": "thirty360_italian_leap_feb29_to_mar31",
+      "description": "30/360 Italian: Feb 29 to Mar 31 2024. Feb 29>27 → D1=30, D2=31→30 → 30/360.",
+      "convention": "30_360_it",
+      "start_date": "2024-02-29",
+      "end_date": "2024-03-31",
+      "expected": {
+        "days_30_360": 30,
+        "year_fraction": 0.08333333333333333,
+        "tolerance": 1e-14
+      },
+      "notes": "QuantLib Thirty360::Italian leap-year February rule."
     }
   ]
 }

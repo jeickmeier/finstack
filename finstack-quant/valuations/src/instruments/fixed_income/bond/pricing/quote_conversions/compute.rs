@@ -3,7 +3,7 @@ use super::spread_price::{
     price_from_z_spread,
 };
 use super::types::{BondQuoteInput, BondQuoteSet};
-use super::yield_price::price_from_ytm;
+use super::yield_price::{price_from_japanese_simple_yield, price_from_ytm};
 use crate::constants::numerical::ZERO_TOLERANCE;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::fixed_income::bond::pricing::settlement::QuoteDateContext;
@@ -28,6 +28,7 @@ pub(crate) fn clear_price_driving_overrides(bond: &mut Bond) {
     quotes.quoted_discount_margin = None;
     quotes.quoted_i_spread = None;
     quotes.quoted_asw_market = None;
+    quotes.quoted_japanese_simple_yield = None;
 }
 
 /// Convert between price, yield, and spread metrics for a bond.
@@ -103,6 +104,8 @@ pub fn compute_quotes(
             asw_par: None,
             asw_market: None,
             i_spread: None,
+            japanese_simple_yield: None,
+            moosmuller_ytm: None,
         });
     }
 
@@ -124,6 +127,7 @@ pub fn compute_quotes(
             BondQuoteInput::Oas(v) => quotes.quoted_oas = Some(v),
             BondQuoteInput::AswMarket(v) => quotes.quoted_asw_market = Some(v),
             BondQuoteInput::ISpread(v) => quotes.quoted_i_spread = Some(v),
+            BondQuoteInput::JapaneseSimpleYield(v) => quotes.quoted_japanese_simple_yield = Some(v),
         }
     }
 
@@ -170,6 +174,8 @@ pub fn compute_quotes(
         MetricId::ASWPar,
         MetricId::ASWMarket,
         MetricId::ISpread,
+        MetricId::JapaneseSimpleYield,
+        MetricId::MoosmullerYtm,
     ];
 
     // Some quote metrics are not applicable to all bond types (e.g. FRN vs fixed),
@@ -194,6 +200,8 @@ pub fn compute_quotes(
     let asw_par = ctx.computed.get(&MetricId::ASWPar).copied();
     let asw_market = ctx.computed.get(&MetricId::ASWMarket).copied();
     let i_spread = ctx.computed.get(&MetricId::ISpread).copied();
+    let japanese_simple_yield = ctx.computed.get(&MetricId::JapaneseSimpleYield).copied();
+    let moosmuller_ytm = ctx.computed.get(&MetricId::MoosmullerYtm).copied();
 
     Ok(BondQuoteSet {
         clean_price_currency,
@@ -207,6 +215,8 @@ pub fn compute_quotes(
         asw_par,
         asw_market,
         i_spread,
+        japanese_simple_yield,
+        moosmuller_ytm,
     })
 }
 
@@ -223,6 +233,7 @@ pub fn compute_quotes(
 /// 7. `quoted_discount_margin` → [`price_from_dm`]
 /// 8. `quoted_i_spread` → par-swap-rate inversion + [`price_from_ytm`]
 /// 9. `quoted_asw_market` → ASW market-convention inversion
+/// 10. `quoted_japanese_simple_yield` → closed-form Japanese simple dirty price
 ///
 /// Returns `Ok(None)` when no price-driving override is set so the caller can
 /// fall through to model pricing.
@@ -245,6 +256,7 @@ pub(crate) fn price_from_quote_overrides(
         && quotes.quoted_discount_margin.is_none()
         && quotes.quoted_i_spread.is_none()
         && quotes.quoted_asw_market.is_none()
+        && quotes.quoted_japanese_simple_yield.is_none()
     {
         return Ok(None);
     }
@@ -317,6 +329,13 @@ pub(crate) fn price_from_quote_overrides(
             curves,
             quote_ctx.quote_date,
             asw,
+        )?));
+    }
+    if let Some(simple_yield) = quotes.quoted_japanese_simple_yield {
+        return Ok(Some(price_from_japanese_simple_yield(
+            bond,
+            quote_ctx.quote_date,
+            simple_yield,
         )?));
     }
 

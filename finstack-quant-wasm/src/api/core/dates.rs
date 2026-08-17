@@ -132,6 +132,8 @@ impl JsDayCountContext {
 /// - `30e_360_isda` → `DayCount.thirtyE360Isda`
 /// - `act_act` (ISDA) → `DayCount.actAct`
 /// - `act_act_isma` (ICMA) → `DayCount.actActIsma`
+/// - `act_act_afb` (AFB / Actual/Actual Euro) → `DayCount.actActAfb`
+/// - `30_360_it` (Italian) → `DayCount.thirty360It`
 /// - `bus_252` → `DayCount.bus252`
 ///
 /// @example
@@ -229,6 +231,30 @@ impl JsDayCount {
     pub fn act_act_isma() -> JsDayCount {
         JsDayCount {
             inner: RustDayCount::ActActIsma,
+        }
+    }
+
+    /// Actual/Actual AFB (Actual/Actual Euro).
+    ///
+    /// Walks whole years backwards from the end date (QuantLib
+    /// `ActualActual::AFB`). A year-step landing on 28 February of a leap
+    /// year is bumped to 29 February. The residual uses denominator 366 if
+    /// 29 February lies in `[start, residual_end)`, else 365.
+    #[wasm_bindgen(js_name = actActAfb)]
+    pub fn act_act_afb() -> JsDayCount {
+        JsDayCount {
+            inner: RustDayCount::ActActAfb,
+        }
+    }
+
+    /// 30/360 Italian.
+    ///
+    /// Day 31 becomes 30, and any February day after the 27th becomes 30
+    /// (QuantLib `Thirty360::Italian`). Distinct from US SIA and 30E/360.
+    #[wasm_bindgen(js_name = thirty360It)]
+    pub fn thirty360_it() -> JsDayCount {
+        JsDayCount {
+            inner: RustDayCount::Thirty360It,
         }
     }
 
@@ -558,6 +584,10 @@ mod tests {
         assert_eq!(day_count.to_string(), "act_act");
         let day_count = JsDayCount::act_act_isma();
         assert_eq!(day_count.to_string(), "act_act_isma");
+        let day_count = JsDayCount::act_act_afb();
+        assert_eq!(day_count.to_string(), "act_act_afb");
+        let day_count = JsDayCount::thirty360_it();
+        assert_eq!(day_count.to_string(), "30_360_it");
         let day_count = JsDayCount::bus252();
         assert_eq!(day_count.to_string(), "bus_252");
     }

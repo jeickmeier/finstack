@@ -533,6 +533,11 @@ fn core_daycount_dts_exposes_context_for_context_dependent_conventions() {
         day_count_ctor,
         "thirtyE360Isda(): DayCount;"
     ));
+    assert!(contains_signature(day_count_ctor, "actActAfb(): DayCount;"));
+    assert!(contains_signature(
+        day_count_ctor,
+        "thirty360It(): DayCount;"
+    ));
     let day_count = interface_block(&dts, "DayCount ");
     assert!(contains_signature(
         day_count,
@@ -969,6 +974,60 @@ fn core_market_data_dts_exposes_fx_surface_and_rate_result() {
     assert!(contains_signature(
         day_count_constructor,
         "act365l(): DayCount;"
+    ));
+    assert!(contains_signature(
+        day_count_constructor,
+        "actActAfb(): DayCount;"
+    ));
+    assert!(contains_signature(
+        day_count_constructor,
+        "thirty360It(): DayCount;"
+    ));
+
+    assert!(dts.contains("export interface FxQuoteConvention"));
+    assert!(dts.contains("export interface FxPairConvention"));
+    let quote_ctor = interface_block(&dts, "FxQuoteConventionConstructor");
+    assert!(contains_signature(quote_ctor, "direct(): FxQuoteConvention;"));
+    assert!(contains_signature(
+        quote_ctor,
+        "indirect(): FxQuoteConvention;"
+    ));
+    assert!(contains_signature(
+        quote_ctor,
+        "fromName(name: string): FxQuoteConvention;"
+    ));
+    let pair = interface_block(&dts, "FxPairConvention ");
+    assert!(contains_signature(pair, "readonly base: Currency;"));
+    assert!(contains_signature(pair, "readonly quote: Currency;"));
+    assert!(contains_signature(
+        pair,
+        "readonly usdQuotation: FxQuoteConvention;"
+    ));
+    assert!(contains_signature(pair, "readonly pipSize: number;"));
+    assert!(contains_signature(pair, "readonly spotLagDays: number;"));
+    assert!(contains_signature(
+        core_ns,
+        "FxQuoteConvention: FxQuoteConventionConstructor;"
+    ));
+    assert!(contains_signature(
+        core_ns,
+        "FxPairConvention: FxPairConventionConstructor;"
+    ));
+    assert!(contains_signature(
+        core_ns,
+        "fxMarketPair(a: string, b: string): Currency[];"
+    ));
+    assert!(contains_signature(
+        core_ns,
+        "fxPairConvention(base: string, quote: string): FxPairConvention;"
+    ));
+    assert!(contains_signature(
+        core_ns,
+        "fxPipSize(base: string, quote: string): number;"
+    ));
+    assert!(contains_signature(
+        core_ns,
+        "invertFxRate(rate: number): number;"
     ));
 }
 

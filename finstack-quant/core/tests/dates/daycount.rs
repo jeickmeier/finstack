@@ -331,6 +331,51 @@ fn thirty_e360_dec31_to_jan31() {
     );
 }
 
+// 30/360 Italian (QuantLib Thirty360::Italian)
+
+const ITALIAN_TOL: f64 = 1e-14;
+
+#[test]
+fn thirty360_italian_jan31_to_feb28_vs_european_and_us_sia() {
+    // Italian: D1=31→30, Feb 28 > 27 → D2=30 → 30 days.
+    // European: D2 stays 28 (no Feb>27 rule) → 28 days.
+    // US SIA: D1=31→30, Feb EOM only when both ends are Feb EOM → D2 stays 28.
+    let start = d(2025, 1, 31);
+    let end = d(2025, 2, 28);
+    let ctx = DayCountContext::default();
+
+    let italian = DayCount::Thirty360It
+        .year_fraction(start, end, ctx)
+        .unwrap();
+    let european = DayCount::ThirtyE360.year_fraction(start, end, ctx).unwrap();
+    let us_sia = DayCount::Thirty360.year_fraction(start, end, ctx).unwrap();
+
+    assert!(
+        (italian - 30.0 / 360.0).abs() < ITALIAN_TOL,
+        "Italian expected 30/360, got {italian}"
+    );
+    assert!(
+        (european - 28.0 / 360.0).abs() < ITALIAN_TOL,
+        "European expected 28/360, got {european}"
+    );
+    assert!(
+        (us_sia - 28.0 / 360.0).abs() < ITALIAN_TOL,
+        "US SIA expected 28/360, got {us_sia}"
+    );
+}
+
+#[test]
+fn thirty360_italian_leap_feb29_to_mar31() {
+    // Italian: Feb 29 > 27 → D1=30, D2=31→30 → 30 days.
+    let yf = DayCount::Thirty360It
+        .year_fraction(d(2024, 2, 29), d(2024, 3, 31), DayCountContext::default())
+        .unwrap();
+    assert!(
+        (yf - 30.0 / 360.0).abs() < ITALIAN_TOL,
+        "Italian leap expected 30/360, got {yf}"
+    );
+}
+
 // Act/365L (ICMA Rule 251)
 
 #[test]
@@ -467,6 +512,46 @@ fn actact_isda_applies_gregorian_century_leap_rule() {
 
     assert!((leap_century - 29.0 / 366.0).abs() < TOL);
     assert!((non_leap_century - 28.0 / 365.0).abs() < TOL);
+}
+
+// ACT/ACT AFB (QuantLib ActualActual::AFB / Actual/Actual Euro)
+
+const AFB_TOL: f64 = 1e-14;
+
+#[test]
+fn act_act_afb_short_leap_february() {
+    let yf = DayCount::ActActAfb
+        .year_fraction(d(2024, 2, 1), d(2024, 3, 1), DayCountContext::default())
+        .unwrap();
+    assert!(
+        (yf - 29.0 / 366.0).abs() < AFB_TOL,
+        "AFB leap short period expected 29/366, got {yf}"
+    );
+}
+
+#[test]
+fn act_act_afb_short_non_leap_february() {
+    let yf = DayCount::ActActAfb
+        .year_fraction(d(2025, 2, 1), d(2025, 3, 1), DayCountContext::default())
+        .unwrap();
+    assert!(
+        (yf - 28.0 / 365.0).abs() < AFB_TOL,
+        "AFB non-leap short period expected 28/365, got {yf}"
+    );
+}
+
+#[test]
+fn act_act_afb_multi_year_whole_year_walk() {
+    // Backwards from 2025-09-15: two accepted year steps to 2023-09-15,
+    // remainder [2023-03-15, 2023-09-15) = 184 days / 365.
+    let yf = DayCount::ActActAfb
+        .year_fraction(d(2023, 3, 15), d(2025, 9, 15), DayCountContext::default())
+        .unwrap();
+    let expected = 2.0 + 184.0 / 365.0;
+    assert!(
+        (yf - expected).abs() < AFB_TOL,
+        "AFB multi-year expected {expected}, got {yf}"
+    );
 }
 
 // Act/Act ISMA - Frequency-Dependent
